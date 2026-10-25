@@ -37,11 +37,11 @@ on:
         type: choice
         options: [disabled, synthetic-probe, reuse]
       alertmanager_mode:
-        description: Explicit AM stage; build remains held and publication requires separate operator dispatch
+        description: Explicit AM07 support/build stage; default disabled and publication requires separate operator dispatch
         required: true
         default: disabled
         type: choice
-        options: [disabled, module-qualify, build, publish]
+        options: [disabled, module-qualify, support-inspect, build, publish]
       alertmanager_qualification_run:
         description: Exact successful retained Alertmanager metadata run ID
         required: false
@@ -173,6 +173,313 @@ jobs:
           name: alertmanager-module-qualification-${{ github.run_id }}-${{ github.run_attempt }}
           path: build/docker-sources/alertmanager-module-evidence
           if-no-files-found: warn
+
+  alertmanager-input-inspection:
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      && inputs.alertmanager_mode == 'support-inspect'
+      && github.repository == 'Katsiarynakavaleuskaya/PulsePlate'
+      && github.ref == 'refs/heads/codex/python-setup-security-stabilization' && github.run_attempt == 1
+      && inputs.postgres_mode == 'disabled'
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    permissions:
+      contents: read
+      actions: read
+      packages: read
+    env:
+      ALERTMANAGER_TOOL_CONNECT_SECONDS: '15'
+      ALERTMANAGER_TOOL_FETCH_SECONDS: '180'
+      ALERTMANAGER_INPUT_INSPECT_SECONDS: '600'
+      ALERTMANAGER_SUPPORT_SECONDS: '1800'
+    steps:
+      - name: Checkout exact Alertmanager inspection implementation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Prepare exact existing Alertmanager support scanner and Buildx CLI
+        if: inputs.alertmanager_mode == 'support-inspect'
+        run: |
+          set -euo pipefail
+          umask 077
+          if ! [[ "$ALERTMANAGER_TOOL_CONNECT_SECONDS" =~ ^[1-9][0-9]{0,2}$ ]]; then exit 1; fi
+          if ! [[ "$ALERTMANAGER_TOOL_FETCH_SECONDS" =~ ^[1-9][0-9]{0,2}$ ]]; then exit 1; fi
+          test "$ALERTMANAGER_TOOL_CONNECT_SECONDS" -le "$ALERTMANAGER_TOOL_FETCH_SECONDS"
+          native_tools="$(mktemp -d "$RUNNER_TEMP/pulseplate-am-tools.XXXXXXXX")"
+          curl -q --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
+            --connect-timeout "$ALERTMANAGER_TOOL_CONNECT_SECONDS" --max-time "$ALERTMANAGER_TOOL_FETCH_SECONDS" \
+            --output "$native_tools/trivy.tar.gz" \
+            https://github.com/aquasecurity/trivy/releases/download/v0.74.0/trivy_0.74.0_Linux-64bit.tar.gz
+          printf '%s  %s\n' 2ae6fe3ee734b7fdf11335663e18c75ea12dccc76062f09f164a3b0f8be4371a "$native_tools/trivy.tar.gz" | sha256sum -c -
+          tar -xzf "$native_tools/trivy.tar.gz" -C "$native_tools" trivy
+          test -f "$native_tools/trivy"
+          test ! -L "$native_tools/trivy"
+          printf '%s  %s\n' d89bcc6510a267f11b773398cbf1be5520ce39f9e8b6633178c4487f05b7d791 "$native_tools/trivy" | sha256sum -c -
+          curl -q --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
+            --connect-timeout "$ALERTMANAGER_TOOL_CONNECT_SECONDS" --max-time "$ALERTMANAGER_TOOL_FETCH_SECONDS" \
+            --output "$native_tools/docker-buildx" \
+            https://github.com/docker/buildx/releases/download/v0.37.0/buildx-v0.37.0.linux-amd64
+          printf '%s  %s\n' ae43fa08c796b44efc86d7a63c55f73f7c35f3101188dea7bf93bcd6f99577ba "$native_tools/docker-buildx" | sha256sum -c -
+          chmod 0555 "$native_tools/trivy" "$native_tools/docker-buildx"
+          printf 'TRIVY_BIN=%s\nBUILDX_BIN=%s\n' "$native_tools/trivy" "$native_tools/docker-buildx" >> "$GITHUB_ENV"
+      - name: Inspect authenticated retained Alertmanager inputs and read existing package metadata
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INSPECTION_SOURCE: ${{ inputs.source_sha }}
+          QUALIFICATION_RUN: ${{ inputs.alertmanager_qualification_run }}
+          QUALIFICATION_ARTIFACT: ${{ inputs.alertmanager_qualification_artifact }}
+          QUALIFICATION_SOURCE: ${{ inputs.alertmanager_qualification_source }}
+          ALERTMANAGER_STAGE: ${{ inputs.alertmanager_mode }}
+        run: |
+          set -euo pipefail
+          umask 077
+          [[ "$INSPECTION_SOURCE" =~ ^[0-9a-f]{40}$ ]]
+          test "$INSPECTION_SOURCE" = "$GITHUB_SHA"
+          inspection_checkout="$(git rev-parse HEAD)"
+          test "$inspection_checkout" = "$INSPECTION_SOURCE"
+          qualification_args=()
+          if [[ -n "$QUALIFICATION_RUN$QUALIFICATION_ARTIFACT$QUALIFICATION_SOURCE" ]]; then
+            [[ "$QUALIFICATION_RUN" =~ ^[1-9][0-9]*$ ]] || exit 1
+            [[ "$QUALIFICATION_ARTIFACT" =~ ^[1-9][0-9]*$ ]] || exit 1
+            [[ "$QUALIFICATION_SOURCE" =~ ^[0-9a-f]{40}$ ]] || exit 1
+            qualification_args=(--alertmanager-qualification-run "$QUALIFICATION_RUN"
+              --alertmanager-qualification-artifact "$QUALIFICATION_ARTIFACT"
+              --alertmanager-qualification-source "$QUALIFICATION_SOURCE")
+          fi
+          test "$ALERTMANAGER_STAGE" = support-inspect
+          python3 -m scripts.ci.fetch_docker_source_artifacts --artifact alertmanager \
+            --alertmanager-stage "$ALERTMANAGER_STAGE" --source-sha "$INSPECTION_SOURCE" \
+            "${qualification_args[@]}" \
+            --output-dir "$RUNNER_TEMP/alertmanager-input-inspection-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+      - name: Retain Alertmanager input observations without compiler authority
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
+        with:
+          name: alertmanager-input-inspection-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/alertmanager-input-inspection-${{ github.run_id }}-${{ github.run_attempt }}/input-inspection.json
+            ${{ runner.temp }}/alertmanager-input-inspection-${{ github.run_id }}-${{ github.run_attempt }}/github-read-evidence/
+            ${{ runner.temp }}/alertmanager-input-inspection-${{ github.run_id }}-${{ github.run_attempt }}/native-support/
+          if-no-files-found: warn
+
+  alertmanager-candidate-build:
+    if: >-
+      github.event_name == 'workflow_dispatch' && inputs.alertmanager_mode == 'build'
+      && github.repository == 'Katsiarynakavaleuskaya/PulsePlate' && github.repository_id == '1043311030'
+      && github.ref == 'refs/heads/codex/python-setup-security-stabilization'
+      && github.run_attempt == 1 && inputs.postgres_mode == 'disabled'
+    runs-on: ubuntu-latest
+    timeout-minutes: 140
+    permissions:
+      contents: read
+      actions: read
+      packages: read
+    steps:
+      - name: Checkout exact AM executable proposal
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Validate existing credential-free AM native Python proxy
+        env:
+          PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
+          PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+        run: |
+          set -euo pipefail
+          : "${PULSEPLATE_PYTHON_INDEX_URL:?Existing credential-free package proxy is required.}"
+          case "$PULSEPLATE_PYTHON_INDEX_URL${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" in
+            *://*@*|*$'\n'*|*$'\r'*) exit 1 ;;
+          esac
+      - name: Select AM Python without dependency or SDK installation
+        uses: ./.github/actions/python-setup
+        timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_PYTHON_SETUP_MINUTES) }}
+        env:
+          PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
+          PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+          DEVPI_CI_USER: ''
+          DEVPI_CI_PASSWORD: ''
+        with:
+          python-version: '3.13.14'
+          skip-base-install: 'true'
+      - name: Install isolated AM host tools through the locked owner
+        timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_PYTHON_INSTALL_MINUTES) }}
+        env:
+          PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
+          PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+          DEVPI_CI_USER: ''
+          DEVPI_CI_PASSWORD: ''
+          PULSEPLATE_PSYCOPG_C_SDK: ''
+          PULSEPLATE_DOCKER_SINGLE_PASS_LOCKED_INSTALL: ''
+          PULSEPLATE_DOCKER_PIP_LAYER_CACHE: ''
+          PYTHONHOME: ''
+          PYTHONPATH: ''
+          PYTHONNOUSERSITE: '1'
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          set -euo pipefail
+          umask 077
+          : "${RUNNER_TEMP:?Owned AM Python directory is required.}"
+          : "${PULSEPLATE_PYTHON_INDEX_URL:?Existing credential-free package proxy is required.}"
+          am_root="$RUNNER_TEMP/pulseplate-am-python-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          test ! -e "$am_root"
+          test ! -L "$am_root"
+          python -I -m venv "$am_root"
+          mkdir "$am_root/installer-home"
+          am_python="$am_root/bin/python"
+          install_args=(
+            --python-executable "$am_python"
+            --requirements-file "$GITHUB_WORKSPACE/requirements-dev.txt"
+            --constraints-file "$GITHUB_WORKSPACE/constraints.txt"
+            --require-virtualenv --install-mode direct-proxy
+            --index-url "$PULSEPLATE_PYTHON_INDEX_URL"
+            --emergency-wheel-manifest "$GITHUB_WORKSPACE/scripts/ci/emergency_python_wheels.json"
+          )
+          if [[ -n "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" ]]; then
+            install_args+=(--trusted-host "$PULSEPLATE_PYTHON_TRUSTED_HOST")
+          fi
+          # The trusted venv seed bootstraps only the reviewed pip; profile acquisition follows verification.
+          HOME="$am_root/installer-home" "$am_python" -I "$GITHUB_WORKSPACE/scripts/ci/install_locked_python_requirements.py" \
+            "${install_args[@]}" --upgrade-pip-only --upgrade-pip-spec 'pip==26.2.2'
+          HOME="$am_root/installer-home" "$am_python" -I - <<'PY_PIP'
+          import hashlib
+          import importlib.metadata
+          import json
+          import sys
+          from pathlib import Path
+          import pip._vendor.certifi
+
+          version = importlib.metadata.version("pip")
+          trust = hashlib.sha256(Path(pip._vendor.certifi.where()).read_bytes()).hexdigest()
+          if sys.prefix == sys.base_prefix or sys.executable != str(Path(sys.prefix) / "bin/python"):
+              raise SystemExit("AM pip observation requires the selected isolated child")
+          if version != "26.2.2" or trust != "50f79f98dac192b20dbf73f35c56f0b0c557ab267ff5199d1117cc1180b70785":
+              raise SystemExit("AM child pip version or embedded trust store differs from the reviewed target")
+          print(json.dumps({"python": sys.executable, "prefix": sys.prefix,
+                            "pip": version, "embedded_trust_store_sha256": trust}))
+          PY_PIP
+          HOME="$am_root/installer-home" "$am_python" -I "$GITHUB_WORKSPACE/scripts/ci/install_locked_python_requirements.py" \
+            "${install_args[@]}" --preflight-only
+          HOME="$am_root/installer-home" "$am_python" -I "$GITHUB_WORKSPACE/scripts/ci/install_locked_python_requirements.py" \
+            "${install_args[@]}"
+      - name: Verify isolated AM host import capability before effects
+        id: am-python
+        timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_PYTHON_SMOKE_MINUTES) }}
+        env:
+          PYTHONHOME: ''
+          PYTHONPATH: ''
+          PYTHONNOUSERSITE: '1'
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          set -euo pipefail
+          umask 077
+          am_root="$RUNNER_TEMP/pulseplate-am-python-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          am_python="$am_root/bin/python"
+          "$am_python" - <<'PY'
+          import json
+          import site
+          import sys
+          from importlib import metadata
+          from pathlib import Path
+          import pytest
+          import yaml
+          from scripts.ci import fetch_docker_source_artifacts, prometheus_source_image
+          from scripts.ops import notify_premium_alias_checkpoint_failure
+          from tests import test_notify_premium_alias_checkpoint_failure as native
+          assert sys.version_info[:3] == (3, 13, 14)
+          assert sys.prefix != sys.base_prefix and sys.base_prefix not in site.PREFIXES
+          assert site.ENABLE_USER_SITE is False
+          assert sys.executable == str(Path(sys.prefix) / "bin/python")
+          assert metadata.version("pytest") == "9.1.1"
+          assert metadata.version("PyYAML") == "6.0.3"
+          assert yaml.safe_load("probe: true\n") == {"probe": True}
+          with pytest.MonkeyPatch.context():
+              pass
+          assert callable(fetch_docker_source_artifacts.main)
+          assert callable(prometheus_source_image.one_object)
+          assert callable(notify_premium_alias_checkpoint_failure.main)
+          assert callable(native.native_alertmanager_main)
+          # Read-only prerequisite observation; actual owned install/start is native evidence.
+          import os
+          import shutil
+          import subprocess
+          tools = {name: shutil.which(name) for name in
+                   ("sudo", "test", "install", "rm", "env", "systemctl", "busctl", "docker", "openssl")}
+          assert all(path and os.path.isabs(path) for path in tools.values())
+          assert Path("/run/systemd/system").is_dir()
+          subprocess.run(
+              [tools["sudo"], "-n", tools["test"], "-w", "/run/systemd/system"],
+              env={"PATH": os.defpath, "LANG": "C"}, stdin=subprocess.DEVNULL,
+              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+              timeout=5, check=True,
+          )
+          print(json.dumps({
+              "python": sys.version,
+              "executable": sys.executable,
+              "pip": metadata.version("pip"),
+              "pytest": metadata.version("pytest"),
+              "PyYAML": metadata.version("PyYAML"),
+              "packages": sorted((dist.metadata["Name"], dist.version)
+                                 for dist in metadata.distributions()),
+          }, sort_keys=True))
+          PY
+          "$am_python" -m tests.test_notify_premium_alias_checkpoint_failure --help
+          printf 'python=%s\n' "$am_python" >> "$GITHUB_OUTPUT"
+      - name: Execute separately dispatched AM pair and retained candidate acceptance
+        env:
+          AM_HOST_PYTHON: ${{ steps.am-python.outputs.python }}
+          PYTHONHOME: ''
+          PYTHONPATH: ''
+          PYTHONNOUSERSITE: '1'
+          PYTHONDONTWRITEBYTECODE: '1'
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          QUALIFICATION_RUN: ${{ inputs.alertmanager_qualification_run }}
+          QUALIFICATION_ARTIFACT: ${{ inputs.alertmanager_qualification_artifact }}
+          QUALIFICATION_SOURCE: ${{ inputs.alertmanager_qualification_source }}
+          SUPPORT_RUN: ${{ inputs.alertmanager_support_run }}
+          SUPPORT_ARTIFACT: ${{ inputs.alertmanager_support_artifact }}
+          SUPPORT_SOURCE: ${{ inputs.alertmanager_support_source }}
+        run: |
+          set -euo pipefail
+          umask 077
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || exit 1
+          qualification_args=()
+          if [[ -n "$QUALIFICATION_RUN$QUALIFICATION_ARTIFACT$QUALIFICATION_SOURCE" ]]; then
+            [[ "$QUALIFICATION_RUN" =~ ^[1-9][0-9]*$ ]] || exit 1
+            [[ "$QUALIFICATION_ARTIFACT" =~ ^[1-9][0-9]*$ ]] || exit 1
+            [[ "$QUALIFICATION_SOURCE" =~ ^[0-9a-f]{40}$ ]] || exit 1
+            qualification_args=(--alertmanager-qualification-run "$QUALIFICATION_RUN"
+              --alertmanager-qualification-artifact "$QUALIFICATION_ARTIFACT"
+              --alertmanager-qualification-source "$QUALIFICATION_SOURCE")
+          fi
+          support_args=()
+          if [[ -n "$SUPPORT_RUN$SUPPORT_ARTIFACT$SUPPORT_SOURCE" ]]; then
+            [[ "$SUPPORT_RUN" =~ ^[1-9][0-9]*$ ]] || exit 1
+            [[ "$SUPPORT_ARTIFACT" =~ ^[1-9][0-9]*$ ]] || exit 1
+            [[ "$SUPPORT_SOURCE" =~ ^[0-9a-f]{40}$ ]] || exit 1
+            support_args=(--alertmanager-support-run "$SUPPORT_RUN"
+              --alertmanager-support-artifact "$SUPPORT_ARTIFACT"
+              --alertmanager-support-source "$SUPPORT_SOURCE")
+          fi
+          test "$SOURCE_SHA" = "$GITHUB_SHA"
+          checkout_sha="$(git rev-parse HEAD)"
+          test "$checkout_sha" = "$SOURCE_SHA"
+          "$AM_HOST_PYTHON" -m scripts.ci.fetch_docker_source_artifacts --artifact alertmanager --alertmanager-stage build \
+            --source-sha "$SOURCE_SHA" \
+            "${qualification_args[@]}" "${support_args[@]}" \
+            --output-dir "$RUNNER_TEMP/alertmanager-candidate-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+      - name: Retain the actual AM candidate and raw execution observations
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
+        timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_UPLOAD_MINUTES) }}
+        with:
+          name: alertmanager-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/alertmanager-candidate-${{ github.run_id }}-${{ github.run_attempt }}/retained/
+          include-hidden-files: true
+          if-no-files-found: error
 
   alertmanager-retained-candidate:
     if: >-
@@ -1215,7 +1522,7 @@ jobs:
               if not helper.is_file() or stat.S_IMODE(helper.stat().st_mode) != 0o644:
                   raise SystemExit("Prometheus_control_mode_HOLD")
               raw = helper.read_bytes()
-              if len(raw) != 338536 or hashlib.sha256(raw).hexdigest() != "2b6edfa63f55b17cafdff100151b4b7cebef93a757fc3ab04b00eea77ca0ac6a":  # pragma: allowlist secret - public trusted control digest
+              if len(raw) != 350684 or hashlib.sha256(raw).hexdigest() != "74bfb41b44caf439eeb06723e2dea42831888bfbdbd0c21338d0a82810b59786":  # pragma: allowlist secret - public trusted control digest
                   raise SystemExit("Prometheus_control_bytes_HOLD")
               environment = {"PATH": "/usr/bin:/bin", "LANG": "C", "GIT_NO_REPLACE_OBJECTS": "1",
                              "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_COUNT": "0"}
@@ -1347,7 +1654,7 @@ jobs:
           if not helper.is_file() or stat.S_IMODE(helper.stat().st_mode) != 0o644:
               raise SystemExit("Prometheus_control_mode_HOLD")
           raw = helper.read_bytes()
-          if len(raw) != 338536 or hashlib.sha256(raw).hexdigest() != "2b6edfa63f55b17cafdff100151b4b7cebef93a757fc3ab04b00eea77ca0ac6a":  # pragma: allowlist secret - public trusted control digest
+          if len(raw) != 350684 or hashlib.sha256(raw).hexdigest() != "74bfb41b44caf439eeb06723e2dea42831888bfbdbd0c21338d0a82810b59786":  # pragma: allowlist secret - public trusted control digest
               raise SystemExit("Prometheus_control_bytes_HOLD")
           environment = {"PATH": "/usr/bin:/bin", "LANG": "C", "GIT_NO_REPLACE_OBJECTS": "1",
                          "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_COUNT": "0"}

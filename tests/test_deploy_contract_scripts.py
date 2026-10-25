@@ -11,8 +11,10 @@ import stat
 import subprocess
 import sys
 import tarfile
+import zipfile
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
@@ -147,11 +149,66 @@ def _synthetic_prometheus_manifest_text() -> str:
     return json.dumps(_synthetic_prometheus_manifest(), indent=2) + "\n"
 
 
+_HISTORICAL_AM_TEST_ROOT: Path | None = None
+
+
+def _historical_AM_source() -> bytes:
+    """Explicit historical selection fixture; production remains unconfigured/HOLD."""
+    raw = (REPO_ROOT / "scripts/ci/fetch_docker_source_artifacts.py").read_bytes()
+    assignment = b"_ALERT_ACCEPTED_CANDIDATE: dict[str, Any] | None = None"
+    assert raw.count(assignment) == 1
+    return raw.replace(
+        assignment, b"_ALERT_ACCEPTED_CANDIDATE: dict[str, Any] | None = _ALERT_HISTORICAL_C10"
+    )
+
+
+def _historical_AM_helper() -> Path:
+    assert _HISTORICAL_AM_TEST_ROOT is not None
+    path = _HISTORICAL_AM_TEST_ROOT / "fetch_docker_source_artifacts.py"
+    if not path.exists():
+        path.write_bytes(_historical_AM_source())
+    return path
+
+
+def _historical_deploy_script(relative: str) -> Path:
+    assert _HISTORICAL_AM_TEST_ROOT is not None
+    path = _HISTORICAL_AM_TEST_ROOT / Path(relative).name
+    if not path.exists():
+        raw = (REPO_ROOT / relative).read_text()
+        raw = re.sub(
+            r'ALERTMANAGER_CONTRACT_HELPER_SHA256="[0-9a-f]{64}"',
+            'ALERTMANAGER_CONTRACT_HELPER_SHA256="'
+            + hashlib.sha256(_historical_AM_source()).hexdigest()
+            + '"',
+            raw,
+        )
+        path.write_text(raw)
+        path.chmod(0o755)
+    return path
+
+
+@pytest.fixture(autouse=True)
+def historical_AM_selection_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Existing deployment cases exercise explicit C10 data, never a production fallback."""
+    root = tmp_path / "historical-AM-test-source"
+    root.mkdir()
+    monkeypatch.setattr(sys.modules[__name__], "_HISTORICAL_AM_TEST_ROOT", root)
+    monkeypatch.setattr(
+        alertmanager_source,
+        "_ALERT_ACCEPTED_CANDIDATE",
+        json.loads(json.dumps(alertmanager_source._ALERT_HISTORICAL_C10)),
+    )
+
+
 def _write_prometheus_helper(root: Path) -> None:
     for name in ("prometheus_source_image.py", "fetch_docker_source_artifacts.py"):
         target = root / "scripts/ci" / name
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes((REPO_ROOT / "scripts/ci" / name).read_bytes())
+        target.write_bytes(
+            _historical_AM_source()
+            if name == "fetch_docker_source_artifacts.py"
+            else (REPO_ROOT / "scripts/ci" / name).read_bytes()
+        )
         target.chmod(0o644)
 
 
@@ -503,7 +560,15 @@ def test_deploy_relative_directory_reaches_verified_helper_without_product_mutat
     shell = shutil.which("bash")
     assert shell is not None
     result = subprocess.run(
-        [shell, str(REPO_ROOT / caller), *arguments],
+        [
+            shell,
+            str(
+                _historical_deploy_script(caller)
+                if caller in ("scripts/deploy.sh", "scripts/deploy_production.sh")
+                else REPO_ROOT / caller
+            ),
+            *arguments,
+        ],
         env=env,
         cwd=cwd,
         capture_output=True,
@@ -529,7 +594,7 @@ def test_deploy_relative_directory_reaches_verified_helper_without_product_mutat
     else:
         assert result.returncode != 0
         assert "Duplicate required environment keys found" in result.stdout
-        assert "Invalid trusted Prometheus helper operand" not in result.stderr
+        assert "Invalid trusted contract helper operand" not in result.stderr
         assert calls == ["compose version"]
 
 
@@ -649,13 +714,11 @@ FAKE_PROMETHEUS_IMAGE_INSPECT_JSON = json.dumps(
 FAKE_ALERTMANAGER_IMAGE_INSPECT_JSON = json.dumps(
     [
         {
-            "Id": alertmanager_source._alertmanager_contract_subject()[1],
+            "Id": alertmanager_source._ALERT_HISTORICAL_C10["graph"]["config"]["digest"],
             "Os": "linux",
             "Architecture": "amd64",
             "RepoDigests": [ALERTMANAGER_RUNTIME_REF],
-            "RootFS": {
-                "Layers": alertmanager_source._ALERT_ACCEPTED_CANDIDATE["graph"]["diff_ids"]
-            },
+            "RootFS": {"Layers": alertmanager_source._ALERT_HISTORICAL_C10["graph"]["diff_ids"]},
         }
     ],
     separators=(",", ":"),
@@ -1103,7 +1166,7 @@ def test_postgres_pgvector_manifest_binds_reproducible_image_and_scan_contract()
     assert POSTGRES_RUNTIME_REF == (
         f"{manifest['repository']}:{manifest['tag']}@{manifest['platform_manifest_digest']}"
     )
-    staging_script = (REPO_ROOT / "scripts/deploy.sh").read_text(encoding="utf-8")
+    staging_script = (_historical_deploy_script("scripts/deploy.sh")).read_text(encoding="utf-8")
     assert f'if [ "$image_id" = "{manifest["config_digest"]}" ] || \\' in staging_script
     assert 'platform_image_id="${POSTGRES_RUNTIME_REF##*@}"' in staging_script
 
@@ -3433,7 +3496,7 @@ def _workflow_trap_prefix(step_name: str, *, suffix: str) -> str:
 
 
 def _staging_cleanup_program() -> str:
-    script = (REPO_ROOT / "scripts/deploy.sh").read_text(encoding="utf-8")
+    script = (_historical_deploy_script("scripts/deploy.sh")).read_text(encoding="utf-8")
     start = script.index("cleanup() {\n")
     end = script.index("\n}\ntrap cleanup EXIT", start) + len("\n}\n")
     return script[start:end] + 'trap cleanup EXIT\nexit "$TEST_PRIMARY_STATUS"\n'
@@ -3540,7 +3603,7 @@ def test_production_credential_cleanup_rejects_rm_failure_without_false_success(
     tmp_path: Path,
     failure_target: str,
 ) -> None:
-    script = (REPO_ROOT / "scripts/deploy_production.sh").read_text(encoding="utf-8")
+    script = (_historical_deploy_script("scripts/deploy_production.sh")).read_text(encoding="utf-8")
     start = script.index("cleanup_ghcr_credentials() {\n")
     end = script.index("\n}\n\nvalidate_regular_non_symlink_file", start) + len("\n}\n")
     function_source = script[start:end]
@@ -3609,7 +3672,7 @@ def test_production_shell_bundle_validation_cleanup_preserves_primary_status(
     rm_status: str,
     expected_status: int,
 ) -> None:
-    script = (REPO_ROOT / "scripts/deploy_production.sh").read_text(encoding="utf-8")
+    script = (_historical_deploy_script("scripts/deploy_production.sh")).read_text(encoding="utf-8")
     start = script.index("validate_shell_bundle_archive() {\n")
     end = script.index("\n}\n\nextract_shell_bundle_archive", start) + len("\n}\n")
     function_source = script[start:end]
@@ -3671,7 +3734,7 @@ def test_published_backup_helper_binding_rejects_post_publication_drift(
     variant: str,
     expected_returncode: int,
 ) -> None:
-    script = (REPO_ROOT / "scripts/deploy_production.sh").read_text(encoding="utf-8")
+    script = (_historical_deploy_script("scripts/deploy_production.sh")).read_text(encoding="utf-8")
     start = script.index("validate_published_backup_helper_binding() {\n")
     end = script.index("\n}\n\nvalidate_production_database_contract", start) + len("\n}\n")
     function_source = script[start:end]
@@ -4023,7 +4086,7 @@ def test_prometheus_cd_uses_authenticated_finite_consumer_and_retains_strict_sca
         names.index(name) for name in ordered_names
     )
     for program in (classifier["run"], consumer["run"]):
-        assert "338536" in program
+        assert "350684" in program
         assert (
             # pragma: allowlist nextline secret - public trusted control blob
             "175520fe70b30c885448b95718b25b27985d3f8c"
@@ -4167,9 +4230,9 @@ def _synthetic_fixed_prometheus_control(
             "175520fe70b30c885448b95718b25b27985d3f8c",
             blob,
         )
-        .replace("338536", str(len(raw)))
+        .replace("350684", str(len(raw)))
         .replace(
-            "2b6edfa63f55b17cafdff100151b4b7cebef93a757fc3ab04b00eea77ca0ac6a",  # pragma: allowlist secret - public protected helper digest
+            "74bfb41b44caf439eeb06723e2dea42831888bfbdbd0c21338d0a82810b59786",  # pragma: allowlist secret - public protected helper digest
             hashlib.sha256(raw).hexdigest(),
         )
         for program in programs
@@ -5196,7 +5259,7 @@ def test_staging_alertmanager_admission_rejects_forged_contract_before_product_m
         config.write_text(config_text, encoding="utf-8")
     result = subprocess.run(
         [
-            str(REPO_ROOT / "scripts/deploy.sh"),
+            str(_historical_deploy_script("scripts/deploy.sh")),
             "--preflight-only",
             "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
             "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64,
@@ -5221,7 +5284,7 @@ def test_staging_alertmanager_off_profile_needs_no_smtp_file(tmp_path: Path) -> 
     assert not (Path(env["PROJECT_DIR"]) / "secrets/alertmanager_smtp_key").exists()
     result = subprocess.run(
         [
-            str(REPO_ROOT / "scripts/deploy.sh"),
+            str(_historical_deploy_script("scripts/deploy.sh")),
             "--preflight-only",
             "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
             "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64,
@@ -5242,7 +5305,7 @@ def test_staging_selected_alertmanager_requires_smtp_metadata(
     env["COMPOSE_PROFILES"] = profiles
     result = subprocess.run(
         [
-            str(REPO_ROOT / "scripts/deploy.sh"),
+            str(_historical_deploy_script("scripts/deploy.sh")),
             "--preflight-only",
             "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
             "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64,
@@ -5272,7 +5335,7 @@ def test_staging_selected_alertmanager_accepts_compose_owned_readable_file(
     env["COMPOSE_PROFILES"] = profiles
     result = subprocess.run(
         [
-            str(REPO_ROOT / "scripts/deploy.sh"),
+            str(_historical_deploy_script("scripts/deploy.sh")),
             "--preflight-only",
             "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
             "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64,
@@ -5330,7 +5393,7 @@ def test_staging_alertmanager_complete_file_admission_rejects_drift_before_pull(
     path.write_text(original.replace(old, new, 1), encoding="utf-8")
     completed = subprocess.run(
         [
-            str(REPO_ROOT / "scripts/deploy.sh"),
+            str(_historical_deploy_script("scripts/deploy.sh")),
             "--preflight-only",
             "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
             "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64,
@@ -5413,7 +5476,7 @@ def test_staging_all_profile_alertmanager_security_denies_forged_service_or_netw
     env["STUB_PROMETHEUS_COMPOSE_JSON"] = json.dumps(payload)
     completed = subprocess.run(
         [
-            str(REPO_ROOT / "scripts/deploy.sh"),
+            str(_historical_deploy_script("scripts/deploy.sh")),
             "--preflight-only",
             "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
             "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64,
@@ -5440,7 +5503,7 @@ def test_staging_selected_alertmanager_key_must_be_nonempty(tmp_path: Path, prof
     env["COMPOSE_PROFILES"] = profiles
     completed = subprocess.run(
         [
-            str(REPO_ROOT / "scripts/deploy.sh"),
+            str(_historical_deploy_script("scripts/deploy.sh")),
             "--preflight-only",
             "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
             "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64,
@@ -5471,7 +5534,7 @@ def test_staging_selected_alertmanager_missing_image_fails_before_product_mutati
     env["STUB_ALERTMANAGER_IMAGE_ABSENT"] = "1"
     completed = subprocess.run(
         [
-            str(REPO_ROOT / "scripts/deploy.sh"),
+            str(_historical_deploy_script("scripts/deploy.sh")),
             "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
             "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64,
         ],
@@ -5785,7 +5848,7 @@ set -euo pipefail
     env["SHELL_BUNDLE_DIR"] = str(shell_bundle_dir)
 
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        [str(_historical_deploy_script("scripts/deploy_production.sh"))],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -5809,7 +5872,7 @@ def test_deploy_production_rejects_shell_bundle_without_reviewed_backup_helper(
     (shell_bundle_dir / "scripts" / "ops" / "postgres_backup.sh").unlink()
 
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        [str(_historical_deploy_script("scripts/deploy_production.sh")), "--preflight-only"],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -5863,7 +5926,7 @@ set -euo pipefail
     env["SHELL_BUNDLE_DIR"] = str(shell_bundle_dir)
 
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        [str(_historical_deploy_script("scripts/deploy_production.sh")), "--preflight-only"],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -6440,7 +6503,7 @@ def test_production_shell_bundle_rejects_invalid_rules_before_docker(
         rules_path.symlink_to(target)
 
     result = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        [str(_historical_deploy_script("scripts/deploy_production.sh")), "--preflight-only"],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -6476,7 +6539,7 @@ def test_production_bundle_rejects_invalid_alertmanager_source_before_docker(
         source.rename(target)
         source.symlink_to(target)
     result = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        [str(_historical_deploy_script("scripts/deploy_production.sh")), "--preflight-only"],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -6497,7 +6560,7 @@ def test_production_selected_alertmanager_requires_smtp_key_before_docker(
     )
     env["COMPOSE_PROFILES"] = profiles
     result = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        [str(_historical_deploy_script("scripts/deploy_production.sh")), "--preflight-only"],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -6522,7 +6585,7 @@ def test_production_selected_alertmanager_secret_metadata(tmp_path: Path, mode: 
     key.chmod(mode)
     env["COMPOSE_PROFILES"] = "alerting"
     result = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        [str(_historical_deploy_script("scripts/deploy_production.sh")), "--preflight-only"],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -6544,7 +6607,7 @@ def test_production_selected_alertmanager_key_must_be_nonempty(
     key.chmod(0o444)
     env["COMPOSE_PROFILES"] = profiles
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        [str(_historical_deploy_script("scripts/deploy_production.sh")), "--preflight-only"],
         cwd=REPO_ROOT,
         env=env,
         text=True,
@@ -6596,7 +6659,7 @@ def test_production_alertmanager_complete_file_admission_rejects_drift_before_pu
     assert old in original
     path.write_text(original.replace(old, new, 1), encoding="utf-8")
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        [str(_historical_deploy_script("scripts/deploy_production.sh")), "--preflight-only"],
         cwd=REPO_ROOT,
         env=env,
         text=True,
@@ -6679,7 +6742,7 @@ def test_production_all_profile_alertmanager_security_denies_forged_service_or_n
             service["secrets"] = [{"source": "alertmanager_smtp_key"}]
     env["STUB_PROMETHEUS_COMPOSE_JSON"] = json.dumps(payload)
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        [str(_historical_deploy_script("scripts/deploy_production.sh")), "--preflight-only"],
         cwd=REPO_ROOT,
         env=env,
         text=True,
@@ -6708,7 +6771,7 @@ def test_selected_accepted_alertmanager_is_date_independent_and_off_profile_inde
     if contour == "staging":
         env, log_file = _staging_deploy_fixture(tmp_path)
         key = Path(env["PROJECT_DIR"]) / "secrets/alertmanager_smtp_key"
-        source = REPO_ROOT / "scripts/deploy.sh"
+        source = _historical_deploy_script("scripts/deploy.sh")
         args = [
             "--preflight-only",
             "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
@@ -6719,7 +6782,7 @@ def test_selected_accepted_alertmanager_is_date_independent_and_off_profile_inde
             tmp_path, with_bundle=False
         )
         key = project_dir / "deploy/secrets/alertmanager_smtp_key"
-        source = REPO_ROOT / "scripts/deploy_production.sh"
+        source = _historical_deploy_script("scripts/deploy_production.sh")
         args = ["--preflight-only"]
     observed_date_script = _alertmanager_clock_bound_deploy(tmp_path, env, source, utc_instant)
     key.write_text("synthetic-only", encoding="ascii")
@@ -6759,7 +6822,7 @@ def _alertmanager_dependency_fixture(
         env, log_file = _staging_deploy_fixture(tmp_path)
         project_dir = Path(env["PROJECT_DIR"])
         argv = [
-            str(REPO_ROOT / "scripts/deploy.sh"),
+            str(_historical_deploy_script("scripts/deploy.sh")),
             "--preflight-only",
             "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
             "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64,
@@ -6782,7 +6845,7 @@ def _alertmanager_dependency_fixture(
             project_dir / "deploy/secrets/alertmanager_smtp_key"
         )
         env["STUB_PROMETHEUS_COMPOSE_JSON"] = json.dumps(payload)
-        argv = [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"]
+        argv = [str(_historical_deploy_script("scripts/deploy_production.sh")), "--preflight-only"]
     env["COMPOSE_PROFILES"] = ""
     return env, argv, log_file, project_dir
 
@@ -6892,7 +6955,7 @@ def test_alertmanager_email_canonical_bytes_pass_both_deploy_readers(
         )
         env["COMPOSE_PROFILES"] = ""
         source = (bundle or project) / "deploy/alertmanager/alertmanager.yml"
-        argv = [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"]
+        argv = [str(_historical_deploy_script("scripts/deploy_production.sh")), "--preflight-only"]
     assert source.read_bytes() == ALERTMANAGER_CONFIG_PATH.read_bytes()
     completed = subprocess.run(
         argv, cwd=REPO_ROOT, env=env, capture_output=True, text=True, check=False
@@ -6927,7 +6990,7 @@ def test_alertmanager_email_noncanonical_bytes_reject_before_product_effects(
             }
         )
         source = (bundle or project) / "deploy/alertmanager/alertmanager.yml"
-        argv = [str(REPO_ROOT / "scripts/deploy_production.sh")]
+        argv = [str(_historical_deploy_script("scripts/deploy_production.sh"))]
         installed_paths = (
             "deploy/docker-compose.production.yaml",
             "deploy/prometheus/prometheus.yml",
@@ -7201,7 +7264,7 @@ def test_production_incoming_alertmanager_dependency_rejects_before_contract_pub
         env.pop("SHELL_BUNDLE_ARCHIVE", None)
     try:
         completed = subprocess.run(
-            [str(REPO_ROOT / "scripts/deploy_production.sh")],
+            [str(_historical_deploy_script("scripts/deploy_production.sh"))],
             cwd=REPO_ROOT,
             env=env,
             capture_output=True,
@@ -7304,7 +7367,7 @@ def test_production_first_bundle_censuses_old_project_without_installed_alertman
         env["SHELL_BUNDLE_ARCHIVE"] = str(archive)
     try:
         completed = subprocess.run(
-            [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+            [str(_historical_deploy_script("scripts/deploy_production.sh")), "--preflight-only"],
             cwd=REPO_ROOT,
             env=env,
             capture_output=True,
@@ -7348,7 +7411,7 @@ def test_production_off_profile_census_only_running_alertmanager_enforces_expiry
     env.pop("COMPOSE_PROFILES", None)
     env["STUB_CENSUS_LOG"] = str(log_file)
     script = _alertmanager_clock_bound_deploy(
-        tmp_path, env, REPO_ROOT / "scripts/deploy_production.sh", utc_instant
+        tmp_path, env, _historical_deploy_script("scripts/deploy_production.sh"), utc_instant
     )
     if presence != "absent":
         env["STUB_ALERTMANAGER_PS_IDS"] = "e" * 64
@@ -7457,7 +7520,7 @@ def test_production_off_profile_census_fails_closed_before_product_mutation(
         env["STUB_COMPOSE_PROJECT_NAME"] = "Bad Name"
     env["STUB_ALERTMANAGER_INSPECT_JSON"] = json.dumps([record])
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        [str(_historical_deploy_script("scripts/deploy_production.sh")), "--preflight-only"],
         cwd=REPO_ROOT,
         env=env,
         text=True,
@@ -7490,7 +7553,7 @@ def test_production_empty_alertmanager_census_requires_canonical_project_identit
     if project_name is not None:
         env["STUB_COMPOSE_PROJECT_NAME"] = project_name
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        [str(_historical_deploy_script("scripts/deploy_production.sh")), "--preflight-only"],
         cwd=REPO_ROOT,
         env=env,
         text=True,
@@ -7559,7 +7622,7 @@ def test_production_compose_profiles_remain_caller_owned_across_sourced_env(
         key.chmod(0o444)
     observed = _capture_compose_profile_environment(env, tmp_path)
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        [str(_historical_deploy_script("scripts/deploy_production.sh")), "--preflight-only"],
         cwd=REPO_ROOT,
         env=env,
         text=True,
@@ -7606,7 +7669,7 @@ def test_staging_compose_profiles_export_caller_choice_before_compose(
     observed = _capture_compose_profile_environment(env, tmp_path)
     completed = subprocess.run(
         [
-            str(REPO_ROOT / "scripts/deploy.sh"),
+            str(_historical_deploy_script("scripts/deploy.sh")),
             "--preflight-only",
             "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
             "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64,
@@ -7639,7 +7702,7 @@ def test_production_alertmanager_rejects_extra_recipient_before_product_mutation
         encoding="utf-8",
     )
     result = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        [str(_historical_deploy_script("scripts/deploy_production.sh")), "--preflight-only"],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -7668,7 +7731,7 @@ def test_production_partial_alertmanager_publication_holds_then_readmits_exact_b
     tsdb_sentinel.parent.mkdir()
     tsdb_sentinel.write_text("keep-tsdb\n", encoding="utf-8")
     rejected = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        [str(_historical_deploy_script("scripts/deploy_production.sh")), "--preflight-only"],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -7689,7 +7752,7 @@ def test_production_partial_alertmanager_publication_holds_then_readmits_exact_b
     source = tmp_path / "readmitted-bundle"
     source.mkdir()
     _write_shell_bundle_contract(source)
-    script = (REPO_ROOT / "scripts/deploy_production.sh").read_text(encoding="utf-8")
+    script = (_historical_deploy_script("scripts/deploy_production.sh")).read_text(encoding="utf-8")
     start = script.index("contract_destination_transaction() {")
     end = script.index("\n}\n\nvalidate_contract_destinations_safely() {", start) + len("\n}\n")
     transaction = script[start:end]
@@ -7714,7 +7777,7 @@ def test_production_partial_alertmanager_publication_holds_then_readmits_exact_b
             (REPO_ROOT / "scripts/ci/prometheus_source_image.py").read_bytes()
         ).hexdigest(),
         "ALERTMANAGER_CONTRACT_HELPER_SHA256": hashlib.sha256(
-            (REPO_ROOT / "scripts/ci/fetch_docker_source_artifacts.py").read_bytes()
+            (_historical_AM_helper()).read_bytes()
         ).hexdigest(),
     }
     published = subprocess.run(
@@ -7734,7 +7797,7 @@ def test_production_partial_alertmanager_publication_holds_then_readmits_exact_b
     ).read_bytes() == ALERTMANAGER_IGNORE_PATH.read_bytes()
     assert list(project_dir.rglob(".pulseplate-*.tmp-*")) == []
     readmitted = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        [str(_historical_deploy_script("scripts/deploy_production.sh")), "--preflight-only"],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -7757,7 +7820,7 @@ def test_production_rejects_alertmanager_destination_symlink_before_publication(
     destination.unlink()
     destination.symlink_to(outside)
     result = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        [str(_historical_deploy_script("scripts/deploy_production.sh")), "--preflight-only"],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -7796,7 +7859,7 @@ def test_staging_deploy_rejects_noncanonical_prometheus_manifest_before_docker(
 
     completed = subprocess.run(
         [
-            str(REPO_ROOT / "scripts/deploy.sh"),
+            str(_historical_deploy_script("scripts/deploy.sh")),
             "--preflight-only",
             backend_ref,
             caddy_ref,
@@ -7840,7 +7903,7 @@ def test_staging_deploy_rejects_noncanonical_postgres_manifest_before_docker(
 
     completed = subprocess.run(
         [
-            str(REPO_ROOT / "scripts/deploy.sh"),
+            str(_historical_deploy_script("scripts/deploy.sh")),
             "--preflight-only",
             backend_ref,
             caddy_ref,
@@ -7883,7 +7946,7 @@ def test_production_deploy_rejects_noncanonical_prometheus_manifest_before_docke
     )
 
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        [str(_historical_deploy_script("scripts/deploy_production.sh")), "--preflight-only"],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -7937,7 +8000,7 @@ def test_staging_deploy_rejects_rendered_prometheus_identity_drift_before_pull(
 
     completed = subprocess.run(
         [
-            str(REPO_ROOT / "scripts/deploy.sh"),
+            str(_historical_deploy_script("scripts/deploy.sh")),
             "--preflight-only",
             backend_ref,
             caddy_ref,
@@ -8011,7 +8074,7 @@ def test_staging_deploy_rejects_rendered_postgres_identity_drift_before_pull(
 
     completed = subprocess.run(
         [
-            str(REPO_ROOT / "scripts/deploy.sh"),
+            str(_historical_deploy_script("scripts/deploy.sh")),
             "--preflight-only",
             backend_ref,
             caddy_ref,
@@ -8075,7 +8138,7 @@ def test_production_deploy_rejects_rendered_prometheus_identity_drift_before_pul
     env["STUB_PROMETHEUS_COMPOSE_JSON"] = rendered_compose
 
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        [str(_historical_deploy_script("scripts/deploy_production.sh")), "--preflight-only"],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -8194,7 +8257,7 @@ def test_staging_deploy_rejects_pulled_prometheus_identity_before_product_mutati
     caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
 
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy.sh"), backend_ref, caddy_ref],
+        [str(_historical_deploy_script("scripts/deploy.sh")), backend_ref, caddy_ref],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -8222,7 +8285,7 @@ def test_staging_deploy_rejects_pulled_postgres_identity_before_product_mutation
     caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
 
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy.sh"), backend_ref, caddy_ref],
+        [str(_historical_deploy_script("scripts/deploy.sh")), backend_ref, caddy_ref],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -8252,7 +8315,7 @@ def test_staging_deploy_rejects_postgres_mountpoint_drift_before_product_mutatio
     caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
 
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy.sh"), backend_ref, caddy_ref],
+        [str(_historical_deploy_script("scripts/deploy.sh")), backend_ref, caddy_ref],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -8286,7 +8349,7 @@ def test_production_deploy_rejects_pulled_prometheus_identity_before_product_mut
     )
 
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        [str(_historical_deploy_script("scripts/deploy_production.sh"))],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -8331,7 +8394,7 @@ def test_production_env_cannot_override_manifest_derived_prometheus_digest(
     )
 
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        [str(_historical_deploy_script("scripts/deploy_production.sh"))],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -8416,7 +8479,7 @@ def test_production_full_bundle_rejects_hostile_destination_before_docker(
         expected = external.read_bytes()
 
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        [str(_historical_deploy_script("scripts/deploy_production.sh")), "--preflight-only"],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -8503,7 +8566,7 @@ def test_production_full_bundle_rejects_hostile_source_before_runtime_mutation(
     expected = expected_path.read_bytes()
 
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        [str(_historical_deploy_script("scripts/deploy_production.sh")), "--preflight-only"],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -8635,7 +8698,7 @@ esac
         )
     try:
         completed = subprocess.run(
-            [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+            [str(_historical_deploy_script("scripts/deploy_production.sh")), "--preflight-only"],
             cwd=str(REPO_ROOT),
             env=env,
             text=True,
@@ -8744,7 +8807,7 @@ def test_production_contract_publication_rejects_destination_symlinks_before_doc
         }
     )
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        [str(_historical_deploy_script("scripts/deploy_production.sh")), "--preflight-only"],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -8847,7 +8910,7 @@ printf 'curl %s\n' "$*" >> "{log_file}"
     else:
         env["STUB_ALERTMANAGER_IMAGE_ABSENT"] = "1"
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        [str(_historical_deploy_script("scripts/deploy_production.sh"))],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -8989,7 +9052,7 @@ printf 'curl %s\n' "$*" >> "{log_file}"
         }
     )
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        [str(_historical_deploy_script("scripts/deploy_production.sh"))],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -9314,7 +9377,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env["PRODUCTION_DOMAIN"] = "pulseplate.test"
 
     subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        [str(_historical_deploy_script("scripts/deploy_production.sh"))],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -9381,7 +9444,7 @@ printf 'docker %s\\n' "$*" >> "{log_file}"
     env["COMPOSE_FILE"] = CANONICAL_MANAGED_COMPOSE
 
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        [str(_historical_deploy_script("scripts/deploy_production.sh")), "--preflight-only"],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -9433,7 +9496,7 @@ printf 'docker %s\\n' "$*" >> "{log_file}"
     env["TAG"] = "prod-vtest"
 
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        [str(_historical_deploy_script("scripts/deploy_production.sh")), "--preflight-only"],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -9512,7 +9575,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env["GHCR_TOKEN"] = "read-token"
 
     subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        [str(_historical_deploy_script("scripts/deploy_production.sh"))],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -9620,7 +9683,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env["SHELL_BUNDLE_DIR"] = str(shell_bundle_dir)
 
     subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        [str(_historical_deploy_script("scripts/deploy_production.sh"))],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -9745,7 +9808,7 @@ esac
         }
     )
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        [str(_historical_deploy_script("scripts/deploy_production.sh"))],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -9804,7 +9867,7 @@ esac
     )
 
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        [str(_historical_deploy_script("scripts/deploy_production.sh"))],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -9886,7 +9949,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env["SHELL_BUNDLE_DIR"] = str(shell_bundle_dir)
 
     subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        [str(_historical_deploy_script("scripts/deploy_production.sh"))],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -9968,7 +10031,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env["SHELL_BUNDLE_DIR"] = str(shell_bundle_dir)
 
     subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        [str(_historical_deploy_script("scripts/deploy_production.sh"))],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -10044,7 +10107,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env["TAG"] = "prod-vtest"
 
     subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        [str(_historical_deploy_script("scripts/deploy_production.sh"))],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -10124,7 +10187,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env["TAG"] = "prod-vtest"
 
     subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        [str(_historical_deploy_script("scripts/deploy_production.sh"))],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -10221,7 +10284,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env["SHELL_BUNDLE_DIR"] = str(shell_bundle_dir)
 
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        [str(_historical_deploy_script("scripts/deploy_production.sh"))],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -10293,7 +10356,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env["PRODUCTION_DOMAIN"] = "pulseplate.test"
 
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        [str(_historical_deploy_script("scripts/deploy_production.sh"))],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -10370,7 +10433,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env["SHELL_BUNDLE_DIR"] = str(shell_bundle_dir)
 
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        [str(_historical_deploy_script("scripts/deploy_production.sh"))],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -10429,7 +10492,7 @@ def test_deploy_production_rejects_compose_local_postgres_dsn(
     env["PRODUCTION_DOMAIN"] = "pulseplate.test"
 
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        [str(_historical_deploy_script("scripts/deploy_production.sh"))],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -10481,7 +10544,7 @@ esac
     env["PRODUCTION_DOMAIN"] = "pulseplate.test"
 
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        [str(_historical_deploy_script("scripts/deploy_production.sh"))],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -10620,7 +10683,7 @@ esac
         }
     )
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        [str(_historical_deploy_script("scripts/deploy_production.sh")), "--preflight-only"],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -10644,7 +10707,7 @@ esac
         )
 
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        [str(_historical_deploy_script("scripts/deploy_production.sh"))],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -10686,7 +10749,7 @@ esac
     alternate_backup_helper.chmod(0o755)
     env["BACKUP_HELPER"] = str(alternate_backup_helper)
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        [str(_historical_deploy_script("scripts/deploy_production.sh")), "--preflight-only"],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -10700,7 +10763,7 @@ esac
     env.pop("COMPOSE_FILE")
     env["PROD_DEPLOY_MODE"] = "self-hosted"
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        [str(_historical_deploy_script("scripts/deploy_production.sh")), "--preflight-only"],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -10848,7 +10911,7 @@ def test_production_self_hosted_reuses_both_frozen_current_image_id_forms(
         else FAKE_POSTGRES_IMAGE_INSPECT_JSON
     )
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        [str(_historical_deploy_script("scripts/deploy_production.sh"))],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -10886,11 +10949,11 @@ def test_pulled_postgres_admits_both_frozen_image_id_forms(
         env["STUB_POSTGRES_IMAGE_INSPECT_JSON"] = inspected
         backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
         caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
-        command = [str(REPO_ROOT / "scripts/deploy.sh"), backend_ref, caddy_ref]
+        command = [str(_historical_deploy_script("scripts/deploy.sh")), backend_ref, caddy_ref]
     else:
         env, log_file = _production_self_hosted_image_identity_fixture(tmp_path)
         env["STUB_PRODUCTION_PULLED_POSTGRES_IMAGE_JSON"] = inspected
-        command = [str(REPO_ROOT / "scripts/deploy_production.sh")]
+        command = [str(_historical_deploy_script("scripts/deploy_production.sh"))]
     completed = subprocess.run(
         command,
         cwd=str(REPO_ROOT),
@@ -10908,7 +10971,7 @@ def test_pulled_postgres_admits_both_frozen_image_id_forms(
 def test_production_self_hosted_keeps_frozen_legacy_image_transition(tmp_path: Path) -> None:
     env, log_file = _production_self_hosted_image_identity_fixture(tmp_path)
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        [str(_historical_deploy_script("scripts/deploy_production.sh"))],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -10929,7 +10992,7 @@ def test_production_self_hosted_rejects_foreign_legacy_image_before_quiescence(
     inspected[0]["Image"] = "sha256:" + "e" * 64
     env["STUB_POSTGRES_CONTAINER_INSPECT_JSON"] = json.dumps(inspected)
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        [str(_historical_deploy_script("scripts/deploy_production.sh"))],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -11012,7 +11075,7 @@ def test_production_self_hosted_rejects_untrusted_existing_image_before_quiescen
             _current_postgres_image_inspect_variant(variant, image_id)
         )
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        [str(_historical_deploy_script("scripts/deploy_production.sh"))],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -11093,7 +11156,7 @@ def test_production_self_hosted_rejects_untrusted_pulled_image_before_quiescence
     else:
         env["STUB_PRODUCTION_PULLED_POSTGRES_IMAGE_JSON"] = _postgres_image_inspect_variant(variant)
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        [str(_historical_deploy_script("scripts/deploy_production.sh"))],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -11125,8 +11188,10 @@ def _postgres_function_source(script: str, name: str) -> str:
 
 
 def test_staging_and_production_postgres_image_parsers_have_exact_source_parity() -> None:
-    staging = (REPO_ROOT / "scripts/deploy.sh").read_text(encoding="utf-8")
-    production = (REPO_ROOT / "scripts/deploy_production.sh").read_text(encoding="utf-8")
+    staging = (_historical_deploy_script("scripts/deploy.sh")).read_text(encoding="utf-8")
+    production = (_historical_deploy_script("scripts/deploy_production.sh")).read_text(
+        encoding="utf-8"
+    )
     metadata_source = _postgres_function_source(staging, "validate_postgres_image_metadata")
     assert 'repo_digests = record.get("RepoDigests")' in metadata_source
     assert "Pulled PostgreSQL image is not bound to the canonical GHCR digest" in metadata_source
@@ -11202,7 +11267,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env["PRODUCTION_DOMAIN"] = "pulseplate.test"
 
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        [str(_historical_deploy_script("scripts/deploy_production.sh"))],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -11240,7 +11305,7 @@ def test_deploy_production_rejects_relative_docker_bin_override(tmp_path: Path) 
     env["PRODUCTION_DOMAIN"] = "pulseplate.test"
 
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        [str(_historical_deploy_script("scripts/deploy_production.sh"))],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -12450,7 +12515,7 @@ def test_staging_deploy_rejects_unsafe_image_references_before_side_effects(
     env, log_file = _staging_deploy_fixture(tmp_path)
 
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts" / "deploy.sh"), *arguments],
+        [str(_historical_deploy_script("scripts/deploy.sh")), *arguments],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -12469,7 +12534,7 @@ def test_staging_deploy_preflight_validates_contract_without_mutation(tmp_path: 
 
     completed = subprocess.run(
         [
-            str(REPO_ROOT / "scripts" / "deploy.sh"),
+            str(_historical_deploy_script("scripts/deploy.sh")),
             "--preflight-only",
             backend_ref,
             caddy_ref,
@@ -12515,7 +12580,7 @@ def test_staging_deploy_matches_bounded_compose_scheduler_mode_syntax(
 
     completed = subprocess.run(
         [
-            str(REPO_ROOT / "scripts" / "deploy.sh"),
+            str(_historical_deploy_script("scripts/deploy.sh")),
             "--preflight-only",
             backend_ref,
             caddy_ref,
@@ -12561,7 +12626,7 @@ def test_staging_deploy_preserves_backup_migration_caddy_order_and_cli_identity(
     caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
 
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts" / "deploy.sh"), backend_ref, caddy_ref],
+        [str(_historical_deploy_script("scripts/deploy.sh")), backend_ref, caddy_ref],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -12684,7 +12749,7 @@ def _run_staging_worker_gate_fixture(env: dict[str, str]) -> subprocess.Complete
     backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
     caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
     return subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy.sh"), backend_ref, caddy_ref],
+        [str(_historical_deploy_script("scripts/deploy.sh")), backend_ref, caddy_ref],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -12848,7 +12913,7 @@ def test_staging_worker_native_hang_is_bounded_and_holds_before_caddy(
 
     completed = subprocess.run(
         [
-            str(REPO_ROOT / "scripts/deploy.sh"),
+            str(_historical_deploy_script("scripts/deploy.sh")),
             "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
             "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64,
         ],
@@ -12925,7 +12990,7 @@ def test_staging_backup_failure_preserves_primary_exit_and_never_switches_postgr
     caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
 
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy.sh"), backend_ref, caddy_ref],
+        [str(_historical_deploy_script("scripts/deploy.sh")), backend_ref, caddy_ref],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -12961,7 +13026,7 @@ def test_old_postgres_stop_failure_keeps_product_writers_quiesced(
     caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
 
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts" / "deploy.sh"), backend_ref, caddy_ref],
+        [str(_historical_deploy_script("scripts/deploy.sh")), backend_ref, caddy_ref],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -13124,8 +13189,10 @@ def test_product_service_census_fails_closed_on_untrusted_inspect_state(
 
 
 def test_deploy_backup_helpers_receive_selected_compose_env_file() -> None:
-    staging_script = (REPO_ROOT / "scripts/deploy.sh").read_text(encoding="utf-8")
-    production_script = (REPO_ROOT / "scripts/deploy_production.sh").read_text(encoding="utf-8")
+    staging_script = (_historical_deploy_script("scripts/deploy.sh")).read_text(encoding="utf-8")
+    production_script = (_historical_deploy_script("scripts/deploy_production.sh")).read_text(
+        encoding="utf-8"
+    )
     helper_script = (REPO_ROOT / "scripts/ops/postgres_backup.sh").read_text(encoding="utf-8")
 
     assert "export DOCKER_BIN BACKUP_DIR PROJECT_DIR COMPOSE_FILE ENV_FILE" in staging_script
@@ -13186,7 +13253,7 @@ def test_staging_existing_postgres_requires_closed_image_and_pgdata_identity(
     caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
 
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy.sh"), backend_ref, caddy_ref],
+        [str(_historical_deploy_script("scripts/deploy.sh")), backend_ref, caddy_ref],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -13265,7 +13332,7 @@ def test_staging_existing_current_postgres_accepts_only_frozen_id_forms(
     caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
 
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy.sh"), backend_ref, caddy_ref],
+        [str(_historical_deploy_script("scripts/deploy.sh")), backend_ref, caddy_ref],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -13335,7 +13402,7 @@ def test_staging_existing_current_postgres_rejects_untrusted_id_before_quiescenc
     caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
 
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy.sh"), backend_ref, caddy_ref],
+        [str(_historical_deploy_script("scripts/deploy.sh")), backend_ref, caddy_ref],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -13385,7 +13452,7 @@ def test_staging_existing_current_config_id_requires_own_inspect_before_quiescen
     caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
 
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy.sh"), backend_ref, caddy_ref],
+        [str(_historical_deploy_script("scripts/deploy.sh")), backend_ref, caddy_ref],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -13457,7 +13524,7 @@ def test_staging_postgres_image_rejects_duplicate_runtime_environment_before_qui
     caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
 
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy.sh"), backend_ref, caddy_ref],
+        [str(_historical_deploy_script("scripts/deploy.sh")), backend_ref, caddy_ref],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -13481,7 +13548,7 @@ def test_staging_rejects_unlistable_backup_before_postgres_switch(tmp_path: Path
     caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
 
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy.sh"), backend_ref, caddy_ref],
+        [str(_historical_deploy_script("scripts/deploy.sh")), backend_ref, caddy_ref],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -13600,7 +13667,7 @@ def test_staging_orphan_postgres_volume_holds_before_quiesce_or_switch(tmp_path:
     caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
 
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy.sh"), backend_ref, caddy_ref],
+        [str(_historical_deploy_script("scripts/deploy.sh")), backend_ref, caddy_ref],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -13623,7 +13690,7 @@ def test_staging_absent_volume_uses_fresh_path_without_backup(tmp_path: Path) ->
     caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
 
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy.sh"), backend_ref, caddy_ref],
+        [str(_historical_deploy_script("scripts/deploy.sh")), backend_ref, caddy_ref],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -13654,7 +13721,7 @@ def test_staging_fresh_volume_appearance_after_quiesce_holds_before_candidate_st
     caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
 
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy.sh"), backend_ref, caddy_ref],
+        [str(_historical_deploy_script("scripts/deploy.sh")), backend_ref, caddy_ref],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -13684,7 +13751,7 @@ def test_staging_ambiguous_volume_listing_holds_before_quiesce_or_switch(
     caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
 
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy.sh"), backend_ref, caddy_ref],
+        [str(_historical_deploy_script("scripts/deploy.sh")), backend_ref, caddy_ref],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -13707,7 +13774,7 @@ def test_staging_deploy_migration_failure_keeps_app_and_caddy_stopped(tmp_path: 
     caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
 
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts" / "deploy.sh"), backend_ref, caddy_ref],
+        [str(_historical_deploy_script("scripts/deploy.sh")), backend_ref, caddy_ref],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -13737,7 +13804,7 @@ def test_staging_deploy_treats_env_file_as_data_and_drops_registry_credentials(
     backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
     caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts" / "deploy.sh"), backend_ref, caddy_ref],
+        [str(_historical_deploy_script("scripts/deploy.sh")), backend_ref, caddy_ref],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -13852,7 +13919,7 @@ def test_staging_deploy_rejects_invalid_local_control_files_before_docker_side_e
     backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
     caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts" / "deploy.sh"), backend_ref, caddy_ref],
+        [str(_historical_deploy_script("scripts/deploy.sh")), backend_ref, caddy_ref],
         cwd=str(REPO_ROOT),
         env=env,
         text=True,
@@ -13865,14 +13932,16 @@ def test_staging_deploy_rejects_invalid_local_control_files_before_docker_side_e
 
 
 def test_staging_deploy_readiness_probe_has_per_request_timeout() -> None:
-    deploy_script = (REPO_ROOT / "scripts" / "deploy.sh").read_text(encoding="utf-8")
+    deploy_script = (_historical_deploy_script("scripts/deploy.sh")).read_text(encoding="utf-8")
 
     assert "urlopen('http://localhost:8000/ready', timeout=5).read()" in deploy_script
 
 
 def test_obs1b_deploy_scripts_keep_canonical_guard_product_first_and_non_destructive() -> None:
-    staging_script = (REPO_ROOT / "scripts" / "deploy.sh").read_text(encoding="utf-8")
-    production_script = (REPO_ROOT / "scripts" / "deploy_production.sh").read_text(encoding="utf-8")
+    staging_script = (_historical_deploy_script("scripts/deploy.sh")).read_text(encoding="utf-8")
+    production_script = (_historical_deploy_script("scripts/deploy_production.sh")).read_text(
+        encoding="utf-8"
+    )
     canonical_guard = (
         "from app.main import app; from app.security.production_invariants import "
         "assert_production_runtime_invariants; assert_production_runtime_invariants(app=app)"
@@ -14061,7 +14130,7 @@ def test_staging_crypto_and_passfile_owner_rejection_precede_product_mutation(
     backend = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
     caddy = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
     completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy.sh"), backend, caddy],
+        [str(_historical_deploy_script("scripts/deploy.sh")), backend, caddy],
         env=env,
         cwd=REPO_ROOT,
         capture_output=True,
@@ -14163,7 +14232,7 @@ def test_existing_staging_passfile_authentication_precedes_all_product_stops(
     backend = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
     caddy = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
     result = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy.sh"), backend, caddy],
+        [str(_historical_deploy_script("scripts/deploy.sh")), backend, caddy],
         env=env,
         cwd=REPO_ROOT,
         capture_output=True,
@@ -14478,7 +14547,7 @@ def test_staging_deploy_binds_running_container_to_selected_v5_volume_name(
     backend = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
     caddy = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
     result = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy.sh"), backend, caddy],
+        [str(_historical_deploy_script("scripts/deploy.sh")), backend, caddy],
         env=env,
         cwd=REPO_ROOT,
         capture_output=True,
@@ -14514,7 +14583,7 @@ def test_staging_populated_backing_without_volume_object_never_starts_postgres(
         env["STUB_BACKING_APPEARS_AFTER_FIRST"] = "1"
     completed = subprocess.run(
         [
-            str(REPO_ROOT / "scripts/deploy.sh"),
+            str(_historical_deploy_script("scripts/deploy.sh")),
             "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
             "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64,
         ],
@@ -14534,7 +14603,7 @@ def test_staging_populated_backing_without_volume_object_never_starts_postgres(
 
 
 def test_prometheus_census_is_repeated_immediately_before_service_recreation() -> None:
-    script = (REPO_ROOT / "scripts/deploy.sh").read_text()
+    script = (_historical_deploy_script("scripts/deploy.sh")).read_text()
     start = script.index('if "${COMPOSE[@]}" up -d --pull never prometheus; then')
     gate = script.rindex("validate_staging_database_binding --storage-only", 0, start)
     assert script[gate:start].splitlines() == [
@@ -14552,7 +14621,7 @@ def test_staging_promtool_preflight_does_not_create_a_service_data_volume(
 ) -> None:
     bash = shutil.which("bash")
     assert bash
-    script = (REPO_ROOT / "scripts/deploy.sh").read_text()
+    script = (_historical_deploy_script("scripts/deploy.sh")).read_text()
     start = script.index(
         '"$DOCKER_BIN" run', script.index('echo "Validating the exact Prometheus configuration')
     )
@@ -14574,9 +14643,7 @@ def test_staging_promtool_preflight_does_not_create_a_service_data_volume(
         "DOCKER_BIN": str(docker),
         "PYTHON_BIN": sys.executable,
         "PROJECT_DIR": str(tmp_path),
-        "ALERTMANAGER_CONTRACT_HELPER": str(
-            REPO_ROOT / "scripts/ci/fetch_docker_source_artifacts.py"
-        ),
+        "ALERTMANAGER_CONTRACT_HELPER": str(_historical_AM_helper()),
         "ALERTMANAGER_CASE": "accepted",
         "PROMETHEUS_RUNTIME_REF": PROMETHEUS_RUNTIME_REF,
         "PROMETHEUS_CONFIG": str(tmp_path / "config.yml"),
@@ -14661,7 +14728,7 @@ def test_staging_legacy_orphan_or_late_volume_is_not_fresh(tmp_path: Path, when:
         env["STUB_POSTGRES_VOLUME_LIST_OUTPUT_AFTER_FIRST"] = "pulseplate-staging_postgres_data\n"
     result = subprocess.run(
         [
-            str(REPO_ROOT / "scripts/deploy.sh"),
+            str(_historical_deploy_script("scripts/deploy.sh")),
             "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
             "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64,
         ],
@@ -14829,7 +14896,7 @@ def test_staging_security_config_includes_profiled_worker_without_activation(
         env["STUB_COMPOSE_CONFIG_STATUS"] = "37"
     result = subprocess.run(
         [
-            str(REPO_ROOT / "scripts/deploy.sh"),
+            str(_historical_deploy_script("scripts/deploy.sh")),
             "--preflight-only",
             "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
             "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64,
@@ -14860,7 +14927,7 @@ def test_staging_security_config_includes_profiled_worker_without_activation(
 
 
 def test_staging_security_caller_uses_exact_config_only_profile_arguments(tmp_path: Path) -> None:
-    source = (REPO_ROOT / "scripts/deploy.sh").read_text()
+    source = (_historical_deploy_script("scripts/deploy.sh")).read_text()
     body = source.split("validate_staging_database_binding() {\n", 1)[1].split("\n}\n", 1)[0]
     bash = shutil.which("bash")
     assert bash is not None
@@ -15470,7 +15537,7 @@ esac
 
 @pytest.mark.parametrize("case", ["intact", "changed", "legacy"])
 def test_checkpoint_publication_copy_binds_exact_written_bytes(tmp_path: Path, case: str) -> None:
-    script = (REPO_ROOT / "scripts/deploy_production.sh").read_text()
+    script = (_historical_deploy_script("scripts/deploy_production.sh")).read_text()
     start = script.index("def copy_open_file(")
     end = script.index("\n\ndef tree_walk(", start)
     admitted = b"admitted checkpoint bytes\n"
@@ -15531,7 +15598,7 @@ def test_staging_checkpoint_admission_rejects_before_mutation(
             target.mkdir()
         elif fault == "stale":
             target.write_bytes(original + b"unreviewed")
-    script = (REPO_ROOT / "scripts/deploy.sh").read_text()
+    script = (_historical_deploy_script("scripts/deploy.sh")).read_text()
     start = script.index('"$PYTHON_BIN" - "$PROJECT_DIR" <<\'PY_CHECKPOINT\'')
     end = script.index("\nPY_CHECKPOINT", start) + len("\nPY_CHECKPOINT")
     assert "'sha256:" + hashlib.sha256(original).hexdigest() + "'" in script
@@ -15563,9 +15630,7 @@ def test_checkpoint_admission_rejects_before_protected_publication(
     _write_checkpoint_contract(project)
     installed_am_helper = project / "scripts/ci/fetch_docker_source_artifacts.py"
     installed_am_helper.parent.mkdir(parents=True, exist_ok=True)
-    installed_am_helper.write_bytes(
-        (REPO_ROOT / "scripts/ci/fetch_docker_source_artifacts.py").read_bytes()
-    )
+    installed_am_helper.write_bytes((_historical_AM_helper()).read_bytes())
     if carrier == "bundle":
         _write_shell_bundle_contract(bundle)
     else:
@@ -15586,7 +15651,7 @@ def test_checkpoint_admission_rejects_before_protected_publication(
             target.mkdir()
         elif fault == "stale":
             target.write_bytes(original + b"unreviewed")
-    script = (REPO_ROOT / "scripts/deploy_production.sh").read_text()
+    script = (_historical_deploy_script("scripts/deploy_production.sh")).read_text()
     assert "'sha256:" + hashlib.sha256(original).hexdigest() + "'" in script
     a = script.index("contract_destination_transaction() {")
     b = script.index("\nvalidate_contract_destinations_safely() {", a)
@@ -15630,7 +15695,7 @@ def test_checkpoint_admission_rejects_before_protected_publication(
             "PATH": os.environ["PATH"],
             "PYTHON_BIN": sys.executable,
             "ALERTMANAGER_CONTRACT_HELPER_SHA256": hashlib.sha256(
-                (REPO_ROOT / "scripts/ci/fetch_docker_source_artifacts.py").read_bytes()
+                (_historical_AM_helper()).read_bytes()
             ).hexdigest(),
             "REQUESTED_DEPLOY_DIR": str(project),
             "COMPOSE_RELATIVE_IDENTITY": CANONICAL_MANAGED_COMPOSE,
@@ -16074,7 +16139,7 @@ def _run_alertmanager_pure_contract(
         "RepoDigests": [
             alertmanager_source._ALERT_OLD_RUNTIME_REF if runtime == "old" else selected
         ],
-        "RootFS": {"Layers": alertmanager_source._ALERT_ACCEPTED_CANDIDATE["graph"]["diff_ids"]},
+        "RootFS": {"Layers": alertmanager_source._ALERT_HISTORICAL_C10["graph"]["diff_ids"]},
     }
     status = 0
     if fault == "namespace":
@@ -16125,7 +16190,7 @@ def _run_alertmanager_pure_contract(
             opened[name] = path.open("rb")
             # A previous prefix has exhausted the file description; final must pread offset zero.
             opened[name].read()
-        script = REPO_ROOT / "scripts/ci/fetch_docker_source_artifacts.py"
+        script = _historical_AM_helper()
         if instant is not None:
             frozen = root / "clock-bound-fetcher.py"
             source = script.read_text()
@@ -16275,7 +16340,7 @@ def test_alertmanager_collector_actual_status_private_captures_and_fixed_native_
         "Os": "linux",
         "Architecture": "amd64",
         "RepoDigests": [selected],
-        "RootFS": {"Layers": alertmanager_source._ALERT_ACCEPTED_CANDIDATE["graph"]["diff_ids"]},
+        "RootFS": {"Layers": alertmanager_source._ALERT_HISTORICAL_C10["graph"]["diff_ids"]},
     }
     docker = root / "synthetic-docker"
     log = root / "calls.jsonl"
@@ -16315,7 +16380,7 @@ def test_alertmanager_collector_actual_status_private_captures_and_fixed_native_
         sys.executable,
         "-I",
         "-S",
-        str(REPO_ROOT / "scripts/ci/fetch_docker_source_artifacts.py"),
+        str(_historical_AM_helper()),
         "--alertmanager-contract-collect",
         "--compose",
         str(root / "docker-compose.staging.yaml"),
@@ -16371,7 +16436,7 @@ def test_alertmanager_selected_image_phase_uses_only_canonical_tuple_and_ref_pro
         sys.executable,
         "-I",
         "-S",
-        str(REPO_ROOT / "scripts/ci/fetch_docker_source_artifacts.py"),
+        str(_historical_AM_helper()),
         "--alertmanager-contract",
         "--phase",
         "selected-image",
@@ -16393,7 +16458,7 @@ def test_alertmanager_selected_image_phase_uses_only_canonical_tuple_and_ref_pro
         "Os": "linux",
         "Architecture": "amd64",
         "RepoDigests": [ref],
-        "RootFS": {"Layers": alertmanager_source._ALERT_ACCEPTED_CANDIDATE["graph"]["diff_ids"]},
+        "RootFS": {"Layers": alertmanager_source._ALERT_HISTORICAL_C10["graph"]["diff_ids"]},
     }
     if wrong_case:
         image["Id"] = (
@@ -16556,7 +16621,7 @@ def test_staging_missing_installed_alertmanager_files_hold_without_runtime_absen
     (Path(env["PROJECT_DIR"]) / "alertmanager" / leaf).unlink()
     result = subprocess.run(
         [
-            str(REPO_ROOT / "scripts/deploy.sh"),
+            str(_historical_deploy_script("scripts/deploy.sh")),
             "--preflight-only",
             "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
             "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64,
@@ -16594,7 +16659,7 @@ def test_alertmanager_pure_ABI_rejects_duplicate_and_abbreviated_options_before_
         sys.executable,
         "-I",
         "-S",
-        str(REPO_ROOT / "scripts/ci/fetch_docker_source_artifacts.py"),
+        str(_historical_AM_helper()),
         "--alertmanager-contract",
         *arguments,
     ]
@@ -16633,7 +16698,7 @@ def test_production_first_bundle_rejects_running_old_or_changed_installed_namesp
         "2026-10-21T00:00:01+00:00" if fault == "old-after-cutoff" else "2026-10-21T00:00:00+00:00"
     )
     script = _alertmanager_clock_bound_deploy(
-        tmp_path, env, REPO_ROOT / "scripts/deploy_production.sh", instant
+        tmp_path, env, _historical_deploy_script("scripts/deploy_production.sh"), instant
     )
     (bundle / "scripts/ci/fetch_docker_source_artifacts.py").write_bytes(
         (project / "scripts/ci/fetch_docker_source_artifacts.py").read_bytes()
@@ -16689,7 +16754,7 @@ def test_staging_new_selection_still_rejects_running_old_at_cutoff(
         }
     )
     script = _alertmanager_clock_bound_deploy(
-        tmp_path, env, REPO_ROOT / "scripts/deploy.sh", "2026-10-21T00:00:00+00:00"
+        tmp_path, env, _historical_deploy_script("scripts/deploy.sh"), "2026-10-21T00:00:00+00:00"
     )
     result = subprocess.run(
         [
@@ -16759,7 +16824,7 @@ def test_alertmanager_pure_candidate_separates_incoming_bytes_from_installed_tar
         sys.executable,
         "-I",
         "-S",
-        str(REPO_ROOT / "scripts/ci/fetch_docker_source_artifacts.py"),
+        str(_historical_AM_helper()),
         "--alertmanager-contract",
         "--phase",
         "candidate",
@@ -16795,7 +16860,7 @@ def test_alertmanager_selected_image_rejects_surplus_installed_context(tmp_path:
             sys.executable,
             "-I",
             "-S",
-            str(REPO_ROOT / "scripts/ci/fetch_docker_source_artifacts.py"),
+            str(_historical_AM_helper()),
             "--alertmanager-contract",
             "--phase",
             "selected-image",
@@ -16845,7 +16910,7 @@ def test_production_incoming_renderers_share_installed_project_directory(
         )
     assert not (bundle / "deploy/.env").exists()
     result = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        [str(_historical_deploy_script("scripts/deploy_production.sh")), "--preflight-only"],
         cwd=REPO_ROOT,
         env=env,
         capture_output=True,
@@ -16906,3 +16971,274 @@ def test_alertmanager_trusted_helper_readers_bind_complete_current_source_bytes(
             r'ALERTMANAGER_CONTRACT_HELPER_SHA256="([0-9a-f]{64})"',
             (REPO_ROOT / relative).read_text(),
         ) == [expected]
+
+
+@pytest.mark.parametrize("current", [False, True])
+def test_alertmanager_compiler_epoch_is_exact(current: bool) -> None:
+    compiler = "go1.27.3" if current else "go1.27.2"
+    raw = (
+        f"/out/alertmanager: {compiler}\n"
+        "\tpath\tgithub.com/prometheus/alertmanager/cmd/alertmanager\n"
+        "\tmod\tgithub.com/prometheus/alertmanager\t(devel)\n"
+        "\tdep\tgolang.org/x/net\tv0.60.0\n"
+        "\tdep\tgoogle.golang.org/grpc\tv1.83.2\n"
+        "\tbuild\tCGO_ENABLED=0\n\tbuild\tGOOS=linux\n\tbuild\tGOARCH=amd64\n"
+        "\tbuild\t-tags=netgo\n\tbuild\t-trimpath=true\n"
+    ).encode()
+    assert (
+        alertmanager_source._alertmanager_build_information(raw, "alertmanager", current=current)[
+            "Go"
+        ]
+        == compiler
+    )
+    with pytest.raises(prometheus_source.QualificationError, match="AM_actual_Go_build_version"):
+        alertmanager_source._alertmanager_build_information(
+            raw, "alertmanager", current=not current
+        )
+
+
+def _synthetic_AM_negative_control(current: bool) -> dict[str, Any]:
+    """Parser fixtures only; they never claim native scanner execution."""
+    affected = [
+        ("CVE-2026-84445", "pkg:golang/google.golang.org/grpc@v1.83.1"),
+        ("CVE-2026-78669", "pkg:golang/golang.org/x/net@v0.58.0"),
+        ("CVE-2026-78669", "pkg:golang/stdlib@v1.26.8"),
+        ("CVE-2026-78667", "pkg:golang/stdlib@v1.26.8"),
+        ("CVE-2026-97031", "pkg:golang/stdlib@v1.26.8"),
+    ]
+    if current:
+        affected.append(("CVE-2026-111943", "pkg:golang/stdlib@v1.26.8"))
+    return {
+        "ArtifactType": "container_image",
+        "Metadata": {"ImageID": "synthetic-control"},
+        "Results": [
+            {
+                "Target": target,
+                "Class": "lang-pkgs",
+                "Type": "gobinary",
+                "Packages": [{"Name": "stdlib", "Version": "v1.26.8"}],
+                "Vulnerabilities": [
+                    {"VulnerabilityID": cve, "PkgIdentifier": {"PURL": purl}, "Severity": "HIGH"}
+                    for cve, purl in affected
+                ],
+            }
+            for target in ("bin/alertmanager", "bin/amtool")
+        ],
+    }
+
+
+@pytest.mark.parametrize("current", [False, True])
+def test_alertmanager_negative_control_keeps_disjoint_epochs(current: bool) -> None:
+    report = _synthetic_AM_negative_control(current)
+    result = alertmanager_source._alertmanager_vulnerability_control(
+        report, "synthetic-control", current=current
+    )
+    assert result["known_HIGH_occurrences"] == (12 if current else 10)
+    with pytest.raises(prometheus_source.QualificationError, match="inventory_changed_HOLD"):
+        alertmanager_source._alertmanager_vulnerability_control(
+            report, "synthetic-control", current=not current
+        )
+
+
+@pytest.mark.parametrize("fault", ["missing", "extra", "duplicate", "target", "PURL", "secret"])
+def test_alertmanager_current_negative_control_rejects_incomplete_or_changed_report(
+    fault: str,
+) -> None:
+    report = _synthetic_AM_negative_control(True)
+    row = report["Results"][0]
+    if fault == "missing":
+        row["Vulnerabilities"].pop()
+    elif fault == "extra":
+        row["Vulnerabilities"].append(
+            {
+                "VulnerabilityID": "CVE-unexpected",
+                "Severity": "HIGH",
+                "PkgIdentifier": {"PURL": "pkg:golang/other@v1"},
+            }
+        )
+    elif fault == "duplicate":
+        row["Vulnerabilities"].append(dict(row["Vulnerabilities"][0]))
+    elif fault == "target":
+        row["Target"] = "usr/bin/alertmanager"
+    elif fault == "PURL":
+        row["Vulnerabilities"][-1]["PkgIdentifier"]["PURL"] = "pkg:golang/stdlib@v1.27.3"
+    else:
+        row["Secrets"] = [{"Match": "synthetic-only"}]
+    with pytest.raises(prometheus_source.QualificationError):
+        alertmanager_source._alertmanager_vulnerability_control(
+            report, "synthetic-control", current=True
+        )
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [None, "extra", "missing", "hash", "mode", "duplicate-row", "path", "empty", "directory"],
+)
+def test_alertmanager_current_support_transport_is_complete(
+    tmp_path: Path, fault: str | None
+) -> None:
+    api_raw = b'{"synthetic":true}\n'
+    rows = [
+        {
+            "path": "GitHub-1.json",
+            "size": len(api_raw),
+            "mode": 0o600,
+            "sha256": hashlib.sha256(api_raw).hexdigest(),
+        }
+    ]
+    if fault == "hash":
+        rows[0]["sha256"] = "0" * 64
+    elif fault == "mode":
+        rows[0]["mode"] = 0o644
+    elif fault == "duplicate-row":
+        rows.append(dict(rows[0]))
+    elif fault == "path":
+        rows[0]["path"] = "../GitHub-1.json"
+    elif fault == "empty":
+        rows.clear()
+    archive = tmp_path / "support.zip"
+    members = {
+        "input-inspection.json": b"{}",
+        "native-support/artifact-payload-members.json": b"{}",
+    }
+    if fault != "missing":
+        members["github-read-evidence/GitHub-1.json"] = api_raw
+    if fault == "extra":
+        members["unaccounted.txt"] = b"surplus"
+    with zipfile.ZipFile(archive, "w") as out:
+        for name, raw in members.items():
+            info = zipfile.ZipInfo(name)
+            info.external_attr = (stat.S_IFREG | 0o600) << 16
+            out.writestr(info, raw)
+        if fault == "directory":
+            out.writestr("unaccounted/", b"")
+    with zipfile.ZipFile(archive) as retained:
+
+        def check() -> None:
+            alertmanager_source._alertmanager_current_support_transport(
+                retained,
+                retained.infolist(),
+                {"native-support/artifact-payload-members.json"},
+                {"github_read_evidence": rows},
+            )
+
+        if fault is None:
+            check()
+        else:
+            with pytest.raises(prometheus_source.QualificationError):
+                check()
+
+
+@pytest.mark.parametrize(
+    "hook,job,accepted", [(60, 190, True), (40, 190, False), (60, 189, False), (60, 170, False)]
+)
+def test_alertmanager_ci_lint_budget_preserves_native_caps(
+    monkeypatch: pytest.MonkeyPatch, hook: int, job: int, accepted: bool
+) -> None:
+    phases = {
+        "PREP_SECONDS": 600,
+        "PAIR_SECONDS": 1800,
+        "SECURITY_SECONDS": 1800,
+        "NATIVE_SECONDS": 2400,
+        "PUBLICATION_SECONDS": 1800,
+        "CLEANUP_SECONDS": 45,
+        "NATIVE_CLEANUP_SECONDS": 120,
+        "SCAN_TIMEOUT_SECONDS": 300,
+        "SCAN_PROCESS_SECONDS": 330,
+    }
+    for key, value in phases.items():
+        monkeypatch.setenv("ALERTMANAGER_" + key, str(value))
+    for key, value in {
+        "CALLER_KIND": "ci-lint",
+        "JOB_TIMEOUT_MINUTES": str(job),
+        "GENERIC_NATIVE_MINUTES": "40",
+        "LINT_CHECK_MINUTES": str(hook),
+    }.items():
+        monkeypatch.setenv("ALERTMANAGER_" + key, value)
+    if accepted:
+        assert alertmanager_source._alertmanager_limits(caller=True) == phases
+    else:
+        with pytest.raises(prometheus_source.QualificationError):
+            alertmanager_source._alertmanager_limits(caller=True)
+
+
+@pytest.mark.parametrize(
+    "fault", [None, "missing", "duplicate", "pending", "attempt", "foreign", "artifact"]
+)
+def test_alertmanager_current_inputs_select_exact_actual_predecessor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str | None
+) -> None:
+    source_sha = "a" * 40
+    run = {
+        "id": 101,
+        "head_sha": source_sha,
+        "head_branch": "codex/python-setup-security-stabilization",
+        "run_attempt": 1,
+        "status": "completed",
+        "conclusion": "success",
+    }
+    if fault == "pending":
+        run["status"] = "in_progress"
+    elif fault == "attempt":
+        run["run_attempt"] = 2
+    elif fault == "foreign":
+        run["head_branch"] = "unrelated-owner"
+    runs = [] if fault == "missing" else [run]
+    if fault == "duplicate":
+        runs.append({**run, "id": 102})
+    artifact = {
+        "id": 201,
+        "name": "alertmanager-module-qualification-101-1",
+        "digest": "sha256:" + "b" * 64,
+    }
+    observed: list[tuple[Any, ...]] = []
+
+    class API:
+        def json(self, endpoint: str) -> dict[str, int]:
+            return {"total_count": len(runs) if "/workflows/" in endpoint else 1}
+
+        def pages(self, endpoint: str, key: str, count: int) -> list[dict[str, Any]]:
+            if key == "workflow_runs":
+                return runs
+            identifier = int(endpoint.split("/runs/")[1].split("/")[0])
+            if key == "jobs":
+                return [
+                    {
+                        "id": identifier + 1000,
+                        "name": "alertmanager-module-qualification",
+                        "run_id": identifier,
+                        "head_sha": source_sha,
+                        "status": "completed",
+                        "conclusion": "success",
+                    }
+                ]
+            return (
+                []
+                if fault == "artifact"
+                else [{**artifact, "name": f"alertmanager-module-qualification-{identifier}-1"}]
+            )
+
+    def authenticated(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        observed.append((args, kwargs))
+        return {"run": args[1], "artifact": args[2], "source": args[3]}
+
+    monkeypatch.delenv("GITHUB_RUN_ID", raising=False)
+    monkeypatch.setattr(alertmanager_source, "_alertmanager_authenticated_inputs", authenticated)
+    arguments = {
+        "kind": "qualification",
+        "source_files": {path: "c" * 64 for path in alertmanager_source._ALERT_Q_SOURCE_FILES},
+    }
+    if fault is None:
+        result = alertmanager_source._alertmanager_current_inputs(
+            API(), source_sha, tmp_path / "qualification.zip", **arguments
+        )
+        assert result == {"run": 101, "artifact": 201, "source": source_sha}
+        assert len(observed) == 1
+        assert observed[0][1]["current_artifact_digest"] == artifact["digest"]
+        assert observed[0][1]["current_source_files"] == arguments["source_files"]
+    else:
+        with pytest.raises(prometheus_source.QualificationError):
+            alertmanager_source._alertmanager_current_inputs(
+                API(), source_sha, tmp_path / "qualification.zip", **arguments
+            )
+        assert observed == []

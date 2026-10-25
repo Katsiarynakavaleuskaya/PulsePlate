@@ -520,6 +520,7 @@ def test_cd_has_no_prometheus_candidate_publication_carrier() -> None:
     assert dispatch["inputs"]["alertmanager_mode"]["options"] == [
         "disabled",
         "module-qualify",
+        "support-inspect",
         "build",
         "publish",
     ]
@@ -631,7 +632,7 @@ def test_prometheus_cd_registry_credential_route_preserves_base_execution_bounda
     )
     for script in (route["run"], consumer["run"]):
         assert "Prometheus_control_interface_HOLD" in script
-        assert "338536" in script
+        assert "350684" in script
         assert (
             # pragma: allowlist nextline secret - public trusted control blob
             "175520fe70b30c885448b95718b25b27985d3f8c"
@@ -639,7 +640,7 @@ def test_prometheus_cd_registry_credential_route_preserves_base_execution_bounda
         )
         assert (
             # pragma: allowlist nextline secret - public trusted control digest
-            "2b6edfa63f55b17cafdff100151b4b7cebef93a757fc3ab04b00eea77ca0ac6a"
+            "74bfb41b44caf439eeb06723e2dea42831888bfbdbd0c21338d0a82810b59786"
             in script
         )
     assert 'trusted["consume_image"](work, material' in consumer["run"]

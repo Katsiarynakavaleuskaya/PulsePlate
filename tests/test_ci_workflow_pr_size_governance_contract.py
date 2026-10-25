@@ -1153,8 +1153,8 @@ def test_all_active_checkout_uses_have_one_exact_v7_pin() -> None:
         ".github/workflows/security.yml",
         ".github/workflows/trivy.yml",
     }
-    # Incoming 91 checkout sites plus six retained AM consumer/publication sites.
-    assert len(observed_checkout_uses) == 97
+    # Incoming 91 sites, six retained consumers and two restored manual producer/support sites.
+    assert len(observed_checkout_uses) == 99
     assert {path for path, _ in observed_checkout_uses} == expected_checkout_workflows
 
 
@@ -6444,10 +6444,10 @@ def _assert_ci_lint_node24_frontend_hook_dependency_contract(
     assert lint_job["env"] == {
         "PROMETHEUS_CONSUME_SECONDS": "900",
         "PROMETHEUS_CLEANUP_SECONDS": "120",
-        "ALERTMANAGER_JOB_TIMEOUT_MINUTES": "${{ fromJSON(vars.CI_LINT_TIMEOUT_MINUTES || '170') }}",
+        "ALERTMANAGER_JOB_TIMEOUT_MINUTES": "${{ fromJSON(vars.CI_LINT_TIMEOUT_MINUTES || '190') }}",
         "ALERTMANAGER_CALLER_KIND": "ci-lint",
         "ALERTMANAGER_GENERIC_NATIVE_MINUTES": "${{ vars.OBS2A_NATIVE_JOB_TIMEOUT_MINUTES || '40' }}",
-        "ALERTMANAGER_LINT_CHECK_MINUTES": "${{ vars.CI_LINT_CHECKS_TIMEOUT_MINUTES || '40' }}",
+        "ALERTMANAGER_LINT_CHECK_MINUTES": "${{ vars.CI_LINT_CHECKS_TIMEOUT_MINUTES || '60' }}",
     }
     assert "environment" not in lint_job, "ci_lint_reader_environment"
     for forbidden_key in (

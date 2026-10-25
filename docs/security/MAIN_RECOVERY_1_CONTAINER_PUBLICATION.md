@@ -883,3 +883,22 @@ Focused results, current-head gates and actual publication/pullback/downstream
 outcomes are separate evidence. Code adoption or merge does not prove those
 outcomes. This change does not adopt the donor's source-catalog requalification;
 our original seventeen source records and `generated_at` remain unchanged.
+
+
+## PR #2497 AM07 source-preparation checkpoint
+
+The owner admitted the current image-security blockers and the required CI lint
+budget repair in this substantive PR. The finite fixes are tracked individually:
+[Brotli](CVE-2026-111497-brotli.md), [compress](CVE-2026-63209-klauspost-compress.md)
+and [Go trust store](CVE-2026-111943-go-trust-store.md). New ORAS/AM/Prometheus
+native output selection remains unset until actual qualified results exist.
+Historical C10 and prior failed/spent compiler records retain their identities.
+No suppression, deployment or automatic retry follows from source preparation.
+
+Current-head lint exhausted its 40-minute hook step; the same-material local
+all-files run took 2389.068104 seconds and hosted cold setup consumed about ten
+minutes before backend execution. The existing hook budget is 60 minutes and
+lint job 190 minutes, with maintained steps184 plus unchanged margin6. Native,
+compiler, scan and cleanup limits do not change. Budget availability is not a
+passing result. Evidence: `.github/workflows/ci.yml:734`,
+`scripts/ci/fetch_docker_source_artifacts.py:4663`.

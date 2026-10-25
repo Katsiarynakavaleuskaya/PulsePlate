@@ -782,7 +782,7 @@ def test_ci_pre_commit_seed_lifecycle_preserves_failures_and_observes_created_ho
     assert step["timeout-minutes"] == "${{ fromJSON(env.ALERTMANAGER_LINT_CHECK_MINUTES) }}"
     lint = _load_workflow(".github/workflows/ci.yml")["jobs"]["lint"]
     assert lint["env"]["ALERTMANAGER_LINT_CHECK_MINUTES"] == (
-        "${{ vars.CI_LINT_CHECKS_TIMEOUT_MINUTES || '40' }}"
+        "${{ vars.CI_LINT_CHECKS_TIMEOUT_MINUTES || '60' }}"
     )
     assert step["env"] == {"SKIP": "no-commit-to-branch"}
     assert "if" not in step and "continue-on-error" not in step

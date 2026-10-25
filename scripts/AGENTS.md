@@ -142,7 +142,7 @@
 - Qualification uses two independent original trees/caches, the one fixed
   x/net 0.60.0 + gRPC 1.83.2 replacement command, both command graphs online,
   then actual network-none/read-only offline queries. It starts no compiler.
-  The same 825-second clock starts before the exact admitted source/UI, Go1.27.2
+  The same 825-second clock starts before the exact admitted source/UI, current Go
   and public immutable base acquisition, with a fixed SIGALRM owner covering
   blocking calls; the source child restores the same remaining parent timer.
   Go uses unchanged acquire/extract for
@@ -172,14 +172,29 @@
 
 ## Retained Alertmanager consumer admission
 
-- The same source owner consumes the one fixed Q/S/C10 lineage. Keep original
+- The same source owner retains the original Q/S/C10 lineage and separately
+  admits only actual qualified current outputs. Keep original
   producer PR/ref/run/attempt/job/source/artifact and all content hashes intact;
   the explicitly admitted receiver has its own event/ref/head/base checks.
   Original C10-to-donor ancestry must never be invented in the receiver graph.
-- Only retained candidate/security and separately gated main publication are
-  connected. New input/support inspection and producer build paths are not
-  admitted; the existing build choice stays held. Consumer work never renews
-  a compiler budget or starts another pair.
+- Current source rebuilds require explicit coordinator/owner admission through
+  the existing manual Q/S/build stages. Keep current compiler inputs separate
+  from immutable historical receipts. Resolve actual unique same-source Q/S
+  before starting the finite image build; unset output selection remains HOLD.
+  Preserve the complete spent invocation history and never infer native totals
+  from job names or renew a compiler budget through a consumer.
+- The existing native AM entrypoint defaults to `selected_consumer`. Its explicit
+  `--alertmanager-producer-image` option belongs only to the source producer and
+  requires an observation. It runs all image controls and emits a distinct
+  producer marker/scope/status; it never configures accepted selection or claims
+  Compose, consumer, merge or publication readiness. After real outputs are
+  independently selected, the ordinary consumer must run the full canonical
+  Compose/native path. Missing/unknown/mixed scope evidence fails closed;
+  historical C10 full evidence remains historical only.
+- Current support transport binds every uploaded API file using the existing
+  file-inventory producer plus the complete native footer. Reject extra/missing
+  members; do not reuse a historical total ZIP count for a changed producer.
+  Keep scanner/database epochs and their exact negative inventories separate.
 - Require current six-file regular Git material and five separately reviewed
   controller templates before native rendering. ROOT creates real commit C,
   independently reviews/designates its exact bytes, then pins its known full
@@ -193,6 +208,9 @@
   binary/probe/CA, tool/DB and positive/negative scan inventories. Historical
   scanner evidence is separate from the required fresh supported scan. Failed
   scans or incomplete negative reports cannot prove rejection success.
+  Live image verification derives the admitted producer epoch once and forwards
+  it consistently to candidate and control validators; test actual caller
+  propagation and retain target-ID rejection independently of scanner severity.
 - Finish authenticated preparation and bounded credential cleanup before the
   secret-free native child. Preserve aggregate deadlines, shorter parent timers,
   held-FD capture and WNOWAIT process ownership, complete statuses and owned
@@ -225,13 +243,16 @@
   phase independently to its own source, raw native records and owned cleanup.
   The exact three-history selector separately binds the third postcompile layout
   failure, its immutable Tool=1 start and original admission cap1. Retain all
-  three failed/spent jobs. The separately adopted one-compile addition permits
+  three failed/spent jobs. The historical one-compile addition permitted
   aggregate Tool1 used/max2/one remaining; no selector grants dispatch authority
   or another automatic attempt. Ordinary retained
   tool/candidate readers remain success-only. Preserve pre/post prefetch locks,
   modes and source inventories, plus diagnostic errors alongside primary failures;
   missing historical post-state remains unknown. Publish and review the correction
-  before any separately coordinated recovery dispatch.
+  before any separately coordinated recovery dispatch. A newly admitted current
+  compiler operation must account for every prior successful and failed native
+  start through the existing history owner; historical selector allowances do
+  not grant another attempt.
 - Manual `prometheus-source-pair` permits exactly two serial logical image
   builds, each containing the two named commands and bounded to 3600 seconds.
   Use independent empty source/cache/output areas, no automatic retries,
@@ -277,7 +298,7 @@
 - CI/CD PR image consumption must finish before PR-local actions, imports or
   native programs start. Acquire exact event-H material as data, then verify the
   sparse fixed control checkout at `c023efbaf3e188b5da3bb5cedbf6363a182ce4d3`, with
-  helper SHA-256 `2b6edfa63f55b17cafdff100151b4b7cebef93a757fc3ab04b00eea77ca0ac6a`,
+  helper SHA-256 `74bfb41b44caf439eeb06723e2dea42831888bfbdbd0c21338d0a82810b59786`,
   before credential-free canonical four-blob classification. Native regular Git
   blobs supply B/H helper, build workflow, recipe and manifest bytes; the canonical
   helper alone selects manifest-change, historical-helper-change or published use.

@@ -2992,9 +2992,17 @@ def _native_alertmanager_compose_context(directory: Path) -> None:
 
 
 def native_alertmanager_main(
-    image_id: str, config_sha256: str, observation: Path | None = None
+    image_id: str,
+    config_sha256: str,
+    observation: Path | None = None,
+    *,
+    producer_image: bool = False,
 ) -> None:
     """Explicit local-image AM fixtures, independent of Prometheus publication state."""
+    assert type(producer_image) is bool, "one explicit native AM scope required"
+    assert (
+        not producer_image or observation is not None
+    ), "producer-image scope requires observation"
     assert sys.platform == "linux", "native mode requires the existing Linux CI runner"
     assert re.fullmatch(
         r"sha256:[0-9a-f]{64}", image_id
@@ -3061,7 +3069,7 @@ def native_alertmanager_main(
                 assert stamped == {
                     "build user": "pulseplate@builder",
                     "build date": "19700101-00:00:00",
-                    "go version": "go1.27.2",
+                    "go version": "go1.27.3",
                     "platform": "linux/amd64",
                     "tags": "netgo",
                 }, "actual stamped native metadata differs from frozen compiler command"
@@ -3086,7 +3094,10 @@ def native_alertmanager_main(
                 "/etc/alertmanager/alertmanager.yml",
             ]
         )
-        _native_alertmanager_compose_context(directory)
+        # Producer image proof precedes independent output selection. The selected
+        # consumer remains responsible for the complete canonical Compose check.
+        if not producer_image:
+            _native_alertmanager_compose_context(directory)
         failures = []
         if observation is not None:
             assert (
@@ -3117,7 +3128,11 @@ def native_alertmanager_main(
                 _native_alertmanager(negative, image_id, tls_failure=case)
     print(
         (
-            "native_AM_full_candidate_controls=pass"
+            (
+                "native_AM_producer_image_controls=pass"
+                if producer_image
+                else "native_AM_full_candidate_controls=pass"
+            )
             if observation is not None
             else "native_AM_existing_fixture_subset=pass; default_CA_and_full_candidate_acceptance=HOLD_SEPARATE_CONTROLS"
         ),
@@ -4276,6 +4291,7 @@ def _native_cli(argv: list[str] | None = None) -> None:
     parser.add_argument("--alertmanager-image-id")
     parser.add_argument("--alertmanager-config-sha256")
     parser.add_argument("--alertmanager-observation", type=Path)
+    parser.add_argument("--alertmanager-producer-image", action="store_true")
     parser.add_argument("--amtool-fixture-send", type=Path)
     parser.add_argument("--amtool-fixture-config", type=Path)
     parser.add_argument("--amtool-fixture-context")
@@ -4301,6 +4317,10 @@ def _native_cli(argv: list[str] | None = None) -> None:
         args.amtool_fixture_config is not None or args.amtool_fixture_context is not None
     ):
         parser.error("sender context is exclusive to the AM sender mode")
+    if args.alertmanager_producer_image and (
+        not args.native_alertmanager or args.alertmanager_observation is None
+    ):
+        parser.error("producer-image scope is exclusive to AM-only mode with observation")
     if args.native_alertmanager:
         if args.native or not args.alertmanager_image_id or not args.alertmanager_config_sha256:
             parser.error("AM-only mode requires exact local image ID and configuration hash")
@@ -4314,11 +4334,19 @@ def _native_cli(argv: list[str] | None = None) -> None:
             signal.setitimer(signal.ITIMER_REAL, int(seconds))
         primary: BaseException | None = None
         try:
-            native_alertmanager_main(
-                args.alertmanager_image_id,
-                args.alertmanager_config_sha256,
-                args.alertmanager_observation,
-            )
+            if args.alertmanager_producer_image:
+                native_alertmanager_main(
+                    args.alertmanager_image_id,
+                    args.alertmanager_config_sha256,
+                    args.alertmanager_observation,
+                    producer_image=True,
+                )
+            else:
+                native_alertmanager_main(
+                    args.alertmanager_image_id,
+                    args.alertmanager_config_sha256,
+                    args.alertmanager_observation,
+                )
         except BaseException as error:
             primary = error
             raise
@@ -5043,6 +5071,7 @@ def test_alertmanager_local_tls_partial_setup_closes_owned_server_without_start_
     assert closed == ["closed"]
 
 
+@pytest.mark.parametrize("producer_image", [False, True])
 @pytest.mark.parametrize("binary", ["alertmanager", "amtool"])
 @pytest.mark.parametrize(
     "fault",
@@ -5053,7 +5082,12 @@ def test_alertmanager_full_native_entry_checks_both_real_stamped_version_outputs
     monkeypatch: pytest.MonkeyPatch,
     binary: str,
     fault: str | None,
+    producer_image: bool,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
+    from scripts.ci import fetch_docker_source_artifacts as fetcher
+
+    monkeypatch.setattr(fetcher, "_ALERT_ACCEPTED_CANDIDATE", None)
     image = "sha256:" + "8" * 64
     observation = tmp_path / "candidate-observation.json"
     observation.write_text('{"synthetic_control_only":true}')
@@ -5086,7 +5120,7 @@ def test_alertmanager_full_native_entry_checks_both_real_stamped_version_outputs
             calls.append(actual)
             raw = (
                 actual
-                + ", version 0.34.1 (branch: HEAD, revision: 73c6bfe7393929211294c1954f30d8ed78e4d0ad)\n  build user: pulseplate@builder\n  build date: 19700101-00:00:00\n  go version: go1.27.2\n  platform: linux/amd64\n  tags: netgo\n"
+                + ", version 0.34.1 (branch: HEAD, revision: 73c6bfe7393929211294c1954f30d8ed78e4d0ad)\n  build user: pulseplate@builder\n  build date: 19700101-00:00:00\n  go version: go1.27.3\n  platform: linux/amd64\n  tags: netgo\n"
             )
             if actual == binary and fault is not None:
                 replacements = {
@@ -5095,7 +5129,7 @@ def test_alertmanager_full_native_entry_checks_both_real_stamped_version_outputs
                     "branch": ("branch: HEAD", "branch: unrelated"),
                     "user": ("pulseplate@builder", "unreviewed@builder"),
                     "date": ("19700101-00:00:00", "20261017-00:00:00"),
-                    "Go": ("go1.27.2", "go1.26.8"),
+                    "Go": ("go1.27.3", "go1.26.8"),
                     "platform": ("linux/amd64", "linux/arm64"),
                     "tags": ("tags: netgo", "tags: unknown"),
                 }
@@ -5113,23 +5147,64 @@ def test_alertmanager_full_native_entry_checks_both_real_stamped_version_outputs
         "_native_alertmanager_compose_context",
         lambda *a: calls.append("compose-context"),
     )
-    monkeypatch.setattr(sys.modules[__name__], "_native_alertmanager_candidate", lambda *a: None)
-    monkeypatch.setattr(sys.modules[__name__], "_native_alertmanager_local_tls", lambda *a: None)
-    monkeypatch.setattr(sys.modules[__name__], "_native_amtool_lifetime", lambda *a, **k: None)
-    monkeypatch.setattr(sys.modules[__name__], "_native_alertmanager", lambda *a, **k: None)
+    monkeypatch.setattr(
+        sys.modules[__name__],
+        "_native_alertmanager_candidate",
+        lambda *a: calls.append("candidate"),
+    )
+    monkeypatch.setattr(
+        sys.modules[__name__],
+        "_native_alertmanager_local_tls",
+        lambda *a: calls.append("local-tls"),
+    )
+    monkeypatch.setattr(
+        sys.modules[__name__], "_native_amtool_lifetime", lambda *a, **k: calls.append("lifetime")
+    )
+    monkeypatch.setattr(
+        sys.modules[__name__],
+        "_native_alertmanager",
+        lambda *a, **k: calls.append("smtp-" + k.get("tls_failure", "matching")),
+    )
     if fault:
         with pytest.raises(AssertionError):
             native_alertmanager_main(
                 image,
                 "5dc1025c293763618febeb74c17edcb126ad943f9b20c2296c67847e9f977549",
                 observation,
+                producer_image=producer_image,
             )
         assert binary in calls
     else:
         native_alertmanager_main(
-            image, "5dc1025c293763618febeb74c17edcb126ad943f9b20c2296c67847e9f977549", observation
+            image,
+            "5dc1025c293763618febeb74c17edcb126ad943f9b20c2296c67847e9f977549",
+            observation,
+            producer_image=producer_image,
         )
-        assert calls == ["alertmanager", "amtool", "compose-context"]
+        assert calls == ["alertmanager", "amtool"] + (
+            [] if producer_image else ["compose-context"]
+        ) + [
+            "candidate",
+            "local-tls",
+            "lifetime",
+            "smtp-matching",
+            "smtp-untrusted",
+            "smtp-hostname",
+            "smtp-plaintext",
+        ]
+        lines = capsys.readouterr().out.splitlines()
+        expected = (
+            "native_AM_producer_image_controls=pass"
+            if producer_image
+            else "native_AM_full_candidate_controls=pass"
+        )
+        opposite = (
+            "native_AM_full_candidate_controls=pass"
+            if producer_image
+            else "native_AM_producer_image_controls=pass"
+        )
+        assert lines.count(expected) == 1 and opposite not in lines
+    assert fetcher._ALERT_ACCEPTED_CANDIDATE is None
     assert _AM_NATIVE_DOCKER_CONFIG is None
 
 
@@ -6084,7 +6159,7 @@ def test_alertmanager_global_interrupt_bypasses_real_fixture_aggregate(
                 name
                 + ", version 0.34.1 (branch: HEAD, revision: 73c6bfe7393929211294c1954f30d8ed78e4d0ad)\n"
                 "  build user: pulseplate@builder\n  build date: 19700101-00:00:00\n"
-                "  go version: go1.27.2\n  platform: linux/amd64\n  tags: netgo\n"
+                "  go version: go1.27.3\n  platform: linux/amd64\n  tags: netgo\n"
             )
         return subprocess.CompletedProcess(argv, 0, text, "")
 
@@ -6302,7 +6377,15 @@ def test_alertmanager_failure_metadata_output_error_is_secondary(
 
 @pytest.mark.parametrize(
     "fault",
-    [None, "mount", "secret", "service-env-accepted", "explicit-env-accepted", "positive-rejected"],
+    [
+        None,
+        "mount",
+        "secret",
+        "service-env-accepted",
+        "explicit-env-accepted",
+        "positive-rejected",
+        "unconfigured",
+    ],
 )
 def test_alertmanager_native_compose_context_keeps_real_owner_and_closed_native_arguments(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str | None
@@ -6312,6 +6395,13 @@ def test_alertmanager_native_compose_context_keeps_real_owner_and_closed_native_
         _staging_compose_fixture_json,
     )
 
+    from scripts.ci import fetch_docker_source_artifacts as source
+
+    monkeypatch.setattr(
+        source,
+        "_ALERT_ACCEPTED_CANDIDATE",
+        None if fault == "unconfigured" else source._ALERT_HISTORICAL_C10,
+    )
     calls: list[list[str]] = []
     monkeypatch.setattr(sys, "platform", "linux")
 
@@ -6367,10 +6457,86 @@ def test_alertmanager_native_compose_context_keeps_real_owner_and_closed_native_
         )
 
     monkeypatch.setattr(sys.modules[__name__], "_native", native)
-    if fault:
+    if fault == "unconfigured":
+        with pytest.raises(ValueError, match="AM_accepted_producer_UNCONFIGURED_HOLD"):
+            _native_alertmanager_compose_context(tmp_path)
+    elif fault:
         with pytest.raises((AssertionError, SystemExit)):
             _native_alertmanager_compose_context(tmp_path)
     else:
         _native_alertmanager_compose_context(tmp_path)
         assert len(calls) == 9
     assert _AM_NATIVE_DOCKER_CONFIG is None
+
+
+@pytest.mark.parametrize("producer_image", [False, True])
+def test_alertmanager_native_cli_scope_is_explicit_and_never_sets_acceptance(
+    monkeypatch: pytest.MonkeyPatch, producer_image: bool
+) -> None:
+    from scripts.ci import fetch_docker_source_artifacts as source
+
+    monkeypatch.setattr(source, "_ALERT_ACCEPTED_CANDIDATE", None)
+    monkeypatch.setenv("ALERTMANAGER_NATIVE_SECONDS", "2400")
+    calls: list[dict[str, object]] = []
+    timers: list[float] = []
+
+    def main(image: str, config: str, observation: Path | None, **kwargs: object) -> None:
+        assert image == "sha256:" + "a" * 64 and config == "b" * 64
+        assert observation == Path("/synthetic/observation.json")
+        calls.append(kwargs)
+
+    monkeypatch.setattr(sys.modules[__name__], "native_alertmanager_main", main)
+    monkeypatch.setattr(signal, "signal", lambda *a: None)
+    monkeypatch.setattr(signal, "setitimer", lambda timer, seconds: timers.append(seconds))
+    argv = [
+        "--native-alertmanager",
+        "--alertmanager-image-id",
+        "sha256:" + "a" * 64,
+        "--alertmanager-config-sha256",
+        "b" * 64,
+        "--alertmanager-observation",
+        "/synthetic/observation.json",
+    ]
+    if producer_image:
+        argv.append("--alertmanager-producer-image")
+    _native_cli(argv)
+    assert calls == ([{"producer_image": True}] if producer_image else [{}])
+    assert timers == [2400, 0]
+    assert source._ALERT_ACCEPTED_CANDIDATE is None
+
+
+@pytest.mark.parametrize(
+    "mode_argv,observation",
+    [
+        (["--native"], True),
+        (["--native-alertmanager"], False),
+        (["--query-container", "synthetic-prom", "synthetic-app"], True),
+        (["--native-fixture", "synthetic"], True),
+        (["--amtool-fixture-send", "/synthetic/request"], True),
+    ],
+)
+def test_alertmanager_producer_image_scope_rejects_incomplete_or_other_cli_mode(
+    monkeypatch: pytest.MonkeyPatch, mode_argv: list[str], observation: bool
+) -> None:
+    monkeypatch.setattr(
+        sys.modules[__name__],
+        "native_alertmanager_main",
+        lambda *a, **k: pytest.fail("invalid scope reached native work"),
+    )
+    monkeypatch.setattr(
+        sys.modules[__name__],
+        "native_main",
+        lambda *a, **k: pytest.fail("producer scope escaped to generic consumer"),
+    )
+    argv = [
+        *mode_argv,
+        "--alertmanager-producer-image",
+        "--alertmanager-image-id",
+        "sha256:" + "a" * 64,
+        "--alertmanager-config-sha256",
+        "b" * 64,
+    ]
+    if observation:
+        argv += ["--alertmanager-observation", "/synthetic/observation.json"]
+    with pytest.raises(SystemExit):
+        _native_cli(argv)

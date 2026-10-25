@@ -536,7 +536,7 @@ validate_postgres_contract_files() {
 }
 
 PROMETHEUS_CONTRACT_HELPER="${PROMETHEUS_CONTRACT_HELPER:-${DEPLOY_DIR}/scripts/ci/prometheus_source_image.py}"
-PROMETHEUS_CONTRACT_HELPER_SHA256="2b6edfa63f55b17cafdff100151b4b7cebef93a757fc3ab04b00eea77ca0ac6a" # pragma: allowlist secret - public source digest
+PROMETHEUS_CONTRACT_HELPER_SHA256="74bfb41b44caf439eeb06723e2dea42831888bfbdbd0c21338d0a82810b59786" # pragma: allowlist secret - public source digest
 readonly PROMETHEUS_CONTRACT_HELPER PROMETHEUS_CONTRACT_HELPER_SHA256
 
 run_trusted_contract() {
@@ -549,22 +549,22 @@ import stat
 import sys
 path, expected = sys.argv[1:3]
 if not os.path.isabs(path) or re.fullmatch(r"[0-9a-f]{64}", expected) is None:
-    raise SystemExit("Invalid trusted Prometheus helper operand")
+    raise SystemExit("Invalid trusted contract helper operand")
 for parent in Path(path).parents:
     if parent.is_symlink() or not parent.is_dir():
-        raise SystemExit("Trusted Prometheus helper parent is not a real directory")
+        raise SystemExit("Trusted contract helper parent is not a real directory")
 fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
 before = os.fstat(fd)
 if (not stat.S_ISREG(before.st_mode) or before.st_nlink != 1 or before.st_uid not in (0, os.getuid())
         or before.st_mode & 0o022 or not 0 < before.st_size <= 1048576):
-    raise SystemExit("Trusted Prometheus helper leaf is invalid")
+    raise SystemExit("Trusted contract helper leaf is invalid")
 raw = os.read(fd, before.st_size + 1)
 after, current = os.fstat(fd), os.lstat(path)
 if len(raw) != before.st_size or hashlib.sha256(raw).hexdigest() != expected or any(
     getattr(before, key) != getattr(after, key) or getattr(before, key) != getattr(current, key)
     for key in ("st_dev", "st_ino", "st_mode", "st_nlink", "st_size", "st_mtime_ns", "st_ctime_ns")
 ):
-    raise SystemExit("Trusted current-source Prometheus helper binding changed")
+    raise SystemExit("Trusted current-source contract helper binding changed")
 os.lseek(fd, 0, os.SEEK_SET)
 os.set_inheritable(fd, True)
 os.execv(sys.executable, [sys.executable, "-I", "-S", "/dev/fd/" + str(fd), *sys.argv[3:]])
@@ -572,7 +572,7 @@ os.execv(sys.executable, [sys.executable, "-I", "-S", "/dev/fd/" + str(fd), *sys
 }
 
 ALERTMANAGER_CONTRACT_HELPER="${ALERTMANAGER_CONTRACT_HELPER:-${DEPLOY_DIR}/scripts/ci/fetch_docker_source_artifacts.py}"
-ALERTMANAGER_CONTRACT_HELPER_SHA256="53d8c5dd4d0b00ff5ba2e3bebebbc924425b1b401acdba2a7f6ebc06082a5e0b"
+ALERTMANAGER_CONTRACT_HELPER_SHA256="ea18efe8cc33a50fcd456d9163cfa7c4206eec01273a4f416114577f0043f235"
 readonly ALERTMANAGER_CONTRACT_HELPER ALERTMANAGER_CONTRACT_HELPER_SHA256
 
 run_prometheus_contract() {

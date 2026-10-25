@@ -41,6 +41,15 @@ ALERTMANAGER_CONFIG = REPO_ROOT / "deploy" / "alertmanager" / "alertmanager.yml"
 ALERTMANAGER_IGNORE = REPO_ROOT / "deploy" / "alertmanager" / "trivy-ignore.yaml"
 
 
+@pytest.fixture(autouse=True)
+def historical_alertmanager_selection(monkeypatch: pytest.MonkeyPatch) -> None:
+    from scripts.ci import fetch_docker_source_artifacts as fetcher
+
+    monkeypatch.setattr(
+        fetcher, "_ALERT_ACCEPTED_CANDIDATE", json.loads(json.dumps(fetcher._ALERT_HISTORICAL_C10))
+    )
+
+
 def test_alertmanager_cd_contract_carries_exact_files_and_keeps_scans_separate() -> None:
     workflow = CD_WORKFLOW.read_text(encoding="utf-8")
     for name, output in (
@@ -76,8 +85,8 @@ PROMETHEUS_RULES_HASH_CHECK = (
 )
 
 GO_BUILDER = (
-    "golang:1.26.9-alpine3.23@"
-    "sha256:96123126ac58e910f4dd3619a8901e2fb6d1ad84b59b1232cac7c9ea65a8f888"
+    "golang:1.26.10-alpine3.23@"
+    "sha256:0525c952defebc693cdaf62cdf43afa32be5a7f377e99260642ea19c240c708e"
 )
 NODE_BUILDER = (
     "node:24.18.1-bookworm-slim@"
@@ -105,6 +114,7 @@ EXPECTED_CADDY_BUILDER_STAGE = (
             "    go get google.golang.org/grpc@v1.83.2; \\",
             "    go get golang.org/x/crypto@v0.55.0; \\",
             "    go get golang.org/x/net@v0.60.0; \\",
+            "    go get github.com/klauspost/compress@v1.18.7; \\",
             "    go mod download all; \\",
             "    go mod verify; \\",
             (
@@ -114,6 +124,7 @@ EXPECTED_CADDY_BUILDER_STAGE = (
             (
                 "    go list -m -f '{{if or "
                 '(eq .Path "github.com/caddyserver/caddy/v2") '
+                '(eq .Path "github.com/klauspost/compress") '
                 '(eq .Path "google.golang.org/grpc") '
                 '(eq .Path "golang.org/x/crypto") '
                 '(eq .Path "golang.org/x/mod") '
@@ -130,6 +141,7 @@ EXPECTED_CADDY_BUILDER_STAGE = (
             "      | LC_ALL=C sort > /tmp/caddy-governed-graph; \\",
             "    printf '%s\\n' \\",
             "      'github.com/caddyserver/caddy/v2 v2.11.4' \\",
+            "      'github.com/klauspost/compress v1.18.7' \\",
             "      'golang.org/x/crypto v0.57.0' \\",
             "      'golang.org/x/mod v0.41.0' \\",
             "      'golang.org/x/net v0.60.0' \\",
@@ -141,7 +153,7 @@ EXPECTED_CADDY_BUILDER_STAGE = (
             "      'golang.org/x/tools v0.49.0' \\",
             "      'google.golang.org/grpc v1.83.2' \\",
             "      | LC_ALL=C sort > /tmp/caddy-expected-graph; \\",
-            ('    test "$(wc -l < /tmp/caddy-governed-graph | ' "tr -d '[:space:]')\" = '11'; \\"),
+            ('    test "$(wc -l < /tmp/caddy-governed-graph | ' "tr -d '[:space:]')\" = '12'; \\"),
             "    cmp /tmp/caddy-expected-graph /tmp/caddy-governed-graph; \\",
             "    go build -mod=readonly -trimpath \\",
             ("      -ldflags '-X github.com/caddyserver/caddy/v2.CustomVersion=v2.11.4' " "\\"),
@@ -157,7 +169,7 @@ EXPECTED_CADDY_BUILDER_STAGE = (
             (
                 '    awk \'$1 == "mod" && $2 == "github.com/caddyserver/caddy/v2" '
                 '{ print $1, $2, $3 } $1 == "dep" && '
-                '($2 == "google.golang.org/grpc" || $2 == "golang.org/x/crypto" || '
+                '($2 == "github.com/klauspost/compress" || $2 == "google.golang.org/grpc" || $2 == "golang.org/x/crypto" || '
                 '$2 == "golang.org/x/net" || $2 == "golang.org/x/sync" || '
                 '$2 == "golang.org/x/sys" || $2 == "golang.org/x/term" || '
                 '$2 == "golang.org/x/text") { print $1, $2, $3 }\' '
@@ -166,6 +178,7 @@ EXPECTED_CADDY_BUILDER_STAGE = (
             "      | LC_ALL=C sort > /tmp/caddy-governed-binary; \\",
             "    printf '%s\\n' \\",
             "      'mod github.com/caddyserver/caddy/v2 v2.11.4' \\",
+            "      'dep github.com/klauspost/compress v1.18.7' \\",
             "      'dep golang.org/x/crypto v0.57.0' \\",
             "      'dep golang.org/x/net v0.60.0' \\",
             "      'dep golang.org/x/sync v0.23.0' \\",
@@ -174,7 +187,7 @@ EXPECTED_CADDY_BUILDER_STAGE = (
             "      'dep golang.org/x/text v0.42.0' \\",
             "      'dep google.golang.org/grpc v1.83.2' \\",
             "      | LC_ALL=C sort > /tmp/caddy-expected-binary; \\",
-            ('    test "$(wc -l < /tmp/caddy-governed-binary | ' "tr -d '[:space:]')\" = '8'; \\"),
+            ('    test "$(wc -l < /tmp/caddy-governed-binary | ' "tr -d '[:space:]')\" = '9'; \\"),
             "    cmp /tmp/caddy-expected-binary /tmp/caddy-governed-binary; \\",
             "    rm -f \\",
             "      /tmp/caddy-binary-metadata \\",
@@ -196,7 +209,7 @@ EXPECTED_CADDY_FINAL_STAGE = (
             'LABEL org.opencontainers.image.title="PulsePlate Caddy SPA shell" \\',
             (
                 '      org.opencontainers.image.description="Caddy 2.11.4 rebuilt with '
-                'Go 1.26.9 and PulsePlate frontend assets"'
+                'Go 1.26.10 and PulsePlate frontend assets"'
             ),
             "",
             "# Compare the standard module surface before replacing the upstream binary.",
@@ -215,6 +228,7 @@ EXPECTED_CADDY_FINAL_STAGE = (
             ),
             "    diff -u /tmp/caddy-official-modules /tmp/caddy-rebuilt-modules; \\",
             "    apk add --no-cache \\",
+            '      "brotli-libs>=1.2.1-r0" \\',
             '      "c-ares>=1.34.8-r0" \\',
             '      "curl>=8.20.0-r0" \\',
             '      "libcurl>=8.20.0-r0" \\',
@@ -230,7 +244,7 @@ EXPECTED_CADDY_FINAL_STAGE = (
             ),
             (
                 "    caddy build-info | awk -F '\\t' '$1 == \"go\" && $2 == "
-                '"go1.26.9" { found=1 } END { exit found ? 0 : 1 }\'; \\'
+                '"go1.26.10" { found=1 } END { exit found ? 0 : 1 }\'; \\'
             ),
             "    rm -f /tmp/caddy-official-modules /tmp/caddy-rebuilt-modules",
             "",
@@ -348,11 +362,15 @@ def test_caddy_dockerfile_owns_exact_hardened_build_recipe() -> None:
     assert text.index(caddy_get) < text.index(grpc_get) < text.index(crypto_get)
     net_get = "go get golang.org/x/net@v0.60.0"
     assert text.count(net_get) == 1
-    assert text.index(crypto_get) < text.index(net_get) < text.index("go mod download all")
+    compress_get = "go get github.com/klauspost/compress@v1.18.7"
+    assert text.count(compress_get) == 1
+    assert text.index(crypto_get) < text.index(net_get) < text.index(compress_get)
+    assert text.index(compress_get) < text.index("go mod download all")
     assert "go mod download all" in text
     assert "go mod verify" in text
     for exact_graph_identity in (
         "github.com/caddyserver/caddy/v2 v2.11.4",
+        "github.com/klauspost/compress v1.18.7",
         "google.golang.org/grpc v1.83.2",
         "golang.org/x/crypto v0.57.0",
         "golang.org/x/mod v0.41.0",
@@ -373,6 +391,7 @@ def test_caddy_dockerfile_owns_exact_hardened_build_recipe() -> None:
     assert "cmp /tmp/caddy-expected-binary /tmp/caddy-governed-binary" in text
     for exact_binary_identity in (
         "mod github.com/caddyserver/caddy/v2 v2.11.4",
+        "dep github.com/klauspost/compress v1.18.7",
         "dep google.golang.org/grpc v1.83.2",
         "dep golang.org/x/crypto v0.57.0",
         "dep golang.org/x/net v0.60.0",
@@ -382,6 +401,7 @@ def test_caddy_dockerfile_owns_exact_hardened_build_recipe() -> None:
         "dep golang.org/x/text v0.42.0",
     ):
         assert f"'{exact_binary_identity}'" in text
+    assert '"brotli-libs>=1.2.1-r0"' in text
     assert '"c-ares>=1.34.8-r0"' in text
     assert '"curl>=8.20.0-r0"' in text
     assert '"libcurl>=8.20.0-r0"' in text
@@ -1117,16 +1137,16 @@ def test_production_quick_fix_rebuilds_and_verifies_hardened_caddy() -> None:
     assert pull_index < build_index < up_index < version_index < build_info_index < success_index
     assert "dc pull ||" not in text
     assert 'CADDY_VERSION_TOKEN" != "v2.11.4"' in text
-    assert 'CADDY_GO_VERSION" != "go1.26.9"' in text
+    assert 'CADDY_GO_VERSION" != "go1.26.10"' in text
     assert "*v2.11.4*" not in text
-    assert "*go1.26.9*" not in text
+    assert "*go1.26.10*" not in text
 
 
 @pytest.mark.parametrize(
     ("caddy_version", "build_info", "expected_error"),
     (
-        ("v2.11.40 h1:test", "go\tgo1.26.9\n", "Expected Caddy v2.11.4"),
-        ("v2.11.4 h1:test", "go\tgo1.26.90\n", "Expected Caddy built with Go 1.26.9"),
+        ("v2.11.40 h1:test", "go\tgo1.26.10\n", "Expected Caddy v2.11.4"),
+        ("v2.11.4 h1:test", "go\tgo1.26.100\n", "Expected Caddy built with Go 1.26.10"),
     ),
 )
 def test_production_quick_fix_rejects_inexact_caddy_identity(
@@ -1150,7 +1170,7 @@ def test_production_quick_fix_fails_closed_when_readiness_fails(tmp_path: Path) 
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.4 h1:test",
-        go_version="go1.26.9",
+        go_version="go1.26.10",
         curl_exit=22,
     )
 
@@ -1165,7 +1185,7 @@ def test_production_quick_fix_redacts_duplicate_secret_values(tmp_path: Path) ->
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.4 h1:test",
-        go_version="go1.26.9",
+        go_version="go1.26.10",
         extra_env=(
             f"POSTGRES_PASSWORD={password_sentinel}\n"
             f"DATABASE_URL=postgresql+psycopg://pulseplate:{dsn_sentinel}@db/pulseplate\n"
@@ -1196,7 +1216,7 @@ def test_production_quick_fix_rejects_compose_normalized_duplicate_keys(
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.4 h1:test",
-        go_version="go1.26.9",
+        go_version="go1.26.10",
         extra_env=f"{duplicate_line}\n",
     )
 
@@ -1217,7 +1237,7 @@ def test_production_quick_fix_fails_closed_when_env_file_is_missing(tmp_path: Pa
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.4 h1:test",
-        go_version="go1.26.9",
+        go_version="go1.26.10",
         create_env=False,
     )
 
@@ -1231,7 +1251,7 @@ def test_production_quick_fix_replaces_env_atomically_with_preserved_mode(tmp_pa
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.4 h1:test",
-        go_version="go1.26.9",
+        go_version="go1.26.10",
     )
 
     env_path = tmp_path / "production" / ".env"
@@ -1269,7 +1289,7 @@ def test_production_quick_fix_normalizes_managed_flag_cleanup(
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.4 h1:test",
-        go_version="go1.26.9",
+        go_version="go1.26.10",
         extra_env=f"{legacy_line}\n",
     )
 
@@ -2039,14 +2059,14 @@ def _assert_checkpoint_pr_native_job(workflow: dict[str, object]) -> None:
     assert lint["env"] == {
         "PROMETHEUS_CONSUME_SECONDS": "900",
         "PROMETHEUS_CLEANUP_SECONDS": "120",
-        "ALERTMANAGER_JOB_TIMEOUT_MINUTES": "${{ fromJSON(vars.CI_LINT_TIMEOUT_MINUTES || '170') }}",
+        "ALERTMANAGER_JOB_TIMEOUT_MINUTES": "${{ fromJSON(vars.CI_LINT_TIMEOUT_MINUTES || '190') }}",
         "ALERTMANAGER_CALLER_KIND": "ci-lint",
         "ALERTMANAGER_GENERIC_NATIVE_MINUTES": "${{ vars.OBS2A_NATIVE_JOB_TIMEOUT_MINUTES || '40' }}",
-        "ALERTMANAGER_LINT_CHECK_MINUTES": "${{ vars.CI_LINT_CHECKS_TIMEOUT_MINUTES || '40' }}",
+        "ALERTMANAGER_LINT_CHECK_MINUTES": "${{ vars.CI_LINT_CHECKS_TIMEOUT_MINUTES || '60' }}",
     }
     assert "environment" not in lint
     assert lint["if"] == "${{ !cancelled() }}"
-    assert lint["timeout-minutes"] == "${{ fromJSON(vars.CI_LINT_TIMEOUT_MINUTES || '170') }}"
+    assert lint["timeout-minutes"] == "${{ fromJSON(vars.CI_LINT_TIMEOUT_MINUTES || '190') }}"
     steps = _steps(lint)
     prerequisite = _named_step(steps, "Enforce prerequisite results")
     assert (
@@ -2743,7 +2763,9 @@ def test_caddy_counterfactual_metadata_owns_no_compiler_or_final_recipe_mutation
         "xnet060-metadata",
     ]
     steps = _steps(_job(workflow, "caddy-contract"))
-    metadata = _named_step(steps, "Qualify Caddy compiler and two counterfactual xnet derivations")
+    metadata = _named_step(
+        steps, "Qualify Caddy compiler and two counterfactual compress derivations"
+    )
     assert (
         metadata["if"]
         == "${{ github.event_name == 'workflow_dispatch' && inputs.caddy_action == 'xnet060-metadata' }}"
@@ -2774,13 +2796,17 @@ def test_caddy_counterfactual_metadata_owns_no_compiler_or_final_recipe_mutation
         "/sbin/apk verify /output/APKINDEX.tar.gz > /output/index-signature.txt",
         "/sbin/apk fetch --no-cache --repository https://dl-cdn.alpinelinux.org/alpine/v3.23/main --match package --output /output zlib-1.3.2-r1",
         "/sbin/apk verify /output/zlib-1.3.2-r1.apk > /output/package-signature.txt",
+        "/sbin/apk fetch --no-cache --repository https://dl-cdn.alpinelinux.org/alpine/v3.23/main --match package --output /output brotli-libs-1.2.1-r0",
+        "/sbin/apk verify /output/brotli-libs-1.2.1-r0.apk > /output/brotli-signature.txt",
     ]
-    assert 'require(gets == baseline_gets + [b"golang.org/x/net@v0.60.0"]' in source
+    assert 'require(gets == baseline_gets + [b"github.com/klauspost/compress@v1.18.7"]' in source
     assert '"counterfactual_seed_gets"' in source and '"selected_recipe_gets"' in source
-    # Current selection follows the observed original-three-get counterfactual replay.
+    # The compatibility mode now observes the current four-get seed plus compress.
     recipe = DOCKERFILE.read_text()
     assert recipe.count("go get golang.org/x/net@v0.60.0") == 1
-    assert "Go 1.26.9" in recipe
+    assert recipe.count("go get github.com/klauspost/compress@v1.18.7") == 1
+    assert "CVE-2026-111497" in source
+    assert "Go 1.26.10" in recipe
 
 
 def test_caddy_full_observation_keeps_native_diagnostics_without_inventing_secrets() -> None:
@@ -3043,7 +3069,6 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
     original_tag = transport.immutable_tag_state
     closed = False
     tool_bytes = b"synthetic qualified ORAS transport"
-    monkeypatch.setattr(fetcher, "_ALERT_ORAS_SHA256", hashlib.sha256(tool_bytes).hexdigest())
 
     class API:
         def __init__(self, private: Path, evidence: Path, deadline: float, cleanup: int) -> None:
@@ -3148,7 +3173,7 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
             "kind": kwargs.get("kind", "qualification"),
         }
 
-    def support(archive: Path, destination: Path) -> dict[str, Any]:
+    def support(archive: Path, destination: Path, **kwargs: Any) -> dict[str, Any]:
         del archive
         destination.mkdir()
         return {"probe": {}}
@@ -3159,6 +3184,7 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
         source: dict[str, bytes],
         inspected: dict[str, Any],
         support: Path,
+        **kwargs: Any,
     ) -> dict[str, Any]:
         del archive, source, inspected, support
         layout = destination / "layout"
@@ -3312,6 +3338,16 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
     monkeypatch.setattr(transport, "existing_public_package", package)
     monkeypatch.setattr(transport, "immutable_tag_state", tag)
     monkeypatch.setattr(fetcher, "_alertmanager_authenticated_inputs", authenticated)
+
+    def selected_inputs(
+        api: API, args: Any, output: Path, accepted: dict[str, Any]
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        return tuple(
+            authenticated(api, 1, 2, accepted["source"], output / (name + ".zip"), kind=name)
+            for name in ("qualification", "support")
+        )
+
+    monkeypatch.setattr(fetcher, "_alertmanager_selected_inputs", selected_inputs)
     monkeypatch.setattr(fetcher, "_alertmanager_source_snapshot", lambda *a, **k: {})
     monkeypatch.setattr(
         fetcher,
@@ -3335,12 +3371,14 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
         },
     )
     monkeypatch.setattr(fetcher, "_alertmanager_package_read", lambda *a: {})
-    monkeypatch.setattr(fetcher, "_alertmanager_qualified_payload", lambda *a: {"plan": {}})
+    monkeypatch.setattr(fetcher, "_alertmanager_qualified_payload", lambda *a, **k: {"plan": {}})
     monkeypatch.setattr(fetcher, "_alertmanager_support_payload", support)
     monkeypatch.setattr(fetcher, "_alertmanager_candidate_payload", candidate)
     monkeypatch.setattr(fetcher, "_alertmanager_candidate_graph", lambda *a: graph)
     monkeypatch.setattr(fetcher, "_alertmanager_native_candidate", native)
-    assert not hasattr(fetcher, "_alertmanager_pair")
+    monkeypatch.setattr(
+        fetcher, "_alertmanager_pair", lambda *a, **k: pytest.fail("publication started compiler")
+    )
     monkeypatch.setattr(
         fetcher, "_qualify_alertmanager_modules", lambda *a: pytest.fail("publication renewed Q")
     )
@@ -3410,6 +3448,7 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
         assert result["publication_merge_sha"] == "d" * 40
 
 
+@pytest.mark.parametrize("current_epoch", [False, True])
 @pytest.mark.parametrize(
     "fault",
     (
@@ -3420,6 +3459,11 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
         "partial",
         "wrong-subject",
         "new-HIGH",
+        "target-Go-UNKNOWN",
+        "target-Go-LOW",
+        "target-Go-MEDIUM",
+        "target-Go-HIGH",
+        "target-Go-CRITICAL",
         "secret",
         "old-missing",
         "positive-missing",
@@ -3433,6 +3477,7 @@ def test_alertmanager_current_four_controls_retain_native_reports_and_reject_unp
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     fault: str | None,
+    current_epoch: bool,
 ) -> None:
     """Drive the actual current four-control owner through bounded synthetic native I/O."""
     from argparse import Namespace
@@ -3481,7 +3526,36 @@ def test_alertmanager_current_four_controls_retain_native_reports_and_reject_unp
 
         monkeypatch.setattr(Path, "write_text", write_observation)
 
-    graph = fetcher._ALERT_ACCEPTED_CANDIDATE["graph"]
+    selected = deepcopy(fetcher._ALERT_HISTORICAL_C10)
+    oracle = deepcopy(fetcher._ALERT_CURRENT_SCAN_ORACLE)
+    if current_epoch:
+        selected["source"] = "a" * 40
+        selected["graph"]["config"]["digest"] = oracle["subject"]["config"] = "sha256:" + "b" * 64
+        selected["graph"]["manifest"]["digest"] = oracle["subject"]["manifest"] = (
+            "sha256:" + "c" * 64
+        )
+        for name, letter in (("alertmanager", "d"), ("amtool", "e")):
+            selected["graph"]["files"]["usr/bin/" + name] = oracle["subject"]["binary_sha256"][
+                name
+            ] = (letter * 64)
+            oracle["expected_modules"][name]["stdlib"] = "v1.27.3"
+    monkeypatch.setattr(fetcher, "_ALERT_ACCEPTED_CANDIDATE", selected)
+    monkeypatch.setattr(fetcher, "_ALERT_CURRENT_SCAN_ORACLE", oracle)
+    forwarded: list[tuple[str, bool]] = []
+    inventory_owner = fetcher._alertmanager_candidate_inventory
+    control_owner = fetcher._alertmanager_vulnerability_control
+
+    def inventory(*args: Any, current: bool = False) -> dict[str, Any]:
+        forwarded.append(("candidate", current))
+        return inventory_owner(*args, current=current)
+
+    def control(*args: Any, current: bool = False) -> dict[str, Any]:
+        forwarded.append(("old_control", current))
+        return control_owner(*args, current=current)
+
+    monkeypatch.setattr(fetcher, "_alertmanager_candidate_inventory", inventory)
+    monkeypatch.setattr(fetcher, "_alertmanager_vulnerability_control", control)
+    graph = selected["graph"]
     subject = graph["config"]["digest"]
     report = _alertmanager_current_scan_report()
 
@@ -3555,6 +3629,15 @@ def test_alertmanager_current_four_controls_retain_native_reports_and_reject_unp
                             "Severity": "HIGH",
                         }
                     ]
+                elif fault is not None and fault.startswith("target-Go-"):
+                    data["Results"][1]["Vulnerabilities"] = [
+                        {
+                            "VulnerabilityID": "CVE-2026-111943",
+                            "PkgName": "stdlib",
+                            "InstalledVersion": "v1.27.3" if current_epoch else "v1.27.2",
+                            "Severity": fault.removeprefix("target-Go-"),
+                        }
+                    ]
             elif label == "current-known-vulnerable-control":
                 cases = [
                     ("CVE-2026-84445", "google.golang.org/grpc@v1.83.1"),
@@ -3563,6 +3646,8 @@ def test_alertmanager_current_four_controls_retain_native_reports_and_reject_unp
                     ("CVE-2026-78667", "stdlib@v1.26.8"),
                     ("CVE-2026-97031", "stdlib@v1.26.8"),
                 ]
+                if current_epoch:
+                    cases.append(("CVE-2026-111943", "stdlib@v1.26.8"))
                 data = {
                     "SchemaVersion": 2,
                     "ArtifactType": "container_image",
@@ -3614,8 +3699,15 @@ def test_alertmanager_current_four_controls_retain_native_reports_and_reject_unp
     args = Namespace(
         alertmanager_scanner=scanner, alertmanager_cache=cache, output_dir=tmp_path / "observation"
     )
-    if fault is None:
+    historical_target_observation = not current_epoch and fault in (
+        "target-Go-UNKNOWN",
+        "target-Go-LOW",
+        "target-Go-MEDIUM",
+    )
+    succeeds = fault is None or historical_target_observation
+    if succeeds:
         fetcher._alertmanager_live_security(args)
+        assert forwarded == [("candidate", current_epoch), ("old_control", current_epoch)]
         assert [name for name in calls if name.startswith("current-")] == [
             "current-scanner-version",
             "current-candidate-full-supported",
@@ -3626,6 +3718,12 @@ def test_alertmanager_current_four_controls_retain_native_reports_and_reject_unp
     else:
         with pytest.raises((RuntimeError, ValueError, OSError)) as observed:
             fetcher._alertmanager_live_security(args)
+        if fault in ("target-Go-UNKNOWN", "target-Go-LOW", "target-Go-MEDIUM"):
+            assert current_epoch and str(observed.value) == "AM_current_Go_CVE_still_present"
+            assert forwarded == [("candidate", True)]
+            assert "live-old-control-pull" not in calls
+        elif fault in ("target-Go-HIGH", "target-Go-CRITICAL", "new-HIGH"):
+            assert str(observed.value) == "AM_new_blocking_support_finding_HOLD"
         if fault in ("observation-write", "primary-and-observation"):
             assert timers[0] <= 5.0 and timers[-1] == 5.0
             assert not (args.output_dir / "security-observation.json").exists()
@@ -3638,8 +3736,11 @@ def test_alertmanager_current_four_controls_retain_native_reports_and_reject_unp
             return
     record = json.loads((args.output_dir / "security-observation.json").read_bytes())
     assert (record.get("status") == "OBSERVED_CURRENT_SUPPORTED_INVENTORY_AND_FOUR_CONTROLS") is (
-        fault is None
+        succeeds
     )
+    if historical_target_observation:
+        assert record["candidate"]["findings"][0]["VulnerabilityID"] == "CVE-2026-111943"
+    assert all(epoch is current_epoch for _, epoch in forwarded)
     if fault not in ("scanner-exit", "missing-report"):
         assert (
             args.output_dir / "evidence/current-candidate-full-supported.private.json"

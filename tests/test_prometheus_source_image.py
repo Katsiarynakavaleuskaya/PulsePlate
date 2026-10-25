@@ -25,6 +25,195 @@ import pytest
 from scripts.ci import prometheus_source_image as source
 
 
+@pytest.mark.parametrize("purpose", ["tool", "pair"])
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "missing",
+        "extra",
+        "duplicate",
+        "source",
+        "attempt",
+        "active",
+        "job-source",
+        "branch",
+        "foreign-PR",
+        "current-job",
+        "retry-selector",
+    ],
+)
+def test_stabilization_manual_budget_preserves_complete_spent_history(
+    monkeypatch: pytest.MonkeyPatch, purpose: str, fault: str | None
+) -> None:
+    """Synthetic API responses retain the observed historical identities; no build is run."""
+    tool_rows = [
+        (
+            38170923494,
+            114563178711,
+            "5de54811121079eadbd3f5d8dbbb8720f712530a",
+            "codex/dependency-native-runtime-remediation",
+            "failure",
+        ),
+        (
+            38192419687,
+            114627819440,
+            "15097adaa871a900370f6c57a512fe862dddb041",
+            "codex/dependency-native-runtime-remediation",
+            "failure",
+        ),
+        (
+            38239428418,
+            114778090287,
+            "f632572057453d57975a397a5b2db64894204be0",
+            "codex/dependency-native-runtime-remediation",
+            "failure",
+        ),
+        (
+            38269614712,
+            114880342307,
+            "a18d636138bbab67e96c902b1c61f690263c8b55",
+            "codex/dependency-native-runtime-remediation",
+            "success",
+        ),
+        (
+            39020247533,
+            117360452632,
+            "9c1b48f8b3a63bf827543cf69090505c1f157fc6",
+            "codex/consolidate-legacy-ownership-guard",
+            "success",
+        ),
+    ]
+    pair_rows = [
+        (
+            38291450453,
+            114952275845,
+            "b732222719f70fa592218d2255324850843e9eea",
+            "codex/dependency-native-runtime-remediation",
+            "success",
+        ),
+        (
+            39033193167,
+            117397709770,
+            "e2b86644a9a0264098f57f1bbca5914a3438fbe6",
+            "codex/consolidate-legacy-ownership-guard",
+            "success",
+        ),
+    ]
+    branch = "codex/python-setup-security-stabilization"
+    head = "a" * 40
+    job_name = (
+        "prometheus-oras-qualification" if purpose == "tool" else "prometheus-source-build-pair"
+    )
+    rows = tool_rows if purpose == "tool" else pair_rows
+    runs = [
+        {
+            "id": run,
+            "head_sha": revision,
+            "head_branch": ref,
+            "run_attempt": 1,
+            "event": "workflow_dispatch",
+            "workflow_id": 99,
+            "status": "completed",
+            "conclusion": outcome,
+            "repository": {"id": 1043311030},
+            "head_repository": {"id": 1043311030},
+        }
+        for run, _, revision, ref, outcome in rows
+    ]
+    jobs = {
+        run: [
+            {
+                "id": job,
+                "run_id": run,
+                "head_sha": revision,
+                "name": job_name,
+                "status": "completed",
+                "conclusion": outcome,
+            }
+        ]
+        for run, job, revision, _, outcome in rows
+    }
+    current = {
+        "id": 999,
+        "head_sha": head,
+        "head_branch": branch,
+        "run_attempt": 1,
+        "event": "workflow_dispatch",
+        "workflow_id": 99,
+        "repository": {"id": 1043311030},
+        "head_repository": {"id": 1043311030},
+    }
+    pr = {
+        "number": 2497,
+        "state": "open",
+        "head": {"ref": branch, "sha": head, "repo": {"id": 1043311030}},
+        "base": {"ref": "main", "repo": {"id": 1043311030}},
+    }
+    jobs[999] = [
+        {"id": 1999, "run_id": 999, "head_sha": head, "name": job_name, "status": "in_progress"}
+    ]
+    if fault == "missing":
+        runs.pop()
+    elif fault == "extra":
+        extra = {**runs[-1], "id": 888}
+        runs.append(extra)
+        jobs[888] = [{**jobs[rows[-1][0]][0], "run_id": 888, "id": 1888}]
+    elif fault == "duplicate":
+        jobs[rows[0][0]].append(dict(jobs[rows[0][0]][0]))
+    elif fault == "source":
+        runs[0]["head_sha"] = "b" * 40
+    elif fault == "attempt":
+        runs[0]["run_attempt"] = 2
+    elif fault == "active":
+        runs[0]["status"] = "in_progress"
+    elif fault == "job-source":
+        jobs[rows[0][0]][0]["head_sha"] = "b" * 40
+    elif fault == "branch":
+        runs[0]["head_branch"] = "unrelated"
+    elif fault == "foreign-PR":
+        pr["head"]["repo"]["id"] = 1
+    elif fault == "current-job":
+        jobs[999][0]["status"] = "completed"
+
+    class API:
+        def json(self, endpoint: str) -> dict[str, Any]:
+            if endpoint.endswith("/runs/999"):
+                return current
+            if endpoint.endswith("/workflows/build.yml"):
+                return {"id": 99, "path": ".github/workflows/build.yml"}
+            if endpoint.endswith("/pulls/2497"):
+                return pr
+            return {"total_count": len(runs) + 1 if "/workflows/" in endpoint else 1}
+
+        def pages(self, endpoint: str, key: str, count: int) -> list[dict[str, Any]]:
+            if key == "workflow_runs":
+                return [*runs, current]
+            return jobs[int(endpoint.split("/runs/")[1].split("/")[0])]
+
+    monkeypatch.setattr(source.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(source.platform, "machine", lambda: "x86_64")
+    for key, value in {
+        "GITHUB_ACTIONS": "true",
+        "GITHUB_EVENT_NAME": "workflow_dispatch",
+        "GITHUB_REPOSITORY": source.GHCR_REPOSITORY,
+        "GITHUB_REPOSITORY_ID": "1043311030",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "GITHUB_RUN_ID": "999",
+        "GITHUB_SHA": head,
+        "GITHUB_REF": "refs/heads/" + branch,
+    }.items():
+        monkeypatch.setenv(key, value)
+    selector = source.TOOL_THREE_PREDECESSORS if fault == "retry-selector" else None
+    if fault is None:
+        result = source.manual_hosted_admission(API(), purpose, prefetch_predecessor=selector)
+        assert result["budget"] == (1 if purpose == "tool" else 2)
+        assert len(result["actual_prior_invocations"]) == (5 if purpose == "tool" else 2)
+    else:
+        with pytest.raises(source.QualificationError):
+            source.manual_hosted_admission(API(), purpose, prefetch_predecessor=selector)
+
+
 def _finite_vendor_input(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, wrong_diff: bool = False
 ) -> Path:
@@ -314,7 +503,12 @@ def test_actual_layout_rejection_reaches_tool_report_and_keeps_cleanup_separate(
 
     monkeypatch.setattr(source, "GitHubRead", API)
     monkeypatch.setattr(
-        source, "manual_hosted_admission", lambda *args, **kwargs: {"head": "synthetic"}
+        source,
+        "manual_hosted_admission",
+        lambda *args, **kwargs: {
+            "head": "synthetic",
+            "ref": "refs/heads/codex/python-setup-security-stabilization",
+        },
     )
     monkeypatch.setattr(source, "authenticate_producer_inputs", lambda *args, **kwargs: None)
     monkeypatch.setattr(source, "tool_input_projection", lambda root: {"synthetic": True})
@@ -482,7 +676,7 @@ def _tool_scan_data(subject: str = "/synthetic/tool-rootfs") -> dict[str, Any]:
                 "Class": "lang-pkgs",
                 "Type": "gobinary",
                 "Packages": [
-                    {"Name": "stdlib", "Version": "v1.27.2"},
+                    {"Name": "stdlib", "Version": "v1.27.3"},
                     {"Name": "golang.org/x/crypto", "Version": "v0.52.0"},
                 ],
                 "Vulnerabilities": [
@@ -1138,7 +1332,7 @@ def _projection_case(tmp_path: Path) -> tuple[Path, dict[str, Any], dict[str, An
     (root / source.MANIFEST_PATH).write_text(json.dumps(manifest))
     acquired = {
         "source": "a" * 64,
-        "go": source.GO.digest,
+        "go": source.CURRENT_GO.digest,
         "modules": "b" * 64,
         "UI_transform": {
             "generated_paths": [name + ".gz" for name in sorted(source.UI_FILES)],
@@ -1935,9 +2129,7 @@ def test_main_prefetch_uses_no_explicit_module_args_and_rejects_lock_drift(
         if artifact.name in ("source", "go"):
             (target / "LICENSE").write_bytes(b"synthetic license")
             (target / "VERSION").write_bytes(
-                b"3.15.0\n"
-                if artifact.name == "source"
-                else b"go1.27.2\ntime 2026-10-02T20:28:03Z\n"
+                b"3.15.0\n" if artifact.name == "source" else source.CURRENT_GO_VERSION_FILE
             )
         if artifact.name == "source":
             for name, data in locks.items():
@@ -1959,7 +2151,7 @@ def test_main_prefetch_uses_no_explicit_module_args_and_rejects_lock_drift(
         assert not cleaning
         assert env["GOTOOLCHAIN"] == "local" and env["GOFLAGS"] == "-mod=readonly"
         if name == "online-go-version":
-            return source.GO_VERSION.encode()
+            return source.CURRENT_GO_VERSION.encode()
         if name == "public-module-download":
             if changed_lock is not None:
                 (cwd / changed_lock).write_bytes(b"unexpected native lock mutation\n")
@@ -4374,7 +4566,7 @@ def test_derivation_controller_uses_two_clean_original_fixed_get_replays_or_stop
                 return b""
             assert env["GOFLAGS"] == "-mod=readonly"
             if command == ["version"]:
-                return source.GO_VERSION.encode()
+                return source.CURRENT_GO_VERSION.encode()
             if command == ["mod", "edit", "-json"]:
                 if fault == "base-lock" and not changed:
                     (cwd / "go.sum").write_bytes(b"unexpected sum")
@@ -4507,7 +4699,7 @@ def test_derivation_offline_keeps_both_production_graphs_and_existing_sandbox_co
     ) -> tuple[bytes, dict[str, Any]]:
         command = expected["command"]
         if command == ["version"]:
-            raw = source.GO_VERSION.encode()
+            raw = source.CURRENT_GO_VERSION.encode()
         elif command == ["mod", "verify"]:
             raw = b"all modules verified"
         else:
@@ -5063,7 +5255,7 @@ def test_tool_prefetch_retains_before_after_and_preserves_primary(
         calls.append(argv)
         assert cwd == tree and env["GOTOOLCHAIN"] == "local" and env["GOWORK"] == "off"
         if name.endswith("-version"):
-            return source.GO_VERSION.encode()
+            return source.CURRENT_GO_VERSION.encode()
         if name.endswith("-download"):
             if variant == "lock":
                 (tree / "go.sum").write_bytes(b"actual synthetic lock drift\n")

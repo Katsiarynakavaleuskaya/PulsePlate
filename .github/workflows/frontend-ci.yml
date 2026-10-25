@@ -515,6 +515,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0 / Node 24
 
+      # xnet060-metadata is the retained compatibility identifier for the current fixed recipe.
       - name: Admit explicit first Caddy metadata invocation
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.caddy_action == 'xnet060-metadata' }}
         run: |
@@ -528,14 +529,14 @@ jobs:
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 / Node 24 cache path
         with:
           version: v0.74.0
-          image-ref: golang:1.26.9-alpine3.23@sha256:96123126ac58e910f4dd3619a8901e2fb6d1ad84b59b1232cac7c9ea65a8f888
+          image-ref: golang:1.26.10-alpine3.23@sha256:0525c952defebc693cdaf62cdf43afa32be5a7f377e99260642ea19c240c708e
           format: table
           vuln-type: os,library
           severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
           exit-code: '0'
           cache-dir: /tmp/trivy-cache-caddy-metadata
 
-      - name: Qualify Caddy compiler and two counterfactual xnet derivations
+      - name: Qualify Caddy compiler and two counterfactual compress derivations
         id: caddy-metadata
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.caddy_action == 'xnet060-metadata' }}
         run: |
@@ -569,16 +570,16 @@ jobs:
           config = work / "docker-config"
           fresh_directory(config)
           environment = {"PATH": "/usr/bin:/bin", "HOME": str(work), "DOCKER_CONFIG": str(config), "LANG": "C.UTF-8"}
-          compiler = "golang:1.26.9-alpine3.23@sha256:96123126ac58e910f4dd3619a8901e2fb6d1ad84b59b1232cac7c9ea65a8f888"
+          compiler = "golang:1.26.10-alpine3.23@sha256:0525c952defebc693cdaf62cdf43afa32be5a7f377e99260642ea19c240c708e"
           recipe = (root / "frontend/Dockerfile.caddy-spa").read_bytes()
           gets = re.findall(rb"^    go get ([^;]+);", recipe, re.MULTILINE)
-          baseline_gets = [b"github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.4", b"google.golang.org/grpc@v1.83.2", b"golang.org/x/crypto@v0.55.0"]
-          require(gets == baseline_gets + [b"golang.org/x/net@v0.60.0"], "caddy_selected_four_gets")
+          baseline_gets = [b"github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.4", b"google.golang.org/grpc@v1.83.2", b"golang.org/x/crypto@v0.55.0", b"golang.org/x/net@v0.60.0"]
+          require(gets == baseline_gets + [b"github.com/klauspost/compress@v1.18.7"], "caddy_selected_five_gets")
           report = {"purpose": "Counterfactual recipe baselines, not recovered historical ephemeral locks or a compiled candidate",
                     "compiler_index": compiler, "recipe_sha256": hashlib.sha256(recipe).hexdigest(),
                     "counterfactual_seed_gets": [value.decode() for value in baseline_gets],
                     "selected_recipe_gets": [value.decode() for value in gets],
-                    "authored_action": "golang.org/x/net@v0.60.0",
+                    "authored_action": "github.com/klauspost/compress@v1.18.7",
                     "run_id": int(os.environ["GITHUB_RUN_ID"]), "run_attempt": 1,
                     "source_head": os.environ["GITHUB_SHA"], "go_build_invocations": 0,
                     "failure": None, "derivations": {}, "closure_admission": "pending independent source/security review"}
@@ -606,7 +607,7 @@ jobs:
                   "--security-opt", "no-new-privileges", "--cpus", "2", "--memory", "2g", "--pids-limit", "128",
                   "--env", "GOTOOLCHAIN=local", "--env", "GOENV=off", "--env", "GOWORK=off",
                   "--entrypoint", "/usr/local/go/bin/go", observed["Id"], "version"], "compiler-native-version", environment, cwd=work)
-              require(go_version == b"go version go1.26.9 linux/amd64\n", "compiler_native_version")
+              require(go_version == b"go version go1.26.10 linux/amd64\n", "compiler_native_version")
               report["compiler_go_version_sha256"] = hashlib.sha256(go_version).hexdigest()
               scanner = shutil.which("trivy")
               require(scanner is not None and Path(scanner).is_absolute(), "compiler_native_scanner_missing")
@@ -656,6 +657,8 @@ jobs:
           /sbin/apk verify /output/APKINDEX.tar.gz > /output/index-signature.txt
           /sbin/apk fetch --no-cache --repository https://dl-cdn.alpinelinux.org/alpine/v3.23/main --match package --output /output zlib-1.3.2-r1
           /sbin/apk verify /output/zlib-1.3.2-r1.apk > /output/package-signature.txt
+          /sbin/apk fetch --no-cache --repository https://dl-cdn.alpinelinux.org/alpine/v3.23/main --match package --output /output brotli-libs-1.2.1-r0
+          /sbin/apk verify /output/brotli-libs-1.2.1-r0.apk > /output/brotli-signature.txt
           '''
               native.run([docker, "--config", str(config), "create", "--pull", "never", "--name", vendor_name,
                           "--label", "pulseplate.caddy-metadata=" + os.environ["GITHUB_RUN_ID"],
@@ -669,11 +672,16 @@ jobs:
               report["vendor_OS_remedy"] = {"package": "zlib=1.3.2-r1", "CVE": "CVE-2026-85091",
                   "inventory": tree_inventory(vendor), "native_final_runtime": "pending", "Go_closure": False,
                   "signature_contract": "apk verify validates package/index checksum and signature using the retained compiler image keys"}
+              brotli_bytes = (vendor / "brotli-libs-1.2.1-r0.apk").read_bytes()
+              require(len(brotli_bytes) == 429434 and hashlib.sha256(brotli_bytes).hexdigest() == "cf3dc08928958bb42fe71c07a179ca33adb9e2c341daa29d88777061956d84f5", "brotli_acquired_package_identity")
+              report["vendor_OS_remedy"]["brotli"] = {"package": "brotli-libs=1.2.1-r0", "CVE": "CVE-2026-111497",
+                  "bytes": len(brotli_bytes), "sha256": hashlib.sha256(brotli_bytes).hexdigest(),
+                  "native_final_runtime": "pending", "Go_closure": False}
               secdb_url = "https://secdb.alpinelinux.org/v3.23/main.json"
               with urllib.request.urlopen(secdb_url, timeout=min(30, deadline - time.monotonic())) as response:
                   require(response.geturl() == secdb_url, "vendor_secdb_redirect")
                   secdb = response.read(1024**2 + 1)
-              require(len(secdb) == 94107 and hashlib.sha256(secdb).hexdigest() == "edfe463a4d483fbcb788828141f8500538ff468169bef9ac27892b1135634e2a", "vendor_secdb_cutoff_changed")
+              require(len(secdb) == 95072 and hashlib.sha256(secdb).hexdigest() == "4be238c602fdd49e88515b5f4113176d33f5f0323c406c7d47b28ae28d9a5457", "vendor_secdb_cutoff_changed")
               (vendor / "main-secdb.raw.json").write_bytes(secdb)
               report["vendor_OS_remedy"]["secdb_sha256"] = hashlib.sha256(secdb).hexdigest()
               for label in ("a", "b"):
@@ -698,12 +706,13 @@ jobs:
                   # The same fixed guest paths and canonical phases are used in both fresh lanes.
                   script = '''set -eu
           go version > /output/compiler-version.txt
-          test "$(cat /output/compiler-version.txt)" = "go version go1.26.9 linux/amd64"
+          test "$(cat /output/compiler-version.txt)" = "go version go1.26.10 linux/amd64"
           cat /etc/alpine-release > /output/alpine-release.txt
           go mod init pulseplate.local/caddy-build
           go get github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.4
           go get google.golang.org/grpc@v1.83.2
           go get golang.org/x/crypto@v0.55.0
+          go get golang.org/x/net@v0.60.0
           go mod download all
           go mod verify > /output/baseline-verify.txt
           cp go.mod /output/baseline-go.mod
@@ -713,7 +722,7 @@ jobs:
           go list -mod=readonly -deps -json github.com/caddyserver/caddy/v2/cmd/caddy > /output/baseline-packages.json
           cmp go.mod /output/baseline-go.mod
           cmp go.sum /output/baseline-go.sum
-          go get golang.org/x/net@v0.60.0
+          go get github.com/klauspost/compress@v1.18.7
           cp go.mod /output/post-get-go.mod
           cp go.sum /output/post-get-go.sum
           go mod download all
@@ -749,11 +758,11 @@ jobs:
                       require(modules["github.com/caddyserver/caddy/v2"]["Version"] == "v2.11.4", "caddy_preserved_source_version")
                       report["derivations"].setdefault(label, {})[phase] = {"modules": modules, "packages": len(packages)}
                   before, after = report["derivations"][label]["baseline"]["modules"], report["derivations"][label]["final"]["modules"]
-                  require(before["golang.org/x/net"]["Version"] == "v0.58.0" and after["golang.org/x/net"]["Version"] == "v0.60.0", "caddy_exact_authored_net_transition")
+                  require(before["github.com/klauspost/compress"]["Version"] == "v1.18.6" and after["github.com/klauspost/compress"]["Version"] == "v1.18.7" and before["golang.org/x/net"]["Version"] == after["golang.org/x/net"]["Version"] == "v0.60.0", "caddy_exact_authored_compress_transition")
                   delta = [{"path": path, "before": before.get(path), "after": after.get(path),
-                            "class": "I_R" if path == "golang.org/x/net" else "C_R_candidate"}
+                            "class": "I_R" if path == "github.com/klauspost/compress" else "C_R_candidate"}
                            for path in sorted(set(before) | set(after)) if before.get(path) != after.get(path)]
-                  require(any(row["path"] == "golang.org/x/net" for row in delta), "caddy_nonempty_authored_net_delta")
+                  require(any(row["path"] == "github.com/klauspost/compress" for row in delta), "caddy_nonempty_authored_compress_delta")
                   (output / "complete-delta.json").write_bytes(canonical_data(delta))
                   patch = "".join("".join(difflib.unified_diff((output / ("baseline-" + name)).read_text().splitlines(True), (output / ("final-" + name)).read_text().splitlines(True), fromfile="a/" + name, tofile="b/" + name)) for name in ("go.mod", "go.sum"))
                   (output / "module-derivation.patch").write_text(patch)
@@ -904,7 +913,7 @@ jobs:
             "$evidence_dir/version.txt"
           docker run --rm --network none --read-only --cap-drop ALL --cap-add NET_BIND_SERVICE \
             pulseplate-caddy:contract caddy build-info | tee "$evidence_dir/build-info.txt"
-          awk -F '\t' '$1 == "go" && $2 == "go1.26.9" { found=1 } END { exit found ? 0 : 1 }' \
+          awk -F '\t' '$1 == "go" && $2 == "go1.26.10" { found=1 } END { exit found ? 0 : 1 }' \
             "$evidence_dir/build-info.txt"
           docker run --rm --network none --read-only --cap-drop ALL --cap-add NET_BIND_SERVICE \
             pulseplate-caddy:contract getcap /usr/bin/caddy | tee "$evidence_dir/capabilities.txt"
