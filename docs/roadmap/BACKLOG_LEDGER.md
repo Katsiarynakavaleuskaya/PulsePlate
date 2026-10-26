@@ -25,6 +25,16 @@ If it is not recorded here — it does not exist.
 
 - [ ] AM11 vendor CA refresh in PR #2497 — Owner: backend-engineer / security-auditor; Priority: P0; Target PR: #2497; Status: source preparation, native proof pending. Reason: earlier AM07 images retain removed trust roots, so source changes cannot close acceptance. Evidence: [exact vendor delta and remaining proof](../security/CVE-2026-111943-go-trust-store.md#am11-vendor-ca-source-preparation). DoD: new qualified ORAS, complete current Q/S export binding, one admitted Prometheus pair and AM build, the same-incident Caddy two-package CA update and actual image observation, actual default-bundle/DER/TLS proof, full scanner inventories, current-head CI/review and merged-main verification. Existing original requirements remain required; no suppressions or automatic retries.
 
+<a id="ledger-p1-production-managed-postgres-schema-adoption"></a>
+- [ ] P1: Reconcile the existing managed-production PostgreSQL schema before the next deployment
+  - Owner: dev-operator / backend-engineer / agent-coordinator
+  - Priority: P1 (production migration safety)
+  - Target PR: TBD dedicated managed-production schema-adoption lane
+  - Status: Deferred by the operator on 2026-10-26 during PR #2497. This security/main stabilization task performs no production deployment, Ubuntu maintenance or database mutation.
+  - Reason for deferral: Read-only inspection found existing application tables without an Alembic version record and mixed migration-era structure. This is the configured application database, not the separately planned nutrition-data target; food population and runtime authority cutover remain under their existing owners. The current release script runs Alembic upgrade, while the initial revision creates users unconditionally.
+  - Links: `scripts/deploy_production.sh:3172`, `alembic/versions/202501010001_create_users_table.py:26`, `docs/deploy/README.md`, `alembic/AGENTS.md`.
+  - DoD: Authenticate the actual configured database identity without exposing credentials; obtain provider backup/PITR and a verified recovery plan; compare physical tables, types, defaults, PK/FK/unique/check constraints, indexes, sequences, RLS and extensions with the intended migration path; review and test any baseline/adoption and corrective migration on a restored disposable copy; preserve data and rollback evidence. No blind stamp, drop/recreate or hash-only schema-equality claim. Complete the separate release/deployment gates and obtain renewed deployment authorization before activation. Do not populate or switch the nutrition target as part of this schema-adoption lane.
+
 <a id="ledger-p1-python-stabilization-source-review"></a>
 - [ ] P1: Reassess the unchanged Docker source inventory before October 30
   - Owner: agent-coordinator / security-auditor

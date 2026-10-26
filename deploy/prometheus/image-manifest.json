@@ -322,7 +322,16 @@
         "-buildvcs=false",
         "-ldflags=-X oras.land/oras/internal/version.Version=1.3.4 -X oras.land/oras/internal/version.GitCommit=db9e29505c3059f2b8fde34ae8cae266c5c765e9 -X oras.land/oras/internal/version.BuildMetadata= -X oras.land/oras/internal/version.GitTreeState=clean"
       ],
-      "retained": null
+      "retained": {
+        "source_head": "7d2805f8ac60ac17c178c92f24c8f484c89e31f8",
+        "run_id": 40309564942,
+        "artifact_id": 12643927396,
+        "artifact_name": "prometheus-oras-40309564942-1",
+        "artifact_digest": "sha256:b69df2d1ec38ef5cbf15bfa865960d8369930cb392658065dc32c6b691fd6f05",
+        "binary_sha256": "28ba5c8d0ef01f095f1547a322ad1661a9904c61f982d4e5255d4c6a08ad3b3a",
+        "binary_bytes": 18507943,
+        "input_digest": "sha256:eb980914b066b569e723886956e8f034b81c4e573cd90acbac08bf8a7189fa41"
+      }
     },
     "platform": "linux/amd64",
     "recipe_sha256": "9608dfd00932fcec4c8be42bece02782aaf61936d957cb9b6c3eae6fa6273aa8",

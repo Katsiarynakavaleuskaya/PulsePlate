@@ -78,14 +78,16 @@ def test_current_selected_images_match_live_identity_consumers(
         current.setattr(docker_sources, "_ALERT_ACCEPTED_CANDIDATE", selected)
         current.setattr(docker_sources, "_ALERT_CURRENT_SCAN_ORACLE", oracle)
         if selected is None:
-            from scripts.ci.prometheus_source_image import QualificationError
+            from scripts.ci.prometheus_source_image import QualificationError, read_image_manifest
 
             with pytest.raises(QualificationError, match="UNCONFIGURED_HOLD"):
                 docker_sources._alertmanager_accepted_producer()
-            manifest = json.loads((REPO_ROOT / "deploy/prometheus/image-manifest.json").read_text())
+            manifest_path = REPO_ROOT / "deploy/prometheus/image-manifest.json"
+            manifest = read_image_manifest(manifest_path, preparation=True)
             assert manifest["phase"] == "source_prepared"
             assert manifest["selection"] is manifest["candidate"] is None
-            assert manifest["inputs"]["oras"]["retained"] is None
+            with pytest.raises(QualificationError, match="^source_prepared_not_consumable$"):
+                read_image_manifest(manifest_path)
             return
         assert docker_sources._alertmanager_accepted_producer() == selected
         runtime_ref, config_id = docker_sources._alertmanager_contract_subject()
@@ -118,6 +120,44 @@ def test_current_selected_images_match_live_identity_consumers(
             assert raw.count(tuple_text) == raw.count(source_text) == expected_count
         for name in ("alertmanager", "amtool"):
             assert oracle["expected_modules"][name]["stdlib"] == "v1.27.3"
+
+
+@pytest.mark.parametrize("tool_selected", [False, True], ids=["without-tool", "with-tool"])
+def test_source_prepared_tool_selection_preserves_image_holds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, tool_selected: bool
+) -> None:
+    """Real preparation parsing accepts tool metadata without claiming artifact or image admission."""
+    from scripts.ci import prometheus_source_image as source
+
+    manifest = json.loads((REPO_ROOT / source.MANIFEST_PATH).read_text())
+    manifest.update(phase="source_prepared", selection=None, candidate=None)
+    coordinates = {
+        "source_head": "1" * 40,
+        "run_id": 1,
+        "artifact_id": 2,
+        "artifact_name": "prometheus-oras-1-1",
+        "artifact_digest": "sha256:" + "2" * 64,
+        "binary_sha256": "3" * 64,
+        "binary_bytes": 1,
+        "input_digest": "sha256:" + "4" * 64,
+    }
+    manifest["inputs"]["oras"]["retained"] = coordinates if tool_selected else None
+    path = tmp_path / "image-manifest.json"
+    path.write_text(json.dumps(manifest))
+
+    assert source.read_image_manifest(path, preparation=True) == manifest
+    with pytest.raises(source.QualificationError, match="^source_prepared_not_consumable$"):
+        source.read_image_manifest(path)
+    monkeypatch.setattr(docker_sources, "_ALERT_ACCEPTED_CANDIDATE", None)
+    with pytest.raises(source.QualificationError, match="^AM_accepted_producer_UNCONFIGURED_HOLD$"):
+        docker_sources._alertmanager_accepted_producer()
+
+    if tool_selected:
+        malformed = deepcopy(manifest)
+        malformed["inputs"]["oras"]["retained"]["run_id"] = True
+        path.write_text(json.dumps(malformed))
+        with pytest.raises(source.QualificationError, match="^tool_retained_positive_integer$"):
+            source.read_image_manifest(path, preparation=True)
 
 
 def test_historical_AM_fixture_copy_does_not_change_current_selection(
