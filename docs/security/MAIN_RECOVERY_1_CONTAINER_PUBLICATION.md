@@ -892,11 +892,11 @@ budget repair in this substantive PR. The finite fixes are tracked individually:
 [Brotli](CVE-2026-111497-brotli.md), [compress](CVE-2026-63209-klauspost-compress.md)
 and [Go trust store](CVE-2026-111943-go-trust-store.md). ORAS now selects the actual
 qualified tool documented there. The subsequently observed AM07 and Prometheus
-outputs are now selected through the existing data fields; their producer
-identities and [native evidence limits](CVE-2026-111943-go-trust-store.md#observed-am07-image-results)
-remain distinct from current receiver admission and publication. The confirmed
-[shared vendor CA defect](CVE-2026-111943-go-trust-store.md#confirmed-vendor-ca-blocker)
-means this uncommitted selection is intermediate and not final admissible output.
+outputs were intermediate because of the shared vendor CA defect. The actual
+[AM11 replacements](CVE-2026-111943-go-trust-store.md#observed-am11-image-outputs-and-receiver-selection)
+now populate the existing data fields with their original producer identities.
+Current receiver admission, publication/pullback and downstream outcomes remain
+separate requirements; no registry success is inferred from selection.
 Historical C10 and prior failed/spent compiler records retain their identities.
 No suppression, deployment or automatic retry follows from source preparation.
 
@@ -906,7 +906,7 @@ minutes before backend execution. The existing hook budget is 60 minutes and
 lint job 190 minutes, with maintained steps184 plus unchanged margin6. Native,
 compiler, scan and cleanup limits do not change. Budget availability is not a
 passing result. Evidence: `.github/workflows/ci.yml:734`,
-`scripts/ci/fetch_docker_source_artifacts.py:4757`.
+`scripts/ci/fetch_docker_source_artifacts.py:5187`.
 
 
 ## PR #2497 bounded CodeQL source-flow analysis
@@ -962,6 +962,6 @@ completion and merge readiness require their own fresh observations.
 No query configuration, scanner exclusion, ignore, runtime logging rule or
 security predicate was changed for this analysis.
 
-The current CA refresh is in source preparation; prior selected image results
-remain intermediate and current output selection is held. See [AM11 vendor CA source preparation](CVE-2026-111943-go-trust-store.md#am11-vendor-ca-source-preparation)
+Actual AM11 CA-qualified producer outputs are now selected as receiver data.
+Final C/H consumer admission, current-head gates and merged-main outcomes remain. See [AM11 vendor CA source preparation](CVE-2026-111943-go-trust-store.md#am11-vendor-ca-source-preparation)
 for the exact vendor delta, Q/S byte binding and remaining native proof.

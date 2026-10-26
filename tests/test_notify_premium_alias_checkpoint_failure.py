@@ -43,7 +43,7 @@ from scripts.ci import prometheus_source_image as prometheus_image
 from scripts.ops import notify_premium_alias_checkpoint_failure as notifier
 
 ROOT = Path(__file__).resolve().parents[1]
-ALERTMANAGER_IMAGE = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:3d0b5e9b33a6a9c07814a01f76731080d2b9604f3e1916729cd8984dbbed0f7b"
+ALERTMANAGER_IMAGE = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:5a476cb3c572d11f8b5fcb6d42400f4613011a5f592ca574b7015c5231b70781"
 # Frozen native UI oracle from accepted C10; ordinary checks do not depend on artifact expiry.
 _ACCEPTED_AM_UI = {
     ".build_stamp": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
@@ -2465,7 +2465,7 @@ def _native_alertmanager_candidate(
         if ui is None:
             # Selected native acceptance and binary hashes bind this durable fixture oracle.
             assert (
-                image == "sha256:facc82988bd75c06d269228877b179f9ea90e3dbaa3db67057cf954308ec6dd6"
+                image == "sha256:542c5e287fc8e0dc4f6c7db21576f4eaa508b28e9733e205ef78d2e3d06be62c"
             )
             assert graph["manifest"]["digest"] == ALERTMANAGER_IMAGE.split("@", 1)[1]
             assert all(

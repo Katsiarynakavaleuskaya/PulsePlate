@@ -917,7 +917,7 @@ application-dependency CVE exception, scanner setting or static allowlist.
 | `scripts/ops/notify_premium_alias_checkpoint_failure.py:11` | B404, B603 | Fixed canonical manifest reader, minimal environment, ten-second timeout, validated output, no Compose send after failure |
 | `scripts/verify_premium_alias_telemetry.py:16` | B404, B603 | Same bounded manifest authority before telemetry operations |
 | `scripts/ops/ops_context_report.py:11` | B404, B603 | Absolute native Git, fixed argv/cwd/minimal environment, five-second timeout and sanitized commit identity errors |
-| `scripts/ci/fetch_docker_source_artifacts.py:7996`, `:10435`, `:10497` | B105, B404, B603 | Synthetic Compose config only; fixed read-only held-FD collector with bounded captures and owned process-group cleanup |
+| `scripts/ci/fetch_docker_source_artifacts.py:8426`, `:10762`, `:10824` | B105, B404, B603 | Synthetic Compose config only; fixed read-only held-FD collector with bounded captures and owned process-group cleanup |
 
 Owner: security-auditor / dev-operator. Mandatory manual reassessment is due
 **2026-10-30**. The unchanged calendar-date guard accepts **2026-10-31
@@ -947,6 +947,13 @@ pins together and restores the blocking warning/expiry condition; it never
 weakens a scanner or authorizes production action. Tracking remains in the
 existing checkpoint/OPS and AM ledger entries.
 
-The current CA refresh is in source preparation; prior selected image results
-remain intermediate and current output selection is held. See [AM11 vendor CA source preparation](CVE-2026-111943-go-trust-store.md#am11-vendor-ca-source-preparation)
+Actual AM11 CA-qualified producer outputs are now selected as receiver data.
+Final C/H consumer admission, current-head gates and merged-main outcomes remain. See [AM11 vendor CA source preparation](CVE-2026-111943-go-trust-store.md#am11-vendor-ca-source-preparation)
 for the exact vendor delta, Q/S byte binding and remaining native proof.
+
+The actual AM11 build job `121800078082` at producer `a8c9b361` observed pip
+26.2.2 and embedded CA SHA-256
+`50f79f98dac192b20dbf73f35c56f0b0c557ab267ff5199d1117cc1180b70785`
+before locked-profile installation. Its later native-host snapshot records pip
+26.2.2 and ninety packages. This is the isolated build profile, not every
+application environment, a second CA-hash observation or a fresh audit.

@@ -3142,9 +3142,9 @@ def test_alertmanager_PR_retained_candidate_has_no_registry_or_compiler_authorit
     assert job["env"] == {
         "ALERTMANAGER_JOB_TIMEOUT_MINUTES": "80",
         "ALERTMANAGER_CALLER_KIND": "standalone",
-        "AM_CANDIDATE_RUN": "40237598500",
-        "AM_CANDIDATE_ARTIFACT": "12616196402",
-        "AM_CANDIDATE_SOURCE": "04b76f42c09854405df00328ead16b30d701a24f",
+        "AM_CANDIDATE_RUN": "40387641620",
+        "AM_CANDIDATE_ARTIFACT": "12684611600",
+        "AM_CANDIDATE_SOURCE": "a8c9b361dbd57d86e2adf8f01f7880830fc04e53",
     }
     runs = "\n".join(step.get("run", "") for step in _steps(job))
     assert "--alertmanager-stage candidate-check" in runs

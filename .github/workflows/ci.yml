@@ -845,12 +845,12 @@ jobs:
             --artifact alertmanager --alertmanager-stage candidate-check --alertmanager-prepare-only \
             --source-sha "$SOURCE_SHA" --material-root "$material" \
             --alertmanager-controller-source "$ALERTMANAGER_CONTROLLER_SOURCE" \
-            --alertmanager-qualification-run 39018353942 --alertmanager-qualification-artifact 12095483900 \
-            --alertmanager-qualification-source 36cd171c4ebe44f63cb58d09a741b3d07098904d \
-            --alertmanager-support-run 39030856891 --alertmanager-support-artifact 12100576545 \
-            --alertmanager-support-source df5ebd017bda93e31fbf9eccfd7cc7b98973a3c6 \
-            --alertmanager-candidate-run 40237598500 --alertmanager-candidate-artifact 12616196402 \
-            --alertmanager-candidate-source 04b76f42c09854405df00328ead16b30d701a24f \
+            --alertmanager-qualification-run 40379971373 --alertmanager-qualification-artifact 12677328773 \
+            --alertmanager-qualification-source a8c9b361dbd57d86e2adf8f01f7880830fc04e53 \
+            --alertmanager-support-run 40383803043 --alertmanager-support-artifact 12679243318 \
+            --alertmanager-support-source a8c9b361dbd57d86e2adf8f01f7880830fc04e53 \
+            --alertmanager-candidate-run 40387641620 --alertmanager-candidate-artifact 12684611600 \
+            --alertmanager-candidate-source a8c9b361dbd57d86e2adf8f01f7880830fc04e53 \
             --output-dir "$RUNNER_TEMP/alertmanager-consumer-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
 
       - name: Remove designated AM controller after credential cleanup

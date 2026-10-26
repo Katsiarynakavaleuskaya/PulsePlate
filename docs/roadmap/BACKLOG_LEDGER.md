@@ -23,7 +23,17 @@ If it is not recorded here — it does not exist.
 
 ## Open Items
 
-- [ ] AM11 vendor CA refresh in PR #2497 — Owner: backend-engineer / security-auditor; Priority: P0; Target PR: #2497; Status: source preparation, native proof pending. Reason: earlier AM07 images retain removed trust roots, so source changes cannot close acceptance. Evidence: [exact vendor delta and remaining proof](../security/CVE-2026-111943-go-trust-store.md#am11-vendor-ca-source-preparation). DoD: new qualified ORAS, complete current Q/S export binding, one admitted Prometheus pair and AM build, the same-incident Caddy two-package CA update and actual image observation, actual default-bundle/DER/TLS proof, full scanner inventories, current-head CI/review and merged-main verification. Existing original requirements remain required; no suppressions or automatic retries.
+- [ ] AM11 vendor CA refresh in PR #2497 — Owner: backend-engineer / security-auditor; Priority: P0; Target PR: #2497; Status: actual fixed-CA AM/Prometheus outputs selected as receiver data; final C/H consumer, CI/review and main proof pending. Reason: earlier AM07 images retain removed trust roots, so their historical proof cannot establish current acceptance. Evidence: [exact vendor delta and remaining proof](../security/CVE-2026-111943-go-trust-store.md#am11-vendor-ca-source-preparation). DoD: new qualified ORAS, complete current Q/S export binding, one admitted Prometheus pair and AM build, the same-incident Caddy two-package CA update and actual image observation, actual default-bundle/DER/TLS proof, full scanner inventories, current-head CI/review and merged-main verification. Existing original requirements remain required; no suppressions or automatic retries.
+
+<a id="ledger-p1-mac-docker-vm-storage-migration"></a>
+- [ ] P1: Reduce Mac Docker VM storage after explicit workload inventory and verified VPS migration
+  - Owner: dev-operator / agent-coordinator with RDEV coordination
+  - Priority: P1 (local storage and operational continuity)
+  - Target PR: TBD dedicated operational follow-up after PR #2497 and healthy main
+  - Status: Deferred by the operator. Read-only metadata on 2026-10-26 observed approximately 48.14 GiB allocated in the Docker VM disk; its 460.43 GiB logical size is not reclaimable-byte proof.
+  - Reason for deferral: The current task stabilizes main and security. RDEV-01 / #2491 scope at inspected head `38876b347633573cebe11506bbe22a5ffe732385` explicitly excludes Docker Desktop reconfiguration, credential migration and cleanup; this follow-up is not silently transferred into that PR.
+  - Links: [RDEV-01 PR #2491](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2491); root AGENTS.md local-control/explicit-VPS boundaries; existing RDEV workload ownership and qualification procedure.
+  - DoD: Inventory owned and foreign images, volumes and real workloads; prove target architecture/toolchain/resource compatibility and recovery; agree which resources may move to the existing Contabo VPS; verify remote workloads and retained data before reclaiming only agreed local storage. Measure actual allocated/free bytes after cleanup. Preserve other lanes and Mac/Apple tooling; no implicit transfer of the whole VM, HOME, auth caches, private keys or production data. Existing CI/release gates remain mandatory.
 
 <a id="ledger-p1-production-managed-postgres-schema-adoption"></a>
 - [ ] P1: Reconcile the existing managed-production PostgreSQL schema before the next deployment

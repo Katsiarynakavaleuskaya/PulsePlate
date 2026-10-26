@@ -118,6 +118,19 @@ def test_current_selected_images_match_live_identity_consumers(
         for workflow, expected_count in (("ci.yml", 1), ("cd.yml", 3)):
             raw = (WORKFLOWS_DIR / workflow).read_text()
             assert raw.count(tuple_text) == raw.count(source_text) == expected_count
+            for kind, run_id, artifact_id in (
+                ("qualification", 40379971373, 12677328773),
+                ("support", 40383803043, 12679243318),
+            ):
+                selector = (
+                    f"--alertmanager-{kind}-run {run_id} "
+                    f"--alertmanager-{kind}-artifact {artifact_id}"
+                )
+                assert raw.count(selector) == expected_count
+                assert (
+                    raw.count(f"--alertmanager-{kind}-source {selected['source']}")
+                    == expected_count
+                )
         for name in ("alertmanager", "amtool"):
             assert oracle["expected_modules"][name]["stdlib"] == "v1.27.3"
 
@@ -187,7 +200,20 @@ def test_historical_AM_fixture_copy_does_not_change_current_selection(
             historical["subject"]["config"]
             == docker_sources._ALERT_HISTORICAL_C10["graph"]["config"]["digest"]
         )
-        assert historical["expected_OS"] == oracle["expected_OS"]
+        assert historical["expected_OS"]["OS"] == oracle["expected_OS"]["OS"]
+        historical_os = {row[3]: row for row in historical["expected_OS"]["packages"]}
+        current_os = {row[3]: row for row in oracle["expected_OS"]["packages"]}
+        assert set(historical_os) == set(current_os)
+        assert {name for name in historical_os if historical_os[name] != current_os[name]} == {
+            "ca-certificates",
+            "tzdata",
+            "tzdata-legacy",
+        }
+        assert historical_os["ca-certificates"][4] == "20250419"
+        assert current_os["ca-certificates"][4] == "20250419+deb13u1"
+        for name in ("tzdata", "tzdata-legacy"):
+            assert historical_os[name][4] == "2026c"
+            assert current_os[name][4] == "2026e"
         for name in ("alertmanager", "amtool"):
             assert historical["expected_modules"][name]["stdlib"] == "v1.27.2"
             assert {

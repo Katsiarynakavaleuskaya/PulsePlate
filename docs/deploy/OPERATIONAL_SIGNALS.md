@@ -1063,6 +1063,6 @@ and existing 97% changed-line consumer. Missing or empty source inventory fails;
 application total coverage and actual operational/lifecycle outcomes remain
 separate. Keep parent OPS-04 open until its original outcome is proven.
 
-The current CA refresh is in source preparation; prior selected image results
-remain intermediate and current output selection is held. See [AM11 vendor CA source preparation](../security/CVE-2026-111943-go-trust-store.md#am11-vendor-ca-source-preparation)
+Actual AM11 CA-qualified producer outputs are now selected as receiver data.
+Final C/H consumer admission, current-head gates and merged-main outcomes remain. See [AM11 vendor CA source preparation](../security/CVE-2026-111943-go-trust-store.md#am11-vendor-ca-source-preparation)
 for the exact vendor delta, Q/S byte binding and remaining native proof.

@@ -163,6 +163,78 @@ def _historical_AM_scan_oracle() -> dict[str, Any]:
             name: graph["files"]["usr/bin/" + name] for name in ("alertmanager", "amtool")
         },
     }
+    # Explicit synthetic C10 OS data; current CA/timezone selection is independent.
+    oracle["expected_OS"] = {
+        "OS": {"Family": "debian", "Name": "13.7"},
+        "packages": [
+            [
+                "os-pkgs",
+                "debian",
+                "base-files@13.8+deb13u7",
+                "base-files",
+                "13.8+deb13u7",
+                "amd64",
+                "base-files",
+                "13.8+deb13u7",
+                "pkg:deb/debian/base-files@13.8%2Bdeb13u7?arch=amd64&distro=debian-13.7",
+            ],
+            [
+                "os-pkgs",
+                "debian",
+                "ca-certificates@20250419",
+                "ca-certificates",
+                "20250419",
+                "all",
+                "ca-certificates",
+                "20250419",
+                "pkg:deb/debian/ca-certificates@20250419?arch=all&distro=debian-13.7",
+            ],
+            [
+                "os-pkgs",
+                "debian",
+                "media-types@13.0.0",
+                "media-types",
+                "13.0.0",
+                "all",
+                "media-types",
+                "13.0.0",
+                "pkg:deb/debian/media-types@13.0.0?arch=all&distro=debian-13.7",
+            ],
+            [
+                "os-pkgs",
+                "debian",
+                "netbase@6.5",
+                "netbase",
+                "6.5",
+                "all",
+                "netbase",
+                "6.5",
+                "pkg:deb/debian/netbase@6.5?arch=all&distro=debian-13.7",
+            ],
+            [
+                "os-pkgs",
+                "debian",
+                "tzdata-legacy@2026c-0+deb13u1",
+                "tzdata-legacy",
+                "2026c",
+                "all",
+                "tzdata",
+                "2026c",
+                "pkg:deb/debian/tzdata-legacy@2026c-0%2Bdeb13u1?arch=all&distro=debian-13.7",
+            ],
+            [
+                "os-pkgs",
+                "debian",
+                "tzdata@2026c-0+deb13u1",
+                "tzdata",
+                "2026c",
+                "all",
+                "tzdata",
+                "2026c",
+                "pkg:deb/debian/tzdata@2026c-0%2Bdeb13u1?arch=all&distro=debian-13.7",
+            ],
+        ],
+    }
     for modules in oracle["expected_modules"].values():
         modules["stdlib"] = "v1.27.2"
     return oracle
