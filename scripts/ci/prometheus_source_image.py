@@ -44,8 +44,10 @@ TREE = "ffa0c7e9512071483f6c40a95aba9b97fbd86583"
 GO_VERSION = "go version go1.27.2 linux/amd64\n"
 CURRENT_GO_VERSION = "go version go1.27.3 linux/amd64\n"
 CURRENT_GO_VERSION_FILE = b"go1.27.3\ntime 2026-10-19T22:20:36Z\n"
-BASE = "gcr.io/distroless/static-debian13@sha256:2293b36c7c9082bf4115aab724b4d2cddec82c8eba39bf27ac0517e159acf150"
-BASE_CONFIG = "sha256:55a757dc8ab862a4eb634c434261dcd26f17c186b54f7bce845404a335456110"
+HISTORICAL_BASE = "gcr.io/distroless/static-debian13@sha256:2293b36c7c9082bf4115aab724b4d2cddec82c8eba39bf27ac0517e159acf150"
+BASE = "gcr.io/distroless/static-debian13@sha256:433bb346cd0b6b8346462f879adaa4ac0fbb463a72901b46736ede4aeca3dadc"
+HISTORICAL_BASE_CONFIG = "sha256:55a757dc8ab862a4eb634c434261dcd26f17c186b54f7bce845404a335456110"
+BASE_CONFIG = "sha256:0a2f4c688090d2a660f55dec3808f6bb85246b9ec1f78ced5d43275a1fb2287d"
 
 # Exact acquired vendor graph, not a registry index or an arbitrary layer policy.
 SOURCE_DATE_EPOCH = 1790321138
@@ -107,25 +109,25 @@ BASE_LAYER_CONTRACTS: list[dict[str, Any]] = [
     },
     {
         "descriptor": {
-            "size": 288057,
-            "digest": "sha256:218cf840d0d95a86231eb9d33d26ac8a520a4299c6096cb70a0c2fb2a87c9e0a",
+            "size": 289427,
+            "digest": "sha256:617b009a71d625ef77982b400cb9939dd5ed9809ebf50681a0520b7c08c0ca89",
             "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
         },
-        "diff_id": "sha256:763a77745f27b86cf26b97887b6842d83720e63b1c48848c0ba9ee54e351d63a",
+        "diff_id": "sha256:92a3b02188b326c1b10a0a375d3c0019dff4ee8ff02a4b51a7e640bb9400932f",
         "expanded": 1157120,
         "members": 528,
-        "inventory_sha256": "e66fb0f75e7ff8ae210c3789b509bb89634006d53ae9e8b0681c21a32c2d81be",
+        "inventory_sha256": "4674ac8595945da188452f079f16d04cff1ab4d2f0640fed482fad4fdaa83784",
     },
     {
         "descriptor": {
-            "size": 254668,
-            "digest": "sha256:f6069939f718601b38d25ec5ed5631ed047e4da24acec2e252f8f29d251be718",
+            "size": 256689,
+            "digest": "sha256:a99dd1dd5eaf3e2099256f1a75c8e4c02a1d3a81b8e2bfd1735b1dd166b68a12",
             "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
         },
-        "diff_id": "sha256:f0d0eff4c2312a7bd6e21797bdfea5eb35f60e76b555ce2b22794424af2cad36",
+        "diff_id": "sha256:ef430e4865b6130e131d5777c1d072fdcc89478668d10ab41a18549e0fdc88b5",
         "expanded": 1331200,
         "members": 761,
-        "inventory_sha256": "355355459c8f97843266dfc9af93a9b7d3772dac464b73432613912f725fd644",
+        "inventory_sha256": "642be489a59309de1b5575072f4b859d3bc822e6c8443e51bfa53088f35f2dd6",
     },
     {
         "descriptor": {
@@ -217,14 +219,14 @@ BASE_LAYER_CONTRACTS: list[dict[str, Any]] = [
     },
     {
         "descriptor": {
-            "size": 143338,
-            "digest": "sha256:c4bc6f35ff5e25aa1afe7a148a0b6f10a760f54e298f86a4a4d44b91f1afbfab",
+            "size": 142002,
+            "digest": "sha256:ec1b04bf2eb2122e86781f791b03ea0cf6588694e0f4a88245250224c186cdf0",
             "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
         },
-        "diff_id": "sha256:f2392a9484bf6b18f06beaf705b994e31dbb2716c99cf7d03c9c495cd107f364",
+        "diff_id": "sha256:0762a1f6557d1e88a761ab05aa7f65a10dc0e559913ea13befb873d907e1a396",
         "expanded": 276480,
         "members": 15,
-        "inventory_sha256": "31d48342ff6ca53acaa34c50f6cf4721f1a3b9276e073ef41dffecca5ed51b90",
+        "inventory_sha256": "4ac12edab9f446541289a85b1d0688b05a5e72a77dc88420a7006bd4c21a8ce9",
     },
 ]
 ROOT_MODULE = "github.com/prometheus/prometheus"
@@ -2883,6 +2885,34 @@ def _gunzip(raw: bytes, maximum: int) -> bytes:
     return bytes(output)
 
 
+BASE_CA_SHA256 = "e9c7b63ee2623386e9b0a3ee32f499d01a8ea23dc83b8383ddff9f8e749543b7"
+BASE_CA_BYTES = 222073
+REMOVED_CA_DER_SHA256 = frozenset(
+    {
+        "86a1ecba089c4a8d3bbe2734c612ba341d813e043cf9e8a862cd5c57a36bbe6b",
+        "d7a7a0fb5d7e2731d771e9484ebcdef71d5f0c3e0a2948782bc83ee0ea699ef4",
+    }
+)
+
+
+def validate_default_ca(data: bytes) -> None:
+    """Recognize only the admitted default bundle and the two removed DER identities."""
+    import ssl
+
+    require(len(data) == BASE_CA_BYTES and sha(data) == BASE_CA_SHA256, "vendor_default_CA_bytes")
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    try:
+        context.load_verify_locations(cadata=data.decode("ascii"))
+    except (UnicodeDecodeError, ssl.SSLError) as error:
+        raise QualificationError("vendor_default_CA_parse") from error
+    certificates = context.get_ca_certs(binary_form=True)
+    require(
+        len(certificates) == 148
+        and not REMOVED_CA_DER_SHA256.intersection(sha(value) for value in certificates),
+        "vendor_removed_CA_present",
+    )
+
+
 def base_graph(layout: Path) -> dict[str, Any]:
     """Authenticate and inspect the one vendor graph; never extract/apply its layers."""
     root_path = layout / "blobs/sha256" / BASE.rsplit(":", 1)[1]
@@ -2916,6 +2946,7 @@ def base_graph(layout: Path) -> dict[str, Any]:
     )
     layers = []
     topology = []
+    ca_occurrences = 0
     for contract in BASE_LAYER_CONTRACTS:
         compressed = _blob(layout, contract["descriptor"])
         expanded = _gunzip(compressed, contract["expanded"])
@@ -2947,6 +2978,9 @@ def base_graph(layout: Path) -> dict[str, Any]:
                     data = stream.read(member.size + 1)
                     require(len(data) == member.size, "vendor_member_size")
                     row["sha256"] = sha(data)
+                    if member.name == "etc/ssl/certs/ca-certificates.crt":
+                        validate_default_ca(data)
+                        ca_occurrences += 1
                 rows.append(row)
                 if member.name in ("bin", "usr", "usr/bin", "etc", "etc/prometheus", "prometheus"):
                     topology.append(row)
@@ -2968,6 +3002,7 @@ def base_graph(layout: Path) -> dict[str, Any]:
         and not any(row["name"] in ("etc/prometheus", "prometheus") for row in topology),
         "vendor_payload_parent_topology",
     )
+    require(ca_occurrences == 1, "vendor_default_CA_unique")
     _layout_inventory(
         layout,
         {BASE.rsplit("@", 1)[1], BASE_CONFIG}
@@ -5032,6 +5067,13 @@ def manual_hosted_admission(
                     "codex/consolidate-legacy-ownership-guard",
                     "success",
                 ),
+                (
+                    40188825249,
+                    121155232821,
+                    "c22d641bc0d4dce56925114c827be6d712db7070",
+                    "codex/python-setup-security-stabilization",
+                    "success",
+                ),
             )
             if purpose == "tool"
             else (
@@ -5047,6 +5089,13 @@ def manual_hosted_admission(
                     117397709770,
                     "e2b86644a9a0264098f57f1bbca5914a3438fbe6",
                     "codex/consolidate-legacy-ownership-guard",
+                    "success",
+                ),
+                (
+                    40222244853,
+                    121256136190,
+                    "7e275934593fa83749c5d89054c019fd4f7c6e89",
+                    "codex/python-setup-security-stabilization",
                     "success",
                 ),
             )
@@ -5570,7 +5619,7 @@ def manual_hosted_admission(
             name = create[create.index("--name") + 1]
             owner = create[create.index("--label") + 1].removeprefix(LABEL + "=")
             expected = {
-                "image": BASE_CONFIG,
+                "image": HISTORICAL_BASE_CONFIG,
                 "owner": owner,
                 "command": command,
                 "mounts": {
@@ -5581,10 +5630,10 @@ def manual_hosted_admission(
             }
             image = one_object(second_files[f"tool-{kind}-base.stdout"])
             require(
-                image.get("Id") == BASE_CONFIG
+                image.get("Id") == HISTORICAL_BASE_CONFIG
                 and image.get("Os") == "linux"
                 and image.get("Architecture") == "amd64"
-                and BASE in image.get("RepoDigests", [])
+                and HISTORICAL_BASE in image.get("RepoDigests", [])
                 and not image.get("Config", {}).get("Volumes"),
                 "tool_prefetch_second_fixed_base",
             )
@@ -5599,7 +5648,7 @@ def manual_hosted_admission(
             # prior hosted mount paths are data, not current host directories.
             require(
                 create[:4] == ["/usr/bin/docker", "--config", str(work / "docker-config"), "create"]
-                and create[-len(command) - 1 :] == [BASE_CONFIG, *command],
+                and create[-len(command) - 1 :] == [HISTORICAL_BASE_CONFIG, *command],
                 "tool_prefetch_second_exact_offline_argv",
             )
             for phase in ("before", "cleanup-inspect"):
@@ -5990,7 +6039,7 @@ def manual_hosted_admission(
             container = create[create.index("--name") + 1]
             owner = create[create.index("--label") + 1].removeprefix(LABEL + "=")
             expected = {
-                "image": BASE_CONFIG,
+                "image": HISTORICAL_BASE_CONFIG,
                 "owner": owner,
                 "command": command,
                 "mounts": {
@@ -6001,10 +6050,10 @@ def manual_hosted_admission(
             }
             image = one_object(data["tool-" + name + "-base.stdout"])
             require(
-                image.get("Id") == BASE_CONFIG
+                image.get("Id") == HISTORICAL_BASE_CONFIG
                 and image.get("Os") == "linux"
                 and image.get("Architecture") == "amd64"
-                and BASE in image.get("RepoDigests", [])
+                and HISTORICAL_BASE in image.get("RepoDigests", [])
                 and not image.get("Config", {}).get("Volumes"),
                 "tool_third_fixed_base",
             )
@@ -6020,7 +6069,7 @@ def manual_hosted_admission(
             expected["environment"] = environment
             require(
                 create[:4] == ["/usr/bin/docker", "--config", str(work / "docker-config"), "create"]
-                and create[-len(command) - 1 :] == [BASE_CONFIG, *command],
+                and create[-len(command) - 1 :] == [HISTORICAL_BASE_CONFIG, *command],
                 "tool_third_exact_offline_argv",
             )
             for member in (
@@ -6096,7 +6145,7 @@ def manual_hosted_admission(
             records[41]["argv"] == [binary, "version"]
             and records[42]["argv"] == [binary, "cp", "--help"]
             and records[43]["argv"]
-            == [binary, "cp", "--to-oci-layout", BASE, str(work / "vendor") + ":base"],
+            == [binary, "cp", "--to-oci-layout", HISTORICAL_BASE, str(work / "vendor") + ":base"],
             "tool_third_postcompile_phase",
         )
         observed[2][

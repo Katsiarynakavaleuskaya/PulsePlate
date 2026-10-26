@@ -109,7 +109,7 @@ consumer/publisher repair; publication still copies saved bytes without rebuildi
 
 The three Compose contours declare the `alerting` profile, which remains off
 for ordinary app and metrics startup. The retained producer record for the selected Alertmanager v0.34.1 source
-build uses Go 1.27.2, x/net 0.60.0 and gRPC 1.83.2; its linux/amd64 manifest
+build uses Go 1.27.3, x/net 0.60.0 and gRPC 1.83.2; its linux/amd64 manifest
 is pinned in all three Compose files. Publication and deployment are separate
 observations from accepted retained candidate bytes. The
 service has no host port or Caddy route, runs as UID 65534 with a read-only
@@ -1062,3 +1062,7 @@ Existing OPS coverage measures all four tools in the same producer/XML/artifact
 and existing 97% changed-line consumer. Missing or empty source inventory fails;
 application total coverage and actual operational/lifecycle outcomes remain
 separate. Keep parent OPS-04 open until its original outcome is proven.
+
+The current CA refresh is in source preparation; prior selected image results
+remain intermediate and current output selection is held. See [AM11 vendor CA source preparation](../security/CVE-2026-111943-go-trust-store.md#am11-vendor-ca-source-preparation)
+for the exact vendor delta, Q/S byte binding and remaining native proof.

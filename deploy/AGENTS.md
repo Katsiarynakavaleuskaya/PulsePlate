@@ -457,6 +457,12 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   deployment, restore, production release, volume deletion, and the Prometheus
   `T₀` remain separate human-authorized actions.
 
+For a vendor trust-store refresh, admission must verify the actual final default
+container CA bytes and the named removed certificate identities through the
+existing source-image owner. Mounted test roots and a successful compiler upgrade
+do not replace this check. Keep the existing real TLS positive/negative controls;
+source preparation alone grants no image activation or deployment authority.
+
 ### Official Prometheus image updates
 
 - The v3 record distinguishes preparation from a real selected candidate.

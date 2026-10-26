@@ -1651,3 +1651,14 @@ wait; terminal failure or malformed/duplicate inventory is a failure, not a retr
 instruction. Preserve original raw logs and cleanup results. Canonical evidence:
 `docs/security/CVE-2026-84445-alertmanager.md` and
 `docs/security/MAIN_RECOVERY_1_CONTAINER_PUBLICATION.md`.
+
+### Vendor CA refresh in the existing source-image lane
+
+After an admitted vendor base change, clear invalidated selected outputs and retain
+all earlier receipts. Prepare the actual source and helper pins first; only a real
+committed controller can supply the later workflow refs. Requalify the existing
+ORAS tool, then current qualification/support inputs, before the bounded native
+Prometheus pair and Alertmanager build. Bind the entire support export to actual
+qualification bytes before accepting its native descriptor. Select only observed
+new outputs and rerun the required current-material gates. Keep spent attempt
+history and the authorized budget; a source change is not a retry reset.

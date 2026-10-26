@@ -101,6 +101,9 @@ _ALERT_S_SOURCE_FILES = {
     ".github/workflows/cd.yml": "d7f5942a8394254add0a8de162413345908085edab89014c7bc9295b76729465",
 }
 _ALERT_ASSEMBLY_RECIPE_SHA256 = "8321b8129f819fadd64df26f0607c66fbabcef578bc76fe658e0d6d2cbab7347"
+_ALERT_CURRENT_ASSEMBLY_RECIPE_SHA256 = (
+    "2c70a5f492866c30e2c7db69be001003c674ef0f16b336f94a8a23be2777de13"
+)
 # Filled only by a later reviewed material update after actual full acceptance.
 # Failed build artifacts and caller-supplied ancestors never select a producer.
 _ALERT_HISTORICAL_C10: dict[str, Any] = {
@@ -1704,8 +1707,11 @@ def _retain_alertmanager_inputs(
     }
 
 
-def _alertmanager_loaded_base(objects: list[dict[str, Any]]) -> str:
+def _alertmanager_loaded_base(objects: list[dict[str, Any]], *, current: bool = False) -> str:
     """Bind the single native public-base config, platform, digest and thirteen diffIDs."""
+    from scripts.ci.prometheus_source_image import BASE, BASE_CONFIG, BASE_LAYER_CONTRACTS, require
+
+    require(type(current) is bool, "AM_loaded_base_epoch_type")
     if len(objects) != 1:
         raise RuntimeError("Exact public base native observation ambiguous.")
     image = objects[0]
@@ -1725,6 +1731,11 @@ def _alertmanager_loaded_base(objects: list[dict[str, Any]]) -> str:
         "sha256:f2392a9484bf6b18f06beaf705b994e31dbb2716c99cf7d03c9c495cd107f364",
     ]
     reference = "gcr.io/distroless/static-debian13@sha256:2293b36c7c9082bf4115aab724b4d2cddec82c8eba39bf27ac0517e159acf150"
+    identifier_expected = _ALERT_BASE_CONFIG
+    if current:
+        reference = BASE
+        identifier_expected = BASE_CONFIG
+        expected = [row["diff_id"] for row in BASE_LAYER_CONTRACTS]
     digests = image.get("RepoDigests")
     rootfs = image.get("RootFS")
     if (
@@ -1737,7 +1748,7 @@ def _alertmanager_loaded_base(objects: list[dict[str, Any]]) -> str:
     ):
         raise RuntimeError("Exact public base native field shapes differ.")
     if (
-        image.get("Id") != "sha256:55a757dc8ab862a4eb634c434261dcd26f17c186b54f7bce845404a335456110"
+        image.get("Id") != identifier_expected
         or image.get("Os") != "linux"
         or image.get("Architecture") != "amd64"
         or rootfs["Layers"] != expected
@@ -1917,7 +1928,9 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
         if docker is None or not Path(docker).is_absolute():
             raise RuntimeError("Resolved Docker is required for real network-none metadata replay.")
         docker_prefix = [docker, "--config", str(docker_config)]
-        base_ref = "gcr.io/distroless/static-debian13@sha256:2293b36c7c9082bf4115aab724b4d2cddec82c8eba39bf27ac0517e159acf150"
+        from scripts.ci.prometheus_source_image import BASE
+
+        base_ref = BASE
         native.run(
             [*docker_prefix, "pull", "--platform", "linux/amd64", base_ref],
             "public-base-pull",
@@ -1931,7 +1944,7 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
             cwd=output,
         )
         base_objects = decode_objects(base_raw)
-        base_id = _alertmanager_loaded_base(base_objects)
+        base_id = _alertmanager_loaded_base(base_objects, current=True)
         base_retention = evidence / "base-retention"
         base_retention.mkdir(mode=0o700)
         base_archive = base_retention / "base-image.tar"
@@ -2550,11 +2563,18 @@ def _alertmanager_accepted_producer(
             type(value) is str and _HEX_RE.fullmatch(value) is not None
             for value in selected["source_files"].values()
         )
-        and selected["source_files"]["deploy/alertmanager/Containerfile"]
-        == _ALERT_ASSEMBLY_RECIPE_SHA256
         and type(selected.get("graph")) is dict
         and bool(selected["graph"]),
         "AM_accepted_producer_canonical_binding",
+    )
+    if selected["source"] == _ALERT_HISTORICAL_C10["source"]:
+        require(selected == _ALERT_HISTORICAL_C10, "AM_exact_historical_C10")
+        expected_recipe = _ALERT_ASSEMBLY_RECIPE_SHA256
+    else:
+        expected_recipe = _ALERT_CURRENT_ASSEMBLY_RECIPE_SHA256
+    require(
+        selected["source_files"]["deploy/alertmanager/Containerfile"] == expected_recipe,
+        "AM_accepted_producer_exact_epoch_recipe",
     )
     if any(value is not None for value in (run_id, artifact_id, source)):
         require(
@@ -3089,7 +3109,11 @@ def _alertmanager_package_read(api: GitHubRead) -> dict[str, Any]:
 
 
 def _alertmanager_qualified_payload(
-    archive: Path, *, material_root: Path | None = None, current: bool = False
+    archive: Path,
+    *,
+    material_root: Path | None = None,
+    current: bool = False,
+    producer_recipe: bytes | None = None,
 ) -> dict[str, Any]:
     """Inspect complete retained AM inputs as data; no extraction or executable launch."""
     import zipfile
@@ -3536,7 +3560,9 @@ def _alertmanager_qualified_payload(
     _alertmanager_qualified_native(files, report)
     require(
         report["loaded_base_ID"]
-        == _alertmanager_loaded_base([one_object(files["public-base-inspect.stdout"])]),
+        == _alertmanager_loaded_base(
+            [one_object(files["public-base-inspect.stdout"])], current=current
+        ),
         "AM_loaded_base_binding",
     )
     require(
@@ -3544,7 +3570,12 @@ def _alertmanager_qualified_payload(
         "AM_retained_base_bytes",
     )
     plan = _alertmanager_input_plan(
-        root_bytes, frozen_files, replays[0]["derived"], material_root=material_root
+        root_bytes,
+        frozen_files,
+        replays[0]["derived"],
+        material_root=material_root,
+        current=current,
+        producer_recipe=producer_recipe,
     )
     from scripts.ci.prometheus_source_image import GO, CURRENT_GO
 
@@ -3560,6 +3591,7 @@ def _alertmanager_qualified_payload(
         "delta": report["delta"],
         "source_files": replays[0]["source"],
         "root_inputs": {name: sha256(raw).hexdigest() for name, raw in root_bytes.items()},
+        "loaded_base": one_object(files["public-base-inspect.stdout"]),
         "compiler_starts": 0,
         "build_admission": "HOLD_SEPARATE_HUMAN_DECISION",
         "plan": plan,
@@ -3694,9 +3726,13 @@ def _alertmanager_input_plan(
     locks: dict[str, bytes],
     *,
     material_root: Path | None = None,
+    current: bool = False,
+    producer_recipe: bytes | None = None,
 ) -> dict[str, Any]:
     """Bound the retained source/UI and declare future argv, never execute a build."""
-    from scripts.ci.prometheus_source_image import require
+    from scripts.ci.prometheus_source_image import BASE, require
+
+    require(type(current) is bool, "AM_plan_epoch_type")
 
     source_rows = {}
     source_bytes = {}
@@ -3761,11 +3797,19 @@ def _alertmanager_input_plan(
     )
     context = []
     for path in ("deploy/alertmanager/Containerfile", "deploy/alertmanager/alertmanager.yml"):
-        raw = ((material_root if material_root is not None else REPO_ROOT) / path).read_bytes()
+        if path == "deploy/alertmanager/Containerfile" and producer_recipe is not None:
+            require(type(producer_recipe) is bytes, "AM_producer_recipe_bytes")
+            raw = producer_recipe
+        else:
+            raw = ((material_root if material_root is not None else REPO_ROOT) / path).read_bytes()
         require(
             sha256(raw).hexdigest()
             == (
-                _ALERT_ASSEMBLY_RECIPE_SHA256
+                (
+                    _ALERT_CURRENT_ASSEMBLY_RECIPE_SHA256
+                    if current
+                    else _ALERT_ASSEMBLY_RECIPE_SHA256
+                )
                 if path == "deploy/alertmanager/Containerfile"
                 else _ALERT_Q_SOURCE_FILES[path]
             ),
@@ -3847,7 +3891,11 @@ def _alertmanager_input_plan(
             "--network=none",
             "--pull=false",
             "--build-context",
-            "gcr.io/distroless/static-debian13@sha256:2293b36c7c9082bf4115aab724b4d2cddec82c8eba39bf27ac0517e159acf150=oci-layout:///inputs/base-layout@sha256:528f8a8d69ed17bdf99f19ade62e0a0e4c385de2791a94f4fa3c6286d8dad22c",
+            (
+                BASE + "=oci-layout:///inputs/base-layout@<UNOBSERVED_CURRENT_EXPORT>"
+                if current
+                else "gcr.io/distroless/static-debian13@sha256:2293b36c7c9082bf4115aab724b4d2cddec82c8eba39bf27ac0517e159acf150=oci-layout:///inputs/base-layout@sha256:528f8a8d69ed17bdf99f19ade62e0a0e4c385de2791a94f4fa3c6286d8dad22c"
+            ),
             "--file",
             "/context/Containerfile",
             "--output",
@@ -3876,8 +3924,111 @@ def _alertmanager_input_plan(
     }
 
 
+def _alertmanager_base_export_inventory(
+    base_archive: Path, *, destination: Path | None = None
+) -> tuple[list[dict[str, Any]], set[str]]:
+    """Read the finite Docker save export once; optionally perform its private extraction."""
+    from scripts.ci.prometheus_source_image import require
+
+    metadata = base_archive.lstat()
+    require(
+        stat.S_ISREG(metadata.st_mode)
+        and metadata.st_nlink == 1
+        and 0 < metadata.st_size <= 16 * 1024**2,
+        "AM_base_export_archive",
+    )
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    files: set[str] = set()
+    directories: set[str] = set()
+    total = 0
+    with tarfile.open(base_archive, mode="r:") as saved:
+        for member in saved:
+            parts = member.name.split("/")
+            require(
+                all(part not in ("", ".", "..") for part in parts)
+                and "\\" not in member.name
+                and "\x00" not in member.name
+                and member.name not in seen
+                and len(seen) < 33
+                and (member.isfile() or member.isdir()),
+                "AM_base_export_member",
+            )
+            seen.add(member.name)
+            parents = {"/".join(parts[:number]) for number in range(1, len(parts))}
+            require(not parents.intersection(files), "AM_base_export_file_parent")
+            directories.update(parents)
+            if member.isdir():
+                require(member.name not in files and member.size == 0, "AM_base_export_directory")
+                directories.add(member.name)
+                if destination is not None:
+                    destination.joinpath(*parts).mkdir(mode=0o700, parents=True, exist_ok=True)
+                continue
+            require(member.name not in directories, "AM_base_export_directory_as_file")
+            require(0 <= member.size <= metadata.st_size, "AM_base_export_size")
+            total += member.size
+            require(total <= metadata.st_size, "AM_base_export_total")
+            stream = saved.extractfile(member)
+            require(stream is not None, "AM_base_export_missing_bytes")
+            raw = cast(BinaryIO, stream).read(member.size + 1)
+            require(len(raw) == member.size, "AM_base_export_file")
+            files.add(member.name)
+            if destination is not None:
+                target = destination.joinpath(*parts)
+                target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+                require(not target.exists(), "AM_base_export_file")
+                with target.open("xb") as output:
+                    output.write(raw)
+                target.chmod(0o600)
+            rows.append({"path": member.name, "bytes": len(raw), "sha256": sha256(raw).hexdigest()})
+    return sorted(rows, key=lambda row: row["path"]), directories
+
+
+def _alertmanager_current_base_graph(layout: Path) -> dict[str, Any]:
+    """Bind the current native export representation to the independent vendor thirteen-layer graph."""
+    from scripts.ci.prometheus_source_image import (
+        BASE_CONFIG,
+        BASE_LAYER_CONTRACTS,
+        OCI_CONFIG,
+        OCI_MANIFEST,
+        _blob,
+        _layout_root,
+        exact_data,
+        one_object,
+        require,
+    )
+
+    descriptor = _layout_root(layout)
+    manifest = one_object(_blob(layout, descriptor))
+    exact_data(set(manifest), {"schemaVersion", "mediaType", "config", "layers"})
+    exact_data(manifest["schemaVersion"], 2)
+    exact_data(manifest["mediaType"], OCI_MANIFEST)
+    exact_data(manifest["config"], {"mediaType": OCI_CONFIG, "size": 2938, "digest": BASE_CONFIG})
+    configuration = one_object(_blob(layout, manifest["config"]))
+    exact_data(
+        configuration["rootfs"],
+        {"type": "layers", "diff_ids": [row["diff_id"] for row in BASE_LAYER_CONTRACTS]},
+    )
+    require(
+        configuration["os"] == "linux" and configuration["architecture"] == "amd64",
+        "AM_current_export_platform",
+    )
+    expected_layers = [
+        {
+            "mediaType": "application/vnd.oci.image.layer.v1.tar",
+            "digest": row["diff_id"],
+            "size": row["expanded"],
+        }
+        for row in BASE_LAYER_CONTRACTS
+    ]
+    exact_data(manifest["layers"], expected_layers)
+    for layer in expected_layers:
+        _blob(layout, layer)
+    return cast(dict[str, Any], descriptor)
+
+
 def _alertmanager_support_observation(
-    archive: Path, output: Path, *, qualification_sha256: str | None = None
+    archive: Path, output: Path, *, qualification_sha256: str | None = None, current: bool = False
 ) -> dict[str, Any]:
     """One separately invoked compiler-free native support observation; no Docker start/build."""
     import shutil
@@ -3967,35 +4118,12 @@ def _alertmanager_support_observation(
     base_id = original_base["Id"]
     layout = work / "base-layout"
     fresh_directory(layout)
-    layout_rows, seen = [], set()
-    with tarfile.open(base_archive, mode="r:") as saved:
-        for member in saved:
-            parts = member.name.split("/")
-            require(
-                all(part not in ("", ".", "..") for part in parts)
-                and "\\" not in member.name
-                and member.name not in seen
-                and (member.isfile() or member.isdir()),
-                "AM_base_export_member",
-            )
-            seen.add(member.name)
-            target = layout.joinpath(*parts)
-            if member.isdir():
-                target.mkdir(mode=0o700, parents=True, exist_ok=True)
-            else:
-                require(member.size <= base_archive.stat().st_size, "AM_base_export_size")
-                target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-                stream = saved.extractfile(member)
-                require(stream is not None, "AM_base_export_missing_bytes")
-                stream = cast(BinaryIO, stream)
-                raw = stream.read(member.size + 1)
-                require(len(raw) == member.size and not target.exists(), "AM_base_export_file")
-                with target.open("xb") as destination:
-                    destination.write(raw)
-                target.chmod(0o600)
-                layout_rows.append(
-                    {"path": member.name, "bytes": len(raw), "sha256": sha256(raw).hexdigest()}
-                )
+    layout_rows, _ = _alertmanager_base_export_inventory(base_archive, destination=layout)
+    require(type(current) is bool, "AM_support_observation_epoch")
+    if current:
+        require(len(layout_rows) == 31, "AM_current_Q_export_finite_shape")
+        _alertmanager_loaded_base([original_base], current=True)
+        _alertmanager_current_base_graph(layout)
     descriptor = _layout_root(layout)
     manifest = one_object(_blob(layout, descriptor))
     configuration = one_object(_blob(layout, manifest["config"]))
@@ -5104,7 +5232,8 @@ def _alertmanager_candidate_payload(
         "AM_candidate_original_OCI_bytes",
     )
     require(
-        _alertmanager_candidate_graph(layout, support, result["graph"]["files"]) == result["graph"],
+        _alertmanager_candidate_graph(layout, support, result["graph"]["files"], current=current)
+        == result["graph"],
         "AM_candidate_actual_graph_payload",
     )
     return result
@@ -5165,12 +5294,63 @@ def _alertmanager_current_support_transport(
     )
 
 
+def _alertmanager_current_support_base(
+    destination: Path, report: dict[str, Any], qualification_payload: dict[str, Any]
+) -> None:
+    """Bind the complete materialized current S base to actual authenticated Q archive bytes."""
+    from scripts.ci.prometheus_source_image import (
+        BASE_CONFIG,
+        exact_data,
+        tree_inventory,
+        file_hash,
+        require,
+    )
+
+    expected_archive = qualification_payload["root_inputs"]["base-image.tar"]
+    require(
+        file_hash(destination / "base-image.tar")
+        == expected_archive
+        == report["base"]["archive_sha256"],
+        "AM_current_S_exact_Q_export",
+    )
+    q_rows, q_directories = _alertmanager_base_export_inventory(destination / "base-image.tar")
+    require(len(q_rows) == 31, "AM_current_Q_export_finite_shape")
+    layout = destination / "base-layout"
+    inventory = tree_inventory(layout, maximum=16 * 1024**2)
+    for row in inventory:
+        require(
+            (layout / row["path"]).lstat().st_nlink == 1 and row["mode"] == 0o600,
+            "AM_current_export_regular_single_link",
+        )
+    exact_data(
+        [{"path": row["path"], "bytes": row["size"], "sha256": row["sha256"]} for row in inventory],
+        q_rows,
+    )
+    actual_directories = {
+        path.relative_to(layout).as_posix() for path in layout.rglob("*") if path.is_dir()
+    }
+    exact_data(actual_directories, q_directories)
+    require(
+        all(stat.S_IMODE((layout / name).lstat().st_mode) == 0o700 for name in q_directories),
+        "AM_current_export_directory_mode",
+    )
+    exact_data(
+        sorted(report["base"]["complete_export_file_inventory"], key=lambda row: row["path"]),
+        q_rows,
+    )
+    descriptor = _alertmanager_current_base_graph(layout)
+    exact_data(descriptor, report["base"]["actual_local_OCI_descriptor"])
+    exact_data(report["base"]["config"], BASE_CONFIG)
+    exact_data(report["base"]["RootFS"], qualification_payload["loaded_base"]["RootFS"])
+
+
 def _alertmanager_support_payload(
     archive: Path,
     destination: Path,
     *,
     qualification: dict[str, Any] | None = None,
     support_binding: dict[str, Any] | None = None,
+    qualification_payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Read the exact observed S artifact, with the incumbent native payload inventory."""
     import shutil
@@ -5179,6 +5359,7 @@ def _alertmanager_support_payload(
 
     require((qualification is None) == (support_binding is None), "AM_support_epoch_pair")
     current = support_binding is not None
+    require(current == (qualification_payload is not None), "AM_support_Q_payload_pair")
     expected_zip = _ALERT_S_ZIP_SHA256
     expected_source = _ALERT_S_SOURCE
     expected_q = _ALERT_Q_ZIP_SHA256
@@ -5324,6 +5505,16 @@ def _alertmanager_support_payload(
             ),
             "AM_support_current_DB_fields",
         )
+    if current:
+        _alertmanager_current_support_base(
+            destination, report, cast(dict[str, Any], qualification_payload)
+        )
+    else:
+        require(
+            report.get("base", {}).get("config") == _ALERT_BASE_CONFIG
+            and report["base"]["actual_local_OCI_descriptor"]["digest"] == _ALERT_BASE_MANIFEST,
+            "AM_historical_export_identity",
+        )
     require(
         inspected.get("consumer_source") == expected_source
         and inspected.get("upstream", {}).get("zip_sha256") == expected_q
@@ -5332,8 +5523,6 @@ def _alertmanager_support_payload(
         and report.get("support_status") == "OBSERVED_NATIVE_SUPPORTED_DOMAIN"
         and report.get("compiler_starts") == report.get("logical_build_starts") == 0
         and report.get("owned_container_absence_observed") is True
-        and report.get("base", {}).get("config") == _ALERT_BASE_CONFIG
-        and report["base"]["actual_local_OCI_descriptor"]["digest"] == _ALERT_BASE_MANIFEST
         and report.get("probe", {}).get("sha256") == _ALERT_PROBE_SHA256
         and report.get("scanner", {}).get("sha256") == _ALERT_TRIVY_SHA256
         and report["scanner"]["DB"] == database
@@ -5506,11 +5695,11 @@ def _alertmanager_build_information(
 # Accepted native build-info and base-package oracle, bound to immutable S.
 _ALERT_CURRENT_SCAN_ORACLE: dict[str, dict[str, Any]] = {
     "subject": {
-        "manifest": "sha256:bc6c847d25e48a8bcddfd8fef0aec25b6ac890346b4bfe6dea3d2d82cd0dc3b9",
-        "config": "sha256:46928bb4d3eac8b7bd9d8516a9427c3ec684244fc5f74260324e0acb6bcea9d4",
+        "manifest": "sha256:3d0b5e9b33a6a9c07814a01f76731080d2b9604f3e1916729cd8984dbbed0f7b",
+        "config": "sha256:facc82988bd75c06d269228877b179f9ea90e3dbaa3db67057cf954308ec6dd6",
         "binary_sha256": {
-            "alertmanager": "08778bcb751b4ccdf1727701cb5af5cdfaae3f0cc122d697a49792a987c56f6b",
-            "amtool": "5cfcb4a40897f2095339284989b563e144bc8ed2e827493e47cb9083202c89b4",
+            "alertmanager": "c7df6fc46c9f41f83657de5956b0373d1e733b04549c59d9657c44a426334aff",
+            "amtool": "47bd3f8d054eb8b6ab1005577508da00b52efba55ba647a83612ec31731da42b",
         },
     },
     "expected_OS": {
@@ -5701,7 +5890,7 @@ _ALERT_CURRENT_SCAN_ORACLE: dict[str, dict[str, Any]] = {
             "google.golang.org/protobuf": "v1.36.11",
             "gopkg.in/telebot.v3": "v3.3.8",
             "gopkg.in/yaml.v2": "v2.4.0",
-            "stdlib": "v1.27.2",
+            "stdlib": "v1.27.3",
             "github.com/prometheus/alertmanager": "0.34.1",
         },
         "amtool": {
@@ -5815,7 +6004,7 @@ _ALERT_CURRENT_SCAN_ORACLE: dict[str, dict[str, Any]] = {
             "google.golang.org/protobuf": "v1.36.11",
             "gopkg.in/telebot.v3": "v3.3.8",
             "gopkg.in/yaml.v2": "v2.4.0",
-            "stdlib": "v1.27.2",
+            "stdlib": "v1.27.3",
             "github.com/prometheus/alertmanager": "0.34.1",
         },
     },
@@ -5836,7 +6025,7 @@ def _alertmanager_candidate_inventory(
     inventory and all findings, with the accepted subject and four-CVE postcondition.
     It does not pretend to replay historical base/module resolution.
     """
-    from scripts.ci.prometheus_source_image import require
+    from scripts.ci.prometheus_source_image import BASE_CONFIG, require
 
     require(
         type(report.get("SchemaVersion")) is int
@@ -5871,7 +6060,8 @@ def _alertmanager_candidate_inventory(
         require(
             base_report.get("ArtifactType") == "container_image"
             and type(base_report.get("Metadata")) is dict
-            and base_report["Metadata"].get("ImageID") == _ALERT_BASE_CONFIG,
+            and base_report["Metadata"].get("ImageID")
+            == (BASE_CONFIG if current else _ALERT_BASE_CONFIG),
             "AM_candidate_authenticated_base_scan_subject",
         )
         _alertmanager_support_inventory(base_report)
@@ -6007,7 +6197,7 @@ def _alertmanager_candidate_inventory(
 
 
 def _alertmanager_candidate_graph(
-    layout: Path, support: Path, expected_files: dict[str, str]
+    layout: Path, support: Path, expected_files: dict[str, str], *, current: bool = False
 ) -> dict[str, Any]:
     """Observe the finite COPY-only AM graph using the incumbent OCI primitives."""
     from scripts.ci.prometheus_source_image import (
@@ -6019,6 +6209,9 @@ def _alertmanager_candidate_graph(
         require,
     )
 
+    from scripts.ci.prometheus_source_image import BASE_LAYER_CONTRACTS, validate_default_ca
+
+    require(type(current) is bool, "AM_candidate_graph_epoch")
     descriptor = _layout_root(layout)
     manifest = one_object(_blob(layout, descriptor))
     require(
@@ -6061,6 +6254,12 @@ def _alertmanager_candidate_graph(
         and 13 < len(manifest["layers"]) <= 24,
         "AM_candidate_base_and_COPY_layers",
     )
+    if current:
+        require(
+            configuration["rootfs"]["diff_ids"][:13]
+            == [row["diff_id"] for row in BASE_LAYER_CONTRACTS],
+            "AM_candidate_current_base_diffIDs",
+        )
     found, payload, ca_hash = {}, [], None
     parents = {"usr", "usr/bin", "etc", "etc/alertmanager", "alertmanager"}
     storage = False
@@ -6094,7 +6293,13 @@ def _alertmanager_candidate_graph(
                     if member.name == "etc/ssl/certs/ca-certificates.crt" and member.isfile():
                         stream = archive.extractfile(member)
                         require(stream is not None, "AM_default_CA_bytes")
-                        ca_hash = sha256(cast(BinaryIO, stream).read(member.size + 1)).hexdigest()
+                        ca_bytes = cast(BinaryIO, stream).read(member.size + 1)
+                        require(
+                            len(ca_bytes) == member.size and ca_hash is None, "AM_default_CA_unique"
+                        )
+                        if current:
+                            validate_default_ca(ca_bytes)
+                        ca_hash = sha256(ca_bytes).hexdigest()
                     continue
                 require(
                     member.name in expected_files
@@ -6173,12 +6378,15 @@ def _alertmanager_pair(
     prep_deadline: float,
     *,
     retained: Path | None = None,
+    base_descriptor: dict[str, Any],
 ) -> dict[str, Any]:
     """One direct serial pair plus one COPY-only assembly; no resolver or retry."""
     from datetime import datetime
     import shutil
     import uuid
     from scripts.ci.prometheus_source_image import (
+        BASE,
+        BASE_CONFIG,
         Native,
         file_hash,
         fresh_directory,
@@ -6189,6 +6397,10 @@ def _alertmanager_pair(
         tree_inventory,
     )
 
+    require(
+        base_descriptor == _alertmanager_current_base_graph(support / "base-layout"),
+        "AM_pair_validated_current_base",
+    )
     docker = shutil.which("docker")
     require(docker is not None and Path(docker).is_absolute(), "AM_pair_Docker")
     require(Path(sys.executable).is_absolute(), "AM_pair_interpreter")
@@ -6273,7 +6485,7 @@ def _alertmanager_pair(
             ]
         for key, value in plan["compiler_environment"].items():
             create += ["--env", key + "=" + value]
-        create += ["--entrypoint=/toolchain/bin/go", _ALERT_BASE_CONFIG, *argv]
+        create += ["--entrypoint=/toolchain/bin/go", BASE_CONFIG, *argv]
         identifier = native.run(create, label + "-create", env, cwd=work).decode("ascii").strip()
         require(re.fullmatch(r"[0-9a-f]{64}", identifier) is not None, "AM_pair_owned_ID")
         owned[identifier] = name
@@ -6308,14 +6520,14 @@ def _alertmanager_pair(
         )
         base = one_object(
             prep.run(
-                [*prefix, "image", "inspect", "--format", "{{json .}}", _ALERT_BASE_CONFIG],
+                [*prefix, "image", "inspect", "--format", "{{json .}}", BASE_CONFIG],
                 "pair-base-inspect",
                 env,
                 cwd=work,
             )
         )
         require(
-            base.get("Id") == _ALERT_BASE_CONFIG
+            base.get("Id") == BASE_CONFIG
             and base.get("Os") == "linux"
             and base.get("Architecture") == "amd64",
             "AM_pair_exact_base",
@@ -6453,7 +6665,7 @@ def _alertmanager_pair(
         context_inventory = tree_inventory(context)
         result["context"] = context_inventory
         require(
-            file_hash(context / "Containerfile") == _ALERT_ASSEMBLY_RECIPE_SHA256
+            file_hash(context / "Containerfile") == _ALERT_CURRENT_ASSEMBLY_RECIPE_SHA256
             and file_hash(context / "alertmanager.yml")
             == _ALERT_Q_SOURCE_FILES["deploy/alertmanager/alertmanager.yml"],
             "AM_context_recipe_drift",
@@ -6496,10 +6708,11 @@ def _alertmanager_pair(
             "--network=none",
             "--pull=false",
             "--build-context",
-            "gcr.io/distroless/static-debian13@sha256:2293b36c7c9082bf4115aab724b4d2cddec82c8eba39bf27ac0517e159acf150=oci-layout://"
+            BASE
+            + "=oci-layout://"
             + str(support / "base-layout")
             + "@"
-            + _ALERT_BASE_MANIFEST,
+            + base_descriptor["digest"],
             "--file",
             str(context / "Containerfile"),
             "--output",
@@ -6665,7 +6878,7 @@ def _alertmanager_pair(
             }
         )
         require(file_hash(plugin) == _ALERT_BUILDX_SHA256, "AM_executed_Buildx_post_drift")
-        graph = _alertmanager_candidate_graph(layout, support, expected)
+        graph = _alertmanager_candidate_graph(layout, support, expected, current=True)
         pack_layout(layout, work / "candidate.oci.tar")
         result.update(
             {
@@ -7412,14 +7625,14 @@ def _alertmanager_final_security(
         )
         layout = work / "docker-load-layout"
         require(
-            _alertmanager_candidate_graph(layout, support, graph["files"]) == graph
+            _alertmanager_candidate_graph(layout, support, graph["files"], current=True) == graph
             and file_hash(archive, deadline)
             == reports["docker_load_transport"]["source_OCI_sha256"],
             "AM_final_candidate_scan_identity",
         )
         candidate_report = scan("image", layout, "candidate-full-supported")
         require(
-            _alertmanager_candidate_graph(layout, support, graph["files"]) == graph
+            _alertmanager_candidate_graph(layout, support, graph["files"], current=True) == graph
             and file_hash(archive, deadline)
             == reports["docker_load_transport"]["source_OCI_sha256"],
             "AM_final_candidate_scan_post_identity",
@@ -8420,7 +8633,7 @@ def _alertmanager_prepare_candidate_body(
             prepared = _alertmanager_pull_published(
                 api, args, route, material_sources, output, deadline
             )
-            candidate = {"graph": accepted["graph"]}
+            candidate = {"source": accepted["source"], "graph": accepted["graph"]}
             payload = output / "candidate"
             fresh_directory(payload)
             (payload / "candidate-observation.json").write_text(json.dumps(candidate) + "\n")
@@ -8482,6 +8695,7 @@ def _alertmanager_prepare_candidate_body(
         output / "qualification.zip",
         material_root=args.material_root,
         current=accepted["source"] != _ALERT_HISTORICAL_C10["source"],
+        producer_recipe=source["deploy/alertmanager/Containerfile"],
     )
     support = output / "support"
     current = accepted["source"] != _ALERT_HISTORICAL_C10["source"]
@@ -8490,7 +8704,10 @@ def _alertmanager_prepare_candidate_body(
         support,
         qualification=qualification if current else None,
         support_binding=support_binding if current else None,
+        qualification_payload=inspected if current else None,
     )
+    if current:
+        _alertmanager_bind_current_plan(inspected["plan"], supported)
     inspected["plan"]["probe"] = supported["probe"]
     payload = output / "candidate"
     candidate = _alertmanager_candidate_payload(
@@ -8737,14 +8954,21 @@ def _alertmanager_publish(
     )
     source = _alertmanager_source_snapshot(api, args.alertmanager_candidate_source, accepted=True)
     current_epoch = accepted["source"] != _ALERT_HISTORICAL_C10["source"]
-    inspected = _alertmanager_qualified_payload(output / "qualification.zip", current=current_epoch)
+    inspected = _alertmanager_qualified_payload(
+        output / "qualification.zip",
+        current=current_epoch,
+        producer_recipe=source["deploy/alertmanager/Containerfile"],
+    )
     support = output / "support"
     supported = _alertmanager_support_payload(
         output / "support.zip",
         support,
         qualification=qualification if current_epoch else None,
         support_binding=support_binding if current_epoch else None,
+        qualification_payload=inspected if current_epoch else None,
     )
+    if current_epoch:
+        _alertmanager_bind_current_plan(inspected["plan"], supported)
     inspected["plan"]["probe"] = supported["probe"]
     candidate = _alertmanager_candidate_payload(
         output / "candidate.zip",
@@ -8864,7 +9088,7 @@ def _alertmanager_publish(
         result["package_WRITE"] = "UNEXERCISED_EXISTING_SAME_SUBJECT"
     api._capture(pullback, 2 * 1024**2, environment=env)
     actual = _alertmanager_candidate_graph(
-        output / "pullback", support, candidate["graph"]["files"]
+        output / "pullback", support, candidate["graph"]["files"], current=current_epoch
     )
     require(actual == candidate["graph"], "AM_immutable_pullback_graph_payload")
     for descriptor in (actual["manifest"], actual["config"], *actual["layers"]):
@@ -9012,16 +9236,83 @@ def _alertmanager_current_manual_admission(
         first = api.json(history_endpoint + "&per_page=100&page=1")
         history = api.pages(history_endpoint, "workflow_runs", first["total_count"])
         expected = (
-            (39048899349, 117443160727, "6c9f537e89d38f82f8d685150a32e25aee14c6c7", "failure"),
-            (39052648330, 117454182747, "2e28d62f4311930f1caeabb5378af3e1d3c1e1a1", "failure"),
-            (39059505765, 117474381581, "917854fb7832d7a980c8e6a8ee85940fd2e7724f", "failure"),
-            (39067589451, 117498357173, "45409a39ce06804d4cbb5dce6c7dbb61a85167c8", "failure"),
-            (39072367157, 117512436494, "bf5b6a9053c9b42727834ffd6966f45e4a493062", "failure"),
-            (39077538191, 117527703920, "9d849ab2128aa0a2ff7c065fcc47fdc36a771b1d", "failure"),
-            (39084669786, 117548630619, "557b66bf9287feadc68b9916f41f1f471bee9e49", "failure"),
-            (39093991413, 117576475833, "91bf3744fcc5f5bbdfdd6e08699d703db46a491f", "failure"),
-            (39099358458, 117592265589, "8a00dc7fe7c754c6801dc5c19f1772546ed8696e", "failure"),
-            (39143039135, 117721196331, "63455b8a750ef07a1e525078b4e3ce2089eecdde", "success"),
+            (
+                39048899349,
+                117443160727,
+                "6c9f537e89d38f82f8d685150a32e25aee14c6c7",
+                "failure",
+                _ALERT_Q_BRANCH,
+            ),
+            (
+                39052648330,
+                117454182747,
+                "2e28d62f4311930f1caeabb5378af3e1d3c1e1a1",
+                "failure",
+                _ALERT_Q_BRANCH,
+            ),
+            (
+                39059505765,
+                117474381581,
+                "917854fb7832d7a980c8e6a8ee85940fd2e7724f",
+                "failure",
+                _ALERT_Q_BRANCH,
+            ),
+            (
+                39067589451,
+                117498357173,
+                "45409a39ce06804d4cbb5dce6c7dbb61a85167c8",
+                "failure",
+                _ALERT_Q_BRANCH,
+            ),
+            (
+                39072367157,
+                117512436494,
+                "bf5b6a9053c9b42727834ffd6966f45e4a493062",
+                "failure",
+                _ALERT_Q_BRANCH,
+            ),
+            (
+                39077538191,
+                117527703920,
+                "9d849ab2128aa0a2ff7c065fcc47fdc36a771b1d",
+                "failure",
+                _ALERT_Q_BRANCH,
+            ),
+            (
+                39084669786,
+                117548630619,
+                "557b66bf9287feadc68b9916f41f1f471bee9e49",
+                "failure",
+                _ALERT_Q_BRANCH,
+            ),
+            (
+                39093991413,
+                117576475833,
+                "91bf3744fcc5f5bbdfdd6e08699d703db46a491f",
+                "failure",
+                _ALERT_Q_BRANCH,
+            ),
+            (
+                39099358458,
+                117592265589,
+                "8a00dc7fe7c754c6801dc5c19f1772546ed8696e",
+                "failure",
+                _ALERT_Q_BRANCH,
+            ),
+            (
+                39143039135,
+                117721196331,
+                "63455b8a750ef07a1e525078b4e3ce2089eecdde",
+                "success",
+                _ALERT_Q_BRANCH,
+            ),
+            (
+                40237598500,
+                121302388554,
+                "04b76f42c09854405df00328ead16b30d701a24f",
+                "success",
+                _ALERT_RECEIVER_BRANCH,
+            ),
         )
         observed = []
         for prior in history:
@@ -9042,7 +9333,6 @@ def _alertmanager_current_manual_admission(
                     and prior.get("status") == "completed"
                     and prior.get("event") == "workflow_dispatch"
                     and prior.get("workflow_id") == workflow["id"]
-                    and prior.get("head_branch") == _ALERT_Q_BRANCH
                     and prior.get("repository", {}).get("id") == 1043311030
                     and prior.get("head_repository", {}).get("id") == 1043311030
                     and job.get("run_id") == prior["id"]
@@ -9051,7 +9341,15 @@ def _alertmanager_current_manual_admission(
                     and job.get("conclusion") == prior.get("conclusion"),
                     "AM_current_build_prior_identity",
                 )
-                observed.append((prior["id"], job["id"], prior["head_sha"], prior["conclusion"]))
+                observed.append(
+                    (
+                        prior["id"],
+                        job["id"],
+                        prior["head_sha"],
+                        prior["conclusion"],
+                        prior.get("head_branch"),
+                    )
+                )
         require(sorted(observed) == list(expected), "AM_current_build_complete_spent_history")
     jobs_endpoint = endpoint + f"/actions/runs/{run_id}/attempts/1/jobs"
     first_jobs = api.json(jobs_endpoint + "?per_page=100&page=1")
@@ -9065,6 +9363,29 @@ def _alertmanager_current_manual_admission(
         and selected[0].get("status") == "in_progress",
         "AM_current_build_job",
     )
+
+
+def _alertmanager_bind_current_plan(plan: dict[str, Any], support: dict[str, Any]) -> None:
+    """Resolve the one declared-only context operand from the validated current S descriptor."""
+    from scripts.ci.prometheus_source_image import BASE, require
+
+    argv = plan["assembly_argv"]
+    require(type(argv) is list and argv.count("--build-context") == 1, "AM_current_plan_context")
+    position = argv.index("--build-context") + 1
+    require(
+        position < len(argv)
+        and argv[position]
+        == BASE + "=oci-layout:///inputs/base-layout@<UNOBSERVED_CURRENT_EXPORT>",
+        "AM_current_plan_unobserved_context",
+    )
+    descriptor = support["base"]["actual_local_OCI_descriptor"]
+    require(
+        type(descriptor) is dict
+        and type(descriptor.get("digest")) is str
+        and re.fullmatch(r"sha256:[0-9a-f]{64}", descriptor["digest"]) is not None,
+        "AM_current_plan_verified_descriptor",
+    )
+    argv[position] = BASE + "=oci-layout:///inputs/base-layout@" + descriptor["digest"]
 
 
 def _alertmanager_current_build(args: argparse.Namespace) -> None:
@@ -9171,8 +9492,13 @@ def _alertmanager_current_build(args: argparse.Namespace) -> None:
         inspected = _alertmanager_qualified_payload(output / "qualification.zip", current=True)
         support = output / "support"
         supported = _alertmanager_support_payload(
-            output / "support.zip", support, qualification=q, support_binding=supported_binding
+            output / "support.zip",
+            support,
+            qualification=q,
+            support_binding=supported_binding,
+            qualification_payload=inspected,
         )
+        _alertmanager_bind_current_plan(inspected["plan"], supported)
         inspected["plan"]["probe"] = supported["probe"]
         inputs = output / "inputs"
         _alertmanager_materialize(output / "qualification.zip", inputs, deadline)
@@ -9191,6 +9517,7 @@ def _alertmanager_current_build(args: argparse.Namespace) -> None:
             limits,
             deadline,
             retained=retained,
+            base_descriptor=supported["base"]["actual_local_OCI_descriptor"],
         )
         shutil.copyfile(output / "pair/candidate.oci.tar", retained / "candidate.oci.tar")
         observation = retained / "candidate-observation.json"
@@ -10508,6 +10835,7 @@ def _inspect_alertmanager_inputs(args: argparse.Namespace) -> None:
             output / "qualification.zip",
             output,
             qualification_sha256=qualification["zip_sha256"],
+            current=True,
         )
         inspected["plan"]["probe"] = inspected["support"]["probe"]
         inspected["outstanding"] = [

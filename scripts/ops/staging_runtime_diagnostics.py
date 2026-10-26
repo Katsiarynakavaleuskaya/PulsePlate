@@ -76,7 +76,7 @@ import time
 
 PROJECT = "/srv/pulseplate-staging"
 COMPOSE = PROJECT + "/docker-compose.staging.yaml"
-COMPOSE_SOURCE_SHA = "ab0b40649f5ec35c2a0ff86c19756da37b8145aaea45211c67bb4df86f987a54"
+COMPOSE_SOURCE_SHA = "37628f6b5bd0a91fab18eb96cc8cb29e18a06afb9aefa445f148ec44ad8e0507"
 BACKEND_REF = __BACKEND_IMAGE_REF__
 CADDY_REF = __CADDY_IMAGE_REF__
 CHECKER = PROJECT + "/scripts/ops/check_staging_security.py"

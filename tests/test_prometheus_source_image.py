@@ -84,6 +84,15 @@ def test_stabilization_manual_budget_preserves_complete_spent_history(
             "success",
         ),
     ]
+    tool_rows.append(
+        (
+            40188825249,
+            121155232821,
+            "c22d641bc0d4dce56925114c827be6d712db7070",
+            "codex/python-setup-security-stabilization",
+            "success",
+        )
+    )
     pair_rows = [
         (
             38291450453,
@@ -100,6 +109,15 @@ def test_stabilization_manual_budget_preserves_complete_spent_history(
             "success",
         ),
     ]
+    pair_rows.append(
+        (
+            40222244853,
+            121256136190,
+            "7e275934593fa83749c5d89054c019fd4f7c6e89",
+            "codex/python-setup-security-stabilization",
+            "success",
+        )
+    )
     branch = "codex/python-setup-security-stabilization"
     head = "a" * 40
     job_name = (
@@ -208,16 +226,42 @@ def test_stabilization_manual_budget_preserves_complete_spent_history(
     if fault is None:
         result = source.manual_hosted_admission(API(), purpose, prefetch_predecessor=selector)
         assert result["budget"] == (1 if purpose == "tool" else 2)
-        assert len(result["actual_prior_invocations"]) == (5 if purpose == "tool" else 2)
+        assert len(result["actual_prior_invocations"]) == (6 if purpose == "tool" else 3)
     else:
         with pytest.raises(source.QualificationError):
             source.manual_hosted_admission(API(), purpose, prefetch_predecessor=selector)
+
+
+def _synthetic_ca_bundle(monkeypatch: pytest.MonkeyPatch) -> bytes:
+    """Mock the X509 transport only for graph units; actual bundle/TLS proof stays native."""
+    import ssl
+
+    data = b"synthetic admitted bundle for graph unit tests\n"
+    certificates = [f"synthetic DER {number}".encode() for number in range(148)]
+
+    class Context:
+        def load_verify_locations(self, *, cadata: str) -> None:
+            assert cadata == data.decode("ascii")
+
+        def get_ca_certs(self, *, binary_form: bool) -> list[bytes]:
+            assert binary_form is True
+            return certificates
+
+    def context(protocol: int) -> Context:
+        assert protocol == ssl.PROTOCOL_TLS_CLIENT
+        return Context()
+
+    monkeypatch.setattr(ssl, "SSLContext", context)
+    monkeypatch.setattr(source, "BASE_CA_SHA256", source.sha(data))
+    monkeypatch.setattr(source, "BASE_CA_BYTES", len(data))
+    return data
 
 
 def _finite_vendor_input(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, wrong_diff: bool = False
 ) -> Path:
     """Synthetic graph data only; no native format, origin or build-success fixture."""
+    ca = _synthetic_ca_bundle(monkeypatch)
     layout = tmp_path / "vendor"
     (layout / "blobs/sha256").mkdir(parents=True)
     contracts = []
@@ -225,10 +269,16 @@ def _finite_vendor_input(
         stream = io.BytesIO()
         rows = []
         with tarfile.open(fileobj=stream, mode="w", format=tarfile.USTAR_FORMAT) as archive:
-            names = ("usr", "usr/bin", "etc", "bin") if index == 0 else (f"vendor-{index}",)
+            names = (
+                ("usr", "usr/bin", "etc", "bin")
+                if index == 0
+                else (
+                    ("etc/ssl/certs/ca-certificates.crt",) if index == 12 else (f"vendor-{index}",)
+                )
+            )
             for name in names:
                 member = tarfile.TarInfo(name)
-                data = ("synthetic vendor " + str(index)).encode()
+                data = ca if index == 12 else ("synthetic vendor " + str(index)).encode()
                 if index == 0:
                     member.type = tarfile.SYMTYPE if name == "bin" else tarfile.DIRTYPE
                     member.linkname = "usr/bin" if name == "bin" else ""
@@ -3876,7 +3926,7 @@ def test_promote_known_writer_order_has_frozen_acyclic_workflow() -> None:
     assert (
         hashlib.sha256(raw).hexdigest()
         # Public frozen build workflow digest
-        == "6530b5170bb6bd3e3186d21ba7e88cb91e52bcd13a0083788a06119df059038c"
+        == "31860b30580c3b389380d7f88722d150fa0ac14ab3c9b773e29f9113d43422e7"
     )
     jobs = yaml.safe_load(raw)["jobs"]
     assert jobs["publish"]["needs"] == ["build", "security-scan"]
@@ -5787,7 +5837,7 @@ def _two_tool_prefetch_recovery_fixture(
         b"all modules verified\n",
         online_go=True,
     )
-    native("vendor-pull", [*docker, "pull", "--platform", "linux/amd64", source.BASE])
+    native("vendor-pull", [*docker, "pull", "--platform", "linux/amd64", source.HISTORICAL_BASE])
     containers = []
     for index, (kind, command) in enumerate(
         (
@@ -5798,15 +5848,15 @@ def _two_tool_prefetch_recovery_fixture(
     ):
         name, owner = "synthetic-owned-" + kind, "synthetic-owner-" + kind
         image = {
-            "Id": source.BASE_CONFIG,
+            "Id": source.HISTORICAL_BASE_CONFIG,
             "Os": "linux",
             "Architecture": "amd64",
-            "RepoDigests": [source.BASE],
+            "RepoDigests": [source.HISTORICAL_BASE],
             "Config": {"Env": []},
         }
         native(
             f"tool-{kind}-base",
-            [*docker, "image", "inspect", source.BASE],
+            [*docker, "image", "inspect", source.HISTORICAL_BASE],
             source.canonical_data(image),
         )
         # Historical argv is opaque data; no current-host directory constructor is invoked.
@@ -5817,13 +5867,13 @@ def _two_tool_prefetch_recovery_fixture(
             name,
             "--label",
             source.LABEL + "=" + owner,
-            source.BASE_CONFIG,
+            source.HISTORICAL_BASE_CONFIG,
             *command,
         ]
         native(f"tool-{kind}-create", create, name.encode())
         container = {
             "Name": "/" + name,
-            "Image": source.BASE_CONFIG,
+            "Image": source.HISTORICAL_BASE_CONFIG,
             "Config": {
                 "Labels": {source.LABEL: owner},
                 "User": "65532:65532",
@@ -6204,7 +6254,7 @@ def _three_tool_failure_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     frozen = [dict(cache[0], mode=0o444)]
     files["tool-prefetch-cache-before-freeze.json"] = source.canonical_data(cache)
     files["tool-prefetch-cache-frozen.json"] = source.canonical_data(frozen)
-    native("tool-base-pull", [*docker, "pull", "--platform", "linux/amd64", source.BASE])
+    native("tool-base-pull", [*docker, "pull", "--platform", "linux/amd64", source.HISTORICAL_BASE])
     commands = (
         ("version", ["version"], source.GO_VERSION.encode()),
         ("verify", ["mod", "verify"], b"all modules verified\n"),
@@ -6232,15 +6282,15 @@ def _three_tool_failure_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     for number, (name, command, raw) in enumerate(commands):
         container, owner = "synthetic-third-" + name, "synthetic-owner-" + name
         image = {
-            "Id": source.BASE_CONFIG,
+            "Id": source.HISTORICAL_BASE_CONFIG,
             "Os": "linux",
             "Architecture": "amd64",
-            "RepoDigests": [source.BASE],
+            "RepoDigests": [source.HISTORICAL_BASE],
             "Config": {"Env": []},
         }
         native(
             "tool-" + name + "-base",
-            [*docker, "image", "inspect", source.BASE],
+            [*docker, "image", "inspect", source.HISTORICAL_BASE],
             source.canonical_data(image),
         )
         create = [
@@ -6250,7 +6300,7 @@ def _three_tool_failure_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
             container,
             "--label",
             source.LABEL + "=" + owner,
-            source.BASE_CONFIG,
+            source.HISTORICAL_BASE_CONFIG,
             *command,
         ]
         native("tool-" + name + "-create", create, container.encode())
@@ -6281,7 +6331,7 @@ def _three_tool_failure_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
             )
         value = {
             "Name": "/" + container,
-            "Image": source.BASE_CONFIG,
+            "Image": source.HISTORICAL_BASE_CONFIG,
             "Config": {
                 "Labels": {source.LABEL: owner},
                 "User": "65532:65532",
@@ -6321,7 +6371,7 @@ def _three_tool_failure_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     native("ORAS-help", [binary, "cp", "--help"], b"synthetic help")
     native(
         "ORAS-authenticated-base",
-        [binary, "cp", "--to-oci-layout", source.BASE, str(work / "vendor") + ":base"],
+        [binary, "cp", "--to-oci-layout", source.HISTORICAL_BASE, str(work / "vendor") + ":base"],
     )
     for container, value in containers:
         argv = [*docker, "ps", "--all", "--format", "{{.Names}}"]
@@ -7395,3 +7445,60 @@ def test_public_package_inventory_real_capture_combined_stream_bound_and_cleanup
     for path in evidence.iterdir():
         raw = path.read_bytes()
         assert credential.encode() not in raw and b"synthetic.capture.writer" not in raw
+
+
+@pytest.mark.parametrize(
+    "fault", [None, "bytes", "length", "parse", "count", "removed-emsign", "removed-aaa"]
+)
+def test_current_default_CA_recognizer_binds_bytes_and_closed_DER_inventory(
+    monkeypatch: pytest.MonkeyPatch, fault: str | None
+) -> None:
+    import ssl
+
+    assert (
+        source.BASE_CA_SHA256 == "e9c7b63ee2623386e9b0a3ee32f499d01a8ea23dc83b8383ddff9f8e749543b7"
+    )
+    assert source.BASE_CA_BYTES == 222073
+    assert source.REMOVED_CA_DER_SHA256 == {
+        "86a1ecba089c4a8d3bbe2734c612ba341d813e043cf9e8a862cd5c57a36bbe6b",
+        "d7a7a0fb5d7e2731d771e9484ebcdef71d5f0c3e0a2948782bc83ee0ea699ef4",
+    }
+    raw = b"synthetic exact bundle\n"
+    certificates = [f"synthetic DER {i}".encode() for i in range(148)]
+    monkeypatch.setattr(source, "BASE_CA_BYTES", len(raw))
+    monkeypatch.setattr(source, "BASE_CA_SHA256", source.sha(raw))
+    calls: list[str] = []
+
+    class Context:
+        def load_verify_locations(self, *, cadata: str) -> None:
+            calls.append("explicit-cadata")
+            assert cadata == raw.decode("ascii")
+            if fault == "parse":
+                raise ssl.SSLError("synthetic parse rejection")
+
+        def get_ca_certs(self, *, binary_form: bool) -> list[bytes]:
+            calls.append("DER")
+            assert binary_form is True
+            return certificates[:-1] if fault == "count" else certificates
+
+    def context(protocol: int) -> Context:
+        calls.append("new-context")
+        assert protocol == ssl.PROTOCOL_TLS_CLIENT
+        return Context()
+
+    monkeypatch.setattr(ssl, "SSLContext", context)
+    if fault in ("removed-emsign", "removed-aaa"):
+        # Controlled fingerprints test both positions without fabricating native roots.
+        index = 0 if fault == "removed-emsign" else 1
+        monkeypatch.setattr(
+            source, "REMOVED_CA_DER_SHA256", frozenset({source.sha(certificates[index])})
+        )
+    candidate = raw + b"x" if fault == "length" else (b"X" + raw[1:] if fault == "bytes" else raw)
+    if fault is None:
+        source.validate_default_ca(candidate)
+        assert calls == ["new-context", "explicit-cadata", "DER"]
+    else:
+        with pytest.raises(source.QualificationError):
+            source.validate_default_ca(candidate)
+        if fault in ("bytes", "length"):
+            assert calls == []

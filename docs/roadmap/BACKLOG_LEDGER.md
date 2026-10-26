@@ -8,6 +8,7 @@ If it is not recorded here — it does not exist.
 
 ## Rules (non-negotiable)
 
+
 1) Any postponed work MUST be recorded here immediately.
 2) Each item MUST include:
    - Owner
@@ -21,6 +22,8 @@ If it is not recorded here — it does not exist.
    - PR merged OR explicit "won't do" decision recorded (with reason).
 
 ## Open Items
+
+- [ ] AM11 vendor CA refresh in PR #2497 — Owner: backend-engineer / security-auditor; Priority: P0; Target PR: #2497; Status: source preparation, native proof pending. Reason: earlier AM07 images retain removed trust roots, so source changes cannot close acceptance. Evidence: [exact vendor delta and remaining proof](../security/CVE-2026-111943-go-trust-store.md#am11-vendor-ca-source-preparation). DoD: new qualified ORAS, complete current Q/S export binding, one admitted Prometheus pair and AM build, the same-incident Caddy two-package CA update and actual image observation, actual default-bundle/DER/TLS proof, full scanner inventories, current-head CI/review and merged-main verification. Existing original requirements remain required; no suppressions or automatic retries.
 
 <a id="ledger-p1-python-stabilization-source-review"></a>
 - [ ] P1: Reassess the unchanged Docker source inventory before October 30
@@ -15907,4 +15910,4 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - Carryover author: Katsiarynakavaleuskaya (`lexakm532@gmail.com`); adopt only the admitted AM/P01 hunks. P01 package inventory and same-run writer ordering remain UNACHIEVED as a publication outcome until actual trusted-main copy/pullback/consumers are observed. The separate #2477 topology and native verification obligations keep their original owners and deadlines.
 - AM05 collector annotations: the separately approved three B105/B404/B603 sites join the six existing checkpoint/OPS cases, manual review by October 30 and hard expiry October 31 inclusive. No other suppression or deadline is extended; see the substantive Python security owner for the complete nine-site inventory and removal/rollback criteria.
 
-- AM07 current-PR continuation: direct owner authorization includes the observed Go111943 blocker in C10 and ORAS, one new AM image/two binaries, one ORAS compile and one Prometheus pair/two images. Current Go1.27.3 replaces the new compiler only; original receipts and unknown earlier AM native counts remain history. All original criteria remain required. Current selection is HOLD while output coordinates are unset. No new exception, expired-window renewal or automatic compiler retry is admitted. Scope/evidence: [Go trust-store owner](../security/CVE-2026-111943-go-trust-store.md), [Brotli](../security/CVE-2026-111497-brotli.md), [compress](../security/CVE-2026-63209-klauspost-compress.md). Status remains OPEN until actual outputs, current-head gates, reviewed merge and required publication/pullback proof.
+- AM07 current-PR continuation: direct owner authorization includes the observed Go111943 blocker in C10 and ORAS, one new AM image/two binaries, one ORAS compile and one Prometheus pair/two images. Current Go1.27.3 replaces the new compiler only; original receipts and unknown earlier AM native counts remain history. All original criteria remain required. Observed AM producer 40237598500/source 04b76f42c09854405df00328ead16b30d701a24f and Prometheus pair 40222244853/source 7e275934593fa83749c5d89054c019fd4f7c6e89 now supply the existing selection fields. These uncommitted data selections are intermediate: DSA-6572-1 is confirmed applicable in the shared vendor CA bundle and must be corrected before final admission. Current receiver/native/security admission and publication remain unachieved; other residual findings stay visible for applicability disposition. No new exception, expired-window renewal or automatic compiler retry is admitted. Scope/evidence: [Go trust-store owner](../security/CVE-2026-111943-go-trust-store.md), [Brotli](../security/CVE-2026-111497-brotli.md), [compress](../security/CVE-2026-63209-klauspost-compress.md). Status remains OPEN until actual outputs, current-head gates, reviewed merge and required publication/pullback proof.

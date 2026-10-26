@@ -305,13 +305,20 @@
   before inventory. Pending transitions share the existing deadline (at most
   16 observations and 15 clipped sleeps); failed/regressing/ambiguous states
   reject. This does not prove global registry quiescence.
+- A current source-image vendor refresh must bind the complete retained Docker
+  export to qualification bytes before interpreting its graph or importing it.
+  Reuse the existing tar member reader; compare every file and directory,
+  including compatibility metadata, before the independent pinned layer graph.
+  Historical receipts keep their original recipe/base identities. A current
+  declared-only build plan gains its export descriptor only from validated support;
+  an unset accepted output is HOLD, never a legacy fallback.
 - Deploy readers execute only the separately SHA-bound standalone helper;
   incoming archives are material/data. Root merge, deployment, credentials,
   volume changes and observation clocks retain their existing authority gates.
 - CI/CD PR image consumption must finish before PR-local actions, imports or
   native programs start. Acquire exact event-H material as data, then verify the
   sparse fixed control checkout at `64a1ac7be0822e31e1e5b181cddacf6741a9bce5`, with
-  helper SHA-256 `ccedfd864af2201e9c218b0d35eb5087a90189f3dcf4c5d67689f74a2666f4b7`,
+  helper SHA-256 `d812e79fce6138426131f266e4f5fd8de03b72c9a56acea19bedb43a22f172f6`,
   before credential-free canonical four-blob classification. Native regular Git
   blobs supply B/H helper, build workflow, recipe and manifest bytes; the canonical
   helper alone selects manifest-change, historical-helper-change or published use.

@@ -44,10 +44,12 @@ ALERTMANAGER_IGNORE = REPO_ROOT / "deploy" / "alertmanager" / "trivy-ignore.yaml
 @pytest.fixture(autouse=True)
 def historical_alertmanager_selection(monkeypatch: pytest.MonkeyPatch) -> None:
     from scripts.ci import fetch_docker_source_artifacts as fetcher
+    from tests.test_deploy_contract_scripts import _historical_AM_scan_oracle
 
     monkeypatch.setattr(
         fetcher, "_ALERT_ACCEPTED_CANDIDATE", json.loads(json.dumps(fetcher._ALERT_HISTORICAL_C10))
     )
+    monkeypatch.setattr(fetcher, "_ALERT_CURRENT_SCAN_ORACLE", _historical_AM_scan_oracle())
 
 
 def test_alertmanager_cd_contract_carries_exact_files_and_keeps_scans_separate() -> None:
@@ -228,6 +230,8 @@ EXPECTED_CADDY_FINAL_STAGE = (
             ),
             "    diff -u /tmp/caddy-official-modules /tmp/caddy-rebuilt-modules; \\",
             "    apk add --no-cache \\",
+            '      "ca-certificates>=20261020-r0" \\',
+            '      "ca-certificates-bundle>=20261020-r0" \\',
             '      "brotli-libs>=1.2.1-r0" \\',
             '      "c-ares>=1.34.8-r0" \\',
             '      "curl>=8.20.0-r0" \\',
@@ -2426,6 +2430,14 @@ def test_caddy_native_full_observation_captures_findings_without_passing_HC(
         "version.txt": ["version"],
         "build-info.txt": ["build-info"],
         "rebuilt-modules.txt": ["list-modules", "--packages"],
+        "default-ca.pem": ["cat", "/etc/ssl/certs/ca-certificates.crt"],
+        "ca-package-versions.txt": [
+            "list",
+            "--installed",
+            "--manifest",
+            "ca-certificates",
+            "ca-certificates-bundle",
+        ],
     }
     assert set(projections) == set(expected_projections)
     assert set(command["published_projection_hashes"]) == set(expected_projections)
@@ -2433,7 +2445,7 @@ def test_caddy_native_full_observation_captures_findings_without_passing_HC(
     for name, native_arguments in expected_projections.items():
         projection = projections[name]
         assert projection["image_config_id"] == image
-        assert projection["argv"][1:] == [
+        expected_argv = [
             "run",
             "--rm",
             "--network",
@@ -2448,6 +2460,22 @@ def test_caddy_native_full_observation_captures_findings_without_passing_HC(
             image,
             *native_arguments,
         ]
+        if name in ("default-ca.pem", "ca-package-versions.txt"):
+            expected_argv = [
+                "run",
+                "--rm",
+                "--network",
+                "none",
+                "--read-only",
+                "--cap-drop",
+                "ALL",
+                "--entrypoint",
+                "/bin/busybox" if name == "default-ca.pem" else "/sbin/apk",
+                image,
+                *native_arguments,
+            ]
+            assert projection["exit_code"] == 0
+        assert projection["argv"][1:] == expected_argv
         assert projection["argv"][1:] in command["docker_argv"]
         assert 0 < projection["bytes"] <= 1048576
         assert command["published_projection_hashes"][name] == projection["sha256"]
@@ -2498,6 +2526,22 @@ def test_caddy_native_full_observation_captures_findings_without_passing_HC(
 @pytest.mark.parametrize(
     "scenario",
     (
+        "ca-emsign",
+        "ca-aaa",
+        "ca-malformed",
+        "ca-old-bytes",
+        "ca-count",
+        "ca-capture-error",
+        "ca-empty",
+        "ca-old-version",
+        "ca-newer-version",
+        "ca-scan-version",
+        "ca-scan-missing",
+        "ca-image-id",
+        "ca-missing-projection",
+        "ca-projection-mismatch",
+        "ca-projection-exit",
+        "ca-subject-change",
         "retag",
         "platform",
         "binary",
@@ -2538,10 +2582,115 @@ def test_caddy_native_full_observation_rejects_unbound_or_unsafe_publication(
     assert "synthetic-secret-sentinel" not in result.stdout + result.stderr
 
 
+# Three public CA certificates extracted from the retained vendor bundles.
+# Unit snapshots substitute only expected bundle hash/length/count; OpenSSL parses real DER.
+_CADDY_CA_TEST_PEMS = {
+    "good": """-----BEGIN CERTIFICATE-----
+MIIH0zCCBbugAwIBAgIIXsO3pkN/pOAwDQYJKoZIhvcNAQEFBQAwQjESMBAGA1UE
+AwwJQUNDVlJBSVoxMRAwDgYDVQQLDAdQS0lBQ0NWMQ0wCwYDVQQKDARBQ0NWMQsw
+CQYDVQQGEwJFUzAeFw0xMTA1MDUwOTM3MzdaFw0zMDEyMzEwOTM3MzdaMEIxEjAQ
+BgNVBAMMCUFDQ1ZSQUlaMTEQMA4GA1UECwwHUEtJQUNDVjENMAsGA1UECgwEQUND
+VjELMAkGA1UEBhMCRVMwggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoICAQCb
+qau/YUqXry+XZpp0X9DZlv3P4uRm7x8fRzPCRKPfmt4ftVTdFXxpNRFvu8gMjmoY
+HtiP2Ra8EEg2XPBjs5BaXCQ316PWywlxufEBcoSwfdtNgM3802/J+Nq2DoLSRYWo
+G2ioPej0RGy9ocLLA76MPhMAhN9KSMDjIgro6TenGEyxCQ0jVn8ETdkXhBilyNpA
+lHPrzg5XPAOBOp0KoVdDaaxXbXmQeOW1tDvYvEyNKKGno6e6Ak4l0Squ7a4DIrhr
+IA8wKFSVf+DuzgpmndFALW4ir50awQUZ0m/A8p/4e7MCQvtQqR0tkw8jq8bBD5L/
+0KIV9VMJcRz/RROE5iZe+OCIHAr8Fraocwa48GOEAqDGWuzndN9wrqODJerWx5eH
+k6fGioozl2A3ED6XPm4pFdahD9GILBKfb6qkxkLrQaLjlUPTAYVtjrs78yM2x/47
+4KElB0iryYl0/wiPgL/AlmXz7uxLaL2diMMxs0Dx6M/2OLuc5NF/1OVYm3z61PMO
+m3WR5LpSLhl+0fXNWhn8ugb2+1KoS5kE3fj5tItQo05iifCHJPqDQsGH+tUtKSpa
+cXpkatcnYGMN285J9Y0fkIkyF/hzQ7jSWpOGYdbhdQrqeWZ2iE9x6wQl1gpaepPl
+uUsXQA+xtrn13k/c4LOsOxFwYIRKQ26ZIMApcQrAZQIDAQABo4ICyzCCAscwfQYI
+KwYBBQUHAQEEcTBvMEwGCCsGAQUFBzAChkBodHRwOi8vd3d3LmFjY3YuZXMvZmls
+ZWFkbWluL0FyY2hpdm9zL2NlcnRpZmljYWRvcy9yYWl6YWNjdjEuY3J0MB8GCCsG
+AQUFBzABhhNodHRwOi8vb2NzcC5hY2N2LmVzMB0GA1UdDgQWBBTSh7Tj3zcnk1X2
+VuqB5TbMjB4/vTAPBgNVHRMBAf8EBTADAQH/MB8GA1UdIwQYMBaAFNKHtOPfNyeT
+VfZW6oHlNsyMHj+9MIIBcwYDVR0gBIIBajCCAWYwggFiBgRVHSAAMIIBWDCCASIG
+CCsGAQUFBwICMIIBFB6CARAAQQB1AHQAbwByAGkAZABhAGQAIABkAGUAIABDAGUA
+cgB0AGkAZgBpAGMAYQBjAGkA8wBuACAAUgBhAO0AegAgAGQAZQAgAGwAYQAgAEEA
+QwBDAFYAIAAoAEEAZwBlAG4AYwBpAGEAIABkAGUAIABUAGUAYwBuAG8AbABvAGcA
+7QBhACAAeQAgAEMAZQByAHQAaQBmAGkAYwBhAGMAaQDzAG4AIABFAGwAZQBjAHQA
+cgDzAG4AaQBjAGEALAAgAEMASQBGACAAUQA0ADYAMAAxADEANQA2AEUAKQAuACAA
+QwBQAFMAIABlAG4AIABoAHQAdABwADoALwAvAHcAdwB3AC4AYQBjAGMAdgAuAGUA
+czAwBggrBgEFBQcCARYkaHR0cDovL3d3dy5hY2N2LmVzL2xlZ2lzbGFjaW9uX2Mu
+aHRtMFUGA1UdHwROMEwwSqBIoEaGRGh0dHA6Ly93d3cuYWNjdi5lcy9maWxlYWRt
+aW4vQXJjaGl2b3MvY2VydGlmaWNhZG9zL3JhaXphY2N2MV9kZXIuY3JsMA4GA1Ud
+DwEB/wQEAwIBBjAXBgNVHREEEDAOgQxhY2N2QGFjY3YuZXMwDQYJKoZIhvcNAQEF
+BQADggIBAJcxAp/n/UNnSEQU5CmH7UwoZtCPNdpNYbdKl02125DgBS4OxnnQ8pdp
+D70ER9m+27Up2pvZrqmZ1dM8MJP1jaGo/AaNRPTKFpV8M9xii6g3+CfYCS0b78gU
+JyCpZET/LtZ1qmxNYEAZSUNUY9rizLpm5U9EelvZaoErQNV/+QEnWCzI7UiRfD+m
+AM/EKXMRNt6GGT6d7hmKG9Ww7Y49nCrADdg9ZuM8Db3VlFzi4qc1GwQA9j9ajepD
+vV+JHanBsMyZ4k0ACtrJJ1vnE5Bc5PUzolVt3OAJTS+xJlsndQAJxGJ3KQhfnlms
+tn6tn1QwIgPBHnFk/vk4CpYY3QIUrCPLBhwepH2NDd4nQeit2hW3sCPdK6jT2iWH
+7ehVRE2I9DZ+hJp4rPcOVkkO1jMl1oRQQmwgEh0q1b688nCBpHBgvgW1m54ERL5h
+I6zppSSMEYCUWqKiuUnSwdzRp+0xESyeGabu4VXhwOrPDYTkF7eifKXeVSUG7szA
+h1xA2syVP1XgNce4hL60Xc16gwFy7ofmXx2utYXGJt/mwZrpHgJHnyqobalbz+xF
+d3+YJ5oyXSrjhO7FmGYvliAd3djDJ9ew+f7Zfc3Qn48LFFhRny+Lwzgt3uiP1o2H
+pPVWQxaZLPSkVrQ0uGE3ycJYgBugl6H8WY3pEfbRD0tVNEYqi4Y7
+-----END CERTIFICATE-----
+""",
+    "emsign": """-----BEGIN CERTIFICATE-----
+MIICTjCCAdOgAwIBAgIKPPYHqWhwDtqLhDAKBggqhkjOPQQDAzBrMQswCQYDVQQG
+EwJJTjETMBEGA1UECxMKZW1TaWduIFBLSTElMCMGA1UEChMcZU11ZGhyYSBUZWNo
+bm9sb2dpZXMgTGltaXRlZDEgMB4GA1UEAxMXZW1TaWduIEVDQyBSb290IENBIC0g
+RzMwHhcNMTgwMjE4MTgzMDAwWhcNNDMwMjE4MTgzMDAwWjBrMQswCQYDVQQGEwJJ
+TjETMBEGA1UECxMKZW1TaWduIFBLSTElMCMGA1UEChMcZU11ZGhyYSBUZWNobm9s
+b2dpZXMgTGltaXRlZDEgMB4GA1UEAxMXZW1TaWduIEVDQyBSb290IENBIC0gRzMw
+djAQBgcqhkjOPQIBBgUrgQQAIgNiAAQjpQy4LRL1KPOxst3iAhKAnjlfSU2fySU0
+WXTsuwYc58Byr+iuL+FBVIcUqEqy6HyC5ltqtdyzdc6LBtCGI79G1Y4PPwT01xyS
+fvalY8L1X44uT6EYGQIrMgqCZH0Wk9GjQjBAMB0GA1UdDgQWBBR8XQKEE9TMipuB
+zhccLikenEhjQjAOBgNVHQ8BAf8EBAMCAQYwDwYDVR0TAQH/BAUwAwEB/zAKBggq
+hkjOPQQDAwNpADBmAjEAvvNhzwIQHWSVB7gYboiFBS+DCBeQyh+KTOgNG3qxrdWB
+CUfvO6wIBHxcmbHtRwfSAjEAnbpV/KlK6O3t5nYBQnvI+GDZjVGLVTv7jHvrZQnD
++JbNR6iC8hZVdyR+EhCVBCyj
+-----END CERTIFICATE-----
+""",
+    "aaa": """-----BEGIN CERTIFICATE-----
+MIIEMjCCAxqgAwIBAgIBATANBgkqhkiG9w0BAQUFADB7MQswCQYDVQQGEwJHQjEb
+MBkGA1UECAwSR3JlYXRlciBNYW5jaGVzdGVyMRAwDgYDVQQHDAdTYWxmb3JkMRow
+GAYDVQQKDBFDb21vZG8gQ0EgTGltaXRlZDEhMB8GA1UEAwwYQUFBIENlcnRpZmlj
+YXRlIFNlcnZpY2VzMB4XDTA0MDEwMTAwMDAwMFoXDTI4MTIzMTIzNTk1OVowezEL
+MAkGA1UEBhMCR0IxGzAZBgNVBAgMEkdyZWF0ZXIgTWFuY2hlc3RlcjEQMA4GA1UE
+BwwHU2FsZm9yZDEaMBgGA1UECgwRQ29tb2RvIENBIExpbWl0ZWQxITAfBgNVBAMM
+GEFBQSBDZXJ0aWZpY2F0ZSBTZXJ2aWNlczCCASIwDQYJKoZIhvcNAQEBBQADggEP
+ADCCAQoCggEBAL5AnfRu4ep2hxxNRUSOvkbIgwadwSr+GB+O5AL686tdUIoWMQua
+BtDFcCLNSS1UY8y2bmhGC1Pqy0wkwLxyTurxFa70VJoSCsN6sjNg4tqJVfMiWPPe
+3M/vg4aijJRPn2jymJBGhCfHdr/jzDUsi14HZGWCwEiwqJH5YZ92IFCokcdmtet4
+YgNW8IoaE+oxox6gmf049vYnMlhvB/VruPsUK6+3qszWY19zjNoFmag4qMsXeDZR
+rOme9Hg6jc8P2ULimAyrL58OAd7vn5lJ8S3frHRNG5i1R8XlKdH5kBjHYpy+g8cm
+ez6KJcfA3Z3mNWgQIJ2P2N7Sw4ScDV7oL8kCAwEAAaOBwDCBvTAdBgNVHQ4EFgQU
+oBEKIz6W8Qfs4q8p74Klf9AwpLQwDgYDVR0PAQH/BAQDAgEGMA8GA1UdEwEB/wQF
+MAMBAf8wewYDVR0fBHQwcjA4oDagNIYyaHR0cDovL2NybC5jb21vZG9jYS5jb20v
+QUFBQ2VydGlmaWNhdGVTZXJ2aWNlcy5jcmwwNqA0oDKGMGh0dHA6Ly9jcmwuY29t
+b2RvLm5ldC9BQUFDZXJ0aWZpY2F0ZVNlcnZpY2VzLmNybDANBgkqhkiG9w0BAQUF
+AAOCAQEACFb8AvCb6P+k+tZ7xkSAzk/ExfYAWMymtrwUSWgEdujm7l3sAg9g1o1Q
+GE8mTgHj5rCl7r+8dFRBv/38ErjHT1r0iWAFf2C3BUrz9vHCv8S5dIa2LX1rzNLz
+Rt0vxuBqw8M0Ayx9lt1awg6nCpnBBYurDC/zXDrPbDdVCYfeU0BsWO/8tqtlbgT2
+G9w84FoVxp7Z8VlIMCFlA2zs6SFz7JsDoeA3raAVGI/6ugLOpyypEBMs1OUIJqsi
+l2D4kF501KKaU73yqWjgom7C12yxow+ev+to51byrvLjKzg6CYG1a4XXvi3tPxq3
+smPi9WIsgtRqAEFQ8TmDn5XpNpaYbg==
+-----END CERTIFICATE-----
+""",
+}
+
+
 def _run_caddy_full_observation_fixture(
     tmp_path: Path, scenario: str, HC: str
 ) -> tuple[subprocess.CompletedProcess[str], bool, dict[str, object], dict[str, object]]:
     """Execute actual inline workflow scripts with finite synthetic native outcomes."""
+    ca = _CADDY_CA_TEST_PEMS[
+        "emsign" if scenario == "ca-emsign" else "aaa" if scenario == "ca-aaa" else "good"
+    ].encode()
+    if scenario == "ca-malformed":
+        ca = b"not a PEM certificate"
+    if scenario == "ca-count":
+        ca += _CADDY_CA_TEST_PEMS["emsign"].encode()
+    expected_ca = ca
+    if scenario == "ca-old-bytes":
+        ca = _CADDY_CA_TEST_PEMS["emsign"].encode()
+    ca_file = tmp_path / "public-ca.pem"
+    ca_file.write_bytes(ca)
     workflow = _workflow(FRONTEND_WORKFLOW)
     steps = _steps(_job(workflow, "caddy-contract"))
     workspace = tmp_path / "workspace"
@@ -2559,6 +2708,7 @@ def _run_caddy_full_observation_fixture(
         "deploy/Caddyfile",
         "deploy/Caddyfile.production",
         "scripts/ci/check_docker_runtime_dependency_surface.py",
+        "scripts/ci/prometheus_source_image.py",
     )
     for name in paths:
         target = workspace / name
@@ -2589,6 +2739,16 @@ def _run_caddy_full_observation_fixture(
         " Path(" + repr(str(tmp_path / "seen")) + ").touch()\n"
         " if '--format' in args and args[args.index('--format')+1]=='{{.Id}}':print(image)\n"
         " else:print(json.dumps({'Id':image,'Os':'linux','Architecture':'arm64' if scenario=='platform' else 'amd64'}))\n"
+        "elif args[-2:]==['cat','/etc/ssl/certs/ca-certificates.crt']:\n"
+        " if scenario=='ca-capture-error':sys.exit(2)\n"
+        " if scenario=='ca-empty':sys.exit(0)\n"
+        f" ca=Path({str(ca_file)!r}).read_bytes()\n"
+        " if scenario=='ca-subject-change' and sum(row[-2:]==['cat','/etc/ssl/certs/ca-certificates.crt'] for row in history)>1:ca=b'changed'\n"
+        " sys.stdout.buffer.write(ca)\n"
+        "elif '--entrypoint' in args and args[args.index('--entrypoint')+1]=='/sbin/apk':\n"
+        " assert args[-5:]==['list','--installed','--manifest','ca-certificates','ca-certificates-bundle']\n"
+        " version='20260611-r0' if scenario=='ca-old-version' else '20261021-r0' if scenario=='ca-newer-version' else '20261020-r0'\n"
+        " print('ca-certificates '+version);print('ca-certificates-bundle '+version)\n"
         "elif '--entrypoint' in args and args[args.index('--entrypoint')+1]=='/usr/bin/caddy':\n"
         " index=args.index('--entrypoint')\n"
         " if args[index+2]!='sha256:'+'a'*64:sys.exit(3)\n"
@@ -2612,7 +2772,11 @@ def _run_caddy_full_observation_fixture(
                 "Class": "os-pkgs",
                 "Type": "alpine",
                 "Secrets": [],
-                "Packages": [{"Name": "libssl3", "Version": "3.5.8-r0"}],
+                "Packages": [
+                    {"Name": "libssl3", "Version": "3.5.8-r0"},
+                    {"Name": "ca-certificates", "Version": "20261020-r0"},
+                    {"Name": "ca-certificates-bundle", "Version": "20261020-r0"},
+                ],
                 "Vulnerabilities": [],
             },
             {
@@ -2624,6 +2788,10 @@ def _run_caddy_full_observation_fixture(
             },
         ],
     }
+    if scenario == "ca-scan-version":
+        report["Results"][0]["Packages"][1]["Version"] = "20260611-r0"
+    if scenario == "ca-scan-missing":
+        report["Results"][0]["Packages"].pop()
     if scenario == "wrong-image":
         report["Metadata"]["ImageID"] = "sha256:" + "b" * 64
     if scenario == "wrong-schema":
@@ -2686,6 +2854,17 @@ def _run_caddy_full_observation_fixture(
         script = (
             _named_step(steps, name)["run"].split("python3 - <<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
         )
+        if name == "Validate and publish full Caddy observation":
+            assert (
+                script.count("5961c0a3c65459931c023e0075c09733f09aea4ca439cb85bc4a08bb4f3f568b")
+                == 1
+            )
+            script = script.replace(
+                "5961c0a3c65459931c023e0075c09733f09aea4ca439cb85bc4a08bb4f3f568b",
+                hashlib.sha256(expected_ca).hexdigest(),
+            )
+            script = script.replace("len(ca) != 178791", f"len(ca) != {len(expected_ca)}")
+            script = script.replace("len(certificates) != 118", "len(certificates) != 1")
         last = subprocess.run(
             [sys.executable, "-c", script],
             env=environment,
@@ -2700,6 +2879,11 @@ def _run_caddy_full_observation_fixture(
         if name == "Capture next loaded Caddy image identity":
             outputs = dict(line.split("=", 1) for line in github_output.read_text().splitlines())
             environment["CADDY_OBSERVATION_STATE"] = outputs["state"]
+            if scenario == "ca-projection-exit":
+                state_path = Path(outputs["state"])
+                subject = json.loads(state_path.read_text())
+                subject["native_projections"]["default-ca.pem"]["exit_code"] = 1
+                state_path.write_text(json.dumps(subject))
             if scenario == "source":
                 (workspace / "frontend/package.json").write_text("changed-source")
             if scenario == "missing-db":
@@ -2709,6 +2893,9 @@ def _run_caddy_full_observation_fixture(
                     docker.read_text().replace("scenario='binary'", "scenario='valid'")
                 )
             projection_faults = {
+                "ca-image-id": ("default-ca.pem", "image-id"),
+                "ca-missing-projection": ("default-ca.pem", "missing"),
+                "ca-projection-mismatch": ("default-ca.pem", "mismatch"),
                 "version-image-id": ("version.txt", "image-id"),
                 "build-info-image-id": ("build-info.txt", "image-id"),
                 "modules-image-id": ("rebuilt-modules.txt", "image-id"),
@@ -2955,9 +3142,9 @@ def test_alertmanager_PR_retained_candidate_has_no_registry_or_compiler_authorit
     assert job["env"] == {
         "ALERTMANAGER_JOB_TIMEOUT_MINUTES": "80",
         "ALERTMANAGER_CALLER_KIND": "standalone",
-        "AM_CANDIDATE_RUN": "39143039135",
-        "AM_CANDIDATE_ARTIFACT": "12142714566",
-        "AM_CANDIDATE_SOURCE": "63455b8a750ef07a1e525078b4e3ce2089eecdde",
+        "AM_CANDIDATE_RUN": "40237598500",
+        "AM_CANDIDATE_ARTIFACT": "12616196402",
+        "AM_CANDIDATE_SOURCE": "04b76f42c09854405df00328ead16b30d701a24f",
     }
     runs = "\n".join(step.get("run", "") for step in _steps(job))
     assert "--alertmanager-stage candidate-check" in runs
@@ -3176,7 +3363,10 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
     def support(archive: Path, destination: Path, **kwargs: Any) -> dict[str, Any]:
         del archive
         destination.mkdir()
-        return {"probe": {}}
+        return {
+            "probe": {},
+            "base": {"actual_local_OCI_descriptor": {"digest": "sha256:" + "b" * 64}},
+        }
 
     def candidate(
         archive: Path,
@@ -3348,7 +3538,15 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
         )
 
     monkeypatch.setattr(fetcher, "_alertmanager_selected_inputs", selected_inputs)
-    monkeypatch.setattr(fetcher, "_alertmanager_source_snapshot", lambda *a, **k: {})
+    monkeypatch.setattr(
+        fetcher,
+        "_alertmanager_source_snapshot",
+        lambda *a, **k: {
+            "deploy/alertmanager/Containerfile": (
+                REPO_ROOT / "deploy/alertmanager/Containerfile"
+            ).read_bytes()
+        },
+    )
     monkeypatch.setattr(
         fetcher,
         "_ALERT_ACCEPTED_CANDIDATE",
@@ -3371,10 +3569,22 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
         },
     )
     monkeypatch.setattr(fetcher, "_alertmanager_package_read", lambda *a: {})
-    monkeypatch.setattr(fetcher, "_alertmanager_qualified_payload", lambda *a, **k: {"plan": {}})
+    monkeypatch.setattr(
+        fetcher,
+        "_alertmanager_qualified_payload",
+        lambda *a, **k: {
+            "plan": {
+                "assembly_argv": [
+                    "--build-context",
+                    transport.BASE
+                    + "=oci-layout:///inputs/base-layout@<UNOBSERVED_CURRENT_EXPORT>",
+                ]
+            }
+        },
+    )
     monkeypatch.setattr(fetcher, "_alertmanager_support_payload", support)
     monkeypatch.setattr(fetcher, "_alertmanager_candidate_payload", candidate)
-    monkeypatch.setattr(fetcher, "_alertmanager_candidate_graph", lambda *a: graph)
+    monkeypatch.setattr(fetcher, "_alertmanager_candidate_graph", lambda *a, **k: graph)
     monkeypatch.setattr(fetcher, "_alertmanager_native_candidate", native)
     monkeypatch.setattr(
         fetcher, "_alertmanager_pair", lambda *a, **k: pytest.fail("publication started compiler")
@@ -3530,6 +3740,9 @@ def test_alertmanager_current_four_controls_retain_native_reports_and_reject_unp
     oracle = deepcopy(fetcher._ALERT_CURRENT_SCAN_ORACLE)
     if current_epoch:
         selected["source"] = "a" * 40
+        selected["source_files"][
+            "deploy/alertmanager/Containerfile"
+        ] = fetcher._ALERT_CURRENT_ASSEMBLY_RECIPE_SHA256
         selected["graph"]["config"]["digest"] = oracle["subject"]["config"] = "sha256:" + "b" * 64
         selected["graph"]["manifest"]["digest"] = oracle["subject"]["manifest"] = (
             "sha256:" + "c" * 64

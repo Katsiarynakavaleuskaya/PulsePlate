@@ -917,7 +917,7 @@ application-dependency CVE exception, scanner setting or static allowlist.
 | `scripts/ops/notify_premium_alias_checkpoint_failure.py:11` | B404, B603 | Fixed canonical manifest reader, minimal environment, ten-second timeout, validated output, no Compose send after failure |
 | `scripts/verify_premium_alias_telemetry.py:16` | B404, B603 | Same bounded manifest authority before telemetry operations |
 | `scripts/ops/ops_context_report.py:11` | B404, B603 | Absolute native Git, fixed argv/cwd/minimal environment, five-second timeout and sanitized commit identity errors |
-| `scripts/ci/fetch_docker_source_artifacts.py:5869`, `:7810` | B105, B404, B603 | Synthetic Compose config only; fixed read-only held-FD collector with bounded captures and owned process-group cleanup |
+| `scripts/ci/fetch_docker_source_artifacts.py:7996`, `:10435`, `:10497` | B105, B404, B603 | Synthetic Compose config only; fixed read-only held-FD collector with bounded captures and owned process-group cleanup |
 
 Owner: security-auditor / dev-operator. Mandatory manual reassessment is due
 **2026-10-30**. The unchanged calendar-date guard accepts **2026-10-31
@@ -946,3 +946,7 @@ new finding/failing control. Rollback reverts the comments and coupled current
 pins together and restores the blocking warning/expiry condition; it never
 weakens a scanner or authorizes production action. Tracking remains in the
 existing checkpoint/OPS and AM ledger entries.
+
+The current CA refresh is in source preparation; prior selected image results
+remain intermediate and current output selection is held. See [AM11 vendor CA source preparation](CVE-2026-111943-go-trust-store.md#am11-vendor-ca-source-preparation)
+for the exact vendor delta, Q/S byte binding and remaining native proof.

@@ -3578,7 +3578,7 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
             f"aquasecurity/trivy-action@{TRIVY_ACTION_NODE24_CACHE_SHA}",
             {
                 "version": "v0.74.0",
-                "image-ref": "gcr.io/distroless/static-debian13@sha256:2293b36c7c9082bf4115aab724b4d2cddec82c8eba39bf27ac0517e159acf150",
+                "image-ref": "gcr.io/distroless/static-debian13@sha256:433bb346cd0b6b8346462f879adaa4ac0fbb463a72901b46736ede4aeca3dadc",
                 "format": "table",
                 "severity": "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL",
                 "exit-code": "0",

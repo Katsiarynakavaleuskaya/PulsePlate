@@ -179,7 +179,7 @@ linux/amd64 production/staging builds, final-user SQLite/UUID/PCRE2 consumers
 and native inventory/raw/effective report bindings passed. Exact-head CI and
 post-merge published/main proof remain separate requirements. No latest-release, patched-all-CVEs, raw-clean, publication or deployment
 claim follows. Evidence: `scripts/ci/docker_source_artifacts.json:3`,
-`scripts/ci/fetch_docker_source_artifacts.py:141`,
+`scripts/ci/fetch_docker_source_artifacts.py:144`,
 `tests/test_docker_workflow_build_path_contract.py:346`, `Dockerfile:528`.
 
 ### Observed candidate checkpoint — 2026-10-04
@@ -754,7 +754,7 @@ symlinked output directories before cache reads or mutation. Its claim is the
 bounded cooperative build cache, not hostile same-user race exclusion.
 
 Evidence anchors: `Dockerfile:205`,
-`scripts/ci/fetch_docker_source_artifacts.py:132`,
+`scripts/ci/fetch_docker_source_artifacts.py:135`,
 `scripts/ci/check_docker_runtime_dependency_surface.py:184`.
 
 ## Caddy: one Go identity
@@ -891,8 +891,12 @@ The owner admitted the current image-security blockers and the required CI lint
 budget repair in this substantive PR. The finite fixes are tracked individually:
 [Brotli](CVE-2026-111497-brotli.md), [compress](CVE-2026-63209-klauspost-compress.md)
 and [Go trust store](CVE-2026-111943-go-trust-store.md). ORAS now selects the actual
-qualified tool documented there. AM/Prometheus image output selection remains
-unset until actual qualified results exist.
+qualified tool documented there. The subsequently observed AM07 and Prometheus
+outputs are now selected through the existing data fields; their producer
+identities and [native evidence limits](CVE-2026-111943-go-trust-store.md#observed-am07-image-results)
+remain distinct from current receiver admission and publication. The confirmed
+[shared vendor CA defect](CVE-2026-111943-go-trust-store.md#confirmed-vendor-ca-blocker)
+means this uncommitted selection is intermediate and not final admissible output.
 Historical C10 and prior failed/spent compiler records retain their identities.
 No suppression, deployment or automatic retry follows from source preparation.
 
@@ -902,7 +906,7 @@ minutes before backend execution. The existing hook budget is 60 minutes and
 lint job 190 minutes, with maintained steps184 plus unchanged margin6. Native,
 compiler, scan and cleanup limits do not change. Budget availability is not a
 passing result. Evidence: `.github/workflows/ci.yml:734`,
-`scripts/ci/fetch_docker_source_artifacts.py:4663`.
+`scripts/ci/fetch_docker_source_artifacts.py:4757`.
 
 
 ## PR #2497 bounded CodeQL source-flow analysis
@@ -957,3 +961,7 @@ dispositions for both alerts and their current PR instances. Current-head check
 completion and merge readiness require their own fresh observations.
 No query configuration, scanner exclusion, ignore, runtime logging rule or
 security predicate was changed for this analysis.
+
+The current CA refresh is in source preparation; prior selected image results
+remain intermediate and current output selection is held. See [AM11 vendor CA source preparation](CVE-2026-111943-go-trust-store.md#am11-vendor-ca-source-preparation)
+for the exact vendor delta, Q/S byte binding and remaining native proof.

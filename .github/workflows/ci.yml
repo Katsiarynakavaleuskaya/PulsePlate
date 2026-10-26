@@ -849,8 +849,8 @@ jobs:
             --alertmanager-qualification-source 36cd171c4ebe44f63cb58d09a741b3d07098904d \
             --alertmanager-support-run 39030856891 --alertmanager-support-artifact 12100576545 \
             --alertmanager-support-source df5ebd017bda93e31fbf9eccfd7cc7b98973a3c6 \
-            --alertmanager-candidate-run 39143039135 --alertmanager-candidate-artifact 12142714566 \
-            --alertmanager-candidate-source 63455b8a750ef07a1e525078b4e3ce2089eecdde \
+            --alertmanager-candidate-run 40237598500 --alertmanager-candidate-artifact 12616196402 \
+            --alertmanager-candidate-source 04b76f42c09854405df00328ead16b30d701a24f \
             --output-dir "$RUNNER_TEMP/alertmanager-consumer-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
 
       - name: Remove designated AM controller after credential cleanup
@@ -960,7 +960,7 @@ jobs:
               if not helper.is_file() or stat.S_IMODE(helper.stat().st_mode) != 0o644:
                   raise SystemExit("Prometheus_control_mode_HOLD")
               raw = helper.read_bytes()
-              if len(raw) != 350738 or hashlib.sha256(raw).hexdigest() != "ccedfd864af2201e9c218b0d35eb5087a90189f3dcf4c5d67689f74a2666f4b7":  # pragma: allowlist secret - public trusted control digest
+              if len(raw) != 352899 or hashlib.sha256(raw).hexdigest() != "d812e79fce6138426131f266e4f5fd8de03b72c9a56acea19bedb43a22f172f6":  # pragma: allowlist secret - public trusted control digest
                   raise SystemExit("Prometheus_control_bytes_HOLD")
               environment = {"PATH": "/usr/bin:/bin", "LANG": "C", "GIT_NO_REPLACE_OBJECTS": "1",
                              "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_COUNT": "0"}
@@ -971,7 +971,7 @@ jobs:
               object_row = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
                                           "ls-tree", "-z", "HEAD", "--", "scripts/ci/prometheus_source_image.py"],
                                          env=environment, capture_output=True, check=True)
-              if object_row.stdout != b"100644 blob ccc2a28f8f8013d53ad9564406dfbad443549e18\tscripts/ci/prometheus_source_image.py\0":  # pragma: allowlist secret - public trusted control blob
+              if object_row.stdout != b"100644 blob b57db038ec82126429333ce3a3e8609151cceb1d\tscripts/ci/prometheus_source_image.py\0":  # pragma: allowlist secret - public trusted control blob
                   raise SystemExit("Prometheus_control_object_HOLD")
               trusted = runpy.run_path(str(helper))
               if not all(callable(trusted.get(name)) for name in
@@ -1019,7 +1019,7 @@ jobs:
           if not helper.is_file() or stat.S_IMODE(helper.stat().st_mode) != 0o644:
               raise SystemExit("Prometheus_control_mode_HOLD")
           raw = helper.read_bytes()
-          if len(raw) != 350738 or hashlib.sha256(raw).hexdigest() != "ccedfd864af2201e9c218b0d35eb5087a90189f3dcf4c5d67689f74a2666f4b7":  # pragma: allowlist secret - public trusted control digest
+          if len(raw) != 352899 or hashlib.sha256(raw).hexdigest() != "d812e79fce6138426131f266e4f5fd8de03b72c9a56acea19bedb43a22f172f6":  # pragma: allowlist secret - public trusted control digest
               raise SystemExit("Prometheus_control_bytes_HOLD")
           environment = {"PATH": "/usr/bin:/bin", "LANG": "C", "GIT_NO_REPLACE_OBJECTS": "1",
                          "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_COUNT": "0"}
@@ -1030,7 +1030,7 @@ jobs:
           object_row = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
                                       "ls-tree", "-z", "HEAD", "--", "scripts/ci/prometheus_source_image.py"],
                                      env=environment, capture_output=True, check=True)
-          if object_row.stdout != b"100644 blob ccc2a28f8f8013d53ad9564406dfbad443549e18\tscripts/ci/prometheus_source_image.py\0":  # pragma: allowlist secret - public trusted control blob
+          if object_row.stdout != b"100644 blob b57db038ec82126429333ce3a3e8609151cceb1d\tscripts/ci/prometheus_source_image.py\0":  # pragma: allowlist secret - public trusted control blob
               raise SystemExit("Prometheus_control_object_HOLD")
           trusted = runpy.run_path(str(helper))
           if not all(callable(trusted.get(name)) for name in

@@ -51,12 +51,130 @@ EXPECTED_DOCKER_SOURCE_PREP_BUILD_STEPS = {
 
 
 @pytest.fixture(autouse=True)
-def historical_alertmanager_selection(monkeypatch: pytest.MonkeyPatch) -> None:
+def historical_alertmanager_selection(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    from tests.test_deploy_contract_scripts import _historical_AM_scan_oracle
+
+    current = json.loads(json.dumps(docker_sources._ALERT_ACCEPTED_CANDIDATE))
+    assert current is None or isinstance(current, dict)
+    current_oracle = json.loads(json.dumps(docker_sources._ALERT_CURRENT_SCAN_ORACLE))
     monkeypatch.setattr(
         docker_sources,
         "_ALERT_ACCEPTED_CANDIDATE",
         json.loads(json.dumps(docker_sources._ALERT_HISTORICAL_C10)),
     )
+    monkeypatch.setattr(docker_sources, "_ALERT_CURRENT_SCAN_ORACLE", _historical_AM_scan_oracle())
+    return {"accepted": current, "scan": current_oracle}
+
+
+def test_current_selected_images_match_live_identity_consumers(
+    historical_alertmanager_selection: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Cross-bind actual selected data before any historical fixture substitution."""
+    from tests import test_notify_premium_alias_checkpoint_failure as native
+
+    selected = historical_alertmanager_selection["accepted"]
+    oracle = historical_alertmanager_selection["scan"]
+    with monkeypatch.context() as current:
+        current.setattr(docker_sources, "_ALERT_ACCEPTED_CANDIDATE", selected)
+        current.setattr(docker_sources, "_ALERT_CURRENT_SCAN_ORACLE", oracle)
+        if selected is None:
+            from scripts.ci.prometheus_source_image import QualificationError
+
+            with pytest.raises(QualificationError, match="UNCONFIGURED_HOLD"):
+                docker_sources._alertmanager_accepted_producer()
+            manifest = json.loads((REPO_ROOT / "deploy/prometheus/image-manifest.json").read_text())
+            assert manifest["phase"] == "source_prepared"
+            assert manifest["selection"] is manifest["candidate"] is None
+            assert manifest["inputs"]["oras"]["retained"] is None
+            return
+        assert docker_sources._alertmanager_accepted_producer() == selected
+        runtime_ref, config_id = docker_sources._alertmanager_contract_subject()
+        assert native.ALERTMANAGER_IMAGE == runtime_ref
+        assert native._ACCEPTED_AM_BINARIES == oracle["subject"]["binary_sha256"]
+        assert config_id == selected["graph"]["config"]["digest"] == oracle["subject"]["config"]
+        assert Path(native.__file__).read_text().count(config_id) == 1
+        for path in docker_sources._ALERT_SELECTION_FILES[:3]:
+            model = yaml.safe_load((REPO_ROOT / path).read_text())
+            assert model["services"]["alertmanager"]["image"] == runtime_ref
+        cd = _load_workflow(WORKFLOWS_DIR / "cd.yml")
+        jobs = cd["jobs"]
+        assert isinstance(jobs, dict)
+        candidate_env = jobs["alertmanager-retained-candidate"]["env"]
+        assert {
+            name: candidate_env[name]
+            for name in ("AM_CANDIDATE_RUN", "AM_CANDIDATE_ARTIFACT", "AM_CANDIDATE_SOURCE")
+        } == {
+            "AM_CANDIDATE_RUN": str(selected["run"]),
+            "AM_CANDIDATE_ARTIFACT": str(selected["artifact"]),
+            "AM_CANDIDATE_SOURCE": selected["source"],
+        }
+        tuple_text = (
+            f"--alertmanager-candidate-run {selected['run']} "
+            f"--alertmanager-candidate-artifact {selected['artifact']}"
+        )
+        source_text = f"--alertmanager-candidate-source {selected['source']}"
+        for workflow, expected_count in (("ci.yml", 1), ("cd.yml", 3)):
+            raw = (WORKFLOWS_DIR / workflow).read_text()
+            assert raw.count(tuple_text) == raw.count(source_text) == expected_count
+        for name in ("alertmanager", "amtool"):
+            assert oracle["expected_modules"][name]["stdlib"] == "v1.27.3"
+
+
+def test_historical_AM_fixture_copy_does_not_change_current_selection(
+    historical_alertmanager_selection: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from tests.test_deploy_contract_scripts import (
+        _historical_AM_scan_oracle,
+        _historical_AM_source,
+        _historical_AM_template,
+    )
+
+    selected = historical_alertmanager_selection["accepted"]
+    oracle = historical_alertmanager_selection["scan"]
+    with monkeypatch.context() as current:
+        current.setattr(docker_sources, "_ALERT_ACCEPTED_CANDIDATE", selected)
+        current.setattr(docker_sources, "_ALERT_CURRENT_SCAN_ORACLE", oracle)
+        original = Path(docker_sources.__file__).read_bytes()
+        copied = _historical_AM_source()
+        main_guard = b'\nif __name__ == "__main__":\n'
+        prefix, suffix = original.split(main_guard)
+        assert copied.startswith(prefix)
+        assert copied.endswith(main_guard + suffix)
+        fixture = copied[len(prefix) : -len(main_guard + suffix)]
+        assert b"_ALERT_ACCEPTED_CANDIDATE = _ALERT_HISTORICAL_C10" in fixture
+        historical = _historical_AM_scan_oracle()
+        assert (
+            historical["subject"]["config"]
+            == docker_sources._ALERT_HISTORICAL_C10["graph"]["config"]["digest"]
+        )
+        assert historical["expected_OS"] == oracle["expected_OS"]
+        for name in ("alertmanager", "amtool"):
+            assert historical["expected_modules"][name]["stdlib"] == "v1.27.2"
+            assert {
+                key: value
+                for key, value in historical["expected_modules"][name].items()
+                if key != "stdlib"
+            } == {
+                key: value
+                for key, value in oracle["expected_modules"][name].items()
+                if key != "stdlib"
+            }
+        old_ref = (
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@"
+            + docker_sources._ALERT_HISTORICAL_C10["graph"]["manifest"]["digest"]
+        ).encode()
+        from tests import test_notify_premium_alias_checkpoint_failure as native
+
+        current_ref = native.ALERTMANAGER_IMAGE.encode()
+        for path in docker_sources._ALERT_SELECTION_FILES[:3]:
+            actual = (REPO_ROOT / path).read_bytes()
+            assert actual.count(current_ref) == 1
+            assert _historical_AM_template(REPO_ROOT / path) == actual.replace(
+                current_ref, old_ref, 1
+            )
+        assert Path(docker_sources.__file__).read_bytes() == original
+        assert docker_sources._ALERT_ACCEPTED_CANDIDATE == selected
+        assert docker_sources._ALERT_CURRENT_SCAN_ORACLE == oracle
 
 
 @pytest.mark.parametrize("support_only", [False, True])
@@ -90,13 +208,16 @@ def test_current_alertmanager_manual_admission_preserves_history_and_owner(
         (39093991413, 117576475833, "91bf3744fcc5f5bbdfdd6e08699d703db46a491f", "failure"),
         (39099358458, 117592265589, "8a00dc7fe7c754c6801dc5c19f1772546ed8696e", "failure"),
         (39143039135, 117721196331, "63455b8a750ef07a1e525078b4e3ce2089eecdde", "success"),
+        (40237598500, 121302388554, "04b76f42c09854405df00328ead16b30d701a24f", "success"),
     ]
     branch, head = "codex/python-setup-security-stabilization", "a" * 40
     runs = [
         {
             "id": run,
             "head_sha": source,
-            "head_branch": "codex/dependency-alertmanager-remediation",
+            "head_branch": (
+                branch if run == 40237598500 else "codex/dependency-alertmanager-remediation"
+            ),
             "run_attempt": 1,
             "status": "completed",
             "conclusion": outcome,
@@ -274,11 +395,21 @@ def test_current_alertmanager_build_orders_real_input_seams_and_retains_spent_fa
         assert events[-1] == "credentials-closed" and kwargs["current"] is True
         if fault == "qualification":
             raise RuntimeError("synthetic-qualified-input-rejection")
-        return {"plan": {"UI_file_hashes": {"synthetic": "c" * 64}}}
+        return {
+            "plan": {
+                "UI_file_hashes": {"synthetic": "c" * 64},
+                "assembly_argv": [
+                    "--build-context",
+                    transport.BASE
+                    + "=oci-layout:///inputs/base-layout@<UNOBSERVED_CURRENT_EXPORT>",
+                ],
+            }
+        }
 
     monkeypatch.setattr(docker_sources, "_alertmanager_qualified_payload", qualification)
     support = {
         "probe": {},
+        "base": {"actual_local_OCI_descriptor": {"digest": "sha256:" + "b" * 64}},
         "scanner": {"DB": {"synthetic": "d" * 64}},
         "base_scan": {},
         "probe_scan": {},
@@ -298,6 +429,11 @@ def test_current_alertmanager_build_orders_real_input_seams_and_retains_spent_fa
         **kwargs: Any,
     ) -> None:
         assert events[-1] == "materialized"
+        assert kwargs["base_descriptor"] == support["base"]["actual_local_OCI_descriptor"]
+        assert plan["assembly_argv"] == [
+            "--build-context",
+            transport.BASE + "=oci-layout:///inputs/base-layout@sha256:" + "b" * 64,
+        ]
         events.append("one-pair")
         result.update(
             compiler_starts=1 if fault == "pair" else 2,
@@ -3994,8 +4130,8 @@ def test_alertmanager_literal_recipe_has_only_selected_payload_and_private_defau
     assert len(recipe.encode()) == 908
     assert (
         sha256(recipe.encode()).hexdigest()
-        == docker_sources._ALERT_ASSEMBLY_RECIPE_SHA256
-        == "8321b8129f819fadd64df26f0607c66fbabcef578bc76fe658e0d6d2cbab7347"
+        == docker_sources._ALERT_CURRENT_ASSEMBLY_RECIPE_SHA256
+        == "2c70a5f492866c30e2c7db69be001003c674ef0f16b336f94a8a23be2777de13"
     )
     assert (
         docker_sources._ALERT_Q_SOURCE_FILES["deploy/alertmanager/Containerfile"]
@@ -4509,10 +4645,8 @@ def alertmanager_api_epoch(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
         path: ("synthetic source bytes: " + path).encode()
         for path in docker_sources._ALERT_Q_SOURCE_FILES
     }
-    source_files["deploy/alertmanager/Containerfile"] = (
-        (REPO_ROOT / "deploy/alertmanager/Containerfile")
-        .read_bytes()
-        .replace(b" --chmod=0700", b"")
+    source_files["deploy/alertmanager/Containerfile"] = _historical_alertmanager_recipe().replace(
+        b" --chmod=0700", b""
     )
     assert len(source_files["deploy/alertmanager/Containerfile"]) == 895
     assert (
@@ -4641,6 +4775,15 @@ def alertmanager_api_epoch(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     return data
 
 
+def _historical_alertmanager_recipe() -> bytes:
+    from scripts.ci.prometheus_source_image import BASE, HISTORICAL_BASE
+
+    raw = (REPO_ROOT / "deploy/alertmanager/Containerfile").read_bytes()
+    historical = raw.replace(BASE.encode(), HISTORICAL_BASE.encode(), 1)
+    assert sha256(historical).hexdigest() == docker_sources._ALERT_ASSEMBLY_RECIPE_SHA256
+    return historical
+
+
 @pytest.fixture
 def alertmanager_retained_files(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -4661,7 +4804,9 @@ def alertmanager_retained_files(
         transport, "GO", SimpleNamespace(digest=sha256(roots["go-toolchain.tar.gz"]).hexdigest())
     )
     monkeypatch.setattr(
-        docker_sources, "_alertmanager_loaded_base", lambda objects: "sha256:" + "1" * 64
+        docker_sources,
+        "_alertmanager_loaded_base",
+        lambda objects, *, current=False: "sha256:" + "1" * 64,
     )
     monkeypatch.setattr(
         docker_sources,
@@ -4911,9 +5056,13 @@ def test_alertmanager_retained_payload_validates_complete_native_transport(
     archive = _alertmanager_payload_zip(tmp_path, alertmanager_retained_files, fault)
     if fault:
         with pytest.raises((RuntimeError, KeyError)):
-            docker_sources._alertmanager_qualified_payload(archive)
+            docker_sources._alertmanager_qualified_payload(
+                archive, producer_recipe=_historical_alertmanager_recipe()
+            )
     else:
-        result = docker_sources._alertmanager_qualified_payload(archive)
+        result = docker_sources._alertmanager_qualified_payload(
+            archive, producer_recipe=_historical_alertmanager_recipe()
+        )
         assert (
             result["compiler_starts"] == 0
             and result["build_admission"] == "HOLD_SEPARATE_HUMAN_DECISION"
@@ -5015,11 +5164,15 @@ def test_alertmanager_frozen_PAX_directory_preserves_typed_native_relationship(
     archive_path = _alertmanager_payload_zip(tmp_path, files)
     raw_before = archive_path.read_bytes()
     if fault in ("native", "canonical-directory"):
-        observed = docker_sources._alertmanager_qualified_payload(archive_path)
+        observed = docker_sources._alertmanager_qualified_payload(
+            archive_path, producer_recipe=_historical_alertmanager_recipe()
+        )
         assert observed["build_admission"] == "HOLD_SEPARATE_HUMAN_DECISION"
     else:
         with pytest.raises(RuntimeError, match="AM_"):
-            docker_sources._alertmanager_qualified_payload(archive_path)
+            docker_sources._alertmanager_qualified_payload(
+                archive_path, producer_recipe=_historical_alertmanager_recipe()
+            )
     assert archive_path.read_bytes() == raw_before
     if fault == "native":
         assert files["frozen-inputs.tar"] == original
@@ -5066,7 +5219,10 @@ def test_alertmanager_retained_success_requires_locks_graphs_modes_and_raw_offli
         checksum["sha256"] = "f" * 64
         files["replay1-offline-stability.json"] = json.dumps(stability).encode()
     with pytest.raises(RuntimeError, match="AM_"):
-        docker_sources._alertmanager_qualified_payload(_alertmanager_payload_zip(tmp_path, files))
+        docker_sources._alertmanager_qualified_payload(
+            _alertmanager_payload_zip(tmp_path, files),
+            producer_recipe=_historical_alertmanager_recipe(),
+        )
 
 
 @pytest.mark.parametrize(
@@ -5159,10 +5315,7 @@ def test_alertmanager_source_recipe_binds_historical_QS_and_current_candidate_se
         == sha256(historical).hexdigest()
         == "69af6364f15e3e5b9a4662a5919ff7f3b0209da0461cd7a85e01e21022abdb78"
     )
-    assert (
-        sha256(current).hexdigest()
-        == "8321b8129f819fadd64df26f0607c66fbabcef578bc76fe658e0d6d2cbab7347"
-    )
+    assert sha256(current).hexdigest() == docker_sources._ALERT_CURRENT_ASSEMBLY_RECIPE_SHA256
     run, artifact, source, job = (
         (
             docker_sources._ALERT_Q_RUN,
@@ -5537,7 +5690,7 @@ def test_alertmanager_hosted_transport_shares_clock_and_empty_docker_config() ->
     )
     assert "operation_deadline=deadline" in source
     assert 'docker_prefix = [docker, "--config", str(docker_config)]' in source
-    assert "base_id = _alertmanager_loaded_base(base_objects)" in source
+    assert "base_id = _alertmanager_loaded_base(base_objects, current=True)" in source
     assert '"--pull=never"' in source
     assert (
         "/run/alertmanager-metadata:size=64m,noexec,nosuid,uid=65534,gid=65534,mode=0700" in source
@@ -6414,7 +6567,9 @@ def test_alertmanager_both_security_callers_use_actual_authenticated_support_ref
     base: dict[str, Any] = {
         "ArtifactType": "container_image",
         "Metadata": {
-            "ImageID": docker_sources._ALERT_BASE_CONFIG,
+            "ImageID": (
+                transport.BASE_CONFIG if current_epoch else docker_sources._ALERT_BASE_CONFIG
+            ),
             "OS": {"Family": "debian", "Name": "future"},
         },
         "Results": [
@@ -6489,6 +6644,8 @@ def test_alertmanager_both_security_callers_use_actual_authenticated_support_ref
             "tests/test_notify_premium_alias_checkpoint_failure.py",
         )
     }
+    if not current_epoch:
+        source["deploy/alertmanager/Containerfile"] = _historical_alertmanager_recipe()
     files = {"producer-source/" + path: raw for path, raw in source.items()}
     files["security-evidence/candidate-full-supported.private.json"] = json.dumps(full).encode()
     phase_records = {}
@@ -6644,6 +6801,14 @@ def test_alertmanager_both_security_callers_use_actual_authenticated_support_ref
             "OCI_archive_sha256": "e" * 64,
         },
     )
+
+    if not current_epoch:
+        # This generated transport has its own exact synthetic historical tuple.
+        monkeypatch.setattr(
+            docker_sources,
+            "_ALERT_HISTORICAL_C10",
+            deepcopy(docker_sources._ALERT_ACCEPTED_CANDIDATE),
+        )
 
     def invoke() -> None:
         docker_sources._alertmanager_candidate_payload(
@@ -7598,6 +7763,7 @@ def alertmanager_published_reader_io(
     accepted = deepcopy(docker_sources._ALERT_ACCEPTED_CANDIDATE)
     accepted["graph"] = graph
     monkeypatch.setattr(docker_sources, "_ALERT_ACCEPTED_CANDIDATE", accepted)
+    monkeypatch.setattr(docker_sources, "_ALERT_HISTORICAL_C10", deepcopy(accepted))
     repo = {"id": 1043311030}
     data: dict[str, Any] = {
         "calls": [],
@@ -8462,11 +8628,17 @@ def test_alertmanager_render_binds_reviewed_data_before_native_compose(
     from scripts.ci import prometheus_source_image as transport
     from tests.test_deploy_contract_scripts import (
         FAKE_PROMETHEUS_COMPOSE_JSON,
+        _historical_AM_template,
         _staging_compose_fixture_json,
     )
 
     templates = {
-        path: (REPO_ROOT / path).read_bytes() for path in docker_sources._ALERT_SELECTION_FILES[:5]
+        path: (
+            _historical_AM_template(REPO_ROOT / path)
+            if path in docker_sources._ALERT_SELECTION_FILES[:3]
+            else (REPO_ROOT / path).read_bytes()
+        )
+        for path in docker_sources._ALERT_SELECTION_FILES[:5]
     }
     sources = {
         **templates,
@@ -9160,13 +9332,21 @@ def test_alertmanager_proof_retention_failure_preserves_native_primary_exception
     """Diagnostic retention cannot turn a failed native proof into success or erase its cause."""
     import time
     from scripts.ci import prometheus_source_image as transport
-    from tests.test_deploy_contract_scripts import _staging_compose_fixture_json
+    from tests.test_deploy_contract_scripts import (
+        _historical_AM_template,
+        _staging_compose_fixture_json,
+    )
 
     for key in tuple(os.environ):
         if key.startswith(("GH", "GITHUB", "DEVPI_", "DOCKER_")) or key.upper().endswith("PROXY"):
             monkeypatch.delenv(key, raising=False)
     sources = {
-        name: (REPO_ROOT / name).read_bytes() for name in docker_sources._ALERT_SELECTION_FILES
+        name: (
+            _historical_AM_template(REPO_ROOT / name)
+            if name in docker_sources._ALERT_SELECTION_FILES[:3]
+            else (REPO_ROOT / name).read_bytes()
+        )
+        for name in docker_sources._ALERT_SELECTION_FILES
     }
     work = tmp_path / "proof"
     expected_error = RuntimeError("synthetic original native failure")
@@ -9356,6 +9536,9 @@ def test_alertmanager_new_producer_has_own_receiver_ancestry_without_relabeling_
     donor = docker_sources._ALERT_DONOR_SOURCE
     selected = deepcopy(docker_sources._ALERT_HISTORICAL_C10)
     selected["source"] = "a" * 40
+    selected["source_files"][
+        "deploy/alertmanager/Containerfile"
+    ] = docker_sources._ALERT_CURRENT_ASSEMBLY_RECIPE_SHA256
     monkeypatch.setattr(docker_sources, "_ALERT_ACCEPTED_CANDIDATE", selected)
     prior_rows = [
         {"sha": historical, "parents": []},
@@ -9741,3 +9924,288 @@ def test_alertmanager_native_producers_keep_qualified_runner(job_name: str) -> N
     """Keep native config-ID consumers on their qualified Docker runner environment."""
     workflow = _load_workflow(WORKFLOWS_DIR / "cd.yml")
     assert workflow["jobs"][job_name]["runs-on"] == "ubuntu-24.04"
+
+
+@pytest.fixture
+def current_AM_export(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    """Complete synthetic Q/S byte transport; no native supplier/build proof is claimed."""
+    import tarfile
+    from scripts.ci import prometheus_source_image as transport
+
+    root = tmp_path / "current-export"
+    root.mkdir()
+    files: dict[str, bytes] = {}
+
+    def blob(raw: bytes, media: str) -> dict[str, Any]:
+        digest = sha256(raw).hexdigest()
+        files["blobs/sha256/" + digest] = raw
+        return {"digest": "sha256:" + digest, "size": len(raw), "mediaType": media}
+
+    layers = [
+        blob(f"synthetic expanded layer {i}".encode(), "application/vnd.oci.image.layer.v1.tar")
+        for i in range(13)
+    ]
+    config = {
+        "os": "linux",
+        "architecture": "amd64",
+        "rootfs": {"type": "layers", "diff_ids": [x["digest"] for x in layers]},
+    }
+    raw_config = json.dumps(config).encode().ljust(2938, b" ")
+    config_descriptor = blob(raw_config, transport.OCI_CONFIG)
+    descriptor = blob(
+        json.dumps(
+            {
+                "schemaVersion": 2,
+                "mediaType": transport.OCI_MANIFEST,
+                "config": config_descriptor,
+                "layers": layers,
+            }
+        ).encode(),
+        transport.OCI_MANIFEST,
+    )
+    for number in range(13):
+        blob(f"synthetic Docker compatibility metadata {number}".encode(), "unused")
+    files["oci-layout"] = b'{"imageLayoutVersion":"1.0.0"}'
+    files["index.json"] = json.dumps(
+        {
+            "schemaVersion": 2,
+            "mediaType": "application/vnd.oci.image.index.v1+json",
+            "manifests": [descriptor],
+        }
+    ).encode()
+    files["manifest.json"] = b"[]"
+    assert len(files) == 31
+    archive = root / "base-image.tar"
+    with tarfile.open(archive, "w", format=tarfile.USTAR_FORMAT) as output:
+        for name in ("blobs", "blobs/sha256"):
+            entry = tarfile.TarInfo(name)
+            entry.type = tarfile.DIRTYPE
+            output.addfile(entry)
+        for name, raw in files.items():
+            entry = tarfile.TarInfo(name)
+            entry.size = len(raw)
+            output.addfile(entry, BytesIO(raw))
+    archive.chmod(0o600)
+    layout = root / "base-layout"
+    layout.mkdir(mode=0o700)
+    rows, directories = docker_sources._alertmanager_base_export_inventory(
+        archive, destination=layout
+    )
+    monkeypatch.setattr(transport, "BASE_CONFIG", config_descriptor["digest"])
+    monkeypatch.setattr(
+        transport,
+        "BASE_LAYER_CONTRACTS",
+        [{"diff_id": row["digest"], "expanded": row["size"]} for row in layers],
+    )
+    q = {
+        "root_inputs": {"base-image.tar": sha256(archive.read_bytes()).hexdigest()},
+        "loaded_base": {"RootFS": {"Type": "layers", "Layers": config["rootfs"]["diff_ids"]}},
+    }
+    report = {
+        "base": {
+            "archive_sha256": q["root_inputs"]["base-image.tar"],
+            "complete_export_file_inventory": rows,
+            "actual_local_OCI_descriptor": descriptor,
+            "config": config_descriptor["digest"],
+            "RootFS": q["loaded_base"]["RootFS"],
+        }
+    }
+    return {
+        "root": root,
+        "files": files,
+        "report": report,
+        "q": q,
+        "descriptor": descriptor,
+        "directories": directories,
+        "layers": layers,
+    }
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "compatibility",
+        "extra",
+        "missing",
+        "replaced",
+        "index",
+        "directory",
+        "symlink",
+        "hardlink",
+        "mode",
+        "Q-hash",
+        "report-hash",
+        "report-descriptor",
+        "report-config",
+        "report-rootfs",
+        "pinned-size",
+        "pinned-order",
+    ],
+)
+def test_current_AM_export_binds_every_Q_byte_before_report_or_graph(
+    current_AM_export: dict[str, Any], monkeypatch: pytest.MonkeyPatch, fault: str | None
+) -> None:
+    from scripts.ci import prometheus_source_image as transport
+
+    item = current_AM_export
+    root, report, q = item["root"], item["report"], item["q"]
+    docker_sources._alertmanager_current_support_base(root, report, q)
+    layout = root / "base-layout"
+    compatibility = next(name for name, raw in item["files"].items() if b"compatibility" in raw)
+    target = layout / compatibility
+    if fault == "compatibility":
+        target.write_bytes(b"changed but report and footer can agree")
+    elif fault == "extra":
+        (layout / "extra").write_bytes(b"extra")
+        (layout / "extra").chmod(0o600)
+    elif fault == "missing":
+        target.unlink()
+    elif fault == "replaced":
+        target.rename(layout / "replacement")
+    elif fault == "index":
+        (layout / "index.json").write_text("{}")
+    elif fault == "directory":
+        (layout / "extra-directory").mkdir(mode=0o700)
+    elif fault in ("symlink", "hardlink"):
+        target.unlink()
+        other = layout / "manifest.json"
+        target.symlink_to(other) if fault == "symlink" else os.link(other, target)
+    elif fault == "mode":
+        target.chmod(0o644)
+    elif fault == "Q-hash":
+        q["root_inputs"]["base-image.tar"] = "f" * 64
+    elif fault == "report-hash":
+        report["base"]["archive_sha256"] = "f" * 64
+    elif fault == "report-descriptor":
+        report["base"]["actual_local_OCI_descriptor"] = {**item["descriptor"], "size": 1}
+    elif fault == "report-config":
+        report["base"]["config"] = "sha256:" + "f" * 64
+    elif fault == "report-rootfs":
+        report["base"]["RootFS"] = {"Type": "layers", "Layers": []}
+    elif fault in ("pinned-size", "pinned-order"):
+        contracts = deepcopy(transport.BASE_LAYER_CONTRACTS)
+        if fault == "pinned-size":
+            contracts[0]["expanded"] += 1
+        else:
+            contracts.reverse()
+        monkeypatch.setattr(transport, "BASE_LAYER_CONTRACTS", contracts)
+    if fault in {"compatibility", "extra", "missing", "replaced", "index"}:
+        # An internally consistent S report cannot override the independent Q tar.
+        report["base"]["complete_export_file_inventory"] = [
+            {"path": row["path"], "bytes": row["size"], "sha256": row["sha256"]}
+            for row in transport.tree_inventory(layout)
+        ]
+    if fault is None:
+        assert docker_sources._alertmanager_current_base_graph(layout) == item["descriptor"]
+        assert (
+            docker_sources._alertmanager_base_export_inventory(root / "base-image.tar")[1]
+            == item["directories"]
+        )
+    else:
+        with pytest.raises(transport.QualificationError):
+            docker_sources._alertmanager_current_support_base(root, report, q)
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "duplicate",
+        "dot",
+        "parent",
+        "absolute",
+        "backslash",
+        "symlink",
+        "hardlink",
+        "special",
+        "file-parent",
+        "directory-as-file",
+        "count",
+        "oversized",
+    ],
+)
+def test_current_AM_export_tar_rules_reject_unsafe_private_materialization(
+    tmp_path: Path, fault: str
+) -> None:
+    import tarfile
+    from scripts.ci.prometheus_source_image import QualificationError
+
+    archive = tmp_path / "invalid.tar"
+    with tarfile.open(archive, "w", format=tarfile.USTAR_FORMAT) as output:
+        first = tarfile.TarInfo("safe")
+        first.size = 1
+        output.addfile(first, BytesIO(b"x"))
+        entry = tarfile.TarInfo(
+            {
+                "duplicate": "safe",
+                "dot": "./bad",
+                "parent": "../bad",
+                "absolute": "/bad",
+                "backslash": "bad\\path",
+                "file-parent": "safe/child",
+            }.get(fault, "bad")
+        )
+        if fault in ("symlink", "hardlink", "special"):
+            entry.type = {
+                "symlink": tarfile.SYMTYPE,
+                "hardlink": tarfile.LNKTYPE,
+                "special": tarfile.FIFOTYPE,
+            }[fault]
+            entry.linkname = "safe"
+        if fault == "directory-as-file":
+            directory = tarfile.TarInfo("bad/child")
+            directory.type = tarfile.DIRTYPE
+            output.addfile(directory)
+        if fault == "count":
+            for number in range(33):
+                output.addfile(tarfile.TarInfo(f"extra-{number}"))
+        output.addfile(entry)
+    archive.chmod(0o600)
+    if fault == "oversized":
+        with archive.open("ab") as output:
+            output.truncate(16 * 1024**2 + 1)
+    destination = tmp_path / "layout"
+    destination.mkdir(mode=0o700)
+    with pytest.raises(QualificationError):
+        docker_sources._alertmanager_base_export_inventory(archive, destination=destination)
+
+
+@pytest.mark.parametrize("current", [False, True])
+@pytest.mark.parametrize(
+    "fault", [None, "crossed-recipe", "mixed-source", "selector", "unconfigured"]
+)
+def test_AM11_accepted_recipe_is_disjoint_and_bound_to_configured_selection(
+    monkeypatch: pytest.MonkeyPatch, current: bool, fault: str | None
+) -> None:
+    from scripts.ci.prometheus_source_image import QualificationError
+
+    selected = deepcopy(docker_sources._ALERT_HISTORICAL_C10)
+    if current:
+        selected.update(source="a" * 40, run=101, artifact=102, job=103)
+        selected["source_files"][
+            "deploy/alertmanager/Containerfile"
+        ] = docker_sources._ALERT_CURRENT_ASSEMBLY_RECIPE_SHA256
+    monkeypatch.setattr(docker_sources, "_ALERT_ACCEPTED_CANDIDATE", selected)
+    assert (
+        docker_sources._alertmanager_accepted_producer(
+            selected["run"], selected["artifact"], selected["source"]
+        )
+        == selected
+    )
+    if fault == "crossed-recipe":
+        selected["source_files"]["deploy/alertmanager/Containerfile"] = (
+            docker_sources._ALERT_ASSEMBLY_RECIPE_SHA256
+            if current
+            else docker_sources._ALERT_CURRENT_ASSEMBLY_RECIPE_SHA256
+        )
+    elif fault == "mixed-source":
+        selected["source"] = docker_sources._ALERT_HISTORICAL_C10["source"] if current else "a" * 40
+    elif fault == "unconfigured":
+        monkeypatch.setattr(docker_sources, "_ALERT_ACCEPTED_CANDIDATE", None)
+    if fault is not None:
+        with pytest.raises(QualificationError):
+            docker_sources._alertmanager_accepted_producer(
+                selected["run"] + (1 if fault == "selector" else 0),
+                selected["artifact"],
+                selected["source"],
+            )

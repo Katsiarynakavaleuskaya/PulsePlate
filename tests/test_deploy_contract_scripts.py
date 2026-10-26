@@ -152,14 +152,48 @@ def _synthetic_prometheus_manifest_text() -> str:
 _HISTORICAL_AM_TEST_ROOT: Path | None = None
 
 
+def _historical_AM_scan_oracle() -> dict[str, Any]:
+    """Build synthetic C10-shaped scan data, not original native evidence."""
+    oracle = json.loads(json.dumps(alertmanager_source._ALERT_CURRENT_SCAN_ORACLE))
+    graph = alertmanager_source._ALERT_HISTORICAL_C10["graph"]
+    oracle["subject"] = {
+        "manifest": graph["manifest"]["digest"],
+        "config": graph["config"]["digest"],
+        "binary_sha256": {
+            name: graph["files"]["usr/bin/" + name] for name in ("alertmanager", "amtool")
+        },
+    }
+    for modules in oracle["expected_modules"].values():
+        modules["stdlib"] = "v1.27.2"
+    return oracle
+
+
+def _historical_AM_template(path: Path) -> bytes:
+    """Project only the selected image in three known historical fixture templates."""
+    assert path in (STAGING_COMPOSE_PATH, PRODUCTION_COMPOSE_PATH, SELF_HOSTED_COMPOSE_PATH)
+    raw = path.read_bytes()
+    current = yaml.safe_load(raw)["services"]["alertmanager"]["image"].encode()
+    assert raw.count(current) == 1
+    return raw.replace(current, ALERTMANAGER_RUNTIME_REF.encode(), 1)
+
+
+# Host/bundle fixtures deliberately exercise C10. Current source identity is checked separately.
+PRODUCTION_COMPOSE_TEXT = _historical_AM_template(PRODUCTION_COMPOSE_PATH).decode("utf-8")
+
+
 def _historical_AM_source() -> bytes:
-    """Explicit historical selection fixture; production remains unconfigured/HOLD."""
+    """Keep historical data in an isolated helper copy without altering production guards."""
     raw = (REPO_ROOT / "scripts/ci/fetch_docker_source_artifacts.py").read_bytes()
-    assignment = b"_ALERT_ACCEPTED_CANDIDATE: dict[str, Any] | None = None"
-    assert raw.count(assignment) == 1
-    return raw.replace(
-        assignment, b"_ALERT_ACCEPTED_CANDIDATE: dict[str, Any] | None = _ALERT_HISTORICAL_C10"
+    main_guard = b'\nif __name__ == "__main__":\n'
+    assert raw.count(main_guard) == 1
+    fixture = (
+        b"\n# Explicit synthetic historical fixture data; not production acceptance.\n"
+        b"_ALERT_ACCEPTED_CANDIDATE = _ALERT_HISTORICAL_C10\n"
+        b"_ALERT_CURRENT_SCAN_ORACLE = "
+        + repr(_historical_AM_scan_oracle()).encode("utf-8")
+        + b"\n"
     )
+    return raw.replace(main_guard, fixture + main_guard, 1)
 
 
 def _historical_AM_helper() -> Path:
@@ -197,6 +231,9 @@ def historical_AM_selection_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPa
         alertmanager_source,
         "_ALERT_ACCEPTED_CANDIDATE",
         json.loads(json.dumps(alertmanager_source._ALERT_HISTORICAL_C10)),
+    )
+    monkeypatch.setattr(
+        alertmanager_source, "_ALERT_CURRENT_SCAN_ORACLE", _historical_AM_scan_oracle()
     )
 
 
@@ -913,7 +950,7 @@ def _write_shell_bundle_contract(
         else PRODUCTION_COMPOSE_PATH
     )
     (deploy_dir / sibling_compose.name).write_text(
-        sibling_compose.read_text(encoding="utf-8"), encoding="utf-8"
+        _historical_AM_template(sibling_compose).decode("utf-8"), encoding="utf-8"
     )
     (prometheus_dir / "prometheus.yml").write_text(
         PROMETHEUS_CONFIG_PATH.read_text(encoding="utf-8"), encoding="utf-8"
@@ -5680,7 +5717,10 @@ def test_three_compose_contours_normalize_to_one_private_prometheus_contract(
     assert prometheus["secrets"][0] in services["app"]["secrets"]
     assert "prometheus" not in services["app"].get("depends_on", {})
     alertmanager = services["alertmanager"]
-    assert alertmanager["image"] == ALERTMANAGER_RUNTIME_REF
+    from tests.test_notify_premium_alias_checkpoint_failure import ALERTMANAGER_IMAGE
+
+    # Declared intermediate templates are not admission while current selection is held.
+    assert alertmanager["image"] == ALERTMANAGER_IMAGE
     assert alertmanager["profiles"] == ["alerting"]
     assert alertmanager["platform"] == "linux/amd64"
     assert alertmanager["user"] == "65534:65534"
@@ -8671,7 +8711,7 @@ def test_production_archive_preflight_is_bounded_and_extracts_nothing(
     bin_dir.mkdir()
     self_hosted = variant == "valid-selfhosted"
     selected_compose_text = (
-        SELF_HOSTED_COMPOSE_PATH.read_text(encoding="utf-8")
+        _historical_AM_template(SELF_HOSTED_COMPOSE_PATH).decode("utf-8")
         if self_hosted
         else PRODUCTION_COMPOSE_TEXT
     )
@@ -10620,7 +10660,7 @@ def test_deploy_production_accepts_only_explicit_exact_self_hosted_database_cont
     project_dir.mkdir()
     shell_bundle_dir.mkdir()
     bin_dir.mkdir()
-    self_hosted_compose = SELF_HOSTED_COMPOSE_PATH.read_text(encoding="utf-8")
+    self_hosted_compose = _historical_AM_template(SELF_HOSTED_COMPOSE_PATH).decode("utf-8")
     _write_production_host_contract(
         project_dir,
         compose_text=self_hosted_compose,
@@ -10826,7 +10866,7 @@ def _production_self_hosted_image_identity_fixture(
     project_dir.mkdir()
     shell_bundle_dir.mkdir()
     bin_dir.mkdir()
-    compose_text = SELF_HOSTED_COMPOSE_PATH.read_text(encoding="utf-8")
+    compose_text = _historical_AM_template(SELF_HOSTED_COMPOSE_PATH).decode("utf-8")
     _write_production_host_contract(
         project_dir, compose_text=compose_text, self_hosted=True, include_checkpoint=False
     )
@@ -12257,7 +12297,7 @@ def _staging_deploy_fixture(tmp_path: Path) -> tuple[dict[str, str], Path]:
     (project_dir / "secrets").chmod(0o700)
     (project_dir / "backups").mkdir()
     (project_dir / "docker-compose.staging.yaml").write_text(
-        STAGING_COMPOSE_PATH.read_text(encoding="utf-8"), encoding="utf-8"
+        _historical_AM_template(STAGING_COMPOSE_PATH).decode("utf-8"), encoding="utf-8"
     )
     (project_dir / "alertmanager" / "alertmanager.yml").write_text(
         ALERTMANAGER_CONFIG_PATH.read_text(encoding="utf-8"), encoding="utf-8"
@@ -16145,7 +16185,11 @@ def alertmanager_contract_inputs(tmp_path: Path) -> tuple[Path, dict[str, object
     (root / "alertmanager").mkdir()
     compose = root / "docker-compose.staging.yaml"
     selected, _ = alertmanager_source._alertmanager_contract_subject()
-    compose.write_text(STAGING_COMPOSE_PATH.read_text().replace(ALERTMANAGER_RUNTIME_REF, selected))
+    compose.write_text(
+        _historical_AM_template(STAGING_COMPOSE_PATH)
+        .decode("utf-8")
+        .replace(ALERTMANAGER_RUNTIME_REF, selected)
+    )
     shutil.copyfile(ALERTMANAGER_CONFIG_PATH, root / "alertmanager/alertmanager.yml")
     (root / "alertmanager/trivy-ignore.yaml").write_bytes(b"vulnerabilities: []\n")
     model = json.loads(_staging_compose_fixture_json(root))
@@ -16934,7 +16978,7 @@ def test_production_incoming_renderers_share_installed_project_directory(
         name = "docker-compose.production.selfhosted.yaml"
         # The existing fixture owns the complete self-hosted source/manifest contract.
         for root in (project, bundle):
-            (root / "deploy" / name).write_bytes(SELF_HOSTED_COMPOSE_PATH.read_bytes())
+            (root / "deploy" / name).write_bytes(_historical_AM_template(SELF_HOSTED_COMPOSE_PATH))
         env["COMPOSE_FILE"] = "deploy/" + name
         env.update(
             {

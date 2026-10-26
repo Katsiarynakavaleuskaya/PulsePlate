@@ -859,7 +859,8 @@ jobs:
               paths = ("frontend/Dockerfile.caddy-spa", "frontend/package.json", "frontend/package-lock.json",
                        "frontend/.dockerignore", ".github/workflows/frontend-ci.yml",
                        "deploy/Caddyfile", "deploy/Caddyfile.production",
-                       "scripts/ci/check_docker_runtime_dependency_surface.py")
+                       "scripts/ci/check_docker_runtime_dependency_surface.py",
+                       "scripts/ci/prometheus_source_image.py")
               sources = {}
               for name in paths:
                   path = root / name
@@ -887,6 +888,21 @@ jobs:
                   path.chmod(0o600)
                   projections[name] = {"image_config_id": image, "argv": [docker, *arguments],
                                        "bytes": len(observed), "sha256": hashlib.sha256(observed).hexdigest()}
+              for name, entrypoint, command in (
+                      ("default-ca.pem", "/bin/busybox", ("cat", "/etc/ssl/certs/ca-certificates.crt")),
+                      ("ca-package-versions.txt", "/sbin/apk", ("list", "--installed", "--manifest", "ca-certificates", "ca-certificates-bundle"))):
+                  arguments = ["run", "--rm", "--network", "none", "--read-only", "--cap-drop", "ALL",
+                               "--entrypoint", entrypoint, image, *command]
+                  observed = run(arguments)
+                  if not observed:
+                      raise ValueError("native_CA_projection_empty")
+                  path = projection_directory / name
+                  with path.open("xb") as output:
+                      output.write(observed)
+                  path.chmod(0o600)
+                  projections[name] = {"image_config_id": image, "argv": [docker, *arguments],
+                                       "exit_code": 0, "bytes": len(observed),
+                                       "sha256": hashlib.sha256(observed).hexdigest()}
               state = private / "subject.json"
               state.write_text(json.dumps({"image_config_id": image, "platform": "linux/amd64",
                                            "binary_sha256": binary.split()[0], "sources": sources,
@@ -1173,6 +1189,7 @@ jobs:
           from pathlib import Path
           import re
           import stat
+          import ssl
           import subprocess
           import sys
 
@@ -1221,7 +1238,9 @@ jobs:
               projection_directory = private / "native-projections"
               expected_projections = (("version.txt", ("version",)),
                                       ("build-info.txt", ("build-info",)),
-                                      ("rebuilt-modules.txt", ("list-modules", "--packages")))
+                                      ("rebuilt-modules.txt", ("list-modules", "--packages")),
+                                      ("default-ca.pem", ("cat", "/etc/ssl/certs/ca-certificates.crt")),
+                                      ("ca-package-versions.txt", ("list", "--installed", "--manifest", "ca-certificates", "ca-certificates-bundle")))
               names = {name for name, _command in expected_projections}
               if (projection_directory.is_symlink() or not projection_directory.is_dir()
                       or {path.name for path in projection_directory.iterdir()} != names
@@ -1232,6 +1251,13 @@ jobs:
                   arguments = [subject["docker"], "run", "--rm", "--network", "none", "--read-only",
                                "--cap-drop", "ALL", "--cap-add", "NET_BIND_SERVICE", "--entrypoint",
                                "/usr/bin/caddy", subject["image_config_id"], *command]
+                  if name in ("default-ca.pem", "ca-package-versions.txt"):
+                      entrypoint = "/bin/busybox" if name == "default-ca.pem" else "/sbin/apk"
+                      arguments = [subject["docker"], "run", "--rm", "--network", "none", "--read-only",
+                                   "--cap-drop", "ALL", "--entrypoint", entrypoint, subject["image_config_id"], *command]
+                      if (set(expected) != {"image_config_id", "argv", "exit_code", "bytes", "sha256"}
+                              or type(expected["exit_code"]) is not int or expected["exit_code"] != 0):
+                          raise ValueError("native_CA_projection_result_invalid")
                   if expected["image_config_id"] != subject["image_config_id"] or expected["argv"] != arguments:
                       raise ValueError("native_projection_image_binding_changed")
                   path = projection_directory / name
@@ -1242,7 +1268,24 @@ jobs:
                   if {"bytes": len(observed), "sha256": hashlib.sha256(observed).hexdigest()} != {
                           "bytes": expected["bytes"], "sha256": expected["sha256"]}:
                       raise ValueError("native_projection_bytes_changed")
+                  if name in ("default-ca.pem", "ca-package-versions.txt") and run(arguments[1:]) != observed:
+                      raise ValueError("native_CA_subject_changed")
               sys.path.insert(0, str(root))
+              from scripts.ci.prometheus_source_image import REMOVED_CA_DER_SHA256
+              ca = (projection_directory / "default-ca.pem").read_bytes()
+              if (len(ca) != 178791 or hashlib.sha256(ca).hexdigest()
+                      != "5961c0a3c65459931c023e0075c09733f09aea4ca439cb85bc4a08bb4f3f568b"):
+                  raise ValueError("native_Alpine_CA_supplier_bytes_unreconciled")
+              context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+              context.load_verify_locations(cadata=ca.decode("ascii"))
+              certificates = context.get_ca_certs(binary_form=True)
+              if (len(certificates) != 118
+                      or REMOVED_CA_DER_SHA256.intersection(hashlib.sha256(value).hexdigest() for value in certificates)):
+                  raise ValueError("native_Alpine_removed_CA_present")
+              installed = (projection_directory / "ca-package-versions.txt").read_bytes().decode("ascii").splitlines()
+              expected_CA_versions = ["ca-certificates 20261020-r0", "ca-certificates-bundle 20261020-r0"]
+              if sorted(installed) != expected_CA_versions:
+                  raise ValueError("native_Alpine_CA_versions_unreconciled")
               from scripts.ci.check_docker_runtime_dependency_surface import validate_trivy_image_report
               validate_trivy_image_report(subject["image_config_id"], report)
               native = json.loads(report.read_text())
@@ -1264,9 +1307,17 @@ jobs:
                       raise ValueError("listed_packages_missing")
                   if not all(isinstance(package, dict) and all(isinstance(package.get(key), str) and package[key] for key in ("Name", "Version")) for package in packages):
                       raise ValueError("listed_package_identity_incomparable")
+              for package_name in ("ca-certificates", "ca-certificates-bundle"):
+                  versions = [package["Version"] for result in os_rows for package in result["Packages"]
+                              if package["Name"] == package_name]
+                  if versions != ["20261020-r0"]:
+                      raise ValueError("native_CA_package_inventory_mismatch")
               metadata = {"observed_at_utc": datetime.now(timezone.utc).isoformat(),
                           "subject": subject, "full_report_sha256": hashlib.sha256(report.read_bytes()).hexdigest(),
                           "full_scan_native_exit": 0, "capture_checks": "completed",
+                          "default_CA": {"path": "/etc/ssl/certs/ca-certificates.crt", "bytes": len(ca),
+                                         "sha256": hashlib.sha256(ca).hexdigest(), "roots": len(certificates),
+                                         "installed_packages": installed, "named_removed_roots_absent": True},
                           "Results_Secrets_fields_absent": missing_secrets,
                           "Secrets_scope": "Present Results fields are empty arrays; absent fields retain native serialization omission, not forced zero.",
                           "claim_boundary": "Next observed local config/image ID, not prior ephemeral image or OCI manifest. Post-HC DB pre/post binding is not retroactive HC DB proof. Full native package/advisory reconciliation remains separate; diagnostic capture does not pass the blocking HC gate."}
