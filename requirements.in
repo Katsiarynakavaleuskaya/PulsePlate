@@ -45,6 +45,8 @@ alembic>=1.17.2,<2.0.0
 mako>=1.3.12,<2.0.0
 # Pin to tested 3.x series; allow minor upgrades for compatibility
 psycopg[c]>=3.2.3,<4.0.0
+# Security floor: CVE-2026-114605 / GHSA-45c3-73f7-pv4m.
+dnspython>=2.9.0,<3.0.0
 email-validator>=2.3.0,<3.0.0
 cryptography>=50.0.2,<51.0.0
 # HTML sanitizer for XSS protection (Rust-based, 20x faster than deprecated bleach)

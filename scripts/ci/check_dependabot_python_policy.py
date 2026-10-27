@@ -80,6 +80,7 @@ EXPECTED_GROUPS: dict[str, dict[str, tuple[str, ...] | str]] = {
             "tenacity",
             "click",
             "email-validator",
+            "dnspython",
             "nh3",
         ),
         "update-types": ("minor", "patch"),

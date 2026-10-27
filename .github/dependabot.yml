@@ -54,6 +54,7 @@ updates:
           - "tenacity"
           - "click"
           - "email-validator"
+          - "dnspython"
           - "nh3"
         update-types:
           - "minor"
