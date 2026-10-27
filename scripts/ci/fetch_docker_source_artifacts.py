@@ -5133,12 +5133,7 @@ def _alertmanager_vulnerability_control(
         )
     }
     require(type(current) is bool, "AM_control_epoch_type")
-    if current:
-        expected |= {
-            (target, "CVE-2026-111943", "pkg:golang/stdlib@v1.26.8", "HIGH")
-            for target in ("bin/alertmanager", "bin/amtool")
-        }
-    found, targets = [], []
+    found, targets, ca_findings = [], [], []
     for row in report["Results"]:
         require(
             type(row) is dict
@@ -5159,17 +5154,41 @@ def _alertmanager_vulnerability_control(
                 and finding.get("Severity") in ("UNKNOWN", "LOW", "MEDIUM", "HIGH", "CRITICAL"),
                 "AM_vulnerable_control_finding",
             )
-            if finding["Severity"] in ("HIGH", "CRITICAL"):
+            is_ca_finding = finding.get("VulnerabilityID") == "CVE-2026-111943"
+            if is_ca_finding or finding["Severity"] in ("HIGH", "CRITICAL"):
                 identifier = finding.get("PkgIdentifier")
                 require(type(identifier) is dict, "AM_vulnerable_control_PURL")
-                found.append(
-                    (
-                        row["Target"],
-                        finding.get("VulnerabilityID"),
-                        identifier.get("PURL"),
-                        finding["Severity"],
-                    )
+                require(
+                    row.get("Class") == "lang-pkgs"
+                    and row.get("Type") == "gobinary"
+                    and row["Target"] in ("bin/alertmanager", "bin/amtool"),
+                    "AM_known_vulnerable_control_inventory_changed_HOLD",
                 )
+                occurrence = (
+                    row["Target"],
+                    finding.get("VulnerabilityID"),
+                    identifier.get("PURL"),
+                    finding["Severity"],
+                )
+                if is_ca_finding:
+                    require(
+                        current
+                        and identifier.get("PURL") == "pkg:golang/stdlib@v1.26.8"
+                        and finding["Severity"] in ("HIGH", "MEDIUM"),
+                        "AM_known_vulnerable_control_inventory_changed_HOLD",
+                    )
+                    ca_findings.append(occurrence)
+                if finding["Severity"] in ("HIGH", "CRITICAL"):
+                    found.append(occurrence)
+    if current:
+        # Retain both observed whole-report scores without losing mandatory CA detection.
+        require(
+            len(ca_findings) == 2
+            and {item[0] for item in ca_findings} == {"bin/alertmanager", "bin/amtool"}
+            and len({item[3] for item in ca_findings}) == 1,
+            "AM_known_vulnerable_control_inventory_changed_HOLD",
+        )
+        expected |= {item for item in ca_findings if item[3] == "HIGH"}
     require(
         sorted(targets) == ["bin/alertmanager", "bin/amtool"]
         and len(found) == len(expected)

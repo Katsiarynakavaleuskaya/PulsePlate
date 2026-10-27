@@ -17155,7 +17155,7 @@ def test_alertmanager_compiler_epoch_is_exact(current: bool) -> None:
         )
 
 
-def _synthetic_AM_negative_control(current: bool) -> dict[str, Any]:
+def _synthetic_AM_negative_control(current: bool, ca_severity: str = "HIGH") -> dict[str, Any]:
     """Parser fixtures only; they never claim native scanner execution."""
     affected = [
         ("CVE-2026-84445", "pkg:golang/google.golang.org/grpc@v1.83.1"),
@@ -17176,7 +17176,11 @@ def _synthetic_AM_negative_control(current: bool) -> dict[str, Any]:
                 "Type": "gobinary",
                 "Packages": [{"Name": "stdlib", "Version": "v1.26.8"}],
                 "Vulnerabilities": [
-                    {"VulnerabilityID": cve, "PkgIdentifier": {"PURL": purl}, "Severity": "HIGH"}
+                    {
+                        "VulnerabilityID": cve,
+                        "PkgIdentifier": {"PURL": purl},
+                        "Severity": ca_severity if cve == "CVE-2026-111943" else "HIGH",
+                    }
                     for cve, purl in affected
                 ],
             }
@@ -17185,27 +17189,76 @@ def _synthetic_AM_negative_control(current: bool) -> dict[str, Any]:
     }
 
 
-@pytest.mark.parametrize("current", [False, True])
-def test_alertmanager_negative_control_keeps_disjoint_epochs(current: bool) -> None:
-    report = _synthetic_AM_negative_control(current)
+@pytest.mark.parametrize("current,ca_severity", [(False, "HIGH"), (True, "HIGH"), (True, "MEDIUM")])
+def test_alertmanager_negative_control_keeps_disjoint_epochs(
+    current: bool, ca_severity: str
+) -> None:
+    report = _synthetic_AM_negative_control(current, ca_severity)
+    original = json.dumps(report, sort_keys=True)
     result = alertmanager_source._alertmanager_vulnerability_control(
         report, "synthetic-control", current=current
     )
-    assert result["known_HIGH_occurrences"] == (12 if current else 10)
+    assert result == {
+        "scope": "KNOWN_VULNERABLE_CONTROL_ONLY_NEVER_CANDIDATE",
+        "known_HIGH_occurrences": 12 if current and ca_severity == "HIGH" else 10,
+        "all_severity_findings_retained": True,
+        "image_config": "synthetic-control",
+    }
+    assert json.dumps(report, sort_keys=True) == original
     with pytest.raises(prometheus_source.QualificationError, match="inventory_changed_HOLD"):
         alertmanager_source._alertmanager_vulnerability_control(
             report, "synthetic-control", current=not current
         )
+    if not current:
+        for severity in ("UNKNOWN", "LOW", "MEDIUM", "HIGH", "CRITICAL"):
+            with pytest.raises(
+                prometheus_source.QualificationError, match="inventory_changed_HOLD"
+            ):
+                alertmanager_source._alertmanager_vulnerability_control(
+                    _synthetic_AM_negative_control(True, severity), "synthetic-control"
+                )
 
 
-@pytest.mark.parametrize("fault", ["missing", "extra", "duplicate", "target", "PURL", "secret"])
+@pytest.mark.parametrize("ca_severity", ["HIGH", "MEDIUM"])
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "missing",
+        "both-missing",
+        "extra",
+        "duplicate",
+        "duplicate-CA",
+        "duplicate-CA-low",
+        "target",
+        "PURL",
+        "missing-PURL",
+        "malformed-PURL",
+        "secret",
+        "class",
+        "type",
+        "wrong-class-CA-copy",
+        "wrong-class-HC-copy",
+        "CA-low",
+        "CA-unknown",
+        "CA-critical",
+        "CA-mixed",
+        "CA-malformed",
+        "other-HIGH-rescore",
+    ],
+)
 def test_alertmanager_current_negative_control_rejects_incomplete_or_changed_report(
     fault: str,
+    ca_severity: str,
 ) -> None:
-    report = _synthetic_AM_negative_control(True)
+    report = _synthetic_AM_negative_control(True, ca_severity)
     row = report["Results"][0]
+    ca_finding = row["Vulnerabilities"][-1]
+    diagnostic = "AM_known_vulnerable_control_inventory_changed_HOLD"
     if fault == "missing":
         row["Vulnerabilities"].pop()
+    elif fault == "both-missing":
+        for result in report["Results"]:
+            result["Vulnerabilities"].pop()
     elif fault == "extra":
         row["Vulnerabilities"].append(
             {
@@ -17216,13 +17269,53 @@ def test_alertmanager_current_negative_control_rejects_incomplete_or_changed_rep
         )
     elif fault == "duplicate":
         row["Vulnerabilities"].append(dict(row["Vulnerabilities"][0]))
+    elif fault in ("duplicate-CA", "duplicate-CA-low"):
+        duplicate = dict(ca_finding)
+        if fault == "duplicate-CA-low":
+            duplicate["Severity"] = "LOW"
+        row["Vulnerabilities"].append(duplicate)
     elif fault == "target":
         row["Target"] = "usr/bin/alertmanager"
     elif fault == "PURL":
-        row["Vulnerabilities"][-1]["PkgIdentifier"]["PURL"] = "pkg:golang/stdlib@v1.27.3"
-    else:
+        ca_finding["PkgIdentifier"]["PURL"] = "pkg:golang/stdlib@v1.27.3"
+    elif fault == "missing-PURL":
+        ca_finding["PkgIdentifier"].pop("PURL")
+    elif fault == "malformed-PURL":
+        ca_finding["PkgIdentifier"] = []
+        diagnostic = "AM_vulnerable_control_PURL"
+    elif fault == "secret":
         row["Secrets"] = [{"Match": "synthetic-only"}]
-    with pytest.raises(prometheus_source.QualificationError):
+        diagnostic = "AM_vulnerable_control_result"
+    elif fault in ("class", "type"):
+        row["Class" if fault == "class" else "Type"] = "unexpected"
+    elif fault in ("wrong-class-CA-copy", "wrong-class-HC-copy"):
+        # Legitimate targets stay present; a copied target cannot grant row authority.
+        report["Results"].append(
+            {
+                "Target": row["Target"],
+                "Class": "os-pkgs",
+                "Type": "alpine",
+                "Vulnerabilities": [
+                    dict(
+                        ca_finding if fault == "wrong-class-CA-copy" else row["Vulnerabilities"][0]
+                    )
+                ],
+            }
+        )
+    elif fault in ("CA-low", "CA-unknown", "CA-critical", "CA-malformed"):
+        ca_finding["Severity"] = {
+            "CA-low": "LOW",
+            "CA-unknown": "UNKNOWN",
+            "CA-critical": "CRITICAL",
+            "CA-malformed": None,
+        }[fault]
+        if fault == "CA-malformed":
+            diagnostic = "AM_vulnerable_control_finding"
+    elif fault == "CA-mixed":
+        ca_finding["Severity"] = "HIGH" if ca_severity == "MEDIUM" else "MEDIUM"
+    else:
+        row["Vulnerabilities"][0]["Severity"] = "MEDIUM"
+    with pytest.raises(prometheus_source.QualificationError, match=diagnostic):
         alertmanager_source._alertmanager_vulnerability_control(
             report, "synthetic-control", current=True
         )

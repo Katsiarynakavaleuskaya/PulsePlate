@@ -75,6 +75,11 @@
   separate post-wait observation budget. Inactivity does not prove physical absence;
   retain separate reaping/absence evidence wherever required.
 
+- Correlate interleaved CI timeout stacks with the actual shard plan and JUnit
+  before attributing a hung test. Tune existing process parallelism from same-head
+  timing evidence while preserving test inventory, watchdogs and coverage gates;
+  capacity changes require current-head CI confirmation.
+
 ## Premium alias checkpoint adapter
 
 - Deliver the OBS2A checkpoint units disabled; supported manual invocation uses
@@ -355,6 +360,14 @@ incoming-material boundary. Do not substitute an incoming archive's interpreter
 or claim that passing this probe validates the application on Python 3.14.
 
 ## Native Docker image evidence
+
+- Keep required vulnerable-control identity detection separate from mutable
+  severity metadata. A reconciled rescore may admit only the explicit observed
+  whole-report states in the existing inventory consumer; it must retain exact
+  target/package associations, occurrence counts, epoch separation and rejection
+  of unexpected HIGH/CRITICAL findings. Preserve raw reports and truthful counts.
+  Parser acceptance alone never proves scanner execution or completion of the
+  remaining native controls; a rescore grants no candidate waiver.
 
 - Retired native families remain real Trivy conversion controls with retained
   findings. The full canonical `package trivy` / `import rego.v1` /

@@ -906,7 +906,7 @@ minutes before backend execution. The existing hook budget is 60 minutes and
 lint job 190 minutes, with maintained steps184 plus unchanged margin6. Native,
 compiler, scan and cleanup limits do not change. Budget availability is not a
 passing result. Evidence: `.github/workflows/ci.yml:734`,
-`scripts/ci/fetch_docker_source_artifacts.py:5187`.
+`scripts/ci/fetch_docker_source_artifacts.py:5206`.
 
 
 ## PR #2497 bounded CodeQL source-flow analysis

@@ -917,7 +917,7 @@ application-dependency CVE exception, scanner setting or static allowlist.
 | `scripts/ops/notify_premium_alias_checkpoint_failure.py:11` | B404, B603 | Fixed canonical manifest reader, minimal environment, ten-second timeout, validated output, no Compose send after failure |
 | `scripts/verify_premium_alias_telemetry.py:16` | B404, B603 | Same bounded manifest authority before telemetry operations |
 | `scripts/ops/ops_context_report.py:11` | B404, B603 | Absolute native Git, fixed argv/cwd/minimal environment, five-second timeout and sanitized commit identity errors |
-| `scripts/ci/fetch_docker_source_artifacts.py:8426`, `:10762`, `:10824` | B105, B404, B603 | Synthetic Compose config only; fixed read-only held-FD collector with bounded captures and owned process-group cleanup |
+| `scripts/ci/fetch_docker_source_artifacts.py:8445`, `:10781`, `:10843` | B105, B404, B603 | Synthetic Compose config only; fixed read-only held-FD collector with bounded captures and owned process-group cleanup |
 
 Owner: security-auditor / dev-operator. Mandatory manual reassessment is due
 **2026-10-30**. The unchanged calendar-date guard accepts **2026-10-31
