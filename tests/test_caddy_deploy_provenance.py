@@ -2124,7 +2124,7 @@ def _assert_checkpoint_pr_native_job(workflow: dict[str, object]) -> None:
     assert classifier["run"].count('trusted["classify_source_change"](previous, current)') == 1
     assert "mode=" not in selection["run"]
     # pragma: allowlist nextline secret - public trusted control commit
-    assert control["with"]["ref"] == "bc7c62de7645987bf3565526137a9c3cdbbf0202"
+    assert control["with"]["ref"] == "dab47fc6153f87e35233e20aa255d97e68a5ed93"
     assert control["with"]["persist-credentials"] is False
     assert "python3 -I -S" in consumer["run"] and "runpy.run_path(str(helper))" in consumer["run"]
     assert consumer["env"]["GH_TOKEN"] == "${{ secrets.GITHUB_TOKEN }}"
