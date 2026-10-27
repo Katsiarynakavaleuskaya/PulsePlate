@@ -957,3 +957,234 @@ The actual AM11 build job `121800078082` at producer `a8c9b361` observed pip
 before locked-profile installation. Its later native-host snapshot records pip
 26.2.2 and ninety packages. This is the isolated build profile, not every
 application environment, a second CA-hash observation or a fresh audit.
+
+## Separate October 27 late dependency unit
+
+This unit retains the original seven-identity snapshot and proof above unchanged.
+The direct human AM07 instruction covers mandatory failures in this existing PR;
+the coordinator admitted exactly `pip:dnspython` and `pip:msgpack` after the
+ordinary closeout push encountered a new audit failure. The scan and this owner
+document identify the finite work; neither supplies human authority.
+
+The complete terminal BASE01 audit ran from 2026-10-27T18:16:57.748651Z to
+18:19:22.701832Z: ten compiled locks, 561 package occurrences, seven finding rows,
+two identities, zero skips, unchanged input bytes. Its summary SHA-256 is
+`da44a8dd2d4166bbf4a9cf5422f686b312c7c368c7a3c4dd2379ae2dce441aa4`.
+The late resolver seed is `4741e12817c8de3567103cb8131e76318d4e8b30` (`R`),
+the unpublished mapping-only child of material
+`3130e6b8c3957154e849f6bc177818aa3e80a32f` (`M`). The original PR base remains
+`48d36c220ff58dec82450da66ef0599c6da71787` (`B`). Late `R`-based replay is
+separate from the original seven-identity `B`-based replay.
+
+### Late primary inventory and applicability
+
+Complete GitHub package advisory queries, each terminal HTTP 200 without a next
+page, were retained at 18:34:30Z. They contain two advisory records per identity.
+The dnspython response SHA-256 is
+`71135ffef380ea25f8d181910dc98408f25315d4890ae0b3592bd90b5c9815b1`;
+the msgpack response SHA-256 is
+`64d39c3108cd5656aa149cfcd6635541f6b510d890c30a1595a4302a5c82a614`.
+
+| Identity / advisory | Named primary range | Comparable B/R witness | Disposition and selected head |
+| --- | --- | --- | --- |
+| dnspython / [GHSA-45c3-73f7-pv4m](https://github.com/advisories/GHSA-45c3-73f7-pv4m), CVE-2026-114605 | `<2.9.0` | `2.8.0` in runtime, Docker-runtime, CI-lite and aggregate | Applicable; replace with `2.9.0` |
+| dnspython / [GHSA-3rq5-2g8h-59hc](https://github.com/advisories/GHSA-3rq5-2g8h-59hc), CVE-2023-29483 | `<2.6.1` | Every governed B/R occurrence is `2.8.0` | Not applicable at base; head `2.9.0` remains outside range |
+| msgpack / [GHSA-j586-36cw-2gc2](https://github.com/advisories/GHSA-j586-36cw-2gc2), CVE-2026-114613 | `<1.2.3` in the global API | `1.2.1` in CI-lite, dev and aggregate; dev source floor `>=1.2.1` | Applicable under the conservative named range; replace with `1.2.3` |
+| msgpack / [GHSA-6v7p-g79w-8964](https://github.com/advisories/GHSA-6v7p-g79w-8964) | `<=1.2.0` | Every governed B/R occurrence is at least `1.2.1` | Not applicable at base; head `1.2.3` remains outside range |
+
+The upstream msgpack advisory's nominal `=1.2.2` field identifies its reproduced
+release; accompanying prose does not establish earlier releases as unaffected.
+The earliest affected release remains uncertain. The selected `1.2.3` is the
+patched version named by both sources and lies outside both recorded ranges.
+The older schema interval `<1.2.1` remains retained alongside the exact primary
+`<=1.2.0` and the new `<1.2.3`; no finding or occurrence is suppressed.
+
+The new global dnspython advisory was published at 15:37:37Z and msgpack at
+15:04:07Z on October 27, after the earlier successful audit. Upstream/CVE dates
+are distinct provenance facts; this is not a claim that every source was first
+published that day. Retained target PyPI responses show non-yanked ready wheels;
+actual private retrieval and installed observations are recorded separately.
+
+### Late source ownership and runtime checkpoint
+
+The current registered carrier inventory has 21 members, including ten compiled
+locks. Historical `B` and late seed `R` are enumerated independently from their
+complete Git trees with the existing carrier classifier; current material uses
+Git-index discovery and exact registry equality. Neither identity occurs in the
+test, RAG-vector, RAG-vector-CPU, data or eval locks at `B`/`R`; this unit
+preserves their absence.
+
+For dnspython, `B`/`R` have four lock carriers: `requirements.txt`,
+`requirements-docker-runtime.txt`, `requirements-ci-lite.txt` and
+`requirements-lock.txt`. The correction adds the owning source floor
+`>=2.9.0,<3.0.0` to `requirements.in` and `constraints.txt`, yielding six current
+carriers. Docker-runtime retains its existing `-c requirements.txt` ownership;
+no new Docker-runtime source floor is required.
+
+For msgpack, `B`/`R` have `requirements-dev.in` and three locks:
+`requirements-ci-lite.txt`, `requirements-dev.txt`, `requirements-lock.txt`.
+The correction raises the dev source floor and adds the same `>=1.2.3,<2.0.0`
+floor to `requirements-ci-lite.in`, yielding five current carriers. No global
+`min_versions` entry forces either transitive identity into absent profiles.
+
+Making dnspython explicit first exposed the existing direct-package ownership
+rule during the ordinary runtime commit. The first attempt exited 1 at
+`tests/test_check_dependabot_python_policy.py:166` with
+`groups.package-owner.dnspython:direct package must match exactly one group; got []`.
+The first YAML-only correction failed the existing exact tuple comparison.
+Both raw failures are retained. The coordinator then admitted the complete
+existing data pair: one literal `dnspython` immediately after `email-validator`
+in `.github/dependabot.yml:57` and in
+`scripts/ci/check_dependabot_python_policy.py:83`. All matching, discovery,
+group names, credentials, schedules and updater limits remain unchanged.
+This is finite package-membership data; it introduces no new workflow or agent
+procedure. The existing complete policy suite passed 260 cases; YAML lint
+exited 0. Msgpack retains its existing `test-quality` ownership.
+
+The runtime Make transaction and independent exact-`R` repeat both exited 0 and
+produced identical runtime lock bytes; their only pin transition is
+`dnspython==2.8.0` to `dnspython==2.9.0`, preserving extras, marker and URL fields.
+The focused dependency-security, supply-chain and dependency-surface suites
+exited 0 with 1,162 passing cases and five existing constraint-style skips in
+only the generic pinned-version test. Complete-carrier checks are separate.
+The ordinary runtime checkpoint commit
+`ca3f0ffa49ceeba75ec5866a82a8a2f315497b60` completed with normal hooks at
+2026-10-27T19:30:04Z, with unchanged tested bytes and a clean worktree, before
+any dependent refresh began. Its terminal log SHA-256 is
+`0f5be54d017186c3c3ff66bb58d4c434c7308438979a07e7b8d5593a09e03603`.
+This checkpoint alone does not establish complete late remediation.
+
+An initial dependent command supplied both replacements to Docker-runtime and
+was rejected before acquisition because msgpack is absent from that seed. All
+ten lock hashes remained unchanged. The retained failure is command-scoping
+evidence, not solver closure: the corrected canonical commands select
+Docker-runtime with dnspython only, CI-lite/aggregate with both identities, and
+dev with msgpack only. No absent package is introduced to satisfy the command.
+
+### Late canonical replay and complete dependency delta
+
+The reused qualified environment is owned Linux amd64 under CPython 3.13.14,
+pip 26.2.2 and pip-tools 7.6.1. Both independent exports begin with exact `R`
+source/seed bytes and the same authored input edits. They use the approved
+private proxy and the unchanged genuine Psycopg SDK manifest
+`cb8911f610d534c39dd435899d9326e9906e6feed450e623400dccb933f9a457`.
+No native SDK, Go toolchain or image rebuild is part of this unit.
+
+Each export runs these canonical commands, retaining actual container argv,
+input/output hashes, stdout and exit status. The runtime command completes
+before the dependent sequence; the ordinary runtime commit above precedes
+both dependent sequences. No graph-change admission is selected.
+
+```bash
+/usr/bin/make requirements-locks VENV_PYTHON=/task/compiler-venv/bin/python LOCK_PROFILES=runtime UPGRADE_PACKAGES=dnspython==2.9.0
+/usr/bin/make requirements-locks VENV_PYTHON=/task/compiler-venv/bin/python LOCK_PROFILES=docker-runtime UPGRADE_PACKAGES=dnspython==2.9.0
+/usr/bin/make requirements-locks VENV_PYTHON=/task/compiler-venv/bin/python 'LOCK_PROFILES=ci-lite aggregate' 'UPGRADE_PACKAGES=dnspython==2.9.0 msgpack==1.2.3'
+/usr/bin/make requirements-locks VENV_PYTHON=/task/compiler-venv/bin/python LOCK_PROFILES=dev UPGRADE_PACKAGES=msgpack==1.2.3
+```
+
+Every corrected command exited 0 in both exports. Retained raw output includes:
+
+```text
+Updated governed lock profile runtime: requirements.txt
+Updated governed lock profile docker-runtime: requirements-docker-runtime.txt
+Updated governed lock profile ci-lite: requirements-ci-lite.txt
+Updated governed lock profile aggregate: requirements-lock.txt
+Updated governed lock profile dev: requirements-dev.txt
+```
+
+All ten outputs are byte-identical between the independent exports and the
+candidate working tree. The five untouched lockfiles remain byte-identical to
+`R`. The complete pin transition is exactly the following seven occurrences;
+all extras, markers, URLs and other dependency identities are unchanged:
+
+```json
+{
+  "pip:dnspython": {
+    "before": "2.8.0",
+    "after": "2.9.0",
+    "profiles": ["runtime", "docker-runtime", "ci-lite", "aggregate"],
+    "class": "authored_security_replacement"
+  },
+  "pip:msgpack": {
+    "before": "1.2.1",
+    "after": "1.2.3",
+    "profiles": ["ci-lite", "dev", "aggregate"],
+    "class": "authored_security_replacement"
+  },
+  "solver_closure": []
+}
+```
+
+The complete transition/carrier/advisory proof SHA-256 is
+`2cd916e552116c1f754c1da1bd5aeb23cf2461c68a2444c56661eb7b50c9be8f`. It retains
+all baseline/current package occurrences and both per-identity advisory
+reconciliations. The canonical installer accepts all eight existing profile
+compositions without pin conflicts; this structural check is distinct from
+actual installation and from historical native consumer evidence.
+
+The current permanent guard uses the separately named late advisory inventory
+at `tests/test_dependency_security_guard.py:235` through the existing shared
+carrier recognizer at `tests/test_dependency_security_guard.py:3036`. The
+original seven-identity inventory remains byte-identical. The combined consumer
+checks every discovered carrier, including constraints, while preserving
+regular-file, canonical identity, duplicate, marker, extras, arbitrary-equality,
+source-floor, prerelease and exact-pin rejection. Safe later versions and
+optional absent occurrences remain accepted. Each retained primary range is
+independently exercised, including both non-applicable-at-base advisories.
+
+Focused dependency-security, supply-chain, dependency-surface and selected
+installer functional tests exited 0: 1,239 cases passed. The only five skips
+are the existing generic pinned-version test's explicit source/constraints
+cases; the complete-carrier consumer and late floor tests run on those input
+classes. Their tested code/input bytes remained unchanged throughout the run.
+This focused result does not replace the final narrow bundle, fresh full audit,
+current-head CI/security checks, review or merge governance.
+
+### Late installed-profile results and remaining gates
+
+Five fresh, isolated Linux amd64 profiles completed canonical installation,
+`pip check`, installed-version capture and changed-package offline round trips:
+
+| Profile | Observed dnspython | Observed msgpack | pip check / changed consumer |
+| --- | --- | --- | --- |
+| runtime | 2.9.0 | absent | exit 0 / DNS message wire round trip |
+| runtime-dev | 2.9.0 | 1.2.3 | exit 0 / DNS and MessagePack round trips |
+| CI-lite | 2.9.0 | 1.2.3 | exit 0 / DNS and MessagePack round trips |
+| Docker-runtime | 2.9.0 | absent | exit 0 / DNS message wire round trip |
+| aggregate | 2.9.0 | 1.2.3 | exit 0 / DNS and MessagePack round trips |
+
+Every child first received pip 26.2.2 through canonical `--upgrade-pip-only`;
+its actual version and vendored CA hash matched the qualified parent before
+product consumption. Canonical prefetch produced three complete retained
+wheel pools, preserving existing profile-specific versions. Each consume-only
+installation and functional probe ran in a real isolated network namespace.
+Wheel filenames, sizes, hashes and metadata digests, exact argv, installed
+versions and every command's raw output/exit status are retained. Each profile
+printed the same raw pip-check result:
+
+```text
+No broken requirements found.
+```
+
+The completed profile result SHA-256 is
+`2e5bfc88f9797153f390f6a202cc71abf294641a4f30c8c765e7bf0b2e9c206d`.
+The first install attempt stopped before venv creation when the 10 GiB free-space
+reserve was unavailable. The raw failure remains retained. Resumption used a
+new runtime attempt label after positively owned duplicate/cache cleanup,
+preserving all source archives, wheel pools, SDK and receipts. Each later case
+required space for staging plus target venvs and retained the same reserve.
+After successful observations were saved, only its new disposable environment
+and wheel view were reclaimed, with an idle owned container and no live handles.
+The owned container returned to its original stopped state. No failed attempt
+is counted as an installed-profile pass.
+
+These results establish the bounded local dependency transition and selected
+installation compatibility. They do not replace the original native SDK,
+RAG, PDF or image producer evidence or claim a fresh full application image.
+Unchanged component bytes retain their original proof epochs. The fresh full
+ten-lock audit, final local narrow bundle, exact published-head CI/security,
+focused security/QA review, registered material reseal, strict merge checks and
+review wait remain required. The inherited mapping is intentionally unchanged
+while genuine material is corrected; no prior seal or audit is claimed current
+for the corrected material. Existing October 30 source-review and October 31
+Bandit dates remain unchanged.

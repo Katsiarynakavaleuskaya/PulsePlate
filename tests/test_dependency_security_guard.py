@@ -134,10 +134,12 @@ REMEDIATION_FIXED_FLOORS = {
     "anyio": Version("4.14.2"),
     "black": Version("26.10.1"),
     "certifi": Version("2026.10.19"),
+    "dnspython": Version("2.9.0"),
     "filelock": Version("4.2.1"),
     "setuptools": Version("84.1.0"),
     "httpcore2": Version("2.12.0"),
     "httpx2": Version("2.12.0"),
+    "msgpack": Version("1.2.3"),
     "opentelemetry-api": Version("1.45.1"),
     "pillow": Version("13.0.0"),
     "urllib3": Version("2.8.0"),
@@ -227,6 +229,22 @@ PYTHON_STABILIZATION_F_CUTOFF = {
         "GHSA-qmx5-4p3x-wvqf": "<21.14.9",
         "GHSA-vxj4-q4g9-crj7": "<=21.14.6",
     },
+}
+
+# Separate late October 27 unit; the original seven-identity inventory stays intact.
+LATE_PYTHON_STABILIZATION_F_CUTOFF = {
+    "dnspython": {
+        "GHSA-3rq5-2g8h-59hc": "<2.6.1",
+        "GHSA-45c3-73f7-pv4m": "<2.9.0",
+    },
+    "msgpack": {
+        "GHSA-6v7p-g79w-8964": "<=1.2.0",
+        "GHSA-j586-36cw-2gc2": "<1.2.3",
+    },
+}
+PYTHON_STABILIZATION_GUARDED_ADVISORIES = {
+    **PYTHON_STABILIZATION_F_CUTOFF,
+    **LATE_PYTHON_STABILIZATION_F_CUTOFF,
 }
 
 
@@ -3021,7 +3039,7 @@ def _assert_remediated_dependency_surface(
     """Enforce finite admitted package floors using the existing parser."""
     floor = REMEDIATION_FIXED_FLOORS[package]
     label = "AnyIO" if package == "anyio" else package
-    if package in PYTHON_STABILIZATION_F_CUTOFF and (path.exists() or path.is_symlink()):
+    if package in PYTHON_STABILIZATION_GUARDED_ADVISORIES and (path.exists() or path.is_symlink()):
         assert (
             not path.is_symlink() and path.is_file()
         ), f"{path.name}: {label} carrier must be a regular non-symlink file"
@@ -3043,7 +3061,7 @@ def _assert_remediated_dependency_surface(
         assert (
             len(specifiers) == 1 and specifiers[0].operator == "=="
         ), f"{path.name}: {label} lock requires exactly one == pin"
-    if package in PYTHON_STABILIZATION_F_CUTOFF:
+    if package in PYTHON_STABILIZATION_GUARDED_ADVISORIES:
         assert all(
             spec.operator != "===" for spec in specifiers
         ), f"{path.name}: arbitrary equality cannot establish {package} range evidence"
@@ -3918,7 +3936,7 @@ def test_python_stabilization_current_governed_surfaces_are_safe() -> None:
     locks = {surface.lockfile for surface in compiled_dependency_surfaces()}
     assert PILLOW_REQUIRED_RAG_LOCKS <= locks & discovered, "Pillow required RAG lock is missing"
     schema = _load_schema(SCHEMA_PATH)
-    for package, advisories in PYTHON_STABILIZATION_F_CUTOFF.items():
+    for package, advisories in PYTHON_STABILIZATION_GUARDED_ADVISORIES.items():
         assert set(advisories.values()) <= set(
             schema["blocked_versions"].get(package, ())
         ), f"{package}: schema must retain every October advisory range"
@@ -3941,7 +3959,7 @@ def python_stabilization_repo(idna_consumer_repo: Path) -> Path:
         for line in path.read_text(encoding="utf-8").splitlines():
             requirement = _parse_requirement(line.split("#", 1)[0].strip(), path)
             package = canonicalize_name(requirement.name) if requirement is not None else None
-            if package in PYTHON_STABILIZATION_F_CUTOFF:
+            if package in PYTHON_STABILIZATION_GUARDED_ADVISORIES:
                 operator = "==" if name in locks else ">="
                 line = f"{package}{operator}{REMEDIATION_FIXED_FLOORS[package]}"
             lines.append(line)
@@ -3954,7 +3972,7 @@ def python_stabilization_repo(idna_consumer_repo: Path) -> Path:
     ("package", "advisory", "affected_range"),
     [
         (package, advisory, affected_range)
-        for package, advisories in PYTHON_STABILIZATION_F_CUTOFF.items()
+        for package, advisories in PYTHON_STABILIZATION_GUARDED_ADVISORIES.items()
         for advisory, affected_range in advisories.items()
     ],
 )
@@ -3969,12 +3987,18 @@ def test_python_stabilization_enforces_each_primary_advisory_range(
     affected = {
         "black": "26.5.1",
         "certifi": "2026.1.4",
+        "dnspython": "2.8.0",
         "filelock": "3.24.3",
         "setuptools": "83.0.0",
+        "msgpack": "1.2.1",
         "opentelemetry-api": "1.44.0",
         "pillow": "12.3.0",
         "virtualenv": "21.14.5",
     }[package]
+    if advisory == "GHSA-3rq5-2g8h-59hc":
+        affected = "2.6.0"
+    if advisory == "GHSA-6v7p-g79w-8964":
+        affected = "1.2.0"
     if advisory == "GHSA-4f8h-vr72-p32c":
         affected = "21.14.9"
     assert SpecifierSet(affected_range).contains(affected, prereleases=True), advisory
@@ -3989,7 +4013,7 @@ def test_python_stabilization_enforces_each_primary_advisory_range(
         _assert_remediated_dependency_surface(path, package=package, required=True, pinned=True)
 
 
-@pytest.mark.parametrize("package", tuple(PYTHON_STABILIZATION_F_CUTOFF))
+@pytest.mark.parametrize("package", tuple(PYTHON_STABILIZATION_GUARDED_ADVISORIES))
 @pytest.mark.parametrize(
     "malformation",
     (
@@ -4029,7 +4053,7 @@ def test_python_stabilization_rejects_unsafe_optional_carriers(
         test_python_stabilization_current_governed_surfaces_are_safe()
 
 
-@pytest.mark.parametrize("package", tuple(PYTHON_STABILIZATION_F_CUTOFF))
+@pytest.mark.parametrize("package", tuple(PYTHON_STABILIZATION_GUARDED_ADVISORIES))
 @pytest.mark.parametrize(
     "lockfile", tuple(surface.lockfile for surface in compiled_dependency_surfaces())
 )
@@ -4048,7 +4072,7 @@ def test_python_stabilization_checks_every_registered_lock(
         test_python_stabilization_current_governed_surfaces_are_safe()
 
 
-@pytest.mark.parametrize("package", tuple(PYTHON_STABILIZATION_F_CUTOFF))
+@pytest.mark.parametrize("package", tuple(PYTHON_STABILIZATION_GUARDED_ADVISORIES))
 @pytest.mark.parametrize("kind", ("future-pin", "compatible-floor", "absence"))
 def test_python_stabilization_allows_safe_future_versions_or_absence(
     python_stabilization_repo: Path, package: str, kind: str
@@ -4101,12 +4125,12 @@ def test_python_stabilization_rejects_incomplete_or_nonregular_inventory(
         test_python_stabilization_current_governed_surfaces_are_safe()
 
 
-@pytest.mark.parametrize("package", tuple(PYTHON_STABILIZATION_F_CUTOFF))
+@pytest.mark.parametrize("package", tuple(PYTHON_STABILIZATION_GUARDED_ADVISORIES))
 def test_python_stabilization_rejects_omitted_advisory_range(
     python_stabilization_repo: Path, monkeypatch: pytest.MonkeyPatch, package: str
 ) -> None:
     schema = deepcopy(_load_schema(SCHEMA_PATH))
-    omitted = next(iter(PYTHON_STABILIZATION_F_CUTOFF[package].values()))
+    omitted = next(iter(PYTHON_STABILIZATION_GUARDED_ADVISORIES[package].values()))
     schema["blocked_versions"][package] = [
         value for value in schema["blocked_versions"][package] if value != omitted
     ]
@@ -4243,3 +4267,47 @@ def test_python_stabilization_compound_constraint_keeps_affected_and_exact_pin_r
     lock.write_text(f"black=={floor},>={floor}\n", encoding="utf-8")
     with pytest.raises(AssertionError, match="exactly one == pin"):
         _assert_remediated_dependency_surface(lock, package="black", required=True, pinned=True)
+
+
+@pytest.mark.parametrize("package", tuple(LATE_PYTHON_STABILIZATION_F_CUTOFF))
+@pytest.mark.parametrize(
+    "kind", ("weak", "prerelease", "excluded", "arbitrary", "marker", "extras")
+)
+def test_late_python_stabilization_checks_source_floors(
+    tmp_path: Path, package: str, kind: str
+) -> None:
+    """Optional source/constraint carriers use the same finite floor recognizer as locks."""
+    floor = str(REMEDIATION_FIXED_FLOORS[package])
+    bad = {
+        "weak": (f"{package}>=1.0.0", "matches blocked range"),
+        "prerelease": (f"{package}>={floor}rc1", "below fixed"),
+        "excluded": (f"{package}>={floor},!={floor}", "excludes its comparable floor"),
+        "arbitrary": (f"{package}==={floor}", "arbitrary equality"),
+        "marker": (f'{package}>={floor}; python_version < "0"', "must be unconditional"),
+        "extras": (f"{package}[extra]>={floor}", "must not declare extras"),
+    }
+    path = tmp_path / "constraints.txt"
+    path.write_text(f"{package}>={floor}\n", encoding="utf-8")
+    _assert_remediated_dependency_surface(path, package=package, required=True, pinned=False)
+    value, diagnostic = bad[kind]
+    path.write_text(value + "\n", encoding="utf-8")
+    with pytest.raises(AssertionError, match=diagnostic):
+        _assert_remediated_dependency_surface(path, package=package, required=True, pinned=False)
+
+
+@pytest.mark.parametrize("package", tuple(LATE_PYTHON_STABILIZATION_F_CUTOFF))
+@pytest.mark.parametrize("kind", ("symlink", "directory"))
+def test_late_python_stabilization_rejects_nonregular_carriers(
+    tmp_path: Path, package: str, kind: str
+) -> None:
+    """Both late identities retain the existing regular-file boundary independently."""
+    source = tmp_path / "safe.txt"
+    source.write_text(f"{package}=={REMEDIATION_FIXED_FLOORS[package]}\n", encoding="utf-8")
+    _assert_remediated_dependency_surface(source, package=package, required=True, pinned=True)
+    path = tmp_path / "requirements.txt"
+    if kind == "symlink":
+        path.symlink_to(source)
+    else:
+        path.mkdir()
+    with pytest.raises(AssertionError, match="regular non-symlink"):
+        _assert_remediated_dependency_surface(path, package=package, required=True, pinned=True)

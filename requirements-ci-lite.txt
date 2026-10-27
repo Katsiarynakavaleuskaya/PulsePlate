@@ -90,7 +90,7 @@ distro==1.9.0
     # via
     #   -c requirements.txt
     #   openai
-dnspython==2.8.0
+dnspython==2.9.0
     # via
     #   -c requirements.txt
     #   email-validator
@@ -180,8 +180,10 @@ matplotlib==3.10.8
     #   -r requirements-ci-lite.in
 mdurl==0.1.2
     # via markdown-it-py
-msgpack==1.2.1
-    # via cachecontrol
+msgpack==1.2.3
+    # via
+    #   -r requirements-ci-lite.in
+    #   cachecontrol
 nh3==0.3.2
     # via
     #   -c requirements.txt

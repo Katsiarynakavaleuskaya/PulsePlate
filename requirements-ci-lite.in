@@ -48,6 +48,8 @@ pre-commit~=4.6.1
 virtualenv>=21.14.10
 bandit>=1.9.4
 pip-audit>=2.10.1
+# Security floor: CVE-2026-114613 / GHSA-j586-36cw-2gc2.
+msgpack>=1.2.3,<2.0.0
 diff-cover~=10.3.0
 pytest~=9.1.1
 # Required by the focused Coverage HTML security canary selected by pre-commit.

@@ -107,9 +107,10 @@ distro==1.9.0
     # via
     #   -c requirements.txt
     #   openai
-dnspython==2.8.0
+dnspython==2.9.0
     # via
     #   -c requirements.txt
+    #   -r requirements.in
     #   email-validator
 email-validator==2.3.0
     # via
@@ -220,7 +221,7 @@ mccabe==0.7.0
     # via flake8
 mdurl==0.1.2
     # via markdown-it-py
-msgpack==1.2.1
+msgpack==1.2.3
     # via
     #   -r requirements-dev.in
     #   cachecontrol
