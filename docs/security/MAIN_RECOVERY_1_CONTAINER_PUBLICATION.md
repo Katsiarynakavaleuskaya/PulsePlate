@@ -422,6 +422,81 @@ their separate current-main operational receipts.
 
 ## Native command security dispositions
 
+### Accepted source-preserving seven-line allowlist instance — October 28, 2026
+
+On **2026-10-28**, @katsiaryna_kavaleuskaya directly accepted exactly seven
+dated entries in the existing `tests/guards/fixtures/nosec_policy_allowlist.txt`
+for PR #2497: “Принять эти 7 до 11 ноября, пересмотр до 4-го”. The entries are
+applied locally. This separate prospective acceptance retains the original
+inline dates and introduction references unchanged; it borrows no authority
+from the earlier eight-site, AM05 nine or Caddy D decisions.
+
+The accepted manual review is **2026-11-04** and inclusive hard remove-by is
+**2026-11-11**, with reference **PR-2497**. The decision accepts the stated
+residual risk prospectively from October 28; it does not satisfy any historical
+obligation retroactively or prove a native outcome.
+
+Introduction owner/carrier: PR #2497. The human assigned retirement to the
+existing dependency24 chat («депенденси24») / **PR #2494**, after actual
+PR #2497 merge and integration through `main`. That receiver retains its
+original criteria and ownership; this assignment transfers no build budget,
+automatic renewal or merge/deployment authority. The ledger remains OPEN until
+the actual retirement outcome is completed. Manual review remains the owner
+and security-auditor's separate obligation.
+
+The existing guard loads unexpired path/line entries before checking inline
+annotation metadata. It therefore skips inline validation for exactly the
+listed coordinates, including their old dates; it does not modify Bandit's
+rules or severities, and the existing inline nosec markers remain unchanged.
+The loader rejects this allowlist after November 11 in its executing host
+calendar. The November 4 review is a manual obligation, not a loader-enforced
+stale-review date. Source hashes and rule identities are also not predicates
+of this legacy loader: they remain explicit reviewed-material obligations.
+This is temporary tracked technical debt, not complete risk removal.
+
+| Source coordinate | Rule |
+| --- | --- |
+| `scripts/ci/check_trivy_ignore_policy_native.py:11` | B404 |
+| `scripts/ci/check_trivy_ignore_policy_native.py:63` | B603 |
+| `scripts/ci/prometheus_source_image.py:30` | B404 |
+| `scripts/ci/prometheus_source_image.py:1060` | B603 |
+| `scripts/ci/prometheus_source_image.py:2175` | B603 |
+| `scripts/ci/prometheus_source_image.py:2404` | B603 |
+| `scripts/ci/prometheus_source_image.py:3759` | B603 |
+
+The exact reviewed Prometheus helper is 352899 bytes, SHA-256
+`d812e79fce6138426131f266e4f5fd8de03b72c9a56acea19bedb43a22f172f6`.
+The native Trivy helper is 13788 bytes, SHA-256
+`529a1a110db2d6abde904d078a4fde34edf07b959f5af172a1ee4f10af5cc9bf`.
+Neither helper, its inline annotations, deployment-reader pins, the fixed
+`dab47` control nor the original `a8c9` producer records change. This preserves
+raw-producer equality and D's relevant-input equality; it does not establish
+any native result or confer an additional build allowance.
+
+The existing exact-seven source/caller assessment found no bounded safer
+replacement for required native metadata, ownership census, credential-aware
+gh operations and pinned Trivy conversion. Absolute argv, bounded execution,
+output/redaction and owned cleanup controls remain. Tool/PATH/OS/Docker trust,
+native command semantics, caller/environment discipline and process snapshots
+remain risks. No new scanner run or candidate gate PASS is claimed here.
+
+Both complete source hashes and all seven current line/rule coordinates were
+verified against the reviewed material before this local application. Recheck
+them before publication; this separate verification is not loader enforcement. Source, caller, argv/environment, line or rule drift requires
+reassessment; do not carry these entries onto different code by line number.
+Preserve the original histories. Remove the entries when a safe equivalent
+or a supported source-lineage transition permits reviewed inline conversion,
+on failed controls or changed scope, or by the hard removal date. No automatic
+renewal follows. The existing ledger tracks the owner and removal obligation.
+
+Only the allowlist fixture, this owner and the existing ledger change. No
+parser/guard/comparator, runtime, source pin, registry, image policy, native
+build, provider, deployment or clock change is included. Other expiry sets,
+including the source window, Caddy D and the accepted eight/nine, retain their
+own decisions. Ordinary required local/current-head checks and final closeout
+remain mandatory. A reviewed revert removes the entries and restores inline
+date enforcement, including any then-expired-date HOLD.
+
 ### Current accepted decision — October 28, 2026
 
 On **2026-10-28**, @katsiaryna_kavaleuskaya explicitly accepted the exact eight-site

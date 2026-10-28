@@ -22,14 +22,17 @@ RUN set -eux; \
     go get golang.org/x/crypto@v0.55.0; \
     go get golang.org/x/net@v0.60.0; \
     go get github.com/klauspost/compress@v1.18.7; \
+    go get github.com/go-jose/go-jose/v4@v4.1.6; \
     go mod download all; \
     go mod verify; \
     test -z "$(go list -m -f '{{if .Replace}}{{.Path}} => {{.Replace.Path}}{{end}}' all)"; \
-    go list -m -f '{{if or (eq .Path "github.com/caddyserver/caddy/v2") (eq .Path "github.com/klauspost/compress") (eq .Path "google.golang.org/grpc") (eq .Path "golang.org/x/crypto") (eq .Path "golang.org/x/mod") (eq .Path "golang.org/x/net") (eq .Path "golang.org/x/sync") (eq .Path "golang.org/x/sys") (eq .Path "golang.org/x/telemetry") (eq .Path "golang.org/x/term") (eq .Path "golang.org/x/text") (eq .Path "golang.org/x/tools")}}{{.Path}} {{.Version}}{{end}}' all \
+    go list -m -f '{{if or (eq .Path "github.com/caddyserver/caddy/v2") (eq .Path "github.com/go-jose/go-jose/v3") (eq .Path "github.com/go-jose/go-jose/v4") (eq .Path "github.com/klauspost/compress") (eq .Path "google.golang.org/grpc") (eq .Path "golang.org/x/crypto") (eq .Path "golang.org/x/mod") (eq .Path "golang.org/x/net") (eq .Path "golang.org/x/sync") (eq .Path "golang.org/x/sys") (eq .Path "golang.org/x/telemetry") (eq .Path "golang.org/x/term") (eq .Path "golang.org/x/text") (eq .Path "golang.org/x/tools")}}{{.Path}} {{.Version}}{{end}}' all \
       | awk 'NF' \
       | LC_ALL=C sort > /tmp/caddy-governed-graph; \
     printf '%s\n' \
       'github.com/caddyserver/caddy/v2 v2.11.4' \
+      'github.com/go-jose/go-jose/v3 v3.0.5' \
+      'github.com/go-jose/go-jose/v4 v4.1.6' \
       'github.com/klauspost/compress v1.18.7' \
       'golang.org/x/crypto v0.57.0' \
       'golang.org/x/mod v0.41.0' \
@@ -42,7 +45,7 @@ RUN set -eux; \
       'golang.org/x/tools v0.49.0' \
       'google.golang.org/grpc v1.83.2' \
       | LC_ALL=C sort > /tmp/caddy-expected-graph; \
-    test "$(wc -l < /tmp/caddy-governed-graph | tr -d '[:space:]')" = '12'; \
+    test "$(wc -l < /tmp/caddy-governed-graph | tr -d '[:space:]')" = '14'; \
     cmp /tmp/caddy-expected-graph /tmp/caddy-governed-graph; \
     go build -mod=readonly -trimpath \
       -ldflags '-X github.com/caddyserver/caddy/v2.CustomVersion=v2.11.4' \
@@ -52,10 +55,12 @@ RUN set -eux; \
     go version -m /go/bin/caddy > /tmp/caddy-binary-metadata; \
     cat /tmp/caddy-binary-metadata; \
     test "$(awk '$1 == "=>" { count++ } END { print count + 0 }' /tmp/caddy-binary-metadata)" = '0'; \
-    awk '$1 == "mod" && $2 == "github.com/caddyserver/caddy/v2" { print $1, $2, $3 } $1 == "dep" && ($2 == "github.com/klauspost/compress" || $2 == "google.golang.org/grpc" || $2 == "golang.org/x/crypto" || $2 == "golang.org/x/net" || $2 == "golang.org/x/sync" || $2 == "golang.org/x/sys" || $2 == "golang.org/x/term" || $2 == "golang.org/x/text") { print $1, $2, $3 }' /tmp/caddy-binary-metadata \
+    awk '$1 == "mod" && $2 == "github.com/caddyserver/caddy/v2" { print $1, $2, $3 } $1 == "dep" && ($2 == "github.com/go-jose/go-jose/v3" || $2 == "github.com/go-jose/go-jose/v4" || $2 == "github.com/klauspost/compress" || $2 == "google.golang.org/grpc" || $2 == "golang.org/x/crypto" || $2 == "golang.org/x/net" || $2 == "golang.org/x/sync" || $2 == "golang.org/x/sys" || $2 == "golang.org/x/term" || $2 == "golang.org/x/text") { print $1, $2, $3 }' /tmp/caddy-binary-metadata \
       | LC_ALL=C sort > /tmp/caddy-governed-binary; \
     printf '%s\n' \
       'mod github.com/caddyserver/caddy/v2 v2.11.4' \
+      'dep github.com/go-jose/go-jose/v3 v3.0.5' \
+      'dep github.com/go-jose/go-jose/v4 v4.1.6' \
       'dep github.com/klauspost/compress v1.18.7' \
       'dep golang.org/x/crypto v0.57.0' \
       'dep golang.org/x/net v0.60.0' \
@@ -65,7 +70,7 @@ RUN set -eux; \
       'dep golang.org/x/text v0.42.0' \
       'dep google.golang.org/grpc v1.83.2' \
       | LC_ALL=C sort > /tmp/caddy-expected-binary; \
-    test "$(wc -l < /tmp/caddy-governed-binary | tr -d '[:space:]')" = '9'; \
+    test "$(wc -l < /tmp/caddy-governed-binary | tr -d '[:space:]')" = '11'; \
     cmp /tmp/caddy-expected-binary /tmp/caddy-governed-binary; \
     rm -f \
       /tmp/caddy-binary-metadata \

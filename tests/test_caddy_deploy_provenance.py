@@ -117,6 +117,7 @@ EXPECTED_CADDY_BUILDER_STAGE = (
             "    go get golang.org/x/crypto@v0.55.0; \\",
             "    go get golang.org/x/net@v0.60.0; \\",
             "    go get github.com/klauspost/compress@v1.18.7; \\",
+            "    go get github.com/go-jose/go-jose/v4@v4.1.6; \\",
             "    go mod download all; \\",
             "    go mod verify; \\",
             (
@@ -126,6 +127,8 @@ EXPECTED_CADDY_BUILDER_STAGE = (
             (
                 "    go list -m -f '{{if or "
                 '(eq .Path "github.com/caddyserver/caddy/v2") '
+                '(eq .Path "github.com/go-jose/go-jose/v3") '
+                '(eq .Path "github.com/go-jose/go-jose/v4") '
                 '(eq .Path "github.com/klauspost/compress") '
                 '(eq .Path "google.golang.org/grpc") '
                 '(eq .Path "golang.org/x/crypto") '
@@ -143,6 +146,8 @@ EXPECTED_CADDY_BUILDER_STAGE = (
             "      | LC_ALL=C sort > /tmp/caddy-governed-graph; \\",
             "    printf '%s\\n' \\",
             "      'github.com/caddyserver/caddy/v2 v2.11.4' \\",
+            "      'github.com/go-jose/go-jose/v3 v3.0.5' \\",
+            "      'github.com/go-jose/go-jose/v4 v4.1.6' \\",
             "      'github.com/klauspost/compress v1.18.7' \\",
             "      'golang.org/x/crypto v0.57.0' \\",
             "      'golang.org/x/mod v0.41.0' \\",
@@ -155,7 +160,7 @@ EXPECTED_CADDY_BUILDER_STAGE = (
             "      'golang.org/x/tools v0.49.0' \\",
             "      'google.golang.org/grpc v1.83.2' \\",
             "      | LC_ALL=C sort > /tmp/caddy-expected-graph; \\",
-            ('    test "$(wc -l < /tmp/caddy-governed-graph | ' "tr -d '[:space:]')\" = '12'; \\"),
+            ('    test "$(wc -l < /tmp/caddy-governed-graph | ' "tr -d '[:space:]')\" = '14'; \\"),
             "    cmp /tmp/caddy-expected-graph /tmp/caddy-governed-graph; \\",
             "    go build -mod=readonly -trimpath \\",
             ("      -ldflags '-X github.com/caddyserver/caddy/v2.CustomVersion=v2.11.4' " "\\"),
@@ -171,7 +176,7 @@ EXPECTED_CADDY_BUILDER_STAGE = (
             (
                 '    awk \'$1 == "mod" && $2 == "github.com/caddyserver/caddy/v2" '
                 '{ print $1, $2, $3 } $1 == "dep" && '
-                '($2 == "github.com/klauspost/compress" || $2 == "google.golang.org/grpc" || $2 == "golang.org/x/crypto" || '
+                '($2 == "github.com/go-jose/go-jose/v3" || $2 == "github.com/go-jose/go-jose/v4" || $2 == "github.com/klauspost/compress" || $2 == "google.golang.org/grpc" || $2 == "golang.org/x/crypto" || '
                 '$2 == "golang.org/x/net" || $2 == "golang.org/x/sync" || '
                 '$2 == "golang.org/x/sys" || $2 == "golang.org/x/term" || '
                 '$2 == "golang.org/x/text") { print $1, $2, $3 }\' '
@@ -180,6 +185,8 @@ EXPECTED_CADDY_BUILDER_STAGE = (
             "      | LC_ALL=C sort > /tmp/caddy-governed-binary; \\",
             "    printf '%s\\n' \\",
             "      'mod github.com/caddyserver/caddy/v2 v2.11.4' \\",
+            "      'dep github.com/go-jose/go-jose/v3 v3.0.5' \\",
+            "      'dep github.com/go-jose/go-jose/v4 v4.1.6' \\",
             "      'dep github.com/klauspost/compress v1.18.7' \\",
             "      'dep golang.org/x/crypto v0.57.0' \\",
             "      'dep golang.org/x/net v0.60.0' \\",
@@ -189,7 +196,7 @@ EXPECTED_CADDY_BUILDER_STAGE = (
             "      'dep golang.org/x/text v0.42.0' \\",
             "      'dep google.golang.org/grpc v1.83.2' \\",
             "      | LC_ALL=C sort > /tmp/caddy-expected-binary; \\",
-            ('    test "$(wc -l < /tmp/caddy-governed-binary | ' "tr -d '[:space:]')\" = '9'; \\"),
+            ('    test "$(wc -l < /tmp/caddy-governed-binary | ' "tr -d '[:space:]')\" = '11'; \\"),
             "    cmp /tmp/caddy-expected-binary /tmp/caddy-governed-binary; \\",
             "    rm -f \\",
             "      /tmp/caddy-binary-metadata \\",
@@ -1105,7 +1112,7 @@ def test_frontend_caddy_contract_is_non_publishing_and_unprivileged() -> None:
         "${{ !cancelled() && (needs.changes.outputs.caddy == 'true' "
         "|| github.event_name == 'workflow_dispatch') }}"
     )
-    assert job["permissions"] == {"contents": "read"}
+    assert job["permissions"] == {"contents": "read", "actions": "read"}
     assert "environment" not in job
     steps = _steps(job)
     text = str(steps)
@@ -2347,7 +2354,7 @@ def test_checkpoint_pr_native_contract_rejects_lost_admission(fault: str) -> Non
 def test_caddy_full_observation_preserves_blocking_scan_and_exact_conditions() -> None:
     job = _job(_workflow(FRONTEND_WORKFLOW), "caddy-contract")
     steps = _steps(job)
-    build = _named_step(steps, "Build hardened Caddy shell image")
+    build = _named_step(steps, "Build accepted D Caddy candidate once")
     original = _named_step(steps, "Scan hardened Caddy shell image")
     assert build["id"] == "caddy-build"
     assert original["id"] == "caddy-security"
@@ -2357,12 +2364,12 @@ def test_caddy_full_observation_preserves_blocking_scan_and_exact_conditions() -
         "image-ref": "pulseplate-caddy:contract",
         "format": "table",
         "vuln-type": "os,library",
-        "severity": "CRITICAL,HIGH",
-        "exit-code": "1",
+        "severity": "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL",
+        "exit-code": "0",
         "cache-dir": "/tmp/trivy-cache-caddy-contract",
     }
     assert "continue-on-error" not in original
-    assert job["permissions"] == {"contents": "read"}
+    assert job["permissions"] == {"contents": "read", "actions": "read"}
     assert job["env"] == {
         "CADDY_FULL_SCAN_TIMEOUT_SECONDS": "300",
         "CADDY_METADATA_TIMEOUT_SECONDS": "900",
@@ -2370,11 +2377,11 @@ def test_caddy_full_observation_preserves_blocking_scan_and_exact_conditions() -
     }
     assert (
         _step_index(steps, "Capture next loaded Caddy image identity")
-        == _step_index(steps, "Build hardened Caddy shell image") + 1
+        == _step_index(steps, "Build accepted D Caddy candidate once") + 1
     )
     expected = {
         "Prepare same-epoch full Caddy observation": (
-            "${{ !cancelled() && steps.caddy-build.outcome == 'success' && "
+            "${{ !cancelled() && (steps.caddy-build.outcome == 'success' || steps.caddy-import.outcome == 'success') && "
             "steps.caddy-image.outcome == 'success' && "
             "(steps.caddy-security.outcome == 'success' || steps.caddy-security.outcome == 'failure') }}"
         ),
@@ -2948,14 +2955,13 @@ def test_caddy_counterfactual_metadata_owns_no_compiler_or_final_recipe_mutation
     assert event["workflow_dispatch"]["inputs"]["caddy_action"]["options"] == [
         "contract",
         "xnet060-metadata",
+        "candidate-D",
     ]
     steps = _steps(_job(workflow, "caddy-contract"))
-    metadata = _named_step(
-        steps, "Qualify Caddy compiler and two counterfactual compress derivations"
-    )
+    metadata = _named_step(steps, "Qualify Caddy compiler and two counterfactual v4 derivations")
     assert (
         metadata["if"]
-        == "${{ github.event_name == 'workflow_dispatch' && inputs.caddy_action == 'xnet060-metadata' }}"
+        == "${{ steps.caddy-admission.outputs.mode == 'metadata' || steps.caddy-admission.outputs.mode == 'build' }}"
     )
     source = metadata["run"]
     assert re.search(r"\bgo\s+build\b", source) is None
@@ -2963,37 +2969,25 @@ def test_caddy_counterfactual_metadata_owns_no_compiler_or_final_recipe_mutation
     assert '"go_build_invocations": 0' in source
     assert 'root_module="pulseplate.local/caddy-build"' in source
     assert "tree_inventory(left) == tree_inventory(right)" in source
-    assert "go get golang.org/x/net@v0.60.0" in source
-    assert "go mod download all" in source and "go mod verify" in source
     assert "baseline-packages.json" in source and "final-packages.json" in source
     assert "post-get-go.mod" in source and "module-derivation.patch" in source
-    assert "C_R_candidate" in source and "pending independent source/security review" in source
-    assert "Counterfactual recipe baselines" in source
-    assert "zlib-1.3.2-r1" in source and "apk verify /output/zlib-1.3.2-r1.apk" in source
-    vendor = source.split("vendor_script = '''", 1)[1].split("'''", 1)[0]
-    assert "apk verify --help" not in vendor
-    commands = [line.strip() for line in vendor.splitlines() if line.strip()]
-    assert commands == [
-        "set -eu",
-        "/sbin/apk --version > /output/apk-version.txt",
-        "cp /etc/apk/repositories /output/compiler-repositories.txt",
-        "mkdir /output/keys",
-        "cp /etc/apk/keys/* /output/keys/",
-        "wget -q -O /output/APKINDEX.tar.gz https://dl-cdn.alpinelinux.org/alpine/v3.23/main/x86_64/APKINDEX.tar.gz",
-        "/sbin/apk verify /output/APKINDEX.tar.gz > /output/index-signature.txt",
-        "/sbin/apk fetch --no-cache --repository https://dl-cdn.alpinelinux.org/alpine/v3.23/main --match package --output /output zlib-1.3.2-r1",
-        "/sbin/apk verify /output/zlib-1.3.2-r1.apk > /output/package-signature.txt",
-        "/sbin/apk fetch --no-cache --repository https://dl-cdn.alpinelinux.org/alpine/v3.23/main --match package --output /output brotli-libs-1.2.1-r0",
-        "/sbin/apk verify /output/brotli-libs-1.2.1-r0.apk > /output/brotli-signature.txt",
-    ]
-    assert 'require(gets == baseline_gets + [b"github.com/klauspost/compress@v1.18.7"]' in source
-    assert '"counterfactual_seed_gets"' in source and '"selected_recipe_gets"' in source
-    # The compatibility mode now observes the current four-get seed plus compress.
-    recipe = DOCKERFILE.read_text()
-    assert recipe.count("go get golang.org/x/net@v0.60.0") == 1
-    assert recipe.count("go get github.com/klauspost/compress@v1.18.7") == 1
-    assert "CVE-2026-111497" in source
-    assert "Go 1.26.10" in recipe
+    assert 'require([row["path"] for row in delta] == [target]' in source
+    assert '"caddy_exact_authored_v4_transition"' in source
+    assert '"v4.1.4"' in source and '"v4.1.6"' in source
+    assert "vendor_script" not in source and "secdb_url" not in source
+    assert source.index("go get github.com/klauspost/compress@v1.18.7") < source.index(
+        "cp go.mod /output/baseline-go.mod"
+    )
+    assert source.index("cp go.sum /output/baseline-go.sum") < source.index(
+        "go get github.com/go-jose/go-jose/v4@v4.1.6"
+    )
+    build = _named_step(steps, "Build accepted D Caddy candidate once")
+    assert (
+        build["if"]
+        == "${{ steps.caddy-admission.outputs.mode == 'build' && steps.caddy-metadata.outcome == 'success' && steps.caddy-build-window.outcome == 'success' }}"
+    )
+    assert steps.index(metadata) < steps.index(build)
+    assert build["with"]["platforms"] == "linux/amd64"
 
 
 def test_caddy_full_observation_keeps_native_diagnostics_without_inventing_secrets() -> None:
@@ -4027,3 +4021,628 @@ def test_alertmanager_actual_caller_steps_fit_distinct_enclosing_budgets_and_ret
     ):
         assert suffix in retain
     assert "/candidate.zip" not in retain and "/private/" not in retain
+
+
+def test_caddy_D_retains_one_original_producer_and_never_rebuilds_consumers() -> None:
+    job = _job(_workflow(FRONTEND_WORKFLOW), "caddy-contract")
+    assert job["concurrency"] == {
+        "group": "caddy-D-single-candidate-2497",
+        "cancel-in-progress": False,
+    }
+    steps = _steps(job)
+    admission = _named_step(steps, "Admit existing Caddy producer or exact retained subject")
+    source = admission["run"]
+    for required in (
+        'pr["number"] != 2497',
+        'pr["merge_commit_sha"] != selected',
+        '"/jobs?filter=all"',
+        'step["name"] == "Build accepted D Caddy candidate once"',
+        'step.get("started_at")',
+        'step["conclusion"] != "skipped"',
+        "len(spent) > 1",
+        'job["conclusion"] != "success"',
+        'artifacts[0]["expired"]',
+        '"Caddy original producer artifact unavailable"',
+        'state["current_run_attempt"] != 1',
+        'action != "candidate-D"',
+        '"Caddy retained candidate absent; explicit first producer required, no automatic build"',
+        '"Caddy API inventory incomplete or changed"',
+        '"Caddy API pagination bound"',
+        "caddy_ci_source_inventory(root, tracked + fixed)",
+    ):
+        assert required in source
+    imported = _named_step(steps, "Import and bind exact retained Caddy candidate")
+    assert imported["if"] == "${{ steps.caddy-admission.outputs.mode == 'reuse' }}"
+    for required in (
+        'original["inputs"]',
+        'state["inputs"]',
+        'original["archive_sha256"]',
+        'original["image_config_id"]',
+        'original["binary_sha256"]',
+        '"load", "--input"',
+    ):
+        assert required in imported["run"]
+    assert "build" not in imported["run"]
+    retained = _named_step(steps, "Retain original Caddy candidate or current import binding")
+    for required in (
+        '"save", "--output"',
+        '"candidate.docker.tar"',
+        '"producer_run_id"',
+        '"producer_run_attempt"',
+        '"producer_head"',
+        '"archive_sha256"',
+        '"metadata_qualification_sha256"',
+        '"original-producer.json"',
+    ):
+        assert required in retained["run"]
+    assert (
+        'expected_modules = {name: (modules[name]["Version"], modules[name]["Sum"])'
+        in retained["run"]
+    )
+    assert "for name in command_modules}" in retained["run"]
+    assert "!= expected_modules" in retained["run"]
+    assert (
+        "Caddy actual binary differs from complete qualified command module/sum projection"
+        in retained["run"]
+    )
+    decision = _named_step(steps, "Decide exact Caddy D inventory and loaded isolated runtime")
+    for required in (
+        "validate_caddy_ci_report(",
+        "observe_caddy_ci_runtime(",
+        "validate_caddy_policy_projection(",
+        "validate_caddy_ci_window(",
+        '"strict-control"',
+        '"D-policy"',
+        "result.returncode != 0",
+    ):
+        assert required in decision["run"]
+    assert steps.index(imported) < steps.index(
+        _named_step(steps, "Capture next loaded Caddy image identity")
+    )
+    assert steps.index(retained) < steps.index(decision)
+    assert _named_step(steps, "Upload Caddy contract evidence")["with"]["retention-days"] == 30
+    cd = CD_WORKFLOW.read_text()
+    assert ".trivyignore-caddy" in cd
+    assert "ignore-policy-caddy-go-jose-v3" not in cd
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "first-producer",
+        "ordinary-without-image",
+        "metadata-only",
+        "reuse",
+        "merge-main",
+        "expired-artifact",
+        "failed-producer",
+        "cancelled-producer",
+        "second-producer",
+        "two-producers",
+        "rerun-producer",
+        "wrong-repository",
+        "wrong-PR",
+        "foreign-head",
+        "unrelated-main",
+        "missing-artifact",
+        "incomplete-API",
+        "artifact-head",
+        "artifact-digest",
+        "wrong-producer-branch",
+        "wrong-producer-PR",
+        "producer-workflow-drift",
+        "producer-helper-drift",
+        "producer-frontend-drift",
+        "expiry-helper-drift",
+        "original-missing-file",
+        "original-link-mode",
+        "wrong-job-run",
+        "wrong-job-head",
+        "wrong-job-name",
+        "wrong-artifact-run",
+        "wrong-artifact-repository",
+        "duplicate-run",
+        "duplicate-job",
+        "duplicate-artifact",
+        "boolean-run-id",
+        "zero-job-id",
+        "boolean-artifact-id",
+        "boolean-total",
+        "repeated-full-page",
+        "same-count-page-replacement",
+        "before-acceptance",
+        "stale-review",
+        "hard-expiry",
+    ],
+)
+def test_caddy_D_executes_actual_admission_without_native_or_network_calls(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: str
+) -> None:
+    from datetime import date
+    from io import BytesIO
+    from types import SimpleNamespace
+    import urllib.request
+    from scripts.ci import prometheus_source_image as source_owner
+
+    steps = _steps(_job(_workflow(FRONTEND_WORKFLOW), "caddy-contract"))
+    code = _named_step(steps, "Admit existing Caddy producer or exact retained subject")["run"]
+    code = code.split("python3 - <<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
+    assert code.count("datetime.now(timezone.utc).date()") == 1
+    code = code.replace("datetime.now(timezone.utc).date()", "__test_today")
+    today = {
+        "before-acceptance": date(2026, 10, 27),
+        "stale-review": date(2026, 10, 31),
+        "hard-expiry": date(2026, 11, 5),
+    }.get(case, date(2026, 10, 28))
+    head, producer_head = "a" * 40, "b" * 40
+    final = "c" * 40 if case == "merge-main" else head
+    repo = "Katsiarynakavaleuskaya/PulsePlate"
+    branch = "codex/python-setup-security-stabilization"
+    producer = {
+        "id": True if case == "boolean-run-id" else 11,
+        "repository": {"full_name": repo, "id": 1043311030},
+        "workflow_id": 99,
+        "head_repository": {"id": 1043311030},
+        "path": ".github/workflows/frontend-ci.yml",
+        "event": "workflow_dispatch",
+        "run_attempt": 1,
+        "head_sha": producer_head,
+        "head_branch": "foreign" if case == "wrong-producer-branch" else branch,
+    }
+    prior = case not in {
+        "first-producer",
+        "ordinary-without-image",
+        "metadata-only",
+        "rerun-producer",
+    }
+    event_name = (
+        "workflow_dispatch"
+        if case in {"first-producer", "metadata-only", "second-producer", "rerun-producer"}
+        else "pull_request"
+    )
+    if case in {"merge-main", "unrelated-main"}:
+        event_name = "push"
+    action = "candidate-D" if event_name == "workflow_dispatch" else "contract"
+    if case == "metadata-only":
+        action = "xnet060-metadata"
+    pr = {
+        "number": 2497,
+        "commits": 2,
+        "state": "open",
+        "merged": case == "merge-main",
+        "merge_commit_sha": head if case == "merge-main" else None,
+        "head": {"sha": final, "ref": branch, "repo": {"full_name": repo, "id": 1043311030}},
+        "base": {"ref": "main", "repo": {"id": 1043311030}},
+    }
+    if case == "wrong-PR":
+        pr["number"] = 2494
+    if case == "foreign-head":
+        pr["head"]["repo"]["full_name"] = "other/repo"
+    event = tmp_path / "event.json"
+    event.write_text(json.dumps({"pull_request": pr}))
+    runner = tmp_path / "runner"
+    runner.mkdir()
+    output = tmp_path / "output"
+    output.write_text("")
+    for key in tuple(os.environ):
+        if any(
+            word in key.upper() for word in ("TOKEN", "PASSWORD", "SECRET", "CREDENTIAL", "AUTH")
+        ):
+            monkeypatch.delenv(key, raising=False)
+    values = {
+        "GITHUB_REPOSITORY": repo if case != "wrong-repository" else "other/repo",
+        "GITHUB_REPOSITORY_ID": "1043311030",
+        "GITHUB_EVENT_PATH": str(event),
+        "GITHUB_EVENT_NAME": event_name,
+        "GITHUB_REF": "refs/heads/main" if event_name == "push" else "refs/heads/" + branch,
+        "GITHUB_SHA": head,
+        "CADDY_ACTION": action,
+        "CADDY_SOURCE_HEAD": head,
+        "GITHUB_RUN_ID": "12",
+        "GITHUB_RUN_ATTEMPT": "2" if case == "rerun-producer" else "1",
+        "RUNNER_TEMP": str(runner),
+        "GITHUB_OUTPUT": str(output),
+        "GH_TOKEN": "synthetic-token",
+    }
+    for key, value in values.items():
+        monkeypatch.setenv(key, value)
+    tracked = [
+        "frontend/Dockerfile.caddy-spa",
+        "frontend/package-lock.json",
+        "frontend/.dockerignore",
+    ]
+    fixed = [
+        ".github/workflows/frontend-ci.yml",
+        "deploy/Caddyfile",
+        "deploy/Caddyfile.production",
+        "scripts/ci/check_docker_runtime_dependency_surface.py",
+        "scripts/ci/prometheus_source_image.py",
+        "scripts/ci/check_trivy_ignore_policy_expiry.py",
+        "trivy/ignore-policy-caddy-go-jose-v3.rego",
+        "trivy/ignore-policy.rego",
+    ]
+    policy_raw = (REPO_ROOT / "trivy/ignore-policy-caddy-go-jose-v3.rego").read_bytes()
+    for name in tracked + fixed:
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(policy_raw if name.endswith("caddy-go-jose-v3.rego") else b"synthetic\n")
+    changed_path = {
+        "producer-workflow-drift": ".github/workflows/frontend-ci.yml",
+        "producer-helper-drift": "scripts/ci/check_docker_runtime_dependency_surface.py",
+        "producer-frontend-drift": "frontend/package-lock.json",
+        "expiry-helper-drift": "scripts/ci/check_trivy_ignore_policy_expiry.py",
+    }.get(case)
+    blobs, object_ids = {}, {}
+    for name in tracked + fixed:
+        raw = (
+            b"forged original source\n" if name == changed_path else (tmp_path / name).read_bytes()
+        )
+        oid = hashlib.sha1(
+            b"blob " + str(len(raw)).encode() + b"\0" + raw, usedforsecurity=False
+        ).hexdigest()
+        object_ids[name] = oid
+        blobs[oid] = raw
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(shutil, "which", lambda name: "/usr/bin/" + name)
+
+    def git(argv: list[str], **kwargs: Any) -> str | bytes:
+        args = argv[1:]
+        if args[0] == "--no-replace-objects":
+            args = args[1:]
+        if args[:2] == ["rev-parse", "HEAD"]:
+            return head + "\n"
+        if args[0] == "ls-files":
+            return ("\0".join(tracked) + "\0").encode()
+        if args[0] == "status":
+            return b""
+        if args[:2] == ["ls-tree", "-r"]:
+            names = tracked + fixed
+            if case == "original-missing-file":
+                names = names[:-1]
+            return ("\0".join(names) + "\0").encode()
+        if args[0] == "ls-tree":
+            mode = "120000" if case == "original-link-mode" else "100644"
+            return (mode + " blob " + object_ids[args[-1]] + "\n").encode()
+        if args[:2] == ["cat-file", "blob"]:
+            return blobs[args[2]]
+        raise AssertionError(argv)
+
+    def fetch(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[bytes]:
+        assert argv[1:4] == ["--no-replace-objects", "fetch", "--no-tags"]
+        assert kwargs["env"]["GIT_NO_REPLACE_OBJECTS"] == "1"
+        assert not any("TOKEN" in key for key in kwargs["env"])
+        return subprocess.CompletedProcess(argv, 0, stdout=b"", stderr=b"")
+
+    monkeypatch.setattr(subprocess, "check_output", git)
+    monkeypatch.setattr(subprocess, "run", fetch)
+    calls: dict[str, int] = {}
+
+    class Response(BytesIO):
+        def __init__(self, payload: Any, url: str) -> None:
+            super().__init__(json.dumps(payload).encode())
+            self.url = url
+
+        def geturl(self) -> str:
+            return self.url
+
+    def api(request: urllib.request.Request, **kwargs: Any) -> Response:
+        url = request.full_url
+        calls[url] = calls.get(url, 0) + 1
+        assert url.startswith("https://api.github.com/repos/" + repo + "/")
+        assert request.get_header("Authorization") == "Bearer synthetic-token"
+        if "/pulls/2497/commits?" in url:
+            first = "d" * 40 if case == "wrong-producer-PR" else producer_head
+            payload = [{"sha": first, "parents": []}, {"sha": final, "parents": [{"sha": first}]}]
+        elif url.endswith("/pulls/2497"):
+            payload = pr
+        elif url.endswith("/actions/workflows/frontend-ci.yml"):
+            payload = {"id": 99}
+        elif "/runs?" in url:
+            rows = [producer] if prior else []
+            if case == "two-producers":
+                rows.append({**producer, "id": 10})
+            if case == "duplicate-run":
+                rows.append(dict(producer))
+            if case == "same-count-page-replacement" and calls[url] > 1:
+                rows = [{**producer, "id": 10}]
+            total = len(rows) + int(case == "incomplete-API")
+            if case == "repeated-full-page":
+                rows = [{**producer, "id": i + 100} for i in range(100)]
+                total = 200
+            if case == "boolean-total":
+                total = True
+            payload = {"total_count": total, "workflow_runs": rows}
+        elif "/jobs?" in url:
+            run_id = int(url.split("/runs/", 1)[1].split("/", 1)[0])
+            conclusion = (
+                "failure"
+                if case == "failed-producer"
+                else "cancelled" if case == "cancelled-producer" else "success"
+            )
+            row = {
+                "id": 0 if case == "zero-job-id" else run_id * 100,
+                "run_id": 999 if case == "wrong-job-run" else run_id,
+                "run_attempt": 1,
+                "head_sha": head if case == "wrong-job-head" else producer_head,
+                "name": "other-job" if case == "wrong-job-name" else "caddy-contract",
+                "conclusion": conclusion,
+                "steps": [
+                    {
+                        "number": 5,
+                        "name": "Build accepted D Caddy candidate once",
+                        "started_at": "2026-10-28T12:00:00Z",
+                        "conclusion": conclusion,
+                    }
+                ],
+            }
+            rows = [row, dict(row)] if case == "duplicate-job" else [row]
+            payload = {"total_count": len(rows), "jobs": rows}
+        elif "/artifacts?" in url:
+            row = {
+                "id": True if case == "boolean-artifact-id" else 77,
+                "name": "caddy-contract-evidence",
+                "expired": case == "expired-artifact",
+                "workflow_run": {
+                    "id": 999 if case == "wrong-artifact-run" else 11,
+                    "head_sha": head if case == "artifact-head" else producer_head,
+                    "repository_id": 999 if case == "wrong-artifact-repository" else 1043311030,
+                    "head_repository_id": 1043311030,
+                    "head_branch": branch,
+                },
+                "digest": "wrong" if case == "artifact-digest" else "sha256:" + "c" * 64,
+            }
+            rows = (
+                []
+                if case == "missing-artifact"
+                else [row, dict(row)] if case == "duplicate-artifact" else [row]
+            )
+            payload = {"total_count": len(rows), "artifacts": rows}
+        else:
+            raise AssertionError(url)
+        return Response(payload, url)
+
+    monkeypatch.setattr(source_owner, "opener", lambda: SimpleNamespace(open=api))
+    modes = {
+        "first-producer": "build",
+        "reuse": "reuse",
+        "merge-main": "reuse",
+        "metadata-only": "metadata",
+    }
+    if case in modes:
+        exec(compile(code, "actual-Caddy-admission", "exec"), {"__test_today": today})
+        assert "mode=" + modes[case] + "\n" in output.read_text()
+        if modes[case] == "reuse":
+            state = json.loads((runner / "caddy-admission/admission.json").read_bytes())
+            assert state["producer"]["git_inputs"] == state["inputs"]
+    else:
+        with pytest.raises((ValueError, source_owner.QualificationError)):
+            exec(compile(code, "actual-Caddy-admission", "exec"), {"__test_today": today})
+        assert output.read_text() == ""
+
+
+@pytest.mark.parametrize("redirect", [False, True])
+def test_caddy_authenticated_API_transport_never_forwards_redirect_credentials(
+    monkeypatch: pytest.MonkeyPatch, redirect: bool
+) -> None:
+    import ast
+    from email.message import Message
+    from io import BytesIO
+    import urllib.error
+    import urllib.request
+    import urllib.response
+    from scripts.ci.prometheus_source_image import opener
+
+    for key in tuple(os.environ):
+        if any(
+            word in key.upper() for word in ("TOKEN", "PASSWORD", "SECRET", "CREDENTIAL", "AUTH")
+        ):
+            monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv("GH_TOKEN", "synthetic-only-token")
+    source = _named_step(
+        _steps(_job(_workflow(FRONTEND_WORKFLOW), "caddy-contract")),
+        "Admit existing Caddy producer or exact retained subject",
+    )["run"]
+    assert "transport = opener()" in source and "with transport.open(request" in source
+    code = source.split("python3 - <<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
+    tree = ast.parse(code)
+    function = next(
+        node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "api"
+    )
+    calls = []
+
+    def response(_handler: object, request: urllib.request.Request) -> Any:
+        calls.append(request.full_url)
+        assert request.get_header("Authorization") == "Bearer synthetic-only-token"
+        headers = Message()
+        if redirect:
+            headers["Location"] = "https://foreign.invalid/credential-target"
+        value = urllib.response.addinfourl(
+            BytesIO(b'{"ok":true}'), headers, request.full_url, 302 if redirect else 200
+        )
+        value.msg = "Found" if redirect else "OK"
+        return value
+
+    monkeypatch.setattr(urllib.request.HTTPSHandler, "https_open", response)
+    namespace = {
+        "repo": "Katsiarynakavaleuskaya/PulsePlate",
+        "transport": opener(),
+        "urllib": urllib,
+        "os": os,
+        "json": json,
+    }
+    exec(
+        compile(ast.Module(body=[function], type_ignores=[]), "actual-api-function", "exec"),
+        namespace,
+    )
+    if redirect:
+        with pytest.raises(urllib.error.HTTPError):
+            namespace["api"]("/pulls/2497")
+    else:
+        assert namespace["api"]("/pulls/2497") == {"ok": True}
+    assert calls == ["https://api.github.com/repos/Katsiarynakavaleuskaya/PulsePlate/pulls/2497"]
+
+
+@pytest.mark.parametrize(
+    "day", ["2026-10-27", "2026-10-28", "2026-10-30", "2026-10-31", "2026-11-05"]
+)
+def test_caddy_dates_are_rechecked_after_metadata_before_any_build(
+    monkeypatch: pytest.MonkeyPatch, day: str
+) -> None:
+    from datetime import date
+
+    steps = _steps(_job(_workflow(FRONTEND_WORKFLOW), "caddy-contract"))
+    window = _named_step(steps, "Recheck accepted Caddy dates immediately before build")
+    build = _named_step(steps, "Build accepted D Caddy candidate once")
+    assert steps.index(window) + 1 == steps.index(build)
+    assert "steps.caddy-build-window.outcome == 'success'" in build["if"]
+    assert "steps.caddy-metadata.outcome == 'success'" in window["if"]
+    code = window["run"].split("python3 - <<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
+    assert code.count("datetime.now(timezone.utc).date()") == 1
+    code = code.replace("datetime.now(timezone.utc).date()", "__test_today")
+    monkeypatch.chdir(REPO_ROOT)
+    if day in ("2026-10-28", "2026-10-30"):
+        exec(
+            compile(code, "actual-prebuild-window", "exec"),
+            {"__test_today": date.fromisoformat(day)},
+        )
+    else:
+        with pytest.raises(ValueError):
+            exec(
+                compile(code, "actual-prebuild-window", "exec"),
+                {"__test_today": date.fromisoformat(day)},
+            )
+    for name in (
+        "Admit existing Caddy producer or exact retained subject",
+        "Decide exact Caddy D inventory and loaded isolated runtime",
+    ):
+        assert "validate_caddy_ci_window(" in _named_step(steps, name)["run"]
+
+
+@pytest.mark.parametrize(
+    "outcome", ["full-scan-failed", "positive-secret", "policy-failed", "accepted"]
+)
+def test_caddy_image_archive_is_private_until_complete_security_acceptance(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, outcome: str
+) -> None:
+    from datetime import date
+    from scripts.ci import check_docker_runtime_dependency_surface as owner
+
+    steps = _steps(_job(_workflow(FRONTEND_WORKFLOW), "caddy-contract"))
+    retain = _named_step(steps, "Retain original Caddy candidate or current import binding")
+    decide = _named_step(steps, "Decide exact Caddy D inventory and loaded isolated runtime")
+    assert "steps.caddy-full-publish.outcome == 'success'" in decide["if"]
+    runner = tmp_path / "runner"
+    runner.mkdir()
+    private = runner / "private-subject"
+    private.mkdir(mode=0o700)
+    (private / "native-projections").mkdir()
+    metadata = runner / "caddy-xnet060-metadata"
+    for subdir in ("evidence", "a/output", "b/output"):
+        (metadata / subdir).mkdir(parents=True)
+    head = "a" * 40
+    modules = {"example.org/m": {"Version": "v1.0.0", "Sum": "h1:synthetic"}}
+    qualification = {
+        "failure": None,
+        "status": "observed_counterfactual_metadata_only",
+        "source_head": head,
+        "go_build_invocations": 0,
+        "derivations": {"a": {"final": {"modules": modules}}},
+    }
+    (metadata / "evidence/qualification.json").write_text(json.dumps(qualification))
+    (metadata / "a/output/final-packages.json").write_text(
+        json.dumps({"Module": {"Path": "example.org/m"}})
+    )
+    (private / "native-projections/build-info.txt").write_text(
+        "dep example.org/m v1.0.0 h1:synthetic\n"
+    )
+    admission = {
+        "mode": "build",
+        "current_head": head,
+        "current_run_id": 12,
+        "current_run_attempt": 1,
+        "repository": "Katsiarynakavaleuskaya/PulsePlate",
+        "inputs": {},
+    }
+    (runner / "caddy-admission").mkdir()
+    (runner / "caddy-admission/admission.json").write_text(json.dumps(admission))
+    subject = {
+        "docker": "/synthetic/docker",
+        "scanner": "/synthetic/trivy",
+        "clean_env": {},
+        "image_config_id": "sha256:" + "a" * 64,
+        "binary_sha256": "b" * 64,
+    }
+    state = private / "subject.json"
+    state.write_text(json.dumps(subject))
+    monkeypatch.setenv("RUNNER_TEMP", str(runner))
+    monkeypatch.setenv("CADDY_OBSERVATION_STATE", str(state))
+    monkeypatch.chdir(REPO_ROOT)
+    image_bytes = b"synthetic image archive; private until accepted\n"
+
+    def native(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[bytes]:
+        if argv[1] == "save":
+            Path(argv[argv.index("--output") + 1]).write_bytes(image_bytes)
+        elif argv[1] == "convert":
+            kwargs["stdout"].write(b"{}\n")
+        else:
+            raise AssertionError(argv)
+        return subprocess.CompletedProcess(argv, 0, stdout=b"", stderr=b"")
+
+    monkeypatch.setattr(subprocess, "run", native)
+    retain_code = retain["run"].split("python3 - <<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
+    exec(compile(retain_code, "actual-private-export", "exec"), {})
+    evidence = runner / "caddy-contract"
+    assert (private / "candidate/candidate.docker.tar").read_bytes() == image_bytes
+    assert (
+        not (evidence / "candidate.docker.tar").exists()
+        and not (evidence / "candidate.json").exists()
+    )
+    if outcome != "full-scan-failed":
+        full = evidence / "full-observation"
+        full.mkdir()
+        (full / "native-projections").mkdir()
+        (full / "native-projections/build-info.txt").write_bytes(b"synthetic build info")
+        (full / "full.raw.json").write_bytes(b"synthetic native report")
+        (full / "observation.json").write_text(
+            json.dumps(
+                {"subject": subject, "full_scan_native_exit": 0, "full_report_sha256": "c" * 64}
+            )
+        )
+
+        def report(*args: Any, **kwargs: Any) -> dict[str, Any]:
+            if outcome == "positive-secret":
+                raise ValueError("positive native secret")
+            return {"decision": "accepted_temporary_CI_residual_risk"}
+
+        def projection(*args: Any, **kwargs: Any) -> None:
+            if outcome == "policy-failed":
+                raise ValueError("native policy inventory differs")
+
+        monkeypatch.setattr(owner, "validate_caddy_ci_report", report)
+        monkeypatch.setattr(owner, "validate_caddy_policy_projection", projection)
+        monkeypatch.setattr(
+            owner, "observe_caddy_ci_runtime", lambda *args: {"actual_fixture": True}
+        )
+        code = decide["run"].split("python3 - <<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
+        code = code.replace("datetime.now(timezone.utc).date()", "__test_today")
+        if outcome == "accepted":
+            exec(
+                compile(code, "actual-security-publication", "exec"),
+                {"__test_today": date(2026, 10, 28)},
+            )
+            assert (evidence / "candidate.docker.tar").read_bytes() == image_bytes
+            manifest = json.loads((evidence / "candidate.json").read_bytes())
+            assert manifest["archive_sha256"] == hashlib.sha256(image_bytes).hexdigest()
+            assert not (private / "candidate/candidate.docker.tar").exists()
+        else:
+            with pytest.raises(ValueError):
+                exec(
+                    compile(code, "actual-security-publication", "exec"),
+                    {"__test_today": date(2026, 10, 28)},
+                )
+    if outcome != "accepted":
+        assert not (evidence / "candidate.docker.tar").exists()
+        assert not (evidence / "candidate.json").exists()
+        assert all(
+            path.read_bytes() != image_bytes for path in evidence.rglob("*") if path.is_file()
+        )

@@ -597,6 +597,25 @@ _METADATA_MATERIAL_CONCURRENCY_GROUP = (
     "(github.event.action == 'edited' || github.event.action == 'labeled' || "
     "github.event.action == 'unlabeled') && 'metadata' || 'material' }}"
 )
+_CADDY_PRODUCER_CONCURRENCY_SUFFIX = (
+    "${{ inputs.caddy_action == 'candidate-D' && '-caddy-D-producer' || '' }}"
+)
+_CONCURRENCY_GROUP_BY_WORKFLOW = {
+    CI_WORKFLOW_PATH: _METADATA_MATERIAL_CONCURRENCY_GROUP,
+    FRONTEND_CI_WORKFLOW_PATH: (
+        _METADATA_MATERIAL_CONCURRENCY_GROUP + _CADDY_PRODUCER_CONCURRENCY_SUFFIX
+    ),
+}
+_FRONTEND_CADDY_DISPATCH = {
+    "inputs": {
+        "caddy_action": {
+            "description": "Import retained candidate, qualify metadata, or spend the single accepted D CI build",
+            "type": "choice",
+            "default": "contract",
+            "options": ["contract", "xnet060-metadata", "candidate-D"],
+        }
+    }
+}
 _CONCURRENCY_WORKFLOW_CONTRACTS = (
     (
         CI_WORKFLOW_PATH,
@@ -619,12 +638,14 @@ def _assert_metadata_material_concurrency_contract(
     workflow: dict[str, object],
     expected_pr_types: tuple[str, ...],
     expected_events: tuple[str, ...],
+    *,
+    path: Path,
 ) -> None:
     """Require the exact native event partition and unchanged declared trigger inventories."""
     concurrency = workflow["concurrency"]
     assert isinstance(concurrency, dict)
     assert concurrency == {
-        "group": _METADATA_MATERIAL_CONCURRENCY_GROUP,
+        "group": _CONCURRENCY_GROUP_BY_WORKFLOW[path],
         "cancel-in-progress": True,
     }
     assert concurrency["cancel-in-progress"] is True
@@ -636,6 +657,8 @@ def _assert_metadata_material_concurrency_contract(
     pull_request = on_section["pull_request"]
     assert isinstance(pull_request, dict)
     assert pull_request["types"] == list(expected_pr_types)
+    if path == FRONTEND_CI_WORKFLOW_PATH:
+        assert on_section["workflow_dispatch"] == _FRONTEND_CADDY_DISPATCH
 
 
 @pytest.mark.parametrize(
@@ -651,7 +674,9 @@ def test_ci_and_frontend_concurrency_separate_metadata_from_material(
     material_actions: tuple[str, ...],
 ) -> None:
     """Pin native concurrency source shape without interpreting GitHub expressions."""
-    _assert_metadata_material_concurrency_contract(_load_workflow(path), pr_types, events)
+    _assert_metadata_material_concurrency_contract(
+        _load_workflow(path), pr_types, events, path=path
+    )
 
 
 @pytest.mark.parametrize(
@@ -682,16 +707,7 @@ def test_ci_and_frontend_concurrency_preserve_declared_events(
     assert "push" in on_section
     if "workflow_dispatch" in events:
         if path == FRONTEND_CI_WORKFLOW_PATH:
-            assert on_section["workflow_dispatch"] == {
-                "inputs": {
-                    "caddy_action": {
-                        "description": "Explicit metadata qualification; never compiles a Caddy candidate",
-                        "type": "choice",
-                        "default": "contract",
-                        "options": ["contract", "xnet060-metadata"],
-                    }
-                }
-            }
+            assert on_section["workflow_dispatch"] == _FRONTEND_CADDY_DISPATCH
         else:
             assert on_section["workflow_dispatch"] is None
     # The exact native expression owns event-name guarding and material fallback.
@@ -733,7 +749,7 @@ def test_ci_and_frontend_concurrency_contract_rejects_mutations(
 ) -> None:
     """Reject bounded group, cancellation and trigger drift through the existing YAML seam."""
     workflow = _load_workflow(path)
-    _assert_metadata_material_concurrency_contract(workflow, pr_types, events)
+    _assert_metadata_material_concurrency_contract(workflow, pr_types, events, path=path)
     concurrency = workflow["concurrency"]
     assert isinstance(concurrency, dict)
     group = concurrency["group"]
@@ -786,7 +802,89 @@ def test_ci_and_frontend_concurrency_contract_rejects_mutations(
         else:
             raise AssertionError(f"Unexpected concurrency mutation: {mutation}")
     with pytest.raises(AssertionError):
-        _assert_metadata_material_concurrency_contract(workflow, pr_types, events)
+        _assert_metadata_material_concurrency_contract(workflow, pr_types, events, path=path)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "producer-suffix-missing",
+        "producer-discriminator",
+        "producer-suffix-value",
+        "producer-fallback",
+        "dispatch-input-missing",
+        "dispatch-extra-input",
+        "dispatch-description",
+        "dispatch-type",
+        "dispatch-default",
+        "dispatch-choice-missing",
+        "dispatch-choice-extra",
+        "dispatch-choice-order",
+        "dispatch-choice-duplicate",
+    ),
+)
+def test_frontend_caddy_producer_contract_rejects_independent_mutations(mutation: str) -> None:
+    """Challenge the exact accepted producer/dispatch literals without evaluating expressions."""
+    path, pr_types, events, _metadata_actions, _material_actions = _CONCURRENCY_WORKFLOW_CONTRACTS[
+        1
+    ]
+    assert path == FRONTEND_CI_WORKFLOW_PATH
+    workflow = _load_workflow(path)
+    _assert_metadata_material_concurrency_contract(workflow, pr_types, events, path=path)
+    baseline = deepcopy(workflow)
+    concurrency = workflow["concurrency"]
+    assert isinstance(concurrency, dict)
+    group = concurrency["group"]
+    assert isinstance(group, str)
+    if mutation == "producer-suffix-missing":
+        concurrency["group"] = group.replace(_CADDY_PRODUCER_CONCURRENCY_SUFFIX, "", 1)
+    elif mutation == "producer-discriminator":
+        concurrency["group"] = group.replace(
+            "inputs.caddy_action == 'candidate-D'", "inputs.caddy_action == 'contract'", 1
+        )
+    elif mutation == "producer-suffix-value":
+        concurrency["group"] = group.replace("'-caddy-D-producer'", "'-material'", 1)
+    elif mutation == "producer-fallback":
+        concurrency["group"] = group.replace("|| '' }}", "|| '-caddy-D-producer' }}", 1)
+    else:
+        on_section = workflow.get("on")
+        if on_section is None:
+            on_section = cast(dict[object, object], workflow).get(True)
+        assert isinstance(on_section, dict)
+        dispatch = on_section["workflow_dispatch"]
+        assert isinstance(dispatch, dict)
+        inputs = dispatch["inputs"]
+        assert isinstance(inputs, dict)
+        action = inputs["caddy_action"]
+        assert isinstance(action, dict)
+        if mutation == "dispatch-input-missing":
+            del inputs["caddy_action"]
+        elif mutation == "dispatch-extra-input":
+            inputs["second_action"] = deepcopy(action)
+        elif mutation == "dispatch-description":
+            action["description"] = (
+                "Explicit metadata qualification; never compiles a Caddy candidate"
+            )
+        elif mutation == "dispatch-type":
+            action["type"] = "string"
+        elif mutation == "dispatch-default":
+            action["default"] = "candidate-D"
+        else:
+            options = action["options"]
+            assert isinstance(options, list)
+            if mutation == "dispatch-choice-missing":
+                options.remove("candidate-D")
+            elif mutation == "dispatch-choice-extra":
+                options.append("rebuild")
+            elif mutation == "dispatch-choice-order":
+                options.reverse()
+            elif mutation == "dispatch-choice-duplicate":
+                options.append("candidate-D")
+            else:
+                raise AssertionError(f"Unexpected producer contract mutation: {mutation}")
+    assert workflow != baseline
+    with pytest.raises(AssertionError):
+        _assert_metadata_material_concurrency_contract(workflow, pr_types, events, path=path)
 
 
 _CANCELLATION_JOB_IDS = (

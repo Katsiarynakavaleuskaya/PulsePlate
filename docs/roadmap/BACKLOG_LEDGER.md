@@ -345,6 +345,18 @@ If it is not recorded here — it does not exist.
     instruction only if supported by observed evidence. No leaked objects, empty
     product deinit workarounds, test skips, HealthKit changes, or broad concurrency migration.
 
+<a id="ledger-p1-source-preserving-native-nosec-seven-20261028"></a>
+- [ ] P1: Retire the accepted exact-seven source-preserving nosec allowlist instance
+  - Owner: @katsiaryna_kavaleuskaya with security-auditor for manual review; existing dependency24 chat («депенденси24») / PR #2494 owns the human-assigned retirement after actual PR #2497 merge through main.
+  - Priority: P1 (required security-gate continuity; explicitly dated technical debt).
+  - Target PR: Introduction in [PR #2497](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2497); retirement in [PR #2494](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2494), only after actual PR #2497 merge and integration through main. Preserve the receiver's original criteria/owners; no budget or renewal authority transfers.
+  - Status: OPEN / ACCEPTED 2026-10-28 / APPLIED LOCALLY. The human directly accepted exactly these seven entries through 2026-11-11 inclusive, with manual review by 2026-11-04 and ref PR-2497. Fresh applicable gates, publication, manual review and actual retirement remain separate outcomes. No authority is borrowed from eight-site/AM05 nine/Caddy D decisions; no past deadline is satisfied retroactively.
+  - Reason: Five Prometheus and two native-Trivy annotations remain necessary under the completed bounded assessment. Editing Prometheus comments would break the active changed_pr_candidate original-producer equality and D input reuse. The existing path/line TTL allowlist can represent exactly these seven current sites while preserving both source files and all historical/current source pins.
+  - Evidence: [Existing native-command security owner](../security/MAIN_RECOVERY_1_CONTAINER_PUBLICATION.md#accepted-source-preserving-seven-line-allowlist-instance--october-28-2026); `tests/guards/test_nosec_policy_guard.py:43`, `tests/guards/test_nosec_policy_guard.py:183`, `tests/guards/test_nosec_policy_guard.py:205`; exact seven coordinates and source hashes are recorded in that owner.
+  - Residual limits: The loader matches path/line and hard expiry only; it does not validate source hashes, rule identity or the manual review date. Tool/PATH/OS/Docker, caller/environment, native semantics and process-snapshot risks remain. A changed line/source/caller requires reassessment rather than silently inheriting the entry.
+  - DoD: Preserve the actual October 28 owner decision and both whole-source hashes/seven line/rule identities already verified for local application; recheck them before publication, retain native-caller controls and all historical evidence, pass applicable unchanged guards/local/current-head gates, perform the manual review by November 4, and remove the seven entries on a supported safer/inline transition or by November 11. Hard expiry is enforced from November 12 in the executing host calendar; no automatic renewal. Never claim risk removal, a new native outcome, or completion of the original inline-renewal proposal.
+  - Rollback / exclusions: A normal reviewed revert removes only this dated instance and restores inline checks. No guard/parser/comparator, source/pin, scanner severity/configuration, image policy, native build, production or other expiry-set change. The checkbox remains open until the removal outcome is actually completed.
+
 <a id="ledger-p1-native-cli-subprocess-review"></a>
 - [ ] P1: Reassess eight native CLI Bandit dispositions (October 12 missed; current review November 4, hard remove November 11)
   - Owner: @katsiaryna_kavaleuskaya with security-auditor
@@ -5690,7 +5702,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Harden Caddy and deploy staging by same-job attested digests
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Status: In progress
+  - Status: Open; original strict CD/release outcome remains outstanding. PR #2497 has only
+    the human-accepted 2026-10-28 isolated frontend CI D exception for one v3 HIGH.
+    Review 2026-10-30 inclusive; hard removal 2026-11-04 inclusive. Native evidence is pending.
+  - Permanent follow-up: PR #2494, explicitly assigned by the human owner, owns v3
+    removal/remediation and strict Caddy CD closure; no deployment or extra build authority.
   - Target PR: PR #2117 (`codex/caddy-2-11-attested-digests`)
   - Area: deploy / CD / container supply chain
   - Finding Type: release integrity and vulnerability remediation
@@ -5703,6 +5719,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     pinned SQLite source artifact; PR #2117 revalidates its unchanged URL and SHA3-256 and
     renews that fail-closed window without changing the SQLite version.
   - Links:
+    - [Exact CVE-2026-116587 CI exception](../security/CVE-2026-116587-caddy-go-jose.md)
     - `frontend/Dockerfile.caddy-spa`
     - `deploy/docker-compose.staging.yaml`
     - `scripts/deploy.sh`
@@ -5711,6 +5728,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - DoD:
     - PulsePlate Caddy reports v2.11.4 built with Go 1.26.6 and preserves standard modules
     - Final hardened Caddy image has no HIGH/CRITICAL Trivy findings without suppressions
+      (original release criterion remains open; the temporary PR #2497 D decision does not achieve it)
     - Backend and Caddy each have distinct provenance, SBOM, verification, and exact-digest scan evidence
     - Staging Compose and deploy script reject floating/tag-only image references
     - Default-false rollout gate verifies root-owned marker and current-commit server file hashes before secrets/deploy

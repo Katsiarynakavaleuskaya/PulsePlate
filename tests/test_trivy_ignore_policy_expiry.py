@@ -1854,3 +1854,27 @@ def test_new_native_negatives_fail_closed_on_output_or_execution_error(
     with pytest.raises(ValueError, match=message):
         native_policy._run_contract("/usr/bin/trivy", Path("/tmp/policy.rego"))
     assert cases[calls - 1][0] == target
+
+
+@pytest.mark.parametrize(
+    ("today", "expected"),
+    [
+        (date(2026, 10, 30), []),
+        (date(2026, 10, 31), ["Stale"]),
+        (date(2026, 11, 4), ["Stale"]),
+        (date(2026, 11, 5), ["Expired", "Stale"]),
+    ],
+)
+def test_caddy_D_has_independent_review_and_hard_expiry(today: date, expected: list[str]) -> None:
+    policy = REPO_ROOT / "trivy/ignore-policy-caddy-go-jose-v3.rego"
+    failures = evaluate_policy_file(policy, today=today)
+    assert len(failures) == len(expected)
+    assert all(any(word in error for error in failures) for word in expected)
+    text = policy.read_text()
+    assert 'input.PkgName == "github.com/go-jose/go-jose/v3"' in text
+    assert 'input.PkgIdentifier.PURL == "pkg:golang/github.com/go-jose/go-jose/v3@v3.0.5"' in text
+    assert 'input.Severity == "HIGH"' in text and 'input.Status == "affected"' in text
+    assert "input.Target" not in text and "input.Image" not in text
+    assert 'time.parse_rfc3339_ns("2026-10-31T00:00:00Z")' in text
+    assert 'time.parse_rfc3339_ns("2026-11-05T00:00:00Z")' in text
+    assert POLICY_PATH.read_text() == "package trivy\n\nimport rego.v1\n\ndefault ignore := false\n"

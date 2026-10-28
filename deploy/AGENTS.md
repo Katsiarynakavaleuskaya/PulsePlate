@@ -49,6 +49,30 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   digest-pinned Compose service. Floating tags and `latest` are forbidden.
 - `STAGING_ATTESTED_DIGEST_READY=true` may be enabled only after the server-local Compose, Caddyfile, deploy script, Postgres backup helper, root-owned contract marker, and current-commit hashes are synchronized. The staging `.env` must be a regular non-symlink file with mode `0600`; it is Compose data and must never be shell-sourced by the deploy path. Merge alone does not update `/srv/pulseplate-staging`.
 
+### Caddy CI retained candidate and temporary risk boundary
+
+- The existing frontend `caddy-contract` job owns one explicitly selected candidate
+  producer after two independent compiler-free metadata derivations. Ordinary PR
+  and accepted exact merge-to-main observations import its authenticated original
+  artifact, independently authenticate its accepted PR lineage and original Git
+  blobs (including the expiry checker), and verify actual image/config/binary identity;
+  absent, expired, failed, ambiguous or changed inputs are HOLD, never a rebuild.
+  A started producer counts even when it fails. Require complete distinct native
+  API identities/relationships and no-follow authenticated transport; ambiguous
+  history is HOLD. Keep image exports private until complete security acceptance,
+  and recheck accepted dates immediately before build. Cache reuse is not a build grant.
+- The explicit CVE-2026-116587 D decision is limited to that isolated loaded CI
+  configuration and exact one v3.0.5 HIGH after actual v4.1.6 proof. Generic report
+  validation, backend/default policy and strict CD remain unchanged. Preserve the
+  unfiltered native report and require successful strict/D native controls; an
+  error is never proof of policy rejection. Native runtime evidence is bounded to
+  its actual immutable config, process and listeners, not deployed reachability.
+- Follow the individual owner/review/expiry/removal contract in
+  [the CVE owner](../docs/security/CVE-2026-116587-caddy-go-jose.md).
+  The original suppression-free CD/release outcome remains open; permanent v3/CD
+  remediation belongs to the human-assigned PR #2494. No deployment, new source
+  fork, capability retirement or additional compiler invocation follows from D.
+
 ## Incoming deployment bundle validation
 
 - Validate incoming Compose/config/policy bytes at their original bundle paths,
