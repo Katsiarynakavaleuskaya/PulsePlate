@@ -422,6 +422,66 @@ their separate current-main operational receipts.
 
 ## Native command security dispositions
 
+### Current accepted decision — October 28, 2026
+
+On **2026-10-28**, @katsiaryna_kavaleuskaya explicitly accepted the exact eight-site
+prospective decision for PR #2497: review by **2026-11-04**, hard remove-by
+**2026-11-11 inclusive**, with inline reference **PR-2497**. The direct reply was:
+“Да, принимаю эти восемь до 11 ноября; пересмотр до 4 ноября”. This covers only
+the four B404 imports and four B603 native calls in the four scripts enumerated
+in the historical eight-site record below. The eight accepted date/ref values
+are applied locally; their rule codes and justifications remain unchanged.
+
+The current PR #2497 Python 3.12 gate rejected these eight PR-2486 annotations
+on October 28 after the inclusive October 27 deadline. The original October 12
+obligation remains missed, the October 20 review has no current completion
+proof here, and the October 27 removal obligation was not met. PR #2486 is
+merged; neither that merge nor this new decision satisfies a missed obligation
+retroactively. The new acceptance is prospective from October 28 only.
+
+The completed bounded reassessment examined the four current scripts and their
+tracked callers. Native Git, Docker/Compose, PostgreSQL, OpenSSL, mount and
+systemd operations remain necessary; no behavior-preserving safer replacement
+that removes the subprocess boundary was demonstrated within that review.
+Absolute executables, explicit argv, shell avoidance, finite timeouts and
+existing redaction/streaming controls remain. Tool/PATH trust, inherited host
+environment and Docker context, native options and selected script/image
+semantics remain residual risks. Three adapters still buffer output; the
+scheduler alone bounds it during collection. The review does not establish
+safety for arbitrary external, computed or future callers.
+
+The accepted instance changes only eight existing date/ref comment values,
+this owner record and the existing ledger anchor. The four Python ASTs are
+identical before and after the edit. Scanner configuration, severity, hooks,
+guards, allowlists and runtime behavior are unchanged. The retained read-only
+Bandit diagnostic exposed exactly eight LOW B404/B603 findings with HIGH
+confidence, positive metrics for all four files and no scanner errors when
+nosec was ignored. Ordinary JSON reported zero findings and positive file
+metrics, but its process exit was not retained after a collector assertion;
+that report is not an ordinary-command PASS or a no-risk result.
+
+The owner and security-auditor must review these eight current sites, callers
+and alternatives by November 4. Remove earlier when a safer equivalent or
+retirement of the native requirement is demonstrated; reassess immediately on
+source, caller, argv, environment, tool/context drift, a new finding or a failed
+gate. No automatic renewal follows November 11. The other seven annotations
+due October 28, the source window ending October 30 and the separately accepted
+AM05 nine remain outside this decision.
+
+Fresh applicable local gates, actual current-source bindings, current-head
+CI/security/coverage and normal closeout remain required. AST equality does
+not establish source-byte identity or gate success; current admission outputs
+must derive the changed source bytes, while historical producer receipts keep
+their original epochs. Do not publish if required gates or source-byte
+consumers fail. A normal revert of this dated instance restores the expired
+guard HOLD; it supplies no further exception. This acceptance grants no merge,
+production, deployment, host-operation, native-build or provider authority.
+
+### Historical October 12 and October 13–27 decisions
+
+The following record preserves the earlier review and acceptance history.
+Its October 20/27 dates describe the prior decision, not the current horizon.
+
 The complete pre-commit hook checks low-severity findings as well as higher
 severities. It reported six generic B404/B603 import/call alerts at
 `scripts/ci/check_pgvector_attestations.py:15`,
