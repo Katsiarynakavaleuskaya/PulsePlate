@@ -13,21 +13,29 @@ import asyncio
 from collections import Counter
 from contextlib import ExitStack
 import copy
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal, InvalidOperation
 import hashlib
+import inspect
+import json
 import logging
 import math
 import os
 from pathlib import Path
 import re
 import stat
+import ssl
 import sys
-from typing import Any, cast
+import time
+from typing import Any, Literal, cast
 from unittest.mock import patch
 
 import httpx
 from fastapi import HTTPException
-from openai import AsyncOpenAI, OpenAI
+from openai import APIConnectionError, AsyncOpenAI, OpenAI
 from sqlalchemy import select
+from sqlalchemy.engine import make_url
+from sqlalchemy.exc import ArgumentError
 
 from app.middleware.api_tiers import SubscriptionTier, get_subscription_tier
 from app.routers import fitchef_structured
@@ -35,10 +43,15 @@ from app.schemas.fitchef import (
     FitChefDistortionSimulatorInput,
     FitChefDistortionSimulatorTaskEnvelope,
 )
-from app.security.agent_input_guard import require_safe_ai_agent_input, scan_ai_agent_input
+from app.security.agent_input_guard import (
+    UNSAFE_AI_INPUT_DETAIL,
+    require_safe_ai_agent_input,
+    scan_ai_agent_input,
+)
 from app.middleware.api_tiers import TEST_KEY_PRO
 from app.security.llm_monthly_quota import (
     VipLlmMonthlyUsage,
+    _legacy_llm_key_fingerprint,
     llm_key_fingerprint,
     month_start_date_utc,
     require_llm_monthly_limit,
@@ -50,7 +63,17 @@ from core.db import session_scope
 from core.rag import vector_rag
 from core.rag.contracts import RAGChunk, RAGContext
 from providers.perplexity import PerplexityProvider
-from scripts.evals.evidence_relation_audit import _parent_fd, read_jsonl, write_report
+from scripts.evals.evidence_relation_audit import (
+    MAX_LINE_BYTES,
+    _JsonlPolicyError,
+    _check_depth,
+    _parent_fd,
+    _read_input,
+    _reject_constant,
+    _unique_pairs,
+    read_jsonl,
+    write_report,
+)
 from scripts.evals.fitchef_claim_assurance_eval import (
     CASE_SCHEMA,
     FAMILIES,
@@ -82,6 +105,19 @@ _RESERVE_USD = 0.15
 _MAX_HTTP_BODY_BYTES = 32768
 _EXPECTED_ENDPOINT = "https://api.perplexity.ai"
 _MODEL = "sonar"
+_OCW_MODE = "ocw-nutrition-comparison"
+_OCW_CASES = tuple(f"OCW-N{index:02d}" for index in range(1, 9))
+_OCW_MODELS = {"sonar": "sonar", "sol": "openai/gpt-6.1-sol"}
+_OCW_ENDPOINTS = {
+    "sonar": "https://api.perplexity.ai/chat/completions",
+    "sol": "https://api.perplexity.ai/v1/responses",
+}
+_OCW_OUTPUT_TOKENS = 2048
+_OCW_RESPONSE_BYTES = 256 * 1024
+_OCW_PACE_SECONDS = 6.1
+_OCW_INPUT_FRAMING_MARGIN = 2048
+_OCW_BILLED_INPUT_CEILING = _MAX_HTTP_BODY_BYTES + _OCW_INPUT_FRAMING_MARGIN
+_OCW_PRICING_MAX_AGE = timedelta(hours=24)
 
 
 class BudgetExhausted(RuntimeError):
@@ -97,16 +133,509 @@ class _PreproviderHighDistressBoundary(HTTPException):
         super().__init__(status_code=400, detail="fitchef_high_distress_boundary")
 
 
+def _validate_ocw_request(request: httpx.Request, *, arm: str, prompt: str) -> None:
+    if (
+        arm not in _OCW_MODELS
+        or request.method != "POST"
+        or str(request.url) != _OCW_ENDPOINTS[arm]
+        or len(request.content) > _MAX_HTTP_BODY_BYTES
+    ):
+        raise ValueError("ocw_request")
+    try:
+        body = json.loads(request.content)
+    except (UnicodeError, ValueError, RecursionError) as exc:
+        raise ValueError("ocw_request") from exc
+    expected: dict[str, Any]
+    if arm == "sonar":
+        expected = {
+            "model": "sonar",
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": 2048,
+            "disable_search": True,
+        }
+    else:
+        expected = {
+            "model": "openai/gpt-6.1-sol",
+            "input": prompt,
+            "reasoning": {"effort": "low"},
+            "max_output_tokens": 2048,
+            "tools": [],
+            "store": False,
+        }
+    # Canonical native JSON comparison preserves bool/int and rejects nonfinite
+    # values; ordinary dict equality would alias store=False with numeric0.
+    try:
+        if type(body) is not dict or _canonical(body) != _canonical(expected):
+            raise ValueError("ocw_request")
+    except (ValueError, TypeError) as exc:
+        raise ValueError("ocw_request") from exc
+
+
+def _ocw_usage(value: object) -> tuple[dict[str, Any] | None, int | float | None]:
+    if value is None:
+        return None, None
+    if type(value) is not dict:
+        raise ValueError("ocw_usage")
+    raw = cast(dict[str, Any], value)
+    usage: dict[str, Any] = {}
+    for key in (
+        "prompt_tokens",
+        "completion_tokens",
+        "input_tokens",
+        "output_tokens",
+        "total_tokens",
+    ):
+        if key in raw:
+            if type(raw[key]) is not int or raw[key] < 0:
+                raise ValueError("ocw_usage")
+            usage[key] = raw[key]
+    for field, total_field in (
+        ("input_tokens_details", "input_tokens"),
+        ("prompt_tokens_details", "prompt_tokens"),
+    ):
+        if field not in raw:
+            continue
+        detail = raw[field]
+        if type(detail) is not dict:
+            raise ValueError("ocw_usage")
+        if "cached_tokens" in detail:
+            cached = detail["cached_tokens"]
+            total = usage.get(total_field)
+            if (
+                type(cached) is not int
+                or type(total) is not int
+                or not 0 <= cached <= min(total, _OCW_BILLED_INPUT_CEILING)
+            ):
+                raise ValueError("ocw_usage")
+    cost = raw.get("cost")
+    if cost is None:
+        _canonical(raw)
+        return copy.deepcopy(raw), None
+    if type(cost) is not dict:
+        raise ValueError("ocw_usage")
+    amount = cost.get("total_cost")
+    if type(amount) not in (int, float):
+        raise ValueError("ocw_usage")
+    numeric = cast(int | float, amount)
+    if (type(numeric) is float and not math.isfinite(numeric)) or numeric < 0:
+        raise ValueError("ocw_usage")
+    # Retain returned cache/reasoning/currency detail as provider data. It is not
+    # invoice truth; known USD additionally requires explicit returned currency.
+    _canonical(raw)
+    return copy.deepcopy(raw), numeric
+
+
+def _ocw_cost_currency(declared: object) -> object:
+    """Read the same finite native currency fact for live and frozen admission."""
+    return declared.get("currency") if type(declared) is dict else None
+
+
+def _ocw_retryable_http_outcome(native: dict[str, Any]) -> bool:
+    """Recognize only retained Sonar transient status without terminal body facts."""
+    return (
+        native.get("arm") == "sonar"
+        and type(native.get("status_code")) is int
+        and native["status_code"] in {408, 429, 500, 502, 503, 504}
+        and native.get("raw_error_body_status")
+        not in ("omitted_noncanonical_metadata", "omitted_credential_reflection")
+        and "response_failure_type" not in native
+        and "outcome_material_status" not in native
+    )
+
+
+def _validate_ocw_usage_token_limits(usage: dict[str, Any] | None) -> None:
+    """Apply the same finite reported-token bounds to capture and frozen replay."""
+    if usage is None:
+        return
+    ceilings = {
+        "prompt_tokens": _OCW_BILLED_INPUT_CEILING,
+        "input_tokens": _OCW_BILLED_INPUT_CEILING,
+        "completion_tokens": _OCW_OUTPUT_TOKENS,
+        "output_tokens": _OCW_OUTPUT_TOKENS,
+        "total_tokens": _OCW_BILLED_INPUT_CEILING + _OCW_OUTPUT_TOKENS,
+    }
+    if any(usage.get(field, 0) > ceiling for field, ceiling in ceilings.items()):
+        raise ValueError("ocw_usage_token_limits")
+    for field, total_field in (
+        ("output_tokens_details", "output_tokens"),
+        ("completion_tokens_details", "completion_tokens"),
+    ):
+        if field not in usage:
+            continue
+        detail = usage[field]
+        if type(detail) is not dict:
+            raise ValueError("ocw_usage_token_limits")
+        if "reasoning_tokens" in detail:
+            count = detail["reasoning_tokens"]
+            if (
+                type(count) is not int
+                or count < 0
+                or count > min(usage.get(total_field, _OCW_OUTPUT_TOKENS), _OCW_OUTPUT_TOKENS)
+            ):
+                raise ValueError("ocw_usage_token_limits")
+
+
+def _validate_ocw_manifest_rows(rows: list[object]) -> list[dict[str, Any]]:
+    """Validate the existing finite eight-row input grammar before copying."""
+    from scripts.evals.eval_validity_contract import EvalVariantRecord, validate_eval_variant_record
+
+    if type(rows) is not list or len(rows) != 8:
+        raise ValueError("ocw_manifest")
+    admitted: list[dict[str, Any]] = []
+    variants: set[str] = set()
+    for index, raw in enumerate(rows):
+        if type(raw) is not dict or set(raw) != set(EvalVariantRecord.__annotations__):
+            raise ValueError("ocw_manifest")
+        row = cast(dict[str, Any], raw)
+        if (
+            any(
+                type(row[k]) is not str
+                for k in (
+                    "canonical_id",
+                    "variant_id",
+                    "variant_family",
+                    "transform_type",
+                    "expected_relation",
+                )
+            )
+            or row["variant_id"] != _OCW_CASES[index] + "-canonical"
+            or type(row["slice_tags"]) is not list
+            or row["slice_tags"] != ["synthetic", "development", "fitchef", "ocw", "language:ru"]
+        ):
+            raise ValueError("ocw_manifest")
+        if (
+            row["canonical_id"] != _OCW_CASES[index]
+            or row["variant_id"] in variants
+            or not row["variant_id"]
+            or row["variant_family"] != "canonical"
+            or row["transform_type"] != "identity"
+            or row["expected_relation"] != "same_decision"
+            or not {"synthetic", "development", "fitchef", "ocw", "language:ru"}.issubset(
+                row["slice_tags"]
+            )
+        ):
+            raise ValueError("ocw_manifest")
+        variants.add(row["variant_id"])
+        inner = row["input_payload"]
+        if type(inner) is not dict or set(inner) != {"query", "language", "sources"}:
+            raise ValueError("ocw_manifest")
+        query, sources = inner["query"], inner["sources"]
+        if (
+            type(query) is not str
+            or not query.strip()
+            or len(query) > 2000
+            or inner["language"] != "ru"
+            or type(inner["language"]) is not str
+            or type(sources) is not list
+            or len(sources) > 5
+            or not scan_ai_agent_input(query).is_safe
+        ):
+            raise ValueError("ocw_manifest")
+        ids: set[str] = set()
+        for source in sources:
+            if type(source) is not dict or set(source) != _INPUT_SOURCE_KEYS:
+                raise ValueError("ocw_manifest")
+            if any(
+                type(source[k]) is not str or not source[k].strip() or len(source[k]) > 4000
+                for k in ("chunk_id", "file", "content")
+            ):
+                raise ValueError("ocw_manifest")
+            if any(
+                not re.fullmatch(r"[A-Za-z0-9_.:-]{1,120}", source[k]) for k in ("chunk_id", "file")
+            ):
+                raise ValueError("ocw_manifest")
+            if (
+                source["chunk_id"] in ids
+                or type(source["score"]) not in (int, float)
+                or (type(source["score"]) is float and not math.isfinite(source["score"]))
+                or not 0 <= source["score"] <= 1
+                or not scan_ai_agent_input(source["content"]).is_safe
+            ):
+                raise ValueError("ocw_manifest")
+            ids.add(source["chunk_id"])
+        admitted.append(copy.deepcopy(cast(dict[str, Any], validate_eval_variant_record(row))))
+    return admitted
+
+
+def validate_ocw_manifest(rows: list[object]) -> list[dict[str, Any]]:
+    """Bind the complete generation projection to the current tracked fixture."""
+    admitted = _validate_ocw_manifest_rows(rows)
+    fixture = (
+        Path(__file__).resolve().parents[2] / "tests/fixtures/ocw/fitchef_nutrition_cases.v1.jsonl"
+    )
+    canonical = _validate_ocw_manifest_rows(read_jsonl(fixture))
+    if any(
+        _canonical(row["input_payload"]) != _canonical(expected["input_payload"])
+        for row, expected in zip(admitted, canonical)
+    ):
+        raise ValueError("ocw_manifest")
+    return admitted
+
+
+def _ocw_prompt(inner: dict[str, Any]) -> tuple[str, list[dict[str, Any]]]:
+    safe_query = require_safe_ai_agent_input(inner["query"])
+    occurrences: list[dict[str, Any]] = []
+    context: list[str] = []
+    for source in inner["sources"]:
+        content = (
+            fitchef_runtime.redact_pii_from_text(
+                fitchef_runtime.sanitize_rag_markdown(source["content"])
+            )
+            or ""
+        )
+        occurrences.append(
+            {
+                **source,
+                "content": content,
+                "preview": fitchef_runtime.sanitize_chunk_preview(content) or "",
+            }
+        )
+        if content.strip():
+            context.append(f"[{source['file']}]\n{content}")
+    return fitchef_runtime.build_mascot_prompt(safe_query, "\n\n".join(context)), occurrences
+
+
+async def _serialize_ocw_request(prompt: str, arm: str) -> bytes:
+    """Exercise the real native SDK against a separate local mock only."""
+    from providers.perplexity_agent import PerplexityAgentProvider, _AgentAsyncOpenAI
+
+    captured: list[bytes] = []
+
+    async def response(request: httpx.Request) -> httpx.Response:
+        _validate_ocw_request(request, arm=arm, prompt=prompt)
+        captured.append(request.content)
+        if arm == "sonar":
+            payload: dict[str, Any] = {
+                "id": "serialization-only",
+                "object": "chat.completion",
+                "created": 0,
+                "model": "sonar",
+                "choices": [
+                    {
+                        "index": 0,
+                        "finish_reason": "stop",
+                        "message": {"role": "assistant", "content": "serialization only"},
+                    }
+                ],
+            }
+        else:
+            payload = {
+                "id": "serialization-only",
+                "object": "response",
+                "created_at": 0,
+                "model": _OCW_MODELS["sol"],
+                "status": "completed",
+                "error": None,
+                "incomplete_details": None,
+                "output": [
+                    {
+                        "type": "message",
+                        "id": "serialization-message",
+                        "role": "assistant",
+                        "status": "completed",
+                        "content": [
+                            {"type": "output_text", "text": "serialization only", "annotations": []}
+                        ],
+                    }
+                ],
+            }
+        return httpx.Response(200, json=payload)
+
+    previous_logging = logging.root.manager.disable
+    logging.disable(logging.CRITICAL)
+    try:
+        serialization_label = "ocw-serialization-only"
+        sdk_identity_default = ""
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(response), follow_redirects=False, trust_env=False
+        ) as transport:
+            if arm == "sonar":
+                async with _AgentAsyncOpenAI(
+                    base_url=_EXPECTED_ENDPOINT,
+                    api_key=serialization_label,
+                    organization=sdk_identity_default,
+                    project=sdk_identity_default,
+                    webhook_secret=sdk_identity_default,
+                    http_client=transport,
+                    max_retries=0,
+                ) as sdk:
+                    await sdk.chat.completions.create(
+                        model="sonar",
+                        messages=[{"role": "user", "content": prompt}],
+                        max_tokens=2048,
+                        extra_body={"disable_search": True},
+                    )
+            else:
+                provider = PerplexityAgentProvider(
+                    api_key=serialization_label,
+                    model=_OCW_MODELS["sol"],
+                    reasoning_effort="low",
+                    http_client=transport,
+                )
+                await provider.generate(prompt)
+    except APIConnectionError as error:
+        # The separate local transport reports encoded-body rejection through
+        # the native SDK's connection wrapper. Keep preflight's stable local
+        # failure before any live provider/client or budget allocation.
+        raise ValueError("ocw_preflight") from error
+    finally:
+        logging.disable(previous_logging)
+    if len(captured) != 1:
+        raise ValueError("ocw_preflight")
+    return captured[0]
+
+
+def validate_ocw_pricing(
+    rows: list[object], *, now: datetime | None = None
+) -> dict[str, dict[str, Any]]:
+    """Check the recorded applicable all-charge bound; metadata is not price authentication."""
+    keys = {
+        "schema_version",
+        "arm",
+        "requested_model",
+        "max_request_bytes",
+        "max_output_tokens",
+        "max_input_usd_per_million",
+        "max_output_usd_per_million",
+        "extra_fees_usd_per_attempt",
+        "max_billed_input_tokens",
+        "input_rate_includes_cache_write",
+        "billed_input_bound_verified",
+        "returned_cost_currency_basis",
+        "cost_currency_source_url",
+        "output_includes_reasoning",
+        "all_charges_included",
+        "verified_at",
+        "source_url",
+    }
+    if type(rows) is not list or len(rows) != 2:
+        raise ValueError("ocw_pricing")
+    result: dict[str, dict[str, Any]] = {}
+    current = datetime.now(timezone.utc) if now is None else now
+    if current.utcoffset() is None:
+        raise ValueError("ocw_pricing")
+    for raw in rows:
+        if type(raw) is not dict or set(raw) != keys:
+            raise ValueError("ocw_pricing")
+        row = cast(dict[str, Any], raw)
+        arm = row["arm"]
+        if (
+            type(arm) is not str
+            or arm not in _OCW_MODELS
+            or arm in result
+            or row["schema_version"] != "ocw_pricing_evidence.v1"
+            or row["requested_model"] != _OCW_MODELS[arm]
+            or type(row["max_request_bytes"]) is not int
+            or row["max_request_bytes"] != 32768
+            or type(row["max_output_tokens"]) is not int
+            or row["max_output_tokens"] != 2048
+            or type(row["max_billed_input_tokens"]) is not int
+            or row["max_billed_input_tokens"] != _OCW_BILLED_INPUT_CEILING
+            or row["input_rate_includes_cache_write"] is not True
+            or row["billed_input_bound_verified"] is not True
+            or type(row["returned_cost_currency_basis"]) is not str
+            or row["returned_cost_currency_basis"] not in {"documented_usd", "unknown"}
+            or (
+                row["returned_cost_currency_basis"] == "documented_usd"
+                and (
+                    type(row["cost_currency_source_url"]) is not str
+                    or not row["cost_currency_source_url"].startswith("https://docs.perplexity.ai/")
+                )
+            )
+            or (
+                row["returned_cost_currency_basis"] == "unknown"
+                and row["cost_currency_source_url"] is not None
+            )
+            or row["output_includes_reasoning"] is not True
+            or row["all_charges_included"] is not True
+            or type(row["source_url"]) is not str
+            or not row["source_url"].startswith("https://docs.perplexity.ai/")
+            or type(row["verified_at"]) is not str
+        ):
+            raise ValueError("ocw_pricing")
+        try:
+            verified = datetime.fromisoformat(row["verified_at"].replace("Z", "+00:00"))
+            offset = verified.utcoffset()
+            if (
+                offset is None
+                or offset.total_seconds() != 0
+                or verified > current
+                or current - verified > _OCW_PRICING_MAX_AGE
+            ):
+                raise ValueError("ocw_pricing")
+        except ValueError as exc:
+            raise ValueError("ocw_pricing") from exc
+        for field in (
+            "max_input_usd_per_million",
+            "max_output_usd_per_million",
+            "extra_fees_usd_per_attempt",
+        ):
+            if (
+                type(row[field]) not in (int, float)
+                or (type(row[field]) is float and not math.isfinite(row[field]))
+                or row[field] < 0
+            ):
+                raise ValueError("ocw_pricing")
+        upper = (
+            Decimal(str(row["max_input_usd_per_million"])) * _OCW_BILLED_INPUT_CEILING / 1_000_000
+            + Decimal(str(row["max_output_usd_per_million"])) * 2048 / 1_000_000
+            + Decimal(str(row["extra_fees_usd_per_attempt"]))
+        )
+        if upper > Decimal("0.15"):
+            raise ValueError("ocw_pricing")
+        result[arm] = {**copy.deepcopy(row), "upper_usd_per_attempt": str(upper)}
+    return result
+
+
+def ocw_request_preflight(manifest: list[object], pricing: list[object]) -> list[dict[str, Any]]:
+    """Return only mock-serialization bounds; no quota, reservation or measured answer."""
+    rows, prices = validate_ocw_manifest(manifest), validate_ocw_pricing(pricing)
+    result: list[dict[str, Any]] = []
+    for row in rows:
+        prompt, _sources = _ocw_prompt(row["input_payload"])
+        for arm in _OCW_MODELS:
+            body = asyncio.run(_serialize_ocw_request(prompt, arm))
+            result.append(
+                {
+                    "case_id": row["canonical_id"],
+                    "arm": arm,
+                    "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+                    "request_bytes": len(body),
+                    "upper_usd_per_attempt": prices[arm]["upper_usd_per_attempt"],
+                    "observation_kind": "local_mock_serialization_only",
+                    "reserved_cents": 0,
+                }
+            )
+    return result
+
+
 class AttemptLedger:
     """Durable private reservation immediately before each HTTPX send."""
 
-    def __init__(self, directory: Path):
+    def __init__(self, directory: Path, *, comparison: bool = False) -> None:
         self.directory = directory
         self._lock = asyncio.Lock()
         self.attempts = 0
         self.exhausted = False
         self.transport_rejection = False
         self.reported_overrun_usd: int | float | None = None
+        if type(comparison) is not bool:
+            raise ValueError("ocw_budget")
+        self.comparison = comparison
+        self.arm_attempts = {"sonar": 0, "sol": 0}
+        self.case_attempts: dict[tuple[str, str], int] = {}
+        self.arm: str | None = None
+        self.case_id: str | None = None
+        self.prompt: str | None = None
+        self.terminal_reason: str | None = None
+        self.retryable = False
+        self.http_observations: list[dict[str, Any]] = []
+        self._comparison_secrets: tuple[str, ...] = ()
+        self.pricing_valid_until: datetime | None = None
+        self.reservation_publications = 0
+        self.reservation_publication_uncertain = False
+        self._published_attempts: set[int] = set()
+        self._invocation_start_attempt = 0
         if not directory.is_dir() or directory.is_symlink():
             raise ValueError("unsafe_budget_directory")
         info = directory.stat()
@@ -118,6 +647,9 @@ class AttemptLedger:
 
     async def reserve(self, request: httpx.Request) -> None:
         """HTTPX request event hook, including OpenAI SDK and Tenacity retries."""
+        if self.comparison:
+            await self._reserve_ocw(request)
+            return
         if (
             request.url.scheme != "https"
             or request.url.host != "api.perplexity.ai"
@@ -146,6 +678,358 @@ class AttemptLedger:
                 _canonical(record) + b"\n",
             )
             self.attempts = next_attempt
+
+    def bind_case(self, arm: str, case_id: str, prompt: str) -> None:
+        """Bind the one serial admitted comparison invocation to physical requests."""
+        if (
+            not self.comparison
+            or arm not in _OCW_MODELS
+            or case_id not in _OCW_CASES
+            or type(prompt) is not str
+            or not prompt.strip()
+            or len(prompt) > _MAX_HTTP_BODY_BYTES
+            or len(prompt.encode("utf-8")) > _MAX_HTTP_BODY_BYTES
+        ):
+            raise ValueError("ocw_budget")
+        self.arm, self.case_id, self.prompt = arm, case_id, prompt
+        self.retryable = False
+        self._invocation_start_attempt = self.attempts
+
+    def require_secret_free(self, data: bytes) -> None:
+        """Never retain credentials, even if a provider reflects a header value."""
+        for value in self._comparison_secrets:
+            if value and (value.encode("utf-8") in data or _canonical(value)[1:-1] in data):
+                self.terminal_reason = "credential_reflection"
+                raise ValueError("ocw_private_material")
+
+    def native_failure(self, error: BaseException) -> None:
+        """Retain a published reservation's uncertain outcome without replacing its cause."""
+        from openai import APIConnectionError, APIStatusError, APITimeoutError
+
+        if self.terminal_reason is not None or self.arm != "sonar":
+            self.retryable = False
+        elif isinstance(error, APIStatusError):
+            self.retryable = error.status_code in {408, 429, 500, 502, 503, 504}
+        elif isinstance(error, (APIConnectionError, APITimeoutError)):
+            self.retryable = isinstance(
+                error.__cause__,
+                (
+                    httpx.ConnectError,
+                    httpx.ConnectTimeout,
+                    httpx.ReadTimeout,
+                    httpx.WriteTimeout,
+                    httpx.ReadError,
+                    httpx.WriteError,
+                    httpx.RemoteProtocolError,
+                ),
+            )
+            # Inspect only native exception objects, never their prose. TLS
+            # certificate/configuration errors are terminal even when HTTPX
+            # wraps them as a nominal connection failure.
+            pending: list[BaseException] = [error]
+            seen: set[int] = set()
+            while pending and len(seen) < 16:
+                cause = pending.pop()
+                if id(cause) in seen:
+                    continue
+                seen.add(id(cause))
+                if isinstance(cause, (ssl.SSLError, ssl.CertificateError, ValueError)):
+                    self.retryable = False
+                for child in (cause.__cause__, cause.__context__):
+                    if child is not None:
+                        pending.append(child)
+            if pending:
+                self.retryable = False
+        else:
+            self.retryable = False
+        if not self.retryable:
+            self.terminal_reason = self.terminal_reason or "provider_failure_terminal"
+        # HTTP outcomes are already immutable. A transport-only failure still
+        # retains its type and uncertain cost, without SDK text or request data.
+        path = self.directory / f"attempt-result-{self.attempts:04d}.json"
+        if (
+            self.attempts in self._published_attempts
+            and self.attempts > self._invocation_start_attempt
+            and not any(item["attempt"] == self.attempts for item in self.http_observations)
+        ):
+            record = {
+                "attempt": self.attempts,
+                "arm": self.arm,
+                "case_id": self.case_id,
+                "requested_model": _OCW_MODELS[self.arm or ""],
+                "endpoint": _OCW_ENDPOINTS[self.arm or ""],
+                "failure_type": type(error).__name__,
+                "retryable": self.retryable,
+                "cost_usd": None,
+                "cost_status": "unknown",
+            }
+            self.http_observations.append(record)
+            try:
+                write_report(path, _canonical(record) + b"\n")
+            except BaseException as publication_error:
+                self.terminal_reason = "outcome_publication_uncertain"
+                self.retryable = False
+                error.add_note("ocw_outcome_publication_failed:" + type(publication_error).__name__)
+
+    async def _reserve_ocw(self, request: httpx.Request) -> None:
+        if self.arm is None or self.case_id is None or self.prompt is None:
+            raise ValueError("ocw_request")
+        if (
+            self.pricing_valid_until is not None
+            and datetime.now(timezone.utc) > self.pricing_valid_until
+        ):
+            self.terminal_reason = "pricing_not_current"
+            raise ValueError("ocw_pricing")
+        try:
+            _validate_ocw_request(request, arm=self.arm, prompt=self.prompt)
+        except ValueError:
+            self.terminal_reason = "request_admission"
+            raise
+        # Strip only the individual final request, after native SDK/client merge.
+        for name in ("OpenAI-Organization", "OpenAI-Project", "Cookie"):
+            request.headers.pop(name, None)
+        async with self._lock:
+            if self.terminal_reason is not None or self.reported_overrun_usd is not None:
+                raise BudgetExhausted("ocw_terminal_failure")
+            limit = 24 if self.arm == "sonar" else 8
+            case_limit = 3 if self.arm == "sonar" else 1
+            key = (self.arm, self.case_id)
+            if (
+                self.attempts >= 32
+                or self.arm_attempts[self.arm] >= limit
+                or self.case_attempts.get(key, 0) >= case_limit
+            ):
+                self.exhausted = True
+                self.terminal_reason = "physical_attempt_limit"
+                raise BudgetExhausted("physical_attempt_limit")
+            # Count conservatively even if publication reports uncertain durability.
+            self.attempts += 1
+            self.arm_attempts[self.arm] += 1
+            self.case_attempts[key] = self.case_attempts.get(key, 0) + 1
+            self.retryable = False
+            record = {
+                "schema_version": "ocw_http_reservation.v1",
+                "attempt": self.attempts,
+                "arm": self.arm,
+                "case_id": self.case_id,
+                "reserved_cents": 15,
+                "cost_status": "unknown",
+                "endpoint": _OCW_ENDPOINTS[self.arm],
+                "requested_model": _OCW_MODELS[self.arm],
+                "request_sha256": hashlib.sha256(request.content).hexdigest(),
+                "prompt_sha256": hashlib.sha256(self.prompt.encode("utf-8")).hexdigest(),
+            }
+            try:
+                write_report(
+                    self.directory / f"attempt-{self.attempts:04d}.json", _canonical(record) + b"\n"
+                )
+            except BaseException:
+                self.reservation_publication_uncertain = True
+                self.terminal_reason = "reservation_publication_uncertain"
+                self.retryable = False
+                raise
+            self.reservation_publications += 1
+            self._published_attempts.add(self.attempts)
+
+    async def observe_http(self, response: httpx.Response) -> None:
+        """Retain bounded native outcome facts without request headers or SDK errors."""
+        native: dict[str, Any] = {
+            "attempt": self.attempts,
+            "arm": self.arm,
+            "case_id": self.case_id,
+            "requested_model": _OCW_MODELS[self.arm or ""],
+            "endpoint": _OCW_ENDPOINTS[self.arm or ""],
+            "status_code": response.status_code,
+            "returned_model": None,
+            "usage": None,
+            "cost_usd": None,
+            "cost_status": "unknown",
+            "raw_assistant_text": None,
+        }
+        chunks: list[bytes] = []
+        total = 0
+        try:
+            async for chunk in response.aiter_bytes():
+                total += len(chunk)
+                if total > _OCW_RESPONSE_BYTES:
+                    self.terminal_reason = "response_limit"
+                    raise ValueError("ocw_response_limit")
+                chunks.append(chunk)
+        except BaseException as error:
+            self.terminal_reason = self.terminal_reason or "response_read_failed"
+            self.retryable = False
+            native["response_failure_type"] = type(error).__name__
+            try:
+                self._retain_ocw_http_outcome(native)
+            except BaseException as publication_error:
+                error.add_note("ocw_outcome_publication_failed:" + type(publication_error).__name__)
+            try:
+                await response.aclose()
+            except BaseException as cleanup_error:
+                error.add_note("ocw_response_cleanup_failed:" + type(cleanup_error).__name__)
+            raise
+        # The existing SDK will read this SAME response after the observational hook.
+        response._content = b"".join(chunks)
+        payload: dict[str, Any] | None = None
+        try:
+            decoded = json.loads(
+                response.content, object_pairs_hook=_unique_pairs, parse_constant=_reject_constant
+            )
+            if type(decoded) is not dict:
+                raise ValueError("ocw_response_shape")
+            payload = decoded
+        except (ValueError, TypeError, RecursionError) as error:
+            # Only native transient Sonar status can admit a retry of an
+            # undecodable error body. Accounting admission remains terminal.
+            policy_rejected = isinstance(error, _JsonlPolicyError)
+            if policy_rejected or not (
+                self.arm == "sonar" and response.status_code in {408, 429, 500, 502, 503, 504}
+            ):
+                self.terminal_reason = self.terminal_reason or "response_admission"
+            native["raw_error_body_sha256"] = (
+                "sha256:" + hashlib.sha256(response.content).hexdigest()
+            )
+            native["raw_error_body_bytes"] = len(response.content)
+            try:
+                self.require_secret_free(response.content)
+            except ValueError:
+                self.terminal_reason = self.terminal_reason or "credential_reflection"
+                self.retryable = False
+                native["raw_error_body_status"] = "omitted_credential_reflection"
+            else:
+                # Undecodable bodies may contain escaped credentials. Keep only
+                # the already captured hash/count; typed status still owns retries.
+                native["raw_error_body_status"] = (
+                    "omitted_noncanonical_metadata"
+                    if policy_rejected and error.args == ("json_constant",)
+                    else "omitted_invalid_json"
+                )
+        try:
+            if payload is not None:
+                try:
+                    # JSON decoding accepts nonfinite extensions. Admit canonical
+                    # metadata before copying it into the durable native envelope.
+                    _canonical(payload)
+                except (ValueError, TypeError, RecursionError):
+                    native["raw_error_body_sha256"] = (
+                        "sha256:" + hashlib.sha256(response.content).hexdigest()
+                    )
+                    native["raw_error_body_bytes"] = len(response.content)
+                    native["raw_error_body_status"] = "omitted_noncanonical_metadata"
+                    raise
+                native["returned_model"] = (
+                    payload.get("model") if type(payload.get("model")) is str else None
+                )
+                raw_usage = payload.get("usage")
+                # Retain bounded observed bytes before semantic accounting admission.
+                # Rejected cache/token/cost metadata remains native failure evidence.
+                _check_depth(raw_usage)
+                native["usage"] = copy.deepcopy(raw_usage)
+                native["provider_declared_cost"] = (
+                    copy.deepcopy(raw_usage.get("cost")) if type(raw_usage) is dict else None
+                )
+                native["usage"], declared_amount = _ocw_usage(raw_usage)
+                usage = native["usage"]
+                try:
+                    _validate_ocw_usage_token_limits(usage)
+                except ValueError:
+                    self.terminal_reason = "reported_token_overrun"
+                declared = (
+                    payload.get("usage", {}).get("cost")
+                    if type(payload.get("usage")) is dict
+                    else None
+                )
+                native["provider_declared_cost"] = declared
+                currency = _ocw_cost_currency(declared)
+                known_usd = currency == "USD"
+                native["cost_usd"] = declared_amount if known_usd else None
+                native["cost_basis"] = (
+                    "provider_declaration_usd" if known_usd else "unknown_currency"
+                )
+                native["invoice_verified"] = False
+                if currency is not None and currency != "USD":
+                    self.terminal_reason = "provider_cost_currency_changed"
+                if native["cost_usd"] is not None:
+                    native["cost_status"] = "known"
+                if self.arm == "sonar":
+                    choices = payload.get("choices")
+                    if type(choices) is list and choices and type(choices[0]) is dict:
+                        message = choices[0].get("message")
+                        if type(message) is dict and type(message.get("content")) is str:
+                            native["raw_assistant_text"] = message["content"]
+                else:
+                    output = payload.get("output")
+                    if type(output) is list:
+                        texts = [
+                            part["text"]
+                            for item in output
+                            if type(item) is dict
+                            and item.get("type") == "message"
+                            and item.get("role") == "assistant"
+                            for part in item.get("content", [])
+                            if type(part) is dict
+                            and part.get("type") == "output_text"
+                            and type(part.get("text")) is str
+                        ]
+                        native["raw_assistant_text"] = "".join(texts) if texts else None
+        except (ValueError, TypeError, KeyError, RecursionError):
+            self.terminal_reason = self.terminal_reason or "response_admission"
+        if native["cost_usd"] is not None and native["cost_usd"] > _RESERVE_USD:
+            self.reported_overrun_usd = native["cost_usd"]
+            self.terminal_reason = "reported_cost_overrun"
+        self.retryable = self.terminal_reason is None and _ocw_retryable_http_outcome(native)
+        if response.status_code not in (200, 201):
+            if not self.retryable:
+                self.terminal_reason = self.terminal_reason or "provider_http_terminal"
+        self._retain_ocw_http_outcome(native)
+        if self.terminal_reason is not None:
+            self.retryable = False
+            raise ValueError("ocw_terminal_failure")
+
+    def _retain_ocw_http_outcome(self, native: dict[str, Any]) -> None:
+        """Keep observed header/body admission facts even when the body is rejected."""
+        native["retryable"] = self.retryable and self.terminal_reason is None
+        self.http_observations.append(native)
+        content = _canonical(native)
+        self.require_secret_free(content)
+        if len(content) > MAX_LINE_BYTES:
+            # The response bound does not bound duplicated usage/cost metadata
+            # inside this envelope. Keep a readable terminal omission receipt.
+            summary: dict[str, Any] = {
+                key: native[key]
+                for key in (
+                    "attempt",
+                    "arm",
+                    "case_id",
+                    "requested_model",
+                    "endpoint",
+                    "status_code",
+                )
+                if key in native
+            }
+            summary.update(
+                returned_model=None,
+                usage=None,
+                cost_usd=None,
+                cost_status="unknown",
+                raw_assistant_text=None,
+                outcome_material_status="omitted_native_line_limit",
+                outcome_content_bytes=len(content),
+                outcome_material_sha256="sha256:" + hashlib.sha256(content).hexdigest(),
+            )
+            native.clear()
+            native.update(summary)
+            self.terminal_reason = self.terminal_reason or "outcome_limit"
+            self.retryable = False
+            native["retryable"] = False
+            content = _canonical(native)
+        encoded = content + b"\n"
+        try:
+            write_report(self.directory / f"attempt-result-{self.attempts:04d}.json", encoded)
+        except BaseException:
+            self.terminal_reason = "outcome_publication_uncertain"
+            self.retryable = False
+            raise
 
 
 def validate_manifest(rows: list[object], *, require_full: bool = True) -> list[dict[str, Any]]:
@@ -347,14 +1231,15 @@ def validate_pricing_evidence(rows: list[object]) -> None:
 
 
 def _code_sha() -> str:
+    checkout = Path(__file__).resolve().parents[2]
     observed = run_git(
-        ["status", "--porcelain", "--untracked-files=all"], cwd=Path.cwd(), check=False
+        ["status", "--porcelain", "--untracked-files=all"], cwd=checkout, check=False
     )
     if observed.returncode != 0:
         raise ValueError("git_status_unavailable")
     if observed.stdout.strip():
         raise ValueError("uncommitted_code_state")
-    observed = run_git(["rev-parse", "HEAD"], cwd=Path.cwd(), check=False)
+    observed = run_git(["rev-parse", "HEAD"], cwd=checkout, check=False)
     if observed.returncode != 0:
         raise ValueError("git_head_unavailable")
     sha = observed.stdout.strip()
@@ -402,6 +1287,86 @@ def _private_parent(path: Path) -> None:
         os.close(parent)
 
 
+def _prepare_audit_file(path: Path) -> None:
+    """Preserve a private existing file or publish one private empty append target."""
+    _private_parent(path)
+    try:
+        _read_input(path)
+    except ValueError as error:
+        if not isinstance(error.__cause__, FileNotFoundError):
+            raise
+        write_report(path, b"")
+    _private_parent(path)
+
+
+def _validate_runtime_location(path: Path, *, kind: Literal["audit", "database"]) -> None:
+    """Admit a selected private runtime path through the one native Git owner."""
+    _private_parent(path)
+    checkout = Path(__file__).resolve().parents[2]
+    observed = run_git(["rev-parse", "--show-toplevel"], cwd=checkout, check=False)
+    if observed.returncode != 0:
+        raise ValueError("git_root_unavailable")
+    source_root = Path(observed.stdout.strip())
+    if not source_root.is_absolute() or not source_root.is_dir():
+        raise ValueError("git_root_unavailable")
+    ancestor = path.absolute().parent
+    relative_parts = [path.name]
+    try:
+        # Only walk this known target's existing ancestors. Root spelling alone
+        # cannot establish that it is outside our actual source checkout.
+        while not ancestor.samefile(source_root):
+            if ancestor == ancestor.parent:
+                return
+            relative_parts.append(ancestor.name)
+            ancestor = ancestor.parent
+    except OSError as error:
+        raise ValueError(f"{kind}_source_identity_unavailable") from error
+    relative_path = Path(*reversed(relative_parts))
+    relative = str(relative_path)
+    tracked = run_git(["ls-files", "--cached", "-z"], cwd=checkout, check=False)
+    if tracked.returncode != 0 or (tracked.stdout and not tracked.stdout.endswith("\0")):
+        raise ValueError(f"{kind}_tracking_unavailable")
+    indexed_names = tracked.stdout.split("\0")[:-1] if tracked.stdout else []
+    if any(not name for name in indexed_names):
+        raise ValueError(f"{kind}_tracking_unavailable")
+    if relative in indexed_names:
+        raise ValueError(f"tracked_{kind}_path")
+    # Git names are literal index entries. A different spelling can still name
+    # our one known append target on the native filesystem; do not case-fold.
+    try:
+        if path.exists():
+            for name in indexed_names:
+                indexed_path = source_root / name
+                if indexed_path.exists() and indexed_path.samefile(path):
+                    raise ValueError(f"tracked_{kind}_path")
+    except OSError as error:
+        raise ValueError(f"{kind}_tracking_unavailable") from error
+    ignored = run_git(
+        ["check-ignore", "-z", "--stdin"], cwd=checkout, check=False, input_text=relative + "\0"
+    )
+    if ignored.returncode == 1 or (ignored.returncode == 0 and ignored.stdout != relative + "\0"):
+        raise ValueError(f"nonignored_{kind}_path")
+    if ignored.returncode != 0:
+        raise ValueError(f"{kind}_ignore_unavailable")
+    if kind == "database":
+        # SQLite owns database reads and schema work; an existing quota file
+        # is not an append-only JSONL target or a missing audit publication.
+        return
+    try:
+        _read_input(path)
+    except ValueError as error:
+        if not isinstance(error.__cause__, FileNotFoundError):
+            raise
+        # Existing append-only files need no staging directory. A missing file
+        # uses the existing publisher, whose random staging names must be ignored.
+        _validate_output_directory(source_root / relative_path.parent, generated_names=[path.name])
+
+
+def _validate_audit_location(path: Path) -> None:
+    """Preserve audit append/preparation semantics through the shared path owner."""
+    _validate_runtime_location(path, kind="audit")
+
+
 def validate_live_environment(fitchef_key: str) -> None:
     """Admit only isolated synthetic PRO state through the normal local gates."""
     if os.getenv("APP_ENV") != "development" or os.getenv(
@@ -416,7 +1381,7 @@ def validate_live_environment(fitchef_key: str) -> None:
         raise ValueError("pro_tier_unavailable")
     if require_llm_monthly_limit("PRO") < 24:
         raise ValueError("insufficient_synthetic_quota")
-    if not os.getenv("SERVER_SALT") or not os.getenv("AGENT_CONTROL_AUDIT_SIGNING_KEY"):
+    if not os.getenv("SERVER_SALT") or not os.getenv("AGENT_CONTROL_AUDIT_SIGNING_KEY", "").strip():
         raise ValueError("missing_local_audit_secret")
     db_url = os.getenv("DATABASE_URL", "")
     if not db_url.startswith("sqlite:////"):
@@ -425,7 +1390,7 @@ def validate_live_environment(fitchef_key: str) -> None:
     audit_log = os.getenv("AGENT_CONTROL_AUDIT_LOG_PATH", "")
     if not audit_log:
         raise ValueError("private_audit_path_required")
-    _private_parent(Path(audit_log))
+    _validate_audit_location(Path(audit_log))
     with session_scope() as session:
         used = session.scalar(
             select(VipLlmMonthlyUsage.used_requests).where(
@@ -443,7 +1408,9 @@ def validate_live_environment(fitchef_key: str) -> None:
         raise ValueError("fitchef_mode_not_auto_safe")
 
 
-def _validate_output_directory(directory: Path) -> None:
+def _validate_output_directory(
+    directory: Path, *, generated_names: list[str] | None = None
+) -> None:
     """Private output must be outside Git or fully ignored before any send."""
     parent, _ = _parent_fd(directory / "collection-status.json")
     try:
@@ -452,7 +1419,8 @@ def _validate_output_directory(directory: Path) -> None:
             raise ValueError("unsafe_output_directory")
     finally:
         os.close(parent)
-    observed = run_git(["rev-parse", "--show-toplevel"], cwd=Path.cwd(), check=False)
+    checkout = Path(__file__).resolve().parents[2]
+    observed = run_git(["rev-parse", "--show-toplevel"], cwd=checkout, check=False)
     if observed.returncode != 0:
         raise ValueError("git_root_unavailable")
     root = observed.stdout.strip()
@@ -461,11 +1429,18 @@ def _validate_output_directory(directory: Path) -> None:
     except ValueError:
         return
     names = (
-        [f"attempt-{index:04d}.json" for index in range(1, _ATTEMPT_LIMIT + 1)]
-        + [f"case-{index:02d}.jsonl" for index in range(1, 25)]
-        + ["cases.jsonl", "collection-status.json"]
+        generated_names
+        if generated_names is not None
+        else (
+            [f"attempt-{index:04d}.json" for index in range(1, _ATTEMPT_LIMIT + 1)]
+            + [f"case-{index:02d}.jsonl" for index in range(1, 25)]
+            + ["cases.jsonl", "collection-status.json"]
+        )
     )
-    paths = [str(relative / name) for name in names]
+    # The immutable publisher also creates random staging names. Prove this
+    # directory's current Git ignore state alongside every finite final name;
+    # final-name patterns alone do not cover the publisher's staging paths.
+    paths = [str(relative)] + [str(relative / name) for name in names]
     observed = run_git(
         [
             "check-ignore",
@@ -473,7 +1448,7 @@ def _validate_output_directory(directory: Path) -> None:
             "-z",
             "--stdin",
         ],
-        cwd=Path(root),
+        cwd=checkout,
         check=False,
         input_text="".join(path + "\0" for path in paths),
     )
@@ -751,6 +1726,7 @@ async def collect(
     code_sha = _code_sha()
     code_hashes = _code_hashes()
     manifest_fingerprint = hashlib.sha256(_canonical(manifest)).hexdigest()
+    _prepare_audit_file(Path(os.getenv("AGENT_CONTROL_AUDIT_LOG_PATH", "")))
     transport = httpx.AsyncClient(event_hooks={"request": [ledger.reserve]}, follow_redirects=False)
     provider = PerplexityProvider(
         endpoint=_EXPECTED_ENDPOINT,
@@ -830,14 +1806,1312 @@ async def collect(
         await provider.client.close()
 
 
+def validate_ocw_environment(fitchef_key: str, *, output_dir: Path | None = None) -> Path:
+    """Require private synthetic VIP state; do not bypass native route admission."""
+    if (
+        os.getenv("APP_ENV") != "development"
+        or os.getenv("SUBSCRIPTION_DB_ENABLED", "false").lower() not in {"false", "0", "off", "no"}
+        or os.getenv("LLM_PROVIDER") != "perplexity"
+        or os.getenv("PERPLEXITY_MODEL", "sonar") != "sonar"
+        or os.getenv("PERPLEXITY_ENDPOINT", _EXPECTED_ENDPOINT) != _EXPECTED_ENDPOINT
+    ):
+        raise ValueError("ocw_environment")
+    if (
+        type(fitchef_key) is not str
+        or not fitchef_key.startswith("ocw-eval-")
+        or fitchef_key not in {item.strip() for item in os.getenv("VIP_API_KEYS", "").split(",")}
+        or get_subscription_tier(fitchef_key) is not SubscriptionTier.VIP
+    ):
+        raise ValueError("ocw_synthetic_vip")
+    if not os.getenv("SERVER_SALT") or not os.getenv("AGENT_CONTROL_AUDIT_SIGNING_KEY", "").strip():
+        raise ValueError("ocw_audit_configuration")
+    db_url = os.getenv("DATABASE_URL", "")
+    if not db_url.startswith("sqlite:////"):
+        raise ValueError("ocw_private_sqlite")
+    try:
+        database = make_url(db_url).database
+    except ArgumentError as error:
+        raise ValueError("ocw_private_sqlite") from error
+    if not database or not Path(database).is_absolute():
+        raise ValueError("ocw_private_sqlite")
+    database_path = Path(database)
+    audit = os.getenv("AGENT_CONTROL_AUDIT_LOG_PATH", "")
+    if not audit:
+        raise ValueError("ocw_audit_configuration")
+    audit_path = Path(audit)
+    # The selected SQLite primary and its three fixed auxiliary basenames are
+    # runtime state. This finite check does not enumerate arbitrary SQLite files.
+    database_paths = [database_path] + [
+        database_path.with_name(database_path.name + suffix)
+        for suffix in ("-journal", "-wal", "-shm")
+    ]
+    if any(_ocw_audit_aliases_input(audit_path, path) for path in database_paths):
+        raise ValueError("ocw_runtime_state_alias")
+    if output_dir is not None:
+        capture_root = output_dir.resolve()
+        if any(path.resolve().is_relative_to(capture_root) for path in (database_path, audit_path)):
+            raise ValueError("ocw_runtime_output_overlap")
+    for path in database_paths:
+        _validate_runtime_location(path, kind="database")
+    _validate_audit_location(audit_path)
+    with session_scope() as session:
+        counts = session.scalars(
+            select(VipLlmMonthlyUsage.used_requests).where(
+                VipLlmMonthlyUsage.key_fingerprint.in_(
+                    (
+                        llm_key_fingerprint(fitchef_key, tier="VIP"),
+                        _legacy_llm_key_fingerprint(fitchef_key),
+                    )
+                ),
+                VipLlmMonthlyUsage.month_start_date == month_start_date_utc(),
+            )
+        ).all()
+    if any(type(used) is not int or used < 0 for used in counts):
+        raise ValueError("ocw_quota")
+    if require_llm_monthly_limit("VIP") - sum(counts) < 16:
+        raise ValueError("ocw_quota")
+    from app.routers import fitchef_insight
+    from app.security.agent_control_plane import require_execution_mode
+    from app.security import rate_limit
+
+    if (
+        not fitchef_insight._is_fitchef_mascot_enabled()
+        or os.getenv("FITCHEF_MASCOT_EXECUTION_MODE") != "auto-safe"
+    ):
+        raise ValueError("ocw_feature_or_mode")
+    require_execution_mode("auto-safe")
+    if (
+        os.getenv("RATE_LIMITING_IN_TESTS") != "true"
+        or rate_limit.RATE_LIMIT_INSIGHT != "10/minute"
+        or rate_limit.rate_limit_insight_value() != "10/minute"
+        or rate_limit.limiter is None
+        or rate_limit.limiter.enabled is not True
+        or inspect.getclosurevars(fitchef_insight.fitchef_mascot_insight).nonlocals.get("self")
+        is not rate_limit.limiter
+    ):
+        raise ValueError("ocw_active_limiter_required")
+    return database_path
+
+
+def _ocw_http_client(ledger: AttemptLedger) -> httpx.AsyncClient:
+    return httpx.AsyncClient(
+        event_hooks={"request": [ledger.reserve], "response": [ledger.observe_http]},
+        follow_redirects=False,
+        trust_env=False,
+        timeout=45.0,
+    )
+
+
+def _ocw_code_hashes() -> dict[str, str]:
+    from providers import perplexity_agent
+    from app.routers import fitchef_insight
+
+    result = _code_hashes()
+    for name, module in (
+        ("perplexity_agent", perplexity_agent),
+        ("mascot_router", fitchef_insight),
+    ):
+        source_file = module.__file__
+        if type(source_file) is not str:
+            raise ValueError("ocw_code_source")
+        result[name] = hashlib.sha256(Path(source_file).read_bytes()).hexdigest()
+    return result
+
+
+def _ocw_observe_post(
+    client: Any,
+    scenario: dict[str, Any],
+    *,
+    arm: str,
+    key: str,
+    transport: httpx.AsyncClient,
+    ledger: AttemptLedger,
+    run: dict[str, Any],
+) -> dict[str, Any]:
+    """Observe one genuine canonical HTTP call; every wrapper delegates unchanged."""
+    import llm
+    from providers import perplexity_agent
+    from tenacity import retry_if_exception, stop_after_attempt
+
+    inner = scenario["input_payload"]
+    expected_prompt, expected_sources = _ocw_prompt(inner)
+    safe_query = require_safe_ai_agent_input(inner["query"])
+    state: dict[str, Any] = {
+        "sanitization": [],
+        "redaction": [],
+        "fallbacks": [],
+        "extractions": [],
+    }
+    unused_clients: list[Any] = []
+    provider_objects: list[Any] = []
+    starting_attempts = ledger.attempts
+    real_selector = fitchef_runtime._require_fitchef_llm_provider
+    real_prompt = fitchef_runtime.build_mascot_prompt
+    real_draft = fitchef_runtime.prepare_mascot_draft
+    real_runtime = fitchef_runtime.run_mascot_insight_task
+    real_sanitize = fitchef_runtime.sanitize_rag_markdown
+    real_redact = fitchef_runtime.redact_pii_from_text
+    real_fallback = fitchef_companion._fallback_draft
+    real_extract = fitchef_companion._extract_action_items
+    real_sonar_constructor = llm.PerplexityProvider
+    real_agent_constructor = perplexity_agent.PerplexityAgentProvider
+
+    def sonar_constructor(*args: Any, **kwargs: Any) -> Any:
+        if args or kwargs.get("model") != "sonar" or kwargs.get("endpoint") != _EXPECTED_ENDPOINT:
+            raise ValueError("ocw_provider_configuration")
+        if not callable(real_sonar_constructor):
+            raise ValueError("ocw_provider_configuration")
+        provider: Any = real_sonar_constructor(**kwargs)
+        unused_clients.append(provider.client)
+        sdk_identity_default = ""
+        provider.client = perplexity_agent._AgentAsyncOpenAI(
+            api_key=kwargs["api_key"],
+            base_url=_EXPECTED_ENDPOINT,
+            organization=sdk_identity_default,
+            project=sdk_identity_default,
+            webhook_secret=sdk_identity_default,
+            http_client=transport,
+            max_retries=0,
+            timeout=30.0,
+        )
+        original_create = provider.client.chat.completions.create
+
+        async def bounded_create(*call_args: Any, **call_kwargs: Any) -> Any:
+            if call_args or "max_tokens" in call_kwargs or "extra_body" in call_kwargs:
+                ledger.terminal_reason = "provider_parameter_collision"
+                raise ValueError("ocw_provider_configuration")
+            try:
+                return await original_create(
+                    **call_kwargs, max_tokens=2048, extra_body={"disable_search": True}
+                )
+            except BaseException as error:
+                ledger.native_failure(error)
+                raise
+
+        provider.client.chat.completions.create = bounded_create
+        provider_objects.append(provider)
+        return provider
+
+    def agent_constructor(**kwargs: Any) -> Any:
+        if (
+            kwargs.get("model") != _OCW_MODELS["sol"]
+            or kwargs.get("reasoning_effort") != "low"
+            or "http_client" in kwargs
+        ):
+            raise ValueError("ocw_provider_configuration")
+        provider = real_agent_constructor(**kwargs, http_client=transport)
+        provider_objects.append(provider)
+        return provider
+
+    def selector(prompt: str) -> Any:
+        if prompt != expected_prompt:
+            raise ValueError("ocw_prompt_mismatch")
+        provider: Any = real_selector(prompt)
+        expected_type = PerplexityProvider if arm == "sonar" else real_agent_constructor
+        if type(provider) is not expected_type or provider not in provider_objects:
+            raise ValueError("ocw_provider_configuration")
+        # This exact admitted instance exposes native decorator metadata and
+        # instance-level observational replacement beyond ProviderBase typing.
+        instrumented: Any = provider
+        original_generate: Any = instrumented.generate
+        bounded_generate = (
+            original_generate.retry_with(
+                retry=retry_if_exception(
+                    lambda _error: ledger.retryable and ledger.terminal_reason is None
+                ),
+                stop=stop_after_attempt(3),
+            )
+            if arm == "sonar"
+            else None
+        )
+
+        async def observed_generate(text: str) -> str:
+            if text != state.get("prompt") or text != expected_prompt:
+                raise ValueError("ocw_prompt_mismatch")
+            ledger.bind_case(arm, scenario["canonical_id"], text)
+            state["generation_prompt"] = text
+            try:
+                result = (
+                    await bounded_generate(instrumented, text)
+                    if bounded_generate is not None
+                    else await original_generate(text)
+                )
+            except BaseException as error:
+                ledger.native_failure(error)
+                if ledger.terminal_reason is None:
+                    ledger.terminal_reason = "provider_generation_failed"
+                ledger.retryable = False
+                raise
+            if type(result) is not str or len(result.encode("utf-8")) > 32768:
+                raise ValueError("ocw_generation_admission")
+            state["generation_text"] = result
+            return result
+
+        instrumented.generate = observed_generate
+        state["selector"] = {"requested_model": provider.model, "provider": provider.name}
+        return provider
+
+    def retrieval(query: str, **kwargs: Any) -> RAGContext:
+        if (
+            query != safe_query
+            or kwargs.get("agent_id") != "fitchef-agent"
+            or kwargs.get("user_tier") != "VIP"
+            or kwargs.get("max_chunks") != 5
+        ):
+            raise ValueError("ocw_retrieval")
+        state["retrieval_query"] = query
+        return RAGContext(
+            query=query,
+            refined_queries=[],
+            chunks=[RAGChunk(**source) for source in inner["sources"]],
+            confidence=0.5 if inner["sources"] else 0.0,
+            hops=1,
+            latency_ms=0,
+            agent_id="fitchef-agent",
+            user_tier="VIP",
+        )
+
+    def sanitize(text: str) -> str:
+        result: str = real_sanitize(text)
+        state["sanitization"].append({"input": text, "output": result})
+        return result
+
+    def redact(text: str) -> Any:
+        result = real_redact(text)
+        state["redaction"].append({"input": text, "output": result})
+        return result
+
+    def prompt_builder(query: str, rag_context: str) -> str:
+        result: str = real_prompt(query, rag_context)
+        if query != safe_query or result != expected_prompt:
+            raise ValueError("ocw_prompt_mismatch")
+        state.update(prompt=result, builder_query=query, builder_context=rag_context)
+        return result
+
+    def fallback(**kwargs: Any) -> Any:
+        result = real_fallback(**kwargs)
+        state["fallbacks"].append(result)
+        return result
+
+    def extraction(*args: Any, **kwargs: Any) -> list[str]:
+        result: list[str] = real_extract(*args, **kwargs)
+        if type(result) is not list or any(type(item) is not str for item in result):
+            raise ValueError("ocw_draft_mismatch")
+        state["extractions"].append(result)
+        return result
+
+    def draft_builder(raw_text: str, *, query: str) -> Any:
+        if raw_text != state.get("generation_text") or query != safe_query:
+            raise ValueError("ocw_draft_mismatch")
+        result = real_draft(raw_text, query=query)
+        state["draft_object"] = result
+        return result
+
+    async def runtime(task: Any) -> Any:
+        if (
+            task.input.safe_query != safe_query
+            or task.input.endpoint != "/api/v1/insight/fitchef"
+            or task.input.method != "POST"
+            or task.mode != "auto-safe"
+        ):
+            raise ValueError("ocw_runtime_input")
+        result = await real_runtime(task)
+        state["internal_result"] = result.model_dump(mode="json")
+        return result
+
+    with ExitStack() as stack:
+        stack.enter_context(
+            patch.dict(
+                os.environ,
+                {
+                    "FITCHEF_AGENT_API_ENABLED": "false" if arm == "sonar" else "true",
+                    "FITCHEF_AGENT_API_MODEL": _OCW_MODELS["sol"],
+                    "FITCHEF_AGENT_API_REASONING_EFFORT": "low",
+                },
+            )
+        )
+        for owner, name, replacement in (
+            (llm, "PerplexityProvider", sonar_constructor),
+            (perplexity_agent, "PerplexityAgentProvider", agent_constructor),
+            (fitchef_runtime, "_require_fitchef_llm_provider", selector),
+            (vector_rag, "retrieve_context_structured", retrieval),
+            (fitchef_runtime, "sanitize_rag_markdown", sanitize),
+            (fitchef_runtime, "redact_pii_from_text", redact),
+            (fitchef_runtime, "build_mascot_prompt", prompt_builder),
+            (fitchef_runtime, "prepare_mascot_draft", draft_builder),
+            (fitchef_runtime, "run_mascot_insight_task", runtime),
+            (fitchef_companion, "_fallback_draft", fallback),
+            (fitchef_companion, "_extract_action_items", extraction),
+        ):
+            stack.enter_context(patch.object(owner, name, replacement))
+        previous_logging = logging.root.manager.disable
+        logging.disable(logging.CRITICAL)
+        try:
+            response = client.post(
+                "/api/v1/insight/fitchef",
+                json={"query": inner["query"]},
+                headers={"X-API-Key": key},
+            )
+            if not response.headers.get("content-type", "").startswith("application/json"):
+                raise ValueError("ocw_http_envelope")
+            body = response.json()
+            if response.status_code != 200:
+                raise ValueError("ocw_http_denied")
+        finally:
+            original_error = sys.exc_info()[1]
+            logging.disable(previous_logging)
+            for unused in unused_clients:
+                try:
+                    client.portal.call(unused.close)
+                except BaseException as cleanup_error:
+                    ledger.terminal_reason = ledger.terminal_reason or "provider_cleanup_failed"
+                    ledger.retryable = False
+                    if original_error is None:
+                        raise
+                    original_error.add_note(
+                        "ocw_unused_client_cleanup_failed:" + type(cleanup_error).__name__
+                    )
+    required = {
+        "prompt",
+        "builder_query",
+        "builder_context",
+        "retrieval_query",
+        "generation_prompt",
+        "generation_text",
+        "draft_object",
+        "internal_result",
+        "selector",
+    }
+    if not required.issubset(state) or state["prompt"] != state["generation_prompt"]:
+        raise ValueError("ocw_capture_incomplete")
+    if len(state["sanitization"]) != len(expected_sources) or len(state["redaction"]) != len(
+        expected_sources
+    ):
+        raise ValueError("ocw_source_observation")
+    for index, source in enumerate(expected_sources):
+        if (
+            state["sanitization"][index]["input"] != inner["sources"][index]["content"]
+            or (state["redaction"][index]["output"] or "") != source["content"]
+        ):
+            raise ValueError("ocw_source_observation")
+    draft = state["draft_object"]
+    full_fallback = any(draft is item for item in state["fallbacks"])
+    action_fallback = any(draft.action_items is item.action_items for item in state["fallbacks"])
+    extracted = any(draft.action_items is item for item in state["extractions"])
+    attempts = copy.deepcopy(
+        [
+            item
+            for item in ledger.http_observations
+            if starting_attempts < item["attempt"] <= ledger.attempts
+        ]
+    )
+    if not attempts or attempts[-1].get("raw_assistant_text") is None:
+        raise ValueError("ocw_capture_incomplete")
+    internal = state["internal_result"]
+    if (
+        type(body) is not dict
+        or body.get("scenario") != "mascot_insight"
+        or body.get("message") != draft.message
+        or body.get("action_items") != draft.action_items
+        or internal.get("message") != draft.message
+        or internal.get("action_items") != draft.action_items
+        or body.get("quota_state") != "consumed"
+    ):
+        raise ValueError("ocw_result_mismatch")
+    record = {
+        "schema_version": "ocw_mascot_observation.v1",
+        "asset_type": "eval_run",
+        "rail": "advisory",
+        "version": "v1",
+        "policy_version": "ocw1a-comparison-v1",
+        "run": copy.deepcopy(run),
+        "case_id": scenario["canonical_id"],
+        "arm": arm,
+        "input_payload": copy.deepcopy(inner),
+        "requested_language": "ru",
+        "retrieval_origin": "controlled_synthetic",
+        "admitted_sources": expected_sources,
+        "sanitization": state["sanitization"],
+        "redaction": state["redaction"],
+        "source_snapshot_fingerprint": "sha256:"
+        + hashlib.sha256(_canonical(expected_sources)).hexdigest(),
+        "source_snapshot_origin": "derived_from_observed_prompt_material",
+        "runtime_canonical_freeze_observed": False,
+        "prompt": state["prompt"],
+        "prompt_sha256": hashlib.sha256(state["prompt"].encode()).hexdigest(),
+        "builder_query": state["builder_query"],
+        "builder_context": state["builder_context"],
+        "raw_assistant_text": attempts[-1]["raw_assistant_text"],
+        "generation_text": state["generation_text"],
+        "draft": {
+            "message": draft.message,
+            "action_items": draft.action_items,
+            "warnings": draft.warnings,
+        },
+        "internal_result": internal,
+        "http": {
+            "method": "POST",
+            "path": "/api/v1/insight/fitchef",
+            "status_code": 200,
+            "content_type": response.headers["content-type"],
+            "body": body,
+        },
+        "field_origin": {
+            "message": "fallback" if full_fallback else "provider_normalized",
+            "action_items": (
+                "fallback_default"
+                if action_fallback
+                else "provider_extracted" if extracted else "unknown"
+            ),
+        },
+        "provider": {
+            "requested_model": _OCW_MODELS[arm],
+            "returned_model": attempts[-1].get("returned_model"),
+            "endpoint": _OCW_ENDPOINTS[arm],
+            "backend_identity": "unknown",
+            "attempts": attempts,
+            "reserved_cents": 15 * (ledger.attempts - starting_attempts),
+            "cost_usd": attempts[0].get("cost_usd") if len(attempts) == 1 else None,
+            "cost_status": (
+                attempts[0].get("cost_status", "unknown") if len(attempts) == 1 else "unknown"
+            ),
+        },
+        "upstream_assets": [
+            run["manifest_fingerprint"],
+            run["rubric_sha256"],
+            run["pricing_fingerprint"],
+        ],
+        "upstream_binding": "informational_fingerprints_only",
+        "replay_behavior": "frozen_read_only_observation",
+        "admission_behavior": "native_route_and_capture_binding",
+        "authority_granted": False,
+        "answer_change_allowed": False,
+    }
+    record["material_fingerprint"] = "sha256:" + hashlib.sha256(_canonical(record)).hexdigest()
+    record["idempotency_key"] = (
+        "sha256:"
+        + hashlib.sha256(
+            _canonical(
+                {
+                    "run_id": run["id"],
+                    "case_id": record["case_id"],
+                    "arm": arm,
+                    "material_fingerprint": record["material_fingerprint"],
+                }
+            )
+        ).hexdigest()
+    )
+    encoded = _canonical(record)
+    if len(encoded) > MAX_LINE_BYTES:
+        raise ValueError("ocw_record_limit")
+    ledger.require_secret_free(encoded)
+    return record
+
+
+def _validate_ocw_run(run: dict[str, Any]) -> dict[tuple[str, str], dict[str, Any]]:
+    """Check the existing finite producer shape, without authenticating its provenance."""
+    if type(run) is not dict or set(run) != {
+        "id",
+        "code_sha",
+        "code_hashes",
+        "manifest_fingerprint",
+        "input_fingerprints",
+        "rubric_sha256",
+        "pricing_fingerprint",
+        "request_preflight",
+        "route_limit",
+        "pacing_seconds",
+        "capture_kind",
+    }:
+        raise ValueError("ocw_run")
+    _check_depth(run)
+    if len(_canonical(run)) > MAX_LINE_BYTES:
+        raise ValueError("ocw_run")
+    if (
+        type(run["id"]) is not str
+        or re.fullmatch(r"[A-Za-z0-9_.:-]{1,80}", run["id"]) is None
+        or type(run["code_sha"]) is not str
+        or re.fullmatch(r"[0-9a-f]{40}", run["code_sha"]) is None
+        or type(run["code_hashes"]) is not dict
+        or set(run["code_hashes"])
+        != {
+            "collector",
+            "evaluator",
+            "fitchef_runtime",
+            "fitchef_companion",
+            "perplexity_adapter",
+            "perplexity_agent",
+            "mascot_router",
+        }
+        or any(
+            type(value) is not str or re.fullmatch(r"[0-9a-f]{64}", value) is None
+            for value in run["code_hashes"].values()
+        )
+        or type(run["input_fingerprints"]) is not dict
+        or set(run["input_fingerprints"]) != set(_OCW_CASES)
+        or any(
+            type(value) is not str or re.fullmatch(r"sha256:[0-9a-f]{64}", value) is None
+            for value in [
+                run["manifest_fingerprint"],
+                run["rubric_sha256"],
+                run["pricing_fingerprint"],
+                *run["input_fingerprints"].values(),
+            ]
+        )
+        or type(run["route_limit"]) is not str
+        or run["route_limit"] != "10/minute"
+        or type(run["pacing_seconds"]) is not float
+        or run["pacing_seconds"] != _OCW_PACE_SECONDS
+        or type(run["capture_kind"]) is not str
+        or run["capture_kind"] != "native_guarded_http_observation"
+        or type(run["request_preflight"]) is not list
+        or len(run["request_preflight"]) != len(_OCW_CASES) * len(_OCW_MODELS)
+    ):
+        raise ValueError("ocw_run")
+    pairs = [(case, arm) for case in _OCW_CASES for arm in _OCW_MODELS]
+    preflight: dict[tuple[str, str], dict[str, Any]] = {}
+    arm_bounds: dict[str, str] = {}
+    for key, row in zip(pairs, run["request_preflight"], strict=True):
+        if (
+            type(row) is not dict
+            or set(row)
+            != {
+                "case_id",
+                "arm",
+                "prompt_sha256",
+                "request_bytes",
+                "upper_usd_per_attempt",
+                "observation_kind",
+                "reserved_cents",
+            }
+            or type(row["case_id"]) is not str
+            or type(row["arm"]) is not str
+            or (row["case_id"], row["arm"]) != key
+            or type(row["prompt_sha256"]) is not str
+            or re.fullmatch(r"[0-9a-f]{64}", row["prompt_sha256"]) is None
+            or type(row["request_bytes"]) is not int
+            or not 0 < row["request_bytes"] <= _MAX_HTTP_BODY_BYTES
+            or type(row["upper_usd_per_attempt"]) is not str
+            or len(row["upper_usd_per_attempt"]) > MAX_LINE_BYTES
+            or type(row["observation_kind"]) is not str
+            or row["observation_kind"] != "local_mock_serialization_only"
+            or type(row["reserved_cents"]) is not int
+            or row["reserved_cents"] != 0
+        ):
+            raise ValueError("ocw_run")
+        try:
+            upper = Decimal(row["upper_usd_per_attempt"])
+        except InvalidOperation as exc:
+            raise ValueError("ocw_run") from exc
+        if (
+            not upper.is_finite()
+            or not 0 <= upper <= Decimal("0.15")
+            or str(upper) != row["upper_usd_per_attempt"]
+            or arm_bounds.setdefault(key[1], row["upper_usd_per_attempt"])
+            != row["upper_usd_per_attempt"]
+        ):
+            raise ValueError("ocw_run")
+        preflight[key] = row
+    return preflight
+
+
+def validate_ocw_records(
+    records: list[object], *, expected_run: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """Recheck frozen paired material; consistency does not authenticate execution."""
+    try:
+        return _validate_ocw_records(records, expected_run=expected_run)
+    except HTTPException as exc:
+        if exc.status_code != 400 or exc.detail != UNSAFE_AI_INPUT_DETAIL:
+            raise
+        raise ValueError("ocw_record") from exc
+    except (KeyError, TypeError, IndexError, AttributeError, UnicodeError, RecursionError) as exc:
+        raise ValueError("ocw_record") from exc
+
+
+def _validate_ocw_records(
+    records: list[object], *, expected_run: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """Use the existing native JSON depth/wire owners before any defensive copy."""
+    from app.schemas.fitchef import FitChefMascotInsightResult
+    from app.schemas.fitchef_coaching import FitChefMascotInsightResponse
+
+    if type(records) is not list or len(records) != 16:
+        raise ValueError("ocw_capture_incomplete")
+    preflight = _validate_ocw_run(expected_run)
+    result: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    physical_attempts: set[int] = set()
+    pairs: dict[str, dict[str, dict[str, Any]]] = {}
+    for raw in records:
+        if type(raw) is not dict:
+            raise ValueError("ocw_record")
+        _check_depth(raw)
+        encoded = _canonical(raw)
+        if len(encoded) > MAX_LINE_BYTES:
+            raise ValueError("ocw_record_limit")
+        # Native decoding makes the returned material independent without
+        # invoking a caller-supplied nested __deepcopy__ implementation.
+        row = json.loads(encoded)
+        keys = {
+            "schema_version",
+            "asset_type",
+            "rail",
+            "version",
+            "policy_version",
+            "run",
+            "case_id",
+            "arm",
+            "input_payload",
+            "requested_language",
+            "retrieval_origin",
+            "admitted_sources",
+            "sanitization",
+            "redaction",
+            "source_snapshot_fingerprint",
+            "source_snapshot_origin",
+            "runtime_canonical_freeze_observed",
+            "prompt",
+            "prompt_sha256",
+            "builder_query",
+            "builder_context",
+            "raw_assistant_text",
+            "generation_text",
+            "draft",
+            "internal_result",
+            "http",
+            "field_origin",
+            "provider",
+            "upstream_assets",
+            "upstream_binding",
+            "replay_behavior",
+            "admission_behavior",
+            "authority_granted",
+            "answer_change_allowed",
+            "material_fingerprint",
+            "idempotency_key",
+        }
+        if set(row) != keys:
+            raise ValueError("ocw_record")
+        if (
+            row.get("schema_version") != "ocw_mascot_observation.v1"
+            or _canonical(row.get("run")) != _canonical(expected_run)
+            or row.get("case_id") not in _OCW_CASES
+            or row.get("arm") not in _OCW_MODELS
+            or row.get("authority_granted") is not False
+            or row.get("answer_change_allowed") is not False
+            or row.get("runtime_canonical_freeze_observed") is not False
+            or row.get("retrieval_origin") != "controlled_synthetic"
+            or row["asset_type"] != "eval_run"
+            or row["rail"] != "advisory"
+            or row["version"] != "v1"
+            or row["policy_version"] != "ocw1a-comparison-v1"
+            or row["requested_language"] != "ru"
+            or row["upstream_binding"] != "informational_fingerprints_only"
+            or row["replay_behavior"] != "frozen_read_only_observation"
+            or row["admission_behavior"] != "native_route_and_capture_binding"
+            or row["upstream_assets"]
+            != [
+                expected_run["manifest_fingerprint"],
+                expected_run["rubric_sha256"],
+                expected_run["pricing_fingerprint"],
+            ]
+        ):
+            raise ValueError("ocw_record")
+        key = (row["case_id"], row["arm"])
+        if key in seen:
+            raise ValueError("ocw_record")
+        seen.add(key)
+        material = {
+            k: v for k, v in row.items() if k not in ("material_fingerprint", "idempotency_key")
+        }
+        if (
+            row.get("material_fingerprint")
+            != "sha256:" + hashlib.sha256(_canonical(material)).hexdigest()
+        ):
+            raise ValueError("ocw_record_binding")
+        idem = {
+            "run_id": expected_run["id"],
+            "case_id": key[0],
+            "arm": key[1],
+            "material_fingerprint": row["material_fingerprint"],
+        }
+        if row.get("idempotency_key") != "sha256:" + hashlib.sha256(_canonical(idem)).hexdigest():
+            raise ValueError("ocw_record_binding")
+        inner = row["input_payload"]
+        if "input_fingerprints" not in expected_run or "sha256:" + hashlib.sha256(
+            _canonical(inner)
+        ).hexdigest() != expected_run["input_fingerprints"].get(row["case_id"]):
+            raise ValueError("ocw_record_binding")
+        prompt, sources = _ocw_prompt(inner)
+        if preflight[key]["prompt_sha256"] != hashlib.sha256(
+            prompt.encode("utf-8")
+        ).hexdigest() or preflight[key]["request_bytes"] < len(prompt.encode("utf-8")):
+            raise ValueError("ocw_run")
+        if (
+            row.get("prompt") != prompt
+            or _canonical(row.get("admitted_sources")) != _canonical(sources)
+            or row.get("prompt_sha256") != hashlib.sha256(prompt.encode()).hexdigest()
+            or row.get("source_snapshot_fingerprint")
+            != "sha256:" + hashlib.sha256(_canonical(sources)).hexdigest()
+            or row.get("source_snapshot_origin") != "derived_from_observed_prompt_material"
+        ):
+            raise ValueError("ocw_record_binding")
+        context = "\n\n".join(
+            f"[{source['file']}]\n{source['content']}"
+            for source in sources
+            if source["content"].strip()
+        )
+        if (
+            row["builder_query"] != require_safe_ai_agent_input(inner["query"])
+            or row["builder_context"] != context
+        ):
+            raise ValueError("ocw_record_binding")
+        for field in ("sanitization", "redaction"):
+            if type(row[field]) is not list or len(row[field]) != len(sources):
+                raise ValueError("ocw_record_binding")
+        for index, source in enumerate(inner["sources"]):
+            sanitized = fitchef_runtime.sanitize_rag_markdown(source["content"])
+            redacted = fitchef_runtime.redact_pii_from_text(sanitized)
+            if _canonical(row["sanitization"][index]) != _canonical(
+                {"input": source["content"], "output": sanitized}
+            ) or _canonical(row["redaction"][index]) != _canonical(
+                {"input": sanitized, "output": redacted}
+            ):
+                raise ValueError("ocw_record_binding")
+        provider = row["provider"]
+        if (
+            type(provider) is not dict
+            or set(provider)
+            != {
+                "requested_model",
+                "returned_model",
+                "endpoint",
+                "backend_identity",
+                "attempts",
+                "reserved_cents",
+                "cost_usd",
+                "cost_status",
+            }
+            or provider["requested_model"] != _OCW_MODELS[key[1]]
+            or provider["endpoint"] != _OCW_ENDPOINTS[key[1]]
+            or provider["backend_identity"] != "unknown"
+            or type(provider["attempts"]) is not list
+            or not 1 <= len(provider["attempts"]) <= (3 if key[1] == "sonar" else 1)
+            or type(provider["reserved_cents"]) is not int
+            or provider["reserved_cents"] != 15 * len(provider["attempts"])
+        ):
+            raise ValueError("ocw_record_binding")
+        previous = 0
+        for index, attempt in enumerate(provider["attempts"]):
+            if (
+                type(attempt) is not dict
+                or type(attempt.get("attempt")) is not int
+                or not previous < attempt["attempt"] <= 32
+                or attempt["attempt"] in physical_attempts
+                or attempt.get("case_id") != key[0]
+                or attempt.get("arm") != key[1]
+                or attempt.get("requested_model") != _OCW_MODELS[key[1]]
+                or attempt.get("endpoint") != _OCW_ENDPOINTS[key[1]]
+                or attempt.get("cost_status") not in {"known", "unknown"}
+            ):
+                raise ValueError("ocw_record_binding")
+            previous = attempt["attempt"]
+            physical_attempts.add(previous)
+            usage, declared_amount = _ocw_usage(attempt.get("usage"))
+            _validate_ocw_usage_token_limits(usage)
+            declared_cost = usage.get("cost") if usage is not None else None
+            if _canonical(attempt.get("provider_declared_cost")) != _canonical(declared_cost):
+                raise ValueError("ocw_record_binding")
+            if _ocw_cost_currency(declared_cost) not in (None, "USD"):
+                raise ValueError("ocw_record_binding")
+            if attempt["cost_status"] == "unknown":
+                if attempt.get("cost_usd") is not None:
+                    raise ValueError("ocw_record_binding")
+            elif (
+                type(attempt.get("cost_usd")) not in (int, float)
+                or (type(attempt["cost_usd"]) is float and not math.isfinite(attempt["cost_usd"]))
+                or not 0 <= attempt["cost_usd"] <= 0.15
+                or declared_amount is None
+                or type(declared_cost) is not dict
+                or attempt["cost_usd"] != declared_amount
+                or attempt.get("cost_basis") != "provider_declaration_usd"
+                or declared_cost.get("currency") != "USD"
+                or attempt.get("invoice_verified") is not False
+            ):
+                raise ValueError("ocw_record_binding")
+            # Explicit returned USD is consistency evidence, never invoice truth.
+            if index == len(provider["attempts"]) - 1:
+                if (
+                    type(attempt.get("status_code")) is not int
+                    or attempt["status_code"] not in (200, 201)
+                    or attempt.get("raw_assistant_text") != row["raw_assistant_text"]
+                    or type(row["raw_assistant_text"]) is not str
+                    or attempt.get("returned_model") != provider["returned_model"]
+                    or (key[1] == "sol" and attempt.get("returned_model") != _OCW_MODELS["sol"])
+                ):
+                    raise ValueError("ocw_record_binding")
+            elif attempt.get("retryable") is not True or not (
+                _ocw_retryable_http_outcome(attempt)
+                or (
+                    "status_code" not in attempt
+                    and attempt.get("failure_type") in {"APIConnectionError", "APITimeoutError"}
+                )
+            ):
+                raise ValueError("ocw_record_binding")
+        known = len(provider["attempts"]) == 1
+        if provider["cost_usd"] != (
+            provider["attempts"][0].get("cost_usd") if known else None
+        ) or provider["cost_status"] != (
+            provider["attempts"][0]["cost_status"] if known else "unknown"
+        ):
+            raise ValueError("ocw_record_binding")
+        draft = row["draft"]
+        if (
+            type(draft) is not dict
+            or set(draft) != {"message", "action_items", "warnings"}
+            or type(draft["message"]) is not str
+            or not draft["message"].strip()
+            or any(
+                type(draft[field]) is not list
+                or any(type(item) is not str for item in draft[field])
+                for field in ("action_items", "warnings")
+            )
+        ):
+            raise ValueError("ocw_record_binding")
+        internal = FitChefMascotInsightResult.model_validate(
+            row["internal_result"], strict=True
+        ).model_dump(mode="json")
+        expected_source_items = [
+            {field: source[field] for field in ("chunk_id", "file", "preview", "score")}
+            for source in sources
+            if source["content"].strip()
+        ]
+        if (
+            _canonical(internal) != _canonical(row["internal_result"])
+            or internal["scenario"] != "mascot_insight"
+            or internal["mode"] != "auto-safe"
+            or internal["quota_state"] != "consumed"
+            or _canonical(internal["sources"]) != _canonical(expected_source_items)
+            or (
+                draft["warnings"]
+                and internal["warnings"][-len(draft["warnings"]) :] != draft["warnings"]
+            )
+        ):
+            raise ValueError("ocw_record_binding")
+        expected_http = {
+            field: value for field, value in internal.items() if field not in {"mode", "sources"}
+        }
+        expected_http["sources"] = [
+            {field: value[field] for field in ("file", "preview", "score")}
+            for value in internal["sources"]
+        ]
+        response = row["http"]
+        public = FitChefMascotInsightResponse.model_validate(
+            response["body"], strict=True
+        ).model_dump(mode="json")
+        if (
+            set(response) != {"method", "path", "status_code", "content_type", "body"}
+            or _canonical(public) != _canonical(response["body"])
+            or _canonical(public) != _canonical(expected_http)
+            or response["method"] != "POST"
+            or response["path"] != "/api/v1/insight/fitchef"
+            or type(response["status_code"]) is not int
+            or response["status_code"] != 200
+            or not response["content_type"].startswith("application/json")
+            or response["body"]["message"] != row["draft"]["message"]
+            or response["body"]["action_items"] != row["draft"]["action_items"]
+            or row["internal_result"]["message"] != row["draft"]["message"]
+            or row["internal_result"]["action_items"] != row["draft"]["action_items"]
+            or row["generation_text"] != row["raw_assistant_text"].strip()
+        ):
+            raise ValueError("ocw_record_binding")
+        origin = row["field_origin"]
+        if (
+            type(origin) is not dict
+            or set(origin) != {"message", "action_items"}
+            or origin["message"] not in {"fallback", "provider_normalized"}
+            or origin["action_items"] not in {"fallback_default", "provider_extracted", "unknown"}
+        ):
+            raise ValueError("ocw_record_binding")
+        pairs.setdefault(key[0], {})[key[1]] = row
+        result.append(row)
+    if seen != {(case, arm) for case in _OCW_CASES for arm in _OCW_MODELS}:
+        raise ValueError("ocw_capture_incomplete")
+    if physical_attempts != set(range(1, len(physical_attempts) + 1)):
+        raise ValueError("ocw_record_binding")
+    for pair in pairs.values():
+        for field in ("input_payload", "prompt", "admitted_sources", "source_snapshot_fingerprint"):
+            if _canonical(pair["sonar"][field]) != _canonical(pair["sol"][field]):
+                raise ValueError("ocw_pair_mismatch")
+    return result
+
+
+def build_ocw_blind_view(
+    records: list[object], *, expected_run: dict[str, Any], expected_capture_sha256: str
+) -> list[dict[str, Any]]:
+    """Allowlisted view of frozen final answers; no provider/cost/order/reference data."""
+    frozen = validate_ocw_records(records, expected_run=expected_run)
+    if (
+        type(expected_capture_sha256) is not str
+        or re.fullmatch(r"sha256:[0-9a-f]{64}", expected_capture_sha256) is None
+        or "sha256:"
+        + hashlib.sha256(b"".join(_canonical(row) + b"\n" for row in frozen)).hexdigest()
+        != expected_capture_sha256
+    ):
+        raise ValueError("ocw_capture_binding")
+    views: list[dict[str, Any]] = []
+    for row in frozen:
+        opaque = hashlib.sha256(
+            _canonical(
+                {"material": row["material_fingerprint"], "rubric": expected_run["rubric_sha256"]}
+            )
+        ).hexdigest()
+        content = {
+            "schema_version": "ocw_blind_view.v1",
+            "opaque_id": opaque,
+            "material_fingerprint": row["material_fingerprint"],
+            "rubric_sha256": expected_run["rubric_sha256"],
+            "requested_language": "ru",
+            "query": row["input_payload"]["query"],
+            "final_answer": {
+                "message": row["http"]["body"]["message"],
+                "action_items": row["http"]["body"]["action_items"],
+            },
+            "sources": [
+                {"source_ref": f"source-{index}", "content": source["content"]}
+                for index, source in enumerate(row["admitted_sources"])
+            ],
+        }
+        views.append(content)
+    # Stable opaque order removes run ordering; intrinsic answer text is retained.
+    return sorted(views, key=lambda item: item["opaque_id"])
+
+
+def _ocw_audit_aliases_input(audit_path: Path, input_path: Path) -> bool:
+    """Compare known paths using resolved spelling and native existing-file identity."""
+    return audit_path.resolve() == input_path.resolve() or (
+        audit_path.exists() and input_path.exists() and audit_path.samefile(input_path)
+    )
+
+
+def collect_ocw_comparison(
+    manifest: list[object],
+    *,
+    output_dir: Path,
+    rubric: Path,
+    pricing: list[object],
+    fitchef_key: str,
+    perplexity_key: str,
+    run_id: str,
+) -> None:
+    """One guarded paced sixteen-POST capture, with private immutable partial evidence."""
+    rows = validate_ocw_manifest(manifest)
+    if type(run_id) is not str or not re.fullmatch(r"[A-Za-z0-9_.:-]{1,80}", run_id):
+        raise ValueError("ocw_run_id")
+    if not perplexity_key or perplexity_key != os.getenv("PERPLEXITY_API_KEY"):
+        raise ValueError("ocw_provider_configuration")
+    prices = validate_ocw_pricing(pricing)
+    pricing = copy.deepcopy(pricing)
+    audit_path = Path(os.getenv("AGENT_CONTROL_AUDIT_LOG_PATH", ""))
+    if _ocw_audit_aliases_input(audit_path, rubric):
+        raise ValueError("ocw_runtime_input_alias")
+    state_path = validate_ocw_environment(fitchef_key, output_dir=output_dir).resolve()
+    claim_path = state_path.with_name(state_path.name + ".run.jsonl")
+    if claim_path == audit_path.resolve():
+        raise ValueError("ocw_runtime_state_alias")
+    _private_parent(claim_path)
+    _validate_output_directory(state_path.parent, generated_names=[claim_path.name])
+    try:
+        _read_input(claim_path)
+    except ValueError as error:
+        if not isinstance(error.__cause__, FileNotFoundError):
+            raise
+    else:
+        raise ValueError("ocw_capture_already_claimed")
+    preflight = ocw_request_preflight(cast(list[object], rows), pricing)
+    names = (
+        [f"attempt-{i:04d}.json" for i in range(1, 33)]
+        + [f"attempt-result-{i:04d}.json" for i in range(1, 33)]
+        + [f"case-{arm}-{case}.jsonl" for case in _OCW_CASES for arm in _OCW_MODELS]
+        + [
+            "inputs.jsonl",
+            "run.jsonl",
+            "rubric.jsonl",
+            "comparison.jsonl",
+            "comparison-status.json",
+        ]
+    )
+    _validate_output_directory(output_dir, generated_names=names)
+    if any(output_dir.iterdir()):
+        raise ValueError("output_directory_not_empty")
+    ledger = AttemptLedger(output_dir, comparison=True)
+    ledger._comparison_secrets = (fitchef_key, perplexity_key)
+    ledger.pricing_valid_until = min(
+        datetime.fromisoformat(row["verified_at"].replace("Z", "+00:00")) + _OCW_PRICING_MAX_AGE
+        for row in prices.values()
+    )
+    code_sha, code_hashes = _code_sha(), _ocw_code_hashes()
+    rubric_bytes = _read_input(rubric)
+    canonical_rubric = (
+        Path(__file__).resolve().parents[2] / "docs/evals/FITCHEF_CLAIM_EVIDENCE_EVAL_V1.md"
+    )
+    if rubric_bytes != _read_input(canonical_rubric):
+        raise ValueError("ocw_rubric_binding")
+    run: dict[str, Any] = {
+        "id": run_id,
+        "code_sha": code_sha,
+        "code_hashes": code_hashes,
+        "manifest_fingerprint": "sha256:" + hashlib.sha256(_canonical(rows)).hexdigest(),
+        "input_fingerprints": {
+            row["canonical_id"]: "sha256:"
+            + hashlib.sha256(_canonical(row["input_payload"])).hexdigest()
+            for row in rows
+        },
+        "rubric_sha256": "sha256:" + hashlib.sha256(rubric_bytes).hexdigest(),
+        "pricing_fingerprint": "sha256:" + hashlib.sha256(_canonical(pricing)).hexdigest(),
+        "request_preflight": preflight,
+        "route_limit": "10/minute",
+        "pacing_seconds": 6.1,
+        "capture_kind": "native_guarded_http_observation",
+    }
+    records: list[dict[str, Any]] = []
+    transport: httpx.AsyncClient | None = None
+    capture_sha256: str | None = None
+    previous_started: float | None = None
+    expected_cases: dict[tuple[str, str], bytes] = {}
+    run_bytes = _canonical(run) + b"\n"
+    case_publication_uncertain = False
+    case_readback_uncertain = False
+    aggregate_publication_uncertain = False
+
+    def publish(name: str, data: bytes) -> None:
+        nonlocal case_publication_uncertain, aggregate_publication_uncertain
+        try:
+            ledger.require_secret_free(data)
+            write_report(output_dir / name, data)
+        except BaseException:
+            ledger.retryable = False
+            if name.startswith("case-"):
+                case_publication_uncertain = True
+            elif name == "comparison.jsonl":
+                aggregate_publication_uncertain = True
+            raise
+
+    def retained_cases() -> set[tuple[str, str]]:
+        """Compare only our finite destinations with independently captured exact bytes."""
+        nonlocal case_readback_uncertain
+        complete: set[tuple[str, str]] = set()
+        try:
+            if _read_input(output_dir / "run.jsonl") != run_bytes:
+                raise ValueError("ocw_run_readback")
+        except ValueError:
+            case_readback_uncertain = True
+            return complete
+        for key, expected_bytes in expected_cases.items():
+            case, arm = key
+            try:
+                if _read_input(output_dir / f"case-{arm}-{case}.jsonl") != expected_bytes:
+                    raise ValueError("ocw_case_readback")
+            except ValueError as error:
+                if not isinstance(error.__cause__, FileNotFoundError):
+                    case_readback_uncertain = True
+            else:
+                complete.add(key)
+        return complete
+
+    def status_bytes(failure: str | None) -> bytes:
+        complete = retained_cases()
+        if failure is None and (
+            len(complete) != 16 or case_readback_uncertain or capture_sha256 is None
+        ):
+            raise ValueError("ocw_case_readback")
+        encoded: bytes = (
+            _canonical(
+                {
+                    "schema_version": "ocw_collection_status.v1",
+                    "status": "complete" if failure is None else "incomplete",
+                    "failure_category": failure,
+                    "capture_sha256": capture_sha256,
+                    "run_id": run_id,
+                    "completed": sorted([list(key) for key in complete]),
+                    "missing": [
+                        [case, arm]
+                        for case in _OCW_CASES
+                        for arm in _OCW_MODELS
+                        if (case, arm) not in complete
+                    ],
+                    "reserved_attempts": ledger.attempts,
+                    "reserved_cents": ledger.attempts * 15,
+                    "published_reservations": ledger.reservation_publications,
+                    "reservation_publication_uncertain": ledger.reservation_publication_uncertain,
+                    "case_publication_uncertain": case_publication_uncertain,
+                    "case_readback_uncertain": case_readback_uncertain,
+                    "aggregate_publication_uncertain": aggregate_publication_uncertain,
+                    "observed_http_outcomes": sum(
+                        "status_code" in item for item in ledger.http_observations
+                    ),
+                    "uncertain_transport_outcomes": sum(
+                        "failure_type" in item for item in ledger.http_observations
+                    ),
+                    "arm_attempts": ledger.arm_attempts,
+                    "reported_overrun_usd": ledger.reported_overrun_usd,
+                    "authority_granted": False,
+                    "answer_change_allowed": False,
+                }
+            )
+            + b"\n"
+        )
+        return encoded
+
+    # Successful no-replace publication claims this exact output cooperatively.
+    # A loser (including unacknowledged claim publication) owns no status writes.
+    # This existing carrier claims one capture for the admitted isolated state,
+    # independent of output/key/run ID. No replace, resume or budget reset.
+    ledger.require_secret_free(run_bytes)
+    write_report(claim_path, run_bytes)
+    if _read_input(claim_path) != run_bytes:
+        raise ValueError("ocw_capture_claim_readback")
+    publish("run.jsonl", run_bytes)
+    try:
+        for name, data in (
+            ("inputs.jsonl", b"".join(_canonical(row) + b"\n" for row in rows)),
+            (
+                "rubric.jsonl",
+                _canonical(
+                    {"content": rubric_bytes.decode("utf-8"), "sha256": run["rubric_sha256"]}
+                )
+                + b"\n",
+            ),
+        ):
+            publish(name, data)
+        transport = _ocw_http_client(ledger)
+        from app.main import app
+        from app.security import rate_limit
+        from tests._client import open_test_client
+
+        if app.dependency_overrides:
+            raise ValueError("ocw_dependency_override")
+        with open_test_client(app, raise_server_exceptions=False) as client:
+            portal = client.portal
+            if portal is None:
+                raise ValueError("ocw_client_portal")
+            try:
+                if (
+                    app.state.limiter is not rate_limit.limiter
+                    or app.state.limiter.enabled is not True
+                ):
+                    raise ValueError("ocw_active_limiter_required")
+                _prepare_audit_file(audit_path)
+                for scenario in rows:
+                    for arm in _OCW_MODELS:
+                        if previous_started is not None:
+                            remaining = _OCW_PACE_SECONDS - (time.monotonic() - previous_started)
+                            if remaining > 0:
+                                time.sleep(remaining)
+                        if (
+                            _code_sha() != code_sha
+                            or _ocw_code_hashes() != code_hashes
+                            or _read_input(rubric) != rubric_bytes
+                        ):
+                            raise ValueError("code_changed_during_collection")
+                        previous_started = time.monotonic()
+                        record = _ocw_observe_post(
+                            client,
+                            scenario,
+                            arm=arm,
+                            key=fitchef_key,
+                            transport=transport,
+                            ledger=ledger,
+                            run=run,
+                        )
+                        if (
+                            _code_sha() != code_sha
+                            or _ocw_code_hashes() != code_hashes
+                            or _read_input(rubric) != rubric_bytes
+                        ):
+                            raise ValueError("code_changed_during_collection")
+                        record_bytes = _canonical(record) + b"\n"
+                        expected_cases[(scenario["canonical_id"], arm)] = record_bytes
+                        publish(f"case-{arm}-{scenario['canonical_id']}.jsonl", record_bytes)
+                        records.append(record)
+                if len(retained_cases()) != 16 or case_readback_uncertain:
+                    raise ValueError("ocw_case_readback")
+                validate_ocw_records(cast(list[object], records), expected_run=run)
+                encoded = b"".join(_canonical(record) + b"\n" for record in records)
+                publish("comparison.jsonl", encoded)
+                capture_sha256 = "sha256:" + hashlib.sha256(encoded).hexdigest()
+            finally:
+                original_error = sys.exc_info()[1]
+                try:
+                    portal.call(transport.aclose)
+                except BaseException as cleanup_error:
+                    if original_error is None:
+                        raise
+                    original_error.add_note(
+                        "ocw_transport_cleanup_failed:" + type(cleanup_error).__name__
+                    )
+        publish("comparison-status.json", status_bytes(None))
+    except BaseException as error:
+        if transport is not None and not transport.is_closed:
+            try:
+                asyncio.run(transport.aclose())
+            except BaseException as cleanup_error:
+                error.add_note("ocw_transport_cleanup_failed:" + type(cleanup_error).__name__)
+        failure = (
+            ledger.terminal_reason or "interrupted"
+            if not isinstance(error, Exception)
+            else ledger.terminal_reason or "capture_or_runtime_failure"
+        )
+        try:
+            publish("comparison-status.json", status_bytes(failure))
+        except BaseException as publication_error:
+            # Keep the first actual failure and every existing immutable file.
+            # A status publication failure is uncertainty, never permission to
+            # replace a destination or start the capture again.
+            error.add_note("ocw_status_publication_failed:" + type(publication_error).__name__)
+        raise
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--rubric", type=Path, required=True)
     parser.add_argument("--pricing-evidence", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--mode", choices=("distortion", _OCW_MODE), default="distortion")
+    parser.add_argument("--run-id", default=None)
+    parser.add_argument("--preflight-only", action="store_true")
     args = parser.parse_args(argv)
     try:
+        if args.mode == _OCW_MODE:
+            audit_path = Path(os.getenv("AGENT_CONTROL_AUDIT_LOG_PATH", ""))
+            if any(
+                _ocw_audit_aliases_input(audit_path, input_path)
+                for input_path in (args.manifest, args.rubric, args.pricing_evidence)
+            ):
+                raise ValueError("ocw_runtime_input_alias")
+            manifest = validate_ocw_manifest(read_jsonl(args.manifest))
+            pricing = read_private_jsonl(args.pricing_evidence)
+            if args.preflight_only:
+                print(
+                    json.dumps(
+                        ocw_request_preflight(cast(list[object], manifest), pricing), sort_keys=True
+                    )
+                )
+                return 0
+            collect_ocw_comparison(
+                cast(list[object], manifest),
+                output_dir=args.output_dir,
+                rubric=args.rubric,
+                pricing=pricing,
+                fitchef_key=os.getenv("OCW_FITCHEF_API_KEY", ""),
+                perplexity_key=os.getenv("PERPLEXITY_API_KEY", ""),
+                run_id=args.run_id,
+            )
+            return 0
+        if args.run_id is not None or args.preflight_only:
+            raise ValueError("comparison_flag_requires_mode")
         manifest = validate_manifest(read_private_jsonl(args.manifest))
         rubric_sha256 = _rubric_hash(args.rubric)
         validate_pricing_evidence(read_jsonl(args.pricing_evidence))
