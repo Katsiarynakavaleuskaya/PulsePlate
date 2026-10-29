@@ -650,9 +650,18 @@ jobs:
                    "current_run_attempt": positive_id(int(os.environ["GITHUB_RUN_ATTEMPT"])), "inputs": inputs,
                    "repository": repo, "repository_id": 1043311030, "producer": None, "mode": None}
           workflow_id = positive_id(api("/actions/workflows/frontend-ci.yml")["id"])
-          # Server job history, never artifact absence, owns the already-spent build observation.
+          if workflow_id != 196310935:
+              raise ValueError("Caddy recovery workflow identity differs")
+          # This exact failed predecessor remains charged; an external owner decision is
+          # required before this closed replacement policy may be published or invoked.
+          failed_run_id, failed_job_id = 40809053754, 123234862421
+          failed_head = "243d270847d10786177ecf2e1632cb6b9bb49e45"
+          branch = "codex/python-setup-security-stabilization"
+          if pr["head"]["ref"] != branch:
+              raise ValueError("Caddy recovery PR branch differs")
+          # Server job history, never artifact absence, owns every observed named start.
           runs = pages("/actions/workflows/frontend-ci.yml/runs?created=%3E%3D2026-10-28T00%3A00%3A00Z", "workflow_runs")
-          spent = []
+          spent, current_runs, current_jobs = [], [], []
           for run in runs:
               if (run["repository"]["full_name"] != repo or positive_id(run["repository"]["id"]) != 1043311030
                       or positive_id(run["workflow_id"]) != workflow_id or run["path"] != ".github/workflows/frontend-ci.yml"
@@ -660,35 +669,123 @@ jobs:
                   raise ValueError("Caddy producer run identity differs")
               positive_id(run["run_attempt"])
               if run["id"] == state["current_run_id"]:
-                  continue
+                  current_runs.append(run)
+              # Never exclude the current run: filter=all retains its older attempts.
               for job in pages("/actions/runs/" + str(run["id"]) + "/jobs?filter=all", "jobs"):
                   if (positive_id(job["run_id"]) != run["id"] or positive_id(job["run_attempt"]) > run["run_attempt"]
                           or job["head_sha"] != run["head_sha"]):
                       raise ValueError("Caddy native job/run relationship differs")
+                  if (run["id"] == state["current_run_id"] and job["run_attempt"] == state["current_run_attempt"]
+                          and job["name"] == "caddy-contract"):
+                      current_jobs.append(job)
                   numbers = set()
                   for step in job["steps"]:
                       number = positive_id(step["number"])
                       if number in numbers:
                           raise ValueError("Caddy duplicate native step")
                       numbers.add(number)
-                      if step["name"] == "Build accepted D Caddy candidate once" and step.get("started_at") and step["conclusion"] != "skipped":
+                      if step["name"] == "Build accepted D Caddy candidate once":
+                          if not {"status", "conclusion", "started_at", "completed_at"} <= set(step):
+                              raise ValueError("Caddy build start/status evidence incomplete")
+                          started, finished = step["started_at"], step["completed_at"]
+                          if (step["status"] in ("pending", "queued") and step["conclusion"] is None
+                                  and started is None and finished is None):
+                              continue
+                          try:
+                              times = [datetime.fromisoformat(value) for value in (started, finished) if value is not None]
+                          except (TypeError, ValueError):
+                              raise ValueError("Caddy build start/status evidence incomplete") from None
+                          if any(value.tzinfo != timezone.utc for value in times):
+                              raise ValueError("Caddy build start/status evidence incomplete")
+                          if step["conclusion"] == "skipped":
+                              if step["status"] != "completed" or started != finished or len(times) not in (0, 2):
+                                  raise ValueError("Caddy skipped build evidence differs")
+                              continue
+                          if (started is None or step["status"] not in ("in_progress", "completed")
+                                  or (step["status"] == "in_progress" and (step["conclusion"] is not None or finished is not None))
+                                  or (step["status"] == "completed" and (step["conclusion"] not in ("success", "failure", "cancelled", "timed_out")
+                                      or finished is None or times[1] < times[0]))):
+                              raise ValueError("Caddy build start/status evidence incomplete")
                           spent.append((run, job, step))
-          if len(spent) > 1:
-              raise ValueError("Caddy single build allowance already exceeded")
+          if len(spent) > 2:
+              raise ValueError("Caddy closed recovery build allowance exceeded")
+          predecessors = [row for row in spent if row[0]["id"] == failed_run_id or row[1]["id"] == failed_job_id]
+          if len(predecessors) != 1:
+              raise ValueError("Caddy exact failed predecessor missing or ambiguous")
+          prior_run, prior_job, prior_step = predecessors[0]
+          runtime_steps = [row for row in prior_job["steps"] if row["name"] == "Decide exact Caddy D inventory and loaded isolated runtime"]
+          if (prior_run["id"] != failed_run_id or prior_run["run_attempt"] != 1
+                  or prior_run["head_sha"] != failed_head or prior_run["head_branch"] != branch
+                  or positive_id(prior_run["head_repository"]["id"]) != 1043311030
+                  or prior_run["event"] != "workflow_dispatch" or prior_run["status"] != "completed"
+                  or prior_run["conclusion"] != "failure" or prior_run["created_at"] != "2026-10-29T02:54:00Z"
+                  or prior_job["id"] != failed_job_id or prior_job["run_attempt"] != 1
+                  or prior_job["name"] != "caddy-contract" or prior_job["head_branch"] != branch
+                  or prior_job["status"] != "completed" or prior_job["conclusion"] != "failure"
+                  or prior_job["started_at"] != "2026-10-29T02:54:19Z" or prior_job["completed_at"] != "2026-10-29T03:02:11Z"
+                  or prior_step["number"] != 12 or prior_step["status"] != "completed" or prior_step["conclusion"] != "success"
+                  or prior_step["started_at"] != "2026-10-29T02:58:39Z" or prior_step["completed_at"] != "2026-10-29T03:00:55Z"
+                  or len(runtime_steps) != 1):
+              raise ValueError("Caddy exact failed predecessor differs")
+          runtime_step = runtime_steps[0]
+          if (runtime_step["number"] != 22 or runtime_step["status"] != "completed" or runtime_step["conclusion"] != "failure"
+                  or runtime_step["started_at"] != "2026-10-29T03:01:32Z" or runtime_step["completed_at"] != "2026-10-29T03:01:32Z"):
+              raise ValueError("Caddy exact failed predecessor runtime differs")
+          if len(current_runs) != 1 or len(current_jobs) != 1:
+              raise ValueError("Caddy current native run/job missing or ambiguous")
+          current_run, current_job = current_runs[0], current_jobs[0]
+          if (current_run["head_sha"] != selected or current_run["event"] != event_name
+                  or current_run["head_branch"] != ("main" if event_name == "push" else branch)
+                  or positive_id(current_run["head_repository"]["id"]) != 1043311030
+                  or current_run["run_attempt"] != state["current_run_attempt"]
+                  or current_run["status"] != "in_progress" or current_run["conclusion"] is not None
+                  or current_job["status"] != "in_progress" or current_job["conclusion"] is not None):
+              raise ValueError("Caddy current native run/job differs")
+          current_builds = [row for row in current_job["steps"] if row["name"] == "Build accepted D Caddy candidate once"]
+          if (len(current_builds) != 1 or current_builds[0]["number"] != 12 or current_builds[0]["status"] not in ("pending", "queued")
+                  or current_builds[0]["conclusion"] is not None or current_builds[0]["started_at"] is not None
+                  or current_builds[0]["completed_at"] is not None):
+              raise ValueError("Caddy current prebuild observation differs")
+          # The failed source must remain a genuine ancestor in the accepted PR graph.
+          prefix = "/repos/" + repo
+          proof_api = SimpleNamespace(json=lambda endpoint: api(endpoint.removeprefix(prefix)))
+          proof_api.pages = lambda endpoint, key, count: GitHubRead.pages(proof_api, endpoint, key, count)
+          authenticate_pr_source(proof_api, 2497, failed_head, pr["head"]["sha"], "refs/heads/" + branch)
+          replacements = [row for row in spent if row is not predecessors[0]]
+          if replacements:
+              run, job, step = replacements[0]
+              try:
+                  replacement_created = datetime.fromisoformat(run["created_at"])
+              except (TypeError, ValueError):
+                  raise ValueError("Caddy replacement producer chronology differs") from None
+              if (replacement_created.tzinfo != timezone.utc or replacement_created <= datetime.fromisoformat(prior_job["completed_at"])
+                      or replacement_created > datetime.fromisoformat(step["started_at"])):
+                  raise ValueError("Caddy replacement producer chronology differs")
+              if (run["event"] != "workflow_dispatch" or run["run_attempt"] != 1
+                      or run["head_sha"] == failed_head or run["status"] != "completed" or run["conclusion"] != "success"
+                      or job["run_attempt"] != 1 or job["name"] != "caddy-contract"
+                      or job["status"] != "completed" or job["conclusion"] != "success" or step["conclusion"] != "success"
+                      or job["head_branch"] != branch or step["number"] != 12
+                      or run["head_branch"] != branch or positive_id(run["head_repository"]["id"]) != 1043311030):
+                  raise ValueError("Caddy replacement consumed/failed/unknown; no third build")
+              accepted_steps = [row for row in job["steps"] if row["name"] == "Decide exact Caddy D inventory and loaded isolated runtime"]
+              if (len(accepted_steps) != 1 or accepted_steps[0]["number"] != 22
+                      or accepted_steps[0]["status"] != "completed" or accepted_steps[0]["conclusion"] != "success"):
+                  raise ValueError("Caddy replacement acceptance incomplete")
+              try:
+                  accepted_times = [datetime.fromisoformat(value) for value in (
+                      job["started_at"], step["started_at"], step["completed_at"],
+                      accepted_steps[0]["started_at"], accepted_steps[0]["completed_at"], job["completed_at"])]
+              except (KeyError, TypeError, ValueError):
+                  raise ValueError("Caddy replacement acceptance chronology differs") from None
+              if (any(value.tzinfo != timezone.utc for value in accepted_times)
+                      or accepted_times != sorted(accepted_times) or replacement_created > accepted_times[0]):
+                  raise ValueError("Caddy replacement acceptance chronology differs")
           if action == "xnet060-metadata":
               state["mode"] = "metadata"
-          elif spent:
-              run, job, step = spent[0]
-              if (action == "candidate-D" or run["event"] != "workflow_dispatch" or run["run_attempt"] != 1
-                      or job["run_attempt"] != 1 or job["name"] != "caddy-contract"
-                      or job["conclusion"] != "success" or step["conclusion"] != "success"
-                      or run["head_branch"] != pr["head"]["ref"]
-                      or positive_id(run["head_repository"]["id"]) != 1043311030):
-                  raise ValueError("Caddy producer consumed/failed/unknown or wrong PR branch; no rebuild")
-              # Reuse the existing canonical PR commit-graph recognizer with this bounded transport.
-              prefix = "/repos/" + repo
-              proof_api = SimpleNamespace(json=lambda endpoint: api(endpoint.removeprefix(prefix)))
-              proof_api.pages = lambda endpoint, key, count: GitHubRead.pages(proof_api, endpoint, key, count)
+          elif replacements:
+              if action == "candidate-D":
+                  raise ValueError("Caddy replacement already spent; no third build")
               authenticate_pr_source(proof_api, 2497, run["head_sha"], pr["head"]["sha"], "refs/heads/" + pr["head"]["ref"])
               # Native Git resolves original regular blobs; no manifest-authored input claim is trusted.
               git_env = {"PATH": os.environ["PATH"], "LANG": "C.UTF-8", "GIT_CONFIG_NOSYSTEM": "1",
@@ -726,8 +823,15 @@ jobs:
               state.update(mode="reuse", producer={"run_id": run["id"], "run_attempt": 1,
                   "head": run["head_sha"], "job_id": job["id"], "artifact": artifacts[0], "git_inputs": original_inputs})
           else:
-              if event_name != "workflow_dispatch" or action != "candidate-D" or state["current_run_attempt"] != 1:
-                  raise ValueError("Caddy retained candidate absent; explicit first producer required, no automatic build")
+              if (event_name != "workflow_dispatch" or action != "candidate-D" or state["current_run_attempt"] != 1
+                      or state["current_run_id"] == failed_run_id or selected == failed_head):
+                  raise ValueError("Caddy exact predecessor only; fresh replacement dispatch required, no automatic build")
+              try:
+                  current_created = datetime.fromisoformat(current_run["created_at"])
+              except (TypeError, ValueError):
+                  raise ValueError("Caddy replacement dispatch chronology differs") from None
+              if current_created.tzinfo != timezone.utc or current_created <= datetime.fromisoformat(prior_job["completed_at"]):
+                  raise ValueError("Caddy replacement dispatch chronology differs")
               state["mode"] = "build"
           (state_dir / "admission.json").write_text(json.dumps(state, indent=2))
           with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:

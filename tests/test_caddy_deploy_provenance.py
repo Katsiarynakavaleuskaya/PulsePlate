@@ -4050,15 +4050,18 @@ def test_caddy_D_retains_one_original_producer_and_never_rebuilds_consumers() ->
         'pr["merge_commit_sha"] != selected',
         '"/jobs?filter=all"',
         'step["name"] == "Build accepted D Caddy candidate once"',
-        'step.get("started_at")',
-        'step["conclusion"] != "skipped"',
-        "len(spent) > 1",
+        'step["started_at"]',
+        'step["conclusion"] == "skipped"',
+        "len(spent) > 2",
+        "failed_run_id, failed_job_id = 40809053754, 123234862421",
+        "len(predecessors) != 1",
+        "current_runs, current_jobs",
         'job["conclusion"] != "success"',
         'artifacts[0]["expired"]',
         '"Caddy original producer artifact unavailable"',
         'state["current_run_attempt"] != 1',
         'action != "candidate-D"',
-        '"Caddy retained candidate absent; explicit first producer required, no automatic build"',
+        '"Caddy exact predecessor only; fresh replacement dispatch required, no automatic build"',
         '"Caddy API inventory incomplete or changed"',
         '"Caddy API pagination bound"',
         "caddy_ci_source_inventory(root, tracked + fixed)",
@@ -4119,140 +4122,458 @@ def test_caddy_D_retains_one_original_producer_and_never_rebuilds_consumers() ->
     assert "ignore-policy-caddy-go-jose-v3" not in cd
 
 
-@pytest.mark.parametrize(
-    "case",
-    [
-        "first-producer",
+CADDY_D_HISTORY_CASES = [
+    ("replacement-producer", "build", None),
+    ("reuse", "reuse", None),
+    ("merge-main", "main", None),
+    ("metadata-only", "metadata", None),
+    ("contract-reuse", "contract", None),
+    ("old-metadata-failure-not-a-build", "metadata-failure-before-build", None),
+    ("API-order-does-not-select-P", "reordered", None),
+    ("consumer-rerun", "consumer-rerun", None),
+    ("missing-P", "build", "Caddy exact failed predecessor missing or ambiguous"),
+    ("zero-history", "build", "Caddy exact failed predecessor missing or ambiguous"),
+    ("duplicate-P-start", "build", "Caddy exact failed predecessor missing or ambiguous"),
+    ("wrong-P-job", "build", "Caddy exact failed predecessor differs"),
+    ("wrong-P-head", "build", "Caddy exact failed predecessor differs"),
+    ("wrong-P-build", "build", "Caddy exact failed predecessor differs"),
+    ("wrong-P-build-number", "build", "Caddy exact failed predecessor differs"),
+    ("wrong-P-status", "build", "Caddy exact failed predecessor differs"),
+    ("P-run-attempt2", "build", "Caddy exact failed predecessor differs"),
+    ("wrong-P-runtime", "build", "Caddy exact failed predecessor runtime differs"),
+    ("wrong-P-runtime-number", "build", "Caddy exact failed predecessor runtime differs"),
+    ("wrong-P-repository", "build", "Caddy producer run identity differs"),
+    ("wrong-P-workflow", "build", "Caddy producer run identity differs"),
+    ("missing-P-start", "build", "Caddy build start/status evidence incomplete"),
+    ("wrong-P-PR", "build", "producer_and_final_within_PR"),
+    ("failed-producer", "reuse", "Caddy replacement consumed/failed/unknown; no third build"),
+    ("cancelled-producer", "reuse", "Caddy replacement consumed/failed/unknown; no third build"),
+    ("pending-producer", "reuse", "Caddy replacement consumed/failed/unknown; no third build"),
+    ("Q-predecessor-head", "reuse", "Caddy replacement consumed/failed/unknown; no third build"),
+    ("wrong-producer-branch", "reuse", "Caddy replacement consumed/failed/unknown; no third build"),
+    ("wrong-job-name", "reuse", "Caddy replacement consumed/failed/unknown; no third build"),
+    ("missing-Q-start", "reuse", "Caddy build start/status evidence incomplete"),
+    ("unknown-Q-conclusion", "reuse", "Caddy build start/status evidence incomplete"),
+    ("nonUTC-start", "reuse", "Caddy build start/status evidence incomplete"),
+    ("invalid-start", "reuse", "Caddy build start/status evidence incomplete"),
+    ("wrong-Q-runtime", "reuse", "Caddy replacement acceptance incomplete"),
+    ("missing-Q-runtime", "reuse", "Caddy replacement acceptance incomplete"),
+    ("wrong-Q-step", "reuse", "Caddy replacement consumed/failed/unknown; no third build"),
+    ("Q-chronology", "reuse", "Caddy replacement producer chronology differs"),
+    ("Q-start-before-created", "reuse", "Caddy replacement producer chronology differs"),
+    ("two-producers", "reuse", "Caddy closed recovery build allowance exceeded"),
+    ("second-producer", "build", "Caddy replacement already spent; no third build"),
+    (
         "ordinary-without-image",
-        "metadata-only",
-        "reuse",
-        "merge-main",
-        "expired-artifact",
-        "failed-producer",
-        "cancelled-producer",
-        "second-producer",
-        "two-producers",
+        "build",
+        "Caddy exact predecessor only; fresh replacement dispatch required, no automatic build",
+    ),
+    (
         "rerun-producer",
-        "wrong-repository",
-        "wrong-PR",
-        "foreign-head",
-        "unrelated-main",
-        "missing-artifact",
-        "incomplete-API",
-        "artifact-head",
-        "artifact-digest",
-        "wrong-producer-branch",
-        "wrong-producer-PR",
+        "build",
+        "Caddy exact predecessor only; fresh replacement dispatch required, no automatic build",
+    ),
+    ("current-prior-build", "build", "Caddy replacement consumed/failed/unknown; no third build"),
+    ("current-run-absent", "build", "Caddy current native run/job missing or ambiguous"),
+    ("current-native-head", "build", "Caddy current native run/job differs"),
+    ("current-native-event", "build", "Caddy current native run/job differs"),
+    ("current-native-attempt", "build", "Caddy current native run/job differs"),
+    ("current-prestarted-build", "build", "Caddy current prebuild observation differs"),
+    ("missing-current-build", "build", "Caddy current prebuild observation differs"),
+    ("wrong-current-build-step", "build", "Caddy current prebuild observation differs"),
+    ("current-created-before-P", "build", "Caddy replacement dispatch chronology differs"),
+    ("wrong-repository", "reuse", "Caddy D repository differs"),
+    ("wrong-PR", "reuse", "Caddy D PR scope differs"),
+    ("foreign-head", "reuse", "Caddy D PR scope differs"),
+    ("unrelated-main", "main", "Caddy D main observation is only the accepted PR merge"),
+    ("wrong-job-run", "reuse", "Caddy native job/run relationship differs"),
+    ("wrong-job-head", "reuse", "Caddy native job/run relationship differs"),
+    ("boolean-run-id", "reuse", "Caddy native positive ID required"),
+    ("zero-job-id", "reuse", "Caddy native positive ID required"),
+    ("boolean-artifact-id", "reuse", "Caddy native positive ID required"),
+    ("duplicate-run", "reuse", "Caddy duplicate API identity"),
+    ("duplicate-job", "reuse", "Caddy duplicate API identity"),
+    ("duplicate-artifact", "reuse", "Caddy duplicate API identity"),
+    ("repeated-full-page", "reuse", "Caddy duplicate API identity"),
+    ("duplicate-step", "reuse", "Caddy duplicate native step"),
+    ("skipped-with-duration", "reuse", "Caddy skipped build evidence differs"),
+    ("incomplete-API", "reuse", "Caddy API inventory incomplete or changed"),
+    ("boolean-total", "reuse", "Caddy API inventory shape"),
+    ("same-count-page-replacement", "reuse", "Caddy API same-count inventory replacement"),
+    ("API-failed", "reuse", "HTTP Error 503: synthetic failure"),
+    ("missing-artifact", "reuse", "Caddy original producer artifact unavailable"),
+    ("expired-artifact", "reuse", "Caddy original producer artifact unavailable"),
+    ("artifact-head", "reuse", "Caddy native artifact/run relationship differs"),
+    ("wrong-artifact-run", "reuse", "Caddy native artifact/run relationship differs"),
+    ("wrong-artifact-repository", "reuse", "Caddy native artifact/run relationship differs"),
+    ("artifact-digest", "reuse", "Caddy native artifact digest unavailable"),
+    ("wrong-producer-PR", "reuse", "producer_and_final_within_PR"),
+    (
         "producer-workflow-drift",
+        "reuse",
+        "Caddy authenticated original Git source differs from current source",
+    ),
+    (
         "producer-helper-drift",
+        "reuse",
+        "Caddy authenticated original Git source differs from current source",
+    ),
+    (
         "producer-frontend-drift",
+        "reuse",
+        "Caddy authenticated original Git source differs from current source",
+    ),
+    (
         "expiry-helper-drift",
-        "original-missing-file",
-        "original-link-mode",
-        "wrong-job-run",
-        "wrong-job-head",
-        "wrong-job-name",
-        "wrong-artifact-run",
-        "wrong-artifact-repository",
-        "duplicate-run",
-        "duplicate-job",
-        "duplicate-artifact",
-        "boolean-run-id",
-        "zero-job-id",
-        "boolean-artifact-id",
-        "boolean-total",
-        "repeated-full-page",
-        "same-count-page-replacement",
-        "before-acceptance",
-        "stale-review",
-        "hard-expiry",
-    ],
-)
-def test_caddy_D_executes_actual_admission_without_native_or_network_calls(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: str
-) -> None:
+        "reuse",
+        "Caddy authenticated original Git source differs from current source",
+    ),
+    ("original-missing-file", "reuse", "Caddy actual producer source inventory differs"),
+    ("original-link-mode", "reuse", "Caddy original source is not one regular Git blob"),
+    ("before-acceptance", "reuse", "Caddy D review/expiry window is not current"),
+    ("stale-review", "reuse", "Caddy D review/expiry window is not current"),
+    ("hard-expiry", "reuse", "Caddy D review/expiry window is not current"),
+    (
+        "ordinary-main-without-image",
+        "main",
+        "Caddy exact predecessor only; fresh replacement dispatch required, no automatic build",
+    ),
+    (
+        "contract-without-image",
+        "contract",
+        "Caddy exact predecessor only; fresh replacement dispatch required, no automatic build",
+    ),
+]
+
+
+def _caddy_D_admission_case(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, scenario: str, fault: str | None
+) -> dict[str, Any]:
     from datetime import date
     from io import BytesIO
     from types import SimpleNamespace
+    import urllib.error
     import urllib.request
     from scripts.ci import prometheus_source_image as source_owner
 
-    steps = _steps(_job(_workflow(FRONTEND_WORKFLOW), "caddy-contract"))
-    code = _named_step(steps, "Admit existing Caddy producer or exact retained subject")["run"]
-    code = code.split("python3 - <<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
+    code = (
+        _named_step(
+            _steps(_job(_workflow(FRONTEND_WORKFLOW), "caddy-contract")),
+            "Admit existing Caddy producer or exact retained subject",
+        )["run"]
+        .split("python3 - <<'PY'\n", 1)[1]
+        .rsplit("\nPY", 1)[0]
+    )
     assert code.count("datetime.now(timezone.utc).date()") == 1
     code = code.replace("datetime.now(timezone.utc).date()", "__test_today")
     today = {
         "before-acceptance": date(2026, 10, 27),
         "stale-review": date(2026, 10, 31),
         "hard-expiry": date(2026, 11, 5),
-    }.get(case, date(2026, 10, 28))
+    }.get(fault, date(2026, 10, 29))
+    prior_head = "243d270847d10786177ecf2e1632cb6b9bb49e45"
     head, producer_head = "a" * 40, "b" * 40
-    final = "c" * 40 if case == "merge-main" else head
-    repo = "Katsiarynakavaleuskaya/PulsePlate"
-    branch = "codex/python-setup-security-stabilization"
-    producer = {
-        "id": True if case == "boolean-run-id" else 11,
+    final = "c" * 40 if scenario == "main" else head
+    repo, branch = "Katsiarynakavaleuskaya/PulsePlate", "codex/python-setup-security-stabilization"
+    event_name = (
+        "push"
+        if scenario == "main"
+        else (
+            "workflow_dispatch" if scenario in {"build", "metadata", "contract"} else "pull_request"
+        )
+    )
+    action = (
+        "candidate-D"
+        if scenario == "build"
+        else "xnet060-metadata" if scenario == "metadata" else "contract"
+    )
+    current_attempt = (
+        2
+        if fault in {"rerun-producer", "current-prior-build"} or scenario == "consumer-rerun"
+        else 1
+    )
+    with_replacement = (
+        scenario in {"reuse", "main", "contract", "consumer-rerun"} or fault == "second-producer"
+    )
+
+    def step(
+        number: int,
+        name: str,
+        conclusion: str | None,
+        start: str | None,
+        end: str | None,
+        status: str = "completed",
+    ) -> dict[str, Any]:
+        return {
+            "number": number,
+            "name": name,
+            "conclusion": conclusion,
+            "started_at": start,
+            "completed_at": end,
+            "status": status,
+        }
+
+    build_name = "Build accepted D Caddy candidate once"
+    runtime_name = "Decide exact Caddy D inventory and loaded isolated runtime"
+    predecessor = {
+        "id": 40809053754,
         "repository": {"full_name": repo, "id": 1043311030},
-        "workflow_id": 99,
+        "workflow_id": 196310935,
         "head_repository": {"id": 1043311030},
         "path": ".github/workflows/frontend-ci.yml",
         "event": "workflow_dispatch",
         "run_attempt": 1,
+        "head_sha": prior_head,
+        "head_branch": branch,
+        "status": "completed",
+        "conclusion": "failure",
+        "created_at": "2026-10-29T02:54:00Z",
+    }
+    prior_job = {
+        "id": 123234862421,
+        "run_id": 40809053754,
+        "run_attempt": 1,
+        "head_sha": prior_head,
+        "head_branch": branch,
+        "name": "caddy-contract",
+        "status": "completed",
+        "conclusion": "failure",
+        "started_at": "2026-10-29T02:54:19Z",
+        "completed_at": "2026-10-29T03:02:11Z",
+        "steps": [
+            step(12, build_name, "success", "2026-10-29T02:58:39Z", "2026-10-29T03:00:55Z"),
+            step(22, runtime_name, "failure", "2026-10-29T03:01:32Z", "2026-10-29T03:01:32Z"),
+        ],
+    }
+    producer = {
+        **deepcopy(predecessor),
+        "id": 11,
         "head_sha": producer_head,
-        "head_branch": "foreign" if case == "wrong-producer-branch" else branch,
+        "conclusion": "success",
+        "created_at": "2026-10-29T04:00:00Z",
     }
-    prior = case not in {
-        "first-producer",
-        "ordinary-without-image",
-        "metadata-only",
-        "rerun-producer",
+    producer_job = {
+        **deepcopy(prior_job),
+        "id": 1100,
+        "run_id": 11,
+        "head_sha": producer_head,
+        "conclusion": "success",
+        "started_at": "2026-10-29T04:00:10Z",
+        "completed_at": "2026-10-29T04:03:00Z",
+        "steps": [
+            step(12, build_name, "success", "2026-10-29T04:01:00Z", "2026-10-29T04:02:00Z"),
+            step(22, runtime_name, "success", "2026-10-29T04:02:30Z", "2026-10-29T04:02:45Z"),
+        ],
     }
-    event_name = (
-        "workflow_dispatch"
-        if case in {"first-producer", "metadata-only", "second-producer", "rerun-producer"}
-        else "pull_request"
-    )
-    if case in {"merge-main", "unrelated-main"}:
-        event_name = "push"
-    action = "candidate-D" if event_name == "workflow_dispatch" else "contract"
-    if case == "metadata-only":
-        action = "xnet060-metadata"
+    current = {
+        **deepcopy(predecessor),
+        "id": 12,
+        "head_sha": head,
+        "head_branch": "main" if scenario == "main" else branch,
+        "event": event_name,
+        "run_attempt": current_attempt,
+        "status": "in_progress",
+        "conclusion": None,
+        "created_at": "2026-10-29T04:05:00Z",
+    }
+    current_job = {
+        **deepcopy(producer_job),
+        "id": 1200,
+        "run_id": 12,
+        "head_sha": head,
+        "head_branch": current["head_branch"],
+        "run_attempt": current_attempt,
+        "status": "in_progress",
+        "conclusion": None,
+        "completed_at": None,
+        "steps": [step(12, build_name, None, None, None, "pending")],
+    }
+    rows = [predecessor, *([producer] if with_replacement else []), current]
+    jobs = {40809053754: [prior_job], 11: [producer_job], 12: [current_job]}
+    if scenario == "consumer-rerun":
+        previous = {
+            **deepcopy(current_job),
+            "id": 1199,
+            "run_attempt": 1,
+            "status": "completed",
+            "conclusion": "failure",
+            "steps": [
+                step(12, build_name, "skipped", "2026-10-29T04:06:00Z", "2026-10-29T04:06:00Z")
+            ],
+        }
+        jobs[12].insert(0, previous)
+    if scenario == "metadata-failure-before-build":
+        old = {**deepcopy(producer), "id": 13, "conclusion": "failure"}
+        rows.insert(0, old)
+        jobs[13] = [
+            {
+                **deepcopy(producer_job),
+                "id": 1300,
+                "run_id": 13,
+                "conclusion": "failure",
+                "steps": [
+                    step(12, build_name, "skipped", "2026-10-29T04:02:00Z", "2026-10-29T04:02:00Z")
+                ],
+            }
+        ]
+        event_name, action = "workflow_dispatch", "candidate-D"
+        current["event"] = event_name
+    if scenario == "reordered":
+        rows = [current, producer, predecessor]
+    if fault in {"ordinary-main-without-image", "contract-without-image"}:
+        rows.remove(producer)
+    if fault == "missing-P":
+        rows.remove(predecessor)
+    elif fault == "zero-history":
+        rows.clear()
+    elif fault == "wrong-P-job":
+        prior_job["id"] = 123234862420
+    elif fault == "wrong-P-head":
+        predecessor["head_sha"] = prior_job["head_sha"] = "d" * 40
+    elif fault == "wrong-P-repository":
+        predecessor["repository"]["id"] = 999
+    elif fault == "wrong-P-workflow":
+        predecessor["workflow_id"] = 999
+    elif fault == "wrong-P-runtime":
+        prior_job["steps"][1]["conclusion"] = "success"
+    elif fault == "wrong-P-build":
+        prior_job["steps"][0]["conclusion"] = "failure"
+    elif fault == "wrong-P-build-number":
+        prior_job["steps"][0]["number"] = 13
+    elif fault == "wrong-P-runtime-number":
+        prior_job["steps"][1]["number"] = 23
+    elif fault == "wrong-P-status":
+        predecessor["conclusion"] = "success"
+    elif fault == "P-run-attempt2":
+        predecessor["run_attempt"] = 2
+    elif fault == "duplicate-P-start":
+        prior_job["steps"].append({**prior_job["steps"][0], "number": 13})
+    elif fault == "missing-P-start":
+        prior_job["steps"][0].pop("started_at")
+    elif fault == "failed-producer":
+        producer["conclusion"] = producer_job["conclusion"] = "failure"
+    elif fault == "cancelled-producer":
+        producer["conclusion"] = producer_job["conclusion"] = producer_job["steps"][0][
+            "conclusion"
+        ] = "cancelled"
+    elif fault == "pending-producer":
+        producer["status"] = producer_job["status"] = producer_job["steps"][0]["status"] = (
+            "in_progress"
+        )
+        producer["conclusion"] = producer_job["conclusion"] = producer_job["steps"][0][
+            "conclusion"
+        ] = None
+        producer_job["steps"][0]["completed_at"] = None
+    elif fault == "missing-Q-start":
+        producer_job["steps"][0]["started_at"] = None
+    elif fault == "unknown-Q-conclusion":
+        producer_job["steps"][0]["conclusion"] = None
+    elif fault == "wrong-Q-runtime":
+        producer_job["steps"][1]["conclusion"] = "failure"
+    elif fault == "missing-Q-runtime":
+        producer_job["steps"].pop()
+    elif fault == "wrong-Q-step":
+        producer_job["steps"][0]["number"] = 13
+    elif fault == "Q-predecessor-head":
+        producer["head_sha"] = producer_job["head_sha"] = prior_head
+    elif fault == "Q-chronology":
+        producer["created_at"] = "2026-10-29T03:00:00Z"
+    elif fault == "Q-start-before-created":
+        producer_job["steps"][0]["started_at"] = "2026-10-29T03:59:00Z"
+    elif fault == "two-producers":
+        rows.append({**deepcopy(producer), "id": 10})
+        jobs[10] = [{**deepcopy(producer_job), "id": 1000, "run_id": 10}]
+    elif fault == "current-prior-build":
+        prior_current = {
+            **deepcopy(producer_job),
+            "id": 1199,
+            "run_id": 12,
+            "head_sha": head,
+            "steps": [
+                step(12, build_name, "success", "2026-10-29T04:06:00Z", "2026-10-29T04:07:00Z")
+            ],
+        }
+        jobs[12].insert(0, prior_current)
+    elif fault == "current-run-absent":
+        rows.remove(current)
+    elif fault == "current-native-head":
+        current["head_sha"] = current_job["head_sha"] = "e" * 40
+    elif fault == "current-native-event":
+        current["event"] = "push"
+    elif fault == "current-native-attempt":
+        current["run_attempt"] = 2
+    elif fault == "current-prestarted-build":
+        current_job["steps"][0] = step(
+            12, build_name, None, "2026-10-29T04:06:00Z", None, "in_progress"
+        )
+    elif fault == "missing-current-build":
+        current_job["steps"] = []
+    elif fault == "wrong-current-build-step":
+        current_job["steps"][0]["number"] = 13
+    elif fault == "current-created-before-P":
+        current["created_at"] = "2026-10-29T03:00:00Z"
+    elif fault == "wrong-producer-branch":
+        producer["head_branch"] = "foreign"
+    elif fault == "wrong-job-run":
+        producer_job["run_id"] = 999
+    elif fault == "wrong-job-head":
+        producer_job["head_sha"] = head
+    elif fault == "wrong-job-name":
+        producer_job["name"] = "other-job"
+    elif fault == "zero-job-id":
+        producer_job["id"] = 0
+    elif fault == "boolean-run-id":
+        producer["id"] = True
+    elif fault == "duplicate-step":
+        producer_job["steps"].append(deepcopy(producer_job["steps"][0]))
+    elif fault == "skipped-with-duration":
+        producer_job["steps"][0]["conclusion"] = "skipped"
+    elif fault == "nonUTC-start":
+        producer_job["steps"][0]["started_at"] = "2026-10-29T04:01:00"
+    elif fault == "invalid-start":
+        producer_job["steps"][0]["started_at"] = "not-a-time"
+
     pr = {
         "number": 2497,
-        "commits": 2,
+        "commits": 3,
         "state": "open",
-        "merged": case == "merge-main",
-        "merge_commit_sha": head if case == "merge-main" else None,
+        "merged": scenario == "main",
+        "merge_commit_sha": head if scenario == "main" else None,
         "head": {"sha": final, "ref": branch, "repo": {"full_name": repo, "id": 1043311030}},
         "base": {"ref": "main", "repo": {"id": 1043311030}},
     }
-    if case == "wrong-PR":
+    if fault == "ordinary-without-image":
+        event_name, action = "pull_request", "contract"
+        current["event"] = event_name
+    if fault == "wrong-PR":
         pr["number"] = 2494
-    if case == "foreign-head":
+    if fault == "foreign-head":
         pr["head"]["repo"]["full_name"] = "other/repo"
+    if fault == "unrelated-main":
+        pr["merged"] = False
     event = tmp_path / "event.json"
     event.write_text(json.dumps({"pull_request": pr}))
-    runner = tmp_path / "runner"
+    runner, home = tmp_path / "runner", tmp_path / "synthetic-home"
     runner.mkdir()
+    home.mkdir(mode=0o700)
     output = tmp_path / "output"
     output.write_text("")
     for key in tuple(os.environ):
-        if any(
-            word in key.upper() for word in ("TOKEN", "PASSWORD", "SECRET", "CREDENTIAL", "AUTH")
-        ):
-            monkeypatch.delenv(key, raising=False)
+        monkeypatch.delenv(key, raising=False)
     values = {
-        "GITHUB_REPOSITORY": repo if case != "wrong-repository" else "other/repo",
+        "PATH": "/usr/bin:/bin",
+        "HOME": str(home),
+        "LANG": "C.UTF-8",
+        "GITHUB_REPOSITORY": repo if fault != "wrong-repository" else "other/repo",
         "GITHUB_REPOSITORY_ID": "1043311030",
         "GITHUB_EVENT_PATH": str(event),
         "GITHUB_EVENT_NAME": event_name,
-        "GITHUB_REF": "refs/heads/main" if event_name == "push" else "refs/heads/" + branch,
+        "GITHUB_REF": "refs/heads/main" if scenario == "main" else "refs/heads/" + branch,
         "GITHUB_SHA": head,
         "CADDY_ACTION": action,
         "CADDY_SOURCE_HEAD": head,
         "GITHUB_RUN_ID": "12",
-        "GITHUB_RUN_ATTEMPT": "2" if case == "rerun-producer" else "1",
+        "GITHUB_RUN_ATTEMPT": str(current_attempt),
         "RUNNER_TEMP": str(runner),
         "GITHUB_OUTPUT": str(output),
         "GH_TOKEN": "synthetic-token",
@@ -4280,11 +4601,11 @@ def test_caddy_D_executes_actual_admission_without_native_or_network_calls(
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(policy_raw if name.endswith("caddy-go-jose-v3.rego") else b"synthetic\n")
     changed_path = {
-        "producer-workflow-drift": ".github/workflows/frontend-ci.yml",
-        "producer-helper-drift": "scripts/ci/check_docker_runtime_dependency_surface.py",
-        "producer-frontend-drift": "frontend/package-lock.json",
-        "expiry-helper-drift": "scripts/ci/check_trivy_ignore_policy_expiry.py",
-    }.get(case)
+        "producer-workflow-drift": fixed[0],
+        "producer-helper-drift": fixed[3],
+        "producer-frontend-drift": tracked[1],
+        "expiry-helper-drift": fixed[5],
+    }.get(fault)
     blobs, object_ids = {}, {}
     for name in tracked + fixed:
         raw = (
@@ -4293,8 +4614,7 @@ def test_caddy_D_executes_actual_admission_without_native_or_network_calls(
         oid = hashlib.sha1(
             b"blob " + str(len(raw)).encode() + b"\0" + raw, usedforsecurity=False
         ).hexdigest()
-        object_ids[name] = oid
-        blobs[oid] = raw
+        object_ids[name], blobs[oid] = oid, raw
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(shutil, "which", lambda name: "/usr/bin/" + name)
 
@@ -4310,11 +4630,11 @@ def test_caddy_D_executes_actual_admission_without_native_or_network_calls(
             return b""
         if args[:2] == ["ls-tree", "-r"]:
             names = tracked + fixed
-            if case == "original-missing-file":
+            if fault == "original-missing-file":
                 names = names[:-1]
             return ("\0".join(names) + "\0").encode()
         if args[0] == "ls-tree":
-            mode = "120000" if case == "original-link-mode" else "100644"
+            mode = "120000" if fault == "original-link-mode" else "100644"
             return (mode + " blob " + object_ids[args[-1]] + "\n").encode()
         if args[:2] == ["cat-file", "blob"]:
             return blobs[args[2]]
@@ -4344,93 +4664,98 @@ def test_caddy_D_executes_actual_admission_without_native_or_network_calls(
         assert url.startswith("https://api.github.com/repos/" + repo + "/")
         assert request.get_header("Authorization") == "Bearer synthetic-token"
         if "/pulls/2497/commits?" in url:
-            first = "d" * 40 if case == "wrong-producer-PR" else producer_head
-            payload = [{"sha": first, "parents": []}, {"sha": final, "parents": [{"sha": first}]}]
+            first = "d" * 40 if fault == "wrong-P-PR" else prior_head
+            second = "e" * 40 if fault == "wrong-producer-PR" else producer_head
+            payload = [
+                {"sha": first, "parents": []},
+                {"sha": second, "parents": [{"sha": first}]},
+                {"sha": final, "parents": [{"sha": second}]},
+            ]
         elif url.endswith("/pulls/2497"):
             payload = pr
         elif url.endswith("/actions/workflows/frontend-ci.yml"):
-            payload = {"id": 99}
+            payload = {"id": 196310935}
         elif "/runs?" in url:
-            rows = [producer] if prior else []
-            if case == "two-producers":
-                rows.append({**producer, "id": 10})
-            if case == "duplicate-run":
-                rows.append(dict(producer))
-            if case == "same-count-page-replacement" and calls[url] > 1:
-                rows = [{**producer, "id": 10}]
-            total = len(rows) + int(case == "incomplete-API")
-            if case == "repeated-full-page":
-                rows = [{**producer, "id": i + 100} for i in range(100)]
-                total = 200
-            if case == "boolean-total":
+            result = deepcopy(rows)
+            if fault == "API-failed":
+                raise urllib.error.HTTPError(url, 503, "synthetic failure", None, None)
+            if fault == "duplicate-run":
+                result.append(deepcopy(producer))
+            if fault == "same-count-page-replacement" and calls[url] > 1:
+                result[-1]["id"] = 999
+            total = len(result) + int(fault == "incomplete-API")
+            if fault == "repeated-full-page":
+                result, total = [{**deepcopy(producer), "id": i + 100} for i in range(100)], 200
+            if fault == "boolean-total":
                 total = True
-            payload = {"total_count": total, "workflow_runs": rows}
+            payload = {"total_count": total, "workflow_runs": result}
         elif "/jobs?" in url:
             run_id = int(url.split("/runs/", 1)[1].split("/", 1)[0])
-            conclusion = (
-                "failure"
-                if case == "failed-producer"
-                else "cancelled" if case == "cancelled-producer" else "success"
-            )
-            row = {
-                "id": 0 if case == "zero-job-id" else run_id * 100,
-                "run_id": 999 if case == "wrong-job-run" else run_id,
-                "run_attempt": 1,
-                "head_sha": head if case == "wrong-job-head" else producer_head,
-                "name": "other-job" if case == "wrong-job-name" else "caddy-contract",
-                "conclusion": conclusion,
-                "steps": [
-                    {
-                        "number": 5,
-                        "name": "Build accepted D Caddy candidate once",
-                        "started_at": "2026-10-28T12:00:00Z",
-                        "conclusion": conclusion,
-                    }
-                ],
-            }
-            rows = [row, dict(row)] if case == "duplicate-job" else [row]
-            payload = {"total_count": len(rows), "jobs": rows}
+            result = deepcopy(jobs[run_id])
+            if fault == "duplicate-job" and run_id == 11:
+                result.append(deepcopy(result[0]))
+            payload = {"total_count": len(result), "jobs": result}
         elif "/artifacts?" in url:
+            assert "/runs/11/" in url
             row = {
-                "id": True if case == "boolean-artifact-id" else 77,
+                "id": True if fault == "boolean-artifact-id" else 77,
                 "name": "caddy-contract-evidence",
-                "expired": case == "expired-artifact",
+                "expired": fault == "expired-artifact",
                 "workflow_run": {
-                    "id": 999 if case == "wrong-artifact-run" else 11,
-                    "head_sha": head if case == "artifact-head" else producer_head,
-                    "repository_id": 999 if case == "wrong-artifact-repository" else 1043311030,
+                    "id": 999 if fault == "wrong-artifact-run" else 11,
+                    "head_sha": head if fault == "artifact-head" else producer_head,
+                    "repository_id": 999 if fault == "wrong-artifact-repository" else 1043311030,
                     "head_repository_id": 1043311030,
                     "head_branch": branch,
                 },
-                "digest": "wrong" if case == "artifact-digest" else "sha256:" + "c" * 64,
+                "digest": "wrong" if fault == "artifact-digest" else "sha256:" + "c" * 64,
             }
-            rows = (
+            result = (
                 []
-                if case == "missing-artifact"
-                else [row, dict(row)] if case == "duplicate-artifact" else [row]
+                if fault == "missing-artifact"
+                else [row, deepcopy(row)] if fault == "duplicate-artifact" else [row]
             )
-            payload = {"total_count": len(rows), "artifacts": rows}
+            payload = {"total_count": len(result), "artifacts": result}
         else:
             raise AssertionError(url)
         return Response(payload, url)
 
     monkeypatch.setattr(source_owner, "opener", lambda: SimpleNamespace(open=api))
-    modes = {
-        "first-producer": "build",
-        "reuse": "reuse",
-        "merge-main": "reuse",
-        "metadata-only": "metadata",
-    }
-    if case in modes:
-        exec(compile(code, "<actual-Caddy-admission>", "exec"), {"__test_today": today})
-        assert "mode=" + modes[case] + "\n" in output.read_text()
-        if modes[case] == "reuse":
-            state = json.loads((runner / "caddy-admission/admission.json").read_bytes())
-            assert state["producer"]["git_inputs"] == state["inputs"]
-    else:
-        with pytest.raises((ValueError, source_owner.QualificationError)):
-            exec(compile(code, "<actual-Caddy-admission>", "exec"), {"__test_today": today})
-        assert output.read_text() == ""
+    exec(compile(code, "<actual-Caddy-admission>", "exec"), {"__test_today": today})
+    result = json.loads((runner / "caddy-admission/admission.json").read_bytes())
+    assert output.read_text().startswith("mode=" + result["mode"] + "\n")
+    if result["mode"] == "reuse":
+        assert result["producer"]["run_id"] == 11
+        assert result["producer"]["git_inputs"] == result["inputs"]
+    return result
+
+
+@pytest.mark.parametrize("case,scenario,error", CADDY_D_HISTORY_CASES)
+def test_caddy_D_executes_actual_admission_without_native_or_network_calls(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: str, scenario: str, error: str | None
+) -> None:
+    import urllib.error
+    from scripts.ci.prometheus_source_image import QualificationError
+
+    baseline = tmp_path / "baseline"
+    baseline.mkdir()
+    with monkeypatch.context() as baseline_patch:
+        result = _caddy_D_admission_case(baseline, baseline_patch, scenario, None)
+    assert result["mode"] == (
+        "build"
+        if scenario in {"build", "metadata-failure-before-build"}
+        else "metadata" if scenario == "metadata" else "reuse"
+    )
+    if error is None:
+        return
+    mutant = tmp_path / "mutant"
+    mutant.mkdir()
+    with monkeypatch.context() as mutant_patch:
+        with pytest.raises(
+            (ValueError, QualificationError, urllib.error.HTTPError), match=re.escape(error)
+        ):
+            _caddy_D_admission_case(mutant, mutant_patch, scenario, case)
+    assert (mutant / "output").read_text() == ""
 
 
 @pytest.mark.parametrize("redirect", [False, True])

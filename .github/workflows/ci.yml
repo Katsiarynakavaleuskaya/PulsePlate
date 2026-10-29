@@ -3045,6 +3045,37 @@ jobs:
             MAIN_TEST_SHARDS=16
             MAIN_TEST_MAX_PARALLEL=4
             export MAIN_TEST_SHARD_TIMEOUT_SECONDS=4800
+            # Preserve the normal matrix run and expose its actual diagnostic inputs.
+            export PYTEST_ADDOPTS="${PYTEST_ADDOPTS:-} -vv --trace-config"
+            python - <<'PY_DIAG'
+          import hashlib
+          import importlib.metadata as metadata
+          import json
+          from pathlib import Path
+          import platform
+          import sys
+          import tomllib
+          import _pytest.faulthandler as handler
+
+          packages = {}
+          for name in ("pytest", "pytest-cov", "coverage"):
+              dist = metadata.distribution(name)
+              packages[name] = {"version": dist.version, "metadata_text_sha256": {
+                  member: hashlib.sha256(raw.encode()).hexdigest() if raw is not None else None
+                  for member in ("METADATA", "RECORD")
+                  for raw in (dist.read_text(member),)}}
+          config = tomllib.loads(Path("pyproject.toml").read_text())["tool"]["pytest"]["ini_options"]
+          files = ("pyproject.toml", ".coveragerc", "conftest.py", "tests/conftest.py",
+                   "scripts/ci/run_main_test_shards.py")
+          print("PY312_DIAGNOSTIC_IDENTITY " + json.dumps({
+              "python": sys.version, "executable": sys.executable, "platform": platform.platform(),
+              "packages": packages, "faulthandler_source_sha256": hashlib.sha256(Path(handler.__file__).read_bytes()).hexdigest(),
+              "source_sha256": {name: hashlib.sha256(Path(name).read_bytes()).hexdigest() for name in files},
+              "configured_ini": {name: config.get(name) for name in ("faulthandler_timeout", "faulthandler_exit_on_timeout")},
+              "effective_getini": "Not observed from a live per-shard pytest.Config; source/config identity only.",
+              "plugins": "Built-in --trace-config in the same normal pytest invocations records actual registration."
+          }, sort_keys=True), flush=True)
+          PY_DIAG
           elif [[ "$PYVER" == 3.13* ]]; then
             MAIN_TEST_SHARDS=32
             MAIN_TEST_MAX_PARALLEL=4

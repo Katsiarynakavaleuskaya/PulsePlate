@@ -718,6 +718,21 @@ def test_caddy_native_policy_projection_preserves_every_other_member(
         "mount",
         "image",
         "restart",
+        "cap-add-shorthand",
+        "cap-add-empty",
+        "cap-add-duplicate",
+        "cap-add-extra",
+        "cap-drop-missing",
+        "cap-drop-specific",
+        "diagnostic-main-stdout",
+        "diagnostic-main-stderr",
+        "diagnostic-cleanup-stdout",
+        "diagnostic-cleanup-stderr",
+        "diagnostic-both-stdout",
+        "diagnostic-primary-main-stdout",
+        "diagnostic-primary-cleanup-stdout",
+        "diagnostic-cleanup-owner-stdout",
+        "diagnostic-primary-cleanup-owner-stdout",
         "tmpfs-missing",
         "tmpfs-extra",
         "tmpfs-options",
@@ -753,13 +768,16 @@ def test_caddy_actual_loaded_runtime_requires_complete_native_boundary_and_clean
     image = "sha256:" + "a" * 64
     calls = []
     selected = {}
+    inspect_outputs: list[str] = []
 
     def docker(args: list[str]) -> subprocess.CompletedProcess[str]:
         calls.append(args)
         stdout = ""
         if args[0] == "create":
             selected["name"] = args[args.index("--name") + 1]
+            selected["inspection_count"] = 0
         elif args[0] == "inspect":
+            selected["inspection_count"] += 1
             stdout = json.dumps(
                 [
                     {
@@ -784,7 +802,7 @@ def test_caddy_actual_loaded_runtime_requires_complete_native_boundary_and_clean
                             "ReadonlyRootfs": True,
                             "PortBindings": {},
                             "Privileged": False,
-                            "CapAdd": ["NET_BIND_SERVICE"],
+                            "CapAdd": ["CAP_NET_BIND_SERVICE"],
                             "CapDrop": ["ALL"],
                             "Tmpfs": (
                                 {
@@ -821,6 +839,26 @@ def test_caddy_actual_loaded_runtime_requires_complete_native_boundary_and_clean
                 ]
             )
             observed = json.loads(stdout)[0]
+            if fault in (
+                "cap-add-shorthand",
+                "cap-add-empty",
+                "cap-add-duplicate",
+                "cap-add-extra",
+            ):
+                observed["HostConfig"]["CapAdd"] = {
+                    "cap-add-shorthand": ["NET_BIND_SERVICE"],
+                    "cap-add-empty": [],
+                    "cap-add-duplicate": ["CAP_NET_BIND_SERVICE", "CAP_NET_BIND_SERVICE"],
+                    "cap-add-extra": ["CAP_NET_BIND_SERVICE", "CAP_SYS_ADMIN"],
+                }[fault]
+            elif fault in ("cap-drop-missing", "cap-drop-specific"):
+                observed["HostConfig"]["CapDrop"] = (
+                    [] if fault == "cap-drop-missing" else ["CAP_CHOWN"]
+                )
+            if fault is not None and fault.startswith("diagnostic-primary-"):
+                observed["HostConfig"]["CapAdd"] = ["CAP_SYS_ADMIN"]
+            if fault is not None and "cleanup-owner" in fault and selected["inspection_count"] == 2:
+                observed["Config"]["Labels"]["pulseplate.caddy-D"] = "foreign-container"
             if fault in ("tmpfs-uid", "tmpfs-gid", "tmpfs-mode"):
                 key, value = {
                     "tmpfs-uid": ("uid=65532", "uid=0"),
@@ -845,6 +883,7 @@ def test_caddy_actual_loaded_runtime_requires_complete_native_boundary_and_clean
                     else:
                         values.append(binding)
             stdout = json.dumps([observed])
+            inspect_outputs.append(stdout)
         elif args[0] == "exec":
             if args[3] == "sh":
                 stdout = "wrong" if fault == "response" else "pulseplate-caddy-D\n"
@@ -901,6 +940,7 @@ def test_caddy_actual_loaded_runtime_requires_complete_native_boundary_and_clean
     current_directory = tmp_path / "valid-baseline"
     current_directory.mkdir()
     baseline = runtime_surface.observe_caddy_ci_runtime(image, current_directory)
+    assert baseline["inspected"]["HostConfig"]["CapAdd"] == ["CAP_NET_BIND_SERVICE"]
     assert baseline["private_temporary_directory"] == "65532:65532:700:directory\n"
     assert baseline["private_temporary_environment"] == [
         "HOME=/run/pulseplate-caddy-tmp",
@@ -909,13 +949,67 @@ def test_caddy_actual_loaded_runtime_requires_complete_native_boundary_and_clean
     fault = requested_fault
     current_directory = tmp_path / "case"
     current_directory.mkdir()
+    capture_obstructions = {
+        "diagnostic-main-stdout": {"container-inspect.stdout"},
+        "diagnostic-main-stderr": {"container-inspect.stderr"},
+        "diagnostic-cleanup-stdout": {"cleanup-inspect.stdout"},
+        "diagnostic-cleanup-stderr": {"cleanup-inspect.stderr"},
+        "diagnostic-both-stdout": {"container-inspect.stdout", "cleanup-inspect.stdout"},
+        "diagnostic-primary-main-stdout": {"container-inspect.stdout"},
+        "diagnostic-primary-cleanup-stdout": {"cleanup-inspect.stdout"},
+        "diagnostic-cleanup-owner-stdout": {"cleanup-inspect.stdout"},
+        "diagnostic-primary-cleanup-owner-stdout": {"cleanup-inspect.stdout"},
+    }.get(fault, set())
+    for filename in capture_obstructions:
+        (current_directory / filename).mkdir()
+    case_first_inspect = len(inspect_outputs)
     if fault is None:
         result = runtime_surface.observe_caddy_ci_runtime(image, current_directory)
         assert result["response"] == "pulseplate-caddy-D\n"
+    elif capture_obstructions:
+        if fault.startswith("diagnostic-primary-"):
+            with pytest.raises(ValueError, match="Caddy native isolation/state differs") as caught:
+                runtime_surface.observe_caddy_ci_runtime(image, current_directory)
+        elif "cleanup-owner" in fault:
+            with pytest.raises(ValueError, match="Caddy cleanup ownership differs") as caught:
+                runtime_surface.observe_caddy_ci_runtime(image, current_directory)
+        else:
+            with pytest.raises(FileExistsError) as caught:
+                runtime_surface.observe_caddy_ci_runtime(image, current_directory)
+        notes = caught.value.__notes__
+        for filename in capture_obstructions:
+            assert "Caddy diagnostic write failed (" + filename + "): FileExistsError" in notes
+        if fault == "diagnostic-primary-cleanup-owner-stdout":
+            assert "Caddy cleanup also failed: ValueError" in notes
     else:
-        with pytest.raises(ValueError):
+        with pytest.raises(
+            ValueError,
+            match="Caddy native isolation/state differs" if fault.startswith("cap-") else None,
+        ):
             runtime_surface.observe_caddy_ci_runtime(image, current_directory)
-    assert calls[-1] == ["rm", "--force", selected["name"]]
+    case_inspections = inspect_outputs[case_first_inspect:]
+    assert case_inspections
+    for channel, output in (("stdout", case_inspections[-1]), ("stderr", "startup")):
+        filename = "cleanup-inspect." + channel
+        if filename in capture_obstructions:
+            assert (current_directory / filename).is_dir()
+        else:
+            assert (current_directory / filename).read_text() == output
+    if len(case_inspections) == 2:
+        for channel, output in (("stdout", case_inspections[0]), ("stderr", "startup")):
+            filename = "container-inspect." + channel
+            if filename in capture_obstructions:
+                assert (current_directory / filename).is_dir()
+            else:
+                assert (current_directory / filename).read_text() == output
+    else:
+        assert len(case_inspections) == 1
+        assert not (current_directory / "container-inspect.stdout").exists()
+    if fault is not None and "cleanup-owner" in fault:
+        assert calls[-1] == ["inspect", selected["name"]]
+        assert ["rm", "--force", selected["name"]] not in calls
+    else:
+        assert calls[-1] == ["rm", "--force", selected["name"]]
     assert "--network" in calls[0] and "none" in calls[0]
     assert "/run/pulseplate-caddy-tmp:size=8m,uid=65532,gid=65532,mode=0700" in calls[0]
     assert "HOME=/run/pulseplate-caddy-tmp" in calls[0]

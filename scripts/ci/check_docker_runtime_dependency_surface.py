@@ -399,6 +399,8 @@ def observe_caddy_ci_runtime(image: str, directory: Path) -> dict[str, object]:
         "/ci.json",
     ]
     created = False
+    diagnostic_errors: list[tuple[str, Exception]] = []
+    primary_error: BaseException | None = None
     evidence: dict[str, object] = {"image_config_id": image, "argv": arguments}
     try:
         _run_docker(arguments)
@@ -436,7 +438,16 @@ def observe_caddy_ci_runtime(image: str, directory: Path) -> dict[str, object]:
             listening = [row[1] for row in rows if kind.startswith("udp") or row[3] == "0A"]
             if listening != (["0100007F:46A0"] if kind == "tcp" else []):
                 raise ValueError("Caddy native listener/admin boundary differs")
-        inspected = json.loads(_run_docker(["inspect", name]).stdout)[0]
+        inspection = _run_docker(["inspect", name])
+        for channel, output in (("stdout", inspection.stdout), ("stderr", inspection.stderr)):
+            try:
+                with (directory / ("container-inspect." + channel)).open(
+                    "x", encoding="utf-8"
+                ) as stream:
+                    stream.write(output)
+            except Exception as capture_error:
+                diagnostic_errors.append(("container-inspect." + channel, capture_error))
+        inspected = json.loads(inspection.stdout)[0]
         host, native_config, state = (
             inspected["HostConfig"],
             inspected["Config"],
@@ -452,7 +463,7 @@ def observe_caddy_ci_runtime(image: str, directory: Path) -> dict[str, object]:
             or not host["ReadonlyRootfs"]
             or host["PortBindings"]
             or host["Privileged"]
-            or host["CapAdd"] != ["NET_BIND_SERVICE"]
+            or host["CapAdd"] != ["CAP_NET_BIND_SERVICE"]
             or host["CapDrop"] != ["ALL"]
             or native_config["User"] != "65532:65532"
             or native_config["Labels"].get("pulseplate.caddy-D") != name
@@ -520,12 +531,45 @@ def observe_caddy_ci_runtime(image: str, directory: Path) -> dict[str, object]:
             process_environment_sha256=hashlib.sha256(process_environment.encode()).hexdigest(),
             private_temporary_directory=private_directory,
         )
+    except BaseException as operation_error:
+        primary_error = operation_error
+        raise
     finally:
-        if created:
-            current = json.loads(_run_docker(["inspect", name]).stdout)[0]
-            if current["Config"]["Labels"].get("pulseplate.caddy-D") != name:
-                raise ValueError("Caddy cleanup ownership differs")
-            _run_docker(["rm", "--force", name])
+        try:
+            if created:
+                inspection = _run_docker(["inspect", name])
+                for channel, output in (
+                    ("stdout", inspection.stdout),
+                    ("stderr", inspection.stderr),
+                ):
+                    try:
+                        with (directory / ("cleanup-inspect." + channel)).open(
+                            "x", encoding="utf-8"
+                        ) as stream:
+                            stream.write(output)
+                    except Exception as capture_error:
+                        diagnostic_errors.append(("cleanup-inspect." + channel, capture_error))
+                current = json.loads(inspection.stdout)[0]
+                if current["Config"]["Labels"].get("pulseplate.caddy-D") != name:
+                    raise ValueError("Caddy cleanup ownership differs")
+                _run_docker(["rm", "--force", name])
+        except BaseException as cleanup_error:
+            if primary_error is None:
+                primary_error = cleanup_error
+            else:
+                primary_error.add_note("Caddy cleanup also failed: " + type(cleanup_error).__name__)
+        if diagnostic_errors:
+            if primary_error is None:
+                primary_error = diagnostic_errors[0][1]
+            for filename, recorded_error in diagnostic_errors:
+                primary_error.add_note(
+                    "Caddy diagnostic write failed ("
+                    + filename
+                    + "): "
+                    + type(recorded_error).__name__
+                )
+        if primary_error is not None:
+            raise primary_error
     return evidence
 
 

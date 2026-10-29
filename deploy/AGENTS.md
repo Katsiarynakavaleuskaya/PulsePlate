@@ -51,6 +51,12 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
 
 ### Caddy CI retained candidate and temporary risk boundary
 
+- The closed PR #2497 recovery keeps failed run `40809053754`, attempt 1,
+  job `123234862421` charged. One separately owner-authorized replacement may
+  consume the final second slot; zero history never resets it. Any replacement
+  start exhausts that allowance, and only its successful first-attempt producer
+  may be reused. Keep the failed predecessor, all original source/scan/runtime
+  checks and dates; a new failure or missing artifact grants no third build.
 - Run the frontend `caddy-contract` producer and consumers on `ubuntu-24.04`.
   A runner or image-store change requires native requalification under the
   unchanged compiler/config, archive-import and report identity checks; the
