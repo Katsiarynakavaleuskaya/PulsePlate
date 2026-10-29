@@ -51,12 +51,16 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
 
 ### Caddy CI retained candidate and temporary risk boundary
 
-- The closed PR #2497 recovery keeps failed run `40809053754`, attempt 1,
-  job `123234862421` charged. One separately owner-authorized replacement may
-  consume the final second slot; zero history never resets it. Any replacement
-  start exhausts that allowance, and only its successful first-attempt producer
-  may be reused. Keep the failed predecessor, all original source/scan/runtime
-  checks and dates; a new failure or missing artifact grants no third build.
+- Under the direct owner decision of 2026-10-29, the closed PR #2497 recovery
+  permits one final third build; the two original slots remain spent.
+  Keep both exact failed predecessors charged: run `40809053754` / job
+  `123234862421` and run `40874768112` / job `123450755201`, each attempt 1.
+  After the ordinary gates, one fresh first-attempt producer on corrected
+  source, created after the second job completed, may consume that final slot.
+  Both failed sources remain authenticated PR ancestors; only a uniquely
+  successful third producer may be reused. Any third start spends the slot;
+  failed/unknown state, missing artifacts or changed inputs grant no fourth.
+  Keep every existing source/scan/runtime check, date and other lane budget.
 - Run the frontend `caddy-contract` producer and consumers on `ubuntu-24.04`.
   A runner or image-store change requires native requalification under the
   unchanged compiler/config, archive-import and report identity checks; the
@@ -77,6 +81,12 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   unfiltered native report and require successful strict/D native controls; an
   error is never proof of policy rejection. Native runtime evidence is bounded to
   its actual immutable config, process and listeners, not deployed reachability.
+- Bound synthetic Caddy environment evidence to the pinned foreground PID 1
+  startup interface and exact native stdout frame. Admit the complete synthetic
+  input environment before printing; retain only accepted output. Recheck the
+  same container/process identity at cleanup and keep actual private-tmpfs checks.
+  Configured values, another exec process and old logs are not that observation;
+  a startup snapshot does not prove continuing environment immutability.
 - Follow the individual owner/review/expiry/removal contract in
   [the CVE owner](../docs/security/CVE-2026-116587-caddy-go-jose.md).
   The original suppression-free CD/release outcome remains open; permanent v3/CD

@@ -4052,16 +4052,19 @@ def test_caddy_D_retains_one_original_producer_and_never_rebuilds_consumers() ->
         'step["name"] == "Build accepted D Caddy candidate once"',
         'step["started_at"]',
         'step["conclusion"] == "skipped"',
-        "len(spent) > 2",
+        "len(spent) > 3",
         "failed_run_id, failed_job_id = 40809053754, 123234862421",
         "len(predecessors) != 1",
+        "failed_q_run_id, failed_q_job_id = 40874768112, 123450755201",
+        "len(q_predecessors) != 1",
+        "authenticate_pr_source(proof_api, 2497, failed_q_head,",
         "current_runs, current_jobs",
         'job["conclusion"] != "success"',
         'artifacts[0]["expired"]',
         '"Caddy original producer artifact unavailable"',
         'state["current_run_attempt"] != 1',
         'action != "candidate-D"',
-        '"Caddy exact predecessor only; fresh replacement dispatch required, no automatic build"',
+        '"Caddy exact predecessors only; fresh final replacement dispatch required, no automatic build"',
         '"Caddy API inventory incomplete or changed"',
         '"Caddy API pagination bound"',
         "caddy_ci_source_inventory(root, tracked + fixed)",
@@ -4146,34 +4149,38 @@ CADDY_D_HISTORY_CASES = [
     ("wrong-P-workflow", "build", "Caddy producer run identity differs"),
     ("missing-P-start", "build", "Caddy build start/status evidence incomplete"),
     ("wrong-P-PR", "build", "producer_and_final_within_PR"),
-    ("failed-producer", "reuse", "Caddy replacement consumed/failed/unknown; no third build"),
-    ("cancelled-producer", "reuse", "Caddy replacement consumed/failed/unknown; no third build"),
-    ("pending-producer", "reuse", "Caddy replacement consumed/failed/unknown; no third build"),
-    ("Q-predecessor-head", "reuse", "Caddy replacement consumed/failed/unknown; no third build"),
-    ("wrong-producer-branch", "reuse", "Caddy replacement consumed/failed/unknown; no third build"),
-    ("wrong-job-name", "reuse", "Caddy replacement consumed/failed/unknown; no third build"),
+    ("failed-producer", "reuse", "Caddy replacement consumed/failed/unknown; no fourth build"),
+    ("cancelled-producer", "reuse", "Caddy replacement consumed/failed/unknown; no fourth build"),
+    ("pending-producer", "reuse", "Caddy replacement consumed/failed/unknown; no fourth build"),
+    ("Q-predecessor-head", "reuse", "Caddy replacement consumed/failed/unknown; no fourth build"),
+    (
+        "wrong-producer-branch",
+        "reuse",
+        "Caddy replacement consumed/failed/unknown; no fourth build",
+    ),
+    ("wrong-job-name", "reuse", "Caddy replacement consumed/failed/unknown; no fourth build"),
     ("missing-Q-start", "reuse", "Caddy build start/status evidence incomplete"),
     ("unknown-Q-conclusion", "reuse", "Caddy build start/status evidence incomplete"),
     ("nonUTC-start", "reuse", "Caddy build start/status evidence incomplete"),
     ("invalid-start", "reuse", "Caddy build start/status evidence incomplete"),
     ("wrong-Q-runtime", "reuse", "Caddy replacement acceptance incomplete"),
     ("missing-Q-runtime", "reuse", "Caddy replacement acceptance incomplete"),
-    ("wrong-Q-step", "reuse", "Caddy replacement consumed/failed/unknown; no third build"),
+    ("wrong-Q-step", "reuse", "Caddy replacement consumed/failed/unknown; no fourth build"),
     ("Q-chronology", "reuse", "Caddy replacement producer chronology differs"),
     ("Q-start-before-created", "reuse", "Caddy replacement producer chronology differs"),
     ("two-producers", "reuse", "Caddy closed recovery build allowance exceeded"),
-    ("second-producer", "build", "Caddy replacement already spent; no third build"),
+    ("second-producer", "build", "Caddy replacement already spent; no fourth build"),
     (
         "ordinary-without-image",
         "build",
-        "Caddy exact predecessor only; fresh replacement dispatch required, no automatic build",
+        "Caddy exact predecessors only; fresh final replacement dispatch required, no automatic build",
     ),
     (
         "rerun-producer",
         "build",
-        "Caddy exact predecessor only; fresh replacement dispatch required, no automatic build",
+        "Caddy exact predecessors only; fresh final replacement dispatch required, no automatic build",
     ),
-    ("current-prior-build", "build", "Caddy replacement consumed/failed/unknown; no third build"),
+    ("current-prior-build", "build", "Caddy replacement consumed/failed/unknown; no fourth build"),
     ("current-run-absent", "build", "Caddy current native run/job missing or ambiguous"),
     ("current-native-head", "build", "Caddy current native run/job differs"),
     ("current-native-event", "build", "Caddy current native run/job differs"),
@@ -4236,13 +4243,86 @@ CADDY_D_HISTORY_CASES = [
     (
         "ordinary-main-without-image",
         "main",
-        "Caddy exact predecessor only; fresh replacement dispatch required, no automatic build",
+        "Caddy exact predecessors only; fresh final replacement dispatch required, no automatic build",
     ),
     (
         "contract-without-image",
         "contract",
-        "Caddy exact predecessor only; fresh replacement dispatch required, no automatic build",
+        "Caddy exact predecessors only; fresh final replacement dispatch required, no automatic build",
     ),
+    ("cap3-build", "build", None),
+    ("cap3-reuse", "reuse", None),
+    ("cap3-main", "main", None),
+    ("cap3-ordered-history", "reordered", None),
+    ("cap3-missing-Q", "build", "Caddy exact failed Q predecessor missing or ambiguous"),
+    ("cap3-count2-without-Q", "reuse", "Caddy exact failed Q predecessor missing or ambiguous"),
+    ("cap3-count3-without-Q", "reuse", "Caddy exact failed Q predecessor missing or ambiguous"),
+    ("cap3-duplicate-Q-start", "build", "Caddy exact failed Q predecessor missing or ambiguous"),
+    ("cap3-Q-run-id", "build", "Caddy exact failed Q predecessor differs"),
+    ("cap3-Q-job-id", "build", "Caddy exact failed Q predecessor differs"),
+    ("cap3-Q-head", "build", "Caddy exact failed Q predecessor differs"),
+    ("cap3-Q-branch", "build", "Caddy exact failed Q predecessor differs"),
+    ("cap3-Q-attempt", "build", "Caddy exact failed Q predecessor differs"),
+    ("cap3-Q-event", "build", "Caddy exact failed Q predecessor differs"),
+    ("cap3-Q-source-repository", "build", "Caddy exact failed Q predecessor differs"),
+    ("cap3-Q-run-pending", "build", "Caddy exact failed Q predecessor differs"),
+    ("cap3-Q-success-laundering", "build", "Caddy exact failed Q predecessor differs"),
+    ("cap3-Q-job-status", "build", "Caddy exact failed Q predecessor differs"),
+    ("cap3-Q-created", "build", "Caddy exact failed Q predecessor differs"),
+    ("cap3-Q-job-start", "build", "Caddy exact failed Q predecessor differs"),
+    ("cap3-Q-job-finish", "build", "Caddy exact failed Q predecessor differs"),
+    ("cap3-Q-build-number", "build", "Caddy exact failed Q predecessor differs"),
+    ("cap3-Q-build-result", "build", "Caddy exact failed Q predecessor differs"),
+    ("cap3-Q-build-start", "build", "Caddy exact failed Q predecessor differs"),
+    ("cap3-Q-build-finish", "build", "Caddy exact failed Q predecessor differs"),
+    ("cap3-Q-runtime-missing", "build", "Caddy exact failed Q predecessor differs"),
+    ("cap3-Q-workflow", "build", "Caddy producer run identity differs"),
+    ("cap3-Q-repository", "build", "Caddy producer run identity differs"),
+    ("cap3-Q-start-unknown", "build", "Caddy build start/status evidence incomplete"),
+    ("cap3-Q-runtime-number", "build", "Caddy exact failed Q predecessor runtime differs"),
+    ("cap3-Q-runtime-result", "build", "Caddy exact failed Q predecessor runtime differs"),
+    ("cap3-Q-runtime-start", "build", "Caddy exact failed Q predecessor runtime differs"),
+    ("cap3-Q-runtime-finish", "build", "Caddy exact failed Q predecessor runtime differs"),
+    ("cap3-P-ancestry", "build", "producer_and_final_within_PR"),
+    ("cap3-Q-ancestry", "build", "producer_and_final_within_PR"),
+    ("cap3-Q-disconnected-ancestry", "build", "producer_ancestor_within_PR"),
+    ("cap3-P-success-laundering", "build", "Caddy exact failed predecessor differs"),
+    ("cap3-R-created-between-P-Q", "reuse", "Caddy replacement producer chronology differs"),
+    ("cap3-R-created-at-Q-finish", "reuse", "Caddy replacement producer chronology differs"),
+    ("cap3-current-created-between-P-Q", "build", "Caddy replacement dispatch chronology differs"),
+    ("cap3-current-created-at-Q-finish", "build", "Caddy replacement dispatch chronology differs"),
+    (
+        "cap3-current-Q-source",
+        "build",
+        "Caddy exact predecessors only; fresh final replacement dispatch required, no automatic build",
+    ),
+    ("cap3-R-Q-source", "reuse", "Caddy replacement consumed/failed/unknown; no fourth build"),
+    ("cap3-R-attempt2", "reuse", "Caddy replacement consumed/failed/unknown; no fourth build"),
+    (
+        "cap3-current-attempt2",
+        "build",
+        "Caddy exact predecessors only; fresh final replacement dispatch required, no automatic build",
+    ),
+    (
+        "cap3-current-older-start",
+        "build",
+        "Caddy replacement consumed/failed/unknown; no fourth build",
+    ),
+    ("cap3-R-plus-current-old", "reuse", "Caddy closed recovery build allowance exceeded"),
+    ("cap3-R-failed", "reuse", "Caddy replacement consumed/failed/unknown; no fourth build"),
+    ("cap3-R-cancelled", "reuse", "Caddy replacement consumed/failed/unknown; no fourth build"),
+    ("cap3-R-pending", "reuse", "Caddy replacement consumed/failed/unknown; no fourth build"),
+    ("cap3-R-unknown", "reuse", "Caddy build start/status evidence incomplete"),
+    ("cap3-R-runtime", "reuse", "Caddy replacement acceptance incomplete"),
+    ("cap3-fourth-start", "reuse", "Caddy closed recovery build allowance exceeded"),
+    ("cap3-no-fourth-dispatch", "build", "Caddy replacement already spent; no fourth build"),
+    ("cap3-R-no-artifact", "reuse", "Caddy original producer artifact unavailable"),
+    (
+        "cap3-R-source-drift",
+        "reuse",
+        "Caddy authenticated original Git source differs from current source",
+    ),
+    ("cap3-stale-review", "reuse", "Caddy D review/expiry window is not current"),
 ]
 
 
@@ -4269,10 +4349,31 @@ def _caddy_D_admission_case(
     today = {
         "before-acceptance": date(2026, 10, 27),
         "stale-review": date(2026, 10, 31),
+        "cap3-stale-review": date(2026, 10, 31),
         "hard-expiry": date(2026, 11, 5),
     }.get(fault, date(2026, 10, 29))
+    aliases = {
+        "cap3-P-ancestry": "wrong-P-PR",
+        "cap3-P-success-laundering": "wrong-P-status",
+        "cap3-R-failed": "failed-producer",
+        "cap3-R-cancelled": "cancelled-producer",
+        "cap3-R-pending": "pending-producer",
+        "cap3-R-unknown": "unknown-Q-conclusion",
+        "cap3-R-runtime": "wrong-Q-runtime",
+        "cap3-R-no-artifact": "missing-artifact",
+        "cap3-R-source-drift": "producer-helper-drift",
+        "cap3-fourth-start": "two-producers",
+        "cap3-no-fourth-dispatch": "second-producer",
+        "cap3-current-attempt2": "rerun-producer",
+        "cap3-current-older-start": "current-prior-build",
+        "cap3-stale-review": "stale-review",
+    }
+    fault = aliases.get(fault, fault)
     prior_head = "243d270847d10786177ecf2e1632cb6b9bb49e45"
+    q_head = "5b434bd412c5dd92dc9eee21ab9da193cf76614d"
     head, producer_head = "a" * 40, "b" * 40
+    if fault == "cap3-current-Q-source":
+        head = q_head
     final = "c" * 40 if scenario == "main" else head
     repo, branch = "Katsiarynakavaleuskaya/PulsePlate", "codex/python-setup-security-stabilization"
     event_name = (
@@ -4289,7 +4390,8 @@ def _caddy_D_admission_case(
     )
     current_attempt = (
         2
-        if fault in {"rerun-producer", "current-prior-build"} or scenario == "consumer-rerun"
+        if fault in {"rerun-producer", "current-prior-build", "cap3-R-plus-current-old"}
+        or scenario == "consumer-rerun"
         else 1
     )
     with_replacement = (
@@ -4345,12 +4447,30 @@ def _caddy_D_admission_case(
             step(22, runtime_name, "failure", "2026-10-29T03:01:32Z", "2026-10-29T03:01:32Z"),
         ],
     }
+    failed_q = {
+        **deepcopy(predecessor),
+        "id": 40874768112,
+        "head_sha": q_head,
+        "created_at": "2026-10-29T12:37:17Z",
+    }
+    failed_q_job = {
+        **deepcopy(prior_job),
+        "id": 123450755201,
+        "run_id": 40874768112,
+        "head_sha": q_head,
+        "started_at": "2026-10-29T12:37:36Z",
+        "completed_at": "2026-10-29T12:41:19Z",
+        "steps": [
+            step(12, build_name, "success", "2026-10-29T12:40:29Z", "2026-10-29T12:40:40Z"),
+            step(22, runtime_name, "failure", "2026-10-29T12:41:08Z", "2026-10-29T12:41:09Z"),
+        ],
+    }
     producer = {
         **deepcopy(predecessor),
         "id": 11,
         "head_sha": producer_head,
         "conclusion": "success",
-        "created_at": "2026-10-29T04:00:00Z",
+        "created_at": "2026-10-29T14:00:00Z",
     }
     producer_job = {
         **deepcopy(prior_job),
@@ -4358,11 +4478,11 @@ def _caddy_D_admission_case(
         "run_id": 11,
         "head_sha": producer_head,
         "conclusion": "success",
-        "started_at": "2026-10-29T04:00:10Z",
-        "completed_at": "2026-10-29T04:03:00Z",
+        "started_at": "2026-10-29T14:00:10Z",
+        "completed_at": "2026-10-29T14:03:00Z",
         "steps": [
-            step(12, build_name, "success", "2026-10-29T04:01:00Z", "2026-10-29T04:02:00Z"),
-            step(22, runtime_name, "success", "2026-10-29T04:02:30Z", "2026-10-29T04:02:45Z"),
+            step(12, build_name, "success", "2026-10-29T14:01:00Z", "2026-10-29T14:02:00Z"),
+            step(22, runtime_name, "success", "2026-10-29T14:02:30Z", "2026-10-29T14:02:45Z"),
         ],
     }
     current = {
@@ -4374,7 +4494,7 @@ def _caddy_D_admission_case(
         "run_attempt": current_attempt,
         "status": "in_progress",
         "conclusion": None,
-        "created_at": "2026-10-29T04:05:00Z",
+        "created_at": "2026-10-29T14:05:00Z",
     }
     current_job = {
         **deepcopy(producer_job),
@@ -4388,8 +4508,13 @@ def _caddy_D_admission_case(
         "completed_at": None,
         "steps": [step(12, build_name, None, None, None, "pending")],
     }
-    rows = [predecessor, *([producer] if with_replacement else []), current]
-    jobs = {40809053754: [prior_job], 11: [producer_job], 12: [current_job]}
+    rows = [predecessor, failed_q, *([producer] if with_replacement else []), current]
+    jobs = {
+        40809053754: [prior_job],
+        40874768112: [failed_q_job],
+        11: [producer_job],
+        12: [current_job],
+    }
     if scenario == "consumer-rerun":
         previous = {
             **deepcopy(current_job),
@@ -4398,7 +4523,7 @@ def _caddy_D_admission_case(
             "status": "completed",
             "conclusion": "failure",
             "steps": [
-                step(12, build_name, "skipped", "2026-10-29T04:06:00Z", "2026-10-29T04:06:00Z")
+                step(12, build_name, "skipped", "2026-10-29T14:06:00Z", "2026-10-29T14:06:00Z")
             ],
         }
         jobs[12].insert(0, previous)
@@ -4412,14 +4537,14 @@ def _caddy_D_admission_case(
                 "run_id": 13,
                 "conclusion": "failure",
                 "steps": [
-                    step(12, build_name, "skipped", "2026-10-29T04:02:00Z", "2026-10-29T04:02:00Z")
+                    step(12, build_name, "skipped", "2026-10-29T14:02:00Z", "2026-10-29T14:02:00Z")
                 ],
             }
         ]
         event_name, action = "workflow_dispatch", "candidate-D"
         current["event"] = event_name
     if scenario == "reordered":
-        rows = [current, producer, predecessor]
+        rows = [current, failed_q, producer, predecessor]
     if fault in {"ordinary-main-without-image", "contract-without-image"}:
         rows.remove(producer)
     if fault == "missing-P":
@@ -4479,7 +4604,7 @@ def _caddy_D_admission_case(
     elif fault == "Q-chronology":
         producer["created_at"] = "2026-10-29T03:00:00Z"
     elif fault == "Q-start-before-created":
-        producer_job["steps"][0]["started_at"] = "2026-10-29T03:59:00Z"
+        producer_job["steps"][0]["started_at"] = "2026-10-29T13:59:00Z"
     elif fault == "two-producers":
         rows.append({**deepcopy(producer), "id": 10})
         jobs[10] = [{**deepcopy(producer_job), "id": 1000, "run_id": 10}]
@@ -4490,7 +4615,7 @@ def _caddy_D_admission_case(
             "run_id": 12,
             "head_sha": head,
             "steps": [
-                step(12, build_name, "success", "2026-10-29T04:06:00Z", "2026-10-29T04:07:00Z")
+                step(12, build_name, "success", "2026-10-29T14:06:00Z", "2026-10-29T14:07:00Z")
             ],
         }
         jobs[12].insert(0, prior_current)
@@ -4504,7 +4629,7 @@ def _caddy_D_admission_case(
         current["run_attempt"] = 2
     elif fault == "current-prestarted-build":
         current_job["steps"][0] = step(
-            12, build_name, None, "2026-10-29T04:06:00Z", None, "in_progress"
+            12, build_name, None, "2026-10-29T14:06:00Z", None, "in_progress"
         )
     elif fault == "missing-current-build":
         current_job["steps"] = []
@@ -4529,13 +4654,96 @@ def _caddy_D_admission_case(
     elif fault == "skipped-with-duration":
         producer_job["steps"][0]["conclusion"] = "skipped"
     elif fault == "nonUTC-start":
-        producer_job["steps"][0]["started_at"] = "2026-10-29T04:01:00"
+        producer_job["steps"][0]["started_at"] = "2026-10-29T14:01:00"
     elif fault == "invalid-start":
         producer_job["steps"][0]["started_at"] = "not-a-time"
 
+    if fault in {"cap3-missing-Q", "cap3-count2-without-Q", "cap3-count3-without-Q"}:
+        rows.remove(failed_q)
+        if fault == "cap3-count3-without-Q":
+            rows.append({**deepcopy(producer), "id": 10})
+            jobs[10] = [{**deepcopy(producer_job), "id": 1000, "run_id": 10}]
+    elif fault == "cap3-duplicate-Q-start":
+        failed_q_job["steps"].append({**failed_q_job["steps"][0], "number": 13})
+    elif fault == "cap3-Q-run-id":
+        failed_q["id"] = 40874768113
+        failed_q_job["run_id"] = failed_q["id"]
+        jobs[failed_q["id"]] = jobs.pop(40874768112)
+    elif fault == "cap3-Q-job-id":
+        failed_q_job["id"] = 123450755202
+    elif fault == "cap3-Q-head":
+        failed_q["head_sha"] = failed_q_job["head_sha"] = "d" * 40
+    elif fault == "cap3-Q-branch":
+        failed_q["head_branch"] = "foreign"
+    elif fault == "cap3-Q-attempt":
+        failed_q["run_attempt"] = 2
+    elif fault == "cap3-Q-event":
+        failed_q["event"] = "push"
+    elif fault == "cap3-Q-workflow":
+        failed_q["workflow_id"] = 999
+    elif fault == "cap3-Q-repository":
+        failed_q["repository"]["id"] = 999
+    elif fault == "cap3-Q-source-repository":
+        failed_q["head_repository"]["id"] = 999
+    elif fault == "cap3-Q-run-pending":
+        failed_q["status"], failed_q["conclusion"] = "in_progress", None
+    elif fault == "cap3-Q-success-laundering":
+        failed_q["conclusion"] = failed_q_job["conclusion"] = "success"
+    elif fault == "cap3-Q-job-status":
+        failed_q_job["status"] = "in_progress"
+    elif fault == "cap3-Q-created":
+        failed_q["created_at"] = "2026-10-29T12:37:18Z"
+    elif fault == "cap3-Q-job-start":
+        failed_q_job["started_at"] = "2026-10-29T12:37:37Z"
+    elif fault == "cap3-Q-job-finish":
+        failed_q_job["completed_at"] = "2026-10-29T12:41:20Z"
+    elif fault == "cap3-Q-build-number":
+        failed_q_job["steps"][0]["number"] = 13
+    elif fault == "cap3-Q-build-result":
+        failed_q_job["steps"][0]["conclusion"] = "failure"
+    elif fault == "cap3-Q-build-start":
+        failed_q_job["steps"][0]["started_at"] = "2026-10-29T12:40:30Z"
+    elif fault == "cap3-Q-build-finish":
+        failed_q_job["steps"][0]["completed_at"] = "2026-10-29T12:40:41Z"
+    elif fault == "cap3-Q-start-unknown":
+        failed_q_job["steps"][0].pop("started_at")
+    elif fault == "cap3-Q-runtime-number":
+        failed_q_job["steps"][1]["number"] = 23
+    elif fault == "cap3-Q-runtime-result":
+        failed_q_job["steps"][1]["conclusion"] = "success"
+    elif fault == "cap3-Q-runtime-start":
+        failed_q_job["steps"][1]["started_at"] = "2026-10-29T12:41:07Z"
+    elif fault == "cap3-Q-runtime-finish":
+        failed_q_job["steps"][1]["completed_at"] = "2026-10-29T12:41:10Z"
+    elif fault == "cap3-Q-runtime-missing":
+        failed_q_job["steps"].pop()
+    elif fault == "cap3-R-created-between-P-Q":
+        producer["created_at"] = "2026-10-29T12:40:00Z"
+    elif fault == "cap3-R-created-at-Q-finish":
+        producer["created_at"] = "2026-10-29T12:41:19Z"
+    elif fault == "cap3-current-created-between-P-Q":
+        current["created_at"] = "2026-10-29T12:40:00Z"
+    elif fault == "cap3-current-created-at-Q-finish":
+        current["created_at"] = "2026-10-29T12:41:19Z"
+    elif fault == "cap3-R-Q-source":
+        producer["head_sha"] = producer_job["head_sha"] = q_head
+    elif fault == "cap3-R-attempt2":
+        producer["run_attempt"] = producer_job["run_attempt"] = 2
+    elif fault == "cap3-R-plus-current-old":
+        previous = {
+            **deepcopy(producer_job),
+            "id": 1199,
+            "run_id": 12,
+            "head_sha": head,
+            "steps": [
+                step(12, build_name, "success", "2026-10-29T14:06:00Z", "2026-10-29T14:07:00Z")
+            ],
+        }
+        jobs[12].insert(0, previous)
+
     pr = {
         "number": 2497,
-        "commits": 3,
+        "commits": 2 if fault == "cap3-current-Q-source" else 4,
         "state": "open",
         "merged": scenario == "main",
         "merge_commit_sha": head if scenario == "main" else None,
@@ -4666,11 +4874,17 @@ def _caddy_D_admission_case(
         if "/pulls/2497/commits?" in url:
             first = "d" * 40 if fault == "wrong-P-PR" else prior_head
             second = "e" * 40 if fault == "wrong-producer-PR" else producer_head
+            middle = "f" * 40 if fault == "cap3-Q-ancestry" else q_head
             payload = [
                 {"sha": first, "parents": []},
-                {"sha": second, "parents": [{"sha": first}]},
+                {"sha": middle, "parents": [{"sha": first}]},
+                {"sha": second, "parents": [{"sha": middle}]},
                 {"sha": final, "parents": [{"sha": second}]},
             ]
+            if fault == "cap3-current-Q-source":
+                payload = payload[:2]
+            if fault == "cap3-Q-disconnected-ancestry":
+                payload[2]["parents"] = [{"sha": first}]
         elif url.endswith("/pulls/2497"):
             payload = pr
         elif url.endswith("/actions/workflows/frontend-ci.yml"):

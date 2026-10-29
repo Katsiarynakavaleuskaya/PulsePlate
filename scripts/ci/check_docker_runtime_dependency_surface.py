@@ -137,7 +137,9 @@ def find_blocked_debian_packages(
     return tuple(sorted(blocked))
 
 
-def _run_docker(args: list[str]) -> subprocess.CompletedProcess[str]:
+def _run_docker(
+    args: list[str], *, preserve_newlines: bool = False
+) -> subprocess.CompletedProcess[str]:
     """Run Docker with a resolved binary path and fixed argv."""
 
     if DOCKER_BINARY is None:
@@ -146,18 +148,37 @@ def _run_docker(args: list[str]) -> subprocess.CompletedProcess[str]:
             "environment."
         )
     try:
-        return subprocess.run(  # nosec B603 # B603: resolved Docker for fixed run inventory or image inspect calls; 60-second timeout and no shell (remove-by: 2026-10-30, ref: PR-docker-runtime-slimming)
+        result = subprocess.run(  # nosec B603 # B603: resolved Docker for fixed run inventory or image inspect calls; 60-second timeout and no shell (remove-by: 2026-10-30, ref: PR-docker-runtime-slimming)
             [DOCKER_BINARY, *args],
             check=True,
             capture_output=True,
-            text=True,
+            text=not preserve_newlines,
             timeout=DOCKER_TIMEOUT_SECONDS,
         )
+        if preserve_newlines:
+            try:
+                return subprocess.CompletedProcess(
+                    result.args,
+                    result.returncode,
+                    stdout=result.stdout.decode("utf-8"),
+                    stderr=result.stderr.decode("utf-8"),
+                )
+            except UnicodeDecodeError:
+                raise RuntimeError("Docker output is not valid UTF-8") from None
+        return result
     except subprocess.TimeoutExpired as exc:
+        if preserve_newlines:
+            raise RuntimeError(
+                f"docker command timed out after {DOCKER_TIMEOUT_SECONDS}s: {' '.join(args)}"
+            ) from None
         raise RuntimeError(
             f"docker command timed out after {DOCKER_TIMEOUT_SECONDS}s: {' '.join(args)}"
         ) from exc
     except subprocess.CalledProcessError as exc:
+        if preserve_newlines:
+            raise RuntimeError(
+                f"docker command failed (returncode={exc.returncode}, args={' '.join(args)})"
+            ) from None
         stderr = (exc.stderr or "").strip()
         stderr_suffix = f", stderr={stderr}" if stderr else ""
         raise RuntimeError(
@@ -346,7 +367,7 @@ def validate_caddy_ci_window(policy: Path, *, today: date) -> None:
 
 
 def observe_caddy_ci_runtime(image: str, directory: Path) -> dict[str, object]:
-    """Observe only the isolated immutable synthetic process, never a deployed service."""
+    """Bind the isolated process and its startup environment, never a deployed service."""
     if re.fullmatch(r"sha256:[0-9a-f]{64}", image) is None:
         raise ValueError("Caddy runtime requires an immutable local image ID")
     config = directory / "loaded-ci-config.json"
@@ -397,14 +418,42 @@ def observe_caddy_ci_runtime(image: str, directory: Path) -> dict[str, object]:
         "run",
         "--config",
         "/ci.json",
+        "--environ",
     ]
     created = False
     diagnostic_errors: list[tuple[str, Exception]] = []
     primary_error: BaseException | None = None
     evidence: dict[str, object] = {"image_config_id": image, "argv": arguments}
+    synthetic_environment = [
+        "HOME=/run/pulseplate-caddy-tmp",
+        "TMPDIR=/run/pulseplate-caddy-tmp",
+        "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "CADDY_VERSION=v2.11.4",
+        "XDG_CONFIG_HOME=/config",
+        "XDG_DATA_HOME=/data",
+    ]
     try:
         _run_docker(arguments)
         created = True
+        # Do not print an unbounded inherited environment. The pinned image's six
+        # synthetic values must match before Caddy can emit its startup snapshot.
+        prepared = json.loads(_run_docker(["inspect", name]).stdout)[0]
+        prepared_config = prepared["Config"]
+        if (
+            re.fullmatch(r"[0-9a-f]{64}", prepared["Id"]) is None
+            or prepared["Image"] != image
+            or prepared["Path"] != "/usr/bin/caddy"
+            or prepared["Args"] != ["run", "--config", "/ci.json", "--environ"]
+            or prepared["State"]["Status"] != "created"
+            or prepared["State"]["Running"]
+            or prepared["RestartCount"] != 0
+            or prepared_config["Labels"].get("pulseplate.caddy-D") != name
+            or prepared_config["Tty"] is not False
+            or prepared_config["WorkingDir"] != "/srv"
+            or prepared_config["Hostname"] != prepared["Id"][:12]
+            or prepared_config.get("Env") != synthetic_environment
+        ):
+            raise ValueError("Caddy pre-start synthetic environment binding differs")
         _run_docker(["start", name])
         # Bounded readiness inside the same network-none process namespace.
         probe = _run_docker(
@@ -425,7 +474,7 @@ def observe_caddy_ci_runtime(image: str, directory: Path) -> dict[str, object]:
         command = _run_docker(["exec", name, "/bin/busybox", "cat", "/proc/1/cmdline"]).stdout
         if (
             loaded != CADDY_D_CONFIG
-            or command != "/usr/bin/caddy\x00run\x00--config\x00/ci.json\x00"
+            or command != "/usr/bin/caddy\x00run\x00--config\x00/ci.json\x00--environ\x00"
         ):
             raise ValueError("Caddy actual process/config binding differs")
         sockets = {}
@@ -439,6 +488,9 @@ def observe_caddy_ci_runtime(image: str, directory: Path) -> dict[str, object]:
             if listening != (["0100007F:46A0"] if kind == "tcp" else []):
                 raise ValueError("Caddy native listener/admin boundary differs")
         inspection = _run_docker(["inspect", name])
+        inspected = json.loads(inspection.stdout)[0]
+        if inspected["Config"].get("Env") != synthetic_environment:
+            raise ValueError("Caddy synthetic environment changed after startup")
         for channel, output in (("stdout", inspection.stdout), ("stderr", inspection.stderr)):
             try:
                 with (directory / ("container-inspect." + channel)).open(
@@ -447,7 +499,6 @@ def observe_caddy_ci_runtime(image: str, directory: Path) -> dict[str, object]:
                     stream.write(output)
             except Exception as capture_error:
                 diagnostic_errors.append(("container-inspect." + channel, capture_error))
-        inspected = json.loads(inspection.stdout)[0]
         host, native_config, state = (
             inspected["HostConfig"],
             inspected["Config"],
@@ -455,6 +506,13 @@ def observe_caddy_ci_runtime(image: str, directory: Path) -> dict[str, object]:
         )
         if (
             inspected["Image"] != image
+            or inspected["Id"] != prepared["Id"]
+            or native_config["Tty"] is not False
+            or type(state.get("Pid")) is not int
+            or state["Pid"] <= 0
+            or not isinstance(state.get("StartedAt"), str)
+            or not state["StartedAt"]
+            or state["StartedAt"].startswith("0001-")
             or not state["Running"]
             or state["Restarting"]
             or state["OOMKilled"]
@@ -500,25 +558,47 @@ def observe_caddy_ci_runtime(image: str, directory: Path) -> dict[str, object]:
             != private_environment
         ):
             raise ValueError("Caddy private temporary environment differs")
-        process_environment = _run_docker(
-            ["exec", name, "/bin/busybox", "cat", "/proc/1/environ"]
-        ).stdout
+        logs = _run_docker(["logs", name], preserve_newlines=True)
+        # One pinned native stdout frame, not a search through logging prose.
+        # Caddy prints these twelve prelude fields in this order, then one blank
+        # line and its own Go environment before loading the exact config.
+        prelude = (
+            r"caddy\.HomeDir=/run/pulseplate-caddy-tmp\n"
+            r"caddy\.AppDataDir=/data/caddy\n"
+            r"caddy\.AppConfigDir=/config/caddy\n"
+            r"caddy\.ConfigAutosavePath=/config/caddy/autosave\.json\n"
+            r"caddy\.Version=v2\.11\.4\n"
+            r"runtime\.GOOS=linux\n"
+            r"runtime\.GOARCH=amd64\n"
+            r"runtime\.Compiler=gc\n"
+            r"runtime\.NumCPU=[1-9][0-9]*\n"
+            r"runtime\.GOMAXPROCS=[1-9][0-9]*\n"
+            r"runtime\.Version=go1\.26\.10\n"
+            r"os\.Getwd=/srv"
+        )
+        header, separator, process_environment = logs.stdout.partition("\n\n")
         if (
-            not process_environment.endswith("\x00")
-            or sorted(
-                value
-                for value in process_environment.split("\x00")[:-1]
-                if value.split("=", 1)[0] in ("HOME", "TMPDIR")
-            )
-            != private_environment
+            len(logs.stdout.encode("utf-8")) > 65536
+            or len(logs.stderr.encode("utf-8")) > 65536
+            or separator != "\n\n"
+            or re.fullmatch(prelude, header) is None
+            or not process_environment.endswith("\n")
+            or sorted(process_environment.split("\n")[:-1])
+            != sorted(synthetic_environment + ["HOSTNAME=" + prepared_config["Hostname"]])
         ):
             raise ValueError("Caddy actual private temporary environment differs")
+        # Only the fully accepted synthetic frame may be retained. Arbitrary
+        # native diagnostics remain hash-only, including rejected stderr.
+        try:
+            with (directory / "startup.stdout").open("x", encoding="utf-8") as stream:
+                stream.write(logs.stdout)
+        except Exception as capture_error:
+            diagnostic_errors.append(("startup.stdout", capture_error))
         private_directory = _run_docker(
             ["exec", name, "/bin/busybox", "stat", "-c", "%u:%g:%a:%F", "/run/pulseplate-caddy-tmp"]
         ).stdout
         if private_directory != "65532:65532:700:directory\n":
             raise ValueError("Caddy private temporary directory owner/mode differs")
-        logs = _run_docker(["logs", name])
         evidence.update(
             config_sha256=hashlib.sha256(loaded).hexdigest(),
             response=probe.stdout,
@@ -526,8 +606,9 @@ def observe_caddy_ci_runtime(image: str, directory: Path) -> dict[str, object]:
             sockets=sockets,
             inspected=inspected,
             startup_stdout=logs.stdout,
-            startup_stderr=logs.stderr,
+            startup_stderr_sha256=hashlib.sha256(logs.stderr.encode("utf-8")).hexdigest(),
             private_temporary_environment=private_environment,
+            # Digest of the accepted LF-delimited startup block, never /proc bytes.
             process_environment_sha256=hashlib.sha256(process_environment.encode()).hexdigest(),
             private_temporary_directory=private_directory,
         )
@@ -538,20 +619,44 @@ def observe_caddy_ci_runtime(image: str, directory: Path) -> dict[str, object]:
         try:
             if created:
                 inspection = _run_docker(["inspect", name])
-                for channel, output in (
-                    ("stdout", inspection.stdout),
-                    ("stderr", inspection.stderr),
-                ):
-                    try:
-                        with (directory / ("cleanup-inspect." + channel)).open(
-                            "x", encoding="utf-8"
-                        ) as stream:
-                            stream.write(output)
-                    except Exception as capture_error:
-                        diagnostic_errors.append(("cleanup-inspect." + channel, capture_error))
                 current = json.loads(inspection.stdout)[0]
+                if current["Config"].get("Env") == synthetic_environment:
+                    for channel, output in (
+                        ("stdout", inspection.stdout),
+                        ("stderr", inspection.stderr),
+                    ):
+                        try:
+                            with (directory / ("cleanup-inspect." + channel)).open(
+                                "x", encoding="utf-8"
+                            ) as stream:
+                                stream.write(output)
+                        except Exception as capture_error:
+                            diagnostic_errors.append(("cleanup-inspect." + channel, capture_error))
+                else:
+                    diagnostic_errors.append(
+                        ("cleanup-inspect", ValueError("Caddy synthetic inspection not retained"))
+                    )
                 if current["Config"]["Labels"].get("pulseplate.caddy-D") != name:
                     raise ValueError("Caddy cleanup ownership differs")
+                if primary_error is None:
+                    try:
+                        final_state = current["State"]
+                        if (
+                            current["Id"] != prepared["Id"]
+                            or current["Image"] != image
+                            or current["Path"] != "/usr/bin/caddy"
+                            or current["Args"] != ["run", "--config", "/ci.json", "--environ"]
+                            or current["Config"]["Tty"] is not False
+                            or final_state["Pid"] != state["Pid"]
+                            or final_state["StartedAt"] != state["StartedAt"]
+                            or current["RestartCount"] != 0
+                            or not final_state["Running"]
+                            or final_state["Restarting"]
+                            or final_state["OOMKilled"]
+                        ):
+                            primary_error = ValueError("Caddy final process identity differs")
+                    except Exception as identity_error:
+                        primary_error = identity_error
                 _run_docker(["rm", "--force", name])
         except BaseException as cleanup_error:
             if primary_error is None:

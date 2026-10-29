@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 import subprocess
+import traceback
 
 import pytest
 
@@ -146,6 +148,82 @@ def test_run_docker_wraps_called_process_error(monkeypatch: pytest.MonkeyPatch) 
 
     with pytest.raises(RuntimeError, match="returncode=125"):
         runtime_surface._run_docker(["run", "--rm", "pulseplate:test", "python", "-V"])
+
+
+@pytest.mark.parametrize("fault", [None, "invalid-stdout", "invalid-stderr", "nonzero", "timeout"])
+def test_run_docker_preserves_native_log_framing_and_hides_private_failures(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fault: str | None
+) -> None:
+    sentinel = b"synthetic-private-transport-sentinel"
+    requested_fault, fault = fault, None
+    kwargs_seen: list[dict[str, object]] = []
+
+    def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        kwargs_seen.append(kwargs)
+        assert args == ["/usr/bin/docker", "logs", "synthetic-owned-container"]
+        if fault == "nonzero":
+            raise subprocess.CalledProcessError(1, args, output=sentinel, stderr=sentinel)
+        if fault == "timeout":
+            raise subprocess.TimeoutExpired(args, 60, output=sentinel, stderr=sentinel)
+        stdout, stderr = b"first\r\nsecond\rlast\n", b"diagnostic\r\n"
+        if fault == "invalid-stdout":
+            stdout = sentinel + b"\xff"
+        if fault == "invalid-stderr":
+            stderr = sentinel + b"\xff"
+        return subprocess.CompletedProcess(args, 0, stdout=stdout, stderr=stderr)
+
+    monkeypatch.setattr(runtime_surface, "DOCKER_BINARY", "/usr/bin/docker")
+    monkeypatch.setattr(runtime_surface.subprocess, "run", fake_run)
+    baseline = runtime_surface._run_docker(
+        ["logs", "synthetic-owned-container"], preserve_newlines=True
+    )
+    assert baseline.stdout == "first\r\nsecond\rlast\n"
+    assert baseline.stderr == "diagnostic\r\n"
+    assert kwargs_seen[-1] == {
+        "check": True,
+        "capture_output": True,
+        "text": False,
+        "timeout": runtime_surface.DOCKER_TIMEOUT_SECONDS,
+    }
+    fault = requested_fault
+    if fault is not None:
+        message = (
+            "UTF-8"
+            if fault.startswith("invalid-")
+            else "returncode=1" if fault == "nonzero" else "timed out"
+        )
+        with pytest.raises(RuntimeError, match=message) as caught:
+            runtime_surface._run_docker(
+                ["logs", "synthetic-owned-container"], preserve_newlines=True
+            )
+        rendered = "".join(traceback.format_exception(caught.value))
+        assert sentinel.decode() not in rendered
+        assert "CalledProcessError" not in rendered
+        assert "TimeoutExpired" not in rendered
+        assert "UnicodeDecodeError" not in rendered
+        assert caught.value.__cause__ is None
+        assert caught.value.__suppress_context__ is True
+        # Suppression is a rendering boundary; exception memory is not erased.
+        assert caught.value.__context__ is not None
+        path = tmp_path / "rendered-failure.txt"
+        path.write_text(rendered)
+        assert sentinel not in path.read_bytes()
+
+
+def test_run_docker_default_timeout_keeps_existing_diagnostic_contract(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        assert kwargs["text"] is True
+        raise subprocess.TimeoutExpired(
+            args, 60, output="existing output", stderr="existing stderr"
+        )
+
+    monkeypatch.setattr(runtime_surface, "DOCKER_BINARY", "/usr/bin/docker")
+    monkeypatch.setattr(runtime_surface.subprocess, "run", fake_run)
+    with pytest.raises(RuntimeError, match="timed out after 60s") as caught:
+        runtime_surface._run_docker(["inspect", "synthetic-owned-container"])
+    assert isinstance(caught.value.__cause__, subprocess.TimeoutExpired)
 
 
 def test_parse_installed_packages_normalizes_names() -> None:
@@ -760,121 +838,208 @@ def test_caddy_native_policy_projection_preserves_every_other_member(
         "directory-gid",
         "directory-mode",
         "directory-type",
+        "env-unknown",
+        "env-malformed",
+        "env-newline",
+        "env-cr",
+        "env-nul",
+        "env-unicode",
+        "pre-id",
+        "pre-image",
+        "pre-path",
+        "pre-args",
+        "pre-restart",
+        "pre-status",
+        "pre-running",
+        "pre-tty",
+        "pre-hostname",
+        "pre-workdir",
+        "post-env-unknown",
+        "main-id",
+        "main-tty",
+        "main-pid-zero",
+        "main-pid-bool",
+        "main-start-empty",
+        "main-start-zero",
+        "header-field-0",
+        "header-field-1",
+        "header-field-2",
+        "header-field-3",
+        "header-field-4",
+        "header-field-5",
+        "header-field-6",
+        "header-field-7",
+        "header-field-8",
+        "header-field-9",
+        "header-field-10",
+        "header-field-11",
+        "header-missing",
+        "header-duplicate",
+        "header-order",
+        "process-hostname-wrong",
+        "process-hostname-missing",
+        "process-hostname-duplicate",
+        "process-extra",
+        "process-malformed",
+        "frame-missing-separator",
+        "frame-extra-separator",
+        "frame-duplicate",
+        "frame-prefix",
+        "frame-stderr-only",
+        "frame-crlf",
+        "frame-cr",
+        "frame-nul",
+        "frame-unicode",
+        "frame-stdout-size",
+        "frame-stderr-size",
+        "logs-command",
+        "stat-command",
+        "final-id",
+        "final-image",
+        "final-path",
+        "final-args",
+        "final-tty",
+        "final-restart",
+        "final-pid",
+        "final-start",
+        "final-running",
+        "final-restarting",
+        "final-oom",
+        "final-missing-pid",
+        "final-missing-state",
+        "final-env-unknown",
+        "diagnostic-startup-stdout",
+        "diagnostic-stat-startup-stdout",
+        "diagnostic-final-startup-stdout",
+        "diagnostic-stat-cleanup-owner-startup",
+        "cleanup-command",
+        "diagnostic-primary-cleanup-command",
     ],
 )
 def test_caddy_actual_loaded_runtime_requires_complete_native_boundary_and_cleanup(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str | None
 ) -> None:
     image = "sha256:" + "a" * 64
-    calls = []
-    selected = {}
-    inspect_outputs: list[str] = []
+    container_id = "b" * 64
+    sentinel = "synthetic-private-observation-sentinel"
+    synthetic_environment = [
+        "HOME=/run/pulseplate-caddy-tmp",
+        "TMPDIR=/run/pulseplate-caddy-tmp",
+        "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "CADDY_VERSION=v2.11.4",
+        "XDG_CONFIG_HOME=/config",
+        "XDG_DATA_HOME=/data",
+    ]
+    prelude = [
+        "caddy.HomeDir=/run/pulseplate-caddy-tmp",
+        "caddy.AppDataDir=/data/caddy",
+        "caddy.AppConfigDir=/config/caddy",
+        "caddy.ConfigAutosavePath=/config/caddy/autosave.json",
+        "caddy.Version=v2.11.4",
+        "runtime.GOOS=linux",
+        "runtime.GOARCH=amd64",
+        "runtime.Compiler=gc",
+        "runtime.NumCPU=4",
+        "runtime.GOMAXPROCS=2",
+        "runtime.Version=go1.26.10",
+        "os.Getwd=/srv",
+    ]
+    process_values = synthetic_environment + ["HOSTNAME=" + container_id[:12]]
+    native_stdout = "\n".join(prelude) + "\n\n" + "\n".join(process_values) + "\n"
+    calls: list[list[str]] = []
+    selected: dict[str, object] = {}
+    inspect_outputs: list[tuple[str, str]] = []
 
-    def docker(args: list[str]) -> subprocess.CompletedProcess[str]:
+    def docker(
+        args: list[str], *, preserve_newlines: bool = False
+    ) -> subprocess.CompletedProcess[str]:
         calls.append(args)
-        stdout = ""
+        assert preserve_newlines is (args[0] == "logs")
+        stdout, stderr = "", "inspection-diagnostic\n"
         if args[0] == "create":
-            selected["name"] = args[args.index("--name") + 1]
-            selected["inspection_count"] = 0
+            selected.clear()
+            selected.update(name=args[args.index("--name") + 1], count=0, started=False)
+            assert args[-4:] == ["run", "--config", "/ci.json", "--environ"]
+            assert args[args.index("--entrypoint") + 1] == "/usr/bin/caddy"
+        elif args[0] == "start":
+            selected["started"] = True
         elif args[0] == "inspect":
-            selected["inspection_count"] += 1
-            stdout = json.dumps(
-                [
-                    {
-                        "Image": image if fault != "image" else "wrong",
-                        "RestartCount": 0,
-                        "Config": {
-                            "User": "65532:65532",
-                            "Env": [
-                                "PATH=/usr/bin:/bin",
-                                "HOME=/run/pulseplate-caddy-tmp",
-                                "TMPDIR=/run/pulseplate-caddy-tmp",
-                            ],
-                            "Labels": {"pulseplate.caddy-D": selected["name"]},
-                        },
-                        "State": {
-                            "Running": True,
-                            "Restarting": fault == "restart",
-                            "OOMKilled": False,
-                        },
-                        "HostConfig": {
-                            "NetworkMode": "none",
-                            "ReadonlyRootfs": True,
-                            "PortBindings": {},
-                            "Privileged": False,
-                            "CapAdd": ["CAP_NET_BIND_SERVICE"],
-                            "CapDrop": ["ALL"],
-                            "Tmpfs": (
-                                {
-                                    "/run/pulseplate-caddy-tmp": "size=8m,uid=65532,gid=65532,mode=0700",
-                                    "/data": "size=8m,uid=65532,gid=65532,mode=0700",
-                                    "/config": "size=8m,uid=65532,gid=65532,mode=0700",
-                                }
-                                if fault not in ("tmpfs-missing", "tmpfs-extra", "tmpfs-options")
-                                else (
-                                    {"/run/pulseplate-caddy-tmp": "wrong-options"}
-                                    if fault == "tmpfs-options"
-                                    else {} if fault == "tmpfs-missing" else {"/foreign": "size=8m"}
-                                )
-                            ),
-                        },
-                        "Mounts": [
-                            {
-                                "Type": "volume" if fault == "bind-type" else "bind",
-                                "Destination": "/ci.json",
-                                "Source": (
-                                    "wrong"
-                                    if fault == "bind-source"
-                                    else str(current_directory / "loaded-ci-config.json")
-                                ),
-                                "RW": fault == "mount",
-                            },
-                            *(
-                                [{"Destination": "/foreign", "Type": "bind"}]
-                                if fault == "extra-mount"
-                                else []
-                            ),
-                        ],
-                    }
-                ]
+            selected["count"] += 1
+            phase = (
+                "prepared"
+                if selected["count"] == 1
+                else (
+                    "cleanup"
+                    if not selected["started"]
+                    or selected["count"] > 2
+                    or selected.get("early_stop")
+                    else "main"
+                )
             )
-            observed = json.loads(stdout)[0]
-            if fault in (
-                "cap-add-shorthand",
-                "cap-add-empty",
-                "cap-add-duplicate",
-                "cap-add-extra",
-            ):
-                observed["HostConfig"]["CapAdd"] = {
-                    "cap-add-shorthand": ["NET_BIND_SERVICE"],
-                    "cap-add-empty": [],
-                    "cap-add-duplicate": ["CAP_NET_BIND_SERVICE", "CAP_NET_BIND_SERVICE"],
-                    "cap-add-extra": ["CAP_NET_BIND_SERVICE", "CAP_SYS_ADMIN"],
-                }[fault]
-            elif fault in ("cap-drop-missing", "cap-drop-specific"):
-                observed["HostConfig"]["CapDrop"] = (
-                    [] if fault == "cap-drop-missing" else ["CAP_CHOWN"]
-                )
-            if fault is not None and fault.startswith("diagnostic-primary-"):
-                observed["HostConfig"]["CapAdd"] = ["CAP_SYS_ADMIN"]
-            if fault is not None and "cleanup-owner" in fault and selected["inspection_count"] == 2:
-                observed["Config"]["Labels"]["pulseplate.caddy-D"] = "foreign-container"
-            if fault in ("tmpfs-uid", "tmpfs-gid", "tmpfs-mode"):
-                key, value = {
-                    "tmpfs-uid": ("uid=65532", "uid=0"),
-                    "tmpfs-gid": ("gid=65532", "gid=0"),
-                    "tmpfs-mode": ("mode=0700", "mode=1777"),
-                }[fault]
-                original = observed["HostConfig"]["Tmpfs"]["/run/pulseplate-caddy-tmp"]
-                observed["HostConfig"]["Tmpfs"]["/run/pulseplate-caddy-tmp"] = original.replace(
-                    key, value
-                )
+            observed = {
+                "Id": container_id,
+                "Image": image,
+                "Path": "/usr/bin/caddy",
+                "Args": ["run", "--config", "/ci.json", "--environ"],
+                "RestartCount": 0,
+                "Config": {
+                    "User": "65532:65532",
+                    "Env": synthetic_environment.copy(),
+                    "Labels": {"pulseplate.caddy-D": selected["name"]},
+                    "Tty": False,
+                    "Hostname": container_id[:12],
+                    "WorkingDir": "/srv",
+                },
+                "State": {
+                    "Status": "running" if selected["started"] else "created",
+                    "Running": bool(selected["started"]),
+                    "Restarting": False,
+                    "OOMKilled": False,
+                    "Pid": 4242 if selected["started"] else 0,
+                    "StartedAt": (
+                        "2026-10-29T12:41:08.605741313Z"
+                        if selected["started"]
+                        else "0001-01-01T00:00:00Z"
+                    ),
+                },
+                "HostConfig": {
+                    "NetworkMode": "none",
+                    "ReadonlyRootfs": True,
+                    "PortBindings": {},
+                    "Privileged": False,
+                    "CapAdd": ["CAP_NET_BIND_SERVICE"],
+                    "CapDrop": ["ALL"],
+                    "Tmpfs": {
+                        "/run/pulseplate-caddy-tmp": "size=8m,uid=65532,gid=65532,mode=0700",
+                        "/data": "size=8m,uid=65532,gid=65532,mode=0700",
+                        "/config": "size=8m,uid=65532,gid=65532,mode=0700",
+                    },
+                },
+                "Mounts": [
+                    {
+                        "Type": "bind",
+                        "Destination": "/ci.json",
+                        "Source": str(current_directory / "loaded-ci-config.json"),
+                        "RW": False,
+                    }
+                ],
+            }
             if fault is not None and fault.startswith("env-"):
+                values = observed["Config"]["Env"]
                 if fault == "env-not-list":
                     observed["Config"]["Env"] = None
+                elif fault in ("env-unknown", "env-malformed"):
+                    values.append(("UNKNOWN=" if fault == "env-unknown" else "") + sentinel)
+                elif fault in ("env-newline", "env-cr", "env-nul", "env-unicode"):
+                    control = {
+                        "env-newline": "\n",
+                        "env-cr": "\r",
+                        "env-nul": "\0",
+                        "env-unicode": "\u2028",
+                    }[fault]
+                    values[0] += control + sentinel
                 else:
                     key = "HOME" if "home" in fault else "TMPDIR"
-                    values = observed["Config"]["Env"]
                     binding = key + "=/run/pulseplate-caddy-tmp"
                     if fault.endswith("-wrong"):
                         values[values.index(binding)] = key + "=/foreign"
@@ -882,71 +1047,259 @@ def test_caddy_actual_loaded_runtime_requires_complete_native_boundary_and_clean
                         values.remove(binding)
                     else:
                         values.append(binding)
+            if phase == "prepared" and fault is not None and fault.startswith("pre-"):
+                field, value = {
+                    "pre-id": ("Id", "invalid"),
+                    "pre-image": ("Image", "sha256:" + "c" * 64),
+                    "pre-path": ("Path", "/bin/sh"),
+                    "pre-args": ("Args", ["environ"]),
+                    "pre-restart": ("RestartCount", 1),
+                    "pre-status": ("Status", "running"),
+                    "pre-running": ("Running", True),
+                    "pre-tty": ("Tty", True),
+                    "pre-hostname": ("Hostname", "foreign"),
+                    "pre-workdir": ("WorkingDir", "/foreign"),
+                }[fault]
+                target = (
+                    observed["State"]
+                    if field in ("Status", "Running")
+                    else (
+                        observed["Config"]
+                        if field in ("Tty", "Hostname", "WorkingDir")
+                        else observed
+                    )
+                )
+                target[field] = value
+            if phase == "main":
+                if fault == "image":
+                    observed["Image"] = "wrong"
+                if fault == "restart":
+                    observed["State"]["Restarting"] = True
+                if fault is not None and fault.startswith("cap-add-"):
+                    observed["HostConfig"]["CapAdd"] = {
+                        "cap-add-shorthand": ["NET_BIND_SERVICE"],
+                        "cap-add-empty": [],
+                        "cap-add-duplicate": ["CAP_NET_BIND_SERVICE", "CAP_NET_BIND_SERVICE"],
+                        "cap-add-extra": ["CAP_NET_BIND_SERVICE", "CAP_SYS_ADMIN"],
+                    }[fault]
+                if fault in ("cap-drop-missing", "cap-drop-specific"):
+                    observed["HostConfig"]["CapDrop"] = (
+                        [] if fault == "cap-drop-missing" else ["CAP_CHOWN"]
+                    )
+                if fault is not None and fault.startswith("diagnostic-primary-"):
+                    observed["HostConfig"]["CapAdd"] = ["CAP_SYS_ADMIN"]
+                if fault in ("tmpfs-missing", "tmpfs-extra", "tmpfs-options"):
+                    observed["HostConfig"]["Tmpfs"] = {
+                        "tmpfs-missing": {},
+                        "tmpfs-extra": {"/foreign": "size=8m"},
+                        "tmpfs-options": {"/run/pulseplate-caddy-tmp": "wrong-options"},
+                    }[fault]
+                if fault in ("tmpfs-uid", "tmpfs-gid", "tmpfs-mode"):
+                    key, value = {
+                        "tmpfs-uid": ("uid=65532", "uid=0"),
+                        "tmpfs-gid": ("gid=65532", "gid=0"),
+                        "tmpfs-mode": ("mode=0700", "mode=1777"),
+                    }[fault]
+                    original = observed["HostConfig"]["Tmpfs"]["/run/pulseplate-caddy-tmp"]
+                    observed["HostConfig"]["Tmpfs"]["/run/pulseplate-caddy-tmp"] = original.replace(
+                        key, value
+                    )
+                if fault == "mount":
+                    observed["Mounts"][0]["RW"] = True
+                if fault == "bind-type":
+                    observed["Mounts"][0]["Type"] = "volume"
+                if fault == "bind-source":
+                    observed["Mounts"][0]["Source"] = "/foreign"
+                if fault == "extra-mount":
+                    observed["Mounts"].append({"Destination": "/foreign", "Type": "bind"})
+                if fault in (
+                    "main-id",
+                    "main-tty",
+                    "main-pid-zero",
+                    "main-pid-bool",
+                    "main-start-empty",
+                    "main-start-zero",
+                ):
+                    if fault == "main-id":
+                        observed["Id"] = "c" * 64
+                    elif fault == "main-tty":
+                        observed["Config"]["Tty"] = True
+                    elif "pid" in fault:
+                        observed["State"]["Pid"] = 0 if fault == "main-pid-zero" else True
+                    else:
+                        observed["State"]["StartedAt"] = (
+                            "" if fault == "main-start-empty" else "0001-01-01T00:00:00Z"
+                        )
+            if fault == "post-env-unknown" and phase != "prepared":
+                observed["Config"]["Env"].append("UNKNOWN=" + sentinel)
+            if phase == "cleanup":
+                if fault is not None and "cleanup-owner" in fault:
+                    observed["Config"]["Labels"]["pulseplate.caddy-D"] = "foreign-container"
+                if fault in ("final-id", "diagnostic-final-startup-stdout"):
+                    observed["Id"] = "c" * 64
+                if fault == "final-image":
+                    observed["Image"] = "sha256:" + "c" * 64
+                if fault == "final-path":
+                    observed["Path"] = "/bin/sh"
+                if fault == "final-args":
+                    observed["Args"] = ["run", "--config", "/ci.json"]
+                if fault == "final-tty":
+                    observed["Config"]["Tty"] = True
+                if fault == "final-restart":
+                    observed["RestartCount"] = 1
+                if fault in (
+                    "final-pid",
+                    "final-start",
+                    "final-running",
+                    "final-restarting",
+                    "final-oom",
+                ):
+                    field, value = {
+                        "final-pid": ("Pid", 4243),
+                        "final-start": ("StartedAt", "2026-10-29T12:41:09.605741313Z"),
+                        "final-running": ("Running", False),
+                        "final-restarting": ("Restarting", True),
+                        "final-oom": ("OOMKilled", True),
+                    }[fault]
+                    observed["State"][field] = value
+                if fault == "final-missing-pid":
+                    observed["State"].pop("Pid")
+                if fault == "final-missing-state":
+                    observed.pop("State")
+                if fault == "final-env-unknown":
+                    observed["Config"]["Env"].append("UNKNOWN=" + sentinel)
             stdout = json.dumps([observed])
-            inspect_outputs.append(stdout)
+            inspect_outputs.append((phase, stdout))
         elif args[0] == "exec":
+            assert args[-1] != "/proc/1/environ", "the unsupported cross-process read must be gone"
             if args[3] == "sh":
                 stdout = "wrong" if fault == "response" else "pulseplate-caddy-D\n"
+                selected["early_stop"] = fault == "response"
             elif args[3] == "stat":
+                if fault == "stat-command":
+                    raise RuntimeError("synthetic stat command failed")
                 stdout = {
                     "directory-uid": "0:65532:700:directory\n",
                     "directory-gid": "65532:0:700:directory\n",
                     "directory-mode": "65532:65532:777:directory\n",
                     "directory-type": "65532:65532:700:symbolic link\n",
+                    "diagnostic-stat-startup-stdout": "65532:65532:777:directory\n",
+                    "diagnostic-stat-cleanup-owner-startup": "65532:65532:777:directory\n",
                 }.get(fault, "65532:65532:700:directory\n")
-            elif args[-1] == "/proc/1/environ":
-                values = [
-                    "PATH=/usr/bin:/bin",
-                    "HOME=/run/pulseplate-caddy-tmp",
-                    "TMPDIR=/run/pulseplate-caddy-tmp",
-                ]
-                if (
-                    fault is not None
-                    and fault.startswith("process-")
-                    and fault != "process-env-unterminated"
-                ):
-                    key = "HOME" if "home" in fault else "TMPDIR"
-                    binding = key + "=/run/pulseplate-caddy-tmp"
+            elif args[-1] == "/ci.json":
+                stdout = "{}" if fault == "config" else runtime_surface.CADDY_D_CONFIG.decode()
+                selected["early_stop"] = fault == "config"
+            elif args[-1] == "/proc/1/cmdline":
+                stdout = (
+                    "wrong"
+                    if fault == "process"
+                    else "/usr/bin/caddy\x00run\x00--config\x00/ci.json\x00--environ\x00"
+                )
+                if fault == "process":
+                    selected["early_stop"] = True
+            else:
+                assert args[-1] in ["/proc/net/" + kind for kind in ("tcp", "tcp6", "udp", "udp6")]
+                stdout = "header\n"
+                if args[-1] == "/proc/net/tcp":
+                    stdout += "0: 0100007F:46A0 00000000:0000 0A\n"
+                    if fault == "admin":
+                        stdout += "1: 0100007F:07E3 00000000:0000 0A\n"
+                        selected["early_stop"] = True
+                if args[-1] == "/proc/net/udp" and fault == "udp":
+                    stdout += "0: 0100007F:1234 00000000:0000 07\n"
+                    selected["early_stop"] = True
+        elif args[0] == "logs":
+            if fault == "logs-command":
+                raise RuntimeError("synthetic logs command failed")
+            header, values = prelude.copy(), process_values.copy()
+            if fault is not None and fault.startswith("header-field-"):
+                header[int(fault.removeprefix("header-field-"))] += "-invalid"
+            if fault == "header-missing":
+                header.pop()
+            if fault == "header-duplicate":
+                header.insert(0, header[0])
+            if fault == "header-order":
+                header[0], header[1] = header[1], header[0]
+            if (
+                fault is not None
+                and fault.startswith("process-")
+                and fault != "process-env-unterminated"
+            ):
+                if fault in ("process-extra", "process-malformed"):
+                    values.append(("UNKNOWN=" if fault == "process-extra" else "") + sentinel)
+                else:
+                    key = (
+                        "HOSTNAME"
+                        if "hostname" in fault
+                        else "HOME" if "home" in fault else "TMPDIR"
+                    )
+                    binding = (
+                        key
+                        + "="
+                        + (container_id[:12] if key == "HOSTNAME" else "/run/pulseplate-caddy-tmp")
+                    )
                     if fault.endswith("-wrong"):
                         values[values.index(binding)] = key + "=/foreign"
                     elif fault.endswith("-missing"):
                         values.remove(binding)
                     else:
                         values.append(binding)
-                stdout = "\x00".join(values) + (
-                    "" if fault == "process-env-unterminated" else "\x00"
+            stdout = "\n".join(header) + "\n\n" + "\n".join(values) + "\n"
+            stderr = sentinel
+            if fault == "process-env-unterminated":
+                stdout = stdout[:-1]
+            if fault == "frame-missing-separator":
+                stdout = stdout.replace("\n\n", "\n", 1)
+            if fault == "frame-extra-separator":
+                stdout = stdout.replace("\n\n", "\n\n\n", 1)
+            if fault == "frame-duplicate":
+                stdout += stdout
+            if fault == "frame-prefix":
+                stdout = sentinel + "\n" + stdout
+            if fault == "frame-stderr-only":
+                stderr, stdout = stdout, ""
+            if fault == "frame-crlf":
+                stdout = stdout.replace("\n", "\r\n")
+            if fault == "frame-cr":
+                stdout = stdout.replace("HOME=", "HOME=\r", 1)
+            if fault == "frame-nul":
+                stdout = stdout.replace("HOME=", "HOME=\0", 1)
+            if fault == "frame-unicode":
+                stdout = stdout.replace("HOME=", "HOME=\u2028", 1)
+            if fault == "frame-stdout-size":
+                stdout = stdout.replace(
+                    "runtime.NumCPU=4\n", "runtime.NumCPU=" + "4" * 65537 + "\n", 1
                 )
-            elif args[-1] == "/ci.json":
-                stdout = "{}" if fault == "config" else runtime_surface.CADDY_D_CONFIG.decode()
-            elif args[-1] == "/proc/1/cmdline":
-                stdout = (
-                    "wrong"
-                    if fault == "process"
-                    else "/usr/bin/caddy\x00run\x00--config\x00/ci.json\x00"
-                )
-            else:
-                stdout = "header\n"
-                if args[-1] == "/proc/net/tcp":
-                    stdout += "0: 0100007F:46A0 00000000:0000 0A\n"
-                    if fault == "admin":
-                        stdout += "1: 0100007F:07E3 00000000:0000 0A\n"
-                if args[-1] == "/proc/net/udp" and fault == "udp":
-                    stdout += "0: 0100007F:1234 00000000:0000 07\n"
-        return subprocess.CompletedProcess(args, 0, stdout=stdout, stderr="startup")
+            if fault == "frame-stderr-size":
+                stderr = "x" * 65537 + sentinel
+        elif args[0] == "rm":
+            if fault in ("cleanup-command", "diagnostic-primary-cleanup-command"):
+                raise RuntimeError("synthetic cleanup command failed")
+        else:
+            raise AssertionError("unexpected Docker command")
+        return subprocess.CompletedProcess(args, 0, stdout=stdout, stderr=stderr)
 
     monkeypatch.setattr(runtime_surface, "_run_docker", docker)
-    requested_fault = fault
-    fault = None
+    requested_fault, fault = fault, None
     current_directory = tmp_path / "valid-baseline"
     current_directory.mkdir()
     baseline = runtime_surface.observe_caddy_ci_runtime(image, current_directory)
+    assert baseline["response"] == "pulseplate-caddy-D\n"
     assert baseline["inspected"]["HostConfig"]["CapAdd"] == ["CAP_NET_BIND_SERVICE"]
     assert baseline["private_temporary_directory"] == "65532:65532:700:directory\n"
-    assert baseline["private_temporary_environment"] == [
-        "HOME=/run/pulseplate-caddy-tmp",
-        "TMPDIR=/run/pulseplate-caddy-tmp",
-    ]
+    assert baseline["private_temporary_environment"] == synthetic_environment[:2]
+    assert baseline["startup_stdout"] == native_stdout
+    assert baseline["startup_stderr_sha256"] == hashlib.sha256(sentinel.encode()).hexdigest()
+    assert "startup_stderr" not in baseline
+    assert sentinel not in json.dumps(baseline)
+    assert (
+        baseline["process_environment_sha256"]
+        == hashlib.sha256(("\n".join(process_values) + "\n").encode()).hexdigest()
+    )
+    assert calls[-1] == ["rm", "--force", selected["name"]]
     fault = requested_fault
+    calls.clear()
+    inspect_outputs.clear()
     current_directory = tmp_path / "case"
     current_directory.mkdir()
     capture_obstructions = {
@@ -959,52 +1312,103 @@ def test_caddy_actual_loaded_runtime_requires_complete_native_boundary_and_clean
         "diagnostic-primary-cleanup-stdout": {"cleanup-inspect.stdout"},
         "diagnostic-cleanup-owner-stdout": {"cleanup-inspect.stdout"},
         "diagnostic-primary-cleanup-owner-stdout": {"cleanup-inspect.stdout"},
+        "diagnostic-startup-stdout": {"startup.stdout"},
+        "diagnostic-stat-startup-stdout": {"startup.stdout"},
+        "diagnostic-final-startup-stdout": {"startup.stdout"},
+        "diagnostic-stat-cleanup-owner-startup": {"startup.stdout"},
     }.get(fault, set())
     for filename in capture_obstructions:
         (current_directory / filename).mkdir()
-    case_first_inspect = len(inspect_outputs)
     if fault is None:
         result = runtime_surface.observe_caddy_ci_runtime(image, current_directory)
         assert result["response"] == "pulseplate-caddy-D\n"
-    elif capture_obstructions:
-        if fault.startswith("diagnostic-primary-"):
-            with pytest.raises(ValueError, match="Caddy native isolation/state differs") as caught:
-                runtime_surface.observe_caddy_ci_runtime(image, current_directory)
-        elif "cleanup-owner" in fault:
-            with pytest.raises(ValueError, match="Caddy cleanup ownership differs") as caught:
-                runtime_surface.observe_caddy_ci_runtime(image, current_directory)
-        else:
-            with pytest.raises(FileExistsError) as caught:
-                runtime_surface.observe_caddy_ci_runtime(image, current_directory)
-        notes = caught.value.__notes__
-        for filename in capture_obstructions:
-            assert "Caddy diagnostic write failed (" + filename + "): FileExistsError" in notes
-        if fault == "diagnostic-primary-cleanup-owner-stdout":
-            assert "Caddy cleanup also failed: ValueError" in notes
     else:
-        with pytest.raises(
-            ValueError,
-            match="Caddy native isolation/state differs" if fault.startswith("cap-") else None,
+        error_type: type[Exception] = ValueError
+        if fault.startswith("env-") or fault.startswith("pre-"):
+            message = "Caddy pre-start synthetic environment binding differs"
+        elif fault == "post-env-unknown":
+            message = "Caddy synthetic environment changed after startup"
+        elif fault == "final-env-unknown":
+            message = "Caddy synthetic inspection not retained"
+        elif (
+            fault.startswith("diagnostic-primary-")
+            or fault.startswith("cap-")
+            or fault.startswith("main-")
+            or fault in ("image", "restart")
         ):
-            runtime_surface.observe_caddy_ci_runtime(image, current_directory)
-    case_inspections = inspect_outputs[case_first_inspect:]
-    assert case_inspections
-    for channel, output in (("stdout", case_inspections[-1]), ("stderr", "startup")):
-        filename = "cleanup-inspect." + channel
-        if filename in capture_obstructions:
-            assert (current_directory / filename).is_dir()
+            message = "Caddy native isolation/state differs"
+        elif fault.startswith("diagnostic-stat-") or fault.startswith("directory-"):
+            message = "Caddy private temporary directory owner/mode differs"
+        elif fault in ("final-missing-pid", "final-missing-state"):
+            error_type = KeyError
+            message = "Pid" if fault == "final-missing-pid" else "State"
+        elif fault.startswith("final-") or fault == "diagnostic-final-startup-stdout":
+            message = "Caddy final process identity differs"
+        elif "cleanup-owner" in fault:
+            message = "Caddy cleanup ownership differs"
+        elif capture_obstructions:
+            error_type, message = FileExistsError, "File exists"
+        elif fault in ("logs-command", "stat-command", "cleanup-command"):
+            error_type, message = (
+                RuntimeError,
+                "synthetic " + fault.split("-")[0] + " command failed",
+            )
+        elif fault.startswith(("process-", "header-", "frame-")):
+            message = "Caddy actual private temporary environment differs"
+        elif fault.startswith("tmpfs-"):
+            message = "Caddy native tmpfs configuration differs"
         else:
-            assert (current_directory / filename).read_text() == output
-    if len(case_inspections) == 2:
-        for channel, output in (("stdout", case_inspections[0]), ("stderr", "startup")):
-            filename = "container-inspect." + channel
+            message = {
+                "response": "Caddy loaded configuration response differs",
+                "config": "Caddy actual process/config binding differs",
+                "process": "Caddy actual process/config binding differs",
+                "admin": "Caddy native listener/admin boundary differs",
+                "udp": "Caddy native listener/admin boundary differs",
+                "mount": "Caddy immutable configuration mount differs",
+                "bind-type": "Caddy immutable configuration mount differs",
+                "bind-source": "Caddy immutable configuration mount differs",
+                "extra-mount": "Caddy immutable configuration mount differs",
+            }[fault]
+        with pytest.raises(error_type, match=message) as caught:
+            runtime_surface.observe_caddy_ci_runtime(image, current_directory)
+        rendered = "".join(traceback.format_exception(caught.value))
+        assert sentinel not in rendered
+        for filename in capture_obstructions:
+            assert (
+                "Caddy diagnostic write failed (" + filename + "): FileExistsError"
+                in caught.value.__notes__
+            )
+        if fault in (
+            "diagnostic-primary-cleanup-owner-stdout",
+            "diagnostic-stat-cleanup-owner-startup",
+        ):
+            assert "Caddy cleanup also failed: ValueError" in caught.value.__notes__
+        if fault == "diagnostic-primary-cleanup-command":
+            assert "Caddy cleanup also failed: RuntimeError" in caught.value.__notes__
+    assert inspect_outputs[0][0] == "prepared"
+    assert inspect_outputs[-1][0] == "cleanup"
+    for phase, output in inspect_outputs:
+        if phase == "prepared":
+            continue
+        prefix = "container-inspect" if phase == "main" else "cleanup-inspect"
+        safe = json.loads(output)[0]["Config"]["Env"] == synthetic_environment
+        for channel, expected in (("stdout", output), ("stderr", "inspection-diagnostic\n")):
+            filename = prefix + "." + channel
+            path = current_directory / filename
             if filename in capture_obstructions:
-                assert (current_directory / filename).is_dir()
+                assert path.is_dir()
+            elif safe:
+                assert path.read_text() == expected
             else:
-                assert (current_directory / filename).read_text() == output
-    else:
-        assert len(case_inspections) == 1
-        assert not (current_directory / "container-inspect.stdout").exists()
+                assert not path.exists()
+    for directory in (tmp_path / "valid-baseline", current_directory):
+        for path in directory.iterdir():
+            if path.is_file():
+                assert sentinel not in path.read_text()
+    if fault is not None and (fault.startswith("env-") or fault.startswith("pre-")):
+        assert not any(args[0] in ("start", "logs") for args in calls)
+    if fault is not None and fault.startswith(("process-", "header-", "frame-")):
+        assert not (current_directory / "startup.stdout").exists()
     if fault is not None and "cleanup-owner" in fault:
         assert calls[-1] == ["inspect", selected["name"]]
         assert ["rm", "--force", selected["name"]] not in calls
