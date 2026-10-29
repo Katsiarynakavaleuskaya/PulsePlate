@@ -51,6 +51,10 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
 
 ### Caddy CI retained candidate and temporary risk boundary
 
+- Run the frontend `caddy-contract` producer and consumers on `ubuntu-24.04`.
+  A runner or image-store change requires native requalification under the
+  unchanged compiler/config, archive-import and report identity checks; the
+  runner selection alone does not prove native acceptance.
 - The existing frontend `caddy-contract` job owns one explicitly selected candidate
   producer after two independent compiler-free metadata derivations. Ordinary PR
   and accepted exact merge-to-main observations import its authenticated original

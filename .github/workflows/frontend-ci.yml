@@ -509,7 +509,7 @@ jobs:
     timeout-minutes: 30
     needs: changes
     if: ${{ !cancelled() && (needs.changes.outputs.caddy == 'true' || github.event_name == 'workflow_dispatch') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     concurrency:
       group: caddy-D-single-candidate-2497
       cancel-in-progress: false

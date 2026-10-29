@@ -1104,10 +1104,10 @@ def test_staging_deploy_script_embeds_marker_and_two_digest_contract() -> None:
     assert "|| true" not in text
 
 
-def test_frontend_caddy_contract_is_non_publishing_and_unprivileged() -> None:
-    workflow = _workflow(FRONTEND_WORKFLOW)
+def _assert_frontend_caddy_contract(workflow: dict[str, object]) -> None:
     changes_steps = _steps(_job(workflow, "changes"))
     job = _job(workflow, "caddy-contract")
+    assert job["runs-on"] == "ubuntu-24.04", "Caddy requires the qualified Ubuntu 24.04 runner"
     assert job["if"] == (
         "${{ !cancelled() && (needs.changes.outputs.caddy == 'true' "
         "|| github.event_name == 'workflow_dispatch') }}"
@@ -1133,6 +1133,19 @@ def test_frontend_caddy_contract_is_non_publishing_and_unprivileged() -> None:
 
     dockerfile = DOCKERFILE.read_text(encoding="utf-8")
     assert "set -o pipefail" in dockerfile
+
+
+def test_frontend_caddy_contract_is_non_publishing_and_unprivileged() -> None:
+    _assert_frontend_caddy_contract(_workflow(FRONTEND_WORKFLOW))
+
+
+@pytest.mark.parametrize("runner", ["ubuntu-latest", "ubuntu-26.04"])
+def test_frontend_caddy_contract_rejects_unqualified_runner(runner: str) -> None:
+    workflow = _workflow(FRONTEND_WORKFLOW)
+    _assert_frontend_caddy_contract(workflow)
+    _job(workflow, "caddy-contract")["runs-on"] = runner
+    with pytest.raises(AssertionError, match="Caddy requires the qualified Ubuntu 24.04 runner"):
+        _assert_frontend_caddy_contract(workflow)
 
 
 def test_production_quick_fix_rebuilds_and_verifies_hardened_caddy() -> None:
@@ -4409,14 +4422,14 @@ def test_caddy_D_executes_actual_admission_without_native_or_network_calls(
         "metadata-only": "metadata",
     }
     if case in modes:
-        exec(compile(code, "actual-Caddy-admission", "exec"), {"__test_today": today})
+        exec(compile(code, "<actual-Caddy-admission>", "exec"), {"__test_today": today})
         assert "mode=" + modes[case] + "\n" in output.read_text()
         if modes[case] == "reuse":
             state = json.loads((runner / "caddy-admission/admission.json").read_bytes())
             assert state["producer"]["git_inputs"] == state["inputs"]
     else:
         with pytest.raises((ValueError, source_owner.QualificationError)):
-            exec(compile(code, "actual-Caddy-admission", "exec"), {"__test_today": today})
+            exec(compile(code, "<actual-Caddy-admission>", "exec"), {"__test_today": today})
         assert output.read_text() == ""
 
 
@@ -4471,7 +4484,7 @@ def test_caddy_authenticated_API_transport_never_forwards_redirect_credentials(
         "json": json,
     }
     exec(
-        compile(ast.Module(body=[function], type_ignores=[]), "actual-api-function", "exec"),
+        compile(ast.Module(body=[function], type_ignores=[]), "<actual-api-function>", "exec"),
         namespace,
     )
     if redirect:
@@ -4502,13 +4515,13 @@ def test_caddy_dates_are_rechecked_after_metadata_before_any_build(
     monkeypatch.chdir(REPO_ROOT)
     if day in ("2026-10-28", "2026-10-30"):
         exec(
-            compile(code, "actual-prebuild-window", "exec"),
+            compile(code, "<actual-prebuild-window>", "exec"),
             {"__test_today": date.fromisoformat(day)},
         )
     else:
         with pytest.raises(ValueError):
             exec(
-                compile(code, "actual-prebuild-window", "exec"),
+                compile(code, "<actual-prebuild-window>", "exec"),
                 {"__test_today": date.fromisoformat(day)},
             )
     for name in (
@@ -4590,7 +4603,7 @@ def test_caddy_image_archive_is_private_until_complete_security_acceptance(
 
     monkeypatch.setattr(subprocess, "run", native)
     retain_code = retain["run"].split("python3 - <<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
-    exec(compile(retain_code, "actual-private-export", "exec"), {})
+    exec(compile(retain_code, "<actual-private-export>", "exec"), {})
     evidence = runner / "caddy-contract"
     assert (private / "candidate/candidate.docker.tar").read_bytes() == image_bytes
     assert (
@@ -4627,7 +4640,7 @@ def test_caddy_image_archive_is_private_until_complete_security_acceptance(
         code = code.replace("datetime.now(timezone.utc).date()", "__test_today")
         if outcome == "accepted":
             exec(
-                compile(code, "actual-security-publication", "exec"),
+                compile(code, "<actual-security-publication>", "exec"),
                 {"__test_today": date(2026, 10, 28)},
             )
             assert (evidence / "candidate.docker.tar").read_bytes() == image_bytes
@@ -4637,7 +4650,7 @@ def test_caddy_image_archive_is_private_until_complete_security_acceptance(
         else:
             with pytest.raises(ValueError):
                 exec(
-                    compile(code, "actual-security-publication", "exec"),
+                    compile(code, "<actual-security-publication>", "exec"),
                     {"__test_today": date(2026, 10, 28)},
                 )
     if outcome != "accepted":
