@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import SetupForm from './SetupForm';
 import ResultView from './ResultView';
 import type { SetupFormValues } from './schema';
-import { isValidSetupFormValues } from './schema';
+import { parseSetupFormValues } from './schema';
 import { useSettings } from '../../lib/settings';
 import { Stepper } from '../../components/ui';
 import { useTranslation } from 'react-i18next';
@@ -79,11 +79,12 @@ export default function NutritionSetupPage(): JSX.Element {
 
   // Initialize values from saved settings on mount
   useEffect(() => {
-    if (isValidSetupFormValues(settings.setup)) {
-      setValues(settings.setup);
-    } else {
-      setValues(null);
-    }
+    setValues(current => {
+      // A form submit already supplied the resolver's parsed output to both
+      // state and settings. Preserve it so identity-based hooks do not refetch.
+      if (current !== null && current === settings.setup) return current;
+      return parseSetupFormValues(settings.setup) ?? null;
+    });
   }, [settings.setup]);
 
   return (

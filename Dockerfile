@@ -3,7 +3,7 @@
 # Optimized for production with minimal image size and security
 
 # Centralize pip upgrade range (SoT) to avoid drift across stages.
-ARG PIP_VERSION_RANGE="pip>=26.1,<27.0"
+ARG PIP_VERSION_RANGE="pip>=26.2.2,<27.0"
 # SQLite source pins are intentionally mirrored in scripts/ci/docker_source_artifacts.json.
 # Docker COPY source paths are literal, so a SQLite bump must update the manifest,
 # the COPY filename below, and these SHA3 parts together.

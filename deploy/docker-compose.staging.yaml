@@ -169,7 +169,7 @@ services:
       start_period: 10s
 
   alertmanager:
-    image: prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3
+    image: ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:5a476cb3c572d11f8b5fcb6d42400f4613011a5f592ca574b7015c5231b70781
     platform: linux/amd64
     user: "65534:65534"
     profiles: ["alerting"]

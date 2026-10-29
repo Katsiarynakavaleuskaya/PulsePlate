@@ -3377,11 +3377,15 @@ with patch.dict(os.environ, {
     print(json.dumps({'mock_route_cases':16,'sdk_requests':expected_sends,'paced_intervals':15,
         'active_rate':'10/minute','frozen_blind_views':len(views)}))
 """
+    # Anonymous container UIDs have no home; keep Matplotlib state private to this fixture.
+    mpl_config = tmp_path / "mpl-config"
+    mpl_config.mkdir(mode=0o700)
     environment = {
         "PATH": os.environ.get("PATH", ""),
         "PYTHONPATH": str(root),
         "PYTHONNOUSERSITE": "1",
         "PYTEST_CURRENT_TEST": os.environ.get("PYTEST_CURRENT_TEST", ""),
+        "MPLCONFIGDIR": str(mpl_config),
     }
     active_coverage = Coverage.current()
     measure_child = active_coverage is not None and "scripts/evals/collect_fitchef_answers.py" in (

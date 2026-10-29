@@ -11,6 +11,19 @@
 - Prefer small, focused edits; update any dependent docs or Make targets if needed.
 - Avoid adding network calls to scripts used in CI unless explicitly required.
 
+- Before freezing changed CI/security Python helper controllers or starting their
+  long validation, run the configured mypy hook with `--hook-stage pre-push` on the
+  changed Python paths. Default-stage `--all-files` does not execute pre-push-only
+  hooks. This early check supplements, and never replaces, the required all-files
+  and ordinary pre-push gates.
+
+- Keep protected-helper commit, regular path/mode, byte length, SHA-256 and Git
+  blob pins synchronized. Before synthetic rebinding, regression tests must
+  derive byte/object identities from the actual helper bytes and reject a stale
+  object with the other pins valid; copied literals are not an independent oracle.
+  Current compiler acquisition and extraction guards must use the same owning
+  artifact size/digest fields; historical compiler identities stay explicit.
+
 - Locked-install settings and the installer-owned direct project-page reader share default
   `.netrc`/`_netrc` admission in `install_locked_python_requirements.py` only,
   before its CLI dispatch or its own connection/context creation.
@@ -38,6 +51,8 @@
   scanned-file inventory alongside its exit status. Prove AST equality for
   comment-only edits against the admitted base; repair any parse omission or
   executable delta before claiming that the bounded review is complete.
+  For Git-backed scanner evidence, verify the actual scanned file inventory includes
+  every new candidate path after index admission; explicit path arguments alone do not prove inclusion.
 
 - Before mocking a pinned external CLI or workflow adapter, verify its real
   flags, serialization fields and permitted Actions contexts through native
@@ -59,6 +74,12 @@
   snapshots and live/mixed members block cleanup. Preserve direct waits/signals and the
   separate post-wait observation budget. Inactivity does not prove physical absence;
   retain separate reaping/absence evidence wherever required.
+
+- Correlate interleaved CI timeout stacks with the actual shard plan and JUnit
+  before attributing a hung test. Tune existing parallelism or bounded shard
+  budgets from same-head evidence while preserving outer job caps, test inventory
+  and coverage gates. Record the remaining budget and require current-head CI
+  confirmation.
 
 ## Premium alias checkpoint adapter
 
@@ -140,7 +161,7 @@
 - Qualification uses two independent original trees/caches, the one fixed
   x/net 0.60.0 + gRPC 1.83.2 replacement command, both command graphs online,
   then actual network-none/read-only offline queries. It starts no compiler.
-  The same 825-second clock starts before the exact admitted source/UI, Go1.27.2
+  The same 825-second clock starts before the exact admitted source/UI, current Go
   and public immutable base acquisition, with a fixed SIGALRM owner covering
   blocking calls; the source child restores the same remaining parent timer.
   Go uses unchanged acquire/extract for
@@ -168,6 +189,56 @@
   preparation. Frozen Prometheus inputs stay unchanged; their projection does
   not establish SDK nonimpact for catalog/fetcher changes.
 
+## Retained Alertmanager consumer admission
+
+- The same source owner retains the original Q/S/C10 lineage and separately
+  admits only actual qualified current outputs. Keep original
+  producer PR/ref/run/attempt/job/source/artifact and all content hashes intact;
+  the explicitly admitted receiver has its own event/ref/head/base checks.
+  Original C10-to-donor ancestry must never be invented in the receiver graph.
+- Current source rebuilds require explicit coordinator/owner admission through
+  the existing manual Q/S/build stages. Keep current compiler inputs separate
+  from immutable historical receipts. Resolve actual unique same-source Q/S
+  before starting the finite image build; unset output selection remains HOLD.
+  Preserve the complete spent invocation history and never infer native totals
+  from job names or renew a compiler budget through a consumer.
+- The existing native AM entrypoint defaults to `selected_consumer`. Its explicit
+  `--alertmanager-producer-image` option belongs only to the source producer and
+  requires an observation. It runs all image controls and emits a distinct
+  producer marker/scope/status; it never configures accepted selection or claims
+  Compose, consumer, merge or publication readiness. After real outputs are
+  independently selected, the ordinary consumer must run the full canonical
+  Compose/native path. Missing/unknown/mixed scope evidence fails closed;
+  historical C10 full evidence remains historical only.
+- Current support transport binds every uploaded API file using the existing
+  file-inventory producer plus the complete native footer. Reject extra/missing
+  members; do not reuse a historical total ZIP count for a changed producer.
+  Keep scanner/database epochs and their exact negative inventories separate.
+- Require current six-file regular Git material and five separately reviewed
+  controller templates before native rendering. ROOT creates real commit C,
+  independently reviews/designates its exact bytes, then pins its known full
+  SHA in H. One ordinary push may contain C,H; authenticate remote C/live H
+  before protected execution. A hash or publication does not supply review.
+- Preserve initial receiver, genuine first-main and ordinary published cases.
+  Ordinary readers require an actual positive publication predecessor, never
+  tag existence or retained-image fallback. Manual publication is a separately
+  authorized operation; code adoption/merge does not prove publication.
+- Validate complete original source/payload/OCI/config/ordered-layer/diffID,
+  binary/probe/CA, tool/DB and positive/negative scan inventories. Historical
+  scanner evidence is separate from the required fresh supported scan. Failed
+  scans or incomplete negative reports cannot prove rejection success.
+  Live image verification derives the admitted producer epoch once and forwards
+  it consistently to candidate and control validators; test actual caller
+  propagation and retain target-ID rejection independently of scanner severity.
+- Finish authenticated preparation and bounded credential cleanup before the
+  secret-free native child. Preserve aggregate deadlines, shorter parent timers,
+  held-FD capture and WNOWAIT process ownership, complete statuses and owned
+  cleanup. Incoming bundle data never chooses the installed project context.
+- The corrected candidate has an exact empty CVE policy. Old selected or running
+  bytes retain their original expiry, including selected-new/running-old cases.
+  Absent/stopped/off-profile controls never activate or stop a service. Candidate
+  edits are not native acceptance, effective retirement or deployment.
+
 ## Official Prometheus image selection
 
 - `deploy/prometheus/image-manifest.json` is the sole v3 image record.
@@ -191,13 +262,16 @@
   phase independently to its own source, raw native records and owned cleanup.
   The exact three-history selector separately binds the third postcompile layout
   failure, its immutable Tool=1 start and original admission cap1. Retain all
-  three failed/spent jobs. The separately adopted one-compile addition permits
+  three failed/spent jobs. The historical one-compile addition permitted
   aggregate Tool1 used/max2/one remaining; no selector grants dispatch authority
   or another automatic attempt. Ordinary retained
   tool/candidate readers remain success-only. Preserve pre/post prefetch locks,
   modes and source inventories, plus diagnostic errors alongside primary failures;
   missing historical post-state remains unknown. Publish and review the correction
-  before any separately coordinated recovery dispatch.
+  before any separately coordinated recovery dispatch. A newly admitted current
+  compiler operation must account for every prior successful and failed native
+  start through the existing history owner; historical selector allowances do
+  not grant another attempt.
 - Manual `prometheus-source-pair` permits exactly two serial logical image
   builds, each containing the two named commands and bounded to 3600 seconds.
   Use independent empty source/cache/output areas, no automatic retries,
@@ -229,13 +303,28 @@
   candidate with registry credentials. Preserve original producer provenance,
   SPDX, immutable tag collision checks and byte-identical pullback. Existing
   promtool/runtime/security checks remain mandatory and suppression-free.
+- Public package inventory admits at most 20,000 versions, with 1 MiB native
+  capture per page and 64 MiB aggregate versions stdout. Read the count-derived
+  short/empty terminal page, reject duplicate IDs and recheck complete identity
+  and count. Failed reads, partial pages or tag existence never replace proof.
+- Main promotion observes the same-run/attempt/head backend publish success
+  before inventory. Pending transitions share the existing deadline (at most
+  16 observations and 15 clipped sleeps); failed/regressing/ambiguous states
+  reject. This does not prove global registry quiescence.
+- A current source-image vendor refresh must bind the complete retained Docker
+  export to qualification bytes before interpreting its graph or importing it.
+  Reuse the existing tar member reader; compare every file and directory,
+  including compatibility metadata, before the independent pinned layer graph.
+  Historical receipts keep their original recipe/base identities. A current
+  declared-only build plan gains its export descriptor only from validated support;
+  an unset accepted output is HOLD, never a legacy fallback.
 - Deploy readers execute only the separately SHA-bound standalone helper;
   incoming archives are material/data. Root merge, deployment, credentials,
   volume changes and observation clocks retain their existing authority gates.
 - CI/CD PR image consumption must finish before PR-local actions, imports or
   native programs start. Acquire exact event-H material as data, then verify the
-  sparse fixed control checkout at `ef9e369052751d47c04f651f7d615714d918fc16`, with
-  helper SHA-256 `0fedf3e9ac865fe2b89a3367e5e4065e1c0c28fca88465c7f2b41775dbf4070a`,
+  sparse fixed control checkout at `dab47fc6153f87e35233e20aa255d97e68a5ed93`, with
+  helper SHA-256 `d812e79fce6138426131f266e4f5fd8de03b72c9a56acea19bedb43a22f172f6`,
   before credential-free canonical four-blob classification. Native regular Git
   blobs supply B/H helper, build workflow, recipe and manifest bytes; the canonical
   helper alone selects manifest-change, historical-helper-change or published use.
@@ -272,6 +361,14 @@ incoming-material boundary. Do not substitute an incoming archive's interpreter
 or claim that passing this probe validates the application on Python 3.14.
 
 ## Native Docker image evidence
+
+- Keep required vulnerable-control identity detection separate from mutable
+  severity metadata. A reconciled rescore may admit only the explicit observed
+  whole-report states in the existing inventory consumer; it must retain exact
+  target/package associations, occurrence counts, epoch separation and rejection
+  of unexpected HIGH/CRITICAL findings. Preserve raw reports and truthful counts.
+  Parser acceptance alone never proves scanner execution or completion of the
+  remaining native controls; a rescore grants no candidate waiver.
 
 - Retired native families remain real Trivy conversion controls with retained
   findings. The full canonical `package trivy` / `import rego.v1` /
@@ -400,15 +497,58 @@ sequence.
   new probe. Git-index discovery must neutralize executable repository Git
   configuration while retaining a positive carrier-discovery path.
 
+- For each newly created child venv, establish the required pip/trust-store
+  baseline through the canonical installer
+  `install_locked_python_requirements.py --upgrade-pip-only` before profile
+  acquisition. Enforce the actual child pip version and vendored CA identity;
+  a parent upgrade or a late version print does not establish this ordering.
+  Distinguish the initial trusted pip bootstrap, and test upgrade failure, stale
+  child pip and CA mismatch before any later package acquisition.
+
 - For `make requirements-locks` graph changes, select only a complete fixed
   alternative from the existing v1 admission owner; preserve default/legacy
   rejection and whole source/seed/artifact/profile bindings. Technical closure
   requires native canonical output plus independent original-base replay before
   it is called C_R. Retain no-deps acquisition, destroyed credentialed HOME,
   offline profile views and rollback; do not add another upgrade intent, hand-edit
-  a seed/lock or rotate a baseline. Record actual hook creation/seed/config bytes
+  a seed/lock or rotate a baseline. Profile-specific before pins must match each
+  profile's hash-verified original seed, including distinct versions of the same
+  package; never flatten them into an invented common baseline. Record actual hook creation/seed/config bytes
   separately from version P and final gate success. Command procedure and the
   finite recorded transition live in `docs/DEPENDENCY_MANAGEMENT.md`.
+- When the shared admission changes, run all of `tests/test_python_dependency_surfaces.py`
+  before long all-files validation, including legacy fixture consumers. Keep synthetic JSON
+  compact within the unchanged production bound; retain oversized and duplicate-key negatives.
+- Before freezing an affected lock tuple, enumerate the existing installer's
+  installation compositions. Propagate changed shared constraints through every
+  dependent lock, including locks without the original security identities.
+  Preserve exact-pin conflict rejection; individual lock audits do not establish
+  that composed profiles are installable.
+
+## FastEmbed compatibility wheel
+
+- `build_fastembed_compat_wheel.py` is an offline transformer of the single
+  hash-pinned wheel in its adjacent recipe. Supply `--source-wheel` and an
+  existing owned `--output-dir`; acquisition, installation and publication are
+  separate operations. Keep the original wheel and failed outputs intact.
+- Preserve every payload byte and mode except the recipe's distribution-version
+  and Pillow-upper-bound metadata edits, matching dist-info coordinates and
+  regenerated complete RECORD. Do not execute wheel code or widen the recipe
+  into a generic patcher. Two identical builds establish reproducibility only.
+- Native RAG/Pillow compatibility and matching private-index wheel readback are
+  required before lock adoption. Keep the same BGE model/tokenizer and persisted
+  BGE comparison; matching dimensions do not establish historical MPNet parity.
+- `ci_pip_audit.sh` retains the scanner subprocess and six-profile selection.
+  Its `audit_fastembed_compat.py` prepare/validate adapter admits only the exact
+  private FastEmbed coordinate as an explicit upstream advisory comparand after
+  checking both current private-index wheel bytes with the canonical builder.
+  Preserve all other actual pins, strict collection, raw JSON/stderr, complete
+  report inventory and nonzero exits. Rebind original/comparand/provenance bytes
+  after the scanner; intermediate files and final sidecars grant no authority.
+  Require fresh output paths and retain failed raw reports before a new attempt.
+  Another private identity, unsupported carrier or executable patch requires
+  rescope. PyPI does not directly audit the private version; the separate final
+  ten-lock audit and runtime/profile compatibility evidence remain required.
 
 ## Governed Experimentation Runner
 

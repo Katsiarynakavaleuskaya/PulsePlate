@@ -1,5 +1,5 @@
 # Literal final payload declaration; assembly follows separately admitted qualification.
-FROM gcr.io/distroless/static-debian13@sha256:2293b36c7c9082bf4115aab724b4d2cddec82c8eba39bf27ac0517e159acf150
+FROM gcr.io/distroless/static-debian13@sha256:433bb346cd0b6b8346462f879adaa4ac0fbb463a72901b46736ede4aeca3dadc
 COPY alertmanager /usr/bin/alertmanager
 COPY amtool /usr/bin/amtool
 # Original probe sha256:462febe85977f9787d1d4a45fae0c0858fdb65f2312ccb95e034a505cbaaebfe.
@@ -10,7 +10,7 @@ COPY alertmanager.yml /etc/alertmanager/alertmanager.yml
 COPY LICENSE /LICENSE
 COPY NOTICE /NOTICE
 USER 65534:65534
-COPY --chown=65534:65534 storage-dir /alertmanager
+COPY --chown=65534:65534 --chmod=0700 storage-dir /alertmanager
 WORKDIR /alertmanager
 EXPOSE 9093
 VOLUME ["/alertmanager"]

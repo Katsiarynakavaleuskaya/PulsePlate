@@ -13,7 +13,7 @@ import os
 import re
 import shutil
 import stat
-import subprocess  # nosec B404: # fixed reader process (remove-by: 2026-10-23, ref: PR-2477)
+import subprocess  # nosec B404: # fixed reader process (remove-by: 2026-10-31, ref: PR-2497)
 import sys
 import tarfile
 from contextlib import suppress
@@ -1024,7 +1024,7 @@ class DockerPromtoolClient:
                 stderr=subprocess.DEVNULL,
                 timeout=COMMAND_TIMEOUT_SECONDS,
                 env={"PATH": os.defpath, "LANG": "C.UTF-8"},
-            )  # nosec B603: # fixed reader, no shell (remove-by: 2026-10-23, ref: PR-2477)
+            )  # nosec B603: # fixed reader, no shell (remove-by: 2026-10-31, ref: PR-2497)
             raw = result.stdout
             if (
                 not 1 < len(raw) <= 512
