@@ -33,7 +33,7 @@
     "@capacitor/filesystem": "7.1.8",
     "@capacitor/share": "7.0.4",
     "@headlessui/react": "^2.1.2",
-    "@hookform/resolvers": "^3.9.0",
+    "@hookform/resolvers": "^5.2.2",
     "clsx": "^2.1.1",
     "crypto-js": "^4.2.0",
     "date-fns": "^4.1.0",
@@ -51,7 +51,7 @@
     "recharts": "^3.2.1",
     "tailwind-merge": "^2.4.0",
     "wicg-inert": "^3.1.2",
-    "zod": "^3.23.8"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@eslint/js": "9.39.3",
@@ -94,7 +94,7 @@
     "minimatch@10": {
       "brace-expansion": "5.0.12"
     },
-    "dompurify": "3.4.13",
+    "dompurify": "3.4.17",
     "esbuild": "0.28.1",
     "js-yaml": "4.3.2",
     "path-to-regexp": "8.4.0",

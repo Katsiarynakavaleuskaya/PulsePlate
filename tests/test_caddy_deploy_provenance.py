@@ -6,12 +6,14 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import shutil
 import stat
 import subprocess
 import sys
 from copy import deepcopy
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
@@ -39,6 +41,17 @@ ALERTMANAGER_CONFIG = REPO_ROOT / "deploy" / "alertmanager" / "alertmanager.yml"
 ALERTMANAGER_IGNORE = REPO_ROOT / "deploy" / "alertmanager" / "trivy-ignore.yaml"
 
 
+@pytest.fixture(autouse=True)
+def historical_alertmanager_selection(monkeypatch: pytest.MonkeyPatch) -> None:
+    from scripts.ci import fetch_docker_source_artifacts as fetcher
+    from tests.test_deploy_contract_scripts import _historical_AM_scan_oracle
+
+    monkeypatch.setattr(
+        fetcher, "_ALERT_ACCEPTED_CANDIDATE", json.loads(json.dumps(fetcher._ALERT_HISTORICAL_C10))
+    )
+    monkeypatch.setattr(fetcher, "_ALERT_CURRENT_SCAN_ORACLE", _historical_AM_scan_oracle())
+
+
 def test_alertmanager_cd_contract_carries_exact_files_and_keeps_scans_separate() -> None:
     workflow = CD_WORKFLOW.read_text(encoding="utf-8")
     for name, output in (
@@ -50,11 +63,11 @@ def test_alertmanager_cd_contract_carries_exact_files_and_keeps_scans_separate()
         assert workflow.count(f"[ ! -L ./{path} ]") == 2
         assert workflow.count(f'"${output}" ]') == 2
         assert f"deploy/{path}" in workflow
-    assert "Admit exact Alertmanager image, config, and narrow CVE exception" in workflow
+    assert "Scan accepted AM and execute all four current controls" in workflow
     assert '--ignorefile "$TRIVY_IGNORE_FILE"' in workflow  # Prometheus stays separate.
-    assert '--ignorefile "$ignore"' in workflow  # Alertmanager only.
+    assert "--alertmanager-stage security-check" in workflow
     assert '"-e", "PULSEPLATE_ENVIRONMENT=staging"' in workflow
-    assert "CVE-2026-84445" in ALERTMANAGER_IGNORE.read_text(encoding="utf-8")
+    assert ALERTMANAGER_IGNORE.read_bytes() == b"vulnerabilities: []\n"
     assert "group_interval: 5m" in ALERTMANAGER_CONFIG.read_text(encoding="utf-8")
     for required in (
         "Prove staging environment label reaches Alertmanager despite forged metric label",
@@ -68,164 +81,14 @@ def test_alertmanager_cd_contract_carries_exact_files_and_keeps_scans_separate()
         assert required in workflow
 
 
-def _run_alertmanager_scan_fixture(
-    tmp_path: Path, scenario: str
-) -> subprocess.CompletedProcess[str]:
-    """Execute the actual admission step with controlled native-command outcomes."""
-    step = _named_step(
-        _steps(_job(_workflow(CD_WORKFLOW), "prometheus-image-security-pr")),
-        "Admit exact Alertmanager image, config, and narrow CVE exception",
-    )
-    script = step["run"]
-    assert isinstance(script, str)
-    workspace = tmp_path / "workspace"
-    config = workspace / "deploy" / "alertmanager"
-    config.mkdir(parents=True)
-    shutil.copyfile(ALERTMANAGER_CONFIG, config / "alertmanager.yml")
-    shutil.copyfile(ALERTMANAGER_IGNORE, config / "trivy-ignore.yaml")
-    binaries = tmp_path / "bin"
-    binaries.mkdir()
-    digest = "sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3"
-    docker = binaries / "docker"
-    docker.write_text(
-        f"#!{sys.executable}\n"
-        "import json,sys\n"
-        f"digest={digest!r}\n"
-        "args=sys.argv[1:]\n"
-        "if args[:2]==['buildx','imagetools']:\n"
-        " print(json.dumps({'manifests':[{'digest':digest,'platform':{'os':'linux','architecture':'amd64'}}]}))\n"
-        "elif args[:2]==['image','inspect']:\n"
-        " print(json.dumps([{'Os':'linux','Architecture':'amd64','RepoDigests':['prom/alertmanager@'+digest]}]))\n"
-        "elif '--version' in args: print('alertmanager, version 0.34.1')\n",
-        encoding="utf-8",
-    )
-    docker.chmod(0o755)
-    report = {
-        "SchemaVersion": 2,
-        "ArtifactName": "prom/alertmanager@" + digest,
-        "Results": [
-            {
-                "Target": target,
-                "Vulnerabilities": [
-                    {"VulnerabilityID": cve, "PkgIdentifier": {"PURL": purl}, "Severity": "HIGH"}
-                    for cve, purl in (
-                        ("CVE-2026-84445", "pkg:golang/google.golang.org/grpc@v1.83.1"),
-                        ("CVE-2026-78669", "pkg:golang/golang.org/x/net@v0.58.0"),
-                        ("CVE-2026-78669", "pkg:golang/stdlib@v1.26.8"),
-                        ("CVE-2026-78667", "pkg:golang/stdlib@v1.26.8"),
-                        ("CVE-2026-97031", "pkg:golang/stdlib@v1.26.8"),
-                    )
-                ],
-            }
-            for target in ("bin/alertmanager", "bin/amtool")
-        ],
-    }
-    (tmp_path / "report.json").write_text(json.dumps(report), encoding="utf-8")
-    trivy = binaries / "trivy"
-    trivy.write_text(
-        f"#!{sys.executable}\n"
-        "import json,os,sys\nfrom pathlib import Path\n"
-        "args=sys.argv[1:]\n"
-        "if args==['--version','--format','json']:\n"
-        " print(json.dumps({'Version':'0.74.0'})); sys.exit(0)\n"
-        "ignore=Path(args[args.index('--ignorefile')+1]).name if '--ignorefile' in args else ''\n"
-        "negative=bool(ignore) and ignore!='trivy-ignore.yaml'\n"
-        "late='expired' in ignore\n"
-        "scenario=os.environ['SCAN_SCENARIO']\n"
-        "report=json.loads(Path(os.environ['SCAN_REPORT']).read_text())\n"
-        "if negative:\n"
-        " policy=Path(args[args.index('--ignorefile')+1]).read_text()\n"
-        " if late:\n"
-        "  assert policy.count('expired_at: 2026-01-01')==4 and 'expired_at: 2026-10-21' not in policy\n"
-        " else:\n"
-        "  for package,original in (('google.golang.org/grpc','1.83.1'),('golang.org/x/net','0.58.0'),('stdlib','1.26.8')):\n"
-        "   assert 'pkg:golang/'+package+'@v0.0.0' in policy\n"
-        "   assert 'pkg:golang/'+package+'@v'+original not in policy\n"
-        " with Path(os.environ['SCAN_CALLS']).open('a') as stream: stream.write(ignore+'\\n')\n"
-        " if scenario in ('exit1','exit2'):\n"
-        "  print('scanner prerequisite failed; no report',file=sys.stderr); sys.exit(int(scenario[-1]))\n"
-        " if scenario=='stale' and late: sys.exit(0)\n"
-        " if scenario=='empty': report['Results']=[]\n"
-        " if scenario=='wrong': report['Results'][0]['Vulnerabilities'][0]['PkgIdentifier']['PURL']='pkg:golang/google.golang.org/grpc@v1.83.0'\n"
-        " if scenario=='extra': report['Results'][0]['Vulnerabilities'].append({'VulnerabilityID':'CVE-0000-0000','PkgIdentifier':{'PURL':'pkg:generic/other@1'}})\n"
-        " if scenario=='secret': report['Results'][0]['Secrets']=[{'RuleID':'synthetic','Severity':'HIGH'}]\n"
-        "if '--output' in args:\n"
-        " output=Path(args[args.index('--output')+1])\n"
-        " output.write_text('{' if negative and scenario=='malformed' else json.dumps(report))\n",
-        encoding="utf-8",
-    )
-    trivy.chmod(0o755)
-    runner = tmp_path / "runner"
-    runner.mkdir()
-    (runner / "prometheus-consumer-123-1" / "evidence").mkdir(parents=True)
-    cache = tmp_path / "trivy-cache" / "db"
-    cache.mkdir(parents=True)
-    (cache / "metadata.json").write_text('{"Version": 2}', encoding="utf-8")
-    (cache / "trivy.db").write_bytes(b"synthetic database")
-    env = {
-        "PATH": str(binaries) + os.pathsep + os.defpath,
-        "HOME": str(tmp_path),
-        "LANG": "C",
-        "GITHUB_WORKSPACE": str(workspace),
-        "GITHUB_RUN_ID": "123",
-        "GITHUB_RUN_ATTEMPT": "1",
-        "GITHUB_SHA": "c" * 40,
-        "PROMETHEUS_EVENT_HEAD": "a" * 40,
-        "RUNNER_TEMP": str(runner),
-        "TRIVY_BIN": str(trivy),
-        "TRIVY_CACHE_DIR": str(cache.parent),
-        "SCAN_SCENARIO": scenario,
-        "SCAN_REPORT": str(tmp_path / "report.json"),
-        "SCAN_CALLS": str(tmp_path / "calls.log"),
-    }
-    return subprocess.run(
-        ["/bin/bash", "-c", script],
-        cwd=workspace,
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=20,
-    )
-
-
-@pytest.mark.parametrize(
-    "scenario", ("exit1", "exit2", "malformed", "empty", "wrong", "extra", "secret", "stale")
-)
-def test_alertmanager_negative_controls_reject_unproven_scans(
-    tmp_path: Path, scenario: str
-) -> None:
-    """An error or absent/different report cannot masquerade as policy rejection."""
-    result = _run_alertmanager_scan_fixture(tmp_path, scenario)
-    assert result.returncode != 0, result.stdout + result.stderr
-    assert (tmp_path / "calls.log").read_text(encoding="utf-8").strip()
-    if scenario in ("exit1", "exit2"):
-        assert result.returncode == int(scenario[-1])
-        assert "scanner prerequisite failed; no report" in result.stderr
-    elif scenario in ("malformed", "stale"):
-        assert "JSONDecodeError" in result.stderr
-    elif scenario == "secret":
-        assert "Alertmanager scan contains unexpected secret findings" in result.stderr
-    else:
-        assert "Unsuppressed Alertmanager finding inventory changed" in result.stderr
-
-
-def test_alertmanager_negative_controls_require_both_retained_inventories(tmp_path: Path) -> None:
-    """Both real scan-success branches must retain the complete frozen inventory."""
-    result = _run_alertmanager_scan_fixture(tmp_path, "valid")
-    assert result.returncode == 0, result.stdout + result.stderr
-    calls = (tmp_path / "calls.log").read_text(encoding="utf-8").splitlines()
-    assert len(calls) == 2
-    assert "wrong" in calls[0] and "expired" in calls[1]
-
-
 PROMETHEUS_RULES_HASH_CHECK = (
     """[ "$(sha256sum ./prometheus/alias-alerts.yml | cut -d' ' -f1)" """
     '= "$PROMETHEUS_RULES_SHA256" ]'
 )
 
 GO_BUILDER = (
-    "golang:1.26.9-alpine3.23@"
-    "sha256:96123126ac58e910f4dd3619a8901e2fb6d1ad84b59b1232cac7c9ea65a8f888"
+    "golang:1.26.10-alpine3.23@"
+    "sha256:0525c952defebc693cdaf62cdf43afa32be5a7f377e99260642ea19c240c708e"
 )
 NODE_BUILDER = (
     "node:24.18.1-bookworm-slim@"
@@ -253,6 +116,8 @@ EXPECTED_CADDY_BUILDER_STAGE = (
             "    go get google.golang.org/grpc@v1.83.2; \\",
             "    go get golang.org/x/crypto@v0.55.0; \\",
             "    go get golang.org/x/net@v0.60.0; \\",
+            "    go get github.com/klauspost/compress@v1.18.7; \\",
+            "    go get github.com/go-jose/go-jose/v4@v4.1.6; \\",
             "    go mod download all; \\",
             "    go mod verify; \\",
             (
@@ -262,6 +127,9 @@ EXPECTED_CADDY_BUILDER_STAGE = (
             (
                 "    go list -m -f '{{if or "
                 '(eq .Path "github.com/caddyserver/caddy/v2") '
+                '(eq .Path "github.com/go-jose/go-jose/v3") '
+                '(eq .Path "github.com/go-jose/go-jose/v4") '
+                '(eq .Path "github.com/klauspost/compress") '
                 '(eq .Path "google.golang.org/grpc") '
                 '(eq .Path "golang.org/x/crypto") '
                 '(eq .Path "golang.org/x/mod") '
@@ -278,6 +146,9 @@ EXPECTED_CADDY_BUILDER_STAGE = (
             "      | LC_ALL=C sort > /tmp/caddy-governed-graph; \\",
             "    printf '%s\\n' \\",
             "      'github.com/caddyserver/caddy/v2 v2.11.4' \\",
+            "      'github.com/go-jose/go-jose/v3 v3.0.5' \\",
+            "      'github.com/go-jose/go-jose/v4 v4.1.6' \\",
+            "      'github.com/klauspost/compress v1.18.7' \\",
             "      'golang.org/x/crypto v0.57.0' \\",
             "      'golang.org/x/mod v0.41.0' \\",
             "      'golang.org/x/net v0.60.0' \\",
@@ -289,7 +160,7 @@ EXPECTED_CADDY_BUILDER_STAGE = (
             "      'golang.org/x/tools v0.49.0' \\",
             "      'google.golang.org/grpc v1.83.2' \\",
             "      | LC_ALL=C sort > /tmp/caddy-expected-graph; \\",
-            ('    test "$(wc -l < /tmp/caddy-governed-graph | ' "tr -d '[:space:]')\" = '11'; \\"),
+            ('    test "$(wc -l < /tmp/caddy-governed-graph | ' "tr -d '[:space:]')\" = '14'; \\"),
             "    cmp /tmp/caddy-expected-graph /tmp/caddy-governed-graph; \\",
             "    go build -mod=readonly -trimpath \\",
             ("      -ldflags '-X github.com/caddyserver/caddy/v2.CustomVersion=v2.11.4' " "\\"),
@@ -305,7 +176,7 @@ EXPECTED_CADDY_BUILDER_STAGE = (
             (
                 '    awk \'$1 == "mod" && $2 == "github.com/caddyserver/caddy/v2" '
                 '{ print $1, $2, $3 } $1 == "dep" && '
-                '($2 == "google.golang.org/grpc" || $2 == "golang.org/x/crypto" || '
+                '($2 == "github.com/go-jose/go-jose/v3" || $2 == "github.com/go-jose/go-jose/v4" || $2 == "github.com/klauspost/compress" || $2 == "google.golang.org/grpc" || $2 == "golang.org/x/crypto" || '
                 '$2 == "golang.org/x/net" || $2 == "golang.org/x/sync" || '
                 '$2 == "golang.org/x/sys" || $2 == "golang.org/x/term" || '
                 '$2 == "golang.org/x/text") { print $1, $2, $3 }\' '
@@ -314,6 +185,9 @@ EXPECTED_CADDY_BUILDER_STAGE = (
             "      | LC_ALL=C sort > /tmp/caddy-governed-binary; \\",
             "    printf '%s\\n' \\",
             "      'mod github.com/caddyserver/caddy/v2 v2.11.4' \\",
+            "      'dep github.com/go-jose/go-jose/v3 v3.0.5' \\",
+            "      'dep github.com/go-jose/go-jose/v4 v4.1.6' \\",
+            "      'dep github.com/klauspost/compress v1.18.7' \\",
             "      'dep golang.org/x/crypto v0.57.0' \\",
             "      'dep golang.org/x/net v0.60.0' \\",
             "      'dep golang.org/x/sync v0.23.0' \\",
@@ -322,7 +196,7 @@ EXPECTED_CADDY_BUILDER_STAGE = (
             "      'dep golang.org/x/text v0.42.0' \\",
             "      'dep google.golang.org/grpc v1.83.2' \\",
             "      | LC_ALL=C sort > /tmp/caddy-expected-binary; \\",
-            ('    test "$(wc -l < /tmp/caddy-governed-binary | ' "tr -d '[:space:]')\" = '8'; \\"),
+            ('    test "$(wc -l < /tmp/caddy-governed-binary | ' "tr -d '[:space:]')\" = '11'; \\"),
             "    cmp /tmp/caddy-expected-binary /tmp/caddy-governed-binary; \\",
             "    rm -f \\",
             "      /tmp/caddy-binary-metadata \\",
@@ -344,7 +218,7 @@ EXPECTED_CADDY_FINAL_STAGE = (
             'LABEL org.opencontainers.image.title="PulsePlate Caddy SPA shell" \\',
             (
                 '      org.opencontainers.image.description="Caddy 2.11.4 rebuilt with '
-                'Go 1.26.9 and PulsePlate frontend assets"'
+                'Go 1.26.10 and PulsePlate frontend assets"'
             ),
             "",
             "# Compare the standard module surface before replacing the upstream binary.",
@@ -363,6 +237,9 @@ EXPECTED_CADDY_FINAL_STAGE = (
             ),
             "    diff -u /tmp/caddy-official-modules /tmp/caddy-rebuilt-modules; \\",
             "    apk add --no-cache \\",
+            '      "ca-certificates>=20261020-r0" \\',
+            '      "ca-certificates-bundle>=20261020-r0" \\',
+            '      "brotli-libs>=1.2.1-r0" \\',
             '      "c-ares>=1.34.8-r0" \\',
             '      "curl>=8.20.0-r0" \\',
             '      "libcurl>=8.20.0-r0" \\',
@@ -378,7 +255,7 @@ EXPECTED_CADDY_FINAL_STAGE = (
             ),
             (
                 "    caddy build-info | awk -F '\\t' '$1 == \"go\" && $2 == "
-                '"go1.26.9" { found=1 } END { exit found ? 0 : 1 }\'; \\'
+                '"go1.26.10" { found=1 } END { exit found ? 0 : 1 }\'; \\'
             ),
             "    rm -f /tmp/caddy-official-modules /tmp/caddy-rebuilt-modules",
             "",
@@ -496,11 +373,15 @@ def test_caddy_dockerfile_owns_exact_hardened_build_recipe() -> None:
     assert text.index(caddy_get) < text.index(grpc_get) < text.index(crypto_get)
     net_get = "go get golang.org/x/net@v0.60.0"
     assert text.count(net_get) == 1
-    assert text.index(crypto_get) < text.index(net_get) < text.index("go mod download all")
+    compress_get = "go get github.com/klauspost/compress@v1.18.7"
+    assert text.count(compress_get) == 1
+    assert text.index(crypto_get) < text.index(net_get) < text.index(compress_get)
+    assert text.index(compress_get) < text.index("go mod download all")
     assert "go mod download all" in text
     assert "go mod verify" in text
     for exact_graph_identity in (
         "github.com/caddyserver/caddy/v2 v2.11.4",
+        "github.com/klauspost/compress v1.18.7",
         "google.golang.org/grpc v1.83.2",
         "golang.org/x/crypto v0.57.0",
         "golang.org/x/mod v0.41.0",
@@ -521,6 +402,7 @@ def test_caddy_dockerfile_owns_exact_hardened_build_recipe() -> None:
     assert "cmp /tmp/caddy-expected-binary /tmp/caddy-governed-binary" in text
     for exact_binary_identity in (
         "mod github.com/caddyserver/caddy/v2 v2.11.4",
+        "dep github.com/klauspost/compress v1.18.7",
         "dep google.golang.org/grpc v1.83.2",
         "dep golang.org/x/crypto v0.57.0",
         "dep golang.org/x/net v0.60.0",
@@ -530,6 +412,7 @@ def test_caddy_dockerfile_owns_exact_hardened_build_recipe() -> None:
         "dep golang.org/x/text v0.42.0",
     ):
         assert f"'{exact_binary_identity}'" in text
+    assert '"brotli-libs>=1.2.1-r0"' in text
     assert '"c-ares>=1.34.8-r0"' in text
     assert '"curl>=8.20.0-r0"' in text
     assert '"libcurl>=8.20.0-r0"' in text
@@ -931,7 +814,7 @@ def test_cd_builds_attests_scans_and_deploys_both_same_job_digests() -> None:
         "STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,"
         "DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,"
         "PROMETHEUS_CONFIG_SHA256,PROMETHEUS_RULES_SHA256,"
-        "PROMETHEUS_IMAGE_MANIFEST_SHA256,PROMETHEUS_CONTRACT_HELPER_SHA256,"
+        "PROMETHEUS_IMAGE_MANIFEST_SHA256,PROMETHEUS_CONTRACT_HELPER_SHA256,ALERTMANAGER_CONTRACT_HELPER_SHA256,"
         "ALERTMANAGER_CONFIG_SHA256,ALERTMANAGER_TRIVY_IGNORE_SHA256,"
         "POSTGRES_IMAGE_MANIFEST_SHA256,"
         "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,"
@@ -957,7 +840,7 @@ def test_cd_builds_attests_scans_and_deploys_both_same_job_digests() -> None:
         "GHCR_USER,GHCR_TOKEN,STAGING_DOMAIN,STAGING_IMAGE_REF,"
         "STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,"
         "PROMETHEUS_CONFIG_SHA256,PROMETHEUS_RULES_SHA256,"
-        "PROMETHEUS_IMAGE_MANIFEST_SHA256,PROMETHEUS_CONTRACT_HELPER_SHA256,"
+        "PROMETHEUS_IMAGE_MANIFEST_SHA256,PROMETHEUS_CONTRACT_HELPER_SHA256,ALERTMANAGER_CONTRACT_HELPER_SHA256,"
         "ALERTMANAGER_CONFIG_SHA256,ALERTMANAGER_TRIVY_IGNORE_SHA256,"
         "POSTGRES_IMAGE_MANIFEST_SHA256,"
         "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,"
@@ -1019,7 +902,7 @@ def test_remote_contract_preflight_has_no_registry_secret_and_checks_current_fil
     assert with_block["envs"] == (
         "STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,"
         "STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,PROMETHEUS_RULES_SHA256,"
-        "PROMETHEUS_IMAGE_MANIFEST_SHA256,PROMETHEUS_CONTRACT_HELPER_SHA256,ALERTMANAGER_CONFIG_SHA256,"
+        "PROMETHEUS_IMAGE_MANIFEST_SHA256,PROMETHEUS_CONTRACT_HELPER_SHA256,ALERTMANAGER_CONTRACT_HELPER_SHA256,ALERTMANAGER_CONFIG_SHA256,"
         "ALERTMANAGER_TRIVY_IGNORE_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,"
         "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,"
         "STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,"
@@ -1164,7 +1047,7 @@ def test_credentialed_deploy_revalidates_the_preflighted_remote_contract() -> No
     assert with_block["envs"].endswith(
         "DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,"
         "PROMETHEUS_RULES_SHA256,"
-        "PROMETHEUS_IMAGE_MANIFEST_SHA256,PROMETHEUS_CONTRACT_HELPER_SHA256,ALERTMANAGER_CONFIG_SHA256,"
+        "PROMETHEUS_IMAGE_MANIFEST_SHA256,PROMETHEUS_CONTRACT_HELPER_SHA256,ALERTMANAGER_CONTRACT_HELPER_SHA256,ALERTMANAGER_CONFIG_SHA256,"
         "ALERTMANAGER_TRIVY_IGNORE_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,"
         "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,"
         "STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,"
@@ -1221,15 +1104,15 @@ def test_staging_deploy_script_embeds_marker_and_two_digest_contract() -> None:
     assert "|| true" not in text
 
 
-def test_frontend_caddy_contract_is_non_publishing_and_unprivileged() -> None:
-    workflow = _workflow(FRONTEND_WORKFLOW)
+def _assert_frontend_caddy_contract(workflow: dict[str, object]) -> None:
     changes_steps = _steps(_job(workflow, "changes"))
     job = _job(workflow, "caddy-contract")
+    assert job["runs-on"] == "ubuntu-24.04", "Caddy requires the qualified Ubuntu 24.04 runner"
     assert job["if"] == (
         "${{ !cancelled() && (needs.changes.outputs.caddy == 'true' "
         "|| github.event_name == 'workflow_dispatch') }}"
     )
-    assert job["permissions"] == {"contents": "read"}
+    assert job["permissions"] == {"contents": "read", "actions": "read"}
     assert "environment" not in job
     steps = _steps(job)
     text = str(steps)
@@ -1252,6 +1135,19 @@ def test_frontend_caddy_contract_is_non_publishing_and_unprivileged() -> None:
     assert "set -o pipefail" in dockerfile
 
 
+def test_frontend_caddy_contract_is_non_publishing_and_unprivileged() -> None:
+    _assert_frontend_caddy_contract(_workflow(FRONTEND_WORKFLOW))
+
+
+@pytest.mark.parametrize("runner", ["ubuntu-latest", "ubuntu-26.04"])
+def test_frontend_caddy_contract_rejects_unqualified_runner(runner: str) -> None:
+    workflow = _workflow(FRONTEND_WORKFLOW)
+    _assert_frontend_caddy_contract(workflow)
+    _job(workflow, "caddy-contract")["runs-on"] = runner
+    with pytest.raises(AssertionError, match="Caddy requires the qualified Ubuntu 24.04 runner"):
+        _assert_frontend_caddy_contract(workflow)
+
+
 def test_production_quick_fix_rebuilds_and_verifies_hardened_caddy() -> None:
     text = (REPO_ROOT / "scripts" / "QUICK_FIX_PRODUCTION.sh").read_text(encoding="utf-8")
 
@@ -1265,16 +1161,16 @@ def test_production_quick_fix_rebuilds_and_verifies_hardened_caddy() -> None:
     assert pull_index < build_index < up_index < version_index < build_info_index < success_index
     assert "dc pull ||" not in text
     assert 'CADDY_VERSION_TOKEN" != "v2.11.4"' in text
-    assert 'CADDY_GO_VERSION" != "go1.26.9"' in text
+    assert 'CADDY_GO_VERSION" != "go1.26.10"' in text
     assert "*v2.11.4*" not in text
-    assert "*go1.26.9*" not in text
+    assert "*go1.26.10*" not in text
 
 
 @pytest.mark.parametrize(
     ("caddy_version", "build_info", "expected_error"),
     (
-        ("v2.11.40 h1:test", "go\tgo1.26.9\n", "Expected Caddy v2.11.4"),
-        ("v2.11.4 h1:test", "go\tgo1.26.90\n", "Expected Caddy built with Go 1.26.9"),
+        ("v2.11.40 h1:test", "go\tgo1.26.10\n", "Expected Caddy v2.11.4"),
+        ("v2.11.4 h1:test", "go\tgo1.26.100\n", "Expected Caddy built with Go 1.26.10"),
     ),
 )
 def test_production_quick_fix_rejects_inexact_caddy_identity(
@@ -1298,7 +1194,7 @@ def test_production_quick_fix_fails_closed_when_readiness_fails(tmp_path: Path) 
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.4 h1:test",
-        go_version="go1.26.9",
+        go_version="go1.26.10",
         curl_exit=22,
     )
 
@@ -1313,7 +1209,7 @@ def test_production_quick_fix_redacts_duplicate_secret_values(tmp_path: Path) ->
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.4 h1:test",
-        go_version="go1.26.9",
+        go_version="go1.26.10",
         extra_env=(
             f"POSTGRES_PASSWORD={password_sentinel}\n"
             f"DATABASE_URL=postgresql+psycopg://pulseplate:{dsn_sentinel}@db/pulseplate\n"
@@ -1344,7 +1240,7 @@ def test_production_quick_fix_rejects_compose_normalized_duplicate_keys(
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.4 h1:test",
-        go_version="go1.26.9",
+        go_version="go1.26.10",
         extra_env=f"{duplicate_line}\n",
     )
 
@@ -1365,7 +1261,7 @@ def test_production_quick_fix_fails_closed_when_env_file_is_missing(tmp_path: Pa
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.4 h1:test",
-        go_version="go1.26.9",
+        go_version="go1.26.10",
         create_env=False,
     )
 
@@ -1379,7 +1275,7 @@ def test_production_quick_fix_replaces_env_atomically_with_preserved_mode(tmp_pa
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.4 h1:test",
-        go_version="go1.26.9",
+        go_version="go1.26.10",
     )
 
     env_path = tmp_path / "production" / ".env"
@@ -1417,7 +1313,7 @@ def test_production_quick_fix_normalizes_managed_flag_cleanup(
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.4 h1:test",
-        go_version="go1.26.9",
+        go_version="go1.26.10",
         extra_env=f"{legacy_line}\n",
     )
 
@@ -1623,7 +1519,7 @@ def _assert_checkpoint_native_job(workflow: dict[str, object]) -> None:
     scan = _job(workflow, "prometheus-image-security-pr")
     assert (
         scan["timeout-minutes"]
-        == "${{ fromJSON(vars.PROMETHEUS_IMAGE_SECURITY_TIMEOUT_MINUTES || '55') }}"
+        == "${{ fromJSON(vars.ALERTMANAGER_CD_PR_JOB_TIMEOUT_MINUTES || '170') }}"
     )
     assert not any(step.get("id") == "checkpoint-native" for step in _steps(scan))
     job = _job(workflow, "obs2a-checkpoint-native")
@@ -1633,7 +1529,8 @@ def _assert_checkpoint_native_job(workflow: dict[str, object]) -> None:
         == "!cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.prometheus-image-security.result == 'success'"
     ), "checkpoint_native_scan_result"
     assert (
-        job["timeout-minutes"] == "${{ fromJSON(vars.OBS2A_NATIVE_JOB_TIMEOUT_MINUTES || '40') }}"
+        job["timeout-minutes"]
+        == "${{ fromJSON(vars.ALERTMANAGER_NATIVE_JOB_TIMEOUT_MINUTES || '110') }}"
     )
     assert job.get("permissions") == {
         "contents": "read",
@@ -1641,7 +1538,12 @@ def _assert_checkpoint_native_job(workflow: dict[str, object]) -> None:
         "packages": "read",
     }, "checkpoint_native_reader_permissions"
     assert job.get("environment") == "staging", "checkpoint_native_reader_environment"
-    assert job["env"] == {"PROMETHEUS_CONSUME_SECONDS": "900", "PROMETHEUS_CLEANUP_SECONDS": "120"}
+    assert job["env"]["PROMETHEUS_CONSUME_SECONDS"] == "900"
+    assert job["env"]["PROMETHEUS_CLEANUP_SECONDS"] == "120"
+    assert (
+        job["env"]["ALERTMANAGER_GENERIC_NATIVE_MINUTES"]
+        == "${{ vars.OBS2A_NATIVE_JOB_TIMEOUT_MINUTES || '40' }}"
+    )
     build = _job(workflow, "build")
     assert build["needs"] == [
         "prometheus-image-security",
@@ -1662,23 +1564,23 @@ def _assert_checkpoint_native_job(workflow: dict[str, object]) -> None:
     text = selection["run"]
     assert 'test "$(git rev-parse HEAD)" = "$OBS2A_HEAD_SHA"' in text
     assert '1) echo "selected=true"' in text and 'exit "$diff_status"' in text
-    setup = _named_step(steps, "Setup bounded checkpoint native Python")
-    assert setup["with"] == {
-        "python-version": "3.13.14",
-        "requirements-profile": "ci-lite",
-        "install-mode": "direct-proxy",
-    }
+    setup = _named_step(steps, "Select AM Python without dependency or SDK installation")
+    assert setup["with"] == {"python-version": "3.13.14", "skip-base-install": "true"}
     assert "secrets." not in str(setup)
     assert setup["env"]["DEVPI_CI_USER"] == "" and setup["env"]["DEVPI_CI_PASSWORD"] == ""
     native = _named_step(steps, "Native main OBS2A checkpoint lifecycle and owned-task challenge")
     assert native["if"] == setup["if"]
     assert "steps.checkpoint-native.outputs.selected == 'true'" in native["if"]
+    consume = _named_step(steps, "Consume exact Prometheus before main native fixtures")
+    assert steps.index(consume) < steps.index(native)
+    assert consume["timeout-minutes"] == 18
+    assert native["timeout-minutes"] == "${{ fromJSON(env.ALERTMANAGER_GENERIC_NATIVE_MINUTES) }}"
+    assert "--operation consume" in consume["run"] and "--operation consume" not in native["run"]
     assert native["env"] == {
-        "GH_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
-        "GITHUB_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
-        "GHCR_READ_TOKEN": "${{ secrets.GHCR_READ_TOKEN }}",
+        "AM_HOST_PYTHON": "${{ steps.am-python.outputs.python }}",
+        "AM_IMAGE_ID": "${{ steps.alertmanager-image.outputs.image_id }}",
+        "AM_CONFIG_SHA256": "${{ steps.alertmanager-image.outputs.config_sha256 }}",
     }
-    assert native["run"].index("--operation consume") < native["run"].index("sudo /usr/bin/env -i")
     child = native["run"].split("sudo /usr/bin/env -i", 1)[1].split("} 2>&1", 1)[0]
     assert (
         "GH_TOKEN" not in child and "GITHUB_TOKEN" not in child and "GHCR_READ_TOKEN" not in child
@@ -1692,7 +1594,10 @@ def _assert_checkpoint_native_job(workflow: dict[str, object]) -> None:
     assert retention["with"] == {
         "name": "obs2a-native-main-${{ github.sha }}",
         "path": "artifacts/orchestration/obs2a_pr3/native-result.log\n"
-        "${{ runner.temp }}/prometheus-obs2a-consumer-${{ github.run_id }}-${{ github.run_attempt }}/evidence/\n",
+        "${{ runner.temp }}/prometheus-obs2a-consumer-${{ github.run_id }}-${{ github.run_attempt }}/evidence/\n"
+        "${{ runner.temp }}/alertmanager-consumer-${{ github.run_id }}-${{ github.run_attempt }}/consumer-observation.json\n"
+        "${{ runner.temp }}/alertmanager-consumer-${{ github.run_id }}-${{ github.run_attempt }}/github-read-evidence/\n"
+        "${{ runner.temp }}/alertmanager-consumer-${{ github.run_id }}-${{ github.run_attempt }}/preparation/evidence/\n",
         "if-no-files-found": "error",
         "retention-days": 7,
     }
@@ -1720,7 +1625,17 @@ def test_checkpoint_native_main_pipeline_preserves_both_statuses(
         'tee() { "$FIXTURE_TEE" "$@"; return "$CAPTURE_STATUS"; }\n'
     )
     result = subprocess.run(
-        [bash, "-c", fixture + native["run"]],
+        [
+            bash,
+            "-c",
+            fixture
+            + _named_step(
+                _steps(_job(_workflow(CD_WORKFLOW), "obs2a-checkpoint-native")),
+                "Consume exact Prometheus before main native fixtures",
+            )["run"]
+            + "\n"
+            + native["run"],
+        ],
         cwd=tmp_path,
         env={
             "PATH": os.defpath,
@@ -1731,6 +1646,9 @@ def test_checkpoint_native_main_pipeline_preserves_both_statuses(
             "GITHUB_RUN_ATTEMPT": "1",
             "PROMETHEUS_CONSUME_SECONDS": "900",
             "PROMETHEUS_CLEANUP_SECONDS": "120",
+            "AM_HOST_PYTHON": "python",
+            "AM_IMAGE_ID": "sha256:" + "1" * 64,
+            "AM_CONFIG_SHA256": "2" * 64,
             "CONSUME_STATUS": str(consume_status),
             "NATIVE_STATUS": str(native_status),
             "CAPTURE_STATUS": str(capture_status),
@@ -1766,6 +1684,12 @@ def test_checkpoint_native_main_pipeline_preserves_both_statuses(
     [
         (".github/workflows/ci.yml", True),
         ("deploy/prometheus/image-manifest.json", True),
+        ("scripts/ci/fetch_docker_source_artifacts.py", True),
+        ("deploy/alertmanager/alertmanager.yml", True),
+        ("deploy/alertmanager/trivy-ignore.yaml", True),
+        ("deploy/docker-compose.staging.yaml", True),
+        ("deploy/docker-compose.production.yaml", True),
+        ("deploy/docker-compose.production.selfhosted.yaml", True),
         ("deploy/prometheus/image-manifest.json.bak", False),
     ],
 )
@@ -2018,6 +1942,8 @@ def _assert_checkpoint_pr_selection_uses_real_git(
             "GITHUB_RUN_ATTEMPT": "1",
             "PROMETHEUS_CONSUME_SECONDS": "900",
             "PROMETHEUS_CLEANUP_SECONDS": "120",
+            "AM_IMAGE_ID": "sha256:" + "a" * 64,
+            "AM_CONFIG_SHA256": "b" * 64,
             "CONSUME_STATUS": str(consume_status),
             "NATIVE_CALLS": str(tmp_path / "native-calls"),
             "GITHUB_OUTPUT": str(tmp_path / "github-output"),
@@ -2103,6 +2029,12 @@ def test_checkpoint_pr_selection_uses_unique_real_merge_base(tmp_path: Path, cas
     ("selected_path", "expected_selected"),
     [
         ("deploy/prometheus/image-manifest.json", True),
+        ("scripts/ci/fetch_docker_source_artifacts.py", True),
+        ("deploy/alertmanager/alertmanager.yml", True),
+        ("deploy/alertmanager/trivy-ignore.yaml", True),
+        ("deploy/docker-compose.staging.yaml", True),
+        ("deploy/docker-compose.production.yaml", True),
+        ("deploy/docker-compose.production.selfhosted.yaml", True),
         ("deploy/prometheus/image-manifest.json.bak", False),
     ],
 )
@@ -2148,10 +2080,17 @@ def _assert_checkpoint_pr_native_job(workflow: dict[str, object]) -> None:
     lint = _job(workflow, "lint")
     assert lint["needs"] == ["private_python_proxy_health"]
     assert lint["permissions"] == {"contents": "read", "actions": "read", "packages": "read"}
-    assert lint["env"] == {"PROMETHEUS_CONSUME_SECONDS": "900", "PROMETHEUS_CLEANUP_SECONDS": "120"}
+    assert lint["env"] == {
+        "PROMETHEUS_CONSUME_SECONDS": "900",
+        "PROMETHEUS_CLEANUP_SECONDS": "120",
+        "ALERTMANAGER_JOB_TIMEOUT_MINUTES": "${{ fromJSON(vars.CI_LINT_TIMEOUT_MINUTES || '190') }}",
+        "ALERTMANAGER_CALLER_KIND": "ci-lint",
+        "ALERTMANAGER_GENERIC_NATIVE_MINUTES": "${{ vars.OBS2A_NATIVE_JOB_TIMEOUT_MINUTES || '40' }}",
+        "ALERTMANAGER_LINT_CHECK_MINUTES": "${{ vars.CI_LINT_CHECKS_TIMEOUT_MINUTES || '60' }}",
+    }
     assert "environment" not in lint
     assert lint["if"] == "${{ !cancelled() }}"
-    assert lint["timeout-minutes"] == "${{ fromJSON(vars.CI_LINT_TIMEOUT_MINUTES || '90') }}"
+    assert lint["timeout-minutes"] == "${{ fromJSON(vars.CI_LINT_TIMEOUT_MINUTES || '190') }}"
     steps = _steps(lint)
     prerequisite = _named_step(steps, "Enforce prerequisite results")
     assert (
@@ -2178,22 +2117,18 @@ def _assert_checkpoint_pr_native_job(workflow: dict[str, object]) -> None:
         "DEVPI_CI_PASSWORD": "${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_PASSWORD || '' }}",
     }
     precommit = _named_step(steps, "Pre-commit (lint/format/security quick checks)")
-    assert (
-        precommit["timeout-minutes"]
-        == "${{ fromJSON(vars.CI_LINT_CHECKS_TIMEOUT_MINUTES || '40') }}"
-    )
+    assert precommit["timeout-minutes"] == "${{ fromJSON(env.ALERTMANAGER_LINT_CHECK_MINUTES) }}"
     native = _named_step(steps, "Native OBS2A checkpoint lifecycle and owned-task challenge")
     assert native["id"] == "checkpoint-native"
     assert native["if"] == (
         "github.event_name == 'pull_request' && steps.checkpoint-selection.outputs.selected == 'true'"
     )
     # The actual existing CD owner supplies native budget parity; this PR does not redefine it.
-    assert (
-        native["timeout-minutes"]
-        == _job(_workflow(CD_WORKFLOW), "obs2a-checkpoint-native")["timeout-minutes"]
-    )
+    assert native["timeout-minutes"] == "${{ fromJSON(env.ALERTMANAGER_GENERIC_NATIVE_MINUTES) }}"
     assert native["env"] == {
-        "PROMETHEUS_RUNTIME_REF": "${{ steps.checkpoint-image.outputs.runtime_ref }}"
+        "AM_IMAGE_ID": "${{ steps.alertmanager-image.outputs.image_id }}",
+        "AM_CONFIG_SHA256": "${{ steps.alertmanager-image.outputs.config_sha256 }}",
+        "PROMETHEUS_RUNTIME_REF": "${{ steps.checkpoint-image.outputs.runtime_ref }}",
     }
     assert "--operation consume" not in native["run"]
     assert all(key not in native["env"] for key in ("GH_TOKEN", "GITHUB_TOKEN", "GHCR_READ_TOKEN"))
@@ -2209,7 +2144,7 @@ def _assert_checkpoint_pr_native_job(workflow: dict[str, object]) -> None:
     assert classifier["run"].count('trusted["classify_source_change"](previous, current)') == 1
     assert "mode=" not in selection["run"]
     # pragma: allowlist nextline secret - public trusted control commit
-    assert control["with"]["ref"] == "ef9e369052751d47c04f651f7d615714d918fc16"
+    assert control["with"]["ref"] == "dab47fc6153f87e35233e20aa255d97e68a5ed93"
     assert control["with"]["persist-credentials"] is False
     assert "python3 -I -S" in consumer["run"] and "runpy.run_path(str(helper))" in consumer["run"]
     assert consumer["env"]["GH_TOKEN"] == "${{ secrets.GITHUB_TOKEN }}"
@@ -2236,7 +2171,10 @@ def _assert_checkpoint_pr_native_job(workflow: dict[str, object]) -> None:
         "name": "obs2a-native-pr-${{ github.event.pull_request.number }}-${{ github.run_attempt }}",
         "path": "artifacts/orchestration/obs2a_pr3/selection.log\n"
         "artifacts/orchestration/obs2a_pr3/native-result.log\n"
-        "${{ runner.temp }}/prometheus-obs2a-consumer-${{ github.run_id }}-${{ github.run_attempt }}/evidence/\n",
+        "${{ runner.temp }}/prometheus-obs2a-consumer-${{ github.run_id }}-${{ github.run_attempt }}/evidence/\n"
+        "${{ runner.temp }}/alertmanager-consumer-${{ github.run_id }}-${{ github.run_attempt }}/consumer-observation.json\n"
+        "${{ runner.temp }}/alertmanager-consumer-${{ github.run_id }}-${{ github.run_attempt }}/github-read-evidence/\n"
+        "${{ runner.temp }}/alertmanager-consumer-${{ github.run_id }}-${{ github.run_attempt }}/preparation/evidence/\n",
         "if-no-files-found": "error",
         "retention-days": 7,
     }
@@ -2429,7 +2367,7 @@ def test_checkpoint_pr_native_contract_rejects_lost_admission(fault: str) -> Non
 def test_caddy_full_observation_preserves_blocking_scan_and_exact_conditions() -> None:
     job = _job(_workflow(FRONTEND_WORKFLOW), "caddy-contract")
     steps = _steps(job)
-    build = _named_step(steps, "Build hardened Caddy shell image")
+    build = _named_step(steps, "Build accepted D Caddy candidate once")
     original = _named_step(steps, "Scan hardened Caddy shell image")
     assert build["id"] == "caddy-build"
     assert original["id"] == "caddy-security"
@@ -2439,12 +2377,12 @@ def test_caddy_full_observation_preserves_blocking_scan_and_exact_conditions() -
         "image-ref": "pulseplate-caddy:contract",
         "format": "table",
         "vuln-type": "os,library",
-        "severity": "CRITICAL,HIGH",
-        "exit-code": "1",
+        "severity": "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL",
+        "exit-code": "0",
         "cache-dir": "/tmp/trivy-cache-caddy-contract",
     }
     assert "continue-on-error" not in original
-    assert job["permissions"] == {"contents": "read"}
+    assert job["permissions"] == {"contents": "read", "actions": "read"}
     assert job["env"] == {
         "CADDY_FULL_SCAN_TIMEOUT_SECONDS": "300",
         "CADDY_METADATA_TIMEOUT_SECONDS": "900",
@@ -2452,11 +2390,11 @@ def test_caddy_full_observation_preserves_blocking_scan_and_exact_conditions() -
     }
     assert (
         _step_index(steps, "Capture next loaded Caddy image identity")
-        == _step_index(steps, "Build hardened Caddy shell image") + 1
+        == _step_index(steps, "Build accepted D Caddy candidate once") + 1
     )
     expected = {
         "Prepare same-epoch full Caddy observation": (
-            "${{ !cancelled() && steps.caddy-build.outcome == 'success' && "
+            "${{ !cancelled() && (steps.caddy-build.outcome == 'success' || steps.caddy-import.outcome == 'success') && "
             "steps.caddy-image.outcome == 'success' && "
             "(steps.caddy-security.outcome == 'success' || steps.caddy-security.outcome == 'failure') }}"
         ),
@@ -2512,6 +2450,14 @@ def test_caddy_native_full_observation_captures_findings_without_passing_HC(
         "version.txt": ["version"],
         "build-info.txt": ["build-info"],
         "rebuilt-modules.txt": ["list-modules", "--packages"],
+        "default-ca.pem": ["cat", "/etc/ssl/certs/ca-certificates.crt"],
+        "ca-package-versions.txt": [
+            "list",
+            "--installed",
+            "--manifest",
+            "ca-certificates",
+            "ca-certificates-bundle",
+        ],
     }
     assert set(projections) == set(expected_projections)
     assert set(command["published_projection_hashes"]) == set(expected_projections)
@@ -2519,7 +2465,7 @@ def test_caddy_native_full_observation_captures_findings_without_passing_HC(
     for name, native_arguments in expected_projections.items():
         projection = projections[name]
         assert projection["image_config_id"] == image
-        assert projection["argv"][1:] == [
+        expected_argv = [
             "run",
             "--rm",
             "--network",
@@ -2534,6 +2480,22 @@ def test_caddy_native_full_observation_captures_findings_without_passing_HC(
             image,
             *native_arguments,
         ]
+        if name in ("default-ca.pem", "ca-package-versions.txt"):
+            expected_argv = [
+                "run",
+                "--rm",
+                "--network",
+                "none",
+                "--read-only",
+                "--cap-drop",
+                "ALL",
+                "--entrypoint",
+                "/bin/busybox" if name == "default-ca.pem" else "/sbin/apk",
+                image,
+                *native_arguments,
+            ]
+            assert projection["exit_code"] == 0
+        assert projection["argv"][1:] == expected_argv
         assert projection["argv"][1:] in command["docker_argv"]
         assert 0 < projection["bytes"] <= 1048576
         assert command["published_projection_hashes"][name] == projection["sha256"]
@@ -2584,6 +2546,22 @@ def test_caddy_native_full_observation_captures_findings_without_passing_HC(
 @pytest.mark.parametrize(
     "scenario",
     (
+        "ca-emsign",
+        "ca-aaa",
+        "ca-malformed",
+        "ca-old-bytes",
+        "ca-count",
+        "ca-capture-error",
+        "ca-empty",
+        "ca-old-version",
+        "ca-newer-version",
+        "ca-scan-version",
+        "ca-scan-missing",
+        "ca-image-id",
+        "ca-missing-projection",
+        "ca-projection-mismatch",
+        "ca-projection-exit",
+        "ca-subject-change",
         "retag",
         "platform",
         "binary",
@@ -2624,10 +2602,115 @@ def test_caddy_native_full_observation_rejects_unbound_or_unsafe_publication(
     assert "synthetic-secret-sentinel" not in result.stdout + result.stderr
 
 
+# Three public CA certificates extracted from the retained vendor bundles.
+# Unit snapshots substitute only expected bundle hash/length/count; OpenSSL parses real DER.
+_CADDY_CA_TEST_PEMS = {
+    "good": """-----BEGIN CERTIFICATE-----
+MIIH0zCCBbugAwIBAgIIXsO3pkN/pOAwDQYJKoZIhvcNAQEFBQAwQjESMBAGA1UE
+AwwJQUNDVlJBSVoxMRAwDgYDVQQLDAdQS0lBQ0NWMQ0wCwYDVQQKDARBQ0NWMQsw
+CQYDVQQGEwJFUzAeFw0xMTA1MDUwOTM3MzdaFw0zMDEyMzEwOTM3MzdaMEIxEjAQ
+BgNVBAMMCUFDQ1ZSQUlaMTEQMA4GA1UECwwHUEtJQUNDVjENMAsGA1UECgwEQUND
+VjELMAkGA1UEBhMCRVMwggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoICAQCb
+qau/YUqXry+XZpp0X9DZlv3P4uRm7x8fRzPCRKPfmt4ftVTdFXxpNRFvu8gMjmoY
+HtiP2Ra8EEg2XPBjs5BaXCQ316PWywlxufEBcoSwfdtNgM3802/J+Nq2DoLSRYWo
+G2ioPej0RGy9ocLLA76MPhMAhN9KSMDjIgro6TenGEyxCQ0jVn8ETdkXhBilyNpA
+lHPrzg5XPAOBOp0KoVdDaaxXbXmQeOW1tDvYvEyNKKGno6e6Ak4l0Squ7a4DIrhr
+IA8wKFSVf+DuzgpmndFALW4ir50awQUZ0m/A8p/4e7MCQvtQqR0tkw8jq8bBD5L/
+0KIV9VMJcRz/RROE5iZe+OCIHAr8Fraocwa48GOEAqDGWuzndN9wrqODJerWx5eH
+k6fGioozl2A3ED6XPm4pFdahD9GILBKfb6qkxkLrQaLjlUPTAYVtjrs78yM2x/47
+4KElB0iryYl0/wiPgL/AlmXz7uxLaL2diMMxs0Dx6M/2OLuc5NF/1OVYm3z61PMO
+m3WR5LpSLhl+0fXNWhn8ugb2+1KoS5kE3fj5tItQo05iifCHJPqDQsGH+tUtKSpa
+cXpkatcnYGMN285J9Y0fkIkyF/hzQ7jSWpOGYdbhdQrqeWZ2iE9x6wQl1gpaepPl
+uUsXQA+xtrn13k/c4LOsOxFwYIRKQ26ZIMApcQrAZQIDAQABo4ICyzCCAscwfQYI
+KwYBBQUHAQEEcTBvMEwGCCsGAQUFBzAChkBodHRwOi8vd3d3LmFjY3YuZXMvZmls
+ZWFkbWluL0FyY2hpdm9zL2NlcnRpZmljYWRvcy9yYWl6YWNjdjEuY3J0MB8GCCsG
+AQUFBzABhhNodHRwOi8vb2NzcC5hY2N2LmVzMB0GA1UdDgQWBBTSh7Tj3zcnk1X2
+VuqB5TbMjB4/vTAPBgNVHRMBAf8EBTADAQH/MB8GA1UdIwQYMBaAFNKHtOPfNyeT
+VfZW6oHlNsyMHj+9MIIBcwYDVR0gBIIBajCCAWYwggFiBgRVHSAAMIIBWDCCASIG
+CCsGAQUFBwICMIIBFB6CARAAQQB1AHQAbwByAGkAZABhAGQAIABkAGUAIABDAGUA
+cgB0AGkAZgBpAGMAYQBjAGkA8wBuACAAUgBhAO0AegAgAGQAZQAgAGwAYQAgAEEA
+QwBDAFYAIAAoAEEAZwBlAG4AYwBpAGEAIABkAGUAIABUAGUAYwBuAG8AbABvAGcA
+7QBhACAAeQAgAEMAZQByAHQAaQBmAGkAYwBhAGMAaQDzAG4AIABFAGwAZQBjAHQA
+cgDzAG4AaQBjAGEALAAgAEMASQBGACAAUQA0ADYAMAAxADEANQA2AEUAKQAuACAA
+QwBQAFMAIABlAG4AIABoAHQAdABwADoALwAvAHcAdwB3AC4AYQBjAGMAdgAuAGUA
+czAwBggrBgEFBQcCARYkaHR0cDovL3d3dy5hY2N2LmVzL2xlZ2lzbGFjaW9uX2Mu
+aHRtMFUGA1UdHwROMEwwSqBIoEaGRGh0dHA6Ly93d3cuYWNjdi5lcy9maWxlYWRt
+aW4vQXJjaGl2b3MvY2VydGlmaWNhZG9zL3JhaXphY2N2MV9kZXIuY3JsMA4GA1Ud
+DwEB/wQEAwIBBjAXBgNVHREEEDAOgQxhY2N2QGFjY3YuZXMwDQYJKoZIhvcNAQEF
+BQADggIBAJcxAp/n/UNnSEQU5CmH7UwoZtCPNdpNYbdKl02125DgBS4OxnnQ8pdp
+D70ER9m+27Up2pvZrqmZ1dM8MJP1jaGo/AaNRPTKFpV8M9xii6g3+CfYCS0b78gU
+JyCpZET/LtZ1qmxNYEAZSUNUY9rizLpm5U9EelvZaoErQNV/+QEnWCzI7UiRfD+m
+AM/EKXMRNt6GGT6d7hmKG9Ww7Y49nCrADdg9ZuM8Db3VlFzi4qc1GwQA9j9ajepD
+vV+JHanBsMyZ4k0ACtrJJ1vnE5Bc5PUzolVt3OAJTS+xJlsndQAJxGJ3KQhfnlms
+tn6tn1QwIgPBHnFk/vk4CpYY3QIUrCPLBhwepH2NDd4nQeit2hW3sCPdK6jT2iWH
+7ehVRE2I9DZ+hJp4rPcOVkkO1jMl1oRQQmwgEh0q1b688nCBpHBgvgW1m54ERL5h
+I6zppSSMEYCUWqKiuUnSwdzRp+0xESyeGabu4VXhwOrPDYTkF7eifKXeVSUG7szA
+h1xA2syVP1XgNce4hL60Xc16gwFy7ofmXx2utYXGJt/mwZrpHgJHnyqobalbz+xF
+d3+YJ5oyXSrjhO7FmGYvliAd3djDJ9ew+f7Zfc3Qn48LFFhRny+Lwzgt3uiP1o2H
+pPVWQxaZLPSkVrQ0uGE3ycJYgBugl6H8WY3pEfbRD0tVNEYqi4Y7
+-----END CERTIFICATE-----
+""",
+    "emsign": """-----BEGIN CERTIFICATE-----
+MIICTjCCAdOgAwIBAgIKPPYHqWhwDtqLhDAKBggqhkjOPQQDAzBrMQswCQYDVQQG
+EwJJTjETMBEGA1UECxMKZW1TaWduIFBLSTElMCMGA1UEChMcZU11ZGhyYSBUZWNo
+bm9sb2dpZXMgTGltaXRlZDEgMB4GA1UEAxMXZW1TaWduIEVDQyBSb290IENBIC0g
+RzMwHhcNMTgwMjE4MTgzMDAwWhcNNDMwMjE4MTgzMDAwWjBrMQswCQYDVQQGEwJJ
+TjETMBEGA1UECxMKZW1TaWduIFBLSTElMCMGA1UEChMcZU11ZGhyYSBUZWNobm9s
+b2dpZXMgTGltaXRlZDEgMB4GA1UEAxMXZW1TaWduIEVDQyBSb290IENBIC0gRzMw
+djAQBgcqhkjOPQIBBgUrgQQAIgNiAAQjpQy4LRL1KPOxst3iAhKAnjlfSU2fySU0
+WXTsuwYc58Byr+iuL+FBVIcUqEqy6HyC5ltqtdyzdc6LBtCGI79G1Y4PPwT01xyS
+fvalY8L1X44uT6EYGQIrMgqCZH0Wk9GjQjBAMB0GA1UdDgQWBBR8XQKEE9TMipuB
+zhccLikenEhjQjAOBgNVHQ8BAf8EBAMCAQYwDwYDVR0TAQH/BAUwAwEB/zAKBggq
+hkjOPQQDAwNpADBmAjEAvvNhzwIQHWSVB7gYboiFBS+DCBeQyh+KTOgNG3qxrdWB
+CUfvO6wIBHxcmbHtRwfSAjEAnbpV/KlK6O3t5nYBQnvI+GDZjVGLVTv7jHvrZQnD
++JbNR6iC8hZVdyR+EhCVBCyj
+-----END CERTIFICATE-----
+""",
+    "aaa": """-----BEGIN CERTIFICATE-----
+MIIEMjCCAxqgAwIBAgIBATANBgkqhkiG9w0BAQUFADB7MQswCQYDVQQGEwJHQjEb
+MBkGA1UECAwSR3JlYXRlciBNYW5jaGVzdGVyMRAwDgYDVQQHDAdTYWxmb3JkMRow
+GAYDVQQKDBFDb21vZG8gQ0EgTGltaXRlZDEhMB8GA1UEAwwYQUFBIENlcnRpZmlj
+YXRlIFNlcnZpY2VzMB4XDTA0MDEwMTAwMDAwMFoXDTI4MTIzMTIzNTk1OVowezEL
+MAkGA1UEBhMCR0IxGzAZBgNVBAgMEkdyZWF0ZXIgTWFuY2hlc3RlcjEQMA4GA1UE
+BwwHU2FsZm9yZDEaMBgGA1UECgwRQ29tb2RvIENBIExpbWl0ZWQxITAfBgNVBAMM
+GEFBQSBDZXJ0aWZpY2F0ZSBTZXJ2aWNlczCCASIwDQYJKoZIhvcNAQEBBQADggEP
+ADCCAQoCggEBAL5AnfRu4ep2hxxNRUSOvkbIgwadwSr+GB+O5AL686tdUIoWMQua
+BtDFcCLNSS1UY8y2bmhGC1Pqy0wkwLxyTurxFa70VJoSCsN6sjNg4tqJVfMiWPPe
+3M/vg4aijJRPn2jymJBGhCfHdr/jzDUsi14HZGWCwEiwqJH5YZ92IFCokcdmtet4
+YgNW8IoaE+oxox6gmf049vYnMlhvB/VruPsUK6+3qszWY19zjNoFmag4qMsXeDZR
+rOme9Hg6jc8P2ULimAyrL58OAd7vn5lJ8S3frHRNG5i1R8XlKdH5kBjHYpy+g8cm
+ez6KJcfA3Z3mNWgQIJ2P2N7Sw4ScDV7oL8kCAwEAAaOBwDCBvTAdBgNVHQ4EFgQU
+oBEKIz6W8Qfs4q8p74Klf9AwpLQwDgYDVR0PAQH/BAQDAgEGMA8GA1UdEwEB/wQF
+MAMBAf8wewYDVR0fBHQwcjA4oDagNIYyaHR0cDovL2NybC5jb21vZG9jYS5jb20v
+QUFBQ2VydGlmaWNhdGVTZXJ2aWNlcy5jcmwwNqA0oDKGMGh0dHA6Ly9jcmwuY29t
+b2RvLm5ldC9BQUFDZXJ0aWZpY2F0ZVNlcnZpY2VzLmNybDANBgkqhkiG9w0BAQUF
+AAOCAQEACFb8AvCb6P+k+tZ7xkSAzk/ExfYAWMymtrwUSWgEdujm7l3sAg9g1o1Q
+GE8mTgHj5rCl7r+8dFRBv/38ErjHT1r0iWAFf2C3BUrz9vHCv8S5dIa2LX1rzNLz
+Rt0vxuBqw8M0Ayx9lt1awg6nCpnBBYurDC/zXDrPbDdVCYfeU0BsWO/8tqtlbgT2
+G9w84FoVxp7Z8VlIMCFlA2zs6SFz7JsDoeA3raAVGI/6ugLOpyypEBMs1OUIJqsi
+l2D4kF501KKaU73yqWjgom7C12yxow+ev+to51byrvLjKzg6CYG1a4XXvi3tPxq3
+smPi9WIsgtRqAEFQ8TmDn5XpNpaYbg==
+-----END CERTIFICATE-----
+""",
+}
+
+
 def _run_caddy_full_observation_fixture(
     tmp_path: Path, scenario: str, HC: str
 ) -> tuple[subprocess.CompletedProcess[str], bool, dict[str, object], dict[str, object]]:
     """Execute actual inline workflow scripts with finite synthetic native outcomes."""
+    ca = _CADDY_CA_TEST_PEMS[
+        "emsign" if scenario == "ca-emsign" else "aaa" if scenario == "ca-aaa" else "good"
+    ].encode()
+    if scenario == "ca-malformed":
+        ca = b"not a PEM certificate"
+    if scenario == "ca-count":
+        ca += _CADDY_CA_TEST_PEMS["emsign"].encode()
+    expected_ca = ca
+    if scenario == "ca-old-bytes":
+        ca = _CADDY_CA_TEST_PEMS["emsign"].encode()
+    ca_file = tmp_path / "public-ca.pem"
+    ca_file.write_bytes(ca)
     workflow = _workflow(FRONTEND_WORKFLOW)
     steps = _steps(_job(workflow, "caddy-contract"))
     workspace = tmp_path / "workspace"
@@ -2645,6 +2728,7 @@ def _run_caddy_full_observation_fixture(
         "deploy/Caddyfile",
         "deploy/Caddyfile.production",
         "scripts/ci/check_docker_runtime_dependency_surface.py",
+        "scripts/ci/prometheus_source_image.py",
     )
     for name in paths:
         target = workspace / name
@@ -2675,6 +2759,16 @@ def _run_caddy_full_observation_fixture(
         " Path(" + repr(str(tmp_path / "seen")) + ").touch()\n"
         " if '--format' in args and args[args.index('--format')+1]=='{{.Id}}':print(image)\n"
         " else:print(json.dumps({'Id':image,'Os':'linux','Architecture':'arm64' if scenario=='platform' else 'amd64'}))\n"
+        "elif args[-2:]==['cat','/etc/ssl/certs/ca-certificates.crt']:\n"
+        " if scenario=='ca-capture-error':sys.exit(2)\n"
+        " if scenario=='ca-empty':sys.exit(0)\n"
+        f" ca=Path({str(ca_file)!r}).read_bytes()\n"
+        " if scenario=='ca-subject-change' and sum(row[-2:]==['cat','/etc/ssl/certs/ca-certificates.crt'] for row in history)>1:ca=b'changed'\n"
+        " sys.stdout.buffer.write(ca)\n"
+        "elif '--entrypoint' in args and args[args.index('--entrypoint')+1]=='/sbin/apk':\n"
+        " assert args[-5:]==['list','--installed','--manifest','ca-certificates','ca-certificates-bundle']\n"
+        " version='20260611-r0' if scenario=='ca-old-version' else '20261021-r0' if scenario=='ca-newer-version' else '20261020-r0'\n"
+        " print('ca-certificates '+version);print('ca-certificates-bundle '+version)\n"
         "elif '--entrypoint' in args and args[args.index('--entrypoint')+1]=='/usr/bin/caddy':\n"
         " index=args.index('--entrypoint')\n"
         " if args[index+2]!='sha256:'+'a'*64:sys.exit(3)\n"
@@ -2698,7 +2792,11 @@ def _run_caddy_full_observation_fixture(
                 "Class": "os-pkgs",
                 "Type": "alpine",
                 "Secrets": [],
-                "Packages": [{"Name": "libssl3", "Version": "3.5.8-r0"}],
+                "Packages": [
+                    {"Name": "libssl3", "Version": "3.5.8-r0"},
+                    {"Name": "ca-certificates", "Version": "20261020-r0"},
+                    {"Name": "ca-certificates-bundle", "Version": "20261020-r0"},
+                ],
                 "Vulnerabilities": [],
             },
             {
@@ -2710,6 +2808,10 @@ def _run_caddy_full_observation_fixture(
             },
         ],
     }
+    if scenario == "ca-scan-version":
+        report["Results"][0]["Packages"][1]["Version"] = "20260611-r0"
+    if scenario == "ca-scan-missing":
+        report["Results"][0]["Packages"].pop()
     if scenario == "wrong-image":
         report["Metadata"]["ImageID"] = "sha256:" + "b" * 64
     if scenario == "wrong-schema":
@@ -2772,6 +2874,17 @@ def _run_caddy_full_observation_fixture(
         script = (
             _named_step(steps, name)["run"].split("python3 - <<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
         )
+        if name == "Validate and publish full Caddy observation":
+            assert (
+                script.count("5961c0a3c65459931c023e0075c09733f09aea4ca439cb85bc4a08bb4f3f568b")
+                == 1
+            )
+            script = script.replace(
+                "5961c0a3c65459931c023e0075c09733f09aea4ca439cb85bc4a08bb4f3f568b",
+                hashlib.sha256(expected_ca).hexdigest(),
+            )
+            script = script.replace("len(ca) != 178791", f"len(ca) != {len(expected_ca)}")
+            script = script.replace("len(certificates) != 118", "len(certificates) != 1")
         last = subprocess.run(
             [sys.executable, "-c", script],
             env=environment,
@@ -2786,6 +2899,11 @@ def _run_caddy_full_observation_fixture(
         if name == "Capture next loaded Caddy image identity":
             outputs = dict(line.split("=", 1) for line in github_output.read_text().splitlines())
             environment["CADDY_OBSERVATION_STATE"] = outputs["state"]
+            if scenario == "ca-projection-exit":
+                state_path = Path(outputs["state"])
+                subject = json.loads(state_path.read_text())
+                subject["native_projections"]["default-ca.pem"]["exit_code"] = 1
+                state_path.write_text(json.dumps(subject))
             if scenario == "source":
                 (workspace / "frontend/package.json").write_text("changed-source")
             if scenario == "missing-db":
@@ -2795,6 +2913,9 @@ def _run_caddy_full_observation_fixture(
                     docker.read_text().replace("scenario='binary'", "scenario='valid'")
                 )
             projection_faults = {
+                "ca-image-id": ("default-ca.pem", "image-id"),
+                "ca-missing-projection": ("default-ca.pem", "missing"),
+                "ca-projection-mismatch": ("default-ca.pem", "mismatch"),
                 "version-image-id": ("version.txt", "image-id"),
                 "build-info-image-id": ("build-info.txt", "image-id"),
                 "modules-image-id": ("rebuilt-modules.txt", "image-id"),
@@ -2847,12 +2968,13 @@ def test_caddy_counterfactual_metadata_owns_no_compiler_or_final_recipe_mutation
     assert event["workflow_dispatch"]["inputs"]["caddy_action"]["options"] == [
         "contract",
         "xnet060-metadata",
+        "candidate-D",
     ]
     steps = _steps(_job(workflow, "caddy-contract"))
-    metadata = _named_step(steps, "Qualify Caddy compiler and two counterfactual xnet derivations")
+    metadata = _named_step(steps, "Qualify Caddy compiler and two counterfactual v4 derivations")
     assert (
         metadata["if"]
-        == "${{ github.event_name == 'workflow_dispatch' && inputs.caddy_action == 'xnet060-metadata' }}"
+        == "${{ steps.caddy-admission.outputs.mode == 'metadata' || steps.caddy-admission.outputs.mode == 'build' }}"
     )
     source = metadata["run"]
     assert re.search(r"\bgo\s+build\b", source) is None
@@ -2860,33 +2982,25 @@ def test_caddy_counterfactual_metadata_owns_no_compiler_or_final_recipe_mutation
     assert '"go_build_invocations": 0' in source
     assert 'root_module="pulseplate.local/caddy-build"' in source
     assert "tree_inventory(left) == tree_inventory(right)" in source
-    assert "go get golang.org/x/net@v0.60.0" in source
-    assert "go mod download all" in source and "go mod verify" in source
     assert "baseline-packages.json" in source and "final-packages.json" in source
     assert "post-get-go.mod" in source and "module-derivation.patch" in source
-    assert "C_R_candidate" in source and "pending independent source/security review" in source
-    assert "Counterfactual recipe baselines" in source
-    assert "zlib-1.3.2-r1" in source and "apk verify /output/zlib-1.3.2-r1.apk" in source
-    vendor = source.split("vendor_script = '''", 1)[1].split("'''", 1)[0]
-    assert "apk verify --help" not in vendor
-    commands = [line.strip() for line in vendor.splitlines() if line.strip()]
-    assert commands == [
-        "set -eu",
-        "/sbin/apk --version > /output/apk-version.txt",
-        "cp /etc/apk/repositories /output/compiler-repositories.txt",
-        "mkdir /output/keys",
-        "cp /etc/apk/keys/* /output/keys/",
-        "wget -q -O /output/APKINDEX.tar.gz https://dl-cdn.alpinelinux.org/alpine/v3.23/main/x86_64/APKINDEX.tar.gz",
-        "/sbin/apk verify /output/APKINDEX.tar.gz > /output/index-signature.txt",
-        "/sbin/apk fetch --no-cache --repository https://dl-cdn.alpinelinux.org/alpine/v3.23/main --match package --output /output zlib-1.3.2-r1",
-        "/sbin/apk verify /output/zlib-1.3.2-r1.apk > /output/package-signature.txt",
-    ]
-    assert 'require(gets == baseline_gets + [b"golang.org/x/net@v0.60.0"]' in source
-    assert '"counterfactual_seed_gets"' in source and '"selected_recipe_gets"' in source
-    # Current selection follows the observed original-three-get counterfactual replay.
-    recipe = DOCKERFILE.read_text()
-    assert recipe.count("go get golang.org/x/net@v0.60.0") == 1
-    assert "Go 1.26.9" in recipe
+    assert 'require([row["path"] for row in delta] == [target]' in source
+    assert '"caddy_exact_authored_v4_transition"' in source
+    assert '"v4.1.4"' in source and '"v4.1.6"' in source
+    assert "vendor_script" not in source and "secdb_url" not in source
+    assert source.index("go get github.com/klauspost/compress@v1.18.7") < source.index(
+        "cp go.mod /output/baseline-go.mod"
+    )
+    assert source.index("cp go.sum /output/baseline-go.sum") < source.index(
+        "go get github.com/go-jose/go-jose/v4@v4.1.6"
+    )
+    build = _named_step(steps, "Build accepted D Caddy candidate once")
+    assert (
+        build["if"]
+        == "${{ steps.caddy-admission.outputs.mode == 'build' && steps.caddy-metadata.outcome == 'success' && steps.caddy-build-window.outcome == 'success' }}"
+    )
+    assert steps.index(metadata) < steps.index(build)
+    assert build["with"]["platforms"] == "linux/amd64"
 
 
 def test_caddy_full_observation_keeps_native_diagnostics_without_inventing_secrets() -> None:
@@ -2899,3 +3013,2424 @@ def test_caddy_full_observation_keeps_native_diagnostics_without_inventing_secre
     assert "Results_Secrets_fields_absent" in publication
     assert 'native["Results"]' in publication
     assert 'row["Secrets"] = []' not in publication
+
+
+@pytest.mark.parametrize("mode", ["publish"])
+def test_alertmanager_executable_stages_have_exact_manual_events_and_no_Q(mode: str) -> None:
+    workflow = _workflow(CD_WORKFLOW)
+    name = "alertmanager-candidate-build" if mode == "build" else "alertmanager-main-publication"
+    job = _job(workflow, name)
+    ref = "codex/dependency-alertmanager-remediation" if mode == "build" else "main"
+    assert job["if"] == (
+        "github.event_name == 'workflow_dispatch' && inputs.alertmanager_mode == '" + mode + "' "
+        "&& github.repository == 'Katsiarynakavaleuskaya/PulsePlate' && github.repository_id == '1043311030' "
+        "&& github.ref == 'refs/heads/" + ref + "' "
+        "&& github.run_attempt == 1 && inputs.postgres_mode == 'disabled'"
+    )
+    assert "needs" not in job
+    assert job["permissions"] == {
+        "contents": "read",
+        "actions": "read",
+        "packages": "read" if mode == "build" else "write",
+    }
+    steps = _steps(job)
+    setup = _named_step(steps, "Select AM Python without dependency or SDK installation")
+    assert setup["uses"] == "./.github/actions/python-setup"
+    assert setup["with"] == {
+        "python-version": "3.13.14",
+        "skip-base-install": "true",
+    }
+    assert setup["env"]["DEVPI_CI_USER"] == setup["env"]["DEVPI_CI_PASSWORD"] == ""
+    install = _named_step(steps, "Install isolated AM host tools through the locked owner")
+    smoke = _named_step(steps, "Verify isolated AM host import capability before effects")
+    driver = next(
+        step
+        for step in steps
+        if "--artifact alertmanager --alertmanager-stage " + mode in step.get("run", "")
+    )
+    assert (
+        _step_index(steps, setup["name"])
+        < _step_index(steps, install["name"])
+        < _step_index(steps, smoke["name"])
+        < _step_index(steps, driver["name"])
+    )
+    assert smoke["id"] == "am-python"
+    assert driver["env"]["AM_HOST_PYTHON"] == "${{ steps.am-python.outputs.python }}"
+    assert (
+        '"$AM_HOST_PYTHON" -m scripts.ci.fetch_docker_source_artifacts '
+        "--artifact alertmanager --alertmanager-stage " + mode
+    ) in driver["run"]
+    assert "python -m scripts.ci.fetch_docker_source_artifacts" not in driver["run"]
+    assert '"$AM_HOST_PYTHON" -I' not in driver["run"]
+    for step in (install, smoke):
+        assert (
+            'am_root="$RUNNER_TEMP/pulseplate-am-python-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"'
+            in step["run"]
+        )
+        assert 'am_python="$am_root/bin/python"' in step["run"]
+    assert "GITHUB_OUTPUT" not in install["run"]
+    assert (
+        smoke["run"].index("assert callable(native.native_alertmanager_main)")
+        < smoke["run"].index(
+            '"$am_python" -m tests.test_notify_premium_alias_checkpoint_failure --help'
+        )
+        < smoke["run"].index('printf \'python=%s\\n\' "$am_python" >> "$GITHUB_OUTPUT"')
+    )
+    runs = "\n".join(step.get("run", "") for step in steps)
+    assert "--alertmanager-stage " + mode in runs
+    assert "--alertmanager-module-qualify" not in runs
+    assert "go get" not in runs and "docker build" not in runs
+    assert 'test "$checkout_sha" = "$SOURCE_SHA"' in runs
+    assert all(
+        step.get("with", {}).get("persist-credentials") is False
+        for step in steps
+        if str(step.get("uses", "")).startswith("actions/checkout@")
+    )
+    assert all(
+        "/retained/" in step["with"]["path"] and "/private/" not in step["with"]["path"]
+        for step in steps
+        if str(step.get("uses", "")).startswith("actions/upload-artifact@")
+    )
+    if mode == "build":
+        upload = next(
+            step
+            for step in steps
+            if str(step.get("uses", "")).startswith("actions/upload-artifact@")
+        )
+        assert (
+            upload["with"]["include-hidden-files"] is True
+        ), "retained producer-source/.github must survive artifact upload"
+
+
+def test_alertmanager_independent_phase_ceilings_fit_each_actual_job_with_retention_headroom() -> (
+    None
+):
+    workflow = _workflow(CD_WORKFLOW)
+    env = workflow["env"]
+    setup = int(env["ALERTMANAGER_SETUP_MINUTES"]) * 60
+    upload = int(env["ALERTMANAGER_UPLOAD_MINUTES"]) * 60
+    prep = int(env["ALERTMANAGER_PREP_SECONDS"])
+    cleanup = int(env["ALERTMANAGER_CLEANUP_SECONDS"])
+    native = int(env["ALERTMANAGER_NATIVE_SECONDS"])
+    native_cleanup = int(env["ALERTMANAGER_NATIVE_CLEANUP_SECONDS"])
+    assert native > 905 + 325
+    assert (
+        0
+        < int(env["ALERTMANAGER_SCAN_TIMEOUT_SECONDS"])
+        < int(env["ALERTMANAGER_SCAN_PROCESS_SECONDS"])
+        <= int(env["ALERTMANAGER_SECURITY_SECONDS"])
+    )
+    work = {
+        "alertmanager-retained-candidate": prep + cleanup + native + native_cleanup,
+        "alertmanager-main-publication": prep
+        + cleanup
+        + int(env["ALERTMANAGER_PUBLICATION_SECONDS"])
+        + native_cleanup
+        + native
+        + native_cleanup,
+    }
+    for name, seconds in work.items():
+        job = _job(workflow, name)
+        assert job["timeout-minutes"] * 60 - (seconds + setup + upload) >= 300
+        for step in _steps(job):
+            if str(step.get("uses", "")).startswith("actions/upload-artifact@"):
+                assert step["timeout-minutes"] == "${{ fromJSON(env.ALERTMANAGER_UPLOAD_MINUTES) }}"
+
+
+def test_alertmanager_PR_retained_candidate_has_no_registry_or_compiler_authority() -> None:
+    workflow = _workflow(CD_WORKFLOW)
+    job = _job(workflow, "alertmanager-retained-candidate")
+    assert job["if"] == (
+        "github.event_name == 'pull_request' && github.repository == 'Katsiarynakavaleuskaya/PulsePlate' "
+        "&& github.event.pull_request.head.repo.id == 1043311030 "
+        "&& github.event.pull_request.head.ref == 'codex/python-setup-security-stabilization'"
+    )
+    assert job["permissions"] == {"contents": "read", "actions": "read"}
+    assert job["env"] == {
+        "ALERTMANAGER_JOB_TIMEOUT_MINUTES": "80",
+        "ALERTMANAGER_CALLER_KIND": "standalone",
+        "AM_CANDIDATE_RUN": "40387641620",
+        "AM_CANDIDATE_ARTIFACT": "12684611600",
+        "AM_CANDIDATE_SOURCE": "a8c9b361dbd57d86e2adf8f01f7880830fc04e53",
+    }
+    runs = "\n".join(step.get("run", "") for step in _steps(job))
+    assert "--alertmanager-stage candidate-check" in runs
+    assert "--alertmanager-stage build" not in runs and "--alertmanager-module-qualify" not in runs
+    assert "docker login" not in runs and "GHCR_READ_TOKEN" not in runs
+    assert (
+        _job(workflow, "alertmanager-module-qualification")["if"].count("inputs.alertmanager_mode")
+        == 1
+    )
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "absent",
+        "same",
+        "descendant",
+        "proof-retention",
+        "primary-proof-retention",
+        "unmerged",
+        "wrong-pr",
+        "foreign-pr",
+        "merge-invalid",
+        "not-ancestor",
+        "shallow",
+        "source-drift",
+        "template-drift",
+        "main-before-login",
+        "main-before-copy",
+        "main-after-copy",
+        "inventory",
+        "conflict",
+        "denied",
+        "pullback",
+        "post-readback",
+        "credential-mode",
+        "cleanup",
+    ],
+)
+def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_copy_order(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    case: str,
+) -> None:
+    from scripts.ci import fetch_docker_source_artifacts as fetcher
+    from scripts.ci import prometheus_source_image as transport
+    from tests.test_docker_workflow_build_path_contract import _alertmanager_proposal_arguments
+
+    original_which = shutil.which
+    synthetic_docker = "/synthetic/alertmanager-publication/docker"
+
+    def resolve_docker(command: str | bytes, *args: Any, **kwargs: Any) -> str | bytes | None:
+        if command == "docker":
+            return synthetic_docker
+        return original_which(command, *args, **kwargs)
+
+    monkeypatch.setattr(shutil, "which", resolve_docker)
+    for key in (
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "GHCR_READ_TOKEN",
+        "GH_ENTERPRISE_TOKEN",
+        "GITHUB_ENTERPRISE_TOKEN",
+        "GH_HOST",
+        "GH_CONFIG_DIR",
+        "DOCKER_CONFIG",
+        "DOCKER_AUTH_CONFIG",
+        "NETRC",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+    ):
+        monkeypatch.delenv(key, raising=False)
+    for key, value in _workflow(CD_WORKFLOW)["env"].items():
+        if key.startswith("ALERTMANAGER_"):
+            monkeypatch.setenv(key, value)
+    for key, value in {
+        "GITHUB_EVENT_NAME": "workflow_dispatch",
+        "GITHUB_REPOSITORY": "Katsiarynakavaleuskaya/PulsePlate",
+        "GITHUB_REPOSITORY_ID": "1043311030",
+        "GITHUB_REF": "refs/heads/main",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "GITHUB_SHA": "a" * 40,
+        "GITHUB_REPOSITORY_OWNER": "Katsiarynakavaleuskaya",
+        "GH_TOKEN": "synthetic-publish-credential",
+        "GITHUB_TOKEN": "synthetic-publish-credential",
+    }.items():
+        monkeypatch.setenv(key, value)
+    if case in ("proof-retention", "primary-proof-retention"):
+        original_write = Path.write_text
+
+        def write(path: Path, *args: Any, **kwargs: Any) -> int:
+            if (
+                path.name == "native-observation.json"
+                and path.parent.name == "publication-source-proof"
+            ):
+                raise OSError("synthetic publication proof retention failed")
+            return original_write(path, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "write_text", write)
+    events: list[str] = []
+    native_calls: list[str] = []
+    graph: dict[str, Any] = {}
+    reads = 0
+    main_reads = 0
+    original_tag = transport.immutable_tag_state
+    closed = False
+    tool_bytes = b"synthetic qualified ORAS transport"
+
+    class API:
+        def __init__(self, private: Path, evidence: Path, deadline: float, cleanup: int) -> None:
+            del evidence, cleanup
+            self.private, self.deadline, self.cleanup_seconds = private, deadline, 45
+            private.mkdir()
+            for name in ("home", "config", "cache", "tmp"):
+                (private / name).mkdir()
+
+        def json(self, endpoint: str) -> dict[str, Any]:
+            nonlocal main_reads
+            if "/git/ref/" in endpoint:
+                main_reads += 1
+                drift_at = {
+                    "main-before-login": 2,
+                    "main-before-copy": 3,
+                    "main-after-copy": 4,
+                }.get(case)
+                return {"object": {"sha": ("f" if main_reads == drift_at else "a") * 40}}
+            if "/pulls/" in endpoint:
+                return {
+                    "number": 2477 if case == "wrong-pr" else 2497,
+                    "state": "closed",
+                    "merged": case != "unmerged",
+                    "merge_commit_sha": (
+                        "unknown"
+                        if case == "merge-invalid"
+                        else ("d" if case == "descendant" else "a") * 40
+                    ),
+                    "base": {
+                        "ref": "main",
+                        "repo": {"id": 1 if case == "foreign-pr" else 1043311030},
+                    },
+                    "head": {
+                        "ref": fetcher._ALERT_RECEIVER_BRANCH,
+                        "sha": "c" * 40,
+                        "repo": {"id": 1043311030},
+                    },
+                }
+            assert "/commits/" in endpoint
+            return {"sha": "a" * 40}
+
+        def _capture(self, argv: list[str], maximum: int, **kwargs: Any) -> bytes:
+            del maximum
+            environment = kwargs.get("environment", {})
+            assert all(
+                key not in environment
+                for key in ("GH_TOKEN", "GITHUB_TOKEN", "GHCR_READ_TOKEN", "HTTP_PROXY")
+            )
+            if "rev-parse" in argv:
+                return ("a" * 40 + "\n").encode()
+            if "login" in argv:
+                events.append("login")
+                assert argv[0] == synthetic_docker
+                assert "tag" in events and kwargs["input_data"] == b"synthetic-publish-credential\n"
+                credential = Path(argv[argv.index("--config") + 1]) / "config.json"
+                credential.write_text('{"auths":{"ghcr.io":{"auth":"synthetic-only"}}}')
+                credential.chmod(0o644 if case == "credential-mode" else 0o600)
+            elif "--from-oci-layout" in argv:
+                events.append("copy")
+                assert events[-2] == "login" and case != "same"
+                if case == "denied":
+                    raise RuntimeError("synthetic denied real intended copy")
+                assert argv[-2].endswith("@" + graph["manifest"]["digest"])
+                assert (
+                    argv[-1]
+                    == "ghcr.io/katsiarynakavaleuskaya/pulseplate:alertmanager-0.34.1-"
+                    + graph["manifest"]["digest"][7:]
+                )
+            elif "--to-oci-layout" in argv:
+                events.append("pullback")
+                assert (
+                    argv[-2]
+                    == "ghcr.io/katsiarynakavaleuskaya/pulseplate@" + graph["manifest"]["digest"]
+                )
+                destination = Path(argv[-1].removesuffix(":pullback"))
+                shutil.copytree(destination.parent / "candidate/layout", destination)
+                if case == "pullback":
+                    (destination / "blobs/sha256" / graph["layers"][0]["digest"][7:]).write_bytes(
+                        b"changed retained layer"
+                    )
+            else:
+                pytest.fail("unexpected native transport argv")
+            return b"synthetic success"
+
+        def close(self) -> None:
+            nonlocal closed
+            events.append("close")
+            if case == "cleanup":
+                raise RuntimeError("synthetic private cleanup failed")
+            shutil.rmtree(self.private)
+            closed = True
+
+    def authenticated(
+        api: API, run: int, artifact: int, source: str, destination: Path, **kwargs: str
+    ) -> dict[str, Any]:
+        del api, run, artifact
+        destination.write_bytes(b"synthetic authenticated artifact")
+        return {
+            "source": source,
+            "zip_sha256": "e" * 64,
+            "kind": kwargs.get("kind", "qualification"),
+        }
+
+    def support(archive: Path, destination: Path, **kwargs: Any) -> dict[str, Any]:
+        del archive
+        destination.mkdir()
+        return {
+            "probe": {},
+            "base": {"actual_local_OCI_descriptor": {"digest": "sha256:" + "b" * 64}},
+        }
+
+    def candidate(
+        archive: Path,
+        destination: Path,
+        source: dict[str, bytes],
+        inspected: dict[str, Any],
+        support: Path,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        del archive, source, inspected, support
+        layout = destination / "layout"
+        (layout / "blobs/sha256").mkdir(parents=True)
+
+        def blob(raw: bytes, media: str) -> dict[str, Any]:
+            digest = hashlib.sha256(raw).hexdigest()
+            (layout / "blobs/sha256" / digest).write_bytes(raw)
+            return {"digest": "sha256:" + digest, "size": len(raw), "mediaType": media}
+
+        configuration = blob(
+            b'{"architecture":"amd64","os":"linux"}', "application/vnd.oci.image.config.v1+json"
+        )
+        layer = blob(b"synthetic retained layer", "application/vnd.oci.image.layer.v1.tar")
+        manifest = blob(
+            json.dumps(
+                {
+                    "schemaVersion": 2,
+                    "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                    "config": configuration,
+                    "layers": [layer],
+                }
+            ).encode(),
+            "application/vnd.oci.image.manifest.v1+json",
+        )
+        (layout / "oci-layout").write_text('{"imageLayoutVersion":"1.0.0"}')
+        (layout / "index.json").write_text(
+            json.dumps(
+                {
+                    "schemaVersion": 2,
+                    "mediaType": "application/vnd.oci.image.index.v1+json",
+                    "manifests": [manifest],
+                }
+            )
+        )
+        graph.update(
+            {
+                "manifest": manifest,
+                "config": configuration,
+                "layers": [layer],
+                "files": {"usr/bin/alertmanager": "1" * 64},
+            }
+        )
+        return {"source": "c" * 40, "graph": graph, "status": "OBSERVED_NATIVE_SECURITY_ACCEPTED"}
+
+    def tool(api: API, root: Path, output: Path) -> tuple[Path, dict[str, Any]]:
+        del api
+        assert root == fetcher.REPO_ROOT
+        path = output / "oras"
+        path.write_bytes(tool_bytes)
+        return path, {"coordinates": {"binary_sha256": hashlib.sha256(tool_bytes).hexdigest()}}
+
+    def package(api: API) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+        nonlocal reads
+        del api
+        reads += 1
+        events.append("inventory")
+        if case == "inventory":
+            raise transport.QualificationError("package_complete_inventory_bound")
+        digest = graph["manifest"]["digest"]
+        tag = "alertmanager-0.34.1-" + digest[7:]
+        versions = []
+        if case in ("same", "conflict") or reads > 1:
+            versions = [
+                {
+                    "id": 1,
+                    "name": (
+                        "sha256:" + "9" * 64
+                        if case == "conflict" or case == "post-readback" and reads > 1
+                        else digest
+                    ),
+                    "metadata": {"container": {"tags": [tag]}},
+                }
+            ]
+        return {"repository": {"id": 1043311030}, "package": {"id": 9374404}}, versions
+
+    def tag(versions: list[dict[str, Any]], value: str, digest: str) -> bool:
+        events.append("tag")
+        return original_tag(versions, value, digest)
+
+    def native(
+        result: dict[str, Any], observation: Path, work: Path, limits: dict[str, int]
+    ) -> dict[str, Any]:
+        del result, limits
+        assert closed and "close" == events[-1] and not (work.parent / "private").exists()
+        assert observation.is_file() and (observation.parent / "candidate.oci.tar").is_file()
+        native_calls.append("same-immutable-pullback")
+        work.mkdir()
+        (work / "evidence").mkdir()
+        return {"synthetic_control_only": True}
+
+    sources = {path: b"synthetic reviewed source" for path in fetcher._ALERT_SELECTION_FILES}
+
+    class PublicationNative:
+        def __init__(self, evidence: Path, deadline: float, cleanup: int) -> None:
+            assert evidence.parent.name == "retained"
+            assert evidence.name == "publication-source-proof" and cleanup == 45
+            self.records: list[dict[str, Any]] = []
+
+        def run(
+            self,
+            argv: list[str],
+            label: str,
+            environment: dict[str, str],
+            *,
+            cwd: Path,
+            **kwargs: Any,
+        ) -> bytes:
+            assert cwd == fetcher.REPO_ROOT and "--no-replace-objects" in argv
+            assert environment["GIT_NO_REPLACE_OBJECTS"] == "1"
+            if argv[-2:] == ["rev-parse", "--is-shallow-repository"]:
+                return b"true\n" if case == "shallow" else b"false\n"
+            assert argv[-4:] == [
+                "merge-base",
+                "--is-ancestor",
+                ("d" if case == "descendant" else "a") * 40,
+                "a" * 40,
+            ]
+            if case in ("not-ancestor", "primary-proof-retention"):
+                raise RuntimeError("synthetic native Git exit1")
+            return b""
+
+    monkeypatch.setattr(transport, "Native", PublicationNative)
+    monkeypatch.setattr(fetcher, "_alertmanager_bind_material", lambda *a: sources)
+    monkeypatch.setattr(
+        fetcher,
+        "_alertmanager_regular_sources",
+        lambda *a: (
+            {**sources, "deploy/alertmanager/trivy-ignore.yaml": b"drift"}
+            if case == "source-drift"
+            else sources
+        ),
+    )
+
+    def render(
+        supplied: dict[str, bytes],
+        work: Path,
+        deadline: float,
+        *,
+        expected_case: str,
+        controller_templates: dict[str, bytes],
+    ) -> None:
+        assert supplied == sources and expected_case == "accepted"
+        if case == "template-drift":
+            raise RuntimeError("AM_reviewed_controller_data_closure")
+
+    monkeypatch.setattr(fetcher, "_alertmanager_render_source_contract", render)
+    monkeypatch.setattr(transport, "GitHubRead", API)
+    monkeypatch.setattr(fetcher, "_alertmanager_original_lineage", lambda *a: None)
+    monkeypatch.setattr(transport, "retained_tool", tool)
+    monkeypatch.setattr(transport, "existing_public_package", package)
+    monkeypatch.setattr(transport, "immutable_tag_state", tag)
+    monkeypatch.setattr(fetcher, "_alertmanager_authenticated_inputs", authenticated)
+
+    def selected_inputs(
+        api: API, args: Any, output: Path, accepted: dict[str, Any]
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        return tuple(
+            authenticated(api, 1, 2, accepted["source"], output / (name + ".zip"), kind=name)
+            for name in ("qualification", "support")
+        )
+
+    monkeypatch.setattr(fetcher, "_alertmanager_selected_inputs", selected_inputs)
+    monkeypatch.setattr(
+        fetcher,
+        "_alertmanager_source_snapshot",
+        lambda *a, **k: {
+            "deploy/alertmanager/Containerfile": (
+                REPO_ROOT / "deploy/alertmanager/Containerfile"
+            ).read_bytes()
+        },
+    )
+    monkeypatch.setattr(
+        fetcher,
+        "_ALERT_ACCEPTED_CANDIDATE",
+        {
+            "run": 888,
+            "attempt": 1,
+            "artifact": 777,
+            "source": "c" * 40,
+            "job": 666,
+            "zip_sha256": "e" * 64,
+            "source_files": {
+                path: hashlib.sha256((REPO_ROOT / path).read_bytes()).hexdigest()
+                for path in (
+                    *fetcher._ALERT_Q_SOURCE_FILES,
+                    "tests/test_notify_premium_alias_checkpoint_failure.py",
+                )
+            },
+            "graph": {"synthetic_guarded_publication_only": True},
+            "OCI_archive_sha256": "f" * 64,
+        },
+    )
+    monkeypatch.setattr(fetcher, "_alertmanager_package_read", lambda *a: {})
+    monkeypatch.setattr(
+        fetcher,
+        "_alertmanager_qualified_payload",
+        lambda *a, **k: {
+            "plan": {
+                "assembly_argv": [
+                    "--build-context",
+                    transport.BASE
+                    + "=oci-layout:///inputs/base-layout@<UNOBSERVED_CURRENT_EXPORT>",
+                ]
+            }
+        },
+    )
+    monkeypatch.setattr(fetcher, "_alertmanager_support_payload", support)
+    monkeypatch.setattr(fetcher, "_alertmanager_candidate_payload", candidate)
+    monkeypatch.setattr(fetcher, "_alertmanager_candidate_graph", lambda *a, **k: graph)
+    monkeypatch.setattr(fetcher, "_alertmanager_native_candidate", native)
+    monkeypatch.setattr(
+        fetcher, "_alertmanager_pair", lambda *a, **k: pytest.fail("publication started compiler")
+    )
+    monkeypatch.setattr(
+        fetcher, "_qualify_alertmanager_modules", lambda *a: pytest.fail("publication renewed Q")
+    )
+    output = tmp_path / "owned-publication"
+    argv = _alertmanager_proposal_arguments(output)
+    argv[argv.index("build")] = "publish"
+    argv += [
+        "--alertmanager-pr",
+        "2497",
+        "--alertmanager-candidate-run",
+        "888",
+        "--alertmanager-candidate-artifact",
+        "777",
+        "--alertmanager-candidate-source",
+        "c" * 40,
+    ]
+    if case not in ("absent", "same", "descendant"):
+        with pytest.raises(OSError if case == "proof-retention" else RuntimeError) as raised:
+            fetcher.main(argv)
+        if case == "primary-proof-retention":
+            assert str(raised.value) == "synthetic native Git exit1"
+            assert "AM native proof retention failed: OSError" in raised.value.__notes__
+    else:
+        assert fetcher.main(argv) == 0
+    result = json.loads((output / "retained/candidate-observation.json").read_text())
+    assert result["compiler_starts"] == result["logical_build_starts"] == 0
+    assert "synthetic-publish-credential" not in json.dumps(result)
+    assert events.count("copy") == (
+        0
+        if case
+        in (
+            "same",
+            "inventory",
+            "conflict",
+            "credential-mode",
+            "unmerged",
+            "wrong-pr",
+            "foreign-pr",
+            "merge-invalid",
+            "not-ancestor",
+            "shallow",
+            "source-drift",
+            "template-drift",
+            "main-before-login",
+            "main-before-copy",
+            "proof-retention",
+            "primary-proof-retention",
+        )
+        else 1
+    )
+    if case in ("inventory", "conflict"):
+        assert "login" not in events and native_calls == []
+    if case == "denied":
+        assert result["package_WRITE"] == "UNPROVED" and result["copy_invocations"] == 0
+    if case == "same":
+        assert result["package_WRITE"] == "UNEXERCISED_EXISTING_SAME_SUBJECT" and native_calls
+    if case in ("absent", "descendant"):
+        assert result["package_WRITE"] == "OBSERVED_SUCCESSFUL_INTENDED_COPY" and native_calls
+    if case not in ("absent", "same", "descendant"):
+        assert native_calls == []
+
+    if case in ("main-after-copy", "pullback", "post-readback"):
+        assert result["copy_attempts"] == result["copy_invocations"] == 1
+        assert result["package_WRITE"] == "OBSERVED_SUCCESSFUL_INTENDED_COPY"
+    if case == "descendant":
+        assert result["publication_source_sha"] == "a" * 40
+        assert result["publication_merge_sha"] == "d" * 40
+
+
+@pytest.mark.parametrize("current_epoch", [False, True])
+@pytest.mark.parametrize(
+    "fault",
+    (
+        None,
+        "scanner-exit",
+        "missing-report",
+        "malformed",
+        "partial",
+        "wrong-subject",
+        "new-HIGH",
+        "target-Go-UNKNOWN",
+        "target-Go-LOW",
+        "target-Go-MEDIUM",
+        "target-Go-HIGH",
+        "target-Go-CRITICAL",
+        "secret",
+        "old-missing",
+        "positive-missing",
+        "negative-secret",
+        "DB-drift",
+        "observation-write",
+        "primary-and-observation",
+    ),
+)
+def test_alertmanager_current_four_controls_retain_native_reports_and_reject_unproven_scans(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fault: str | None,
+    current_epoch: bool,
+) -> None:
+    """Drive the actual current four-control owner through bounded synthetic native I/O."""
+    from argparse import Namespace
+    from copy import deepcopy
+    from scripts.ci import fetch_docker_source_artifacts as fetcher
+    from scripts.ci import prometheus_source_image as transport
+    from tests.test_docker_workflow_build_path_contract import _alertmanager_current_scan_report
+
+    for key in (
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "GHCR_READ_TOKEN",
+        "DOCKER_CONFIG",
+        "DOCKER_AUTH_CONFIG",
+    ):
+        monkeypatch.delenv(key, raising=False)
+    for key, value in _workflow(CD_WORKFLOW)["env"].items():
+        if key.startswith("ALERTMANAGER_"):
+            monkeypatch.setenv(key, value)
+    monkeypatch.setenv("ALERTMANAGER_CALLER_KIND", "shared-pr")
+    monkeypatch.setenv("ALERTMANAGER_JOB_TIMEOUT_MINUTES", "170")
+    scanner = tmp_path / "trivy"
+    scanner.write_bytes(b"synthetic native tool")
+    monkeypatch.setattr(
+        fetcher, "_ALERT_TRIVY_SHA256", hashlib.sha256(scanner.read_bytes()).hexdigest()
+    )
+    cache = tmp_path / "cache"
+    (cache / "db").mkdir(parents=True)
+    (cache / "db/trivy.db").write_bytes(b"synthetic native DB")
+    (cache / "db/metadata.json").write_text('{"Version":2,"UpdatedAt":"2026-10-18T00:00:00Z"}')
+    monkeypatch.setattr(shutil, "which", lambda name: "/synthetic/" + name)
+    calls: list[str] = []
+    timers: list[float] = []
+    if fault in ("observation-write", "primary-and-observation"):
+        import signal
+
+        monkeypatch.setattr(signal, "getitimer", lambda timer: (5.0, 0.0))
+        monkeypatch.setattr(signal, "setitimer", lambda timer, value, *args: timers.append(value))
+        monkeypatch.setattr(fetcher.time, "monotonic", lambda: 100.0)
+        write = Path.write_text
+
+        def write_observation(path: Path, *args: Any, **kwargs: Any) -> Any:
+            if path.name == "security-observation.json":
+                raise OSError("synthetic observation write failed")
+            return write(path, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "write_text", write_observation)
+
+    selected = deepcopy(fetcher._ALERT_HISTORICAL_C10)
+    oracle = deepcopy(fetcher._ALERT_CURRENT_SCAN_ORACLE)
+    if current_epoch:
+        selected["source"] = "a" * 40
+        selected["source_files"][
+            "deploy/alertmanager/Containerfile"
+        ] = fetcher._ALERT_CURRENT_ASSEMBLY_RECIPE_SHA256
+        selected["graph"]["config"]["digest"] = oracle["subject"]["config"] = "sha256:" + "b" * 64
+        selected["graph"]["manifest"]["digest"] = oracle["subject"]["manifest"] = (
+            "sha256:" + "c" * 64
+        )
+        for name, letter in (("alertmanager", "d"), ("amtool", "e")):
+            selected["graph"]["files"]["usr/bin/" + name] = oracle["subject"]["binary_sha256"][
+                name
+            ] = (letter * 64)
+            oracle["expected_modules"][name]["stdlib"] = "v1.27.3"
+    monkeypatch.setattr(fetcher, "_ALERT_ACCEPTED_CANDIDATE", selected)
+    monkeypatch.setattr(fetcher, "_ALERT_CURRENT_SCAN_ORACLE", oracle)
+    forwarded: list[tuple[str, bool]] = []
+    inventory_owner = fetcher._alertmanager_candidate_inventory
+    control_owner = fetcher._alertmanager_vulnerability_control
+
+    def inventory(*args: Any, current: bool = False) -> dict[str, Any]:
+        forwarded.append(("candidate", current))
+        return inventory_owner(*args, current=current)
+
+    def control(*args: Any, current: bool = False) -> dict[str, Any]:
+        forwarded.append(("old_control", current))
+        return control_owner(*args, current=current)
+
+    monkeypatch.setattr(fetcher, "_alertmanager_candidate_inventory", inventory)
+    monkeypatch.setattr(fetcher, "_alertmanager_vulnerability_control", control)
+    graph = selected["graph"]
+    subject = graph["config"]["digest"]
+    report = _alertmanager_current_scan_report()
+
+    class Native:
+        def __init__(self, *args: Any) -> None:
+            self.records: list[dict[str, Any]] = []
+
+        def run(
+            self,
+            argv: list[str],
+            label: str,
+            environment: dict[str, str],
+            *,
+            cwd: Path,
+            **kwargs: Any,
+        ) -> bytes:
+            assert cwd == args.output_dir
+            calls.append(label)
+            assert not any("TOKEN" in key for key in environment)
+            assert environment["DOCKER_CONFIG"].endswith("empty-docker-config")
+            if label == "current-scanner-version":
+                return b'{"Version":"0.74.0"}'
+            if label == "live-local-candidate":
+                return json.dumps(
+                    {
+                        "Id": subject,
+                        "Os": "linux",
+                        "Architecture": "amd64",
+                        "RootFS": {"Layers": graph["diff_ids"]},
+                    }
+                ).encode()
+            if label == "live-old-control-identity":
+                return json.dumps(
+                    {
+                        "Id": fetcher._ALERT_OLD_RUNTIME_CONFIG,
+                        "Os": "linux",
+                        "Architecture": "amd64",
+                        "RepoDigests": [fetcher._ALERT_OLD_RUNTIME_REF],
+                    }
+                ).encode()
+            if label == "live-old-control-pull":
+                return b"pulled old control only"
+            assert argv[argv.index("--severity") + 1] == "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL"
+            assert "--list-all-pkgs" in argv and "--skip-db-update" in argv and "--scanners" in argv
+            assert Path(argv[argv.index("--ignorefile") + 1]).read_bytes() == b""
+            if argv[1] == "image":
+                assert argv[argv.index("--image-src") + 1] == "docker"
+            if fault in ("scanner-exit", "primary-and-observation"):
+                self.records.append({"label": label, "exit": 2})
+                raise RuntimeError("synthetic scanner native exit2")
+            target = Path(argv[argv.index("--output") + 1])
+            if fault == "missing-report":
+                return b""
+            if fault == "malformed":
+                target.write_bytes(b"{")
+                return b""
+            data = deepcopy(report)
+            if label == "current-candidate-full-supported":
+                if fault == "partial":
+                    data["Results"][1]["Packages"].pop()
+                elif fault == "wrong-subject":
+                    data["Metadata"]["ImageID"] = "sha256:" + "0" * 64
+                elif fault == "secret":
+                    data["Results"][0]["Secrets"] = [{"RuleID": "synthetic"}]
+                elif fault == "new-HIGH":
+                    data["Results"][0]["Vulnerabilities"] = [
+                        {
+                            "VulnerabilityID": "CVE-new",
+                            "PkgName": "synthetic",
+                            "InstalledVersion": "1",
+                            "Severity": "HIGH",
+                        }
+                    ]
+                elif fault is not None and fault.startswith("target-Go-"):
+                    data["Results"][1]["Vulnerabilities"] = [
+                        {
+                            "VulnerabilityID": "CVE-2026-111943",
+                            "PkgName": "stdlib",
+                            "InstalledVersion": "v1.27.3" if current_epoch else "v1.27.2",
+                            "Severity": fault.removeprefix("target-Go-"),
+                        }
+                    ]
+            elif label == "current-known-vulnerable-control":
+                cases = [
+                    ("CVE-2026-84445", "google.golang.org/grpc@v1.83.1"),
+                    ("CVE-2026-78669", "golang.org/x/net@v0.58.0"),
+                    ("CVE-2026-78669", "stdlib@v1.26.8"),
+                    ("CVE-2026-78667", "stdlib@v1.26.8"),
+                    ("CVE-2026-97031", "stdlib@v1.26.8"),
+                ]
+                if current_epoch:
+                    cases.append(("CVE-2026-111943", "stdlib@v1.26.8"))
+                data = {
+                    "SchemaVersion": 2,
+                    "ArtifactType": "container_image",
+                    "Metadata": {"ImageID": fetcher._ALERT_OLD_RUNTIME_CONFIG},
+                    "Results": [
+                        {
+                            "Target": "bin/" + name,
+                            "Class": "lang-pkgs",
+                            "Type": "gobinary",
+                            "Packages": [{"Name": "stdlib", "Version": "v1.26.8"}],
+                            "Vulnerabilities": [
+                                {
+                                    "VulnerabilityID": cve,
+                                    "PkgIdentifier": {"PURL": "pkg:golang/" + purl},
+                                    "Severity": "HIGH",
+                                }
+                                for cve, purl in cases
+                            ],
+                        }
+                        for name in ("alertmanager", "amtool")
+                    ],
+                }
+                if fault == "old-missing":
+                    data["Results"][0]["Vulnerabilities"].pop()
+            else:
+                positive = label == "current-secret-positive"
+                data = {"SchemaVersion": 2, "ArtifactType": "filesystem", "ArtifactName": argv[-1]}
+                if (
+                    positive
+                    and fault != "positive-missing"
+                    or not positive
+                    and fault == "negative-secret"
+                ):
+                    data["Results"] = [
+                        {
+                            "Target": "credentials.txt",
+                            "Secrets": [{"RuleID": "github-pat", "Severity": "CRITICAL"}],
+                        }
+                    ]
+                elif positive:
+                    data["Results"] = []
+            target.write_text(json.dumps(data))
+            if fault == "DB-drift":
+                (cache / "db/trivy.db").write_bytes(b"drift")
+            self.records.append({"label": label, "exit": 0})
+            return b""
+
+    monkeypatch.setattr(transport, "Native", Native)
+    args = Namespace(
+        alertmanager_scanner=scanner, alertmanager_cache=cache, output_dir=tmp_path / "observation"
+    )
+    historical_target_observation = not current_epoch and fault in (
+        "target-Go-UNKNOWN",
+        "target-Go-LOW",
+        "target-Go-MEDIUM",
+    )
+    succeeds = fault is None or historical_target_observation
+    if succeeds:
+        fetcher._alertmanager_live_security(args)
+        assert forwarded == [("candidate", current_epoch), ("old_control", current_epoch)]
+        assert [name for name in calls if name.startswith("current-")] == [
+            "current-scanner-version",
+            "current-candidate-full-supported",
+            "current-known-vulnerable-control",
+            "current-secret-positive",
+            "current-secret-negative",
+        ]
+    else:
+        with pytest.raises((RuntimeError, ValueError, OSError)) as observed:
+            fetcher._alertmanager_live_security(args)
+        if fault in ("target-Go-UNKNOWN", "target-Go-LOW", "target-Go-MEDIUM"):
+            assert current_epoch and str(observed.value) == "AM_current_Go_CVE_still_present"
+            assert forwarded == [("candidate", True)]
+            assert "live-old-control-pull" not in calls
+        elif fault in ("target-Go-HIGH", "target-Go-CRITICAL", "new-HIGH"):
+            assert str(observed.value) == "AM_new_blocking_support_finding_HOLD"
+        if fault in ("observation-write", "primary-and-observation"):
+            assert timers[0] <= 5.0 and timers[-1] == 5.0
+            assert not (args.output_dir / "security-observation.json").exists()
+            if fault == "primary-and-observation":
+                assert str(observed.value) == "synthetic scanner native exit2"
+                assert (
+                    "AM current security observation also failed: OSError"
+                    in observed.value.__notes__
+                )
+            return
+    record = json.loads((args.output_dir / "security-observation.json").read_bytes())
+    assert (record.get("status") == "OBSERVED_CURRENT_SUPPORTED_INVENTORY_AND_FOUR_CONTROLS") is (
+        succeeds
+    )
+    if historical_target_observation:
+        assert record["candidate"]["findings"][0]["VulnerabilityID"] == "CVE-2026-111943"
+    assert all(epoch is current_epoch for _, epoch in forwarded)
+    if fault not in ("scanner-exit", "missing-report"):
+        assert (
+            args.output_dir / "evidence/current-candidate-full-supported.private.json"
+        ).is_file()
+    assert record["DB"] and record["scanner_sha256"]
+
+
+def test_alertmanager_actual_caller_steps_fit_distinct_enclosing_budgets_and_retain_evidence() -> (
+    None
+):
+    """Enumerate actual conditional source/native/scanner caps rather than borrowing another route's job."""
+    workflow = _workflow(CD_WORKFLOW)
+    env = workflow["env"]
+
+    def minutes(step: dict[str, Any]) -> int:
+        value = step.get("timeout-minutes")
+        if isinstance(value, str):
+            match = re.fullmatch(r"\$\{\{ fromJSON\(env\.(\w+)\) \}\}", value)
+            assert match is not None, (step.get("name"), value)
+            value = 40 if match[1] == "ALERTMANAGER_GENERIC_NATIVE_MINUTES" else int(env[match[1]])
+        assert type(value) is int and value > 0, step.get("name")
+        return value
+
+    shared = _steps(_job(workflow, "prometheus-image-security-pr"))
+    pr_only = {
+        "Checkout immutable PR head Prometheus contracts",
+        "Require fresh fixed Prometheus control checkout",
+        "Checkout fixed trusted Prometheus control",
+        "Remove fixed trusted Prometheus control checkout",
+        "Require separately designated AM controller",
+        "Checkout separately designated AM controller",
+        "Remove designated AM controller after credential cleanup",
+        "Select AM Python without dependency or SDK installation",
+        "Install isolated AM host tools through the locked owner",
+        "Verify isolated AM host import capability before effects",
+        "Run full accepted AM native controls on this runner",
+    }
+    assert pr_only <= {step["name"] for step in shared}
+    main_steps = [step for step in shared if step["name"] not in pr_only]
+    assert sum(map(minutes, main_steps)) <= 285
+    # Changed, historical and ordinary PRs all execute the fixed-control steps.
+    excluded = {
+        "Checkout immutable published Prometheus contracts",
+        "Wait for the exact trusted Prometheus publisher",
+    }
+    assert sum(minutes(step) for step in shared if step["name"] not in excluded) <= 165
+    assert sum(map(minutes, _steps(_job(workflow, "alertmanager-retained-candidate")))) <= 78
+    assert sum(map(minutes, _steps(_job(workflow, "obs2a-checkpoint-native")))) <= 102
+    assert (
+        "ALERTMANAGER_CD_PR_JOB_TIMEOUT_MINUTES"
+        in _job(workflow, "prometheus-image-security-pr")["timeout-minutes"]
+    )
+    trusted = _job(workflow, "prometheus-image-security-trusted")
+    assert "ALERTMANAGER_CD_TRUSTED_JOB_TIMEOUT_MINUTES" in trusted["timeout-minutes"]
+    assert trusted["env"]["PROMETHEUS_JOB_TIMEOUT_MINUTES"] == trusted["timeout-minutes"]
+    for step in shared:
+        if step["name"] in {
+            "Require separately designated AM controller",
+            "Checkout separately designated AM controller",
+            "Run full accepted AM native controls on this runner",
+        }:
+            assert step["if"] == "github.event_name == 'pull_request'"
+    retain = _named_step(shared, "Retain exact Prometheus consumer evidence")["with"]["path"]
+    for suffix in (
+        "/consumer-observation.json",
+        "/native.stdout",
+        "/native.stderr",
+        "/github-read-evidence/",
+        "/preparation/evidence/",
+        "/security-observation.json",
+    ):
+        assert suffix in retain
+    assert "/candidate.zip" not in retain and "/private/" not in retain
+
+
+def test_caddy_D_retains_one_original_producer_and_never_rebuilds_consumers() -> None:
+    job = _job(_workflow(FRONTEND_WORKFLOW), "caddy-contract")
+    assert job["concurrency"] == {
+        "group": "caddy-D-single-candidate-2497",
+        "cancel-in-progress": False,
+    }
+    steps = _steps(job)
+    admission = _named_step(steps, "Admit existing Caddy producer or exact retained subject")
+    source = admission["run"]
+    for required in (
+        'pr["number"] != 2497',
+        'pr["merge_commit_sha"] != selected',
+        '"/jobs?filter=all"',
+        'step["name"] == "Build accepted D Caddy candidate once"',
+        'step["started_at"]',
+        'step["conclusion"] == "skipped"',
+        "len(spent) > 4",
+        "failed_run_id, failed_job_id = 40809053754, 123234862421",
+        "len(predecessors) != 1",
+        "failed_q_run_id, failed_q_job_id = 40874768112, 123450755201",
+        "len(q_predecessors) != 1",
+        "failed_r_run_id, failed_r_job_id = 40971831227, 123790320307",
+        "len(r_predecessors) != 1",
+        "authenticate_pr_source(proof_api, 2497, failed_r_head,",
+        "authenticate_pr_source(proof_api, 2497, failed_q_head,",
+        "current_runs, current_jobs",
+        'job["conclusion"] != "success"',
+        'artifacts[0]["expired"]',
+        '"Caddy original producer artifact unavailable"',
+        'state["current_run_attempt"] != 1',
+        'action != "candidate-D"',
+        '"Caddy exact predecessors only; fresh final replacement dispatch required, no automatic build"',
+        '"Caddy API inventory incomplete or changed"',
+        '"Caddy API pagination bound"',
+        "caddy_ci_source_inventory(root, tracked + fixed)",
+    ):
+        assert required in source
+    imported = _named_step(steps, "Import and bind exact retained Caddy candidate")
+    assert imported["if"] == "${{ steps.caddy-admission.outputs.mode == 'reuse' }}"
+    for required in (
+        'original["inputs"]',
+        'state["inputs"]',
+        'original["archive_sha256"]',
+        'original["image_config_id"]',
+        'original["binary_sha256"]',
+        '"load", "--input"',
+    ):
+        assert required in imported["run"]
+    assert "build" not in imported["run"]
+    retained = _named_step(steps, "Retain original Caddy candidate or current import binding")
+    for required in (
+        '"save", "--output"',
+        '"candidate.docker.tar"',
+        '"producer_run_id"',
+        '"producer_run_attempt"',
+        '"producer_head"',
+        '"archive_sha256"',
+        '"metadata_qualification_sha256"',
+        '"original-producer.json"',
+    ):
+        assert required in retained["run"]
+    assert (
+        'expected_modules = {name: (modules[name]["Version"], modules[name]["Sum"])'
+        in retained["run"]
+    )
+    assert "for name in command_modules}" in retained["run"]
+    assert "!= expected_modules" in retained["run"]
+    assert (
+        "Caddy actual binary differs from complete qualified command module/sum projection"
+        in retained["run"]
+    )
+    decision = _named_step(steps, "Decide exact Caddy D inventory and loaded isolated runtime")
+    for required in (
+        "validate_caddy_ci_report(",
+        "observe_caddy_ci_runtime(",
+        "validate_caddy_policy_projection(",
+        "validate_caddy_ci_window(",
+        '"strict-control"',
+        '"D-policy"',
+        "result.returncode != 0",
+    ):
+        assert required in decision["run"]
+    assert steps.index(imported) < steps.index(
+        _named_step(steps, "Capture next loaded Caddy image identity")
+    )
+    assert steps.index(retained) < steps.index(decision)
+    assert _named_step(steps, "Upload Caddy contract evidence")["with"]["retention-days"] == 30
+    cd = CD_WORKFLOW.read_text()
+    assert ".trivyignore-caddy" in cd
+    assert "ignore-policy-caddy-go-jose-v3" not in cd
+
+
+CADDY_D_HISTORY_CASES = [
+    ("replacement-producer", "build", None),
+    ("reuse", "reuse", None),
+    ("merge-main", "main", None),
+    ("metadata-only", "metadata", None),
+    ("contract-reuse", "contract", None),
+    ("old-metadata-failure-not-a-build", "metadata-failure-before-build", None),
+    ("API-order-does-not-select-P", "reordered", None),
+    ("consumer-rerun", "consumer-rerun", None),
+    ("missing-P", "build", "Caddy exact failed predecessor missing or ambiguous"),
+    ("zero-history", "build", "Caddy exact failed predecessor missing or ambiguous"),
+    ("duplicate-P-start", "build", "Caddy exact failed predecessor missing or ambiguous"),
+    ("wrong-P-job", "build", "Caddy exact failed predecessor differs"),
+    ("wrong-P-head", "build", "Caddy exact failed predecessor differs"),
+    ("wrong-P-build", "build", "Caddy exact failed predecessor differs"),
+    ("wrong-P-build-number", "build", "Caddy exact failed predecessor differs"),
+    ("wrong-P-status", "build", "Caddy exact failed predecessor differs"),
+    ("P-run-attempt2", "build", "Caddy exact failed predecessor differs"),
+    ("wrong-P-runtime", "build", "Caddy exact failed predecessor runtime differs"),
+    ("wrong-P-runtime-number", "build", "Caddy exact failed predecessor runtime differs"),
+    ("wrong-P-repository", "build", "Caddy producer run identity differs"),
+    ("wrong-P-workflow", "build", "Caddy producer run identity differs"),
+    ("missing-P-start", "build", "Caddy build start/status evidence incomplete"),
+    ("wrong-P-PR", "build", "producer_and_final_within_PR"),
+    ("failed-producer", "reuse", "Caddy replacement consumed/failed/unknown; no fifth build"),
+    ("cancelled-producer", "reuse", "Caddy replacement consumed/failed/unknown; no fifth build"),
+    ("pending-producer", "reuse", "Caddy replacement consumed/failed/unknown; no fifth build"),
+    ("Q-predecessor-head", "reuse", "Caddy replacement consumed/failed/unknown; no fifth build"),
+    (
+        "wrong-producer-branch",
+        "reuse",
+        "Caddy replacement consumed/failed/unknown; no fifth build",
+    ),
+    ("wrong-job-name", "reuse", "Caddy replacement consumed/failed/unknown; no fifth build"),
+    ("missing-Q-start", "reuse", "Caddy build start/status evidence incomplete"),
+    ("unknown-Q-conclusion", "reuse", "Caddy build start/status evidence incomplete"),
+    ("nonUTC-start", "reuse", "Caddy build start/status evidence incomplete"),
+    ("invalid-start", "reuse", "Caddy build start/status evidence incomplete"),
+    ("wrong-Q-runtime", "reuse", "Caddy replacement acceptance incomplete"),
+    ("missing-Q-runtime", "reuse", "Caddy replacement acceptance incomplete"),
+    ("wrong-Q-step", "reuse", "Caddy replacement consumed/failed/unknown; no fifth build"),
+    ("Q-chronology", "reuse", "Caddy replacement producer chronology differs"),
+    ("Q-start-before-created", "reuse", "Caddy replacement producer chronology differs"),
+    ("two-producers", "reuse", "Caddy closed recovery build allowance exceeded"),
+    ("second-producer", "build", "Caddy replacement already spent; no fifth build"),
+    (
+        "ordinary-without-image",
+        "build",
+        "Caddy exact predecessors only; fresh final replacement dispatch required, no automatic build",
+    ),
+    (
+        "rerun-producer",
+        "build",
+        "Caddy exact predecessors only; fresh final replacement dispatch required, no automatic build",
+    ),
+    ("current-prior-build", "build", "Caddy replacement consumed/failed/unknown; no fifth build"),
+    ("current-run-absent", "build", "Caddy current native run/job missing or ambiguous"),
+    ("current-native-head", "build", "Caddy current native run/job differs"),
+    ("current-native-event", "build", "Caddy current native run/job differs"),
+    ("current-native-attempt", "build", "Caddy current native run/job differs"),
+    ("current-prestarted-build", "build", "Caddy current prebuild observation differs"),
+    ("missing-current-build", "build", "Caddy current prebuild observation differs"),
+    ("wrong-current-build-step", "build", "Caddy current prebuild observation differs"),
+    ("current-created-before-P", "build", "Caddy replacement dispatch chronology differs"),
+    ("wrong-repository", "reuse", "Caddy D repository differs"),
+    ("wrong-PR", "reuse", "Caddy D PR scope differs"),
+    ("foreign-head", "reuse", "Caddy D PR scope differs"),
+    ("unrelated-main", "main", "Caddy D main observation is only the accepted PR merge"),
+    ("wrong-job-run", "reuse", "Caddy native job/run relationship differs"),
+    ("wrong-job-head", "reuse", "Caddy native job/run relationship differs"),
+    ("boolean-run-id", "reuse", "Caddy native positive ID required"),
+    ("zero-job-id", "reuse", "Caddy native positive ID required"),
+    ("boolean-artifact-id", "reuse", "Caddy native positive ID required"),
+    ("duplicate-run", "reuse", "Caddy duplicate API identity"),
+    ("duplicate-job", "reuse", "Caddy duplicate API identity"),
+    ("duplicate-artifact", "reuse", "Caddy duplicate API identity"),
+    ("repeated-full-page", "reuse", "Caddy duplicate API identity"),
+    ("duplicate-step", "reuse", "Caddy duplicate native step"),
+    ("skipped-with-duration", "reuse", "Caddy skipped build evidence differs"),
+    ("incomplete-API", "reuse", "Caddy API inventory incomplete or changed"),
+    ("boolean-total", "reuse", "Caddy API inventory shape"),
+    ("same-count-page-replacement", "reuse", "Caddy API same-count inventory replacement"),
+    ("API-failed", "reuse", "HTTP Error 503: synthetic failure"),
+    ("missing-artifact", "reuse", "Caddy original producer artifact unavailable"),
+    ("expired-artifact", "reuse", "Caddy original producer artifact unavailable"),
+    ("artifact-head", "reuse", "Caddy native artifact/run relationship differs"),
+    ("wrong-artifact-run", "reuse", "Caddy native artifact/run relationship differs"),
+    ("wrong-artifact-repository", "reuse", "Caddy native artifact/run relationship differs"),
+    ("artifact-digest", "reuse", "Caddy native artifact digest unavailable"),
+    ("wrong-producer-PR", "reuse", "producer_and_final_within_PR"),
+    (
+        "producer-workflow-drift",
+        "reuse",
+        "Caddy authenticated original Git source differs from current source",
+    ),
+    (
+        "producer-helper-drift",
+        "reuse",
+        "Caddy authenticated original Git source differs from current source",
+    ),
+    (
+        "producer-frontend-drift",
+        "reuse",
+        "Caddy authenticated original Git source differs from current source",
+    ),
+    (
+        "expiry-helper-drift",
+        "reuse",
+        "Caddy authenticated original Git source differs from current source",
+    ),
+    ("original-missing-file", "reuse", "Caddy actual producer source inventory differs"),
+    ("original-link-mode", "reuse", "Caddy original source is not one regular Git blob"),
+    ("before-acceptance", "reuse", "Caddy D review/expiry window is not current"),
+    ("stale-review", "reuse", "Caddy D review/expiry window is not current"),
+    ("hard-expiry", "reuse", "Caddy D review/expiry window is not current"),
+    (
+        "ordinary-main-without-image",
+        "main",
+        "Caddy exact predecessors only; fresh final replacement dispatch required, no automatic build",
+    ),
+    (
+        "contract-without-image",
+        "contract",
+        "Caddy exact predecessors only; fresh final replacement dispatch required, no automatic build",
+    ),
+    ("cap3-build", "build", None),
+    ("cap3-reuse", "reuse", None),
+    ("cap3-main", "main", None),
+    ("cap3-ordered-history", "reordered", None),
+    ("cap3-missing-Q", "build", "Caddy exact failed Q predecessor missing or ambiguous"),
+    ("cap3-count2-without-Q", "reuse", "Caddy exact failed Q predecessor missing or ambiguous"),
+    ("cap3-count3-without-Q", "reuse", "Caddy exact failed Q predecessor missing or ambiguous"),
+    ("cap3-duplicate-Q-start", "build", "Caddy exact failed Q predecessor missing or ambiguous"),
+    ("cap3-Q-run-id", "build", "Caddy exact failed Q predecessor differs"),
+    ("cap3-Q-job-id", "build", "Caddy exact failed Q predecessor differs"),
+    ("cap3-Q-head", "build", "Caddy exact failed Q predecessor differs"),
+    ("cap3-Q-branch", "build", "Caddy exact failed Q predecessor differs"),
+    ("cap3-Q-attempt", "build", "Caddy exact failed Q predecessor differs"),
+    ("cap3-Q-event", "build", "Caddy exact failed Q predecessor differs"),
+    ("cap3-Q-source-repository", "build", "Caddy exact failed Q predecessor differs"),
+    ("cap3-Q-run-pending", "build", "Caddy exact failed Q predecessor differs"),
+    ("cap3-Q-success-laundering", "build", "Caddy exact failed Q predecessor differs"),
+    ("cap3-Q-job-status", "build", "Caddy exact failed Q predecessor differs"),
+    ("cap3-Q-created", "build", "Caddy exact failed Q predecessor differs"),
+    ("cap3-Q-job-start", "build", "Caddy exact failed Q predecessor differs"),
+    ("cap3-Q-job-finish", "build", "Caddy exact failed Q predecessor differs"),
+    ("cap3-Q-build-number", "build", "Caddy exact failed Q predecessor differs"),
+    ("cap3-Q-build-result", "build", "Caddy exact failed Q predecessor differs"),
+    ("cap3-Q-build-start", "build", "Caddy exact failed Q predecessor differs"),
+    ("cap3-Q-build-finish", "build", "Caddy exact failed Q predecessor differs"),
+    ("cap3-Q-runtime-missing", "build", "Caddy exact failed Q predecessor differs"),
+    ("cap3-Q-workflow", "build", "Caddy producer run identity differs"),
+    ("cap3-Q-repository", "build", "Caddy producer run identity differs"),
+    ("cap3-Q-start-unknown", "build", "Caddy build start/status evidence incomplete"),
+    ("cap3-Q-runtime-number", "build", "Caddy exact failed Q predecessor runtime differs"),
+    ("cap3-Q-runtime-result", "build", "Caddy exact failed Q predecessor runtime differs"),
+    ("cap3-Q-runtime-start", "build", "Caddy exact failed Q predecessor runtime differs"),
+    ("cap3-Q-runtime-finish", "build", "Caddy exact failed Q predecessor runtime differs"),
+    ("cap3-P-ancestry", "build", "producer_and_final_within_PR"),
+    ("cap3-Q-ancestry", "build", "producer_and_final_within_PR"),
+    ("cap3-Q-disconnected-ancestry", "build", "producer_ancestor_within_PR"),
+    ("cap3-P-success-laundering", "build", "Caddy exact failed predecessor differs"),
+    ("cap3-R-created-between-P-Q", "reuse", "Caddy replacement producer chronology differs"),
+    ("cap3-R-created-at-Q-finish", "reuse", "Caddy replacement producer chronology differs"),
+    ("cap3-current-created-between-P-Q", "build", "Caddy replacement dispatch chronology differs"),
+    ("cap3-current-created-at-Q-finish", "build", "Caddy replacement dispatch chronology differs"),
+    (
+        "cap3-current-Q-source",
+        "build",
+        "producer_and_final_within_PR",
+    ),
+    ("cap3-R-Q-source", "reuse", "Caddy replacement consumed/failed/unknown; no fifth build"),
+    ("cap3-R-attempt2", "reuse", "Caddy replacement consumed/failed/unknown; no fifth build"),
+    (
+        "cap3-current-attempt2",
+        "build",
+        "Caddy exact predecessors only; fresh final replacement dispatch required, no automatic build",
+    ),
+    (
+        "cap3-current-older-start",
+        "build",
+        "Caddy replacement consumed/failed/unknown; no fifth build",
+    ),
+    ("cap3-R-plus-current-old", "reuse", "Caddy closed recovery build allowance exceeded"),
+    ("cap3-R-failed", "reuse", "Caddy replacement consumed/failed/unknown; no fifth build"),
+    ("cap3-R-cancelled", "reuse", "Caddy replacement consumed/failed/unknown; no fifth build"),
+    ("cap3-R-pending", "reuse", "Caddy replacement consumed/failed/unknown; no fifth build"),
+    ("cap3-R-unknown", "reuse", "Caddy build start/status evidence incomplete"),
+    ("cap3-R-runtime", "reuse", "Caddy replacement acceptance incomplete"),
+    ("cap3-fourth-start", "reuse", "Caddy closed recovery build allowance exceeded"),
+    ("cap3-no-fourth-dispatch", "build", "Caddy replacement already spent; no fifth build"),
+    ("cap3-R-no-artifact", "reuse", "Caddy original producer artifact unavailable"),
+    (
+        "cap3-R-source-drift",
+        "reuse",
+        "Caddy authenticated original Git source differs from current source",
+    ),
+    ("cap3-stale-review", "reuse", "Caddy D review/expiry window is not current"),
+    ("cap4-build", "build", None),
+    ("cap4-reuse", "reuse", None),
+    ("cap4-main", "main", None),
+    ("cap4-ordered-history", "reordered", None),
+    ("cap4-just-after-R-job", "after-R-job", None),
+    ("cap4-missing-R", "build", "Caddy exact failed R predecessor missing or ambiguous"),
+    ("cap4-count3-without-R", "reuse", "Caddy exact failed R predecessor missing or ambiguous"),
+    ("cap4-count4-without-R", "reuse", "Caddy exact failed R predecessor missing or ambiguous"),
+    ("cap4-duplicate-R-start", "build", "Caddy exact failed R predecessor missing or ambiguous"),
+    ("cap4-R-run-id", "build", "Caddy exact failed R predecessor differs"),
+    ("cap4-R-job-id", "build", "Caddy exact failed R predecessor differs"),
+    ("cap4-R-head", "build", "Caddy exact failed R predecessor differs"),
+    ("cap4-R-branch", "build", "Caddy exact failed R predecessor differs"),
+    ("cap4-R-attempt", "build", "Caddy exact failed R predecessor differs"),
+    ("cap4-R-event", "build", "Caddy exact failed R predecessor differs"),
+    ("cap4-R-source-repository", "build", "Caddy exact failed R predecessor differs"),
+    ("cap4-R-run-pending", "build", "Caddy exact failed R predecessor differs"),
+    ("cap4-R-laundering", "build", "Caddy exact failed R predecessor differs"),
+    ("cap4-R-job-status", "build", "Caddy exact failed R predecessor differs"),
+    ("cap4-R-created", "build", "Caddy exact failed R predecessor differs"),
+    ("cap4-R-job-start", "build", "Caddy exact failed R predecessor differs"),
+    ("cap4-R-job-finish-prose", "build", "Caddy exact failed R predecessor differs"),
+    ("cap4-R-build-number", "build", "Caddy exact failed R predecessor differs"),
+    ("cap4-R-build-result", "build", "Caddy exact failed R predecessor differs"),
+    ("cap4-R-build-start", "build", "Caddy exact failed R predecessor differs"),
+    ("cap4-R-build-finish", "build", "Caddy exact failed R predecessor differs"),
+    ("cap4-R-runtime-missing", "build", "Caddy exact failed R predecessor differs"),
+    ("cap4-R-workflow", "build", "Caddy producer run identity differs"),
+    ("cap4-R-repository", "build", "Caddy producer run identity differs"),
+    ("cap4-R-start-unknown", "build", "Caddy build start/status evidence incomplete"),
+    ("cap4-R-runtime-number", "build", "Caddy exact failed R predecessor runtime differs"),
+    ("cap4-R-runtime-result", "build", "Caddy exact failed R predecessor runtime differs"),
+    ("cap4-R-runtime-start", "build", "Caddy exact failed R predecessor runtime differs"),
+    ("cap4-R-runtime-finish", "build", "Caddy exact failed R predecessor runtime differs"),
+    ("cap4-P-ancestry", "build", "producer_and_final_within_PR"),
+    ("cap4-Q-ancestry", "build", "producer_and_final_within_PR"),
+    ("cap4-R-ancestry", "build", "producer_and_final_within_PR"),
+    ("cap4-R-disconnected-ancestry", "build", "producer_ancestor_within_PR"),
+    ("cap4-P-laundering", "build", "Caddy exact failed predecessor differs"),
+    ("cap4-Q-laundering", "build", "Caddy exact failed Q predecessor differs"),
+    ("cap4-S-created-after-old-prose", "reuse", "Caddy replacement producer chronology differs"),
+    ("cap4-S-created40", "reuse", "Caddy replacement producer chronology differs"),
+    ("cap4-S-created-equal", "reuse", "Caddy replacement producer chronology differs"),
+    (
+        "cap4-current-created-after-old-prose",
+        "build",
+        "Caddy replacement dispatch chronology differs",
+    ),
+    ("cap4-current-created40", "build", "Caddy replacement dispatch chronology differs"),
+    ("cap4-current-created-equal", "build", "Caddy replacement dispatch chronology differs"),
+    (
+        "cap4-current-R-source",
+        "build",
+        "Caddy exact predecessors only; fresh final replacement dispatch required, no automatic build",
+    ),
+    ("cap4-current-Q-source", "build", "producer_and_final_within_PR"),
+    ("cap4-S-P-source", "reuse", "Caddy replacement consumed/failed/unknown; no fifth build"),
+    ("cap4-S-Q-source", "reuse", "Caddy replacement consumed/failed/unknown; no fifth build"),
+    ("cap4-S-R-source", "reuse", "Caddy replacement consumed/failed/unknown; no fifth build"),
+    ("cap4-S-attempt2", "reuse", "Caddy replacement consumed/failed/unknown; no fifth build"),
+    ("cap4-S-failed", "reuse", "Caddy replacement consumed/failed/unknown; no fifth build"),
+    ("cap4-S-cancelled", "reuse", "Caddy replacement consumed/failed/unknown; no fifth build"),
+    ("cap4-S-pending", "reuse", "Caddy replacement consumed/failed/unknown; no fifth build"),
+    ("cap4-current-reuses-P-run", "build", "Caddy duplicate API identity"),
+    ("cap4-current-reuses-Q-run", "build", "Caddy duplicate API identity"),
+    ("cap4-current-reuses-R-run", "build", "Caddy duplicate API identity"),
+    (
+        "cap4-current-attempt2",
+        "build",
+        "Caddy exact predecessors only; fresh final replacement dispatch required, no automatic build",
+    ),
+    (
+        "cap4-current-older-start",
+        "build",
+        "Caddy replacement consumed/failed/unknown; no fifth build",
+    ),
+    ("cap4-S-plus-current-old", "reuse", "Caddy closed recovery build allowance exceeded"),
+    ("cap4-S-unknown", "reuse", "Caddy build start/status evidence incomplete"),
+    ("cap4-S-runtime", "reuse", "Caddy replacement acceptance incomplete"),
+    ("cap4-fifth-start", "reuse", "Caddy closed recovery build allowance exceeded"),
+    ("cap4-no-fifth-dispatch", "build", "Caddy replacement already spent; no fifth build"),
+    ("cap4-S-no-artifact", "reuse", "Caddy original producer artifact unavailable"),
+    (
+        "cap4-S-source-drift",
+        "reuse",
+        "Caddy authenticated original Git source differs from current source",
+    ),
+    ("cap4-stale-review", "reuse", "Caddy D review/expiry window is not current"),
+]
+
+
+def _caddy_D_admission_case(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, scenario: str, fault: str | None
+) -> dict[str, Any]:
+    from datetime import date
+    from io import BytesIO
+    from types import SimpleNamespace
+    import urllib.error
+    import urllib.request
+    from scripts.ci import prometheus_source_image as source_owner
+
+    code = (
+        _named_step(
+            _steps(_job(_workflow(FRONTEND_WORKFLOW), "caddy-contract")),
+            "Admit existing Caddy producer or exact retained subject",
+        )["run"]
+        .split("python3 - <<'PY'\n", 1)[1]
+        .rsplit("\nPY", 1)[0]
+    )
+    assert code.count("datetime.now(timezone.utc).date()") == 1
+    code = code.replace("datetime.now(timezone.utc).date()", "__test_today")
+    aliases = {
+        "cap4-P-ancestry": "wrong-P-PR",
+        "cap4-Q-ancestry": "cap3-Q-ancestry",
+        "cap4-P-laundering": "wrong-P-status",
+        "cap4-Q-laundering": "cap3-Q-success-laundering",
+        "cap4-S-P-source": "Q-predecessor-head",
+        "cap4-S-Q-source": "cap3-R-Q-source",
+        "cap4-current-Q-source": "cap3-current-Q-source",
+        "cap4-S-attempt2": "cap3-R-attempt2",
+        "cap4-current-attempt2": "rerun-producer",
+        "cap4-current-older-start": "current-prior-build",
+        "cap4-S-plus-current-old": "cap3-R-plus-current-old",
+        "cap4-S-failed": "failed-producer",
+        "cap4-S-cancelled": "cancelled-producer",
+        "cap4-S-pending": "pending-producer",
+        "cap4-S-unknown": "unknown-Q-conclusion",
+        "cap4-S-runtime": "wrong-Q-runtime",
+        "cap4-fifth-start": "two-producers",
+        "cap4-no-fifth-dispatch": "second-producer",
+        "cap4-S-no-artifact": "missing-artifact",
+        "cap4-S-source-drift": "producer-helper-drift",
+        "cap4-stale-review": "stale-review",
+        "cap3-P-ancestry": "wrong-P-PR",
+        "cap3-P-success-laundering": "wrong-P-status",
+        "cap3-R-failed": "failed-producer",
+        "cap3-R-cancelled": "cancelled-producer",
+        "cap3-R-pending": "pending-producer",
+        "cap3-R-unknown": "unknown-Q-conclusion",
+        "cap3-R-runtime": "wrong-Q-runtime",
+        "cap3-R-no-artifact": "missing-artifact",
+        "cap3-R-source-drift": "producer-helper-drift",
+        "cap3-fourth-start": "two-producers",
+        "cap3-no-fourth-dispatch": "second-producer",
+        "cap3-current-attempt2": "rerun-producer",
+        "cap3-current-older-start": "current-prior-build",
+        "cap3-stale-review": "stale-review",
+    }
+    fault = aliases.get(fault, fault)
+    today = {
+        "before-acceptance": date(2026, 10, 27),
+        "stale-review": date(2026, 10, 31),
+        "hard-expiry": date(2026, 11, 5),
+    }.get(fault, date(2026, 10, 30))
+    prior_head = "243d270847d10786177ecf2e1632cb6b9bb49e45"
+    q_head = "5b434bd412c5dd92dc9eee21ab9da193cf76614d"
+    r_head = "39ad702e3ba3e7e963cdc8edd3cf5835e8c12256"
+    head, producer_head = "a" * 40, "b" * 40
+    if fault == "cap3-current-Q-source":
+        head = q_head
+    elif fault == "cap4-current-R-source":
+        head = r_head
+    final = "c" * 40 if scenario == "main" else head
+    repo, branch = "Katsiarynakavaleuskaya/PulsePlate", "codex/python-setup-security-stabilization"
+    event_name = (
+        "push"
+        if scenario == "main"
+        else (
+            "workflow_dispatch" if scenario in {"build", "metadata", "contract"} else "pull_request"
+        )
+    )
+    action = (
+        "candidate-D"
+        if scenario == "build"
+        else "xnet060-metadata" if scenario == "metadata" else "contract"
+    )
+    current_attempt = (
+        2
+        if fault in {"rerun-producer", "current-prior-build", "cap3-R-plus-current-old"}
+        or scenario == "consumer-rerun"
+        else 1
+    )
+    with_replacement = (
+        scenario in {"reuse", "main", "contract", "consumer-rerun"} or fault == "second-producer"
+    )
+
+    def step(
+        number: int,
+        name: str,
+        conclusion: str | None,
+        start: str | None,
+        end: str | None,
+        status: str = "completed",
+    ) -> dict[str, Any]:
+        return {
+            "number": number,
+            "name": name,
+            "conclusion": conclusion,
+            "started_at": start,
+            "completed_at": end,
+            "status": status,
+        }
+
+    build_name = "Build accepted D Caddy candidate once"
+    runtime_name = "Decide exact Caddy D inventory and loaded isolated runtime"
+    predecessor = {
+        "id": 40809053754,
+        "repository": {"full_name": repo, "id": 1043311030},
+        "workflow_id": 196310935,
+        "head_repository": {"id": 1043311030},
+        "path": ".github/workflows/frontend-ci.yml",
+        "event": "workflow_dispatch",
+        "run_attempt": 1,
+        "head_sha": prior_head,
+        "head_branch": branch,
+        "status": "completed",
+        "conclusion": "failure",
+        "created_at": "2026-10-29T02:54:00Z",
+    }
+    prior_job = {
+        "id": 123234862421,
+        "run_id": 40809053754,
+        "run_attempt": 1,
+        "head_sha": prior_head,
+        "head_branch": branch,
+        "name": "caddy-contract",
+        "status": "completed",
+        "conclusion": "failure",
+        "started_at": "2026-10-29T02:54:19Z",
+        "completed_at": "2026-10-29T03:02:11Z",
+        "steps": [
+            step(12, build_name, "success", "2026-10-29T02:58:39Z", "2026-10-29T03:00:55Z"),
+            step(22, runtime_name, "failure", "2026-10-29T03:01:32Z", "2026-10-29T03:01:32Z"),
+        ],
+    }
+    failed_q = {
+        **deepcopy(predecessor),
+        "id": 40874768112,
+        "head_sha": q_head,
+        "created_at": "2026-10-29T12:37:17Z",
+    }
+    failed_q_job = {
+        **deepcopy(prior_job),
+        "id": 123450755201,
+        "run_id": 40874768112,
+        "head_sha": q_head,
+        "started_at": "2026-10-29T12:37:36Z",
+        "completed_at": "2026-10-29T12:41:19Z",
+        "steps": [
+            step(12, build_name, "success", "2026-10-29T12:40:29Z", "2026-10-29T12:40:40Z"),
+            step(22, runtime_name, "failure", "2026-10-29T12:41:08Z", "2026-10-29T12:41:09Z"),
+        ],
+    }
+    failed_r = {
+        **deepcopy(failed_q),
+        "id": 40971831227,
+        "head_sha": r_head,
+        "created_at": "2026-10-29T23:15:07Z",
+    }
+    failed_r_job = {
+        **deepcopy(failed_q_job),
+        "id": 123790320307,
+        "run_id": 40971831227,
+        "head_sha": r_head,
+        "started_at": "2026-10-29T23:15:28Z",
+        "completed_at": "2026-10-29T23:19:41Z",
+        "steps": [
+            step(12, build_name, "success", "2026-10-29T23:18:59Z", "2026-10-29T23:19:06Z"),
+            step(22, runtime_name, "failure", "2026-10-29T23:19:32Z", "2026-10-29T23:19:33Z"),
+        ],
+    }
+    producer = {
+        **deepcopy(predecessor),
+        "id": 11,
+        "head_sha": producer_head,
+        "conclusion": "success",
+        "created_at": "2026-10-30T00:00:00Z",
+    }
+    producer_job = {
+        **deepcopy(prior_job),
+        "id": 1100,
+        "run_id": 11,
+        "head_sha": producer_head,
+        "conclusion": "success",
+        "started_at": "2026-10-30T00:00:10Z",
+        "completed_at": "2026-10-30T00:03:00Z",
+        "steps": [
+            step(12, build_name, "success", "2026-10-30T00:01:00Z", "2026-10-30T00:02:00Z"),
+            step(22, runtime_name, "success", "2026-10-30T00:02:30Z", "2026-10-30T00:02:45Z"),
+        ],
+    }
+    current = {
+        **deepcopy(predecessor),
+        "id": 12,
+        "head_sha": head,
+        "head_branch": "main" if scenario == "main" else branch,
+        "event": event_name,
+        "run_attempt": current_attempt,
+        "status": "in_progress",
+        "conclusion": None,
+        "created_at": "2026-10-30T00:05:00Z",
+    }
+    current_job = {
+        **deepcopy(producer_job),
+        "id": 1200,
+        "run_id": 12,
+        "head_sha": head,
+        "head_branch": current["head_branch"],
+        "run_attempt": current_attempt,
+        "status": "in_progress",
+        "conclusion": None,
+        "completed_at": None,
+        "steps": [step(12, build_name, None, None, None, "pending")],
+    }
+    rows = [predecessor, failed_q, failed_r, *([producer] if with_replacement else []), current]
+    jobs = {
+        40809053754: [prior_job],
+        40874768112: [failed_q_job],
+        40971831227: [failed_r_job],
+        11: [producer_job],
+        12: [current_job],
+    }
+    if scenario == "consumer-rerun":
+        previous = {
+            **deepcopy(current_job),
+            "id": 1199,
+            "run_attempt": 1,
+            "status": "completed",
+            "conclusion": "failure",
+            "steps": [
+                step(12, build_name, "skipped", "2026-10-30T00:06:00Z", "2026-10-30T00:06:00Z")
+            ],
+        }
+        jobs[12].insert(0, previous)
+    if scenario == "metadata-failure-before-build":
+        old = {**deepcopy(producer), "id": 13, "conclusion": "failure"}
+        rows.insert(0, old)
+        jobs[13] = [
+            {
+                **deepcopy(producer_job),
+                "id": 1300,
+                "run_id": 13,
+                "conclusion": "failure",
+                "steps": [
+                    step(12, build_name, "skipped", "2026-10-30T00:02:00Z", "2026-10-30T00:02:00Z")
+                ],
+            }
+        ]
+        event_name, action = "workflow_dispatch", "candidate-D"
+        current["event"] = event_name
+    if scenario == "reordered":
+        rows = [current, failed_r, failed_q, producer, predecessor]
+    if scenario == "after-R-job":
+        current["created_at"] = "2026-10-29T23:19:42Z"
+        event_name, action = "workflow_dispatch", "candidate-D"
+        current["event"] = event_name
+    if fault in {"ordinary-main-without-image", "contract-without-image"}:
+        rows.remove(producer)
+    if fault == "missing-P":
+        rows.remove(predecessor)
+    elif fault == "zero-history":
+        rows.clear()
+    elif fault == "wrong-P-job":
+        prior_job["id"] = 123234862420
+    elif fault == "wrong-P-head":
+        predecessor["head_sha"] = prior_job["head_sha"] = "d" * 40
+    elif fault == "wrong-P-repository":
+        predecessor["repository"]["id"] = 999
+    elif fault == "wrong-P-workflow":
+        predecessor["workflow_id"] = 999
+    elif fault == "wrong-P-runtime":
+        prior_job["steps"][1]["conclusion"] = "success"
+    elif fault == "wrong-P-build":
+        prior_job["steps"][0]["conclusion"] = "failure"
+    elif fault == "wrong-P-build-number":
+        prior_job["steps"][0]["number"] = 13
+    elif fault == "wrong-P-runtime-number":
+        prior_job["steps"][1]["number"] = 23
+    elif fault == "wrong-P-status":
+        predecessor["conclusion"] = "success"
+    elif fault == "P-run-attempt2":
+        predecessor["run_attempt"] = 2
+    elif fault == "duplicate-P-start":
+        prior_job["steps"].append({**prior_job["steps"][0], "number": 13})
+    elif fault == "missing-P-start":
+        prior_job["steps"][0].pop("started_at")
+    elif fault == "failed-producer":
+        producer["conclusion"] = producer_job["conclusion"] = "failure"
+    elif fault == "cancelled-producer":
+        producer["conclusion"] = producer_job["conclusion"] = producer_job["steps"][0][
+            "conclusion"
+        ] = "cancelled"
+    elif fault == "pending-producer":
+        producer["status"] = producer_job["status"] = producer_job["steps"][0]["status"] = (
+            "in_progress"
+        )
+        producer["conclusion"] = producer_job["conclusion"] = producer_job["steps"][0][
+            "conclusion"
+        ] = None
+        producer_job["steps"][0]["completed_at"] = None
+    elif fault == "missing-Q-start":
+        producer_job["steps"][0]["started_at"] = None
+    elif fault == "unknown-Q-conclusion":
+        producer_job["steps"][0]["conclusion"] = None
+    elif fault == "wrong-Q-runtime":
+        producer_job["steps"][1]["conclusion"] = "failure"
+    elif fault == "missing-Q-runtime":
+        producer_job["steps"].pop()
+    elif fault == "wrong-Q-step":
+        producer_job["steps"][0]["number"] = 13
+    elif fault == "Q-predecessor-head":
+        producer["head_sha"] = producer_job["head_sha"] = prior_head
+    elif fault == "Q-chronology":
+        producer["created_at"] = "2026-10-29T03:00:00Z"
+    elif fault == "Q-start-before-created":
+        producer_job["steps"][0]["started_at"] = "2026-10-29T23:59:00Z"
+    elif fault == "two-producers":
+        rows.append({**deepcopy(producer), "id": 10})
+        jobs[10] = [{**deepcopy(producer_job), "id": 1000, "run_id": 10}]
+    elif fault == "current-prior-build":
+        prior_current = {
+            **deepcopy(producer_job),
+            "id": 1199,
+            "run_id": 12,
+            "head_sha": head,
+            "steps": [
+                step(12, build_name, "success", "2026-10-30T00:06:00Z", "2026-10-30T00:07:00Z")
+            ],
+        }
+        jobs[12].insert(0, prior_current)
+    elif fault == "current-run-absent":
+        rows.remove(current)
+    elif fault == "current-native-head":
+        current["head_sha"] = current_job["head_sha"] = "e" * 40
+    elif fault == "current-native-event":
+        current["event"] = "push"
+    elif fault == "current-native-attempt":
+        current["run_attempt"] = 2
+    elif fault == "current-prestarted-build":
+        current_job["steps"][0] = step(
+            12, build_name, None, "2026-10-30T00:06:00Z", None, "in_progress"
+        )
+    elif fault == "missing-current-build":
+        current_job["steps"] = []
+    elif fault == "wrong-current-build-step":
+        current_job["steps"][0]["number"] = 13
+    elif fault == "current-created-before-P":
+        current["created_at"] = "2026-10-29T03:00:00Z"
+    elif fault == "wrong-producer-branch":
+        producer["head_branch"] = "foreign"
+    elif fault == "wrong-job-run":
+        producer_job["run_id"] = 999
+    elif fault == "wrong-job-head":
+        producer_job["head_sha"] = head
+    elif fault == "wrong-job-name":
+        producer_job["name"] = "other-job"
+    elif fault == "zero-job-id":
+        producer_job["id"] = 0
+    elif fault == "boolean-run-id":
+        producer["id"] = True
+    elif fault == "duplicate-step":
+        producer_job["steps"].append(deepcopy(producer_job["steps"][0]))
+    elif fault == "skipped-with-duration":
+        producer_job["steps"][0]["conclusion"] = "skipped"
+    elif fault == "nonUTC-start":
+        producer_job["steps"][0]["started_at"] = "2026-10-30T00:01:00"
+    elif fault == "invalid-start":
+        producer_job["steps"][0]["started_at"] = "not-a-time"
+
+    if fault in {"cap3-missing-Q", "cap3-count2-without-Q", "cap3-count3-without-Q"}:
+        rows.remove(failed_q)
+        if fault == "cap3-count3-without-Q":
+            rows.append({**deepcopy(producer), "id": 10})
+            jobs[10] = [{**deepcopy(producer_job), "id": 1000, "run_id": 10}]
+    elif fault == "cap3-duplicate-Q-start":
+        failed_q_job["steps"].append({**failed_q_job["steps"][0], "number": 13})
+    elif fault == "cap3-Q-run-id":
+        failed_q["id"] = 40874768113
+        failed_q_job["run_id"] = failed_q["id"]
+        jobs[failed_q["id"]] = jobs.pop(40874768112)
+    elif fault == "cap3-Q-job-id":
+        failed_q_job["id"] = 123450755202
+    elif fault == "cap3-Q-head":
+        failed_q["head_sha"] = failed_q_job["head_sha"] = "d" * 40
+    elif fault == "cap3-Q-branch":
+        failed_q["head_branch"] = "foreign"
+    elif fault == "cap3-Q-attempt":
+        failed_q["run_attempt"] = 2
+    elif fault == "cap3-Q-event":
+        failed_q["event"] = "push"
+    elif fault == "cap3-Q-workflow":
+        failed_q["workflow_id"] = 999
+    elif fault == "cap3-Q-repository":
+        failed_q["repository"]["id"] = 999
+    elif fault == "cap3-Q-source-repository":
+        failed_q["head_repository"]["id"] = 999
+    elif fault == "cap3-Q-run-pending":
+        failed_q["status"], failed_q["conclusion"] = "in_progress", None
+    elif fault == "cap3-Q-success-laundering":
+        failed_q["conclusion"] = failed_q_job["conclusion"] = "success"
+    elif fault == "cap3-Q-job-status":
+        failed_q_job["status"] = "in_progress"
+    elif fault == "cap3-Q-created":
+        failed_q["created_at"] = "2026-10-29T12:37:18Z"
+    elif fault == "cap3-Q-job-start":
+        failed_q_job["started_at"] = "2026-10-29T12:37:37Z"
+    elif fault == "cap3-Q-job-finish":
+        failed_q_job["completed_at"] = "2026-10-29T12:41:20Z"
+    elif fault == "cap3-Q-build-number":
+        failed_q_job["steps"][0]["number"] = 13
+    elif fault == "cap3-Q-build-result":
+        failed_q_job["steps"][0]["conclusion"] = "failure"
+    elif fault == "cap3-Q-build-start":
+        failed_q_job["steps"][0]["started_at"] = "2026-10-29T12:40:30Z"
+    elif fault == "cap3-Q-build-finish":
+        failed_q_job["steps"][0]["completed_at"] = "2026-10-29T12:40:41Z"
+    elif fault == "cap3-Q-start-unknown":
+        failed_q_job["steps"][0].pop("started_at")
+    elif fault == "cap3-Q-runtime-number":
+        failed_q_job["steps"][1]["number"] = 23
+    elif fault == "cap3-Q-runtime-result":
+        failed_q_job["steps"][1]["conclusion"] = "success"
+    elif fault == "cap3-Q-runtime-start":
+        failed_q_job["steps"][1]["started_at"] = "2026-10-29T12:41:07Z"
+    elif fault == "cap3-Q-runtime-finish":
+        failed_q_job["steps"][1]["completed_at"] = "2026-10-29T12:41:10Z"
+    elif fault == "cap3-Q-runtime-missing":
+        failed_q_job["steps"].pop()
+    elif fault == "cap3-R-created-between-P-Q":
+        producer["created_at"] = "2026-10-29T12:40:00Z"
+    elif fault == "cap3-R-created-at-Q-finish":
+        producer["created_at"] = "2026-10-29T12:41:19Z"
+    elif fault == "cap3-current-created-between-P-Q":
+        current["created_at"] = "2026-10-29T12:40:00Z"
+    elif fault == "cap3-current-created-at-Q-finish":
+        current["created_at"] = "2026-10-29T12:41:19Z"
+    elif fault == "cap3-R-Q-source":
+        producer["head_sha"] = producer_job["head_sha"] = q_head
+    elif fault == "cap3-R-attempt2":
+        producer["run_attempt"] = producer_job["run_attempt"] = 2
+    elif fault == "cap3-R-plus-current-old":
+        previous = {
+            **deepcopy(producer_job),
+            "id": 1199,
+            "run_id": 12,
+            "head_sha": head,
+            "steps": [
+                step(12, build_name, "success", "2026-10-30T00:06:00Z", "2026-10-30T00:07:00Z")
+            ],
+        }
+        jobs[12].insert(0, previous)
+
+    if fault in {"cap4-missing-R", "cap4-count3-without-R", "cap4-count4-without-R"}:
+        rows.remove(failed_r)
+        if fault == "cap4-count4-without-R":
+            rows.append({**deepcopy(producer), "id": 10})
+            jobs[10] = [{**deepcopy(producer_job), "id": 1000, "run_id": 10}]
+    elif fault == "cap4-duplicate-R-start":
+        failed_r_job["steps"].append({**failed_r_job["steps"][0], "number": 13})
+    elif fault == "cap4-R-run-id":
+        failed_r["id"] = 40971831228
+        failed_r_job["run_id"] = failed_r["id"]
+        jobs[failed_r["id"]] = jobs.pop(40971831227)
+    elif fault == "cap4-R-job-id":
+        failed_r_job["id"] = 123790320308
+    elif fault == "cap4-R-head":
+        failed_r["head_sha"] = failed_r_job["head_sha"] = "d" * 40
+    elif fault == "cap4-R-branch":
+        failed_r["head_branch"] = "foreign"
+    elif fault == "cap4-R-attempt":
+        failed_r["run_attempt"] = 2
+    elif fault == "cap4-R-event":
+        failed_r["event"] = "push"
+    elif fault == "cap4-R-workflow":
+        failed_r["workflow_id"] = 999
+    elif fault == "cap4-R-repository":
+        failed_r["repository"]["id"] = 999
+    elif fault == "cap4-R-source-repository":
+        failed_r["head_repository"]["id"] = 999
+    elif fault == "cap4-R-run-pending":
+        failed_r["status"], failed_r["conclusion"] = "in_progress", None
+    elif fault == "cap4-R-laundering":
+        failed_r["conclusion"] = failed_r_job["conclusion"] = "success"
+    elif fault == "cap4-R-job-status":
+        failed_r_job["status"] = "in_progress"
+    elif fault == "cap4-R-created":
+        failed_r["created_at"] = "2026-10-29T23:15:08Z"
+    elif fault == "cap4-R-job-start":
+        failed_r_job["started_at"] = "2026-10-29T23:15:29Z"
+    elif fault == "cap4-R-job-finish-prose":
+        failed_r_job["completed_at"] = "2026-10-29T23:19:37Z"
+    elif fault == "cap4-R-build-number":
+        failed_r_job["steps"][0]["number"] = 13
+    elif fault == "cap4-R-build-result":
+        failed_r_job["steps"][0]["conclusion"] = "failure"
+    elif fault == "cap4-R-build-start":
+        failed_r_job["steps"][0]["started_at"] = "2026-10-29T23:19:00Z"
+    elif fault == "cap4-R-build-finish":
+        failed_r_job["steps"][0]["completed_at"] = "2026-10-29T23:19:07Z"
+    elif fault == "cap4-R-start-unknown":
+        failed_r_job["steps"][0].pop("started_at")
+    elif fault == "cap4-R-runtime-number":
+        failed_r_job["steps"][1]["number"] = 23
+    elif fault == "cap4-R-runtime-result":
+        failed_r_job["steps"][1]["conclusion"] = "success"
+    elif fault == "cap4-R-runtime-start":
+        failed_r_job["steps"][1]["started_at"] = "2026-10-29T23:19:31Z"
+    elif fault == "cap4-R-runtime-finish":
+        failed_r_job["steps"][1]["completed_at"] = "2026-10-29T23:19:34Z"
+    elif fault == "cap4-R-runtime-missing":
+        failed_r_job["steps"].pop()
+    elif fault in {"cap4-S-created-after-old-prose", "cap4-S-created40", "cap4-S-created-equal"}:
+        producer["created_at"] = {
+            "cap4-S-created-after-old-prose": "2026-10-29T23:19:38Z",
+            "cap4-S-created40": "2026-10-29T23:19:40Z",
+            "cap4-S-created-equal": "2026-10-29T23:19:41Z",
+        }[fault]
+    elif fault in {
+        "cap4-current-created-after-old-prose",
+        "cap4-current-created40",
+        "cap4-current-created-equal",
+    }:
+        current["created_at"] = {
+            "cap4-current-created-after-old-prose": "2026-10-29T23:19:38Z",
+            "cap4-current-created40": "2026-10-29T23:19:40Z",
+            "cap4-current-created-equal": "2026-10-29T23:19:41Z",
+        }[fault]
+    elif fault == "cap4-S-R-source":
+        producer["head_sha"] = producer_job["head_sha"] = r_head
+    elif fault in {
+        "cap4-current-reuses-P-run",
+        "cap4-current-reuses-Q-run",
+        "cap4-current-reuses-R-run",
+    }:
+        previous_id = {
+            "cap4-current-reuses-P-run": 40809053754,
+            "cap4-current-reuses-Q-run": 40874768112,
+            "cap4-current-reuses-R-run": 40971831227,
+        }[fault]
+        current["id"] = previous_id
+        current_job["run_id"] = previous_id
+        jobs[previous_id].append(current_job)
+
+    pr = {
+        "number": 2497,
+        "commits": (
+            2 if fault == "cap3-current-Q-source" else 3 if fault == "cap4-current-R-source" else 5
+        ),
+        "state": "open",
+        "merged": scenario == "main",
+        "merge_commit_sha": head if scenario == "main" else None,
+        "head": {"sha": final, "ref": branch, "repo": {"full_name": repo, "id": 1043311030}},
+        "base": {"ref": "main", "repo": {"id": 1043311030}},
+    }
+    if fault == "ordinary-without-image":
+        event_name, action = "pull_request", "contract"
+        current["event"] = event_name
+    if fault == "wrong-PR":
+        pr["number"] = 2494
+    if fault == "foreign-head":
+        pr["head"]["repo"]["full_name"] = "other/repo"
+    if fault == "unrelated-main":
+        pr["merged"] = False
+    event = tmp_path / "event.json"
+    event.write_text(json.dumps({"pull_request": pr}))
+    runner, home = tmp_path / "runner", tmp_path / "synthetic-home"
+    runner.mkdir()
+    home.mkdir(mode=0o700)
+    output = tmp_path / "output"
+    output.write_text("")
+    for key in tuple(os.environ):
+        monkeypatch.delenv(key, raising=False)
+    values = {
+        "PATH": "/usr/bin:/bin",
+        "HOME": str(home),
+        "LANG": "C.UTF-8",
+        "GITHUB_REPOSITORY": repo if fault != "wrong-repository" else "other/repo",
+        "GITHUB_REPOSITORY_ID": "1043311030",
+        "GITHUB_EVENT_PATH": str(event),
+        "GITHUB_EVENT_NAME": event_name,
+        "GITHUB_REF": "refs/heads/main" if scenario == "main" else "refs/heads/" + branch,
+        "GITHUB_SHA": head,
+        "CADDY_ACTION": action,
+        "CADDY_SOURCE_HEAD": head,
+        "GITHUB_RUN_ID": str(current["id"]),
+        "GITHUB_RUN_ATTEMPT": str(current_attempt),
+        "RUNNER_TEMP": str(runner),
+        "GITHUB_OUTPUT": str(output),
+        "GH_TOKEN": "synthetic-token",
+    }
+    for key, value in values.items():
+        monkeypatch.setenv(key, value)
+    tracked = [
+        "frontend/Dockerfile.caddy-spa",
+        "frontend/package-lock.json",
+        "frontend/.dockerignore",
+    ]
+    fixed = [
+        ".github/workflows/frontend-ci.yml",
+        "deploy/Caddyfile",
+        "deploy/Caddyfile.production",
+        "scripts/ci/check_docker_runtime_dependency_surface.py",
+        "scripts/ci/prometheus_source_image.py",
+        "scripts/ci/check_trivy_ignore_policy_expiry.py",
+        "trivy/ignore-policy-caddy-go-jose-v3.rego",
+        "trivy/ignore-policy.rego",
+    ]
+    policy_raw = (REPO_ROOT / "trivy/ignore-policy-caddy-go-jose-v3.rego").read_bytes()
+    for name in tracked + fixed:
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(policy_raw if name.endswith("caddy-go-jose-v3.rego") else b"synthetic\n")
+    changed_path = {
+        "producer-workflow-drift": fixed[0],
+        "producer-helper-drift": fixed[3],
+        "producer-frontend-drift": tracked[1],
+        "expiry-helper-drift": fixed[5],
+    }.get(fault)
+    blobs, object_ids = {}, {}
+    for name in tracked + fixed:
+        raw = (
+            b"forged original source\n" if name == changed_path else (tmp_path / name).read_bytes()
+        )
+        oid = hashlib.sha1(
+            b"blob " + str(len(raw)).encode() + b"\0" + raw, usedforsecurity=False
+        ).hexdigest()
+        object_ids[name], blobs[oid] = oid, raw
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(shutil, "which", lambda name: "/usr/bin/" + name)
+
+    def git(argv: list[str], **kwargs: Any) -> str | bytes:
+        args = argv[1:]
+        if args[0] == "--no-replace-objects":
+            args = args[1:]
+        if args[:2] == ["rev-parse", "HEAD"]:
+            return head + "\n"
+        if args[0] == "ls-files":
+            return ("\0".join(tracked) + "\0").encode()
+        if args[0] == "status":
+            return b""
+        if args[:2] == ["ls-tree", "-r"]:
+            names = tracked + fixed
+            if fault == "original-missing-file":
+                names = names[:-1]
+            return ("\0".join(names) + "\0").encode()
+        if args[0] == "ls-tree":
+            mode = "120000" if fault == "original-link-mode" else "100644"
+            return (mode + " blob " + object_ids[args[-1]] + "\n").encode()
+        if args[:2] == ["cat-file", "blob"]:
+            return blobs[args[2]]
+        raise AssertionError(argv)
+
+    def fetch(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[bytes]:
+        assert argv[1:4] == ["--no-replace-objects", "fetch", "--no-tags"]
+        assert kwargs["env"]["GIT_NO_REPLACE_OBJECTS"] == "1"
+        assert not any("TOKEN" in key for key in kwargs["env"])
+        return subprocess.CompletedProcess(argv, 0, stdout=b"", stderr=b"")
+
+    monkeypatch.setattr(subprocess, "check_output", git)
+    monkeypatch.setattr(subprocess, "run", fetch)
+    calls: dict[str, int] = {}
+
+    class Response(BytesIO):
+        def __init__(self, payload: Any, url: str) -> None:
+            super().__init__(json.dumps(payload).encode())
+            self.url = url
+
+        def geturl(self) -> str:
+            return self.url
+
+    def api(request: urllib.request.Request, **kwargs: Any) -> Response:
+        url = request.full_url
+        calls[url] = calls.get(url, 0) + 1
+        assert url.startswith("https://api.github.com/repos/" + repo + "/")
+        assert request.get_header("Authorization") == "Bearer synthetic-token"
+        if "/pulls/2497/commits?" in url:
+            first = "d" * 40 if fault == "wrong-P-PR" else prior_head
+            second = "e" * 40 if fault == "wrong-producer-PR" else producer_head
+            middle = "f" * 40 if fault == "cap3-Q-ancestry" else q_head
+            third = "9" * 40 if fault == "cap4-R-ancestry" else r_head
+            payload = [
+                {"sha": first, "parents": []},
+                {"sha": middle, "parents": [{"sha": first}]},
+                {"sha": third, "parents": [{"sha": middle}]},
+                {"sha": second, "parents": [{"sha": third}]},
+                {"sha": final, "parents": [{"sha": second}]},
+            ]
+            if fault == "cap3-current-Q-source":
+                payload = payload[:2]
+            if fault == "cap4-current-R-source":
+                payload = payload[:3]
+            if fault == "cap3-Q-disconnected-ancestry":
+                payload[2]["parents"] = [{"sha": first}]
+            if fault == "cap4-R-disconnected-ancestry":
+                payload[3]["parents"] = [{"sha": middle}]
+        elif url.endswith("/pulls/2497"):
+            payload = pr
+        elif url.endswith("/actions/workflows/frontend-ci.yml"):
+            payload = {"id": 196310935}
+        elif "/runs?" in url:
+            result = deepcopy(rows)
+            if fault == "API-failed":
+                raise urllib.error.HTTPError(url, 503, "synthetic failure", None, None)
+            if fault == "duplicate-run":
+                result.append(deepcopy(producer))
+            if fault == "same-count-page-replacement" and calls[url] > 1:
+                result[-1]["id"] = 999
+            total = len(result) + int(fault == "incomplete-API")
+            if fault == "repeated-full-page":
+                result, total = [{**deepcopy(producer), "id": i + 100} for i in range(100)], 200
+            if fault == "boolean-total":
+                total = True
+            payload = {"total_count": total, "workflow_runs": result}
+        elif "/jobs?" in url:
+            run_id = int(url.split("/runs/", 1)[1].split("/", 1)[0])
+            result = deepcopy(jobs[run_id])
+            if fault == "duplicate-job" and run_id == 11:
+                result.append(deepcopy(result[0]))
+            payload = {"total_count": len(result), "jobs": result}
+        elif "/artifacts?" in url:
+            assert "/runs/11/" in url
+            row = {
+                "id": True if fault == "boolean-artifact-id" else 77,
+                "name": "caddy-contract-evidence",
+                "expired": fault == "expired-artifact",
+                "workflow_run": {
+                    "id": 999 if fault == "wrong-artifact-run" else 11,
+                    "head_sha": head if fault == "artifact-head" else producer_head,
+                    "repository_id": 999 if fault == "wrong-artifact-repository" else 1043311030,
+                    "head_repository_id": 1043311030,
+                    "head_branch": branch,
+                },
+                "digest": "wrong" if fault == "artifact-digest" else "sha256:" + "c" * 64,
+            }
+            result = (
+                []
+                if fault == "missing-artifact"
+                else [row, deepcopy(row)] if fault == "duplicate-artifact" else [row]
+            )
+            payload = {"total_count": len(result), "artifacts": result}
+        else:
+            raise AssertionError(url)
+        return Response(payload, url)
+
+    monkeypatch.setattr(source_owner, "opener", lambda: SimpleNamespace(open=api))
+    exec(compile(code, "<actual-Caddy-admission>", "exec"), {"__test_today": today})
+    result = json.loads((runner / "caddy-admission/admission.json").read_bytes())
+    assert output.read_text().startswith("mode=" + result["mode"] + "\n")
+    if result["mode"] == "reuse":
+        assert result["producer"]["run_id"] == 11
+        assert result["producer"]["git_inputs"] == result["inputs"]
+    return result
+
+
+@pytest.mark.parametrize("case,scenario,error", CADDY_D_HISTORY_CASES)
+def test_caddy_D_executes_actual_admission_without_native_or_network_calls(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: str, scenario: str, error: str | None
+) -> None:
+    import urllib.error
+    from scripts.ci.prometheus_source_image import QualificationError
+
+    baseline = tmp_path / "baseline"
+    baseline.mkdir()
+    with monkeypatch.context() as baseline_patch:
+        result = _caddy_D_admission_case(baseline, baseline_patch, scenario, None)
+    assert result["mode"] == (
+        "build"
+        if scenario in {"build", "metadata-failure-before-build", "after-R-job"}
+        else "metadata" if scenario == "metadata" else "reuse"
+    )
+    if error is None:
+        return
+    mutant = tmp_path / "mutant"
+    mutant.mkdir()
+    with monkeypatch.context() as mutant_patch:
+        with pytest.raises(
+            (ValueError, QualificationError, urllib.error.HTTPError), match=re.escape(error)
+        ):
+            _caddy_D_admission_case(mutant, mutant_patch, scenario, case)
+    assert (mutant / "output").read_text() == ""
+
+
+@pytest.mark.parametrize("redirect", [False, True])
+def test_caddy_authenticated_API_transport_never_forwards_redirect_credentials(
+    monkeypatch: pytest.MonkeyPatch, redirect: bool
+) -> None:
+    import ast
+    from email.message import Message
+    from io import BytesIO
+    import urllib.error
+    import urllib.request
+    import urllib.response
+    from scripts.ci.prometheus_source_image import opener
+
+    for key in tuple(os.environ):
+        if any(
+            word in key.upper() for word in ("TOKEN", "PASSWORD", "SECRET", "CREDENTIAL", "AUTH")
+        ):
+            monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv("GH_TOKEN", "synthetic-only-token")
+    source = _named_step(
+        _steps(_job(_workflow(FRONTEND_WORKFLOW), "caddy-contract")),
+        "Admit existing Caddy producer or exact retained subject",
+    )["run"]
+    assert "transport = opener()" in source and "with transport.open(request" in source
+    code = source.split("python3 - <<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
+    tree = ast.parse(code)
+    function = next(
+        node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "api"
+    )
+    calls = []
+
+    def response(_handler: object, request: urllib.request.Request) -> Any:
+        calls.append(request.full_url)
+        assert request.get_header("Authorization") == "Bearer synthetic-only-token"
+        headers = Message()
+        if redirect:
+            headers["Location"] = "https://foreign.invalid/credential-target"
+        value = urllib.response.addinfourl(
+            BytesIO(b'{"ok":true}'), headers, request.full_url, 302 if redirect else 200
+        )
+        value.msg = "Found" if redirect else "OK"
+        return value
+
+    monkeypatch.setattr(urllib.request.HTTPSHandler, "https_open", response)
+    namespace = {
+        "repo": "Katsiarynakavaleuskaya/PulsePlate",
+        "transport": opener(),
+        "urllib": urllib,
+        "os": os,
+        "json": json,
+    }
+    exec(
+        compile(ast.Module(body=[function], type_ignores=[]), "<actual-api-function>", "exec"),
+        namespace,
+    )
+    if redirect:
+        with pytest.raises(urllib.error.HTTPError):
+            namespace["api"]("/pulls/2497")
+    else:
+        assert namespace["api"]("/pulls/2497") == {"ok": True}
+    assert calls == ["https://api.github.com/repos/Katsiarynakavaleuskaya/PulsePlate/pulls/2497"]
+
+
+@pytest.mark.parametrize(
+    "day", ["2026-10-27", "2026-10-28", "2026-10-30", "2026-10-31", "2026-11-05"]
+)
+def test_caddy_dates_are_rechecked_after_metadata_before_any_build(
+    monkeypatch: pytest.MonkeyPatch, day: str
+) -> None:
+    from datetime import date
+
+    steps = _steps(_job(_workflow(FRONTEND_WORKFLOW), "caddy-contract"))
+    window = _named_step(steps, "Recheck accepted Caddy dates immediately before build")
+    build = _named_step(steps, "Build accepted D Caddy candidate once")
+    assert steps.index(window) + 1 == steps.index(build)
+    assert "steps.caddy-build-window.outcome == 'success'" in build["if"]
+    assert "steps.caddy-metadata.outcome == 'success'" in window["if"]
+    code = window["run"].split("python3 - <<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
+    assert code.count("datetime.now(timezone.utc).date()") == 1
+    code = code.replace("datetime.now(timezone.utc).date()", "__test_today")
+    monkeypatch.chdir(REPO_ROOT)
+    if day in ("2026-10-28", "2026-10-30"):
+        exec(
+            compile(code, "<actual-prebuild-window>", "exec"),
+            {"__test_today": date.fromisoformat(day)},
+        )
+    else:
+        with pytest.raises(ValueError):
+            exec(
+                compile(code, "<actual-prebuild-window>", "exec"),
+                {"__test_today": date.fromisoformat(day)},
+            )
+    for name in (
+        "Admit existing Caddy producer or exact retained subject",
+        "Decide exact Caddy D inventory and loaded isolated runtime",
+    ):
+        assert "validate_caddy_ci_window(" in _named_step(steps, name)["run"]
+
+
+@pytest.mark.parametrize(
+    "outcome", ["full-scan-failed", "positive-secret", "policy-failed", "accepted"]
+)
+def test_caddy_image_archive_is_private_until_complete_security_acceptance(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, outcome: str
+) -> None:
+    from datetime import date
+    from scripts.ci import check_docker_runtime_dependency_surface as owner
+
+    steps = _steps(_job(_workflow(FRONTEND_WORKFLOW), "caddy-contract"))
+    retain = _named_step(steps, "Retain original Caddy candidate or current import binding")
+    decide = _named_step(steps, "Decide exact Caddy D inventory and loaded isolated runtime")
+    assert "steps.caddy-full-publish.outcome == 'success'" in decide["if"]
+    runner = tmp_path / "runner"
+    runner.mkdir()
+    private = runner / "private-subject"
+    private.mkdir(mode=0o700)
+    (private / "native-projections").mkdir()
+    metadata = runner / "caddy-xnet060-metadata"
+    for subdir in ("evidence", "a/output", "b/output"):
+        (metadata / subdir).mkdir(parents=True)
+    head = "a" * 40
+    modules = {"example.org/m": {"Version": "v1.0.0", "Sum": "h1:synthetic"}}
+    qualification = {
+        "failure": None,
+        "status": "observed_counterfactual_metadata_only",
+        "source_head": head,
+        "go_build_invocations": 0,
+        "derivations": {"a": {"final": {"modules": modules}}},
+    }
+    (metadata / "evidence/qualification.json").write_text(json.dumps(qualification))
+    (metadata / "a/output/final-packages.json").write_text(
+        json.dumps({"Module": {"Path": "example.org/m"}})
+    )
+    (private / "native-projections/build-info.txt").write_text(
+        "dep example.org/m v1.0.0 h1:synthetic\n"
+    )
+    admission = {
+        "mode": "build",
+        "current_head": head,
+        "current_run_id": 12,
+        "current_run_attempt": 1,
+        "repository": "Katsiarynakavaleuskaya/PulsePlate",
+        "inputs": {},
+    }
+    (runner / "caddy-admission").mkdir()
+    (runner / "caddy-admission/admission.json").write_text(json.dumps(admission))
+    subject = {
+        "docker": "/synthetic/docker",
+        "scanner": "/synthetic/trivy",
+        "clean_env": {},
+        "image_config_id": "sha256:" + "a" * 64,
+        "binary_sha256": "b" * 64,
+    }
+    state = private / "subject.json"
+    state.write_text(json.dumps(subject))
+    monkeypatch.setenv("RUNNER_TEMP", str(runner))
+    monkeypatch.setenv("CADDY_OBSERVATION_STATE", str(state))
+    monkeypatch.chdir(REPO_ROOT)
+    image_bytes = b"synthetic image archive; private until accepted\n"
+
+    def native(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[bytes]:
+        if argv[1] == "save":
+            Path(argv[argv.index("--output") + 1]).write_bytes(image_bytes)
+        elif argv[1] == "convert":
+            kwargs["stdout"].write(b"{}\n")
+        else:
+            raise AssertionError(argv)
+        return subprocess.CompletedProcess(argv, 0, stdout=b"", stderr=b"")
+
+    monkeypatch.setattr(subprocess, "run", native)
+    retain_code = retain["run"].split("python3 - <<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
+    exec(compile(retain_code, "<actual-private-export>", "exec"), {})
+    evidence = runner / "caddy-contract"
+    assert (private / "candidate/candidate.docker.tar").read_bytes() == image_bytes
+    assert (
+        not (evidence / "candidate.docker.tar").exists()
+        and not (evidence / "candidate.json").exists()
+    )
+    if outcome != "full-scan-failed":
+        full = evidence / "full-observation"
+        full.mkdir()
+        (full / "native-projections").mkdir()
+        (full / "native-projections/build-info.txt").write_bytes(b"synthetic build info")
+        (full / "full.raw.json").write_bytes(b"synthetic native report")
+        (full / "observation.json").write_text(
+            json.dumps(
+                {"subject": subject, "full_scan_native_exit": 0, "full_report_sha256": "c" * 64}
+            )
+        )
+
+        def report(*args: Any, **kwargs: Any) -> dict[str, Any]:
+            if outcome == "positive-secret":
+                raise ValueError("positive native secret")
+            return {"decision": "accepted_temporary_CI_residual_risk"}
+
+        def projection(*args: Any, **kwargs: Any) -> None:
+            if outcome == "policy-failed":
+                raise ValueError("native policy inventory differs")
+
+        monkeypatch.setattr(owner, "validate_caddy_ci_report", report)
+        monkeypatch.setattr(owner, "validate_caddy_policy_projection", projection)
+        monkeypatch.setattr(
+            owner, "observe_caddy_ci_runtime", lambda *args: {"actual_fixture": True}
+        )
+        code = decide["run"].split("python3 - <<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
+        code = code.replace("datetime.now(timezone.utc).date()", "__test_today")
+        if outcome == "accepted":
+            exec(
+                compile(code, "<actual-security-publication>", "exec"),
+                {"__test_today": date(2026, 10, 28)},
+            )
+            assert (evidence / "candidate.docker.tar").read_bytes() == image_bytes
+            manifest = json.loads((evidence / "candidate.json").read_bytes())
+            assert manifest["archive_sha256"] == hashlib.sha256(image_bytes).hexdigest()
+            assert not (private / "candidate/candidate.docker.tar").exists()
+        else:
+            with pytest.raises(ValueError):
+                exec(
+                    compile(code, "<actual-security-publication>", "exec"),
+                    {"__test_today": date(2026, 10, 28)},
+                )
+    if outcome != "accepted":
+        assert not (evidence / "candidate.docker.tar").exists()
+        assert not (evidence / "candidate.json").exists()
+        assert all(
+            path.read_bytes() != image_bytes for path in evidence.rglob("*") if path.is_file()
+        )

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+from copy import deepcopy
 from datetime import date
 from dataclasses import replace
 from email.message import Message
@@ -12,10 +13,12 @@ import json
 import os
 import shlex
 import shutil
+import stat
 from ssl import SSLCertVerificationError
 import subprocess
 import sys
 from pathlib import Path, PurePosixPath
+from typing import Any
 from urllib.parse import urlparse
 from urllib.error import HTTPError, URLError
 from urllib.request import HTTPHandler, HTTPSHandler, Request
@@ -45,6 +48,596 @@ EXPECTED_DOCKER_SOURCE_PREP_BUILD_STEPS = {
     ("cd.yml", "build", "Build & Push backend image (staging)"),
     ("cd.yml", "build-production", "Build & Push image (production)"),
 }
+
+
+@pytest.fixture(autouse=True)
+def historical_alertmanager_selection(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    from tests.test_deploy_contract_scripts import _historical_AM_scan_oracle
+
+    current = json.loads(json.dumps(docker_sources._ALERT_ACCEPTED_CANDIDATE))
+    assert current is None or isinstance(current, dict)
+    current_oracle = json.loads(json.dumps(docker_sources._ALERT_CURRENT_SCAN_ORACLE))
+    monkeypatch.setattr(
+        docker_sources,
+        "_ALERT_ACCEPTED_CANDIDATE",
+        json.loads(json.dumps(docker_sources._ALERT_HISTORICAL_C10)),
+    )
+    monkeypatch.setattr(docker_sources, "_ALERT_CURRENT_SCAN_ORACLE", _historical_AM_scan_oracle())
+    return {"accepted": current, "scan": current_oracle}
+
+
+def test_current_selected_images_match_live_identity_consumers(
+    historical_alertmanager_selection: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Cross-bind actual selected data before any historical fixture substitution."""
+    from tests import test_notify_premium_alias_checkpoint_failure as native
+
+    selected = historical_alertmanager_selection["accepted"]
+    oracle = historical_alertmanager_selection["scan"]
+    with monkeypatch.context() as current:
+        current.setattr(docker_sources, "_ALERT_ACCEPTED_CANDIDATE", selected)
+        current.setattr(docker_sources, "_ALERT_CURRENT_SCAN_ORACLE", oracle)
+        if selected is None:
+            from scripts.ci.prometheus_source_image import QualificationError, read_image_manifest
+
+            with pytest.raises(QualificationError, match="UNCONFIGURED_HOLD"):
+                docker_sources._alertmanager_accepted_producer()
+            manifest_path = REPO_ROOT / "deploy/prometheus/image-manifest.json"
+            manifest = read_image_manifest(manifest_path, preparation=True)
+            assert manifest["phase"] == "source_prepared"
+            assert manifest["selection"] is manifest["candidate"] is None
+            with pytest.raises(QualificationError, match="^source_prepared_not_consumable$"):
+                read_image_manifest(manifest_path)
+            return
+        assert docker_sources._alertmanager_accepted_producer() == selected
+        runtime_ref, config_id = docker_sources._alertmanager_contract_subject()
+        assert native.ALERTMANAGER_IMAGE == runtime_ref
+        assert native._ACCEPTED_AM_BINARIES == oracle["subject"]["binary_sha256"]
+        assert config_id == selected["graph"]["config"]["digest"] == oracle["subject"]["config"]
+        assert Path(native.__file__).read_text().count(config_id) == 1
+        for path in docker_sources._ALERT_SELECTION_FILES[:3]:
+            model = yaml.safe_load((REPO_ROOT / path).read_text())
+            assert model["services"]["alertmanager"]["image"] == runtime_ref
+        cd = _load_workflow(WORKFLOWS_DIR / "cd.yml")
+        jobs = cd["jobs"]
+        assert isinstance(jobs, dict)
+        candidate_env = jobs["alertmanager-retained-candidate"]["env"]
+        assert {
+            name: candidate_env[name]
+            for name in ("AM_CANDIDATE_RUN", "AM_CANDIDATE_ARTIFACT", "AM_CANDIDATE_SOURCE")
+        } == {
+            "AM_CANDIDATE_RUN": str(selected["run"]),
+            "AM_CANDIDATE_ARTIFACT": str(selected["artifact"]),
+            "AM_CANDIDATE_SOURCE": selected["source"],
+        }
+        tuple_text = (
+            f"--alertmanager-candidate-run {selected['run']} "
+            f"--alertmanager-candidate-artifact {selected['artifact']}"
+        )
+        source_text = f"--alertmanager-candidate-source {selected['source']}"
+        for workflow, expected_count in (("ci.yml", 1), ("cd.yml", 3)):
+            raw = (WORKFLOWS_DIR / workflow).read_text()
+            assert raw.count(tuple_text) == raw.count(source_text) == expected_count
+            for kind, run_id, artifact_id in (
+                ("qualification", 40379971373, 12677328773),
+                ("support", 40383803043, 12679243318),
+            ):
+                selector = (
+                    f"--alertmanager-{kind}-run {run_id} "
+                    f"--alertmanager-{kind}-artifact {artifact_id}"
+                )
+                assert raw.count(selector) == expected_count
+                assert (
+                    raw.count(f"--alertmanager-{kind}-source {selected['source']}")
+                    == expected_count
+                )
+        for name in ("alertmanager", "amtool"):
+            assert oracle["expected_modules"][name]["stdlib"] == "v1.27.3"
+
+
+@pytest.mark.parametrize("tool_selected", [False, True], ids=["without-tool", "with-tool"])
+def test_source_prepared_tool_selection_preserves_image_holds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, tool_selected: bool
+) -> None:
+    """Real preparation parsing accepts tool metadata without claiming artifact or image admission."""
+    from scripts.ci import prometheus_source_image as source
+
+    manifest = json.loads((REPO_ROOT / source.MANIFEST_PATH).read_text())
+    manifest.update(phase="source_prepared", selection=None, candidate=None)
+    coordinates = {
+        "source_head": "1" * 40,
+        "run_id": 1,
+        "artifact_id": 2,
+        "artifact_name": "prometheus-oras-1-1",
+        "artifact_digest": "sha256:" + "2" * 64,
+        "binary_sha256": "3" * 64,
+        "binary_bytes": 1,
+        "input_digest": "sha256:" + "4" * 64,
+    }
+    manifest["inputs"]["oras"]["retained"] = coordinates if tool_selected else None
+    path = tmp_path / "image-manifest.json"
+    path.write_text(json.dumps(manifest))
+
+    assert source.read_image_manifest(path, preparation=True) == manifest
+    with pytest.raises(source.QualificationError, match="^source_prepared_not_consumable$"):
+        source.read_image_manifest(path)
+    monkeypatch.setattr(docker_sources, "_ALERT_ACCEPTED_CANDIDATE", None)
+    with pytest.raises(source.QualificationError, match="^AM_accepted_producer_UNCONFIGURED_HOLD$"):
+        docker_sources._alertmanager_accepted_producer()
+
+    if tool_selected:
+        malformed = deepcopy(manifest)
+        malformed["inputs"]["oras"]["retained"]["run_id"] = True
+        path.write_text(json.dumps(malformed))
+        with pytest.raises(source.QualificationError, match="^tool_retained_positive_integer$"):
+            source.read_image_manifest(path, preparation=True)
+
+
+def test_historical_AM_fixture_copy_does_not_change_current_selection(
+    historical_alertmanager_selection: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from tests.test_deploy_contract_scripts import (
+        _historical_AM_scan_oracle,
+        _historical_AM_source,
+        _historical_AM_template,
+    )
+
+    selected = historical_alertmanager_selection["accepted"]
+    oracle = historical_alertmanager_selection["scan"]
+    with monkeypatch.context() as current:
+        current.setattr(docker_sources, "_ALERT_ACCEPTED_CANDIDATE", selected)
+        current.setattr(docker_sources, "_ALERT_CURRENT_SCAN_ORACLE", oracle)
+        original = Path(docker_sources.__file__).read_bytes()
+        copied = _historical_AM_source()
+        main_guard = b'\nif __name__ == "__main__":\n'
+        prefix, suffix = original.split(main_guard)
+        assert copied.startswith(prefix)
+        assert copied.endswith(main_guard + suffix)
+        fixture = copied[len(prefix) : -len(main_guard + suffix)]
+        assert b"_ALERT_ACCEPTED_CANDIDATE = _ALERT_HISTORICAL_C10" in fixture
+        historical = _historical_AM_scan_oracle()
+        assert (
+            historical["subject"]["config"]
+            == docker_sources._ALERT_HISTORICAL_C10["graph"]["config"]["digest"]
+        )
+        assert historical["expected_OS"]["OS"] == oracle["expected_OS"]["OS"]
+        historical_os = {row[3]: row for row in historical["expected_OS"]["packages"]}
+        current_os = {row[3]: row for row in oracle["expected_OS"]["packages"]}
+        assert set(historical_os) == set(current_os)
+        assert {name for name in historical_os if historical_os[name] != current_os[name]} == {
+            "ca-certificates",
+            "tzdata",
+            "tzdata-legacy",
+        }
+        assert historical_os["ca-certificates"][4] == "20250419"
+        assert current_os["ca-certificates"][4] == "20250419+deb13u1"
+        for name in ("tzdata", "tzdata-legacy"):
+            assert historical_os[name][4] == "2026c"
+            assert current_os[name][4] == "2026e"
+        for name in ("alertmanager", "amtool"):
+            assert historical["expected_modules"][name]["stdlib"] == "v1.27.2"
+            assert {
+                key: value
+                for key, value in historical["expected_modules"][name].items()
+                if key != "stdlib"
+            } == {
+                key: value
+                for key, value in oracle["expected_modules"][name].items()
+                if key != "stdlib"
+            }
+        old_ref = (
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@"
+            + docker_sources._ALERT_HISTORICAL_C10["graph"]["manifest"]["digest"]
+        ).encode()
+        from tests import test_notify_premium_alias_checkpoint_failure as native
+
+        current_ref = native.ALERTMANAGER_IMAGE.encode()
+        for path in docker_sources._ALERT_SELECTION_FILES[:3]:
+            actual = (REPO_ROOT / path).read_bytes()
+            assert actual.count(current_ref) == 1
+            assert _historical_AM_template(REPO_ROOT / path) == actual.replace(
+                current_ref, old_ref, 1
+            )
+        assert Path(docker_sources.__file__).read_bytes() == original
+        assert docker_sources._ALERT_ACCEPTED_CANDIDATE == selected
+        assert docker_sources._ALERT_CURRENT_SCAN_ORACLE == oracle
+
+
+@pytest.mark.parametrize("support_only", [False, True])
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "missing-history",
+        "extra-history",
+        "duplicate-job",
+        "prior-source",
+        "prior-attempt",
+        "prior-active",
+        "foreign-PR",
+        "current-job",
+        "current-ref",
+    ],
+)
+def test_current_alertmanager_manual_admission_preserves_history_and_owner(
+    monkeypatch: pytest.MonkeyPatch, support_only: bool, fault: str | None
+) -> None:
+    """Native totals are deliberately not inferred from these synthetic API job rows."""
+    records = [
+        (39048899349, 117443160727, "6c9f537e89d38f82f8d685150a32e25aee14c6c7", "failure"),
+        (39052648330, 117454182747, "2e28d62f4311930f1caeabb5378af3e1d3c1e1a1", "failure"),
+        (39059505765, 117474381581, "917854fb7832d7a980c8e6a8ee85940fd2e7724f", "failure"),
+        (39067589451, 117498357173, "45409a39ce06804d4cbb5dce6c7dbb61a85167c8", "failure"),
+        (39072367157, 117512436494, "bf5b6a9053c9b42727834ffd6966f45e4a493062", "failure"),
+        (39077538191, 117527703920, "9d849ab2128aa0a2ff7c065fcc47fdc36a771b1d", "failure"),
+        (39084669786, 117548630619, "557b66bf9287feadc68b9916f41f1f471bee9e49", "failure"),
+        (39093991413, 117576475833, "91bf3744fcc5f5bbdfdd6e08699d703db46a491f", "failure"),
+        (39099358458, 117592265589, "8a00dc7fe7c754c6801dc5c19f1772546ed8696e", "failure"),
+        (39143039135, 117721196331, "63455b8a750ef07a1e525078b4e3ce2089eecdde", "success"),
+        (40237598500, 121302388554, "04b76f42c09854405df00328ead16b30d701a24f", "success"),
+    ]
+    branch, head = "codex/python-setup-security-stabilization", "a" * 40
+    runs = [
+        {
+            "id": run,
+            "head_sha": source,
+            "head_branch": (
+                branch if run == 40237598500 else "codex/dependency-alertmanager-remediation"
+            ),
+            "run_attempt": 1,
+            "status": "completed",
+            "conclusion": outcome,
+            "event": "workflow_dispatch",
+            "workflow_id": 99,
+            "repository": {"id": 1043311030},
+            "head_repository": {"id": 1043311030},
+        }
+        for run, _, source, outcome in records
+    ]
+    jobs = {
+        run: [
+            {
+                "id": job,
+                "run_id": run,
+                "head_sha": source,
+                "name": "alertmanager-candidate-build",
+                "status": "completed",
+                "conclusion": outcome,
+            }
+        ]
+        for run, job, source, outcome in records
+    }
+    current = {
+        "id": 999,
+        "head_sha": head,
+        "head_branch": branch,
+        "workflow_id": 99,
+        "event": "workflow_dispatch",
+        "run_attempt": 1,
+        "repository": {"id": 1043311030},
+        "head_repository": {"id": 1043311030},
+    }
+    pr = {
+        "number": 2497,
+        "state": "open",
+        "head": {"ref": branch, "sha": head, "repo": {"id": 1043311030}},
+        "base": {"ref": "main", "repo": {"id": 1043311030}},
+    }
+    jobs[999] = [
+        {
+            "id": 1999,
+            "run_id": 999,
+            "head_sha": head,
+            "status": "in_progress",
+            "name": (
+                "alertmanager-input-inspection" if support_only else "alertmanager-candidate-build"
+            ),
+        }
+    ]
+    if fault == "missing-history":
+        runs.pop()
+    elif fault == "extra-history":
+        runs.append({**runs[-1], "id": 888})
+        jobs[888] = [{**jobs[records[-1][0]][0], "run_id": 888, "id": 1888}]
+    elif fault == "duplicate-job":
+        jobs[records[0][0]].append(dict(jobs[records[0][0]][0]))
+    elif fault == "prior-source":
+        runs[0]["head_sha"] = "b" * 40
+    elif fault == "prior-attempt":
+        runs[0]["run_attempt"] = 2
+    elif fault == "prior-active":
+        runs[0]["status"] = "in_progress"
+    elif fault == "foreign-PR":
+        pr["head"]["repo"]["id"] = 1
+    elif fault == "current-job":
+        jobs[999][0]["head_sha"] = "b" * 40
+
+    class API:
+        calls: list[str] = []
+
+        def json(self, endpoint: str) -> dict[str, Any]:
+            self.calls.append(endpoint)
+            if endpoint.endswith("/workflows/cd.yml"):
+                return {"id": 99, "path": ".github/workflows/cd.yml"}
+            if endpoint.endswith("/runs/999"):
+                return current
+            if endpoint.endswith("/pulls/2497"):
+                return pr
+            return {"total_count": len(runs) + 1 if "/workflows/" in endpoint else 1}
+
+        def pages(self, endpoint: str, key: str, count: int) -> list[dict[str, Any]]:
+            self.calls.append(endpoint)
+            if key == "workflow_runs":
+                return [*runs, current]
+            return jobs[int(endpoint.split("/runs/")[1].split("/")[0])]
+
+    for key, value in {
+        "GITHUB_EVENT_NAME": "workflow_dispatch",
+        "GITHUB_REPOSITORY": "Katsiarynakavaleuskaya/PulsePlate",
+        "GITHUB_REPOSITORY_ID": "1043311030",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "GITHUB_RUN_ID": "999",
+        "GITHUB_SHA": head,
+        "GITHUB_REF": "refs/heads/" + ("unrelated" if fault == "current-ref" else branch),
+    }.items():
+        monkeypatch.setenv(key, value)
+    api = API()
+    relevant = fault in {"foreign-PR", "current-job", "current-ref"} or (
+        fault is not None and not support_only
+    )
+    if relevant:
+        with pytest.raises(RuntimeError, match="AM_current_build"):
+            docker_sources._alertmanager_current_manual_admission(
+                api, head, support_only=support_only
+            )
+    else:
+        docker_sources._alertmanager_current_manual_admission(api, head, support_only=support_only)
+    if support_only:
+        assert not any("runs?event=" in path for path in api.calls)
+
+
+@pytest.mark.parametrize("fault", [None, "credentials", "qualification", "pair", "security"])
+def test_current_alertmanager_build_orders_real_input_seams_and_retains_spent_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    alertmanager_proposal_environment: None,
+    fault: str | None,
+) -> None:
+    """Synthetic adapters exercise order/retention only; no compiler or native acceptance claim."""
+    from scripts.ci import prometheus_source_image as transport
+
+    head = "a" * 40
+    monkeypatch.setenv("GITHUB_SHA", head)
+    events: list[str] = []
+    sources = {
+        path: (REPO_ROOT / path).read_bytes()
+        for path in (
+            *docker_sources._ALERT_Q_SOURCE_FILES,
+            "tests/test_notify_premium_alias_checkpoint_failure.py",
+        )
+    }
+
+    class API:
+        def __init__(self, private: Path, *args: Any) -> None:
+            self.private = private
+            private.mkdir()
+
+        def _capture(self, *args: Any, **kwargs: Any) -> bytes:
+            return (head + "\n").encode()
+
+        def close(self) -> None:
+            events.append("credentials-closed")
+            if fault != "credentials":
+                self.private.rmdir()
+
+    monkeypatch.setattr(transport, "GitHubRead", API)
+    monkeypatch.setattr(
+        docker_sources,
+        "_alertmanager_current_manual_admission",
+        lambda *a: events.append("admission"),
+    )
+    monkeypatch.setattr(docker_sources, "_alertmanager_source_snapshot", lambda *a: sources)
+
+    def inputs(
+        api: API, source: str, target: Path, *, kind: str, source_files: dict[str, str]
+    ) -> dict[str, Any]:
+        assert source == head and source_files == {
+            key: sha256(sources[key]).hexdigest() for key in docker_sources._ALERT_Q_SOURCE_FILES
+        }
+        events.append(kind)
+        target.write_bytes(b"synthetic archive")
+        return {
+            "source": source,
+            "run": 1,
+            "artifact": 2,
+            "zip_sha256": "b" * 64,
+            "source_files": source_files,
+        }
+
+    monkeypatch.setattr(docker_sources, "_alertmanager_current_inputs", inputs)
+    monkeypatch.setattr(docker_sources, "_alertmanager_package_read", lambda *a: {})
+
+    def qualification(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        assert events[-1] == "credentials-closed" and kwargs["current"] is True
+        if fault == "qualification":
+            raise RuntimeError("synthetic-qualified-input-rejection")
+        return {
+            "plan": {
+                "UI_file_hashes": {"synthetic": "c" * 64},
+                "assembly_argv": [
+                    "--build-context",
+                    transport.BASE
+                    + "=oci-layout:///inputs/base-layout@<UNOBSERVED_CURRENT_EXPORT>",
+                ],
+            }
+        }
+
+    monkeypatch.setattr(docker_sources, "_alertmanager_qualified_payload", qualification)
+    support = {
+        "probe": {},
+        "base": {"actual_local_OCI_descriptor": {"digest": "sha256:" + "b" * 64}},
+        "scanner": {"DB": {"synthetic": "d" * 64}},
+        "base_scan": {},
+        "probe_scan": {},
+    }
+    monkeypatch.setattr(docker_sources, "_alertmanager_support_payload", lambda *a, **k: support)
+    monkeypatch.setattr(
+        docker_sources, "_alertmanager_materialize", lambda *a: events.append("materialized")
+    )
+
+    def pair(
+        inputs: Path,
+        supported: Path,
+        plan: dict[str, Any],
+        work: Path,
+        result: dict[str, Any],
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
+        assert events[-1] == "materialized"
+        assert kwargs["base_descriptor"] == support["base"]["actual_local_OCI_descriptor"]
+        assert plan["assembly_argv"] == [
+            "--build-context",
+            transport.BASE + "=oci-layout:///inputs/base-layout@sha256:" + "b" * 64,
+        ]
+        events.append("one-pair")
+        result.update(
+            compiler_starts=1 if fault == "pair" else 2,
+            logical_build_starts=1,
+            graph={},
+            build_information={},
+        )
+        if fault == "pair":
+            raise RuntimeError("synthetic-partial-compiler-failure")
+        work.mkdir()
+        (work / "candidate.oci.tar").write_bytes(b"synthetic OCI")
+
+    def security(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        assert kwargs["support_report"] is support
+        events.append("security")
+        if fault == "security":
+            raise RuntimeError("synthetic-security-failure")
+        return {"synthetic_control_only": True}
+
+    monkeypatch.setattr(docker_sources, "_alertmanager_pair", pair)
+    monkeypatch.setattr(docker_sources, "_alertmanager_final_security", security)
+
+    def native(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        assert kwargs == {"producer_image": True}
+        events.append("native")
+        return {"synthetic_control_only": True}
+
+    monkeypatch.setattr(docker_sources, "_alertmanager_native_candidate", native)
+    monkeypatch.setattr(
+        docker_sources, "_alertmanager_retain_execution", lambda *a: events.append("retained")
+    )
+    monkeypatch.setattr(
+        docker_sources, "_alertmanager_finalize_payload", lambda *a: events.append("footer")
+    )
+    output = tmp_path / "current-build"
+    args = docker_sources.parse_args(
+        [
+            "--artifact",
+            "alertmanager",
+            "--alertmanager-stage",
+            "build",
+            "--source-sha",
+            head,
+            "--output-dir",
+            str(output),
+        ]
+    )
+    if fault is None:
+        docker_sources._alertmanager_current_build(args)
+    else:
+        with pytest.raises(RuntimeError):
+            docker_sources._alertmanager_current_build(args)
+    observed = json.loads((output / "retained/candidate-observation.json").read_text())
+    assert events[-2:] == ["retained", "footer"]
+    assert events.count("one-pair") == (0 if fault in {"credentials", "qualification"} else 1)
+    assert observed["compiler_starts"] == (
+        0 if fault in {"credentials", "qualification"} else 1 if fault == "pair" else 2
+    )
+    assert ("failure" in observed) is (fault is not None)
+    assert ("native" in events) is (fault is None)
+    if fault is None:
+        assert observed["status"] == "OBSERVED_PRODUCER_IMAGE_SECURITY"
+
+
+@pytest.mark.parametrize("producer_image", [False, True])
+@pytest.mark.parametrize("fault", [None, "opposite", "mixed", "missing", "duplicate"])
+def test_alertmanager_native_bridge_keeps_producer_and_consumer_proof_disjoint(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    alertmanager_proposal_environment: None,
+    producer_image: bool,
+    fault: str | None,
+) -> None:
+    """Mock process output tests marker binding, never execution or acceptance authority."""
+    from scripts.ci import prometheus_source_image as transport
+
+    monkeypatch.setattr(docker_sources, "_ALERT_ACCEPTED_CANDIDATE", None)
+    image = "sha256:" + "a" * 64
+    marker = (
+        b"native_AM_producer_image_controls=pass"
+        if producer_image
+        else b"native_AM_full_candidate_controls=pass"
+    )
+    opposite = (
+        b"native_AM_full_candidate_controls=pass"
+        if producer_image
+        else b"native_AM_producer_image_controls=pass"
+    )
+    raw = marker
+    if fault == "opposite":
+        raw = opposite
+    elif fault == "mixed":
+        raw += b"\n" + opposite
+    elif fault == "missing":
+        raw = b"no terminal result"
+    elif fault == "duplicate":
+        raw += b"\n" + marker
+
+    class Native:
+        def __init__(self, *args: Any) -> None:
+            self.records: list[dict[str, Any]] = []
+
+        def run(self, argv: list[str], label: str, *args: Any, **kwargs: Any) -> bytes:
+            if label == "native-load-retained-OCI":
+                return b""
+            if label == "native-retained-image":
+                return json.dumps({"Id": image, "RootFS": {"Layers": []}}).encode()
+            assert label == "full-AM-native"
+            assert ("--alertmanager-producer-image" in argv) is producer_image
+            return raw
+
+    monkeypatch.setattr(transport, "Native", Native)
+    monkeypatch.setattr(shutil, "which", lambda name: "/usr/bin/docker")
+    monkeypatch.setattr(
+        docker_sources,
+        "_alertmanager_docker_load_transport",
+        lambda *a: {"load_input": str(tmp_path / "synthetic.tar")},
+    )
+    observation = tmp_path / "candidate-observation.json"
+    observation.write_text("{}")
+    work = tmp_path / "native"
+    candidate = {"graph": {"config": {"digest": image}, "diff_ids": []}}
+    arguments = {"producer_image": producer_image}
+    if fault is None:
+        result = docker_sources._alertmanager_native_candidate(
+            candidate, observation, work, docker_sources._alertmanager_limits(), **arguments
+        )
+        assert result["validation_scope"] == (
+            "producer_image" if producer_image else "selected_consumer"
+        )
+    else:
+        with pytest.raises(RuntimeError, match="AM_native_full_terminal_missing"):
+            docker_sources._alertmanager_native_candidate(
+                candidate, observation, work, docker_sources._alertmanager_limits(), **arguments
+            )
+    assert docker_sources._ALERT_ACCEPTED_CANDIDATE is None
+    with pytest.raises(RuntimeError, match="AM_accepted_producer_UNCONFIGURED_HOLD"):
+        docker_sources._alertmanager_accepted_producer()
 
 
 def test_finite_backend_exports_follow_credential_cleanup_and_do_not_publish() -> None:
@@ -917,7 +1510,7 @@ def test_docker_source_artifact_manifest_pins_sqlite_source() -> None:
     artifacts = manifest["artifacts"]
     assert manifest["schema_version"] == 1
     assert manifest["generated_at"] == "2026-10-04"
-    assert manifest["review_by"] == "2026-10-21"
+    assert manifest["review_by"] == "2026-10-30"
     assert len(artifacts) == 17
     assert [row["name"] for row in artifacts[-2:]] == ["alertmanager-source", "alertmanager-ui"]
     assert [row["name"] for row in artifacts[:4]] == [
@@ -951,7 +1544,7 @@ def test_docker_source_artifact_manifest_pins_sqlite_source() -> None:
 
 
 def test_docker_source_artifact_manifest_review_window_is_inclusive(tmp_path: Path) -> None:
-    """Preserve historical5/6 source rejection and current21/22 admission."""
+    """Keep historical review cutoffs and prove current October 30/31 admission."""
     manifest_path = REPO_ROOT / "scripts/ci/docker_source_artifacts.json"
     historical = json.loads(manifest_path.read_text())
     historical["generated_at"] = "2026-09-28"
@@ -960,10 +1553,21 @@ def test_docker_source_artifact_manifest_review_window_is_inclusive(tmp_path: Pa
     assert len(docker_sources.load_manifest(old_path, today=date(2026, 10, 5))) == 15
     with pytest.raises(RuntimeError, match="review_by is stale: 2026-10-05"):
         docker_sources.load_manifest(old_path, today=date(2026, 10, 6))
-    for day in (6, 8, 21):
-        assert len(docker_sources.load_manifest(manifest_path, today=date(2026, 10, day))) == 15
+    previous = json.loads(manifest_path.read_text())
+    previous["review_by"] = "2026-10-21"
+    previous_path = _write_docker_source_manifest(tmp_path, previous)
+    assert len(docker_sources.load_manifest(previous_path, today=date(2026, 10, 21))) == 15
     with pytest.raises(RuntimeError, match="review_by is stale: 2026-10-21"):
-        docker_sources.load_manifest(manifest_path, today=date(2026, 10, 22))
+        docker_sources.load_manifest(previous_path, today=date(2026, 10, 22))
+    for day in (6, 8, 21, 30):
+        assert len(docker_sources.load_manifest(manifest_path, today=date(2026, 10, day))) == 15
+    alertmanager = docker_sources.load_manifest(
+        manifest_path, today=date(2026, 10, 30), artifact="alertmanager"
+    )
+    assert len(alertmanager) == 2
+    for artifact in (None, "alertmanager"):
+        with pytest.raises(RuntimeError, match="review_by is stale: 2026-10-30"):
+            docker_sources.load_manifest(manifest_path, today=date(2026, 10, 31), artifact=artifact)
 
 
 def _forecast_workflow_step() -> tuple[dict[str, object], str]:
@@ -3186,6 +3790,276 @@ def test_alertmanager_transport_rejects_unapproved_handoff_authority(
     assert calls == [artifact.url]
 
 
+def test_alertmanager_bootstrap_skip_covers_every_shared_install_effect() -> None:
+    action = _load_workflow(REPO_ROOT / ".github/actions/python-setup/action.yml")
+    steps = {step["name"]: step for step in action["runs"]["steps"]}
+    for name in (
+        "Configure private Python index authentication",
+        "Build exact Psycopg C client SDK",
+        "Install base dependencies",
+        "Observe installed native Python consumers",
+    ):
+        assert steps[name]["if"] == "${{ inputs.skip-base-install != 'true' }}"
+    assert steps["Retain untrusted rejected zlib response"]["if"] == (
+        "${{ failure() && steps.psycopg_sdk.outcome == 'failure' "
+        "&& steps.psycopg_sdk.outputs.rejection_dir != '' }}"
+    )
+    assert steps["Remove private Python index authentication"]["if"] == "${{ always() }}"
+
+
+def test_alertmanager_bootstrap_delegates_binary_only_two_pass_startup_guards() -> None:
+    import inspect
+    from scripts.ci import install_locked_python_requirements as installer
+
+    command = installer.build_pip_proxy_install_command(
+        python_executable="/absolute/owned-AM/bin/python",
+        requirement_file=REPO_ROOT / "requirements-dev.txt",
+        constraints_file=REPO_ROOT / "constraints.txt",
+        index_url="https://synthetic.invalid/simple",
+        trusted_host=None,
+        allow_pip_download_cache=False,
+    )
+    assert command[:4] == ["/absolute/owned-AM/bin/python", "-m", "pip", "install"]
+    assert "--no-deps" in command and command[command.index("--only-binary") + 1] == ":all:"
+    assert command[command.index("--requirement") + 1] == str(REPO_ROOT / "requirements-dev.txt")
+    assert command[command.index("--constraint") + 1] == str(REPO_ROOT / "constraints.txt")
+    source = inspect.getsource(installer.install_with_guard_from_proxy)
+    normal = source.split(
+        "with staged_python_environment(python_executable) as staging_python:", 1
+    )[1]
+    assert normal.count("install_from_proxy_with_emergency_fallback(") == 2
+    assert normal.count("collect_startup_hook_failure_lines(") == 2
+    assert (
+        normal.index("python_executable=staging_python")
+        < normal.index("collect_startup_hook_failure_lines(")
+        < normal.index("python_executable=python_executable")
+        < normal.rindex("collect_startup_hook_failure_lines(")
+    )
+    assert "if failure_lines:" in normal and "return 1" in normal
+    transport = inspect.getsource(installer.run_command)
+    assert "PIP_CHILD_SELECTOR" in transport
+    assert "_install_pip_transport_guard()" in inspect.getsource(installer._run_owned_pip_child)
+
+
+@pytest.mark.parametrize(
+    "job_name",
+    [
+        "alertmanager-retained-candidate",
+        "alertmanager-main-publication",
+    ],
+)
+def test_alertmanager_bootstrap_is_isolated_guarded_and_precedes_all_host_effects(
+    job_name: str,
+) -> None:
+    from scripts.ci import install_locked_python_requirements as installer
+
+    job = _load_workflow(WORKFLOWS_DIR / "cd.yml")["jobs"][job_name]
+    if job_name == "alertmanager-main-publication":
+        assert _step_by_name(job, "Checkout exact AM executable proposal")["with"] == {
+            "ref": "${{ github.sha }}",
+            "persist-credentials": False,
+            "fetch-depth": 0,
+        }
+    setup = next(
+        step for step in job["steps"] if step.get("uses") == "./.github/actions/python-setup"
+    )
+    assert setup["with"] == {"python-version": "3.13.14", "skip-base-install": "true"}
+    install = _step_by_name(job, "Install isolated AM host tools through the locked owner")
+    smoke = _step_by_name(job, "Verify isolated AM host import capability before effects")
+    driver = (
+        _step_by_name(job, "Run full accepted AM native controls on this runner")
+        if job_name == "alertmanager-retained-candidate"
+        else next(
+            step
+            for step in job["steps"]
+            if "--artifact alertmanager --alertmanager-stage" in step.get("run", "")
+        )
+    )
+    if job_name == "alertmanager-retained-candidate":
+        preparation = _step_by_name(job, "Prepare exact AM subject before material execution")
+        assert _step_index(job, preparation["name"]) < _step_index(job, setup["name"])
+        assert "python3 -E -s -S -m" in preparation["run"]
+        assert "--alertmanager-prepare-only" in preparation["run"]
+    assert (
+        _step_index(job, "Validate existing credential-free AM native Python proxy")
+        < _step_index(job, setup["name"])
+        < _step_index(job, install["name"])
+        < _step_index(job, smoke["name"])
+        < _step_index(job, driver["name"])
+    )
+    assert smoke["id"] == "am-python"
+    assert "GITHUB_OUTPUT" not in install["run"]
+    if job_name == "alertmanager-retained-candidate":
+        assert 'native_python="${{ steps.am-python.outputs.python }}"' in driver["run"]
+        assert "/usr/bin/env -i" in driver["run"]
+    else:
+        assert driver["env"]["AM_HOST_PYTHON"] == "${{ steps.am-python.outputs.python }}"
+    for step in (setup, install):
+        assert step["env"]["PULSEPLATE_PYTHON_INDEX_URL"] == (
+            "${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}"
+        )
+        assert step["env"]["PULSEPLATE_PYTHON_TRUSTED_HOST"] == (
+            "${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}"
+        )
+        assert step["env"]["DEVPI_CI_USER"] == step["env"]["DEVPI_CI_PASSWORD"] == ""
+    for step in (
+        (install, smoke)
+        if job_name == "alertmanager-retained-candidate"
+        else (install, smoke, driver)
+    ):
+        assert step["env"]["PYTHONHOME"] == step["env"]["PYTHONPATH"] == ""
+        assert step["env"]["PYTHONNOUSERSITE"] == "1"
+        assert "HOME" not in step["env"] and "PATH" not in step["env"]
+    for key in (
+        "PULSEPLATE_PSYCOPG_C_SDK",
+        "PULSEPLATE_DOCKER_SINGLE_PASS_LOCKED_INSTALL",
+        "PULSEPLATE_DOCKER_PIP_LAYER_CACHE",
+    ):
+        assert install["env"][key] == ""
+    run = install["run"]
+    root = 'am_root="$RUNNER_TEMP/pulseplate-am-python-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"'
+    assert root in run and root in smoke["run"]
+    assert (
+        run.index('test ! -e "$am_root"')
+        < run.index('test ! -L "$am_root"')
+        < run.index('python -I -m venv "$am_root"')
+        < run.index('mkdir "$am_root/installer-home"')
+    )
+    assert "umask 077" in run and "--system-site-packages" not in run
+    assert 'am_python="$am_root/bin/python"' in run
+    installer_call = (
+        'HOME="$am_root/installer-home" "$am_python" -I '
+        '"$GITHUB_WORKSPACE/scripts/ci/install_locked_python_requirements.py"'
+    )
+    assert run.count(installer_call) == 3
+    upgrade = "--upgrade-pip-only --upgrade-pip-spec 'pip==26.2.2'"
+    observation = "import pip._vendor.certifi"
+    preflight = '"${install_args[@]}" --preflight-only'
+    final_install = run.rindex(installer_call)
+    assert run.index(upgrade) < run.index(observation) < run.index(preflight) < final_install
+    assert 'version != "26.2.2"' in run
+    assert 'trust != "50f79f98dac192b20dbf73f35c56f0b0c557ab267ff5199d1117cc1180b70785"' in run
+    block = run.split("install_args=(\n", 1)[1].split("\n)", 1)[0]
+    flags = shlex.split(block)
+    args = installer.parse_args(flags)
+    assert args.python_executable == "$am_python"
+    assert args.requirements_file == Path("$GITHUB_WORKSPACE/requirements-dev.txt")
+    assert args.constraints_file == Path("$GITHUB_WORKSPACE/constraints.txt")
+    assert args.emergency_wheel_manifest == Path(
+        "$GITHUB_WORKSPACE/scripts/ci/emergency_python_wheels.json"
+    )
+    assert args.require_virtualenv is True and args.install_mode == "direct-proxy"
+    assert args.index_url == "$PULSEPLATE_PYTHON_INDEX_URL"
+    assert args.requirements_profile is None and not args.install_dev and not args.install_test
+    assert args.psycopg_sdk is None and not args.build_psycopg_c
+    assert not args.upgrade_pip and not args.prefetch_only and not args.consume_only
+    assert 'install_args+=(--trusted-host "$PULSEPLATE_PYTHON_TRUSTED_HOST")' in run
+    assert "--no-deps" not in flags and "--only-binary" not in flags
+    pins = installer._collect_unmarked_exact_requirement_pin_versions(
+        (REPO_ROOT / "requirements-dev.txt").read_text().splitlines()
+    )
+    assert "pytest" in pins and "pyyaml" in pins
+    assert "psycopg" not in pins and "psycopg-c" not in pins
+    source = smoke["run"].split("\"$am_python\" - <<'PY'\n", 1)[1].split("\nPY\n", 1)[0]
+    tree = ast.parse(source)
+    assert {node.names[0].name for node in tree.body if isinstance(node, ast.Import)} == {
+        "json",
+        "site",
+        "sys",
+        "pytest",
+        "yaml",
+        *({"os", "shutil", "subprocess"} if job_name == "alertmanager-candidate-build" else set()),
+    }
+    for statement in (
+        "from scripts.ci import fetch_docker_source_artifacts, prometheus_source_image",
+        "from scripts.ops import notify_premium_alias_checkpoint_failure",
+        "from tests import test_notify_premium_alias_checkpoint_failure as native",
+        "assert sys.version_info[:3] == (3, 13, 14)",
+        "assert sys.prefix != sys.base_prefix and sys.base_prefix not in site.PREFIXES",
+        "assert site.ENABLE_USER_SITE is False",
+        "with pytest.MonkeyPatch.context():",
+        'assert yaml.safe_load("probe: true\\n") == {"probe": True}',
+        "assert callable(native.native_alertmanager_main)",
+    ):
+        assert statement in source
+    for package in ("pytest", "pyyaml"):
+        assert (
+            'version("'
+            + ("PyYAML" if package == "pyyaml" else package)
+            + '") == "'
+            + (next(iter(pins[package])))
+            + '"'
+            in source
+        )
+    assert "metadata.distributions()" in source and 'metadata.version("pip")' in source
+    assert not any(
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "native_alertmanager_main"
+        for node in ast.walk(tree)
+    )
+    help_call = '"$am_python" -m tests.test_notify_premium_alias_checkpoint_failure --help'
+    assert help_call in smoke["run"]
+    assert smoke["run"].index(help_call) < smoke["run"].index(
+        'printf \'python=%s\\n\' "$am_python" >> "$GITHUB_OUTPUT"'
+    )
+    if job_name != "alertmanager-retained-candidate":
+        assert '"$AM_HOST_PYTHON" -m scripts.ci.fetch_docker_source_artifacts' in driver["run"]
+    else:
+        assert (
+            '"$native_python" -m tests.test_notify_premium_alias_checkpoint_failure --native-alertmanager'
+            in driver["run"]
+        )
+    assert '"$AM_HOST_PYTHON" -I' not in driver["run"]
+    for step in (install, smoke):
+        for forbidden in (
+            "GITHUB_ENV",
+            "GITHUB_PATH",
+            "--build-psycopg",
+            "docker build",
+            ".netrc",
+            "--requirements-profile",
+            "--install-dev",
+            "--install-test",
+        ):
+            assert forbidden not in step["run"]
+
+
+def test_alertmanager_bootstrap_has_one_aggregate_setup_budget() -> None:
+    workflow = _load_workflow(WORKFLOWS_DIR / "cd.yml")
+    env = workflow["env"]
+    parts = {
+        "Select AM Python without dependency or SDK installation": "ALERTMANAGER_PYTHON_SETUP_MINUTES",
+        "Install isolated AM host tools through the locked owner": "ALERTMANAGER_PYTHON_INSTALL_MINUTES",
+        "Verify isolated AM host import capability before effects": "ALERTMANAGER_PYTHON_SMOKE_MINUTES",
+    }
+    assert [int(env[key]) for key in parts.values()] == [3, 6, 1]
+    assert (
+        sum(int(env[key]) for key in parts.values()) == int(env["ALERTMANAGER_SETUP_MINUTES"]) == 10
+    )
+    for restored in ("alertmanager-candidate-build", "alertmanager-input-inspection"):
+        job = workflow["jobs"][restored]
+        assert "github.event_name == 'workflow_dispatch'" in job["if"]
+        assert "github.run_attempt == 1" in job["if"]
+        assert "refs/heads/codex/python-setup-security-stabilization" in job["if"]
+        assert job["permissions"] == {"contents": "read", "actions": "read", "packages": "read"}
+    for name, cap in (
+        ("alertmanager-retained-candidate", 80),
+        ("alertmanager-main-publication", 110),
+    ):
+        job = workflow["jobs"][name]
+        assert job["timeout-minutes"] == cap
+        for step_name, key in parts.items():
+            assert _step_by_name(job, step_name)["timeout-minutes"] == (
+                "${{ fromJSON(env." + key + ") }}"
+            )
+    assert env["ALERTMANAGER_PREP_SECONDS"] == "600"
+    assert env["ALERTMANAGER_NATIVE_SECONDS"] == "2400"
+    assert env["ALERTMANAGER_CLEANUP_SECONDS"] == "45"
+    assert env["ALERTMANAGER_NATIVE_CLEANUP_SECONDS"] == "120"
+    assert env["ALERTMANAGER_UPLOAD_MINUTES"] == "5"
+
+
 def test_alertmanager_module_mode_is_manual_first_attempt_and_build_is_held() -> None:
     workflow = _load_workflow(WORKFLOWS_DIR / "cd.yml")
     job = workflow["jobs"]["alertmanager-module-qualification"]
@@ -3193,6 +4067,8 @@ def test_alertmanager_module_mode_is_manual_first_attempt_and_build_is_held() ->
     assert "github.event_name == 'workflow_dispatch'" in admission
     assert "github.run_attempt == 1" in admission
     assert "github.repository == 'Katsiarynakavaleuskaya/PulsePlate'" in admission
+    assert "inputs.alertmanager_mode == 'module-qualify'" in admission
+    assert "inputs.alertmanager_mode == 'build'" not in admission
     assert job["permissions"] == {"contents": "read", "actions": "read"}
     assert job["env"]["ALERTMANAGER_QUALIFY_SECONDS"] == "825"
     first = job["steps"][0]["run"]
@@ -3316,7 +4192,18 @@ def test_alertmanager_literal_recipe_has_only_selected_payload_and_private_defau
     assert "COPY alertmanager /usr/bin/alertmanager" in recipe
     assert "COPY amtool /usr/bin/amtool" in recipe
     assert "USER 65534:65534" in recipe
-    assert "COPY --chown=65534:65534 storage-dir /alertmanager" in recipe
+    assert "COPY --chown=65534:65534 --chmod=0700 storage-dir /alertmanager" in recipe
+    assert len(recipe.encode()) == 908
+    assert (
+        sha256(recipe.encode()).hexdigest()
+        == docker_sources._ALERT_CURRENT_ASSEMBLY_RECIPE_SHA256
+        == "2c70a5f492866c30e2c7db69be001003c674ef0f16b336f94a8a23be2777de13"
+    )
+    assert (
+        docker_sources._ALERT_Q_SOURCE_FILES["deploy/alertmanager/Containerfile"]
+        == docker_sources._ALERT_S_SOURCE_FILES["deploy/alertmanager/Containerfile"]
+        == "69af6364f15e3e5b9a4662a5919ff7f3b0209da0461cd7a85e01e21022abdb78"
+    )
     assert '"--cluster.listen-address="' in recipe
 
 
@@ -3536,37 +4423,1247 @@ def test_alertmanager_cleanup_requires_actual_create_id_before_any_remove(
         assert calls[-1] == ["/absolute/docker", "--config", str(tmp_path), "rm", "--force", owned]
 
 
+def _alertmanager_cache_row(path: str, body: bytes, mode: int = 0o444) -> dict[str, object]:
+    return {"path": path, "size": len(body), "mode": mode, "sha256": sha256(body).hexdigest()}
+
+
+@pytest.fixture
+def alertmanager_replays() -> list[dict[str, Any]]:
+    first = {
+        "original": {"go.mod": b"module example.org/main\n", "go.sum": b"original sums\n"},
+        "derived": {"go.mod": b"module example.org/main\n", "go.sum": b"derived sums\n"},
+        "modules": [{"Path": "example.org/dependency", "Version": "v1.2.3"}],
+        "graph": [b"example.org/main example.org/dependency@v1.2.3"],
+        "packages": {
+            "alertmanager": [{"ImportPath": "example.org/main/cmd/alertmanager"}],
+            "amtool": [{"ImportPath": "example.org/main/cmd/amtool"}],
+        },
+        "delta": [{"path": "example.org/dependency", "before": "v1.2.2", "after": "v1.2.3"}],
+        "source": [_alertmanager_cache_row("go.mod", b"module example.org/main\n")],
+        "version": b"go version go1.27.2 linux/amd64\n",
+        "module_cache": [
+            _alertmanager_cache_row("cache/download/example.org/dependency/@v/v1.2.3.mod", b"mod"),
+            _alertmanager_cache_row("cache/download/example.org/dependency/@v/v1.2.3.zip", b"zip"),
+            _alertmanager_cache_row(
+                "cache/download/sumdb/sum.golang.org/lookup/module@v1.2.3", b"first lookup", 0o600
+            ),
+            _alertmanager_cache_row(
+                "cache/download/sumdb/sum.golang.org/tile/8/0/001.p/2", b"first tile", 0o600
+            ),
+            _alertmanager_cache_row(
+                "example.org/dependency@v1.2.3/main.go", b"package dependency\n"
+            ),
+        ],
+    }
+    second = deepcopy(first)
+    second["module_cache"][2] = _alertmanager_cache_row(
+        "cache/download/sumdb/sum.golang.org/lookup/module@v1.2.3", b"second lookup", 0o600
+    )
+    second["module_cache"][3] = _alertmanager_cache_row(
+        "cache/download/sumdb/sum.golang.org/tile/8/0/001", b"second full tile", 0o600
+    )
+    return [first, second]
+
+
+def test_alertmanager_replay_partitions_only_native_sumdb_state_without_mutating_raw_records(
+    alertmanager_replays: list[dict[str, Any]],
+) -> None:
+    original = deepcopy(alertmanager_replays)
+    assert alertmanager_replays[0]["module_cache"] != alertmanager_replays[1]["module_cache"]
+    docker_sources._alertmanager_compare_replays(alertmanager_replays)
+    assert alertmanager_replays == original
+
+
 @pytest.mark.parametrize("module_changed", [False, True])
 def test_alertmanager_replay_compares_complete_module_payload_not_go_index_cache(
+    alertmanager_replays: list[dict[str, Any]],
     module_changed: bool,
 ) -> None:
-    first = {
-        key: []
-        for key in (
-            "original",
-            "derived",
-            "modules",
-            "graph",
-            "packages",
-            "delta",
-            "source",
-            "version",
-        )
-    }
-    first["module_cache"] = [
-        {"path": "example@v1/file", "sha256": "a" * 64, "mode": 444, "size": 1}
-    ]
-    second = dict(first)
-    first["whole_GOCACHE"] = [{"path": "index-first-root", "sha256": "b" * 64}]
-    second["whole_GOCACHE"] = [{"path": "index-second-root", "sha256": "c" * 64}]
+    first, second = alertmanager_replays
+    first["whole_GOCACHE"] = [_alertmanager_cache_row("index-first-root", b"first root index")]
+    second["whole_GOCACHE"] = [_alertmanager_cache_row("index-second-root", b"second root index")]
     if module_changed:
-        second["module_cache"] = [
-            {"path": "example@v1/file", "sha256": "d" * 64, "mode": 444, "size": 1}
-        ]
+        second["module_cache"][-1] = _alertmanager_cache_row(
+            "example.org/dependency@v1.2.3/main.go", b"changed module payload\n"
+        )
         with pytest.raises(RuntimeError, match="module_cache"):
-            docker_sources._alertmanager_compare_replays([first, second])
+            docker_sources._alertmanager_compare_replays(alertmanager_replays)
     else:
-        docker_sources._alertmanager_compare_replays([first, second])
+        docker_sources._alertmanager_compare_replays(alertmanager_replays)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "cache/download/sumdbx/lookup/module",
+        "cache/download/sumdb-old/lookup/module",
+        "cache/download/sumdb",
+        "cache/download/SUMDB/lookup/module",
+        "Cache/download/sumdb/lookup/module",
+        "prefix/cache/download/sumdb/lookup/module",
+        "cache/download/sumdb.json",
+    ],
+)
+def test_alertmanager_sumdb_lookalikes_and_root_file_remain_strict(
+    alertmanager_replays: list[dict[str, Any]], path: str
+) -> None:
+    alertmanager_replays[0]["module_cache"].append(_alertmanager_cache_row(path, b"first"))
+    alertmanager_replays[1]["module_cache"].append(_alertmanager_cache_row(path, b"second"))
+    with pytest.raises(RuntimeError, match="replay differs: module_cache"):
+        docker_sources._alertmanager_compare_replays(alertmanager_replays)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "",
+        "/cache/download/sumdb/lookup/module",
+        "./cache/download/sumdb/lookup/module",
+        "cache/download/sumdb/../module",
+        "cache/download/sumdb/./module",
+        "cache/download/sumdb//module",
+        "cache/download//sumdb/module",
+        "cache/download/sumdb/module/",
+        "cache\\download\\sumdb\\module",
+        "cache/download/sumdb/module\x00suffix",
+    ],
+)
+def test_alertmanager_sumdb_aliases_reject_before_partition(
+    alertmanager_replays: list[dict[str, Any]], path: str
+) -> None:
+    alertmanager_replays[1]["module_cache"].append(_alertmanager_cache_row(path, b"opaque cache"))
+    with pytest.raises(RuntimeError, match="path is unsafe or noncanonical"):
+        docker_sources._alertmanager_compare_replays(alertmanager_replays)
+
+
+@pytest.mark.parametrize("inventory", [None, {}, (), "cache inventory", True])
+def test_alertmanager_replay_rejects_nonlist_cache_inventory(
+    alertmanager_replays: list[dict[str, Any]], inventory: object
+) -> None:
+    alertmanager_replays[1]["module_cache"] = inventory
+    with pytest.raises(RuntimeError, match="inventory shape or bound"):
+        docker_sources._alertmanager_compare_replays(alertmanager_replays)
+
+
+@pytest.mark.parametrize("field", ["path", "size", "mode", "sha256", "unknown"])
+def test_alertmanager_replay_rejects_missing_or_unknown_checksum_row_fields(
+    alertmanager_replays: list[dict[str, Any]], field: str
+) -> None:
+    row = alertmanager_replays[1]["module_cache"][2]
+    if field == "unknown":
+        row["type"] = "file"
+    else:
+        row.pop(field)
+    # Every raw row is validated before even another ordinary mismatch can mask it.
+    alertmanager_replays[1]["modules"] = []
+    with pytest.raises(RuntimeError, match="row shape differs"):
+        docker_sources._alertmanager_compare_replays(alertmanager_replays)
+
+
+@pytest.mark.parametrize("row", [None, [], "cache row", True])
+def test_alertmanager_replay_rejects_nonobject_row(
+    alertmanager_replays: list[dict[str, Any]], row: object
+) -> None:
+    alertmanager_replays[1]["module_cache"].append(row)
+    with pytest.raises(RuntimeError, match="row shape differs"):
+        docker_sources._alertmanager_compare_replays(alertmanager_replays)
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("path", None),
+        ("path", True),
+        ("size", True),
+        ("size", -1),
+        ("size", 1.5),
+        ("size", 2 * 1024**3 + 1),
+        ("mode", True),
+        ("mode", -1),
+        ("mode", "0600"),
+        ("mode", 0o100600),
+        ("sha256", None),
+        ("sha256", "A" * 64),
+        ("sha256", "a" * 63),
+        ("sha256", "g" * 64),
+        ("sha256", "a" * 64 + "\n"),
+    ],
+)
+def test_alertmanager_replay_rejects_invalid_values_inside_checksum_namespace(
+    alertmanager_replays: list[dict[str, Any]], field: str, value: object
+) -> None:
+    alertmanager_replays[1]["module_cache"][2][field] = value
+    diagnostic = "path is unsafe" if field == "path" else "row values differ"
+    with pytest.raises(RuntimeError, match=diagnostic):
+        docker_sources._alertmanager_compare_replays(alertmanager_replays)
+
+
+@pytest.mark.parametrize("fault", ["duplicate", "count", "total", "missing_inventory"])
+def test_alertmanager_replay_validates_complete_cache_before_partition(
+    alertmanager_replays: list[dict[str, Any]], fault: str
+) -> None:
+    inventory = alertmanager_replays[1]["module_cache"]
+    if fault == "duplicate":
+        inventory.append(deepcopy(inventory[2]))
+        diagnostic = "duplicate path"
+    elif fault == "count":
+        alertmanager_replays[1]["module_cache"] = [inventory[2]] * 250001
+        diagnostic = "inventory shape or bound"
+    elif fault == "total":
+        inventory[2]["size"] = 2 * 1024**3
+        diagnostic = "aggregate byte bound"
+    else:
+        alertmanager_replays[1].pop("module_cache")
+        diagnostic = "inventory shape or bound"
+    with pytest.raises(RuntimeError, match=diagnostic):
+        docker_sources._alertmanager_compare_replays(alertmanager_replays)
+
+
+@pytest.mark.parametrize(
+    "member", [0, 1, 4], ids=["module-metadata", "module-archive", "module-source"]
+)
+@pytest.mark.parametrize("fault", ["missing", "extra", "path", "size", "mode", "sha256", "order"])
+def test_alertmanager_every_nonchecksum_member_remains_exact(
+    alertmanager_replays: list[dict[str, Any]], member: int, fault: str
+) -> None:
+    inventory = alertmanager_replays[1]["module_cache"]
+    if fault == "missing":
+        inventory.pop(member)
+    elif fault == "extra":
+        row = deepcopy(inventory[member])
+        row["path"] += ".additional"
+        inventory.append(row)
+    elif fault == "order":
+        inventory.insert(0, inventory.pop(member if member else 1))
+    else:
+        row = inventory[member]
+        row[fault] = {
+            "path": str(row["path"]) + ".changed",
+            "size": int(row["size"]) + 1,
+            "mode": 0o600,
+            "sha256": sha256(b"changed member body").hexdigest(),
+        }[fault]
+    with pytest.raises(RuntimeError, match="replay differs: module_cache"):
+        docker_sources._alertmanager_compare_replays(alertmanager_replays)
+
+
+@pytest.mark.parametrize(
+    "key,part",
+    [
+        ("original", "go.mod"),
+        ("original", "go.sum"),
+        ("derived", "go.mod"),
+        ("derived", "go.sum"),
+        ("modules", None),
+        ("graph", None),
+        ("packages", "alertmanager"),
+        ("packages", "amtool"),
+        ("delta", None),
+        ("source", None),
+        ("version", None),
+    ],
+)
+def test_alertmanager_checksum_partition_cannot_mask_another_replay_mismatch(
+    alertmanager_replays: list[dict[str, Any]], key: str, part: str | None
+) -> None:
+    if part is None:
+        alertmanager_replays[1][key] = b"changed ordinary predicate"
+    else:
+        alertmanager_replays[1][key][part] = b"changed lock or command graph"
+    with pytest.raises(RuntimeError, match="replay differs: " + key):
+        docker_sources._alertmanager_compare_replays(alertmanager_replays)
+
+
+@pytest.mark.parametrize("replays", [None, [], [{}], [None, None], ({}, {})])
+def test_alertmanager_replay_requires_exact_pair_container(replays: object) -> None:
+    with pytest.raises(RuntimeError, match="requires two replay records"):
+        docker_sources._alertmanager_compare_replays(replays)
+
+
+@pytest.fixture
+def alertmanager_api_epoch(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    import base64
+
+    for name in (
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "GHCR_READ_TOKEN",
+        "GH_ENTERPRISE_TOKEN",
+        "GITHUB_ENTERPRISE_TOKEN",
+        "GH_HOST",
+        "GH_CONFIG_DIR",
+        "NETRC",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+        "DOCKER_AUTH_CONFIG",
+        "DOCKER_CONFIG",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("GH_TOKEN", "synthetic-AM-token")
+    monkeypatch.setenv("GITHUB_TOKEN", "synthetic-AM-token")
+    zip_bytes = b"synthetic immutable Actions ZIP transport"
+    monkeypatch.setattr(docker_sources, "_ALERT_Q_ZIP_SHA256", sha256(zip_bytes).hexdigest())
+    source_files = {
+        path: ("synthetic source bytes: " + path).encode()
+        for path in docker_sources._ALERT_Q_SOURCE_FILES
+    }
+    source_files["deploy/alertmanager/Containerfile"] = _historical_alertmanager_recipe().replace(
+        b" --chmod=0700", b""
+    )
+    assert len(source_files["deploy/alertmanager/Containerfile"]) == 895
+    assert (
+        sha256(source_files["deploy/alertmanager/Containerfile"]).hexdigest()
+        == "69af6364f15e3e5b9a4662a5919ff7f3b0209da0461cd7a85e01e21022abdb78"
+    )
+    monkeypatch.setattr(
+        docker_sources,
+        "_ALERT_Q_SOURCE_FILES",
+        {path: sha256(raw).hexdigest() for path, raw in source_files.items()},
+    )
+    monkeypatch.setattr(
+        docker_sources,
+        "_ALERT_S_SOURCE_FILES",
+        {path: sha256(raw).hexdigest() for path, raw in source_files.items()},
+    )
+    monkeypatch.setattr(docker_sources, "_ALERT_S_ZIP_SHA256", sha256(zip_bytes).hexdigest())
+    repository = {"id": 1043311030, "full_name": "Katsiarynakavaleuskaya/PulsePlate"}
+    run = {
+        "id": docker_sources._ALERT_Q_RUN,
+        "head_sha": docker_sources._ALERT_Q_SOURCE,
+        "head_branch": docker_sources._ALERT_Q_BRANCH,
+        "event": "workflow_dispatch",
+        "run_attempt": 1,
+        "status": "completed",
+        "conclusion": "success",
+        "workflow_id": 123,
+        "repository": repository,
+        "head_repository": repository,
+    }
+    workflow = {"id": 123, "path": ".github/workflows/cd.yml"}
+    jobs = [
+        {
+            "id": docker_sources._ALERT_Q_JOB,
+            "name": "alertmanager-module-qualification",
+            "status": "completed",
+            "conclusion": "success",
+            "run_id": docker_sources._ALERT_Q_RUN,
+            "head_sha": docker_sources._ALERT_Q_SOURCE,
+        }
+    ]
+    artifact = {
+        "id": docker_sources._ALERT_Q_ARTIFACT,
+        "expired": False,
+        "name": f"alertmanager-module-qualification-{docker_sources._ALERT_Q_RUN}-1",
+        "size_in_bytes": len(zip_bytes),
+        "digest": "sha256:" + sha256(zip_bytes).hexdigest(),
+        "expires_at": "2099-01-01T00:00:00Z",
+        "workflow_run": {
+            "id": docker_sources._ALERT_Q_RUN,
+            "head_sha": docker_sources._ALERT_Q_SOURCE,
+            "repository_id": 1043311030,
+            "head_repository_id": 1043311030,
+        },
+    }
+    calls: list[str] = []
+    data = {
+        "repository": repository,
+        "workflow": workflow,
+        "run": run,
+        "jobs": jobs,
+        "artifact": artifact,
+        "zip": zip_bytes,
+        "calls": calls,
+        "source_files": source_files,
+    }
+
+    class API:
+        gh = "/absolute/gh"
+
+        def json(self, endpoint: str) -> dict[str, Any]:
+            calls.append(endpoint)
+            if "/contents/" in endpoint:
+                path = endpoint.split("/contents/", 1)[1].split("?", 1)[0]
+                raw = source_files[path]
+                return {
+                    "type": "file",
+                    "path": path,
+                    "encoding": "base64",
+                    "size": len(raw),
+                    "content": base64.b64encode(raw).decode(),
+                }
+            if "/actions/workflows/" in endpoint:
+                return data["workflow"]
+            if "/actions/artifacts/" in endpoint:
+                return data["artifact"]
+            if "/jobs?" in endpoint:
+                return {"total_count": len(data["jobs"])}
+            if "/actions/runs/" in endpoint:
+                return data["run"]
+            return data["repository"]
+
+        def pages(self, endpoint: str, key: str, count: int) -> list[dict[str, Any]]:
+            calls.append(endpoint)
+            assert key == "jobs" and count == len(data["jobs"])
+            return data["jobs"]
+
+        def raw(self, endpoint: str, *, maximum: int) -> bytes:
+            calls.append(endpoint)
+            assert maximum == 1024**3
+            return data["zip"]
+
+        def _capture(self, argv: list[str], maximum: int) -> bytes:
+            calls.append(" ".join(argv))
+            assert argv == [
+                "/absolute/gh",
+                "api",
+                "--hostname",
+                "github.com",
+                "--method",
+                "GET",
+                "/users/Katsiarynakavaleuskaya/packages/container/pulseplate",
+            ]
+            assert maximum == 1024**2
+            return data["package"]
+
+    data["api"] = API()
+    data["package"] = json.dumps(
+        {
+            "name": "pulseplate",
+            "package_type": "container",
+            "visibility": "public",
+            "repository": repository,
+        }
+    ).encode()
+    return data
+
+
+def _historical_alertmanager_recipe() -> bytes:
+    from scripts.ci.prometheus_source_image import BASE, HISTORICAL_BASE
+
+    raw = (REPO_ROOT / "deploy/alertmanager/Containerfile").read_bytes()
+    historical = raw.replace(BASE.encode(), HISTORICAL_BASE.encode(), 1)
+    assert sha256(historical).hexdigest() == docker_sources._ALERT_ASSEMBLY_RECIPE_SHA256
+    return historical
+
+
+@pytest.fixture
+def alertmanager_retained_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> dict[str, bytes]:
+    import time
+    from types import SimpleNamespace
+    from scripts.ci import prometheus_source_image as transport
+
+    original = {"go.mod": b"original mod\n", "go.sum": b"original sums\n"}
+    derived = {"go.mod": b"derived mod\n", "go.sum": b"derived sums\n"}
+    roots = {
+        "go-toolchain.tar.gz": b"synthetic qualified Go archive",
+        "base-image.tar": b"synthetic observed base export",
+        "source.tar.gz": b"synthetic upstream source",
+        "ui.tar.gz": b"synthetic matching UI",
+    }
+    monkeypatch.setattr(
+        transport, "GO", SimpleNamespace(digest=sha256(roots["go-toolchain.tar.gz"]).hexdigest())
+    )
+    monkeypatch.setattr(
+        docker_sources,
+        "_alertmanager_loaded_base",
+        lambda objects, *, current=False: "sha256:" + "1" * 64,
+    )
+    monkeypatch.setattr(
+        docker_sources,
+        "_alertmanager_input_plan",
+        lambda *args, **kwargs: {"state": "DECLARED_ONLY_COMPILER_HOLD"},
+    )
+    source_before = [
+        _alertmanager_cache_row(path, raw, 0o644) for path, raw in sorted(original.items())
+    ]
+    source_after = [
+        _alertmanager_cache_row(path, raw, 0o644) for path, raw in sorted(derived.items())
+    ]
+    module_bodies = {
+        "cache/download/example.org/dependency/@v/v1.2.3.mod": b"module dependency",
+        "cache/download/sumdb/sum.golang.org/tile/8/0/001": b"retained opaque checksum state",
+        "example.org/dependency@v1.2.3/main.go": b"package dependency\n",
+        "cache/download/example.org/module-with-a-long-native-directory-component/"
+        "nested-package-component-extending-the-native-PAX-path/@v/v1.2.3.mod": b"long-directory descendant",
+    }
+    module_rows = [
+        _alertmanager_cache_row(path, raw, 0o600) for path, raw in sorted(module_bodies.items())
+    ]
+
+    def readonly(value: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return [dict(row, mode=0o555 if row["mode"] & 0o111 else 0o444) for row in value]
+
+    gocache = [_alertmanager_cache_row("index", b"owned index", 0o600)]
+    gopath = [_alertmanager_cache_row("build/index", b"owned index", 0o600)] + [
+        dict(row, path="pkg/mod/" + row["path"]) for row in module_rows
+    ]
+    inventories = {
+        "original_source": source_before,
+        "derived_source": source_after,
+        "complete_GOMODCACHE": module_rows,
+        "whole_GOPATH": gopath,
+        "whole_GOCACHE": gocache,
+        "readonly_source": readonly(source_after),
+        "readonly_GOPATH": readonly(gopath),
+    }
+    stability = {
+        "source_before": readonly(source_after),
+        "source_after": readonly(source_after),
+        "whole_GOPATH_before": readonly(gopath),
+        "whole_GOPATH_after": readonly(gopath),
+        "whole_GOCACHE_after": readonly(gocache),
+    }
+    delta = [
+        {"path": name, "before": before, "after": after, "class": "authored"}
+        for name, before, after in (
+            ("golang.org/x/net", "v0.58.0", "v0.60.0"),
+            ("google.golang.org/grpc", "v1.83.1", "v1.83.2"),
+        )
+    ]
+    projection = {
+        "selected_modules": [{"Path": "github.com/prometheus/alertmanager", "Main": True}],
+        "package_graphs": {
+            name: [{"ImportPath": "github.com/prometheus/alertmanager/cmd/" + name}]
+            for name in ("alertmanager", "amtool")
+        },
+        "module_edges": ["github.com/prometheus/alertmanager golang.org/x/net@v0.60.0"],
+        "delta": delta,
+    }
+    go_before = [_alertmanager_cache_row("bin/go", b"qualified go bytes", 0o755)]
+    go_binding = {
+        "before_files": go_before,
+        "after_files": readonly(go_before),
+        "before_directories": [{"path": ".", "mode": 0o700}, {"path": "bin", "mode": 0o755}],
+        "after_directories": [{"path": ".", "mode": 0o555}, {"path": "bin", "mode": 0o555}],
+    }
+    files = {
+        "base-retention/base-image.tar": roots["base-image.tar"],
+        "go-readonly-input-binding.json": json.dumps(go_binding).encode(),
+    }
+    bodies = {"source/" + path: raw for path, raw in derived.items()}
+    bodies.update({"modules/" + path: raw for path, raw in module_bodies.items()})
+    bodies.update(roots)
+    directories = {"source", "modules"} | {
+        "/".join(path.split("/")[:index])
+        for path in bodies
+        for index in range(1, len(path.split("/")))
+    }
+    stage, evidence = tmp_path / "retention-stage", tmp_path / "retention-evidence"
+    stage.mkdir()
+    evidence.mkdir()
+    for path, raw in bodies.items():
+        target = stage / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(raw)
+        target.chmod(0o444 if path.startswith(("source/", "modules/")) else 0o644)
+    for path in directories:
+        (stage / path).chmod(0o555)
+    try:
+        # Use the actual producer and native serializer, including the long
+        # directory's PAX path and its descendant's distinct FILE representation.
+        frozen = docker_sources._retain_alertmanager_inputs(
+            evidence,
+            stage / "source",
+            stage / "modules",
+            *(stage / path for path in roots),
+            time.monotonic() + 10,
+        )
+    finally:
+        for path in directories:
+            (stage / path).chmod(0o700)
+    files["frozen-inputs.tar"] = (evidence / "frozen-inputs.tar").read_bytes()
+    files["frozen-inputs-inventory.json"] = json.dumps(frozen).encode()
+    for number in (1, 2):
+        prefix = "replay" + str(number)
+        files[prefix + "-inventories.json"] = json.dumps(inventories).encode()
+        files[prefix + "-offline-stability.json"] = json.dumps(stability).encode()
+        files[prefix + "-projections.json"] = json.dumps(projection).encode()
+        for lock, raw in original.items():
+            files[prefix + "-original-" + lock] = raw
+        for lock, raw in derived.items():
+            files[prefix + "-derived-" + lock] = raw
+    labels = ["public-base-pull", "public-base-inspect", "retain-physical-base"]
+    ids, names = [], []
+    token = "a" * 32
+    for number in (1, 2):
+        prefix = "replay" + str(number)
+        labels += [
+            prefix + "-" + label
+            for label in (
+                "version",
+                "baseline-download",
+                "baseline-modules",
+                "two-authored-replacements",
+                "derived-download",
+                "online-verify",
+                "online-modules",
+                "online-graph",
+                "online-alertmanager",
+                "online-amtool",
+            )
+        ]
+        for command in ("version", "verify", "modules", "graph", "alertmanager", "amtool"):
+            identifier = f"{len(ids) + 1:064x}"
+            name = f"pulseplate-alert-module-{token}-{number}-{command}"
+            ids.append(identifier)
+            names.append(name)
+            labels += [
+                prefix + "-" + stage + "-" + command
+                for stage in ("create", "offline", "wait", "terminal")
+            ]
+            files[prefix + "-create-" + command + ".stdout"] = (identifier + "\n").encode()
+            files[prefix + "-wait-" + command + ".stdout"] = b"0\n"
+            files[prefix + "-terminal-" + command + ".stdout"] = json.dumps(
+                {
+                    "Id": identifier,
+                    "Name": "/" + name,
+                    "Config": {"Labels": {"pulseplate.alertmanager-module": token}},
+                    "State": {
+                        "Status": "exited",
+                        "Running": False,
+                        "Restarting": False,
+                        "Dead": False,
+                        "OOMKilled": False,
+                        "Error": "",
+                        "ExitCode": 0,
+                    },
+                }
+            ).encode()
+    labels += (
+        ["cleanup-census"]
+        + [f"cleanup-{stage}-{index}" for index in range(12) for stage in ("inspect", "remove")]
+        + ["cleanup-absence"]
+    )
+    files["public-base-inspect.stdout"] = b"{}"
+    native = []
+    for label in labels:
+        stdout = label + ".stdout"
+        stderr = label + ".stderr"
+        files.setdefault(
+            stdout, b"go version go1.27.2 linux/amd64\n" if label.endswith("-version") else b""
+        )
+        files[stderr] = b""
+        native.append(
+            {
+                "argv": ["/usr/bin/docker", "synthetic-" + label],
+                "environment": {"PATH": "/usr/bin:/bin", "HOME": "/owned"},
+                "cwd": "/owned",
+                "exit": 0,
+                "failure": None,
+                "stdout": "/owned/alertmanager-module-evidence/" + stdout,
+                "stderr": "/owned/alertmanager-module-evidence/" + stderr,
+                "stdout_sha256": sha256(files[stdout]).hexdigest(),
+                "stderr_sha256": sha256(files[stderr]).hexdigest(),
+            }
+        )
+    report = {
+        "metadata_only": True,
+        "compiler_starts": 0,
+        "compiler_counter_meaning": "procedural fixed commands only",
+        "owned_container_names": sorted(names),
+        "owned_container_ids": sorted(ids),
+        "owned_container_absence_observed": True,
+        "logical_build_starts": 0,
+        "frozen_input_payload": frozen,
+        "loaded_base_ID": "sha256:" + "1" * 64,
+        "base_export_representation": "derived Docker save",
+        "whole_GOPATH_GOCACHE_individually_retained": True,
+        "delta": delta,
+        "native_records": native,
+        "elapsed_limit_seconds": 825,
+        "qualification_requires_separate_fullF_and_build_admission": True,
+    }
+    files["module-qualification.json"] = json.dumps(report).encode()
+    return files
+
+
+def _alertmanager_payload_zip(
+    directory: Path, files: dict[str, bytes], fault: str | None = None
+) -> Path:
+    import stat
+    import zipfile
+
+    rows = [_alertmanager_cache_row(path, raw, 0o600) for path, raw in sorted(files.items())]
+    if fault == "hash":
+        rows[0]["sha256"] = "f" * 64
+    elif fault == "mode":
+        rows[0]["mode"] = 0o644
+    elif fault == "unknown":
+        rows[0]["unexpected"] = True
+    elif fault == "duplicate":
+        rows.append(deepcopy(rows[0]))
+    footer = {
+        "files": rows,
+        "directories": [{"path": "base-retention", "type": "directory", "mode": 0o700}],
+        "inventory_carrier_exception": "Exactly artifact-payload-members.json is bound by external artifact bytes; its own hash is not recursively embedded.",
+    }
+    payload = dict(files)
+    if fault != "missing-footer":
+        payload["artifact-payload-members.json"] = json.dumps(footer).encode()
+    path = directory / "qualification.zip"
+    with zipfile.ZipFile(path, "w") as archive:
+        for name, raw in payload.items():
+            info = zipfile.ZipInfo(name)
+            info.external_attr = (stat.S_IFREG | 0o600) << 16
+            archive.writestr(info, raw)
+    return path
+
+
+@pytest.mark.parametrize("fault", [None, "hash", "mode", "unknown", "duplicate", "missing-footer"])
+def test_alertmanager_retained_payload_validates_complete_native_transport(
+    tmp_path: Path, alertmanager_retained_files: dict[str, bytes], fault: str | None
+) -> None:
+    archive = _alertmanager_payload_zip(tmp_path, alertmanager_retained_files, fault)
+    if fault:
+        with pytest.raises((RuntimeError, KeyError)):
+            docker_sources._alertmanager_qualified_payload(
+                archive, producer_recipe=_historical_alertmanager_recipe()
+            )
+    else:
+        result = docker_sources._alertmanager_qualified_payload(
+            archive, producer_recipe=_historical_alertmanager_recipe()
+        )
+        assert (
+            result["compiler_starts"] == 0
+            and result["build_admission"] == "HOLD_SEPARATE_HUMAN_DECISION"
+        )
+        assert result["artifact_files"] == len(alertmanager_retained_files)
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "native",
+        "canonical-directory",
+        "double-slash",
+        "alias",
+        "traversal",
+        "file-slash",
+        "unknown-PAX",
+        "type",
+        "link",
+        "mode",
+        "size",
+        "uid",
+        "gid",
+        "mtime",
+    ],
+)
+def test_alertmanager_frozen_PAX_directory_preserves_typed_native_relationship(
+    tmp_path: Path, alertmanager_retained_files: dict[str, bytes], fault: str
+) -> None:
+    import tarfile
+
+    files = alertmanager_retained_files
+    original = files["frozen-inputs.tar"]
+    with tarfile.open(fileobj=BytesIO(original), mode="r:") as archive:
+        members = archive.getmembers()
+        directory = next(
+            member for member in members if member.isdir() and "path" in member.pax_headers
+        )
+        descendant = next(
+            member
+            for member in members
+            if member.isfile() and member.name.startswith(directory.name + "/")
+        )
+        assert directory.pax_headers == {"path": directory.name + "/"}
+        assert descendant.pax_headers == {"path": descendant.name}
+        assert archive.extractfile(descendant).read() == b"long-directory descendant"
+        assert directory.mode == 0o555 and descendant.mode == 0o444
+        if fault != "native":
+            target = descendant.name if fault == "file-slash" else directory.name
+            output = BytesIO()
+            with tarfile.open(fileobj=output, mode="w", format=tarfile.PAX_FORMAT) as rewritten:
+                for member in members:
+                    changed = deepcopy(member)
+                    if (
+                        fault == "canonical-directory"
+                        and member.isdir()
+                        and "path" in changed.pax_headers
+                    ):
+                        changed.pax_headers["path"] = member.name
+                    if member.name == target:
+                        if fault in ("canonical-directory", "type", "link"):
+                            changed.pax_headers["path"] = directory.name
+                        elif fault == "double-slash":
+                            changed.pax_headers["path"] = directory.name + "//"
+                        elif fault == "alias":
+                            changed.pax_headers["path"] = (
+                                directory.name.replace("modules/", "modules//", 1) + "/"
+                            )
+                        elif fault == "traversal":
+                            changed.pax_headers["path"] = directory.name + "/../other/"
+                        elif fault == "file-slash":
+                            changed.pax_headers["path"] = descendant.name + "/"
+                        elif fault == "unknown-PAX":
+                            changed.pax_headers["comment"] = "unadmitted native key"
+                        if fault == "type":
+                            changed.type = tarfile.REGTYPE
+                        elif fault == "link":
+                            changed.type, changed.linkname = tarfile.SYMTYPE, "../outside"
+                        elif fault == "mode":
+                            changed.mode = 0o755
+                        elif fault == "size":
+                            changed.size = 1
+                        elif fault in ("uid", "gid", "mtime"):
+                            setattr(changed, fault, 1)
+                    rewritten.addfile(
+                        changed, archive.extractfile(member) if member.isfile() else None
+                    )
+            files["frozen-inputs.tar"] = output.getvalue()
+            frozen = json.loads(files["frozen-inputs-inventory.json"])
+            declared_members = deepcopy(frozen["members"])
+            frozen.update(
+                bytes=len(output.getvalue()), sha256=sha256(output.getvalue()).hexdigest()
+            )
+            assert frozen["members"] == declared_members
+            files["frozen-inputs-inventory.json"] = json.dumps(frozen).encode()
+            report = json.loads(files["module-qualification.json"])
+            report["frozen_input_payload"] = frozen
+            files["module-qualification.json"] = json.dumps(report).encode()
+    archive_path = _alertmanager_payload_zip(tmp_path, files)
+    raw_before = archive_path.read_bytes()
+    if fault in ("native", "canonical-directory"):
+        observed = docker_sources._alertmanager_qualified_payload(
+            archive_path, producer_recipe=_historical_alertmanager_recipe()
+        )
+        assert observed["build_admission"] == "HOLD_SEPARATE_HUMAN_DECISION"
+    else:
+        with pytest.raises(RuntimeError, match="AM_"):
+            docker_sources._alertmanager_qualified_payload(
+                archive_path, producer_recipe=_historical_alertmanager_recipe()
+            )
+    assert archive_path.read_bytes() == raw_before
+    if fault == "native":
+        assert files["frozen-inputs.tar"] == original
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "compiler-bool",
+        "cleanup",
+        "native-exit",
+        "lock",
+        "graph",
+        "mode-transition",
+        "offline-checksum",
+    ],
+)
+def test_alertmanager_retained_success_requires_locks_graphs_modes_and_raw_offline_stability(
+    tmp_path: Path, alertmanager_retained_files: dict[str, bytes], fault: str
+) -> None:
+    files = alertmanager_retained_files
+    if fault in ("compiler-bool", "cleanup", "native-exit"):
+        report = json.loads(files["module-qualification.json"])
+        if fault == "compiler-bool":
+            report["compiler_starts"] = False
+        elif fault == "cleanup":
+            report["owned_container_absence_observed"] = False
+        else:
+            report["native_records"][0]["exit"] = 1
+        files["module-qualification.json"] = json.dumps(report).encode()
+    elif fault == "lock":
+        files["replay2-derived-go.sum"] += b"changed"
+    elif fault == "graph":
+        projection = json.loads(files["replay2-projections.json"])
+        projection["package_graphs"]["amtool"] = []
+        files["replay2-projections.json"] = json.dumps(projection).encode()
+    elif fault == "mode-transition":
+        inventory = json.loads(files["replay1-inventories.json"])
+        inventory["readonly_source"][0]["mode"] = 0o600
+        files["replay1-inventories.json"] = json.dumps(inventory).encode()
+    else:
+        stability = json.loads(files["replay1-offline-stability.json"])
+        checksum = next(row for row in stability["whole_GOPATH_after"] if "/sumdb/" in row["path"])
+        checksum["sha256"] = "f" * 64
+        files["replay1-offline-stability.json"] = json.dumps(stability).encode()
+    with pytest.raises(RuntimeError, match="AM_"):
+        docker_sources._alertmanager_qualified_payload(
+            _alertmanager_payload_zip(tmp_path, files),
+            producer_recipe=_historical_alertmanager_recipe(),
+        )
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "run",
+        "main-branch",
+        "attempt",
+        "workflow",
+        "job",
+        "duplicate-job",
+        "artifact",
+        "expired",
+        "name",
+        "digest",
+        "bytes",
+    ],
+)
+def test_alertmanager_retained_Q_requires_exact_authenticated_successful_CD_epoch(
+    tmp_path: Path, alertmanager_api_epoch: dict[str, Any], fault: str | None
+) -> None:
+    data = alertmanager_api_epoch
+    if fault == "run":
+        data["run"]["head_sha"] = "f" * 40
+    elif fault == "main-branch":
+        data["run"]["head_branch"] = "main"
+    elif fault == "attempt":
+        data["run"]["run_attempt"] = True
+    elif fault == "workflow":
+        data["workflow"]["path"] = ".github/workflows/build.yml"
+    elif fault == "job":
+        data["jobs"][0]["conclusion"] = "failure"
+    elif fault == "duplicate-job":
+        data["jobs"].append(deepcopy(data["jobs"][0]))
+    elif fault == "artifact":
+        data["artifact"]["workflow_run"]["repository_id"] = 1
+    elif fault == "expired":
+        data["artifact"]["expires_at"] = "2020-01-01T00:00:00Z"
+    elif fault == "name":
+        data["artifact"]["name"] = "latest-qualification"
+    elif fault == "digest":
+        data["artifact"]["digest"] = "sha256:" + "f" * 64
+    elif fault == "bytes":
+        data["zip"] += b"drift"
+    destination = tmp_path / "qualification.zip"
+    if fault is None:
+        result = docker_sources._alertmanager_authenticated_inputs(
+            data["api"],
+            docker_sources._ALERT_Q_RUN,
+            docker_sources._ALERT_Q_ARTIFACT,
+            docker_sources._ALERT_Q_SOURCE,
+            destination,
+        )
+        assert (
+            result["source"] == docker_sources._ALERT_Q_SOURCE
+            and destination.read_bytes() == data["zip"]
+        )
+    else:
+        with pytest.raises(RuntimeError, match="AM_qualification_"):
+            docker_sources._alertmanager_authenticated_inputs(
+                data["api"],
+                docker_sources._ALERT_Q_RUN,
+                docker_sources._ALERT_Q_ARTIFACT,
+                docker_sources._ALERT_Q_SOURCE,
+                destination,
+            )
+        assert not destination.exists()
+
+
+@pytest.mark.parametrize("kind", ["qualification", "support", "candidate"])
+@pytest.mark.parametrize(
+    "fault", [None, "other-epoch", "changed", "missing", "mixed", "config", "run", "job"]
+)
+def test_alertmanager_source_recipe_binds_historical_QS_and_current_candidate_separately(
+    tmp_path: Path,
+    alertmanager_api_epoch: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+    kind: str,
+    fault: str | None,
+) -> None:
+    data = alertmanager_api_epoch
+    recipe_path = "deploy/alertmanager/Containerfile"
+    historical = data["source_files"][recipe_path]
+    current = (REPO_ROOT / recipe_path).read_bytes()
+    assert len(historical) == 895 and len(current) == 908
+    assert (
+        docker_sources._ALERT_Q_SOURCE_FILES[recipe_path]
+        == docker_sources._ALERT_S_SOURCE_FILES[recipe_path]
+        == sha256(historical).hexdigest()
+        == "69af6364f15e3e5b9a4662a5919ff7f3b0209da0461cd7a85e01e21022abdb78"
+    )
+    assert sha256(current).hexdigest() == docker_sources._ALERT_CURRENT_ASSEMBLY_RECIPE_SHA256
+    run, artifact, source, job = (
+        (
+            docker_sources._ALERT_Q_RUN,
+            docker_sources._ALERT_Q_ARTIFACT,
+            docker_sources._ALERT_Q_SOURCE,
+            docker_sources._ALERT_Q_JOB,
+        )
+        if kind == "qualification"
+        else (
+            (
+                docker_sources._ALERT_S_RUN,
+                docker_sources._ALERT_S_ARTIFACT,
+                docker_sources._ALERT_S_SOURCE,
+                docker_sources._ALERT_S_JOB,
+            )
+            if kind == "support"
+            else (1234, 5678, "a" * 40, 9876)
+        )
+    )
+    name = {
+        "qualification": "alertmanager-module-qualification",
+        "support": "alertmanager-input-inspection",
+        "candidate": "alertmanager-candidate",
+    }[kind]
+    data["run"].update(id=run, head_sha=source)
+    data["jobs"][0].update(
+        id=job,
+        run_id=run,
+        head_sha=source,
+        name="alertmanager-candidate-build" if kind == "candidate" else name,
+    )
+    data["artifact"].update(id=artifact, name=f"{name}-{run}-1")
+    data["artifact"]["workflow_run"].update(id=run, head_sha=source)
+    expected = current if kind == "candidate" else historical
+    data["source_files"][recipe_path] = expected
+    if kind == "candidate":
+        data["run"]["head_branch"] = docker_sources._ALERT_RECEIVER_BRANCH
+        native_path = "tests/test_notify_premium_alias_checkpoint_failure.py"
+        data["source_files"][native_path] = b"synthetic independently accepted native owner"
+        monkeypatch.setattr(
+            docker_sources,
+            "_ALERT_ACCEPTED_CANDIDATE",
+            {
+                "run": run,
+                "attempt": 1,
+                "artifact": artifact,
+                "source": source,
+                "job": job,
+                "zip_sha256": sha256(data["zip"]).hexdigest(),
+                "source_files": {
+                    path: sha256(raw).hexdigest() for path, raw in data["source_files"].items()
+                },
+                "graph": {"synthetic_known_graph": True},
+                "OCI_archive_sha256": "e" * 64,
+            },
+        )
+    if fault == "other-epoch":
+        data["source_files"][recipe_path] = historical if kind == "candidate" else current
+    elif fault == "changed":
+        data["source_files"][recipe_path] += b"# unreviewed recipe\n"
+    elif fault == "missing":
+        data["source_files"][recipe_path] = b""
+    elif fault == "mixed":
+        data["source_files"][recipe_path] = expected.replace(
+            b"--chown=65534:65534", b"--chown=0:65534"
+        )
+    elif fault == "config":
+        data["source_files"]["deploy/alertmanager/alertmanager.yml"] += b"# changed config\n"
+    elif fault == "run":
+        data["run"]["conclusion"] = "failure"
+    elif fault == "job":
+        data["jobs"][0]["conclusion"] = "failure"
+    destination = tmp_path / (kind + ".zip")
+    if fault is None:
+        result = docker_sources._alertmanager_authenticated_inputs(
+            data["api"], run, artifact, source, destination, kind=kind
+        )
+        assert result["source_files"][recipe_path] == sha256(expected).hexdigest()
+        assert destination.read_bytes() == data["zip"]
+        if kind != "qualification":
+            assert (tmp_path / (kind + "-producer-source") / recipe_path).read_bytes() == expected
+    else:
+        diagnostic = {
+            "missing": "AM_qualification_source_blob",
+            "run": "AM_qualification_successful_CD_source",
+            "job": "AM_qualification_successful_unique_job",
+        }.get(fault, "AM_qualification_source_bytes")
+        with pytest.raises(RuntimeError, match="^" + diagnostic + "$"):
+            docker_sources._alertmanager_authenticated_inputs(
+                data["api"], run, artifact, source, destination, kind=kind
+            )
+        assert not destination.exists()
+        assert not any(call.endswith("/zip") for call in data["calls"])
+
+
+def test_alertmanager_unknown_selector_rejects_before_auth_or_download(
+    tmp_path: Path, alertmanager_api_epoch: dict[str, Any]
+) -> None:
+    with pytest.raises(RuntimeError, match="AM_qualification_exact_selectors"):
+        docker_sources._alertmanager_authenticated_inputs(
+            alertmanager_api_epoch["api"],
+            True,
+            docker_sources._ALERT_Q_ARTIFACT,
+            docker_sources._ALERT_Q_SOURCE,
+            tmp_path / "out.zip",
+        )
+    assert alertmanager_api_epoch["calls"] == []
+
+
+@pytest.mark.parametrize("fault", [None, "identity", "403"])
+def test_alertmanager_existing_package_check_is_finite_read_only(
+    alertmanager_api_epoch: dict[str, Any], fault: str | None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    data = alertmanager_api_epoch
+    if fault == "403":
+
+        def denied(*args: object) -> bytes:
+            raise RuntimeError("GitHub_native_failed403")
+
+        monkeypatch.setattr(data["api"], "_capture", denied)
+    elif fault == "identity":
+        package = json.loads(data["package"])
+        package["visibility"] = "private"
+        data["package"] = json.dumps(package).encode()
+    if fault:
+        with pytest.raises(RuntimeError):
+            docker_sources._alertmanager_package_read(data["api"])
+    else:
+        observed = docker_sources._alertmanager_package_read(data["api"])
+        assert observed["metadata_read"] is True and observed["publication_write_proved"] is False
+        assert len(data["calls"]) == 1 and "GET" in data["calls"][0]
+
+
+@pytest.mark.parametrize("stage", ["build", "publish"])
+def test_alertmanager_unadmitted_stages_cannot_activate_compiler_or_publication(
+    stage: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def forbidden(*args: object, **kwargs: object) -> None:
+        pytest.fail("Held stage reached input acquisition")
+
+    monkeypatch.setattr(docker_sources, "_ALERT_ACCEPTED_CANDIDATE", None)
+    monkeypatch.setattr(docker_sources, "load_manifest", forbidden)
+    monkeypatch.delenv("ALERTMANAGER_PREP_SECONDS", raising=False)
+    expected = (
+        "AM_accepted_producer_UNCONFIGURED_HOLD" if stage == "publish" else "AM_current_build_cli"
+    )
+    with pytest.raises(RuntimeError, match=expected):
+        docker_sources.main(["--artifact", "alertmanager", "--alertmanager-stage", stage])
+    assert docker_sources.parse_args([]).alertmanager_stage == "disabled"
+
+
+@pytest.mark.parametrize(
+    "payload", [b"synthetic current Go\n", b"different current Go bytes\n"], ids=["first", "second"]
+)
+@pytest.mark.parametrize(
+    "case", ["fresh", "retained", "size", "digest", "symlink", "directory", "hardlink"]
+)
+def test_alertmanager_current_go_archive_guard_uses_acquired_owner_before_extract(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, payload: bytes, case: str
+) -> None:
+    """Exercise the real guard with synthetic artifact bytes; never qualify or execute Go."""
+    from scripts.ci import prometheus_source_image as source
+
+    current = replace(source.CURRENT_GO, size=len(payload), digest=sha256(payload).hexdigest())
+    legacy = source.GO
+    archive = tmp_path / "go1.27.3.linux-amd64.tar.gz"
+    acquisitions: list[Path] = []
+    extractions: list[Path] = []
+    if case == "symlink":
+        archive.symlink_to(tmp_path / "absent-target")
+    elif case == "directory":
+        archive.mkdir()
+    elif case != "fresh":
+        archive.write_bytes(
+            payload + b"extra"
+            if case == "size"
+            else bytes([payload[0] ^ 1]) + payload[1:] if case == "digest" else payload
+        )
+        if case == "hardlink":
+            (tmp_path / "second-link").hardlink_to(archive)
+
+    def acquire(artifact: source.Artifact, destination: Path, deadline: float) -> None:
+        assert artifact is current and destination == archive and deadline > 0
+        assert case == "fresh"
+        acquisitions.append(destination)
+        destination.write_bytes(payload)
+
+    def extract(artifact: source.Artifact, path: Path, target: Path, deadline: float) -> None:
+        assert artifact is current and path == archive and deadline > 0
+        assert target == tmp_path / "alertmanager-go" and path.read_bytes() == payload
+        extractions.append(path)
+        raise RuntimeError("synthetic_current_go_extract_boundary")
+
+    def no_native(*args: Any, **kwargs: Any) -> None:
+        pytest.fail("archive validation must precede every native command")
+
+    monkeypatch.setenv("ALERTMANAGER_QUALIFY_SECONDS", "825")
+    monkeypatch.setattr(source, "CURRENT_GO", current)
+    monkeypatch.setattr(source, "acquire", acquire)
+    monkeypatch.setattr(source, "extract", extract)
+    monkeypatch.setattr(source.Native, "run", no_native)
+    monkeypatch.setattr(docker_sources, "load_manifest", lambda *a, **k: [])
+    monkeypatch.setattr(docker_sources, "_fetch_alertmanager_pair", lambda *a, **k: None)
+    valid = case in {"fresh", "retained"}
+    diagnostic = (
+        "^synthetic_current_go_extract_boundary$"
+        if valid
+        else "^Exact Go input changed; no overwrite, replacement or retry\\.$"
+    )
+    with pytest.raises(RuntimeError, match=diagnostic):
+        docker_sources._qualify_alertmanager_modules(tmp_path)
+    assert acquisitions == ([archive] if case == "fresh" else [])
+    assert extractions == ([archive] if valid else [])
+    assert source.GO is legacy
+    assert not (tmp_path / "alertmanager-module-evidence/module-qualification.json").exists()
+
+
+@pytest.mark.parametrize(
+    "relative",
+    [
+        "pkg/mod/cache/download/sumdb/sum.golang.org/lookup/module@v1.2.3",
+        "pkg/mod/example.org/dependency@v1.2.3/main.go",
+        "build/index",
+    ],
+    ids=["checksum-state", "module-payload", "build-cache"],
+)
+def test_alertmanager_offline_stability_still_uses_complete_raw_cache(
+    tmp_path: Path, relative: str
+) -> None:
+    import inspect
+    from scripts.ci.prometheus_source_image import tree_inventory
+
+    # Physical inventory still observes checksum state, even though cross-replay
+    # payload comparison delegates that exact namespace to the qualified Go owner.
+    cache = tmp_path / "cache"
+    member = cache / relative
+    member.parent.mkdir(parents=True)
+    member.write_bytes(b"before offline command")
+    before = tree_inventory(cache)
+    member.write_bytes(b"after offline command")
+    after = tree_inventory(cache)
+    assert before != after
+    assert before[0]["path"] == after[0]["path"] == relative
+
+    phase = ast.parse(inspect.getsource(docker_sources._alertmanager_module_phase))
+    guard = next(
+        node
+        for node in ast.walk(phase)
+        if isinstance(node, ast.If)
+        and any(
+            isinstance(statement, ast.Raise)
+            and isinstance(statement.exc, ast.Call)
+            and statement.exc.args
+            and isinstance(statement.exc.args[0], ast.Constant)
+            and statement.exc.args[0].value == "Readonly offline source/cache changed."
+            for statement in node.body
+        )
+    )
+    # This existing admission guard must compare both full raw observations,
+    # without the comparator's transient cross-replay partition.
+    assert ast.unparse(guard.test) == (
+        "tree_inventory(source, deadline=deadline) != readonly_source or "
+        "tree_inventory(cache, deadline=deadline) != readonly_cache"
+    )
+
+
+def test_alertmanager_matching_verify_stdout_cannot_mask_native_failure(tmp_path: Path) -> None:
+    import time
+    from scripts.ci.prometheus_source_image import Native, QualificationError
+
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    native = Native(evidence, time.monotonic() + 10, 45)
+    with pytest.raises(QualificationError, match="native_failed"):
+        native.run(
+            [sys.executable, "-I", "-c", "print('all modules verified'); raise SystemExit(1)"],
+            "synthetic-online-verify",
+            {"PATH": "/usr/bin:/bin", "HOME": str(tmp_path)},
+            cwd=tmp_path,
+        )
+    assert (evidence / "synthetic-online-verify.stdout").read_bytes() == b"all modules verified\n"
+    assert native.records[0]["exit"] == 1
 
 
 def test_alertmanager_frozen_input_artifact_includes_required_bytes_and_excludes_private_home(
@@ -3585,6 +5682,10 @@ def test_alertmanager_frozen_input_artifact_includes_required_bytes_and_excludes
     long_module = modules / ("module-cache-" + "x" * 151)
     long_module.write_bytes(b"exact long-name module bytes")
     long_module.chmod(0o444)
+    checksum = modules / "cache/download/sumdb/sum.golang.org/lookup/module@v1.2.3"
+    checksum.parent.mkdir(parents=True)
+    checksum.write_bytes(b"complete retained checksum state")
+    checksum.chmod(0o600)
     files = []
     for name in ("go", "base", "original", "ui"):
         path = tmp_path / name
@@ -3604,6 +5705,9 @@ def test_alertmanager_frozen_input_artifact_includes_required_bytes_and_excludes
         long_name = "modules/" + long_module.name
         assert archive.extractfile(long_name).read() == long_module.read_bytes()
         assert archive.getmember(long_name).mode == 0o444
+        checksum_name = "modules/" + checksum.relative_to(modules).as_posix()
+        assert archive.extractfile(checksum_name).read() == checksum.read_bytes()
+        assert archive.getmember(checksum_name).mode == 0o600
         observed = []
         for member in archive.getmembers():
             row = {
@@ -3652,7 +5756,7 @@ def test_alertmanager_hosted_transport_shares_clock_and_empty_docker_config() ->
     )
     assert "operation_deadline=deadline" in source
     assert 'docker_prefix = [docker, "--config", str(docker_config)]' in source
-    assert "base_id = _alertmanager_loaded_base(base_objects)" in source
+    assert "base_id = _alertmanager_loaded_base(base_objects, current=True)" in source
     assert '"--pull=never"' in source
     assert (
         "/run/alertmanager-metadata:size=64m,noexec,nosuid,uid=65534,gid=65534,mode=0700" in source
@@ -3661,6 +5765,9 @@ def test_alertmanager_hosted_transport_shares_clock_and_empty_docker_config() ->
     assert '"GOCACHE": "/run/alertmanager-metadata/cache"' in source
     assert '"TMPDIR": "/run/alertmanager-metadata"' in source
     assert '"--network=none"' in source and '"--read-only"' in source
+    assert '"GOSUMDB": "sum.golang.org"' in source
+    assert '"GOTOOLCHAIN": "local"' in source
+    assert '["get", "golang.org/x/net@v0.60.0", "google.golang.org/grpc@v1.83.2"]' in source
     assert '"--cap-drop=ALL"' in source and '"--security-opt=no-new-privileges"' in source
     assert '"loaded_base_ID": base_id' in source
     assert "native_import(" not in source and '"login"' not in source
@@ -3914,3 +6021,4257 @@ def test_zlib_www_challenge_and_redirect_never_admit_source(
             docker_sources._write_verified_artifact(artifact, output)
     assert calls == [(artifact.url, 60)]
     assert list(output.iterdir()) == []
+
+
+@pytest.fixture
+def alertmanager_proposal_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in (
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "GHCR_READ_TOKEN",
+        "GH_ENTERPRISE_TOKEN",
+        "GITHUB_ENTERPRISE_TOKEN",
+        "GH_HOST",
+        "GH_CONFIG_DIR",
+        "DOCKER_CONFIG",
+        "DOCKER_AUTH_CONFIG",
+        "NETRC",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+        "DEVPI_CI_USER",
+        "DEVPI_CI_PASSWORD",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    for name, value in _load_workflow(WORKFLOWS_DIR / "cd.yml")["env"].items():
+        if name.startswith("ALERTMANAGER_"):
+            monkeypatch.setenv(name, value)
+    for name, value in {
+        "GITHUB_EVENT_NAME": "workflow_dispatch",
+        "GITHUB_REPOSITORY": "Katsiarynakavaleuskaya/PulsePlate",
+        "GITHUB_REPOSITORY_ID": "1043311030",
+        "GITHUB_REF": "refs/heads/codex/dependency-alertmanager-remediation",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "GITHUB_SHA": "a" * 40,
+        "GH_TOKEN": "synthetic-proposal-credential",
+        "GITHUB_TOKEN": "synthetic-proposal-credential",
+        "GITHUB_REPOSITORY_OWNER": "Katsiarynakavaleuskaya",
+    }.items():
+        monkeypatch.setenv(name, value)
+
+
+def _alertmanager_proposal_arguments(output: Path) -> list[str]:
+    return [
+        "--artifact",
+        "alertmanager",
+        "--alertmanager-stage",
+        "build",
+        "--source-sha",
+        "a" * 40,
+        "--alertmanager-qualification-run",
+        str(docker_sources._ALERT_Q_RUN),
+        "--alertmanager-qualification-artifact",
+        str(docker_sources._ALERT_Q_ARTIFACT),
+        "--alertmanager-qualification-source",
+        docker_sources._ALERT_Q_SOURCE,
+        "--alertmanager-support-run",
+        str(docker_sources._ALERT_S_RUN),
+        "--alertmanager-support-artifact",
+        str(docker_sources._ALERT_S_ARTIFACT),
+        "--alertmanager-support-source",
+        docker_sources._ALERT_S_SOURCE,
+        "--output-dir",
+        str(output),
+    ]
+
+
+def _alertmanager_buildinfo(binary: str) -> bytes:
+    # Native Go with -trimpath omits -ldflags; the actual --version owns stamps.
+    return (
+        "/out/" + binary + ": go1.27.2\n"
+        "\tpath\tgithub.com/prometheus/alertmanager/cmd/" + binary + "\n"
+        "\tmod\tgithub.com/prometheus/alertmanager\t(devel)\n"
+        "\tdep\tgolang.org/x/net\tv0.60.0\th1:synthetic\n"
+        "\tdep\tgoogle.golang.org/grpc\tv1.83.2\th1:synthetic\n"
+        "\tdep\texample.invalid/" + binary + "\tv1.2.3\th1:synthetic\n"
+        "\tbuild\tCGO_ENABLED=0\n\tbuild\tGOOS=linux\n\tbuild\tGOARCH=amd64\n"
+        "\tbuild\t-tags=netgo\n\tbuild\t-trimpath=true\n"
+    ).encode()
+
+
+@pytest.mark.parametrize("binary", ["alertmanager", "amtool"])
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "Go",
+        "module",
+        "platform",
+        "CGO",
+        "tags",
+        "duplicate",
+        "replacement",
+        "fictional-ldflags",
+        "main",
+        "command",
+    ],
+)
+def test_alertmanager_actual_buildinfo_rejects_stale_second_binary_or_recipe(
+    binary: str, fault: str | None
+) -> None:
+    raw = _alertmanager_buildinfo(binary)
+    if fault == "Go":
+        raw = raw.replace(b"go1.27.2", b"go1.26.8")
+    elif fault == "module":
+        raw = raw.replace(b"v1.83.2", b"v1.83.1")
+    elif fault == "platform":
+        raw = raw.replace(b"GOARCH=amd64", b"GOARCH=arm64")
+    elif fault == "CGO":
+        raw = raw.replace(b"CGO_ENABLED=0", b"CGO_ENABLED=1")
+    elif fault == "tags":
+        raw = raw.replace(b"-tags=netgo", b"-tags=other")
+    elif fault == "duplicate":
+        raw += b"\tbuild\tGOARCH=amd64\n"
+    elif fault == "replacement":
+        raw += b"\t=>\tunreviewed.example/module\tv1.0.0\n"
+    elif fault == "fictional-ldflags":
+        raw += ("\tbuild\t-ldflags=" + docker_sources._ALERT_BUILD_METADATA + "\n").encode()
+    elif fault == "main":
+        raw = raw.replace(b"\t(devel)", b"\tv0.34.0")
+    elif fault == "command":
+        raw = raw.replace(b"/cmd/" + binary.encode(), b"/cmd/foreign")
+    if fault:
+        with pytest.raises(RuntimeError, match="AM_"):
+            docker_sources._alertmanager_build_information(raw, binary)
+    else:
+        assert docker_sources._alertmanager_build_information(raw, binary)["Go"] == "go1.27.2"
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "second-binary",
+        "stale-module",
+        "CVE-low",
+        "new-blocker",
+        "secret",
+        "null-results",
+        "missing-package",
+        "duplicate-target",
+        "wrong-subject",
+        "missing-OS",
+        "extra-OS",
+        "duplicate-OS",
+        "version-OS",
+        "PURL-OS",
+        "source-OS",
+        "arch-OS",
+        "malformed-OS",
+        "OS-family",
+        "encoding-only",
+        "changed-reference",
+    ],
+)
+def test_alertmanager_candidate_scan_requires_real_complete_pair_and_unsuppressed_inventory(
+    fault: str | None,
+) -> None:
+    build_information = {
+        name: docker_sources._alertmanager_build_information(_alertmanager_buildinfo(name), name)
+        for name in ("alertmanager", "amtool")
+    }
+    image_id = "sha256:" + "1" * 64
+    packages = [
+        {
+            "ID": name + "@1.0",
+            "Name": name,
+            "Version": "1.0",
+            "Arch": "all",
+            "SrcName": "synthetic-source",
+            "SrcVersion": "1.0",
+            "Identifier": {
+                "PURL": "pkg:deb/debian/" + name + "@1.0?arch=all",
+                "UID": "synthetic-opaque",
+            },
+            "Layer": {"DiffID": "sha256:" + "3" * 64},
+        }
+        for name in ("synthetic-base-one", "synthetic-base-two")
+    ]
+    os_row = {
+        "Target": "retained-base-export (debian synthetic)",
+        "Class": "os-pkgs",
+        "Type": "debian",
+        "Packages": packages,
+    }
+    base: dict[str, Any] = {
+        "ArtifactType": "container_image",
+        "Metadata": {
+            "ImageID": docker_sources._ALERT_BASE_CONFIG,
+            "OS": {"Family": "debian", "Name": "synthetic"},
+        },
+        "Results": [deepcopy(os_row)],
+    }
+    rows = [deepcopy(os_row)]
+    for binary in ("alertmanager", "amtool"):
+        rows.append(
+            {
+                "Target": "usr/bin/" + binary,
+                "Class": "lang-pkgs",
+                "Type": "gobinary",
+                "Packages": [
+                    {"Name": name, "Version": version}
+                    for name, version in (
+                        ("stdlib", "v1.27.2"),
+                        ("golang.org/x/net", "v0.60.0"),
+                        ("google.golang.org/grpc", "v1.83.2"),
+                        ("example.invalid/" + binary, "v1.2.3"),
+                        ("github.com/prometheus/alertmanager", "v0.34.1"),
+                    )
+                ],
+            }
+        )
+    report: dict[str, Any] = {
+        "SchemaVersion": 2,
+        "ArtifactType": "container_image",
+        "Metadata": {"ImageID": image_id, "OS": {"Family": "debian", "Name": "synthetic"}},
+        "Results": rows,
+    }
+    if fault == "second-binary":
+        rows.pop()
+    elif fault == "stale-module":
+        rows[-1]["Packages"][-1]["Version"] = "v1.83.1"
+    elif fault in ("CVE-low", "new-blocker"):
+        rows[-1]["Vulnerabilities"] = [
+            {
+                "VulnerabilityID": "CVE-2026-97031" if fault == "CVE-low" else "CVE-SYNTHETIC-NEW",
+                "PkgName": "stdlib",
+                "InstalledVersion": "v1.27.2",
+                "Severity": "LOW" if fault == "CVE-low" else "HIGH",
+            }
+        ]
+    elif fault == "secret":
+        rows[0]["Secrets"] = [{"RuleID": "synthetic"}]
+    elif fault == "null-results":
+        report["Results"] = None
+    elif fault == "missing-package":
+        rows[-1]["Packages"].pop()
+    elif fault == "duplicate-target":
+        rows.append(deepcopy(rows[-1]))
+    elif fault == "wrong-subject":
+        report["Metadata"]["ImageID"] = "sha256:" + "2" * 64
+    elif fault == "missing-OS":
+        rows[0]["Packages"].pop()
+    elif fault == "extra-OS":
+        extra = deepcopy(packages[0])
+        extra["Name"] = "extra-package"
+        extra["ID"] = "extra-package@1.0"
+        rows[0]["Packages"].append(extra)
+    elif fault == "duplicate-OS":
+        rows[0]["Packages"].append(deepcopy(rows[0]["Packages"][0]))
+    elif fault == "version-OS":
+        rows[0]["Packages"][0]["Version"] = "2.0"
+    elif fault == "PURL-OS":
+        rows[0]["Packages"][0]["Identifier"]["PURL"] += "&unapproved=true"
+    elif fault == "source-OS":
+        rows[0]["Packages"][0]["SrcName"] = "changed-source"
+    elif fault == "arch-OS":
+        rows[0]["Packages"][0]["Arch"] = "arm64"
+    elif fault == "malformed-OS":
+        rows[0]["Packages"][0]["ID"] = None
+    elif fault == "OS-family":
+        report["Metadata"]["OS"]["Family"] = "unrecognized"
+    elif fault == "encoding-only":
+        rows[0]["Target"] = "candidate.oci.tar (debian synthetic)"
+        rows[0]["Packages"][0]["Layer"] = {
+            "Digest": "sha256:" + "4" * 64,
+            "DiffID": "sha256:" + "3" * 64,
+        }
+        rows[0]["Packages"][0]["Identifier"]["UID"] = "new-native-opaque-UID"
+    elif fault == "changed-reference":
+        for selected in (rows[0], base["Results"][0]):
+            selected["Packages"].pop()
+            selected["Packages"][0]["Version"] = "authorized-future-version"
+            selected["Packages"][0]["SrcVersion"] = "authorized-future-version"
+            selected["Packages"][0]["ID"] = "synthetic-base-one@authorized-future-version"
+            selected["Packages"][0]["Identifier"][
+                "PURL"
+            ] = "pkg:deb/debian/synthetic-base-one@authorized-future-version?arch=all"
+    if fault not in (None, "encoding-only", "changed-reference"):
+        with pytest.raises(RuntimeError, match="AM_"):
+            docker_sources._alertmanager_candidate_inventory(
+                report, image_id, base, build_information
+            )
+    else:
+        actual = docker_sources._alertmanager_candidate_inventory(
+            report, image_id, base, build_information
+        )
+        assert (
+            len(actual["packages"]) == (11 if fault == "changed-reference" else 12)
+            and actual["findings"] == []
+        )
+
+
+@pytest.fixture
+def alertmanager_proposal_graph(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest
+) -> dict[str, Any]:
+    import gzip
+    import tarfile
+
+    compressed = getattr(request, "param", None) == "gzip"
+    support = tmp_path / "support"
+    base = support / "base-layout"
+    seed = tmp_path / "candidate-seed"
+    for layout in (base, seed):
+        (layout / "blobs/sha256").mkdir(parents=True)
+
+    def blob(layout: Path, body: bytes, media: str) -> dict[str, Any]:
+        digest = sha256(body).hexdigest()
+        (layout / "blobs/sha256" / digest).write_bytes(body)
+        return {"mediaType": media, "digest": "sha256:" + digest, "size": len(body)}
+
+    def tar(rows: list[tuple[str, bytes | None, int, int, int]]) -> bytes:
+        output = BytesIO()
+        with tarfile.open(fileobj=output, mode="w", format=tarfile.USTAR_FORMAT) as archive:
+            for name, raw, mode, uid, gid in rows:
+                info = tarfile.TarInfo(name)
+                info.mode, info.uid, info.gid = mode, uid, gid
+                info.type = tarfile.DIRTYPE if raw is None else tarfile.REGTYPE
+                info.size = 0 if raw is None else len(raw)
+                archive.addfile(info, None if raw is None else BytesIO(raw))
+        return output.getvalue()
+
+    layers = []
+    diff_ids = []
+    for index in range(13):
+        rows = [
+            (
+                "etc/ssl/certs/ca-certificates.crt" if index == 0 else "base-" + str(index),
+                b"synthetic CA" if index == 0 else str(index).encode(),
+                0o444,
+                0,
+                0,
+            )
+        ]
+        raw = tar(rows)
+        diff_ids.append("sha256:" + sha256(raw).hexdigest())
+        layers.append(
+            blob(
+                base,
+                gzip.compress(raw, mtime=0) if compressed else raw,
+                "application/vnd.oci.image.layer.v1.tar" + ("+gzip" if compressed else ""),
+            )
+        )
+    base_config = {
+        "os": "linux",
+        "architecture": "amd64",
+        "config": {"Env": ["PATH=/usr/bin"]},
+        "rootfs": {"type": "layers", "diff_ids": diff_ids},
+    }
+    config = blob(
+        base, json.dumps(base_config).encode(), "application/vnd.oci.image.config.v1+json"
+    )
+    manifest = blob(
+        base,
+        json.dumps(
+            {
+                "schemaVersion": 2,
+                "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                "config": config,
+                "layers": layers,
+            }
+        ).encode(),
+        "application/vnd.oci.image.manifest.v1+json",
+    )
+    (base / "oci-layout").write_text('{"imageLayoutVersion":"1.0.0"}')
+    (base / "index.json").write_text(
+        json.dumps(
+            {
+                "schemaVersion": 2,
+                "mediaType": "application/vnd.oci.image.index.v1+json",
+                "manifests": [manifest],
+            }
+        )
+    )
+    for path in (base / "blobs/sha256").iterdir():
+        shutil.copyfile(path, seed / "blobs/sha256" / path.name)
+    binaries = {
+        name: ("synthetic produced " + name).encode() for name in ("alertmanager", "amtool")
+    }
+    inputs = tmp_path / "inputs"
+    for name in ("source", "modules", "alertmanager-go"):
+        (inputs / name).mkdir(parents=True)
+    for name in ("LICENSE", "NOTICE"):
+        (inputs / "source" / name).write_bytes(("synthetic " + name).encode())
+    (inputs / "source/main.go").write_bytes(b"package main")
+    probe = b"synthetic original multicall probe"
+    plugin = b"synthetic qualified Buildx"
+    (support / "empty-docker-config/cli-plugins").mkdir(parents=True)
+    (support / "empty-docker-config/cli-plugins/docker-buildx").write_bytes(plugin)
+    (support / "probe-bin-bracket").write_bytes(probe)
+    (support / "base-image.tar").write_bytes(b"synthetic base transport")
+    monkeypatch.setattr(docker_sources, "_ALERT_BASE_CONFIG", config["digest"])
+    monkeypatch.setattr(docker_sources, "_ALERT_BASE_MANIFEST", manifest["digest"])
+    monkeypatch.setattr(docker_sources, "_ALERT_PROBE_SHA256", sha256(probe).hexdigest())
+    monkeypatch.setattr(docker_sources, "_ALERT_BUILDX_SHA256", sha256(plugin).hexdigest())
+    values = {"usr/bin/" + name: raw for name, raw in binaries.items()}
+    values.update(
+        {
+            "usr/bin/wget": probe,
+            "usr/bin/httpd": probe,
+            "etc/alertmanager/alertmanager.yml": (
+                REPO_ROOT / "deploy/alertmanager/alertmanager.yml"
+            ).read_bytes(),
+            "LICENSE": (inputs / "source/LICENSE").read_bytes(),
+            "NOTICE": (inputs / "source/NOTICE").read_bytes(),
+        }
+    )
+    rows = [("alertmanager", None, 0o700, 65534, 65534)] + [
+        (name, raw, 0o555 if name.startswith("usr/bin/") else 0o444, 0, 0)
+        for name, raw in values.items()
+    ]
+    actual_config = deepcopy(base_config)
+    actual_config["config"].update(
+        {
+            "User": "65534:65534",
+            "Entrypoint": ["/bin/alertmanager"],
+            "Cmd": [
+                "--config.file=/etc/alertmanager/alertmanager.yml",
+                "--storage.path=/alertmanager",
+                "--cluster.listen-address=",
+            ],
+            "WorkingDir": "/alertmanager",
+            "Volumes": {"/alertmanager": {}},
+            "ExposedPorts": {"9093/tcp": {}},
+        }
+    )
+    data = {
+        "support": support,
+        "base": base,
+        "seed": seed,
+        "inputs": inputs,
+        "rows": rows,
+        "values": values,
+        "binaries": binaries,
+        "expected": {k: sha256(v).hexdigest() for k, v in values.items()},
+        "config": actual_config,
+    }
+
+    def write() -> None:
+        raw = tar(data["rows"])
+        payload = blob(
+            seed,
+            gzip.compress(raw, mtime=0) if compressed else raw,
+            "application/vnd.oci.image.layer.v1.tar" + ("+gzip" if compressed else ""),
+        )
+        configuration = deepcopy(data["config"])
+        configuration["rootfs"]["diff_ids"] = diff_ids + ["sha256:" + sha256(raw).hexdigest()]
+        config_row = blob(
+            seed, json.dumps(configuration).encode(), "application/vnd.oci.image.config.v1+json"
+        )
+        descriptor = blob(
+            seed,
+            json.dumps(
+                {
+                    "schemaVersion": 2,
+                    "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                    "config": config_row,
+                    "layers": [*layers, payload],
+                }
+            ).encode(),
+            "application/vnd.oci.image.manifest.v1+json",
+        )
+        (seed / "oci-layout").write_text('{"imageLayoutVersion":"1.0.0"}')
+        (seed / "index.json").write_text(
+            json.dumps(
+                {
+                    "schemaVersion": 2,
+                    "mediaType": "application/vnd.oci.image.index.v1+json",
+                    "manifests": [descriptor],
+                }
+            )
+        )
+        keep = {v["digest"][7:] for v in [*layers, payload, config_row, descriptor]}
+        for path in (seed / "blobs/sha256").iterdir():
+            if path.name not in keep:
+                path.unlink()
+
+    data["write"] = write
+    write()
+    return data
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "missing-amtool",
+        "mode",
+        "owner",
+        "storage-uid",
+        "storage-gid",
+        "storage-mode",
+        "extra",
+        "alias",
+        "bytes",
+        "platform",
+        "environment",
+        "attestation",
+    ],
+)
+@pytest.mark.parametrize("alertmanager_proposal_graph", [None, "gzip"], indirect=True)
+def test_alertmanager_COPY_graph_rejects_real_subject_or_payload_drift(
+    alertmanager_proposal_graph: dict[str, Any],
+    fault: str | None,
+) -> None:
+    d = alertmanager_proposal_graph
+    if fault == "missing-amtool":
+        d["rows"] = [row for row in d["rows"] if row[0] != "usr/bin/amtool"]
+    elif fault in ("mode", "owner", "alias", "bytes"):
+        d["rows"] = [
+            (
+                "../usr/bin/amtool" if fault == "alias" and name == "usr/bin/amtool" else name,
+                raw + b"changed" if fault == "bytes" and name == "usr/bin/amtool" else raw,
+                0o644 if fault == "mode" and name == "usr/bin/amtool" else mode,
+                1 if fault == "owner" and name == "usr/bin/amtool" else uid,
+                gid,
+            )
+            for name, raw, mode, uid, gid in d["rows"]
+        ]
+    elif fault in ("storage-uid", "storage-gid", "storage-mode"):
+        d["rows"][0] = (
+            "alertmanager",
+            None,
+            0o755 if fault == "storage-mode" else 0o700,
+            0 if fault == "storage-uid" else 65534,
+            0 if fault == "storage-gid" else 65534,
+        )
+    elif fault == "extra":
+        d["rows"].append(("usr/bin/unapproved", b"unexpected", 0o555, 0, 0))
+    elif fault == "platform":
+        d["config"]["architecture"] = "arm64"
+    elif fault == "environment":
+        d["config"]["config"]["Env"].append("HTTPS_PROXY=unreviewed.invalid")
+    d["write"]()
+    if fault == "attestation":
+        path = d["seed"] / "index.json"
+        index = json.loads(path.read_text())
+        index["manifests"].append(deepcopy(index["manifests"][0]))
+        path.write_text(json.dumps(index))
+    if fault:
+        with pytest.raises(
+            RuntimeError,
+            match=(
+                "^AM_storage_directory_owner_mode$"
+                if fault in ("storage-uid", "storage-gid", "storage-mode")
+                else None
+            ),
+        ):
+            docker_sources._alertmanager_candidate_graph(d["seed"], d["support"], d["expected"])
+    else:
+        graph = docker_sources._alertmanager_candidate_graph(d["seed"], d["support"], d["expected"])
+        assert graph["files"] == d["expected"] and len(graph["layers"]) == 14
+        assert graph["default_CA_sha256"] == sha256(b"synthetic CA").hexdigest()
+
+
+@pytest.mark.parametrize(
+    "current_epoch,caller,omit_base_member",
+    [
+        (epoch, caller, omitted)
+        for epoch in (False, True)
+        for caller in ("retained-candidate", "retained-failed-candidate")
+        for omitted in (False, True)
+    ]
+    + [
+        (True, "producer-" + fault, False)
+        for fault in ("missing", "unknown", "mixed", "old-marker", "old-status")
+    ],
+)
+def test_alertmanager_both_security_callers_use_actual_authenticated_support_reference(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    alertmanager_proposal_environment: None,
+    alertmanager_proposal_graph: dict[str, Any],
+    caller: str,
+    omit_base_member: bool,
+    current_epoch: bool,
+) -> None:
+    """Bind both callers to the base; a failed build never reaches reconciliation."""
+    import zipfile
+    from scripts.ci import prometheus_source_image as transport
+
+    source_sha = "a" * 40 if current_epoch else docker_sources._ALERT_HISTORICAL_C10["source"]
+
+    def build_raw(name: str) -> bytes:
+        raw = _alertmanager_buildinfo(name)
+        return raw.replace(b"go1.27.2", b"go1.27.3") if current_epoch else raw
+
+    build_information = {
+        name: docker_sources._alertmanager_build_information(
+            build_raw(name), name, current=current_epoch
+        )
+        for name in ("alertmanager", "amtool")
+    }
+    d = alertmanager_proposal_graph
+    graph = docker_sources._alertmanager_candidate_graph(d["seed"], d["support"], d["expected"])
+    image_id = graph["config"]["digest"]
+    packages = [
+        {
+            "ID": name + "@2",
+            "Name": name,
+            "Version": "2",
+            "Arch": "all",
+            "SrcName": name,
+            "SrcVersion": "2",
+            "Identifier": {"PURL": "pkg:deb/debian/" + name + "@2?arch=all"},
+        }
+        for name in ("future-one", "future-two")
+    ]
+    base: dict[str, Any] = {
+        "ArtifactType": "container_image",
+        "Metadata": {
+            "ImageID": (
+                transport.BASE_CONFIG if current_epoch else docker_sources._ALERT_BASE_CONFIG
+            ),
+            "OS": {"Family": "debian", "Name": "future"},
+        },
+        "Results": [
+            {"Target": "base export", "Class": "os-pkgs", "Type": "debian", "Packages": packages}
+        ],
+    }
+    full = deepcopy(base)
+    full["SchemaVersion"] = 2
+    full["Metadata"]["ImageID"] = image_id
+    if omit_base_member:
+        full["Results"][0]["Packages"].pop()
+    for binary in ("alertmanager", "amtool"):
+        full["Results"].append(
+            {
+                "Target": "usr/bin/" + binary,
+                "Class": "lang-pkgs",
+                "Type": "gobinary",
+                "Packages": [
+                    {"Name": name, "Version": version}
+                    for name, version in (
+                        ("stdlib", "v1.27.3" if current_epoch else "v1.27.2"),
+                        ("golang.org/x/net", "v0.60.0"),
+                        ("google.golang.org/grpc", "v1.83.2"),
+                        ("example.invalid/" + binary, "v1.2.3"),
+                        ("github.com/prometheus/alertmanager", "0.34.1"),
+                    )
+                ],
+            }
+        )
+    support = d["support"]
+    (support / "evidence").mkdir(parents=True)
+    (support / "evidence/base-full-supported-scan.private.json").write_text(json.dumps(base))
+    (support / "trivy").write_bytes(b"synthetic scanner bytes")
+    (support / "trivy-cache/db").mkdir(parents=True)
+    (support / "trivy-cache/db/trivy.db").write_bytes(b"synthetic frozen DB")
+    (support / "trivy-cache/db/metadata.json").write_text('{"Version":2}')
+    monkeypatch.setattr(
+        docker_sources, "_ALERT_TRIVY_SHA256", sha256((support / "trivy").read_bytes()).hexdigest()
+    )
+    monkeypatch.setattr(
+        docker_sources,
+        "_ALERT_DB",
+        {
+            "db/" + p.name: sha256(p.read_bytes()).hexdigest()
+            for p in (support / "trivy-cache/db").iterdir()
+        },
+    )
+    original = docker_sources._alertmanager_candidate_inventory
+    bound: list[dict[str, Any]] = []
+
+    def consume(
+        report: dict[str, Any],
+        subject: str,
+        actual_base: dict[str, Any],
+        actual_information: dict[str, Any],
+        *,
+        current: bool = False,
+    ) -> dict[str, Any]:
+        assert actual_base == base
+        bound.append(actual_base)
+        assert actual_information == build_information
+        assert current is current_epoch
+        original(report, subject, actual_base, actual_information, current=current)
+        raise RuntimeError("synthetic-stop-after-actual-OS-reconciliation")
+
+    monkeypatch.setattr(docker_sources, "_alertmanager_candidate_inventory", consume)
+    plan = {"UI_file_hashes": {"index.html.gz": "f" * 64}}
+    source = {
+        path: (REPO_ROOT / path).read_bytes()
+        for path in (
+            *docker_sources._ALERT_Q_SOURCE_FILES,
+            "tests/test_notify_premium_alias_checkpoint_failure.py",
+        )
+    }
+    if not current_epoch:
+        source["deploy/alertmanager/Containerfile"] = _historical_alertmanager_recipe()
+    files = {"producer-source/" + path: raw for path, raw in source.items()}
+    files["security-evidence/candidate-full-supported.private.json"] = json.dumps(full).encode()
+    phase_records = {}
+    for phase in ("pair", "security", "native"):
+        label = "full-AM-native" if phase == "native" else "synthetic-" + phase
+        raw = (
+            (
+                b"native_AM_producer_image_controls=pass"
+                if current_epoch
+                else b"native_AM_full_candidate_controls=pass"
+            )
+            if phase == "native"
+            else b"synthetic raw terminal"
+        )
+        if phase == "native" and caller == "producer-mixed":
+            raw += b"\nnative_AM_full_candidate_controls=pass"
+        elif phase == "native" and caller == "producer-old-marker":
+            raw = b"native_AM_full_candidate_controls=pass"
+        files[phase + "-evidence/" + label + ".stdout"] = raw
+        files[phase + "-evidence/" + label + ".stderr"] = b""
+        phase_records[phase] = [
+            {
+                "exit": 0,
+                "failure": None,
+                "stdout": "/original/" + label + ".stdout",
+                "stderr": "/original/" + label + ".stderr",
+                "stdout_sha256": sha256(raw).hexdigest(),
+                "stderr_sha256": sha256(b"").hexdigest(),
+            }
+        ]
+    observed = {
+        "source": source_sha,
+        "OCI_archive_sha256": "e" * 64,
+        "status": (
+            "OBSERVED_PRODUCER_IMAGE_SECURITY"
+            if current_epoch
+            else "OBSERVED_NATIVE_SECURITY_ACCEPTED"
+        ),
+        "failure": None,
+        "cleanup_failure": None,
+        "compiler_starts": 2,
+        "logical_build_starts": 1,
+        "automatic_retries": 0,
+        "owned_absence_observed": True,
+        "plan": plan,
+        "UI_file_hashes": plan["UI_file_hashes"],
+        "producer_source_files": {k: sha256(v).hexdigest() for k, v in source.items()},
+        "upstream": {
+            "qualification": {"zip_sha256": docker_sources._ALERT_Q_ZIP_SHA256},
+            "support": {"zip_sha256": docker_sources._ALERT_S_ZIP_SHA256},
+        },
+        "native_records": phase_records["pair"],
+        "native": {"native_records": phase_records["native"]},
+        "security": {
+            "native_records": phase_records["security"],
+            "scanner": {
+                "sha256": docker_sources._ALERT_TRIVY_SHA256,
+                "DB": docker_sources._ALERT_DB,
+            },
+        },
+        "graph": {"config": {"digest": image_id}},
+    }
+    if current_epoch and caller != "producer-missing":
+        observed["native"]["validation_scope"] = (
+            "unknown" if caller == "producer-unknown" else "producer_image"
+        )
+    observed["build_information"] = build_information
+    observed["output_hashes"] = {
+        name: sha256(name.encode()).hexdigest() for name in ("alertmanager", "amtool")
+    }
+    observed["graph"]["files"] = {
+        "usr/bin/" + name: digest for name, digest in observed["output_hashes"].items()
+    }
+    for binary in ("alertmanager", "amtool"):
+        raw = build_raw(binary)
+        files["pair-evidence/" + binary + "-buildinfo-attach.stdout"] = raw
+        files["pair-evidence/" + binary + "-buildinfo-attach.stderr"] = b""
+        observed["native_records"].append(
+            {
+                "exit": 0,
+                "failure": None,
+                "stdout": "/original/" + binary + "-buildinfo-attach.stdout",
+                "stderr": "/original/" + binary + "-buildinfo-attach.stderr",
+                "stdout_sha256": sha256(raw).hexdigest(),
+                "stderr_sha256": sha256(b"").hexdigest(),
+            }
+        )
+    if caller == "producer-old-status":
+        observed["status"] = "OBSERVED_NATIVE_SECURITY_ACCEPTED"
+    if caller == "retained-failed-candidate":
+        observed["status"] = "HOLD_NO_EXECUTION_OUTCOME"
+        observed["failure"] = "QualificationError:layout_transport_annotation"
+    qualification = {
+        "source": source_sha,
+        "zip_sha256": "1" * 64,
+        "source_files": {
+            key: sha256(source[key]).hexdigest() for key in docker_sources._ALERT_Q_SOURCE_FILES
+        },
+    }
+    support_binding = {**qualification, "zip_sha256": "2" * 64}
+    support_report = {"scanner": {"DB": dict(docker_sources._ALERT_DB)}}
+    if current_epoch:
+        observed["upstream"] = {"qualification": qualification, "support": support_binding}
+        # Current S owns the actual DB; the old retained DB cannot substitute.
+        monkeypatch.setattr(
+            docker_sources, "_ALERT_DB", {key: "0" * 64 for key in docker_sources._ALERT_DB}
+        )
+    files["candidate-observation.json"] = json.dumps(observed).encode()
+    directories = sorted(
+        {
+            str(parent)
+            for name in files
+            for parent in PurePosixPath(name).parents
+            if str(parent) != "."
+        }
+    )
+    files["artifact-payload-members.json"] = json.dumps(
+        {
+            "files": [
+                {
+                    "path": name,
+                    "size": len(raw),
+                    "mode": 0o600,
+                    "sha256": sha256(raw).hexdigest(),
+                }
+                for name, raw in files.items()
+            ],
+            "directories": [
+                {"path": name, "type": "directory", "mode": 0o700} for name in directories
+            ],
+            "inventory_carrier_exception": "Exactly artifact-payload-members.json is bound by external artifact bytes; its own hash is not recursively embedded.",
+        }
+    ).encode()
+    archive = tmp_path / "candidate.zip"
+    with zipfile.ZipFile(archive, "w") as retained:
+        for name, raw in files.items():
+            info = zipfile.ZipInfo(name)
+            info.external_attr = (stat.S_IFREG | 0o600) << 16
+            retained.writestr(info, raw)
+
+    monkeypatch.setattr(
+        docker_sources,
+        "_ALERT_ACCEPTED_CANDIDATE",
+        {
+            "run": 101,
+            "attempt": 1,
+            "artifact": 102,
+            "source": source_sha,
+            "job": 103,
+            "zip_sha256": sha256(archive.read_bytes()).hexdigest(),
+            "source_files": {path: sha256(raw).hexdigest() for path, raw in source.items()},
+            "graph": deepcopy(observed["graph"]),
+            "OCI_archive_sha256": "e" * 64,
+        },
+    )
+
+    if not current_epoch:
+        # This generated transport has its own exact synthetic historical tuple.
+        monkeypatch.setattr(
+            docker_sources,
+            "_ALERT_HISTORICAL_C10",
+            deepcopy(docker_sources._ALERT_ACCEPTED_CANDIDATE),
+        )
+
+    def invoke() -> None:
+        docker_sources._alertmanager_candidate_payload(
+            archive,
+            tmp_path / "candidate",
+            source,
+            {"plan": plan},
+            support,
+            qualification=qualification if current_epoch else None,
+            support_binding=support_binding if current_epoch else None,
+            support_report=support_report if current_epoch else None,
+        )
+
+    with pytest.raises(
+        RuntimeError,
+        match=(
+            "AM_candidate_positive_predecessors_and_finite_recipe"
+            if caller == "producer-old-status"
+            else (
+                "AM_candidate_native_terminal"
+                if caller.startswith("producer-")
+                else (
+                    "AM_candidate_positive_predecessors_and_finite_recipe"
+                    if caller == "retained-failed-candidate"
+                    else (
+                        "AM_candidate_all_and_only_authenticated_base_packages"
+                        if omit_base_member
+                        else "synthetic-stop-after-actual-OS-reconciliation"
+                    )
+                )
+            )
+        ),
+    ):
+        invoke()
+    assert bound == ([base] if caller == "retained-candidate" else [])
+
+
+@pytest.mark.parametrize("binary", ["alertmanager", "amtool"])
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "missing-dependency",
+        "extra-dependency",
+        "duplicate-dependency",
+        "version-drift",
+        "other-binary-union",
+        "missing-main",
+        "wrong-main",
+        "empty-expected",
+        "versioned-main",
+    ],
+)
+def test_alertmanager_candidate_go_inventory_matches_each_actual_compiled_dependency(
+    binary: str,
+    fault: str | None,
+) -> None:
+    information = {
+        name: docker_sources._alertmanager_build_information(
+            (
+                _alertmanager_buildinfo(name).replace(b"\t(devel)", b"\tv0.34.1")
+                if fault == "versioned-main"
+                else _alertmanager_buildinfo(name)
+            ),
+            name,
+        )
+        for name in ("alertmanager", "amtool")
+    }
+    package = {
+        "ID": "synthetic-base@1",
+        "Name": "synthetic-base",
+        "Version": "1",
+        "Arch": "all",
+        "SrcName": "synthetic-base",
+        "SrcVersion": "1",
+        "Identifier": {"PURL": "pkg:deb/debian/synthetic-base@1?arch=all"},
+    }
+    base: dict[str, Any] = {
+        "ArtifactType": "container_image",
+        "Metadata": {
+            "ImageID": docker_sources._ALERT_BASE_CONFIG,
+            "OS": {"Family": "debian", "Name": "synthetic"},
+        },
+        "Results": [
+            {
+                "Target": "synthetic base",
+                "Class": "os-pkgs",
+                "Type": "debian",
+                "Packages": [package],
+            }
+        ],
+    }
+    report = deepcopy(base)
+    report["SchemaVersion"] = 2
+    image_id = report["Metadata"]["ImageID"] = "sha256:" + "7" * 64
+    selected = None
+    for name in ("alertmanager", "amtool"):
+        # Independent native scanner shape: root resolution is delegated to Trivy.
+        packages = [
+            {"Name": dependency, "Version": version}
+            for dependency, version in (
+                ("stdlib", "v1.27.2"),
+                ("golang.org/x/net", "v0.60.0"),
+                ("google.golang.org/grpc", "v1.83.2"),
+                ("example.invalid/" + name, "v1.2.3"),
+                ("github.com/prometheus/alertmanager", "v0.34.1"),
+            )
+        ]
+        report["Results"].append(
+            {
+                "Target": "usr/bin/" + name,
+                "Class": "lang-pkgs",
+                "Type": "gobinary",
+                "Packages": packages,
+            }
+        )
+        if name == binary:
+            selected = packages
+    assert selected is not None
+    if fault == "missing-dependency":
+        selected.pop(3)
+    elif fault == "extra-dependency":
+        selected.append({"Name": "unrelated.invalid/module", "Version": "v1.0.0"})
+    elif fault == "duplicate-dependency":
+        selected.append(deepcopy(selected[3]))
+    elif fault == "version-drift":
+        selected[3]["Version"] = "v1.2.4"
+    elif fault == "other-binary-union":
+        selected.append(
+            {
+                "Name": "example.invalid/"
+                + ("amtool" if binary == "alertmanager" else "alertmanager"),
+                "Version": "v1.2.3",
+            }
+        )
+    elif fault == "missing-main":
+        selected.pop()
+    elif fault == "wrong-main":
+        selected[-1]["Version"] = "v0.34.0"
+    elif fault == "empty-expected":
+        information[binary]["dependencies"]["uncomparable.invalid/module"] = ""
+    if fault in (None, "versioned-main"):
+        assert (
+            docker_sources._alertmanager_candidate_inventory(report, image_id, base, information)[
+                "findings"
+            ]
+            == []
+        )
+    else:
+        with pytest.raises(RuntimeError, match="AM_candidate_"):
+            docker_sources._alertmanager_candidate_inventory(report, image_id, base, information)
+
+
+@pytest.mark.parametrize("alertmanager_proposal_graph", ["gzip"], indirect=True)
+@pytest.mark.parametrize(
+    ("phase", "fault"),
+    [
+        (phase, fault)
+        for phase in ("native",)
+        for fault in (
+            None,
+            "tamper",
+            "missing",
+            "extra",
+            "alias",
+            "duplicate",
+            "header",
+            "truncated",
+            "graph",
+            "source-drift",
+            "source-drift-observation",
+            "destination",
+            "loaded-ID",
+            "loaded-diffID",
+            "space-initial",
+            "space-drop",
+        )
+    ],
+)
+def test_alertmanager_real_phase_renders_private_Docker_transport_without_changing_OCI(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    alertmanager_proposal_environment: None,
+    alertmanager_proposal_graph: dict[str, Any],
+    phase: str,
+    fault: str | None,
+) -> None:
+    import tarfile
+    from scripts.ci import prometheus_source_image as transport
+
+    d = alertmanager_proposal_graph
+    graph = docker_sources._alertmanager_candidate_graph(d["seed"], d["support"], d["expected"])
+    source = tmp_path / "candidate.oci.tar"
+    transport.pack_layout(d["seed"], source)
+    original = source.read_bytes()
+    with tarfile.open(fileobj=BytesIO(original), mode="r:") as archive:
+        canonical = {
+            member.name: archive.extractfile(member).read() for member in archive.getmembers()
+        }
+    layer_paths = ["blobs/sha256/" + row["digest"][7:] for row in graph["layers"]]
+    assert all(canonical[name].startswith(b"\x1f\x8b") for name in layer_paths)
+    assert "manifest.json" not in canonical
+    graph_checks: list[Path] = []
+    unpack_calls: list[Path] = []
+    load_calls: list[Path] = []
+    inventory_calls: list[Any] = []
+    original_graph = docker_sources._alertmanager_candidate_graph
+    original_gunzip, original_unpack = transport._gunzip, transport.unpack_layout
+    original_load = docker_sources._alertmanager_docker_load_transport
+    recognizing_graph = False
+
+    def recognize(layout: Path, support: Path, files: dict[str, str]) -> dict[str, Any]:
+        nonlocal recognizing_graph
+        assert layout == work / "docker-load-layout" and files == graph["files"]
+        graph_checks.append(layout)
+        recognizing_graph = True
+        try:
+            return original_graph(layout, support, files)
+        finally:
+            recognizing_graph = False
+
+    def gunzip(*args: Any, **kwargs: Any) -> bytes:
+        assert recognizing_graph, "private load rendering transformed a layer"
+        return original_gunzip(*args, **kwargs)
+
+    def unpack(payload: bytes, destination: Path) -> None:
+        unpack_calls.append(destination)
+        original_unpack(payload, destination)
+
+    def load(selected: Path, *args: Any) -> dict[str, Any]:
+        load_calls.append(selected)
+        return original_load(selected, *args)
+
+    monkeypatch.setattr(docker_sources, "_alertmanager_candidate_graph", recognize)
+    monkeypatch.setattr(docker_sources, "_alertmanager_docker_load_transport", load)
+    monkeypatch.setattr(transport, "_gunzip", gunzip)
+    monkeypatch.setattr(transport, "unpack_layout", unpack)
+    if fault in ("tamper", "missing", "extra", "alias", "duplicate", "header"):
+        with tarfile.open(source, "w", format=tarfile.USTAR_FORMAT) as archive:
+            for name, raw in canonical.items():
+                if fault == "missing" and name == layer_paths[-1]:
+                    continue
+                if fault == "tamper" and name == layer_paths[-1]:
+                    raw = raw[:-1] + bytes([raw[-1] ^ 1])
+                name = "./index.json" if fault == "alias" and name == "index.json" else name
+                info = tarfile.TarInfo(name)
+                info.size, info.mode, info.mtime = (
+                    len(raw),
+                    0o600 if fault == "header" else 0o644,
+                    transport.SOURCE_DATE_EPOCH,
+                )
+                archive.addfile(info, BytesIO(raw))
+            if fault in ("extra", "duplicate"):
+                name = "unapproved" if fault == "extra" else "index.json"
+                raw = b"unapproved" if fault == "extra" else canonical[name]
+                info = tarfile.TarInfo(name)
+                info.size, info.mode, info.mtime = len(raw), 0o644, transport.SOURCE_DATE_EPOCH
+                archive.addfile(info, BytesIO(raw))
+    elif fault == "truncated":
+        with tarfile.open(fileobj=BytesIO(original), mode="r:") as archive:
+            member = archive.getmember(layer_paths[-1])
+            source.write_bytes(original[: member.offset_data + member.size - 1])
+    elif fault == "graph":
+        graph = deepcopy(graph)
+        graph["manifest"]["digest"] = "sha256:" + "9" * 64
+    entered = source.read_bytes()
+    if fault in ("source-drift", "source-drift-observation"):
+        original_blob = transport._blob
+        drifted = False
+
+        def blob(layout: Path, descriptor: dict[str, Any]) -> bytes:
+            nonlocal drifted
+            raw = original_blob(layout, descriptor)
+            if not drifted:
+                source.write_bytes(entered + b"synthetic source drift")
+                drifted = True
+            return raw
+
+        monkeypatch.setattr(transport, "_blob", blob)
+    work = tmp_path / phase
+    layout = work / "docker-load-layout"
+    scan_fault = (fault or "").removesuffix("-observation")
+    scan_failure = scan_fault.startswith("scan-")
+    scan_error = RuntimeError("synthetic actual scanner initialization failure")
+
+    def mutate_scan_input() -> None:
+        kind = scan_fault.rsplit("-", 1)[-1]
+        if kind == "source" or scan_fault == "scan-error":
+            source.write_bytes(original + b"synthetic scan-time source drift")
+        if scan_fault == "scan-error":
+            (layout / "unapproved").write_bytes(b"must not mask native error")
+        elif kind == "alias":
+            (layout / "alias-index").symlink_to(layout / "index.json")
+        elif kind == "missing":
+            (layout / layer_paths[-1]).unlink()
+        elif kind == "extra":
+            (layout / "unapproved").write_bytes(b"unexpected closed-namespace member")
+        elif kind == "tamper":
+            path = layout / layer_paths[-1]
+            raw = path.read_bytes()
+            path.write_bytes(raw[:-1] + bytes([raw[-1] ^ 1]))
+
+    original_disk_usage = shutil.disk_usage
+    usage_type = type(original_disk_usage(tmp_path))
+    resource_observations: list[Any] = []
+    delegated_resources: list[tuple[Any, tuple[Any, ...], dict[str, Any]]] = []
+
+    def disk_usage(path: Any, *args: Any, **kwargs: Any) -> Any:
+        if path != work or args or kwargs:
+            delegated_resources.append((path, args, kwargs))
+            return original_disk_usage(path, *args, **kwargs)
+        total, free = 128 * 1024**3, 96 * 1024**3
+        if fault == "space-initial":
+            free = 2 * len(entered) + 64 * 1024 + 512 * 1024**2 - 1
+        elif fault == "space-drop" and resource_observations:
+            free = 512 * 1024**2 - 1
+        observed = usage_type(total=total, used=total - free, free=free)
+        resource_observations.append(observed)
+        return observed
+
+    monkeypatch.setattr(shutil, "disk_usage", disk_usage)
+    unrelated = shutil.disk_usage(tmp_path)
+    assert delegated_resources == [(tmp_path, (), {})]
+    assert tuple(unrelated) == (unrelated.total, unrelated.used, unrelated.free)
+    original_write = Path.write_text
+    if fault == "source-drift-observation" or (scan_failure and fault.endswith("-observation")):
+
+        def write(path: Path, data: str, *args: Any, **kwargs: Any) -> int:
+            if path == work / (phase + "-observation.json"):
+                raise OSError("synthetic secondary observation write")
+            return original_write(path, data, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "write_text", write)
+    loaded: list[Path] = []
+    scanned: list[Path] = []
+
+    class Native:
+        def __init__(self, evidence: Path, deadline: float, cleanup: int) -> None:
+            del deadline, cleanup
+            self.evidence = evidence
+            self.records: list[dict[str, Any]] = []
+            if fault == "destination":
+                (work / "docker-load.tar").write_bytes(b"pre-existing destination")
+
+        def run(self, argv: list[str], name: str, env: dict[str, str], **kwargs: Any) -> bytes:
+            expected_env = {"PATH", "HOME", "DOCKER_CONFIG", "LANG"}
+            if phase == "native":
+                expected_env |= {
+                    "COMPOSE_PROFILES",
+                    "PYTHONUNBUFFERED",
+                    "ALERTMANAGER_NATIVE_SECONDS",
+                    "ALERTMANAGER_NATIVE_CLEANUP_SECONDS",
+                }
+                assert env["COMPOSE_PROFILES"] == "" and env["PYTHONUNBUFFERED"] == "1"
+                limits = docker_sources._alertmanager_limits()
+                assert 0 < int(env["ALERTMANAGER_NATIVE_SECONDS"]) <= limits["NATIVE_SECONDS"]
+                assert (
+                    int(env["ALERTMANAGER_NATIVE_CLEANUP_SECONDS"])
+                    == limits["NATIVE_CLEANUP_SECONDS"]
+                )
+            assert set(env) == expected_env
+            assert not set(env) & {"GH_TOKEN", "GITHUB_TOKEN", "GHCR_READ_TOKEN", "HTTPS_PROXY"}
+            raw = b""
+            failed_scan = name == "candidate-full-supported" and scan_fault == "scan-error"
+            if name in ("candidate-load-same-OCI", "native-load-retained-OCI"):
+                actual = Path(argv[argv.index("--input") + 1])
+                loaded.append(actual)
+                assert actual == work / "docker-load.tar" and actual != source
+                assert actual.stat().st_mode & 0o777 == 0o600 and actual.stat().st_nlink == 1
+                with tarfile.open(actual, "r:") as archive:
+                    members = archive.getmembers()
+                    assert [m.name for m in members] == [*canonical, "manifest.json"]
+                    assert len([m for m in members if m.name == "manifest.json"]) == 1
+                    for member in members:
+                        assert member.isreg() and not member.pax_headers and not member.linkname
+                        assert member.mode == 0o644 and member.uid == member.gid == 0
+                        assert member.mtime == transport.SOURCE_DATE_EPOCH
+                        value = archive.extractfile(member).read()
+                        if member.name != "manifest.json":
+                            assert value == canonical[member.name]
+                        else:
+                            assert json.loads(value) == [
+                                {
+                                    "Config": "blobs/sha256/" + graph["config"]["digest"][7:],
+                                    "RepoTags": [],
+                                    "Layers": layer_paths,
+                                }
+                            ]
+                assert source.read_bytes() == original
+            elif name in ("candidate-loaded-config", "native-retained-image"):
+                raw = json.dumps(
+                    {
+                        "Id": (
+                            "sha256:" + "8" * 64
+                            if fault == "loaded-ID"
+                            else graph["config"]["digest"]
+                        ),
+                        "Os": "linux",
+                        "Architecture": "amd64",
+                        "RootFS": {"Layers": [] if fault == "loaded-diffID" else graph["diff_ids"]},
+                    }
+                ).encode()
+            elif name == "full-AM-native":
+                raw = b"native_AM_full_candidate_controls=pass"
+            elif "--output" in argv:
+                assert (
+                    kwargs["maximum_seconds"]
+                    == docker_sources._alertmanager_limits()["SCAN_PROCESS_SECONDS"]
+                )
+                assert argv[argv.index("--scanners") + 1] == "vuln,secret"
+                assert argv[argv.index("--pkg-types") + 1] == "os,library"
+                assert argv[argv.index("--severity") + 1] == "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL"
+                assert argv[argv.index("--exit-code") + 1] == "0"
+                assert all(
+                    flag in argv
+                    for flag in (
+                        "--skip-db-update",
+                        "--skip-java-db-update",
+                        "--skip-vex-repo-update",
+                        "--offline-scan",
+                        "--skip-version-check",
+                        "--disable-telemetry",
+                        "--list-all-pkgs",
+                        "--ignore-unfixed=false",
+                    )
+                )
+                assert Path(argv[argv.index("--config") + 1]).read_bytes() == b"{}\n"
+                assert Path(argv[argv.index("--ignorefile") + 1]).read_bytes() == b""
+                if name == "candidate-known-vulnerable-control" and scan_fault.startswith(
+                    "scan-before-"
+                ):
+                    mutate_scan_input()
+                if name == "candidate-full-supported":
+                    actual = Path(argv[argv.index("--input") + 1])
+                    scanned.append(actual)
+                    assert actual == layout and actual.is_dir() and actual != source
+                    assert len(graph_checks) == 1
+                    assert {
+                        str(path.relative_to(actual)): path.read_bytes()
+                        for path in actual.rglob("*")
+                        if path.is_file()
+                    } == canonical
+                    assert not (actual / "manifest.json").exists()
+                    assert source.read_bytes() == original
+                    if scan_fault.startswith("scan-after-") or failed_scan:
+                        mutate_scan_input()
+                if not failed_scan:
+                    Path(argv[argv.index("--output") + 1]).write_text('{"SchemaVersion":2}')
+            stdout, stderr = self.evidence / (name + ".stdout"), self.evidence / (name + ".stderr")
+            stdout.write_bytes(raw)
+            stderr.write_bytes(b"synthetic actual scanner stderr" if failed_scan else b"")
+            self.records.append(
+                {
+                    "argv": argv,
+                    "environment": env,
+                    "exit": 1 if failed_scan else 0,
+                    "failure": "RuntimeError" if failed_scan else None,
+                    "stdout": str(stdout),
+                    "stderr": str(stderr),
+                    "stdout_sha256": sha256(raw).hexdigest(),
+                    "stderr_sha256": sha256(stderr.read_bytes()).hexdigest(),
+                }
+            )
+            if failed_scan:
+                raise scan_error
+            return raw
+
+    monkeypatch.setattr(transport, "Native", Native)
+    monkeypatch.setattr(shutil, "which", lambda name: "/absolute/" + name)
+    observation = tmp_path / "candidate-observation.json"
+    observation.write_text("{}")
+
+    def invoke() -> dict[str, Any]:
+        return docker_sources._alertmanager_native_candidate(
+            {"graph": graph}, observation, work, docker_sources._alertmanager_limits()
+        )
+
+    if fault is None:
+        result = invoke()
+        record = result["docker_load_transport"]
+        assert record == json.loads((work / "evidence/docker-load-transport.json").read_text())
+        assert record["source_OCI_sha256"] == sha256(original).hexdigest()
+        assert record["load_archive_sha256"] == sha256(loaded[0].read_bytes()).hexdigest()
+        assert len((work / "evidence/docker-load-transport.json").read_bytes()) < 32 * 1024
+        assert scanned == ([layout] if phase == "security" else [])
+        assert len(graph_checks) == (2 if phase == "security" else 0)
+        assert len(inventory_calls) == (1 if phase == "security" else 0)
+    else:
+        expected_error = (
+            RuntimeError if scan_fault == "scan-error" else transport.QualificationError
+        )
+        with pytest.raises((expected_error, tarfile.ReadError, FileNotFoundError)) as caught:
+            invoke()
+        if fault == "source-drift-observation" or (scan_failure and fault.endswith("-observation")):
+            assert (
+                "AM " + phase + " observation write also failed: OSError" in caught.value.__notes__
+            )
+        if fault in ("space-initial", "space-drop"):
+            expected_guard = (
+                "AM_load_transport_byte_space_bound"
+                if fault == "space-initial"
+                else "AM_load_transport_free_reserve"
+            )
+            assert isinstance(caught.value, transport.QualificationError)
+            assert str(caught.value) == expected_guard
+            assert len(resource_observations) == (1 if fault == "space-initial" else 2)
+            if fault == "space-drop":
+                assert resource_observations[0].free > 2 * len(entered) + 64 * 1024 + 512 * 1024**2
+        assert len(loaded) == (1 if scan_failure or fault in ("loaded-ID", "loaded-diffID") else 0)
+        assert scanned == (
+            [layout] if scan_fault.startswith("scan-after-") or scan_fault == "scan-error" else []
+        )
+        if scan_failure:
+            assert not inventory_calls
+            report = (
+                json.loads((work / "security-observation.json").read_text())
+                if not fault.endswith("-observation")
+                else None
+            )
+            assert report is None or "candidate" not in report
+            assert len(graph_checks) == (2 if scan_fault.startswith("scan-after-") else 1)
+            if scan_fault == "scan-error":
+                assert caught.value is scan_error
+                assert report is None or report["native_records"][-1]["exit"] == 1
+                assert (work / "evidence/candidate-full-supported.stderr").read_bytes() == (
+                    b"synthetic actual scanner stderr"
+                )
+            else:
+                assert isinstance(caught.value, (transport.QualificationError, FileNotFoundError))
+                if scan_fault.endswith("-source"):
+                    assert str(caught.value) == (
+                        "AM_final_candidate_scan_post_identity"
+                        if scan_fault.startswith("scan-after-")
+                        else "AM_final_candidate_scan_identity"
+                    )
+    assert load_calls == [source]
+    assert len(unpack_calls) == (0 if fault in ("space-initial", "destination") else 1)
+    assert resource_observations
+    assert all(row.total == row.used + row.free and len(row) == 3 for row in resource_observations)
+    if fault not in ("source-drift", "source-drift-observation") and not (
+        scan_fault.endswith("-source") or scan_fault == "scan-error"
+    ):
+        assert source.read_bytes() == entered
+    if fault is None or fault in ("space-initial", "space-drop"):
+        retained = tmp_path / "retained"
+        retained.mkdir()
+        docker_sources._alertmanager_retain_execution(tmp_path, retained)
+        if fault is None:
+            assert (retained / (phase + "-evidence/docker-load-transport.json")).is_file()
+        else:
+            report = json.loads(
+                (retained / (phase + "-" + phase + "-observation.json")).read_text()
+            )
+            assert report["native_records"] == []
+            if phase == "native":
+                assert report["failure"] == "QualificationError:" + expected_guard
+        assert not list(retained.rglob("docker-load.tar"))
+
+
+@pytest.fixture
+def accepted_alertmanager_artifact_io(
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[dict[str, Any], dict[str, bytes], Any]:
+    """Synthetic independent A drives the existing exact three-kind transport."""
+    import base64
+    from hashlib import sha1
+
+    source = {
+        path: (REPO_ROOT / path).read_bytes()
+        for path in (
+            *docker_sources._ALERT_Q_SOURCE_FILES,
+            "tests/test_notify_premium_alias_checkpoint_failure.py",
+        )
+    }
+    archive = b"synthetic accepted artifact transport"
+    selected: dict[str, Any] = {
+        "run": 101,
+        "attempt": 1,
+        "artifact": 102,
+        "source": "a" * 40,
+        "job": 103,
+        "zip_sha256": sha256(archive).hexdigest(),
+        "source_files": {path: sha256(raw).hexdigest() for path, raw in source.items()},
+        "graph": {"manifest": {"digest": "sha256:" + "b" * 64}},
+        "OCI_archive_sha256": "c" * 64,
+    }
+    monkeypatch.setattr(docker_sources, "_ALERT_ACCEPTED_CANDIDATE", selected)
+
+    class API:
+        calls: list[str]
+        fault: str | None = None
+
+        def __init__(self) -> None:
+            self.calls = []
+
+        def json(self, endpoint: str) -> dict[str, Any]:
+            self.calls.append(endpoint)
+            if endpoint.endswith("/PulsePlate"):
+                return {"id": 1043311030, "full_name": "Katsiarynakavaleuskaya/PulsePlate"}
+            if endpoint.endswith("/actions/workflows/cd.yml"):
+                return {"id": 88, "path": ".github/workflows/cd.yml"}
+            if endpoint.endswith("/actions/runs/101"):
+                return {
+                    "id": 101,
+                    "head_sha": "a" * 40,
+                    "head_branch": docker_sources._ALERT_RECEIVER_BRANCH,
+                    "event": "workflow_dispatch",
+                    "run_attempt": 1,
+                    "status": "completed",
+                    "conclusion": "success",
+                    "workflow_id": 88,
+                    "repository": {"id": 1043311030},
+                    "head_repository": {"id": 1043311030},
+                }
+            if "/jobs?" in endpoint:
+                return {"total_count": 1}
+            if "/contents/" in endpoint:
+                path = endpoint.split("/contents/", 1)[1].split("?ref=", 1)[0]
+                raw = source[path] + (b"mixed unreviewed source" if self.fault == path else b"")
+                return {
+                    "path": path,
+                    "type": "file",
+                    "encoding": "base64",
+                    "size": len(raw),
+                    "content": base64.b64encode(raw).decode(),
+                    "sha": sha1(
+                        b"blob " + str(len(raw)).encode() + b"\0" + raw, usedforsecurity=False
+                    ).hexdigest(),
+                }
+            assert endpoint.endswith("/actions/artifacts/102")
+            return {
+                "id": 102,
+                "expired": False,
+                "name": "alertmanager-candidate-101-1",
+                "size_in_bytes": len(archive),
+                "digest": "sha256:"
+                + ("d" * 64 if self.fault == "archive" else sha256(archive).hexdigest()),
+                "workflow_run": {
+                    "id": 101,
+                    "head_sha": "a" * 40,
+                    "repository_id": 1043311030,
+                    "head_repository_id": 1043311030,
+                },
+                "expires_at": "2099-01-01T00:00:00Z",
+            }
+
+        def pages(self, endpoint: str, key: str, count: int) -> list[dict[str, Any]]:
+            assert (
+                endpoint.endswith("/actions/runs/101/attempts/1/jobs")
+                and key == "jobs"
+                and count == 1
+            )
+            return [
+                {
+                    "id": 104 if self.fault == "job" else 103,
+                    "name": "alertmanager-candidate-build",
+                    "run_id": 101,
+                    "head_sha": "a" * 40,
+                    "status": "completed",
+                    "conclusion": "success",
+                }
+            ]
+
+        def raw(self, endpoint: str, maximum: int) -> bytes:
+            self.calls.append(endpoint)
+            assert endpoint.endswith("/actions/artifacts/102/zip") and maximum == 1024**3
+            return archive
+
+    return selected, source, API()
+
+
+@pytest.mark.parametrize(
+    "entry", ["consume", "publish", "execution", "authenticated", "snapshot", "payload"]
+)
+def test_alertmanager_unconfigured_accepted_producer_holds_before_credentials_or_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    entry: str,
+) -> None:
+    from argparse import Namespace
+    from scripts.ci import prometheus_source_image as transport
+
+    monkeypatch.setattr(docker_sources, "_ALERT_ACCEPTED_CANDIDATE", None)
+    monkeypatch.setattr(
+        transport,
+        "GitHubRead",
+        lambda *a, **k: pytest.fail("unconfigured producer acquired credentials"),
+    )
+
+    class API:
+        def json(self, *args: Any) -> Any:
+            pytest.fail("unconfigured producer reached authenticated API")
+
+    args = Namespace(
+        alertmanager_stage="publish",
+        alertmanager_candidate_run=101,
+        alertmanager_candidate_artifact=102,
+        alertmanager_candidate_source="a" * 40,
+    )
+    with pytest.raises(RuntimeError, match="AM_accepted_producer_UNCONFIGURED_HOLD"):
+        if entry == "consume":
+            docker_sources._alertmanager_consume(args)
+        elif entry == "publish":
+            docker_sources._alertmanager_publish(args, API(), tmp_path, tmp_path, {}, {})
+        elif entry == "execution":
+            docker_sources._alertmanager_execution(args)
+        elif entry == "authenticated":
+            docker_sources._alertmanager_authenticated_inputs(
+                API(), 101, 102, "a" * 40, tmp_path / "candidate.zip", kind="candidate"
+            )
+        elif entry == "snapshot":
+            docker_sources._alertmanager_source_snapshot(API(), "a" * 40, accepted=True)
+        else:
+            docker_sources._alertmanager_candidate_payload(
+                tmp_path / "absent.zip", tmp_path / "payload", {}, {}, tmp_path
+            )
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "early-ancestor",
+        "run",
+        "artifact",
+        "job",
+        "archive",
+        "scripts/ci/fetch_docker_source_artifacts.py",
+        ".github/workflows/cd.yml",
+        "tests/test_notify_premium_alias_checkpoint_failure.py",
+        "deploy/alertmanager/Containerfile",
+    ],
+)
+def test_alertmanager_accepted_producer_identity_precedes_retained_download(
+    tmp_path: Path,
+    accepted_alertmanager_artifact_io: tuple[dict[str, Any], dict[str, bytes], Any],
+    fault: str | None,
+) -> None:
+    selected, source, api = accepted_alertmanager_artifact_io
+    api.fault = fault
+    run, artifact, revision = selected["run"], selected["artifact"], selected["source"]
+    if fault == "early-ancestor":
+        revision = "1" * 40
+    elif fault == "run":
+        run += 1
+    elif fault == "artifact":
+        artifact += 1
+    target = tmp_path / "candidate.zip"
+    if fault is None:
+        result = docker_sources._alertmanager_authenticated_inputs(
+            api, run, artifact, revision, target, kind="candidate"
+        )
+        assert result["source_files"] == selected["source_files"]
+        assert target.read_bytes() == b"synthetic accepted artifact transport"
+        # A later consumer's local fetcher can differ; only immutable A source is compared.
+        snapshot = docker_sources._alertmanager_source_snapshot(api, revision, accepted=True)
+        assert snapshot == source
+    else:
+        expected = (
+            "AM_accepted_producer_exact_selectors"
+            if fault in {"early-ancestor", "run", "artifact"}
+            else (
+                "AM_qualification_successful_unique_job"
+                if fault == "job"
+                else (
+                    "AM_qualification_artifact_identity"
+                    if fault == "archive"
+                    else "AM_qualification_source_bytes"
+                )
+            )
+        )
+        with pytest.raises(RuntimeError, match=expected):
+            docker_sources._alertmanager_authenticated_inputs(
+                api, run, artifact, revision, target, kind="candidate"
+            )
+        assert not target.exists() and not any(call.endswith("/zip") for call in api.calls)
+        if fault in {"early-ancestor", "run", "artifact"}:
+            assert api.calls == []
+
+
+@pytest.mark.parametrize(
+    "fault", ["native-source", "recipe", "subject", "graph", "archive", "consumer"]
+)
+def test_alertmanager_payload_independent_A_binds_source_recipe_and_full_subject(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    accepted_alertmanager_artifact_io: tuple[dict[str, Any], dict[str, bytes], Any],
+    fault: str,
+) -> None:
+    selected, source, api = accepted_alertmanager_artifact_io
+    qualification = {
+        "source": selected["source"],
+        "zip_sha256": "1" * 64,
+        "source_files": {
+            key: selected["source_files"][key] for key in docker_sources._ALERT_Q_SOURCE_FILES
+        },
+    }
+    upstream = {
+        "qualification": qualification,
+        "support_binding": {**qualification, "zip_sha256": "2" * 64},
+        "support_report": {"scanner": {"DB": docker_sources._ALERT_DB}},
+    }
+    del api
+    archive = tmp_path / "candidate.zip"
+    archive.write_bytes(b"synthetic accepted artifact transport")
+    if fault == "native-source":
+        source = {**source, "tests/test_notify_premium_alias_checkpoint_failure.py": b"mixed"}
+    elif fault == "recipe":
+        source = {**source, "deploy/alertmanager/Containerfile": b"mixed"}
+    elif fault == "archive":
+        archive.write_bytes(b"mixed archive")
+    elif fault == "consumer":
+        # Current consumer identity is deliberately independent of the selected A bytes.
+        monkeypatch.setattr(docker_sources, "REPO_ROOT", tmp_path / "later-consumer")
+    from scripts.ci import prometheus_source_image as transport
+
+    if fault in {"subject", "graph"}:
+        import zipfile
+
+        observed = {
+            "source": "f" * 40 if fault == "subject" else selected["source"],
+            "graph": (
+                {"manifest": {"digest": "sha256:" + "e" * 64}}
+                if fault == "graph"
+                else selected["graph"]
+            ),
+            "OCI_archive_sha256": selected["OCI_archive_sha256"],
+        }
+        raw = json.dumps(observed).encode()
+        footer = {
+            "files": [
+                {
+                    "path": "candidate-observation.json",
+                    "size": len(raw),
+                    "mode": 0o600,
+                    "sha256": sha256(raw).hexdigest(),
+                }
+            ],
+            "directories": [],
+            "inventory_carrier_exception": "Exactly artifact-payload-members.json is bound by external artifact bytes; its own hash is not recursively embedded.",
+        }
+        with zipfile.ZipFile(archive, "w") as retained:
+            for name, value in (
+                ("candidate-observation.json", raw),
+                ("artifact-payload-members.json", json.dumps(footer).encode()),
+            ):
+                info = zipfile.ZipInfo(name)
+                info.external_attr = (stat.S_IFREG | 0o600) << 16
+                retained.writestr(info, value)
+        selected["zip_sha256"] = sha256(archive.read_bytes()).hexdigest()
+        with pytest.raises(RuntimeError, match="AM_accepted_producer_subject_graph"):
+            docker_sources._alertmanager_candidate_payload(
+                archive, tmp_path / "payload", source, {}, tmp_path, **upstream
+            )
+        assert not (tmp_path / "payload").exists()
+        return
+
+    def members(path: Path) -> dict[str, bytes]:
+        assert path == archive
+        raise RuntimeError("reached-original-payload-reader")
+
+    monkeypatch.setattr(transport, "_zip_members", members)
+    expected = (
+        "AM_accepted_producer_source_bytes"
+        if fault in {"native-source", "recipe"}
+        else (
+            "AM_accepted_producer_archive_bytes"
+            if fault == "archive"
+            else "reached-original-payload-reader"
+        )
+    )
+    with pytest.raises(RuntimeError, match=expected):
+        docker_sources._alertmanager_candidate_payload(
+            archive, tmp_path / "payload", source, {}, tmp_path, **upstream
+        )
+    assert not (tmp_path / "payload").exists()
+
+
+def test_alertmanager_complete_preparation_preempts_blocking_pure_work_and_restores_timer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import signal
+    import time
+    from argparse import Namespace
+
+    previous = signal.getsignal(signal.SIGALRM)
+    monkeypatch.setattr(docker_sources, "_alertmanager_controller_binding", lambda args: None)
+
+    def blocked(args: Namespace, limits: dict[str, int], deadline: float) -> None:
+        del args, limits, deadline
+        time.sleep(3)
+        pytest.fail("pure work escaped total preparation clock")
+
+    monkeypatch.setattr(docker_sources, "_alertmanager_prepare_candidate_body", blocked)
+    started = time.monotonic()
+    with pytest.raises(TimeoutError, match="complete preparation600"):
+        docker_sources._alertmanager_prepare_candidate(Namespace(), {"PREP_SECONDS": 1})
+    assert time.monotonic() - started < 2
+    assert signal.getsignal(signal.SIGALRM) is previous
+    assert signal.getitimer(signal.ITIMER_REAL)[0] == 0
+
+
+def test_alertmanager_preparation_cleanup_keeps_actual_primary_without_refilling_main() -> None:
+    import time
+    import signal
+
+    class API:
+        def close(self) -> None:
+            raise OSError("synthetic owned cleanup failure")
+
+    primary = ValueError("synthetic original failure")
+    try:
+        try:
+            raise primary
+        except ValueError:
+            with pytest.raises(ValueError, match="synthetic original failure") as observed:
+                docker_sources._alertmanager_close_preparation_api(API(), time.monotonic() - 1)
+        assert observed.value is primary
+        assert "AM API cleanup also failed: OSError" in primary.__notes__
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+
+
+@pytest.fixture
+def alertmanager_published_reader_io(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> dict[str, Any]:
+    """Provide native publication metadata and registry bytes through existing transport seams."""
+    from argparse import Namespace
+    from scripts.ci import prometheus_source_image as transport
+    import time
+
+    for key in (
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "GHCR_READ_TOKEN",
+        "DOCKER_CONFIG",
+        "DOCKER_AUTH_CONFIG",
+    ):
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
+    monkeypatch.setenv("GITHUB_REPOSITORY_OWNER", "Katsiarynakavaleuskaya")
+    monkeypatch.setenv("GITHUB_TOKEN", "synthetic-reader")
+    monkeypatch.setenv("ALERTMANAGER_CONTROLLER_SOURCE", "c" * 40)
+    graph = deepcopy(docker_sources._ALERT_ACCEPTED_CANDIDATE["graph"])
+    manifest = json.dumps(
+        {"schemaVersion": 2, "config": graph["config"], "layers": graph["layers"]}
+    ).encode()
+    graph["manifest"]["digest"] = "sha256:" + sha256(manifest).hexdigest()
+    graph["manifest"]["size"] = len(manifest)
+    accepted = deepcopy(docker_sources._ALERT_ACCEPTED_CANDIDATE)
+    accepted["graph"] = graph
+    monkeypatch.setattr(docker_sources, "_ALERT_ACCEPTED_CANDIDATE", accepted)
+    monkeypatch.setattr(docker_sources, "_ALERT_HISTORICAL_C10", deepcopy(accepted))
+    repo = {"id": 1043311030}
+    data: dict[str, Any] = {
+        "calls": [],
+        "merge": "a" * 40,
+        "pr": {
+            "number": 2497,
+            "merged": True,
+            "state": "closed",
+            "merge_commit_sha": "a" * 40,
+            "base": {"repo": repo, "ref": "main"},
+            "head": {"repo": repo, "ref": docker_sources._ALERT_RECEIVER_BRANCH},
+        },
+        "workflow": {"id": 55, "path": ".github/workflows/cd.yml"},
+        "runs": [
+            {
+                "id": 66,
+                "run_attempt": 1,
+                "head_sha": "a" * 40,
+                "head_branch": "main",
+                "event": "workflow_dispatch",
+                "workflow_id": 55,
+                "repository": repo,
+                "head_repository": repo,
+                "status": "completed",
+                "conclusion": "success",
+            }
+        ],
+        "jobs": [
+            {
+                "id": 77,
+                "run_id": 66,
+                "head_sha": "a" * 40,
+                "name": "alertmanager-main-publication",
+                "status": "completed",
+                "conclusion": "success",
+            }
+        ],
+        "manifest": manifest,
+        "count_drift": False,
+    }
+    (tmp_path / "github-read-evidence").mkdir()
+    private = tmp_path / "private"
+    for name in ("home", "config", "cache", "tmp"):
+        (private / name).mkdir(parents=True)
+
+    class API:
+        def __init__(self) -> None:
+            self.private = private
+            self.gh = "/synthetic/gh"
+
+        def json(self, endpoint: str) -> Any:
+            data["calls"].append(endpoint)
+            if endpoint.endswith("/pulls/2497"):
+                return data["pr"]
+            if endpoint.endswith("/actions/workflows/cd.yml"):
+                return data["workflow"]
+            if "/actions/workflows/cd.yml/runs?" in endpoint:
+                assert "branch=main&event=workflow_dispatch&status=success" in endpoint
+                assert "head_sha=" not in endpoint
+                page = int(endpoint.rsplit("page=", 1)[1])
+                return {
+                    "total_count": data.get("count", len(data["runs"])),
+                    "workflow_runs": data["runs"][(page - 1) * 100 : page * 100],
+                }
+            if "/actions/runs/66/attempts/1/jobs?" in endpoint:
+                return {
+                    "total_count": len(data["jobs"])
+                    + int(data["count_drift"] and data["calls"].count(endpoint) > 1),
+                    "jobs": data["jobs"],
+                }
+            pytest.fail(
+                "ordinary route requested an unrecognized API or expired archive: " + endpoint
+            )
+
+        def pages(self, endpoint: str, key: str, count: int) -> Any:
+            return transport.GitHubRead.pages(self, endpoint, key, count)
+
+        def _capture(self, argv: list[str], maximum: int, **kwargs: Any) -> bytes:
+            del maximum
+            data["calls"].append(argv)
+            if "login" in argv:
+                assert kwargs["input_data"] == b"synthetic-reader\n"
+                credential = Path(argv[2]) / "config.json"
+                credential.write_bytes(b"{}")
+                credential.chmod(0o600)
+                return b"Login Succeeded\n"
+            if "imagetools" in argv:
+                return data["manifest"]
+            if "pull" in argv:
+                return b"saved immutable image pulled\n"
+            if "inspect" in argv:
+                return json.dumps(
+                    {
+                        "Id": graph["config"]["digest"],
+                        "Os": "linux",
+                        "Architecture": "amd64",
+                        "RepoDigests": [
+                            "ghcr.io/katsiarynakavaleuskaya/pulseplate@"
+                            + graph["manifest"]["digest"]
+                        ],
+                        "RootFS": {"Layers": graph["diff_ids"]},
+                    }
+                ).encode()
+            pytest.fail("unrecognized registry action")
+
+    class Native:
+        def __init__(self, *args: Any) -> None:
+            self.records: list[dict[str, Any]] = []
+
+        def run(self, argv: list[str], *args: Any, cwd: Path, **kwargs: Any) -> bytes:
+            assert cwd == tmp_path and "--no-replace-objects" in argv
+            if argv[-2:] == ["rev-parse", "--is-shallow-repository"]:
+                return b"true\n" if data.get("shallow") else b"false\n"
+            assert argv[-4:-2] == ["merge-base", "--is-ancestor"]
+            assert tuple(argv[-2:]) in {
+                (data["merge"], data["runs"][0]["head_sha"]),
+                (data["runs"][0]["head_sha"], data["route"]["base"]),
+            }
+            if data.get("ancestry-failure"):
+                raise RuntimeError("synthetic native ancestry failure")
+            data["calls"].append("native merged selection ancestry")
+            return b""
+
+    sources = {name: b"synthetic reviewed source" for name in docker_sources._ALERT_SELECTION_FILES}
+    sources["scripts/ci/fetch_docker_source_artifacts.py"] = Path(
+        docker_sources.__file__
+    ).read_bytes()
+    monkeypatch.setattr(transport, "Native", Native)
+    monkeypatch.setattr(shutil, "which", lambda name: "/synthetic/" + name)
+
+    def regular(root: Path, revision: str, work: Path, deadline: float) -> dict[str, bytes]:
+        del work, deadline
+        assert root == tmp_path
+        historical = data.get("historical", sources)
+        if revision == data["route"]["base"]:
+            return sources
+        if revision == data["merge"]:
+            return historical
+        return data.get("published", historical)
+
+    monkeypatch.setattr(docker_sources, "_alertmanager_regular_sources", regular)
+
+    def templates(api: Any, source: str, *, controller_templates: bool) -> dict[str, bytes]:
+        assert source == "c" * 40 and controller_templates is True
+        data["calls"].append("read separate C templates")
+        return {path: sources[path] for path in docker_sources._ALERT_SELECTION_FILES[:5]}
+
+    monkeypatch.setattr(docker_sources, "_alertmanager_source_snapshot", templates)
+    monkeypatch.setattr(
+        docker_sources,
+        "_alertmanager_render_source_contract",
+        lambda *args, **kwargs: data["calls"].append("validated BASE first"),
+    )
+    data["versions"] = [
+        {
+            "id": 1,
+            "name": graph["manifest"]["digest"],
+            "metadata": {
+                "container": {"tags": ["alertmanager-0.34.1-" + graph["manifest"]["digest"][7:]]}
+            },
+        }
+    ]
+    monkeypatch.setattr(
+        transport, "existing_public_package", lambda api: ({"exact": "synthetic"}, data["versions"])
+    )
+    data.update(
+        {
+            "api": API(),
+            "sources": sources,
+            "output": tmp_path,
+            "deadline": time.monotonic() + 60,
+            "args": Namespace(material_root=tmp_path),
+            "route": {"base": "b" * 40},
+        }
+    )
+    return data
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "unmerged",
+        "wrong-PR",
+        "merge",
+        "workflow",
+        "branch",
+        "event",
+        "attempt",
+        "repository",
+        "head-repository",
+        "workflow-ID",
+        "run-head",
+        "pending",
+        "run-failure",
+        "job-name",
+        "job-run",
+        "job-head",
+        "job-pending",
+        "job-failure",
+        "duplicate-job",
+        "count-drift",
+        "missing-tag",
+        "tag-conflict",
+        "source-drift",
+        "manifest-drift",
+    ],
+)
+def test_alertmanager_published_route_requires_native_predecessor_before_login(
+    alertmanager_published_reader_io: dict[str, Any],
+    fault: str | None,
+) -> None:
+    data = alertmanager_published_reader_io
+    if fault == "unmerged":
+        data["pr"]["merged"] = False
+    elif fault == "wrong-PR":
+        data["pr"]["number"] = 2477
+    elif fault == "merge":
+        data["pr"]["merge_commit_sha"] = "unknown"
+    elif fault == "workflow":
+        data["workflow"]["path"] = ".github/workflows/build.yml"
+    elif fault in {
+        "branch",
+        "event",
+        "attempt",
+        "workflow-ID",
+        "run-head",
+        "pending",
+        "run-failure",
+    }:
+        key, value = {
+            "branch": ("head_branch", "other"),
+            "event": ("event", "push"),
+            "attempt": ("run_attempt", True),
+            "workflow-ID": ("workflow_id", 99),
+            "run-head": ("head_sha", "unknown"),
+            "pending": ("status", "queued"),
+            "run-failure": ("conclusion", "failure"),
+        }[fault]
+        data["runs"][0][key] = value
+    elif fault in {"repository", "head-repository"}:
+        data["runs"][0][fault.replace("-", "_")] = {"id": 1}
+    elif fault in {"job-name", "job-run", "job-head", "job-pending", "job-failure"}:
+        key, value = {
+            "job-name": ("name", "prometheus-publish"),
+            "job-run": ("run_id", 99),
+            "job-head": ("head_sha", "c" * 40),
+            "job-pending": ("status", "in_progress"),
+            "job-failure": ("conclusion", "failure"),
+        }[fault]
+        data["jobs"][0][key] = value
+    elif fault == "duplicate-job":
+        data["jobs"].append({**data["jobs"][0], "id": 78})
+    elif fault == "count-drift":
+        data["count_drift"] = True
+    elif fault == "missing-tag":
+        data["versions"].clear()
+    elif fault == "tag-conflict":
+        data["versions"][0]["name"] = "sha256:" + "c" * 64
+    elif fault == "source-drift":
+        data["sources"] = {**data["sources"], "deploy/alertmanager/alertmanager.yml": b"drift"}
+    elif fault == "manifest-drift":
+        data["manifest"] += b"\n"
+
+    def invoke() -> dict[str, Any]:
+        return docker_sources._alertmanager_pull_published(
+            data["api"],
+            data["args"],
+            data["route"],
+            data["sources"],
+            data["output"],
+            data["deadline"],
+        )
+
+    if fault is None:
+        result = invoke()
+        assert result["registry_login"] is True
+        assert result["publication_predecessor"]["job"]["id"] == 77
+        assert result["docker_load_transport"] is None
+        assert not any(
+            "/artifacts/" in entry or "/zip" in entry
+            for entry in data["calls"]
+            if isinstance(entry, str)
+        )
+    else:
+        with pytest.raises(RuntimeError):
+            invoke()
+        login = [entry for entry in data["calls"] if isinstance(entry, list) and "login" in entry]
+        assert bool(login) is (fault == "manifest-drift")
+    assert data["calls"][:2] == ["read separate C templates", "validated BASE first"]
+
+
+def test_alertmanager_preparation_shorter_parent_preempts_before_own_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A nested preparation may not postpone an already armed caller deadline."""
+    import signal
+    import time
+    from argparse import Namespace
+
+    previous = signal.getsignal(signal.SIGALRM)
+    original_timer = signal.getitimer(signal.ITIMER_REAL)
+    monkeypatch.setattr(docker_sources, "_alertmanager_controller_binding", lambda args: None)
+
+    def blocked(*args: Any) -> None:
+        time.sleep(3)
+        pytest.fail("shorter parent clock was replaced")
+
+    monkeypatch.setattr(docker_sources, "_alertmanager_prepare_candidate_body", blocked)
+    started = time.monotonic()
+    signal.setitimer(signal.ITIMER_REAL, 0.2)
+    try:
+        with pytest.raises(TimeoutError, match="complete preparation600"):
+            docker_sources._alertmanager_prepare_candidate(Namespace(), {"PREP_SECONDS": 600})
+        assert time.monotonic() - started < 1
+        assert signal.getsignal(signal.SIGALRM) is previous
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, *original_timer)
+
+
+def _alertmanager_current_scan_report() -> dict[str, Any]:
+    """Complete synthetic scanner carrier using the separately retained immutable inventory oracle."""
+    oracle = docker_sources._ALERT_CURRENT_SCAN_ORACLE
+    os_packages = []
+    for row in oracle["expected_OS"]["packages"]:
+        os_packages.append(
+            {
+                **dict(zip(("ID", "Name", "Version", "Arch", "SrcName", "SrcVersion"), row[2:8])),
+                "Identifier": {"PURL": row[8]},
+            }
+        )
+    return {
+        "SchemaVersion": 2,
+        "ArtifactType": "container_image",
+        "Metadata": {
+            "ImageID": oracle["subject"]["config"],
+            "OS": deepcopy(oracle["expected_OS"]["OS"]),
+        },
+        "Results": [
+            {
+                "Target": "current immutable S",
+                "Class": "os-pkgs",
+                "Type": "debian",
+                "Packages": os_packages,
+            },
+            *[
+                {
+                    "Target": "usr/bin/" + binary,
+                    "Class": "lang-pkgs",
+                    "Type": "gobinary",
+                    "Packages": [
+                        {"Name": name, "Version": version} for name, version in modules.items()
+                    ],
+                }
+                for binary, modules in oracle["expected_modules"].items()
+            ],
+        ],
+    }
+
+
+@pytest.mark.parametrize("target", (0, 1, 2))
+@pytest.mark.parametrize(
+    "fault",
+    (
+        None,
+        "remove",
+        "alter",
+        "add",
+        "duplicate",
+        "missing-target",
+        "wrong-subject",
+        "secret",
+        "new-HIGH",
+        "target-CVE-LOW",
+        "mixed-proof",
+        "mixed-binary",
+    ),
+)
+def test_alertmanager_current_scan_requires_complete_accepted_OS_and_both_native_module_sets(
+    target: int,
+    fault: str | None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    report = _alertmanager_current_scan_report()
+    assert [len(row["Packages"]) for row in report["Results"]] == [6, 117, 112]
+    row = report["Results"][target]
+    if fault == "remove":
+        row["Packages"].pop()
+    elif fault == "alter":
+        row["Packages"][0]["Version"] = "unreviewed"
+    elif fault == "add":
+        row["Packages"].append({**row["Packages"][0], "Name": "unreviewed", "ID": "unreviewed@1"})
+    elif fault == "duplicate":
+        row["Packages"].append(deepcopy(row["Packages"][0]))
+    elif fault == "missing-target":
+        report["Results"].pop(target)
+    elif fault == "wrong-subject":
+        report["Metadata"]["ImageID"] = "sha256:" + "0" * 64
+    elif fault == "secret":
+        row["Secrets"] = [{"RuleID": "synthetic", "Severity": "CRITICAL"}]
+    elif fault in ("new-HIGH", "target-CVE-LOW"):
+        row["Vulnerabilities"] = [
+            {
+                "VulnerabilityID": "CVE-new" if fault == "new-HIGH" else "CVE-2026-97031",
+                "Severity": "HIGH" if fault == "new-HIGH" else "LOW",
+                "PkgName": "synthetic",
+                "InstalledVersion": "1",
+            }
+        ]
+    elif fault == "mixed-binary":
+        changed = deepcopy(docker_sources._ALERT_ACCEPTED_CANDIDATE)
+        changed["graph"]["files"]["usr/bin/amtool"] = "0" * 64
+        monkeypatch.setattr(docker_sources, "_ALERT_ACCEPTED_CANDIDATE", changed)
+    args = (
+        report,
+        docker_sources._ALERT_CURRENT_SCAN_ORACLE["subject"]["config"],
+        None,
+        {} if fault == "mixed-proof" else None,
+    )
+    if fault is None:
+        assert len(docker_sources._alertmanager_candidate_inventory(*args)["packages"]) == 235
+    else:
+        with pytest.raises(RuntimeError, match="AM_"):
+            docker_sources._alertmanager_candidate_inventory(*args)
+
+
+@pytest.mark.parametrize("current_epoch", [False, True])
+@pytest.mark.parametrize("severity", ["UNKNOWN", "LOW", "MEDIUM", "HIGH", "CRITICAL"])
+@pytest.mark.parametrize("target", [0, 1, 2])
+@pytest.mark.parametrize("identifier", ["CVE-2026-111943", "CVE-synthetic-unrelated"])
+def test_alertmanager_target_CVE_postcondition_is_severity_independent_in_current_epoch(
+    current_epoch: bool, severity: str, target: int, identifier: str
+) -> None:
+    """The finite target-ID predicate is independent of the existing generic severity gate."""
+    report = _alertmanager_current_scan_report()
+    finding = {
+        "VulnerabilityID": identifier,
+        "Severity": severity,
+        "PkgName": "synthetic",
+        "InstalledVersion": "1",
+    }
+    report["Results"][target]["Vulnerabilities"] = [finding]
+    arguments = (report, docker_sources._ALERT_CURRENT_SCAN_ORACLE["subject"]["config"], None, None)
+    if severity in ("HIGH", "CRITICAL"):
+        with pytest.raises(RuntimeError, match="^AM_new_blocking_support_finding_HOLD$"):
+            docker_sources._alertmanager_candidate_inventory(*arguments, current=current_epoch)
+    elif current_epoch and identifier == "CVE-2026-111943":
+        with pytest.raises(RuntimeError, match="^AM_current_Go_CVE_still_present$"):
+            docker_sources._alertmanager_candidate_inventory(*arguments, current=True)
+    else:
+        observed = docker_sources._alertmanager_candidate_inventory(
+            *arguments, current=current_epoch
+        )
+        assert observed["findings"] == [finding]
+
+
+@pytest.mark.parametrize(
+    "kind,job",
+    [
+        ("ci-lint", 190),
+        ("shared-pr", 170),
+        ("shared-main", 290),
+        ("standalone", 80),
+        ("third-main", 110),
+    ],
+)
+@pytest.mark.parametrize(
+    "fault",
+    (
+        None,
+        "too-small",
+        "too-large",
+        "malformed",
+        "unknown-route",
+        "native-override",
+        "reservation-drift",
+    ),
+)
+def test_alertmanager_caller_budgets_reject_unadmitted_effective_overrides(
+    alertmanager_proposal_environment: None,
+    monkeypatch: pytest.MonkeyPatch,
+    kind: str,
+    job: int,
+    fault: str | None,
+) -> None:
+    for key, value in {
+        "ALERTMANAGER_CALLER_KIND": kind,
+        "ALERTMANAGER_JOB_TIMEOUT_MINUTES": str(job),
+        "ALERTMANAGER_GENERIC_NATIVE_MINUTES": "40",
+        "ALERTMANAGER_LINT_CHECK_MINUTES": "60",
+        "PROMETHEUS_PUBLICATION_WAIT_SECONDS": "10800",
+        "PROMETHEUS_CONSUME_SECONDS": "900",
+        "PROMETHEUS_CLEANUP_SECONDS": "120",
+        "PROMETHEUS_SECURITY_RESERVE_SECONDS": "2400",
+    }.items():
+        monkeypatch.setenv(key, value)
+    if fault == "too-small":
+        monkeypatch.setenv("ALERTMANAGER_JOB_TIMEOUT_MINUTES", str(job - 1))
+    elif fault == "too-large":
+        monkeypatch.setenv("ALERTMANAGER_JOB_TIMEOUT_MINUTES", "361")
+    elif fault == "malformed":
+        monkeypatch.setenv("ALERTMANAGER_JOB_TIMEOUT_MINUTES", " 170 ")
+    elif fault == "unknown-route":
+        monkeypatch.setenv("ALERTMANAGER_CALLER_KIND", "caller-claims-budget")
+    elif fault == "native-override":
+        monkeypatch.setenv("ALERTMANAGER_GENERIC_NATIVE_MINUTES", "39")
+    elif fault == "reservation-drift":
+        monkeypatch.setenv("PROMETHEUS_PUBLICATION_WAIT_SECONDS", "10799")
+    rejects = (
+        fault in {"too-small", "too-large", "malformed", "unknown-route"}
+        or (fault == "native-override" and kind in {"ci-lint", "third-main"})
+        or (fault == "reservation-drift" and kind == "shared-main")
+    )
+    if rejects:
+        with pytest.raises(RuntimeError, match="AM_"):
+            docker_sources._alertmanager_limits(caller=True)
+    else:
+        assert docker_sources._alertmanager_limits(caller=True)["PREP_SECONDS"] == 600
+
+
+@pytest.mark.parametrize(
+    "class_name,type_name", [("lang-pkgs", "npm"), ("unknown", "gobinary"), ("os-pkgs", "unknown")]
+)
+def test_alertmanager_current_inventory_rejects_extra_unclassified_package_carrier(
+    class_name: str,
+    type_name: str,
+) -> None:
+    report = _alertmanager_current_scan_report()
+    report["Results"].append(
+        {
+            "Target": "unexpected/package-lock.json",
+            "Class": class_name,
+            "Type": type_name,
+            "Packages": [{"Name": "synthetic-unknown-payload", "Version": "1.0.0"}],
+        }
+    )
+    with pytest.raises(
+        RuntimeError, match="AM_(unclassified_package_bearing_target|candidate_OS_classifier)"
+    ):
+        docker_sources._alertmanager_candidate_inventory(
+            report, report["Metadata"]["ImageID"], None, None
+        )
+
+
+@pytest.mark.parametrize(
+    "route",
+    (
+        "own-pr",
+        "ordinary-pr",
+        "first-main-squash",
+        "first-main-merge",
+        "later-main",
+        "tag",
+        "schedule",
+    ),
+)
+@pytest.mark.parametrize(
+    "fault",
+    (
+        None,
+        "event-repository",
+        "event-head-repository",
+        "current-main",
+        "unknown-before",
+        "wrong-parents",
+        "PR-graph",
+        "receiver-number",
+    ),
+)
+def test_alertmanager_three_positive_routes_bind_native_event_and_keep_first_main_independent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    route: str,
+    fault: str | None,
+) -> None:
+    from argparse import Namespace
+    from scripts.ci import prometheus_source_image as transport
+    import time
+
+    repo = {"id": 1043311030, "full_name": "Katsiarynakavaleuskaya/PulsePlate"}
+    before, head, merge = "a" * 40, "b" * 40, "c" * 40
+    is_pr = route.endswith("pr")
+    first = route.startswith("first-main")
+    source = head if is_pr else merge
+    number = 2497 if route != "ordinary-pr" else 2500
+    pr = {
+        "number": number,
+        "state": "open" if is_pr else "closed",
+        "merged": not is_pr,
+        "merge_commit_sha": merge if first else "d" * 40,
+        "commits": 2,
+        "head": {
+            "repo": repo,
+            "ref": docker_sources._ALERT_RECEIVER_BRANCH if number == 2497 else "ordinary",
+            "sha": head,
+        },
+        "base": {"repo": repo, "ref": "main", "sha": before if is_pr else merge},
+    }
+    event = {
+        "repository": repo,
+        "number": number,
+        "pull_request": deepcopy(pr),
+        "ref": "refs/heads/main",
+        "deleted": False,
+        "after": merge,
+        "before": before,
+    }
+    name = "pull_request" if is_pr else "schedule" if route == "schedule" else "push"
+    ref = (
+        "refs/pull/2497/merge"
+        if is_pr
+        else "refs/tags/v1.0.0" if route == "tag" else "refs/heads/main"
+    )
+    if route == "tag":
+        event["ref"] = ref
+    for key, value in {
+        "GITHUB_EVENT_NAME": name,
+        "GITHUB_REF": ref,
+        "GITHUB_RUN_ATTEMPT": "1",
+        "GITHUB_SHA": source,
+    }.items():
+        monkeypatch.setenv(key, value)
+    current = before if is_pr else merge
+    if fault == "event-repository":
+        event["repository"] = {"id": 1, "full_name": "elsewhere/project"}
+    if fault == "event-head-repository":
+        event["pull_request"]["head"]["repo"] = {"id": 1}
+    if fault == "current-main":
+        current = "f" * 40
+    if fault == "unknown-before":
+        event["before"] = "unknown"
+    expected_parent = [merge, before, head] if route == "first-main-merge" else [merge, before]
+    if fault == "wrong-parents":
+        expected_parent = [merge, "f" * 40]
+    if fault == "receiver-number":
+        pr["number"] = 2494
+    calls = []
+
+    class API:
+        def json(self, endpoint: str) -> Any:
+            calls.append(endpoint)
+            if endpoint.endswith("/git/ref/heads/main"):
+                return {"object": {"sha": current}}
+            if endpoint.endswith("/pulls/" + str(number)):
+                return pr
+            if endpoint.endswith("/pulls/2494"):
+                return {
+                    "number": 2494,
+                    "commits": 2,
+                    "head": {
+                        "repo": repo,
+                        "ref": docker_sources._ALERT_Q_BRANCH,
+                        "sha": docker_sources._ALERT_DONOR_SOURCE,
+                    },
+                    "base": {"repo": repo, "ref": "main"},
+                }
+            pytest.fail(
+                "route consulted registry/history instead of its positive native case:" + endpoint
+            )
+
+        def pages(self, endpoint: str, key: Any, count: int) -> Any:
+            assert endpoint.endswith("/commits") and count == 2
+            accepted_source = docker_sources._ALERT_ACCEPTED_CANDIDATE["source"]
+            return [
+                {"sha": accepted_source, "parents": []},
+                {
+                    "sha": docker_sources._ALERT_DONOR_SOURCE,
+                    "parents": [] if fault == "PR-graph" else [{"sha": accepted_source}],
+                },
+            ]
+
+    class Native:
+        def __init__(self, *args: Any) -> None:
+            pass
+
+        def run(self, argv: list[str], *args: Any, cwd: Path, **kwargs: Any) -> bytes:
+            assert cwd == tmp_path
+            assert argv[-5:] == ["rev-list", "--parents", "-n", "1", merge]
+            return (" ".join(expected_parent) + "\n").encode()
+
+    monkeypatch.setattr(transport, "Native", Native)
+    monkeypatch.setattr(shutil, "which", lambda name: "/synthetic/" + name)
+    reject = (
+        fault in {"event-repository", "current-main"}
+        or (fault == "event-head-repository" and is_pr)
+        or (fault in {"unknown-before", "wrong-parents"} and first)
+        or (fault == "PR-graph" and (first or route == "own-pr"))
+        or (fault == "receiver-number" and (is_pr or first))
+    )
+
+    def invoke() -> dict[str, Any]:
+        return docker_sources._alertmanager_reader_route(
+            API(),
+            Namespace(source_sha=source, material_root=tmp_path),
+            event,
+            tmp_path,
+            time.monotonic() + 60,
+        )
+
+    if reject:
+        with pytest.raises(RuntimeError):
+            invoke()
+    else:
+        observed = invoke()
+        assert observed["mode"] == (
+            "initial_own_PR_retained"
+            if route == "own-pr"
+            else (
+                "ordinary_published_PR"
+                if is_pr
+                else "genuine_first_main_retained" if first else "ordinary_published_main"
+            )
+        )
+        if first:
+            assert observed["base"] == before and pr["base"]["sha"] == merge
+    assert all("/packages/" not in endpoint and "/artifacts/" not in endpoint for endpoint in calls)
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "unset-C",
+        "wrong-C",
+        "commit",
+        "tree-record",
+        "truncated",
+        "duplicate",
+        "missing",
+        "directory-mode",
+        "leaf-mode",
+        "leaf-type",
+        "leaf-sha",
+        "contents-sha",
+        "contents-size",
+        "contents-type",
+        "mixed-case",
+    ],
+)
+def test_alertmanager_controller_templates_use_native_regular_git_objects(
+    monkeypatch: pytest.MonkeyPatch, fault: str | None
+) -> None:
+    """A source ref alone cannot authorize symlinks or incomplete native Git tree metadata."""
+    import base64
+    from hashlib import sha1
+
+    revision = "c" * 40
+    monkeypatch.setenv("ALERTMANAGER_CONTROLLER_SOURCE", revision)
+    raw = {
+        path: (REPO_ROOT / path).read_bytes() for path in docker_sources._ALERT_SELECTION_FILES[:5]
+    }
+    directory_ids = {"": "1" * 40, "deploy": "2" * 40, "deploy/alertmanager": "3" * 40}
+    blobs = {
+        path: sha1(
+            b"blob " + str(len(value)).encode() + b"\0" + value, usedforsecurity=False
+        ).hexdigest()
+        for path, value in raw.items()
+    }
+    trees: dict[str, Any] = {
+        sha: {"sha": sha, "truncated": False, "tree": []} for sha in directory_ids.values()
+    }
+    for path, sha in directory_ids.items():
+        if path:
+            parent, _, leaf = path.rpartition("/")
+            trees[directory_ids[parent]]["tree"].append(
+                {"path": leaf, "mode": "040000", "type": "tree", "sha": sha}
+            )
+    for path, sha in blobs.items():
+        parent, _, leaf = path.rpartition("/")
+        trees[directory_ids[parent]]["tree"].append(
+            {"path": leaf, "mode": "100644", "type": "blob", "sha": sha}
+        )
+    first = trees["2" * 40]["tree"][1]
+    assert first["path"] == "docker-compose.staging.yaml"
+    if fault == "unset-C":
+        monkeypatch.delenv("ALERTMANAGER_CONTROLLER_SOURCE")
+    elif fault == "wrong-C":
+        monkeypatch.setenv("ALERTMANAGER_CONTROLLER_SOURCE", "d" * 40)
+    elif fault == "truncated":
+        trees["2" * 40]["truncated"] = True
+    elif fault == "duplicate":
+        trees["2" * 40]["tree"].append(deepcopy(first))
+    elif fault == "missing":
+        trees["2" * 40]["tree"].remove(first)
+    elif fault == "directory-mode":
+        trees["1" * 40]["tree"][0]["mode"] = "100644"
+    elif fault == "leaf-mode":
+        first["mode"] = "120000"
+    elif fault == "leaf-type":
+        first["type"] = "commit"
+    elif fault == "leaf-sha":
+        first["sha"] = "e" * 40
+
+    class API:
+        def json(self, endpoint: str) -> Any:
+            if "/git/commits/" in endpoint:
+                return {
+                    "sha": "a" * 40 if fault == "commit" else revision,
+                    "tree": [] if fault == "tree-record" else {"sha": "1" * 40},
+                }
+            if "/git/trees/" in endpoint:
+                return trees[endpoint.rsplit("/", 1)[-1]]
+            assert "/contents/" in endpoint and endpoint.endswith("?ref=" + revision)
+            path = endpoint.split("/contents/", 1)[1].split("?", 1)[0]
+            return {
+                "path": path,
+                "type": "symlink" if fault == "contents-type" else "file",
+                "encoding": "base64",
+                "size": len(raw[path]) + int(fault == "contents-size"),
+                "content": base64.b64encode(raw[path]).decode(),
+                "sha": "a" * 40 if fault == "contents-sha" else blobs[path],
+            }
+
+    if fault is None:
+        assert (
+            docker_sources._alertmanager_source_snapshot(API(), revision, controller_templates=True)
+            == raw
+        )
+    else:
+        diagnostic = {
+            "unset-C": "AM_designated_controller_data_source",
+            "wrong-C": "AM_designated_controller_data_source",
+            "commit": "AM_controller_data_commit_tree",
+            "tree-record": "AM_controller_data_commit_tree",
+            "truncated": "AM_controller_data_complete_distinct_tree",
+            "duplicate": "AM_controller_data_complete_distinct_tree",
+            "missing": "AM_controller_data_regular_git_path",
+            "directory-mode": "AM_controller_data_regular_git_path",
+            "leaf-mode": "AM_controller_data_regular_git_path",
+            "leaf-type": "AM_controller_data_regular_git_path",
+            "leaf-sha": "AM_controller_data_leaf_cross_binding",
+            "contents-sha": "AM_producer_raw_Git_blob",
+            "contents-size": "AM_producer_raw_Git_blob",
+            "contents-type": "AM_producer_finite_source_blob",
+            "mixed-case": "AM_source_cases_are_disjoint",
+        }[fault]
+        with pytest.raises(RuntimeError, match=diagnostic):
+            docker_sources._alertmanager_source_snapshot(
+                API(), revision, controller_templates=True, accepted=fault == "mixed-case"
+            )
+
+
+@pytest.mark.parametrize("case", ["accepted", "old"])
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "include",
+        "extends",
+        "external-env",
+        "config",
+        "policy",
+        "missing-template",
+        "second-subject",
+    ],
+)
+def test_alertmanager_render_binds_reviewed_data_before_native_compose(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: str, fault: str | None
+) -> None:
+    """Exercise actual reviewed template bytes, the old transition and required synthetic input."""
+    import time
+    from scripts.ci import prometheus_source_image as transport
+    from tests.test_deploy_contract_scripts import (
+        FAKE_PROMETHEUS_COMPOSE_JSON,
+        _historical_AM_template,
+        _staging_compose_fixture_json,
+    )
+
+    templates = {
+        path: (
+            _historical_AM_template(REPO_ROOT / path)
+            if path in docker_sources._ALERT_SELECTION_FILES[:3]
+            else (REPO_ROOT / path).read_bytes()
+        )
+        for path in docker_sources._ALERT_SELECTION_FILES[:5]
+    }
+    sources = {
+        **templates,
+        docker_sources._ALERT_SELECTION_FILES[-1]: Path(docker_sources.__file__).read_bytes(),
+    }
+    if case == "old":
+        for path in docker_sources._ALERT_SELECTION_FILES[:3]:
+            sources[path] = sources[path].replace(
+                docker_sources._alertmanager_contract_subject()[0].encode(),
+                docker_sources._ALERT_OLD_RUNTIME_REF.encode(),
+            )
+        # Exact retired policy fixture remains independent of current Git HEAD.
+        sources["deploy/alertmanager/trivy-ignore.yaml"] = (
+            b"vulnerabilities:\n"
+            b"  - id: CVE-2026-84445\n"
+            b"    purls:\n"
+            b"      - pkg:golang/google.golang.org/grpc@v1.83.1\n"
+            b"    expired_at: 2026-10-21\n"
+            b"    statement: >-\n"
+            b"      Seven-day exception for the exact official Alertmanager v0.34.1 linux/amd64\n"
+            b"      image. The verified release list on 2026-10-14 has no newer release.\n"
+            b"      Component fixes exist; qualification of a replacement covering all admitted\n"
+            b"      findings is carryover to the next substantive PR. See\n"
+            b"      docs/security/CVE-2026-84445-alertmanager.md. Remove after all admitted\n"
+            b"      findings are remediated and the replacement passes native/security acceptance.\n"
+            b"  - id: CVE-2026-78669\n"
+            b"    purls:\n"
+            b"      - pkg:golang/golang.org/x/net@v0.58.0\n"
+            b"      - pkg:golang/stdlib@v1.26.8\n"
+            b"    expired_at: 2026-10-21\n"
+            b"    statement: >-\n"
+            b"      Seven-day exception for the exact official Alertmanager v0.34.1 linux/amd64\n"
+            b"      image. The verified release list on 2026-10-14 has no newer release.\n"
+            b"      Component fixes exist; qualification of a replacement covering all admitted\n"
+            b"      findings is carryover to the next substantive PR. See\n"
+            b"      docs/security/CVE-2026-84445-alertmanager.md. Remove after all admitted\n"
+            b"      findings are remediated and the replacement passes native/security acceptance.\n"
+            b"  - id: CVE-2026-78667\n"
+            b"    purls:\n"
+            b"      - pkg:golang/stdlib@v1.26.8\n"
+            b"    expired_at: 2026-10-21\n"
+            b"    statement: >-\n"
+            b"      Seven-day exception for the exact official Alertmanager v0.34.1 linux/amd64\n"
+            b"      image. The verified release list on 2026-10-14 has no newer release.\n"
+            b"      Component fixes exist; qualification of a replacement covering all admitted\n"
+            b"      findings is carryover to the next substantive PR. See\n"
+            b"      docs/security/CVE-2026-84445-alertmanager.md. Remove after all admitted\n"
+            b"      findings are remediated and the replacement passes native/security acceptance.\n"
+            b"  - id: CVE-2026-97031\n"
+            b"    purls:\n"
+            b"      - pkg:golang/stdlib@v1.26.8\n"
+            b"    expired_at: 2026-10-21\n"
+            b"    statement: >-\n"
+            b"      Seven-day exception for the exact official Alertmanager v0.34.1 linux/amd64\n"
+            b"      image. The verified release list on 2026-10-14 has no newer release.\n"
+            b"      Component fixes exist; qualification of a replacement covering all admitted\n"
+            b"      findings is carryover to the next substantive PR. See\n"
+            b"      docs/security/CVE-2026-84445-alertmanager.md. Remove after all admitted\n"
+            b"      findings are remediated and the replacement passes native/security acceptance.\n"
+        )
+    if fault in ("include", "extends", "external-env"):
+        injected = {
+            "include": b"\ninclude: ../outside.yaml\n",
+            "extends": b"\nextends: ../outside.yaml\n",
+            "external-env": b"\nenv_file: ../private.env\n",
+        }[fault]
+        sources[docker_sources._ALERT_SELECTION_FILES[0]] += injected
+    elif fault == "config":
+        sources["deploy/alertmanager/alertmanager.yml"] += b"# changed\n"
+    elif fault == "policy":
+        sources["deploy/alertmanager/trivy-ignore.yaml"] += b"\n"
+    elif fault == "missing-template":
+        templates.pop(docker_sources._ALERT_SELECTION_FILES[0])
+    elif fault == "second-subject":
+        templates[
+            docker_sources._ALERT_SELECTION_FILES[0]
+        ] += docker_sources._alertmanager_contract_subject()[0].encode()
+    calls: list[str] = []
+
+    class Native:
+        def __init__(self, *args: Any) -> None:
+            assert fault is None, "unreviewed source reached native setup"
+            self.records: list[dict[str, Any]] = []
+
+        def run(
+            self, argv: list[str], label: str, env: dict[str, str], *, cwd: Path, **kwargs: Any
+        ) -> bytes:
+            assert argv[:3] == ["/synthetic/docker", "compose", "--env-file"]
+            assert argv[4] == "--project-directory" and argv[6] == "-f"
+            assert argv[8:] == ["--profile", "*", "config", "--format", "json"]
+            assert (
+                Path(argv[3]).read_bytes() == b""
+                and Path(env["STAGING_ENV_FILE"]).read_bytes() == b""
+            )
+            compose = Path(argv[7])
+            assert Path(argv[5]) == cwd == compose.parent
+            assert kwargs["maximum_seconds"] == 8 and kwargs["output_bound"] == 1048576
+            if compose.name.endswith("selfhosted.yaml"):
+                assert "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}" in compose.read_text()
+                assert env["POSTGRES_PASSWORD"] == "synthetic"
+            assert set(env) == {
+                "PATH",
+                "HOME",
+                "COMPOSE_PROFILES",
+                "STAGING_IMAGE_REF",
+                "STAGING_CADDY_IMAGE_REF",
+                "PROMETHEUS_RUNTIME_REF",
+                "IMAGE_REF",
+                "STAGING_ENV_FILE",
+                "POSTGRES_USER",
+                "POSTGRES_DB",
+                "POSTGRES_PASSWORD",
+                "DATABASE_URL",
+                "STAGING_DOMAIN",
+                "PRODUCTION_DOMAIN",
+                "STAGING_FALLBACK_DOMAIN",
+            }
+            model = json.loads(
+                _staging_compose_fixture_json(compose.parent)
+                if "staging" in compose.name
+                else FAKE_PROMETHEUS_COMPOSE_JSON
+            )
+            model["services"]["alertmanager"]["image"] = (
+                docker_sources._ALERT_OLD_RUNTIME_REF
+                if case == "old"
+                else docker_sources._alertmanager_contract_subject()[0]
+            )
+            model["services"]["alertmanager"]["volumes"] = [
+                {
+                    "type": "bind",
+                    "source": str(compose.parent / "alertmanager/alertmanager.yml"),
+                    "target": "/etc/alertmanager/alertmanager.yml",
+                    "read_only": True,
+                }
+            ]
+            model["secrets"]["alertmanager_smtp_key"]["file"] = str(
+                compose.parent / "secrets/alertmanager_smtp_key"
+            )
+            calls.append(label)
+            return json.dumps(model).encode()
+
+    monkeypatch.setattr(transport, "Native", Native)
+    monkeypatch.setattr(shutil, "which", lambda command: "/synthetic/" + command)
+    work = tmp_path / "native"
+    if fault:
+        with pytest.raises(RuntimeError, match="AM_"):
+            docker_sources._alertmanager_render_source_contract(
+                sources,
+                work,
+                time.monotonic() + 30,
+                expected_case=case,
+                controller_templates=templates,
+            )
+        assert not work.exists() and not calls
+    else:
+        docker_sources._alertmanager_render_source_contract(
+            sources, work, time.monotonic() + 30, expected_case=case, controller_templates=templates
+        )
+        assert calls == ["BASE-all-profile-0", "BASE-all-profile-1", "BASE-all-profile-2"]
+
+
+@pytest.mark.parametrize("drift", [False, True])
+def test_alertmanager_initial_pr_binds_current_data_before_acquisition(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, drift: bool
+) -> None:
+    """Initial retained acquisition cannot authorize changed data after C designation."""
+    from argparse import Namespace
+    from scripts.ci import prometheus_source_image as transport
+    import time
+
+    accepted = docker_sources._alertmanager_accepted_producer()
+    templates = {
+        path: (REPO_ROOT / path).read_bytes() for path in docker_sources._ALERT_SELECTION_FILES[:5]
+    }
+    material = {
+        **templates,
+        docker_sources._ALERT_SELECTION_FILES[-1]: Path(docker_sources.__file__).read_bytes(),
+    }
+    if drift:
+        material[docker_sources._ALERT_SELECTION_FILES[0]] += b"\ninclude: ../external.yaml\n"
+    event = tmp_path / "event.json"
+    event.write_text("{}")
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event))
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "Katsiarynakavaleuskaya/PulsePlate")
+    monkeypatch.setenv("ALERTMANAGER_CONTROLLER_SOURCE", "c" * 40)
+    calls: list[str] = []
+
+    class API:
+        def __init__(self, private: Path, *args: Any) -> None:
+            self.private = private
+            private.mkdir()
+
+    def snapshot(api: Any, source: str, *, controller_templates: bool) -> dict[str, bytes]:
+        assert source == "c" * 40 and controller_templates is True
+        calls.append("templates")
+        return templates
+
+    def acquisition(*args: Any, **kwargs: Any) -> Any:
+        calls.append("acquisition")
+        raise RuntimeError("synthetic acquisition reached")
+
+    monkeypatch.setattr(transport, "GitHubRead", API)
+    monkeypatch.setattr(
+        docker_sources, "_alertmanager_reader_route", lambda *a: {"mode": "own_PR_retained"}
+    )
+    monkeypatch.setattr(docker_sources, "_alertmanager_bind_material", lambda *a: material)
+    monkeypatch.setattr(docker_sources, "_alertmanager_source_snapshot", snapshot)
+    monkeypatch.setattr(docker_sources, "_alertmanager_authenticated_inputs", acquisition)
+    monkeypatch.setattr(
+        docker_sources,
+        "_alertmanager_close_preparation_api",
+        lambda api, deadline: api.private.rmdir(),
+    )
+    args = Namespace(
+        output_dir=tmp_path / "output",
+        material_root=tmp_path,
+        source_sha="d" * 40,
+        alertmanager_candidate_run=accepted["run"],
+        alertmanager_candidate_artifact=accepted["artifact"],
+        alertmanager_candidate_source=accepted["source"],
+        alertmanager_qualification_run=1,
+        alertmanager_qualification_artifact=2,
+        alertmanager_qualification_source="e" * 40,
+    )
+    with pytest.raises(
+        RuntimeError,
+        match="AM_reviewed_controller_data_closure" if drift else "synthetic acquisition reached",
+    ):
+        docker_sources._alertmanager_prepare_candidate_body(
+            args, {"CLEANUP_SECONDS": 45}, time.monotonic() + 30
+        )
+    assert calls == (["templates"] if drift else ["templates", "acquisition"])
+    assert not (args.output_dir / "private").exists()
+
+
+def test_alertmanager_actual_preparation_observation_is_retained_by_every_consumer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Bind the actual producer's written filename to each existing workflow artifact selector."""
+    from argparse import Namespace
+
+    selected = docker_sources._alertmanager_accepted_producer()
+    output = tmp_path / "consumer"
+    output.mkdir()
+    payload = output / "candidate"
+    payload.mkdir()
+    prepared = {
+        "image_id": selected["graph"]["config"]["digest"],
+        "config_sha256": sha256(
+            (REPO_ROOT / "deploy/alertmanager/alertmanager.yml").read_bytes()
+        ).hexdigest(),
+    }
+    monkeypatch.setattr(docker_sources, "_alertmanager_limits", lambda **kwargs: {})
+    monkeypatch.setattr(
+        docker_sources,
+        "_alertmanager_prepare_candidate",
+        lambda *args: ({"graph": selected["graph"]}, payload, output, prepared),
+    )
+    monkeypatch.setattr(
+        docker_sources,
+        "_alertmanager_native_candidate",
+        lambda *args, **kwargs: pytest.fail("prepare-only executed full native fixtures"),
+    )
+    args = Namespace(
+        alertmanager_candidate_run=selected["run"],
+        alertmanager_candidate_artifact=selected["artifact"],
+        alertmanager_candidate_source=selected["source"],
+        alertmanager_prepare_only=True,
+        source_sha="a" * 40,
+        material_root=REPO_ROOT,
+    )
+    docker_sources._alertmanager_consume(args)
+    written = [path for path in output.iterdir() if path.is_file()]
+    assert len(written) == 1
+    observation = json.loads(written[0].read_text())
+    assert observation["compiler_starts"] == 0 and observation["registry_login"] is False
+    assert observation["original_producer"] == selected and "native" not in observation
+    assert dict(line.split("=", 1) for line in capsys.readouterr().out.splitlines()) == {
+        "image_id": prepared["image_id"],
+        "config_sha256": prepared["config_sha256"],
+        "observation": str(payload / "candidate-observation.json"),
+    }
+    consumers = (
+        ("ci.yml", "lint"),
+        ("cd.yml", "alertmanager-retained-candidate"),
+        ("cd.yml", "prometheus-image-security-pr"),
+        ("cd.yml", "prometheus-image-security-trusted"),
+        ("cd.yml", "obs2a-checkpoint-native"),
+    )
+    prepare_name = "Prepare exact AM subject before material execution"
+    discovered = {
+        (workflow, name)
+        for workflow in ("ci.yml", "cd.yml")
+        for name, job in _load_workflow(WORKFLOWS_DIR / workflow)["jobs"].items()
+        if any(step.get("name") == prepare_name for step in job.get("steps", []))
+    }
+    assert discovered == set(consumers)
+    for workflow, job_name in consumers:
+        job = _load_workflow(WORKFLOWS_DIR / workflow)["jobs"][job_name]
+        assert job["runs-on"] == "ubuntu-24.04", (workflow, job_name)
+        metadata_name = (
+            "Admit retained PR candidate or published immutable subject"
+            if job_name.startswith("prometheus-image-security-")
+            else prepare_name
+        )
+        prepare = _step_by_name(job, metadata_name)["run"]
+        version = "docker version --format 'client={{json .Client.Version}} server={{json .Server.Version}}'"
+        store = (
+            "docker info --format 'driver={{json .Driver}} driver_status={{json .DriverStatus}} "
+            "os={{json .OSType}} arch={{json .Architecture}}'"
+        )
+        assert version in prepare and store in prepare
+        assert prepare.index(version) < prepare.index(store) < prepare.index("python3 ")
+        steps = job["steps"]
+        uploads = [
+            step["with"]["path"]
+            for step in steps
+            if str(step.get("uses", "")).startswith("actions/upload-artifact@")
+        ]
+        matches = [paths for paths in uploads if "/" + written[0].name in paths]
+        assert len(matches) == 1, (workflow, job_name, written[0].name)
+        assert "/github-read-evidence/" in matches[0] and "/preparation/evidence/" in matches[0]
+        assert "/candidate.zip" not in matches[0] and "/private/" not in matches[0]
+
+
+@pytest.mark.parametrize("later_change", [None, "fetcher", "non-AM-compose"])
+def test_alertmanager_descendant_witness_keeps_current_consumer_material_independent(
+    alertmanager_published_reader_io: dict[str, Any], later_change: str | None
+) -> None:
+    """Historical Q/P closure cannot freeze later reviewed BASE/HEAD/controller bytes."""
+    data = alertmanager_published_reader_io
+    data["runs"][0]["head_sha"] = data["jobs"][0]["head_sha"] = "d" * 40
+    data["historical"] = dict(data["sources"])
+    if later_change == "fetcher":
+        data["historical"]["scripts/ci/fetch_docker_source_artifacts.py"] = b"historical F"
+    elif later_change == "non-AM-compose":
+        data["historical"]["deploy/docker-compose.production.yaml"] = b"earlier backend data"
+    result = docker_sources._alertmanager_pull_published(
+        data["api"], data["args"], data["route"], data["sources"], data["output"], data["deadline"]
+    )
+    assert result["registry_login"] is True
+    assert result["publication_predecessor"]["merge"] == "a" * 40
+    assert result["publication_predecessor"]["run"]["head_sha"] == "d" * 40
+    assert not any(
+        "/artifacts/" in call or "/zip" in call for call in data["calls"] if isinstance(call, str)
+    )
+
+
+@pytest.mark.parametrize("member", docker_sources._ALERT_SELECTION_FILES)
+def test_alertmanager_predecessor_rejects_each_historical_source_drift_before_login(
+    alertmanager_published_reader_io: dict[str, Any], member: str
+) -> None:
+    data = alertmanager_published_reader_io
+    data["runs"][0]["head_sha"] = data["jobs"][0]["head_sha"] = "d" * 40
+    data["published"] = {**data["sources"], member: b"unreviewed historical change"}
+    with pytest.raises(RuntimeError, match="AM_publication_historical_six_source_drift"):
+        docker_sources._alertmanager_pull_published(
+            data["api"],
+            data["args"],
+            data["route"],
+            data["sources"],
+            data["output"],
+            data["deadline"],
+        )
+    assert not any(isinstance(call, list) and "login" in call for call in data["calls"])
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "zero",
+        "999",
+        "1000",
+        "bool",
+        "string",
+        "negative",
+        "duplicate",
+        "malformed",
+        "shallow",
+        "ancestry",
+    ],
+)
+def test_alertmanager_predecessor_keeps_bounded_complete_query_and_native_history(
+    alertmanager_published_reader_io: dict[str, Any], case: str
+) -> None:
+    data = alertmanager_published_reader_io
+    if case == "zero":
+        data["runs"] = []
+    elif case == "999":
+        data["runs"] += [{**data["runs"][0], "id": n + 100, "event": "push"} for n in range(998)]
+    elif case in {"1000", "bool", "string", "negative"}:
+        data["count"] = {"1000": 1000, "bool": True, "string": "1", "negative": -1}[case]
+    elif case == "duplicate":
+        data["runs"] *= 2
+    elif case == "malformed":
+        data["runs"] = [None]
+    elif case == "shallow":
+        data["shallow"] = True
+    else:
+        data["ancestry-failure"] = True
+
+    def invoke() -> dict[str, Any]:
+        return docker_sources._alertmanager_publication_predecessor(
+            data["api"],
+            data["args"].material_root,
+            data["route"]["base"],
+            data["output"] / "witness",
+            data["deadline"],
+        )
+
+    if case == "999":
+        assert invoke()["run"]["id"] == 66
+    else:
+        with pytest.raises(RuntimeError):
+            invoke()
+    assert not any(isinstance(call, list) and "login" in call for call in data["calls"])
+
+
+@pytest.fixture
+def alertmanager_temporary_history(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> dict[str, Any]:
+    """Real local Git objects with synthetic identity; no shared refs, hooks or network."""
+    import tempfile
+
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path.resolve()))
+    git = shutil.which("git")
+    assert git is not None
+    root = tmp_path / "repository"
+    root.mkdir()
+    for key in tuple(os.environ):
+        if (
+            key.startswith(("GH", "GITHUB", "GIT_", "DEVPI_", "DOCKER_"))
+            or key.upper().endswith("PROXY")
+            or key in {"NETRC", "PYTHONPATH", "PYTHONHOME"}
+        ):
+            monkeypatch.delenv(key, raising=False)
+    environment = {
+        "PATH": os.defpath,
+        "HOME": str(tmp_path),
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_GLOBAL": "/dev/null",
+        "GIT_NO_REPLACE_OBJECTS": "1",
+    }
+
+    def command(*argv: str) -> str:
+        result = subprocess.run(
+            [
+                git,
+                "--no-replace-objects",
+                "-c",
+                "core.hooksPath=/dev/null",
+                "-c",
+                "commit.gpgsign=false",
+                "-c",
+                "user.name=AM synthetic fixture",
+                "-c",
+                "user.email=am-fixture@example.invalid",
+                "-C",
+                str(root),
+                *argv,
+            ],
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=10,
+        )
+        return result.stdout.strip()
+
+    command("init", "--initial-branch=main")
+    for name in docker_sources._ALERT_SELECTION_FILES:
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes((REPO_ROOT / name).read_bytes())
+    command("add", ".")
+    command("commit", "-m", "Synthetic merged AM material")
+    merged = command("rev-parse", "HEAD")
+    (root / "unrelated.txt").write_text("synthetic unrelated change\n")
+    command("add", ".")
+    command("commit", "-m", "Synthetic descendant publisher")
+    publisher = command("rev-parse", "HEAD")
+    return {"root": root, "command": command, "Q": merged, "P": publisher, "work": tmp_path}
+
+
+@pytest.mark.parametrize(
+    "fault", [None, "wrong-controller", "wrong-controller-data", "changed-worktree-F"]
+)
+def test_alertmanager_actual_controller_and_regular_source_interface_uses_required_cwd(
+    alertmanager_temporary_history: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+    fault: str | None,
+) -> None:
+    import time
+    from argparse import Namespace
+
+    data = alertmanager_temporary_history
+    root = data["root"]
+    monkeypatch.setattr(docker_sources, "REPO_ROOT", root)
+    monkeypatch.setenv(
+        "ALERTMANAGER_CONTROLLER_SOURCE", "f" * 40 if fault == "wrong-controller" else data["P"]
+    )
+    args = Namespace(
+        material_root=root,
+        alertmanager_controller_source=(
+            "f" * 40 if fault in {"wrong-controller", "wrong-controller-data"} else data["P"]
+        ),
+    )
+    if fault == "wrong-controller-data":
+        with pytest.raises(RuntimeError, match="AM_controller_UNCONFIGURED_HOLD"):
+            docker_sources._alertmanager_controller_binding(args)
+        return
+    if fault == "wrong-controller":
+        with pytest.raises(RuntimeError, match="AM_controller_actual_checkout"):
+            docker_sources._alertmanager_controller_binding(args)
+        return
+    docker_sources._alertmanager_controller_binding(args)
+    if fault == "changed-worktree-F":
+        (root / "scripts/ci/fetch_docker_source_artifacts.py").write_bytes(b"changed worktree F")
+        with pytest.raises(RuntimeError, match="AM_actual_material_not_admitted_HEAD"):
+            docker_sources._alertmanager_bind_material(
+                root, data["P"], data["work"] / "material", time.monotonic() + 30
+            )
+    else:
+        sources = docker_sources._alertmanager_bind_material(
+            root, data["P"], data["work"] / "material", time.monotonic() + 30
+        )
+        assert set(sources) == set(docker_sources._ALERT_SELECTION_FILES)
+        assert sources == docker_sources._alertmanager_regular_sources(
+            root, data["Q"], data["work"] / "original", time.monotonic() + 30
+        )
+        observation = json.loads((data["work"] / "original/native-observation.json").read_text())
+        assert len(observation["native_records"]) == 12
+        assert all(
+            row["exit"] == 0 and row["cwd"] == str(root) for row in observation["native_records"]
+        )
+
+
+@pytest.mark.parametrize("member", docker_sources._ALERT_SELECTION_FILES)
+@pytest.mark.parametrize("mode", ["executable", "symlink", "missing"])
+def test_alertmanager_actual_historical_regular_sources_reject_nonregular_members(
+    alertmanager_temporary_history: dict[str, Any], member: str, mode: str
+) -> None:
+    import time
+
+    data = alertmanager_temporary_history
+    path = data["root"] / member
+    if mode == "executable":
+        path.chmod(0o755)
+    else:
+        path.unlink()
+        if mode == "symlink":
+            path.symlink_to("/absent-synthetic-input")
+    data["command"]("add", "--all")
+    data["command"]("commit", "-m", "Synthetic invalid historical member")
+    changed = data["command"]("rev-parse", "HEAD")
+    with pytest.raises(RuntimeError, match="AM_selection_regular100644_blob"):
+        docker_sources._alertmanager_regular_sources(
+            data["root"], changed, data["work"] / "read", time.monotonic() + 30
+        )
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "equal",
+        "descendant",
+        "later-consumer",
+        "unrelated",
+        "shallow",
+        "missing-Q",
+        "missing-P",
+        "missing-B",
+        "publisher-after-base",
+        "historical-content",
+    ],
+)
+def test_alertmanager_actual_native_predecessor_binds_Q_P_B_without_archive_or_registry(
+    alertmanager_temporary_history: dict[str, Any], case: str
+) -> None:
+    import time
+    from scripts.ci import prometheus_source_image as transport
+
+    data = alertmanager_temporary_history
+    merged = data["Q"]
+    publisher = merged if case == "equal" else data["P"]
+    revision = data["P"]
+    if case == "later-consumer":
+        (data["root"] / "scripts/ci/fetch_docker_source_artifacts.py").write_bytes(
+            b"later reviewed F"
+        )
+        (data["root"] / "deploy/docker-compose.production.yaml").write_text(
+            "later reviewed backend material\n"
+        )
+        data["command"]("add", ".")
+        data["command"]("commit", "-m", "Synthetic later reviewed consumer")
+        revision = data["command"]("rev-parse", "HEAD")
+    elif case == "unrelated":
+        data["command"]("checkout", "--orphan", "unrelated")
+        data["command"]("commit", "-m", "Synthetic unrelated publisher")
+        publisher = revision = data["command"]("rev-parse", "HEAD")
+    elif case == "shallow":
+        (data["root"] / ".git/shallow").write_text(merged + "\n")
+    elif case == "missing-Q":
+        merged = "f" * 40
+    elif case == "missing-P":
+        publisher = "f" * 40
+    elif case == "missing-B":
+        revision = "f" * 40
+    elif case == "publisher-after-base":
+        revision = merged
+    elif case == "historical-content":
+        (data["root"] / "deploy/alertmanager/trivy-ignore.yaml").write_text(
+            "changed historical policy\n"
+        )
+        data["command"]("add", ".")
+        data["command"]("commit", "-m", "Synthetic incompatible publisher")
+        publisher = revision = data["command"]("rev-parse", "HEAD")
+    repo = {"id": 1043311030}
+    run = {
+        "id": 66,
+        "head_sha": publisher,
+        "head_branch": "main",
+        "event": "workflow_dispatch",
+        "run_attempt": 1,
+        "status": "completed",
+        "conclusion": "success",
+        "workflow_id": 55,
+        "repository": repo,
+        "head_repository": repo,
+    }
+    job = {
+        "id": 77,
+        "run_id": 66,
+        "head_sha": publisher,
+        "name": "alertmanager-main-publication",
+        "status": "completed",
+        "conclusion": "success",
+    }
+    calls: list[str] = []
+
+    class API:
+        def json(self, endpoint: str) -> dict[str, Any]:
+            calls.append(endpoint)
+            if endpoint.endswith("/pulls/2497"):
+                return {
+                    "number": 2497,
+                    "merged": True,
+                    "state": "closed",
+                    "merge_commit_sha": merged,
+                    "base": {"ref": "main", "repo": repo},
+                    "head": {"ref": docker_sources._ALERT_RECEIVER_BRANCH, "repo": repo},
+                }
+            if endpoint.endswith("/actions/workflows/cd.yml"):
+                return {"id": 55, "path": ".github/workflows/cd.yml"}
+            if "/actions/workflows/cd.yml/runs?" in endpoint:
+                assert "branch=main&event=workflow_dispatch&status=success" in endpoint
+                return {"total_count": 1, "workflow_runs": [run]}
+            assert "/actions/runs/66/attempts/1/jobs?" in endpoint
+            return {"total_count": 1, "jobs": [job]}
+
+        def pages(self, endpoint: str, key: str, count: int) -> list[dict[str, Any]]:
+            return transport.GitHubRead.pages(self, endpoint, key, count)
+
+    def invoke() -> dict[str, Any]:
+        return docker_sources._alertmanager_publication_predecessor(
+            API(), data["root"], revision, data["work"] / "predecessor", time.monotonic() + 60
+        )
+
+    if case in {"equal", "descendant", "later-consumer"}:
+        result = invoke()
+        assert (
+            result["merge"] == merged
+            and result["run"]["head_sha"] == result["job"]["head_sha"] == publisher
+        )
+    else:
+        with pytest.raises(RuntimeError):
+            invoke()
+    assert all(
+        "/artifacts/" not in call and "/zip" not in call and "packages" not in call
+        for call in calls
+    )
+
+
+@pytest.mark.parametrize("owner", ["regular", "predecessor", "render"])
+@pytest.mark.parametrize("primary_failure", [False, True])
+def test_alertmanager_proof_retention_failure_preserves_native_primary_exception(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, owner: str, primary_failure: bool
+) -> None:
+    """Diagnostic retention cannot turn a failed native proof into success or erase its cause."""
+    import time
+    from scripts.ci import prometheus_source_image as transport
+    from tests.test_deploy_contract_scripts import (
+        _historical_AM_template,
+        _staging_compose_fixture_json,
+    )
+
+    for key in tuple(os.environ):
+        if key.startswith(("GH", "GITHUB", "DEVPI_", "DOCKER_")) or key.upper().endswith("PROXY"):
+            monkeypatch.delenv(key, raising=False)
+    sources = {
+        name: (
+            _historical_AM_template(REPO_ROOT / name)
+            if name in docker_sources._ALERT_SELECTION_FILES[:3]
+            else (REPO_ROOT / name).read_bytes()
+        )
+        for name in docker_sources._ALERT_SELECTION_FILES
+    }
+    work = tmp_path / "proof"
+    expected_error = RuntimeError("synthetic original native failure")
+    real_write = Path.write_text
+
+    def write(path: Path, *args: Any, **kwargs: Any) -> int:
+        if path.name == "native-observation.json":
+            raise OSError("synthetic retained write failure")
+        return real_write(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text", write)
+    monkeypatch.setattr(shutil, "which", lambda name: "/synthetic/" + name)
+
+    class Native:
+        def __init__(self, *args: Any) -> None:
+            self.records: list[dict[str, Any]] = []
+
+        def run(
+            self, argv: list[str], name: str, env: dict[str, str], *, cwd: Path, **kwargs: Any
+        ) -> bytes:
+            self.records.append(
+                {"argv": argv, "cwd": str(cwd), "exit": 1 if primary_failure else 0}
+            )
+            if primary_failure:
+                raise expected_error
+            if "--is-shallow-repository" in argv:
+                return b"false\n"
+            if "ls-tree" in argv:
+                member = argv[-1]
+                raw = sources[member]
+                import hashlib
+
+                digest = hashlib.sha1(
+                    b"blob " + str(len(raw)).encode() + b"\0" + raw, usedforsecurity=False
+                ).hexdigest()
+                return b"100644 blob " + digest.encode() + b"\t" + member.encode() + b"\0"
+            if "cat-file" in argv:
+                return sources[argv[-1].split(":", 1)[1]]
+            assert owner == "render"
+            compose = Path(argv[argv.index("-f") + 1])
+            model = json.loads(_staging_compose_fixture_json(compose.parent))
+            if "staging" not in compose.name:
+                model["services"]["prometheus"]["environment"][
+                    "PULSEPLATE_ENVIRONMENT"
+                ] = "production"
+                model["services"]["app"]["networks"] = {"web": {}, "observability": {}}
+            return json.dumps(model).encode()
+
+    monkeypatch.setattr(transport, "Native", Native)
+
+    class API:
+        def json(self, endpoint: str) -> dict[str, Any]:
+            if endpoint.endswith("/pulls/2497"):
+                repo = {"id": 1043311030}
+                return {
+                    "number": 2497,
+                    "merged": True,
+                    "state": "closed",
+                    "merge_commit_sha": "a" * 40,
+                    "base": {"ref": "main", "repo": repo},
+                    "head": {"ref": docker_sources._ALERT_RECEIVER_BRANCH, "repo": repo},
+                }
+            if endpoint.endswith("/cd.yml"):
+                return {"id": 55, "path": ".github/workflows/cd.yml"}
+            return {"total_count": 0, "workflow_runs": []}
+
+        def pages(self, *args: Any) -> list[dict[str, Any]]:
+            return []
+
+    if owner == "predecessor" and not primary_failure:
+        # No witness is itself the primary admission failure; retention must preserve it.
+        match = "AM_positive_publication_predecessor_missing"
+        expected_type: type[BaseException] = RuntimeError
+    else:
+        match = (
+            "synthetic original native failure"
+            if primary_failure
+            else "synthetic retained write failure"
+        )
+        expected_type = RuntimeError if primary_failure else OSError
+    with pytest.raises(expected_type, match=match) as raised:
+        if owner == "regular":
+            docker_sources._alertmanager_regular_sources(
+                tmp_path, "a" * 40, work, time.monotonic() + 30
+            )
+        elif owner == "predecessor":
+            docker_sources._alertmanager_publication_predecessor(
+                API(), tmp_path, "b" * 40, work, time.monotonic() + 30
+            )
+        else:
+            docker_sources._alertmanager_render_source_contract(
+                sources,
+                work,
+                time.monotonic() + 30,
+                expected_case="accepted",
+                controller_templates={
+                    p: sources[p] for p in docker_sources._ALERT_SELECTION_FILES[:5]
+                },
+            )
+    if primary_failure:
+        assert raised.value is expected_error
+    if primary_failure or owner == "predecessor":
+        assert "AM native proof retention failed: OSError" in raised.value.__notes__
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "advanced-head",
+        "wrong-pr",
+        "wrong-repo",
+        "wrong-ref",
+        "bool-count",
+        "missing-source",
+        "missing-donor",
+        "duplicate",
+        "wrong-parent",
+        "unreachable-donor",
+        "malformed-parent",
+        "count-drift",
+    ],
+)
+def test_alertmanager_original_lineage_is_independent_of_receiver_history(
+    fault: str | None,
+) -> None:
+    """Only the original complete PR graph can establish C10-to-donor ancestry."""
+    from copy import deepcopy
+
+    source = docker_sources._alertmanager_accepted_producer()["source"]
+    donor = docker_sources._ALERT_DONOR_SOURCE
+    head = "e" * 40 if fault in {"advanced-head", "unreachable-donor"} else donor
+    rows = [{"sha": source, "parents": []}, {"sha": donor, "parents": [{"sha": source}]}]
+    if head != donor:
+        rows.append(
+            {"sha": head, "parents": [{"sha": source if fault == "unreachable-donor" else donor}]}
+        )
+    pr = {
+        "number": 2497 if fault == "wrong-pr" else 2494,
+        "commits": len(rows),
+        "head": {"sha": head, "ref": docker_sources._ALERT_Q_BRANCH, "repo": {"id": 1043311030}},
+        "base": {"ref": "main", "repo": {"id": 1043311030}},
+    }
+    if fault == "wrong-repo":
+        pr["head"]["repo"]["id"] = 1
+    elif fault == "wrong-ref":
+        pr["head"]["ref"] = docker_sources._ALERT_RECEIVER_BRANCH
+    elif fault == "bool-count":
+        pr["commits"] = True
+    elif fault == "missing-source":
+        rows[0]["sha"] = "f" * 40
+    elif fault == "missing-donor":
+        rows[1]["sha"] = "f" * 40
+    elif fault == "duplicate":
+        rows[1] = deepcopy(rows[0])
+    elif fault == "wrong-parent":
+        rows[1]["parents"] = []
+    elif fault == "malformed-parent":
+        rows[1]["parents"] = [{"sha": "short"}]
+    elif fault == "count-drift":
+        pr["commits"] += 1
+
+    class API:
+        def json(self, endpoint: str) -> dict[str, Any]:
+            assert endpoint == "/repos/Katsiarynakavaleuskaya/PulsePlate/pulls/2494"
+            return deepcopy(pr)
+
+        def pages(self, endpoint: str, key: object, count: int) -> list[dict[str, Any]]:
+            assert endpoint.endswith("/pulls/2494/commits") and key is None
+            assert count == pr["commits"]
+            return deepcopy(rows)
+
+    if fault in (None, "advanced-head"):
+        docker_sources._alertmanager_original_lineage(API())
+    else:
+        with pytest.raises(RuntimeError, match="AM_original_"):
+            docker_sources._alertmanager_original_lineage(API())
+
+
+@pytest.mark.parametrize(
+    "fault", [None, "missing-current", "duplicate", "unreachable", "foreign", "ref"]
+)
+def test_alertmanager_new_producer_has_own_receiver_ancestry_without_relabeling_C10(
+    monkeypatch: pytest.MonkeyPatch, fault: str | None
+) -> None:
+    historical = docker_sources._ALERT_HISTORICAL_C10["source"]
+    donor = docker_sources._ALERT_DONOR_SOURCE
+    selected = deepcopy(docker_sources._ALERT_HISTORICAL_C10)
+    selected["source"] = "a" * 40
+    selected["source_files"][
+        "deploy/alertmanager/Containerfile"
+    ] = docker_sources._ALERT_CURRENT_ASSEMBLY_RECIPE_SHA256
+    monkeypatch.setattr(docker_sources, "_ALERT_ACCEPTED_CANDIDATE", selected)
+    prior_rows = [
+        {"sha": historical, "parents": []},
+        {"sha": donor, "parents": [{"sha": historical}]},
+    ]
+    current_rows = [
+        {"sha": selected["source"], "parents": []},
+        {"sha": "b" * 40, "parents": [{"sha": selected["source"]}]},
+    ]
+    if fault == "missing-current":
+        current_rows[0]["sha"] = "c" * 40
+    elif fault == "duplicate":
+        current_rows[1] = deepcopy(current_rows[0])
+    elif fault == "unreachable":
+        current_rows[1]["parents"] = []
+    called: list[int] = []
+
+    class API:
+        def json(self, endpoint: str) -> dict[str, Any]:
+            number = int(endpoint.rsplit("/", 1)[1])
+            called.append(number)
+            assert number in (2494, 2497)
+            return {
+                "number": number,
+                "commits": 2,
+                "head": {
+                    "sha": donor if number == 2494 else "b" * 40,
+                    "ref": (
+                        docker_sources._ALERT_Q_BRANCH
+                        if number == 2494 or fault == "ref"
+                        else docker_sources._ALERT_RECEIVER_BRANCH
+                    ),
+                    "repo": {"id": 1 if number == 2497 and fault == "foreign" else 1043311030},
+                },
+                "base": {"ref": "main", "repo": {"id": 1043311030}},
+            }
+
+        def pages(self, endpoint: str, key: object, count: int) -> list[dict[str, Any]]:
+            assert key is None and count == 2
+            return deepcopy(prior_rows if "/2494/" in endpoint else current_rows)
+
+    if fault is None:
+        docker_sources._alertmanager_original_lineage(API())
+    else:
+        with pytest.raises(RuntimeError, match="AM_original_"):
+            docker_sources._alertmanager_original_lineage(API())
+    assert called == [2494, 2497]
+
+
+@pytest.mark.parametrize(
+    "job_name",
+    [
+        "alertmanager-retained-candidate",
+        "alertmanager-main-publication",
+        "prometheus-image-security-pr",
+        "obs2a-checkpoint-native",
+    ],
+)
+@pytest.mark.parametrize(
+    "fault", ["corrected", "upgrade-failure", "old-seed", "bad-CA", "parent-child"]
+)
+@pytest.mark.parametrize("trusted_host", [False, True])
+def test_am_host_bootstrap_shell_rejects_unrepaired_child_before_profile(
+    tmp_path: Path,
+    job_name: str,
+    fault: str,
+    trusted_host: bool,
+) -> None:
+    """Execute the real shell/inline guard; synthetic transports do not qualify a real pip wheel."""
+    from scripts.ci import install_locked_python_requirements as installer
+
+    workflow = _load_workflow(WORKFLOWS_DIR / "cd.yml")
+    step = _step_by_name(
+        workflow["jobs"][job_name], "Install isolated AM host tools through the locked owner"
+    )
+    script = step["run"]
+    commands = tmp_path / "commands"
+    commands.mkdir()
+    trace = tmp_path / "trace.jsonl"
+    stub = commands / "python"
+    stub.write_text(f"#!{sys.executable}\n" + r"""
+import hashlib
+import importlib.metadata
+import json
+import os
+from pathlib import Path
+import sys
+from unittest.mock import patch
+
+def record(step, **fields):
+    with Path(os.environ["CONTROL_TRACE"]).open("a") as output:
+        output.write(json.dumps({"step": step, **fields}) + "\n")
+
+arguments = sys.argv[1:]
+if arguments[:3] == ["-I", "-m", "venv"]:
+    assert len(arguments) == 4
+    root = Path(arguments[3])
+    root.mkdir()
+    (root / "bin").mkdir()
+    child = root / "bin/python"
+    child.write_bytes(Path(__file__).read_bytes())
+    child.chmod(0o700)
+    record("venv", child=str(child))
+    raise SystemExit(0)
+
+root = Path(sys.argv[0]).parent.parent
+assert os.environ["HOME"] == str(root / "installer-home")
+assert not any(os.environ.get(key) for key in (
+    "GH_TOKEN", "GITHUB_TOKEN", "GHCR_READ_TOKEN", "DEVPI_CI_USER", "DEVPI_CI_PASSWORD",
+    "PULSEPLATE_PSYCOPG_C_SDK", "PULSEPLATE_DOCKER_SINGLE_PASS_LOCKED_INSTALL",
+    "PULSEPLATE_DOCKER_PIP_LAYER_CACHE", "PYTHONHOME", "PYTHONPATH",
+))
+fault = os.environ["CONTROL_FAULT"]
+if arguments == ["-I", "-"]:
+    record("observation")
+    source = sys.stdin.read()
+    ca = root / "synthetic-ca"
+    raw = b"synthetic-bad-CA" if fault == "bad-CA" else b"synthetic-corrected-CA"
+    ca.write_bytes(raw)
+    def version(name):
+        assert name == "pip"
+        return (root / "pip-version").read_text()
+    def digest(value):
+        assert value == raw
+        record("CA-read")
+        target = "0" * 64 if fault == "bad-CA" else "50f79f98dac192b20dbf73f35c56f0b0c557ab267ff5199d1117cc1180b70785"
+        return type("ObservedDigest", (), {"hexdigest": lambda self: target})()
+    # Identity and metadata are controlled child collaborators, never a native environment claim.
+    sys.prefix = sys.base_prefix if fault == "parent-child" else str(root)
+    sys.executable = str(root / "bin/python")
+    with patch("importlib.metadata.version", version), patch("pip._vendor.certifi.where", lambda: str(ca)), patch("hashlib.sha256", digest):
+        exec(compile(source, "<cd.yml:AM-child-pip-observation>", "exec"), {"__name__": "__main__"})
+    raise SystemExit(0)
+assert arguments[0] == "-I"
+assert arguments[1] == os.environ["GITHUB_WORKSPACE"] + "/scripts/ci/install_locked_python_requirements.py"
+flags = arguments[2:]
+assert flags[flags.index("--python-executable") + 1] == str(root / "bin/python")
+assert "--require-virtualenv" in flags
+assert flags[flags.index("--index-url") + 1] == os.environ["PULSEPLATE_PYTHON_INDEX_URL"]
+if "--upgrade-pip-only" in flags:
+    record("upgrade", flags=flags)
+    assert flags[flags.index("--upgrade-pip-spec") + 1] == "pip==26.2.2"
+    if fault == "upgrade-failure":
+        raise SystemExit(7)
+    (root / "pip-version").write_text("26.2.1" if fault == "old-seed" else "26.2.2")
+else:
+    record("preflight" if "--preflight-only" in flags else "profile", flags=flags)
+""")
+    stub.chmod(0o700)
+    environment = {
+        "PATH": str(commands) + os.pathsep + os.defpath,
+        "HOME": str(tmp_path),
+        "LANG": "C.UTF-8",
+        "RUNNER_TEMP": str(tmp_path),
+        "GITHUB_RUN_ID": "101",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "GITHUB_WORKSPACE": str(REPO_ROOT),
+        "PULSEPLATE_PYTHON_INDEX_URL": "https://packages.pulseplate.app/root/pulseplate/+simple/",
+        "PULSEPLATE_PYTHON_TRUSTED_HOST": "packages.pulseplate.app" if trusted_host else "",
+        "CONTROL_TRACE": str(trace),
+        "CONTROL_FAULT": fault,
+    }
+    bash = shutil.which("bash")
+    assert bash is not None
+    result = subprocess.run(
+        [bash, "-c", script],
+        env=environment,
+        text=True,
+        capture_output=True,
+        timeout=20,
+        check=False,
+    )
+    records = [json.loads(line) for line in trace.read_text().splitlines()]
+    steps = [row["step"] for row in records]
+    assert steps[:2] == ["venv", "upgrade"]
+    upgrade = records[1]["flags"]
+    parsed = installer.parse_args(upgrade)
+    assert parsed.upgrade_pip_only and not parsed.upgrade_pip and parsed.require_virtualenv
+    assert parsed.upgrade_pip_spec == "pip==26.2.2"
+    assert parsed.trusted_host == ("packages.pulseplate.app" if trusted_host else None)
+    if fault == "corrected":
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert steps == ["venv", "upgrade", "observation", "CA-read", "preflight", "profile"]
+        observed = json.loads(result.stdout)
+        assert observed["pip"] == "26.2.2"
+        assert observed["python"] == str(tmp_path / "pulseplate-am-python-101-1/bin/python")
+    else:
+        assert result.returncode != 0
+        assert "preflight" not in steps and "profile" not in steps
+        assert result.returncode == (7 if fault == "upgrade-failure" else 1)
+        if fault != "upgrade-failure":
+            assert steps == ["venv", "upgrade", "observation", "CA-read"]
+            assert "AM " in result.stderr
+    assert "GITHUB_OUTPUT" not in script
+
+
+@pytest.mark.parametrize(
+    "job_name,case",
+    [
+        (job, case)
+        for job in ("prometheus-image-security-pr", "obs2a-checkpoint-native")
+        for case in ("main", "wrong-main", "wrong-checkout", "wrong-child-env")
+    ]
+    + [("prometheus-image-security-pr", "PR")],
+)
+def test_am_workflow_shell_propagates_authenticated_controller_to_actual_reader(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    alertmanager_temporary_history: dict[str, Any],
+    job_name: str,
+    case: str,
+) -> None:
+    """Real shell/CLI/Git binding, with synthetic API transport and no image admission."""
+    data = alertmanager_temporary_history
+    repository = data["root"]
+    fixed, main = data["Q"], data["P"]
+    assert fixed != main
+    controller = repository / "artifacts/orchestration/alertmanager-control"
+    if case == "PR":
+        data["command"]("worktree", "add", "--detach", str(controller), fixed)
+    elif case == "wrong-checkout":
+        data["command"]("checkout", "--detach", fixed)
+    workflow = _load_workflow(WORKFLOWS_DIR / "cd.yml")
+    step = _step_by_name(
+        workflow["jobs"][job_name], "Prepare exact AM subject before material execution"
+    )
+    script = step["run"]
+    commands = tmp_path / "caller-bin"
+    commands.mkdir()
+    trace = tmp_path / "caller-trace.jsonl"
+    output = tmp_path / "step-output"
+    output.write_text("")
+    program = r"""
+import json
+import os
+from pathlib import Path
+import sys
+from scripts.ci import fetch_docker_source_artifacts as source
+
+def record(step, **fields):
+    with Path(os.environ["CONTROL_TRACE"]).open("a") as stream:
+        stream.write(json.dumps({"step": step, **fields}) + "\n")
+args = source.parse_args(sys.argv[1:])
+record("CLI", argument=args.alertmanager_controller_source,
+       received=os.environ["ALERTMANAGER_CONTROLLER_SOURCE"])
+source.REPO_ROOT = Path(os.environ["CONTROL_CHECKOUT"])
+if os.environ["CONTROL_CASE"] == "wrong-child-env":
+    os.environ["ALERTMANAGER_CONTROLLER_SOURCE"] = os.environ["CONTROL_FIXED_C"]
+source._alertmanager_controller_binding(args)
+class TemplateBoundary(RuntimeError):
+    pass
+class API:
+    def json(self, endpoint):
+        assert endpoint == "/repos/Katsiarynakavaleuskaya/PulsePlate/git/commits/" + args.alertmanager_controller_source
+        record("template-source", source=args.alertmanager_controller_source)
+        raise TemplateBoundary()
+try:
+    source._alertmanager_source_snapshot(API(), os.environ["ALERTMANAGER_CONTROLLER_SOURCE"], controller_templates=True)
+except TemplateBoundary:
+    pass
+else:
+    raise AssertionError("Expected bounded synthetic API boundary")
+record("binding-admitted", source=args.alertmanager_controller_source)
+print("image_id=sha256:" + "1" * 64)
+print("config_sha256=" + "2" * 64)
+print("observation=synthetic-observation")
+"""
+    shim = commands / "python3"
+    shim.write_text(
+        f"#!{sys.executable}\nimport os,sys\nfrom pathlib import Path\n"
+        "assert sys.argv[1:6] == ['-E','-s','-S','-m','scripts.ci.fetch_docker_source_artifacts']\n"
+        "env=dict(os.environ); env['CONTROL_CHECKOUT']=str(Path.cwd())\n"
+        "os.chdir(env['CONTROL_REPO_ROOT'])\n"
+        f"os.execve(sys.executable,[sys.executable,'-E','-s','-S','-c',{program!r},*sys.argv[6:]],env)\n"
+    )
+    shim.chmod(0o700)
+    gh = commands / "gh"
+    gh.write_text(
+        f"#!{sys.executable}\nimport os,sys,json\nfrom pathlib import Path\n"
+        "args=sys.argv[1:]\n"
+        "assert args in (['auth','status','--hostname','github.com'],['api','--method','GET','repos/Katsiarynakavaleuskaya/PulsePlate/git/ref/heads/main','--jq','.object.sha'])\n"
+        "with Path(os.environ['CONTROL_TRACE']).open('a') as f:f.write(json.dumps({'step':'gh-'+args[0]})+'\\n')\n"
+        "if args[0]=='api':print(os.environ['CONTROL_API_MAIN'])\n"
+    )
+    gh.chmod(0o700)
+    timeout = commands / "timeout"
+    timeout.write_text(
+        f"#!{sys.executable}\nimport os,sys\nfrom pathlib import Path\n"
+        "assert sys.argv[1:4]==['--signal=TERM','--kill-after=2s','15s']\n"
+        "assert sys.argv[4]=='gh'\n"
+        "command=str(Path(__file__).with_name('gh'))\n"
+        "os.execve(command,[command,*sys.argv[5:]],os.environ)\n"
+    )
+    timeout.chmod(0o700)
+    docker = commands / "docker"
+    docker.write_text(
+        f"#!{sys.executable}\nimport sys\n"
+        "assert sys.argv[1] in ('version','info') and sys.argv[2]=='--format' and len(sys.argv)==4\n"
+        "print('synthetic Docker metadata')\n"
+    )
+    docker.chmod(0o700)
+    environment = {
+        "PATH": str(commands) + os.pathsep + os.defpath,
+        "HOME": str(tmp_path),
+        "LANG": "C",
+        "GITHUB_WORKSPACE": str(repository),
+        "RUNNER_TEMP": str(tmp_path),
+        "GITHUB_EVENT_NAME": "pull_request" if case == "PR" else "push",
+        "GITHUB_SHA": main,
+        "SOURCE_SHA": main,
+        "GITHUB_REF": "refs/heads/main",
+        "GITHUB_RUN_ID": "102",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "GITHUB_OUTPUT": str(output),
+        "GH_TOKEN": "synthetic-caller",
+        "GITHUB_TOKEN": "synthetic-caller",
+        "ALERTMANAGER_CONTROLLER_SOURCE": fixed,
+        "CONTROL_TRACE": str(trace),
+        "CONTROL_REPO_ROOT": str(REPO_ROOT),
+        "CONTROL_FIXED_C": fixed,
+        "CONTROL_CASE": case,
+        "CONTROL_API_MAIN": "f" * 40 if case == "wrong-main" else main,
+        "TMPDIR": str(tmp_path),
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_GLOBAL": os.devnull,
+    }
+    bash = shutil.which("bash")
+    assert bash is not None
+    result = subprocess.run(
+        [bash, "-c", script],
+        cwd=repository,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+    records = (
+        [json.loads(line) for line in trace.read_text().splitlines()] if trace.exists() else []
+    )
+    steps = [row["step"] for row in records]
+    if case in {"main", "PR"}:
+        assert result.returncode == 0, result.stdout + result.stderr
+        expected = fixed if case == "PR" else main
+        cli = next(row for row in records if row["step"] == "CLI")
+        assert cli["argument"] == cli["received"] == expected
+        assert records[-2:] == [
+            {"step": "template-source", "source": expected},
+            {"step": "binding-admitted", "source": expected},
+        ]
+        assert f"controller_source={expected}\n" in output.read_text()
+        assert ("gh-auth" in steps) is (case != "PR")
+    else:
+        assert result.returncode != 0
+        assert "binding-admitted" not in steps and "template-source" not in steps
+        assert "controller_source=" not in output.read_text()
+        if case == "wrong-child-env":
+            assert next(row for row in records if row["step"] == "CLI")["received"] == main
+            assert "AM_controller_UNCONFIGURED_HOLD" in result.stderr
+        else:
+            assert "CLI" not in steps
+    scan = _step_by_name(
+        workflow["jobs"]["prometheus-image-security-pr"],
+        "Scan accepted AM and execute all four current controls",
+    )
+    assert (
+        scan["env"]["ALERTMANAGER_CONTROLLER_SOURCE"]
+        == "${{ steps.alertmanager-image.outputs.controller_source }}"
+    )
+    assert environment["ALERTMANAGER_CONTROLLER_SOURCE"] == fixed
+
+
+@pytest.mark.parametrize(
+    "job_name",
+    [
+        "alertmanager-module-qualification",
+        "alertmanager-input-inspection",
+        "alertmanager-candidate-build",
+        "alertmanager-main-publication",
+    ],
+)
+def test_alertmanager_native_producers_keep_qualified_runner(job_name: str) -> None:
+    """Keep native config-ID consumers on their qualified Docker runner environment."""
+    workflow = _load_workflow(WORKFLOWS_DIR / "cd.yml")
+    assert workflow["jobs"][job_name]["runs-on"] == "ubuntu-24.04"
+
+
+@pytest.fixture
+def current_AM_export(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    """Complete synthetic Q/S byte transport; no native supplier/build proof is claimed."""
+    import tarfile
+    from scripts.ci import prometheus_source_image as transport
+
+    root = tmp_path / "current-export"
+    root.mkdir()
+    files: dict[str, bytes] = {}
+
+    def blob(raw: bytes, media: str) -> dict[str, Any]:
+        digest = sha256(raw).hexdigest()
+        files["blobs/sha256/" + digest] = raw
+        return {"digest": "sha256:" + digest, "size": len(raw), "mediaType": media}
+
+    layers = [
+        blob(f"synthetic expanded layer {i}".encode(), "application/vnd.oci.image.layer.v1.tar")
+        for i in range(13)
+    ]
+    config = {
+        "os": "linux",
+        "architecture": "amd64",
+        "rootfs": {"type": "layers", "diff_ids": [x["digest"] for x in layers]},
+    }
+    raw_config = json.dumps(config).encode().ljust(2938, b" ")
+    config_descriptor = blob(raw_config, transport.OCI_CONFIG)
+    descriptor = blob(
+        json.dumps(
+            {
+                "schemaVersion": 2,
+                "mediaType": transport.OCI_MANIFEST,
+                "config": config_descriptor,
+                "layers": layers,
+            }
+        ).encode(),
+        transport.OCI_MANIFEST,
+    )
+    for number in range(13):
+        blob(f"synthetic Docker compatibility metadata {number}".encode(), "unused")
+    files["oci-layout"] = b'{"imageLayoutVersion":"1.0.0"}'
+    files["index.json"] = json.dumps(
+        {
+            "schemaVersion": 2,
+            "mediaType": "application/vnd.oci.image.index.v1+json",
+            "manifests": [descriptor],
+        }
+    ).encode()
+    files["manifest.json"] = b"[]"
+    assert len(files) == 31
+    archive = root / "base-image.tar"
+    with tarfile.open(archive, "w", format=tarfile.USTAR_FORMAT) as output:
+        for name in ("blobs", "blobs/sha256"):
+            entry = tarfile.TarInfo(name)
+            entry.type = tarfile.DIRTYPE
+            output.addfile(entry)
+        for name, raw in files.items():
+            entry = tarfile.TarInfo(name)
+            entry.size = len(raw)
+            output.addfile(entry, BytesIO(raw))
+    archive.chmod(0o600)
+    layout = root / "base-layout"
+    layout.mkdir(mode=0o700)
+    rows, directories = docker_sources._alertmanager_base_export_inventory(
+        archive, destination=layout
+    )
+    monkeypatch.setattr(transport, "BASE_CONFIG", config_descriptor["digest"])
+    monkeypatch.setattr(
+        transport,
+        "BASE_LAYER_CONTRACTS",
+        [{"diff_id": row["digest"], "expanded": row["size"]} for row in layers],
+    )
+    q = {
+        "root_inputs": {"base-image.tar": sha256(archive.read_bytes()).hexdigest()},
+        "loaded_base": {"RootFS": {"Type": "layers", "Layers": config["rootfs"]["diff_ids"]}},
+    }
+    report = {
+        "base": {
+            "archive_sha256": q["root_inputs"]["base-image.tar"],
+            "complete_export_file_inventory": rows,
+            "actual_local_OCI_descriptor": descriptor,
+            "config": config_descriptor["digest"],
+            "RootFS": q["loaded_base"]["RootFS"],
+        }
+    }
+    return {
+        "root": root,
+        "files": files,
+        "report": report,
+        "q": q,
+        "descriptor": descriptor,
+        "directories": directories,
+        "layers": layers,
+    }
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "compatibility",
+        "extra",
+        "missing",
+        "replaced",
+        "index",
+        "directory",
+        "symlink",
+        "hardlink",
+        "mode",
+        "Q-hash",
+        "report-hash",
+        "report-descriptor",
+        "report-config",
+        "report-rootfs",
+        "pinned-size",
+        "pinned-order",
+    ],
+)
+def test_current_AM_export_binds_every_Q_byte_before_report_or_graph(
+    current_AM_export: dict[str, Any], monkeypatch: pytest.MonkeyPatch, fault: str | None
+) -> None:
+    from scripts.ci import prometheus_source_image as transport
+
+    item = current_AM_export
+    root, report, q = item["root"], item["report"], item["q"]
+    docker_sources._alertmanager_current_support_base(root, report, q)
+    layout = root / "base-layout"
+    compatibility = next(name for name, raw in item["files"].items() if b"compatibility" in raw)
+    target = layout / compatibility
+    if fault == "compatibility":
+        target.write_bytes(b"changed but report and footer can agree")
+    elif fault == "extra":
+        (layout / "extra").write_bytes(b"extra")
+        (layout / "extra").chmod(0o600)
+    elif fault == "missing":
+        target.unlink()
+    elif fault == "replaced":
+        target.rename(layout / "replacement")
+    elif fault == "index":
+        (layout / "index.json").write_text("{}")
+    elif fault == "directory":
+        (layout / "extra-directory").mkdir(mode=0o700)
+    elif fault in ("symlink", "hardlink"):
+        target.unlink()
+        other = layout / "manifest.json"
+        target.symlink_to(other) if fault == "symlink" else os.link(other, target)
+    elif fault == "mode":
+        target.chmod(0o644)
+    elif fault == "Q-hash":
+        q["root_inputs"]["base-image.tar"] = "f" * 64
+    elif fault == "report-hash":
+        report["base"]["archive_sha256"] = "f" * 64
+    elif fault == "report-descriptor":
+        report["base"]["actual_local_OCI_descriptor"] = {**item["descriptor"], "size": 1}
+    elif fault == "report-config":
+        report["base"]["config"] = "sha256:" + "f" * 64
+    elif fault == "report-rootfs":
+        report["base"]["RootFS"] = {"Type": "layers", "Layers": []}
+    elif fault in ("pinned-size", "pinned-order"):
+        contracts = deepcopy(transport.BASE_LAYER_CONTRACTS)
+        if fault == "pinned-size":
+            contracts[0]["expanded"] += 1
+        else:
+            contracts.reverse()
+        monkeypatch.setattr(transport, "BASE_LAYER_CONTRACTS", contracts)
+    if fault in {"compatibility", "extra", "missing", "replaced", "index"}:
+        # An internally consistent S report cannot override the independent Q tar.
+        report["base"]["complete_export_file_inventory"] = [
+            {"path": row["path"], "bytes": row["size"], "sha256": row["sha256"]}
+            for row in transport.tree_inventory(layout)
+        ]
+    if fault is None:
+        assert docker_sources._alertmanager_current_base_graph(layout) == item["descriptor"]
+        assert (
+            docker_sources._alertmanager_base_export_inventory(root / "base-image.tar")[1]
+            == item["directories"]
+        )
+    else:
+        with pytest.raises(transport.QualificationError):
+            docker_sources._alertmanager_current_support_base(root, report, q)
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "duplicate",
+        "dot",
+        "parent",
+        "absolute",
+        "backslash",
+        "symlink",
+        "hardlink",
+        "special",
+        "file-parent",
+        "directory-as-file",
+        "count",
+        "oversized",
+    ],
+)
+def test_current_AM_export_tar_rules_reject_unsafe_private_materialization(
+    tmp_path: Path, fault: str
+) -> None:
+    import tarfile
+    from scripts.ci.prometheus_source_image import QualificationError
+
+    archive = tmp_path / "invalid.tar"
+    with tarfile.open(archive, "w", format=tarfile.USTAR_FORMAT) as output:
+        first = tarfile.TarInfo("safe")
+        first.size = 1
+        output.addfile(first, BytesIO(b"x"))
+        entry = tarfile.TarInfo(
+            {
+                "duplicate": "safe",
+                "dot": "./bad",
+                "parent": "../bad",
+                "absolute": "/bad",
+                "backslash": "bad\\path",
+                "file-parent": "safe/child",
+            }.get(fault, "bad")
+        )
+        if fault in ("symlink", "hardlink", "special"):
+            entry.type = {
+                "symlink": tarfile.SYMTYPE,
+                "hardlink": tarfile.LNKTYPE,
+                "special": tarfile.FIFOTYPE,
+            }[fault]
+            entry.linkname = "safe"
+        if fault == "directory-as-file":
+            directory = tarfile.TarInfo("bad/child")
+            directory.type = tarfile.DIRTYPE
+            output.addfile(directory)
+        if fault == "count":
+            for number in range(33):
+                output.addfile(tarfile.TarInfo(f"extra-{number}"))
+        output.addfile(entry)
+    archive.chmod(0o600)
+    if fault == "oversized":
+        with archive.open("ab") as output:
+            output.truncate(16 * 1024**2 + 1)
+    destination = tmp_path / "layout"
+    destination.mkdir(mode=0o700)
+    with pytest.raises(QualificationError):
+        docker_sources._alertmanager_base_export_inventory(archive, destination=destination)
+
+
+@pytest.mark.parametrize("current", [False, True])
+@pytest.mark.parametrize(
+    "fault", [None, "crossed-recipe", "mixed-source", "selector", "unconfigured"]
+)
+def test_AM11_accepted_recipe_is_disjoint_and_bound_to_configured_selection(
+    monkeypatch: pytest.MonkeyPatch, current: bool, fault: str | None
+) -> None:
+    from scripts.ci.prometheus_source_image import QualificationError
+
+    selected = deepcopy(docker_sources._ALERT_HISTORICAL_C10)
+    if current:
+        selected.update(source="a" * 40, run=101, artifact=102, job=103)
+        selected["source_files"][
+            "deploy/alertmanager/Containerfile"
+        ] = docker_sources._ALERT_CURRENT_ASSEMBLY_RECIPE_SHA256
+    monkeypatch.setattr(docker_sources, "_ALERT_ACCEPTED_CANDIDATE", selected)
+    assert (
+        docker_sources._alertmanager_accepted_producer(
+            selected["run"], selected["artifact"], selected["source"]
+        )
+        == selected
+    )
+    if fault == "crossed-recipe":
+        selected["source_files"]["deploy/alertmanager/Containerfile"] = (
+            docker_sources._ALERT_ASSEMBLY_RECIPE_SHA256
+            if current
+            else docker_sources._ALERT_CURRENT_ASSEMBLY_RECIPE_SHA256
+        )
+    elif fault == "mixed-source":
+        selected["source"] = docker_sources._ALERT_HISTORICAL_C10["source"] if current else "a" * 40
+    elif fault == "unconfigured":
+        monkeypatch.setattr(docker_sources, "_ALERT_ACCEPTED_CANDIDATE", None)
+    if fault is not None:
+        with pytest.raises(QualificationError):
+            docker_sources._alertmanager_accepted_producer(
+                selected["run"] + (1 if fault == "selector" else 0),
+                selected["artifact"],
+                selected["source"],
+            )

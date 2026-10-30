@@ -42,8 +42,12 @@ import zlib
 REVISION = "5241a27fe3c6983549fccc32f6e65917408c63cd"
 TREE = "ffa0c7e9512071483f6c40a95aba9b97fbd86583"
 GO_VERSION = "go version go1.27.2 linux/amd64\n"
-BASE = "gcr.io/distroless/static-debian13@sha256:2293b36c7c9082bf4115aab724b4d2cddec82c8eba39bf27ac0517e159acf150"
-BASE_CONFIG = "sha256:55a757dc8ab862a4eb634c434261dcd26f17c186b54f7bce845404a335456110"
+CURRENT_GO_VERSION = "go version go1.27.3 linux/amd64\n"
+CURRENT_GO_VERSION_FILE = b"go1.27.3\ntime 2026-10-19T22:20:36Z\n"
+HISTORICAL_BASE = "gcr.io/distroless/static-debian13@sha256:2293b36c7c9082bf4115aab724b4d2cddec82c8eba39bf27ac0517e159acf150"
+BASE = "gcr.io/distroless/static-debian13@sha256:433bb346cd0b6b8346462f879adaa4ac0fbb463a72901b46736ede4aeca3dadc"
+HISTORICAL_BASE_CONFIG = "sha256:55a757dc8ab862a4eb634c434261dcd26f17c186b54f7bce845404a335456110"
+BASE_CONFIG = "sha256:0a2f4c688090d2a660f55dec3808f6bb85246b9ec1f78ced5d43275a1fb2287d"
 
 # Exact acquired vendor graph, not a registry index or an arbitrary layer policy.
 SOURCE_DATE_EPOCH = 1790321138
@@ -105,25 +109,25 @@ BASE_LAYER_CONTRACTS: list[dict[str, Any]] = [
     },
     {
         "descriptor": {
-            "size": 288057,
-            "digest": "sha256:218cf840d0d95a86231eb9d33d26ac8a520a4299c6096cb70a0c2fb2a87c9e0a",
+            "size": 289427,
+            "digest": "sha256:617b009a71d625ef77982b400cb9939dd5ed9809ebf50681a0520b7c08c0ca89",
             "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
         },
-        "diff_id": "sha256:763a77745f27b86cf26b97887b6842d83720e63b1c48848c0ba9ee54e351d63a",
+        "diff_id": "sha256:92a3b02188b326c1b10a0a375d3c0019dff4ee8ff02a4b51a7e640bb9400932f",
         "expanded": 1157120,
         "members": 528,
-        "inventory_sha256": "e66fb0f75e7ff8ae210c3789b509bb89634006d53ae9e8b0681c21a32c2d81be",
+        "inventory_sha256": "4674ac8595945da188452f079f16d04cff1ab4d2f0640fed482fad4fdaa83784",
     },
     {
         "descriptor": {
-            "size": 254668,
-            "digest": "sha256:f6069939f718601b38d25ec5ed5631ed047e4da24acec2e252f8f29d251be718",
+            "size": 256689,
+            "digest": "sha256:a99dd1dd5eaf3e2099256f1a75c8e4c02a1d3a81b8e2bfd1735b1dd166b68a12",
             "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
         },
-        "diff_id": "sha256:f0d0eff4c2312a7bd6e21797bdfea5eb35f60e76b555ce2b22794424af2cad36",
+        "diff_id": "sha256:ef430e4865b6130e131d5777c1d072fdcc89478668d10ab41a18549e0fdc88b5",
         "expanded": 1331200,
         "members": 761,
-        "inventory_sha256": "355355459c8f97843266dfc9af93a9b7d3772dac464b73432613912f725fd644",
+        "inventory_sha256": "642be489a59309de1b5575072f4b859d3bc822e6c8443e51bfa53088f35f2dd6",
     },
     {
         "descriptor": {
@@ -215,14 +219,14 @@ BASE_LAYER_CONTRACTS: list[dict[str, Any]] = [
     },
     {
         "descriptor": {
-            "size": 143338,
-            "digest": "sha256:c4bc6f35ff5e25aa1afe7a148a0b6f10a760f54e298f86a4a4d44b91f1afbfab",
+            "size": 142002,
+            "digest": "sha256:ec1b04bf2eb2122e86781f791b03ea0cf6588694e0f4a88245250224c186cdf0",
             "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
         },
-        "diff_id": "sha256:f2392a9484bf6b18f06beaf705b994e31dbb2716c99cf7d03c9c495cd107f364",
+        "diff_id": "sha256:0762a1f6557d1e88a761ab05aa7f65a10dc0e559913ea13befb873d907e1a396",
         "expanded": 276480,
         "members": 15,
-        "inventory_sha256": "31d48342ff6ca53acaa34c50f6cf4721f1a3b9276e073ef41dffecca5ed51b90",
+        "inventory_sha256": "4ac12edab9f446541289a85b1d0688b05a5e72a77dc88420a7006bd4c21a8ce9",
     },
 ]
 ROOT_MODULE = "github.com/prometheus/prometheus"
@@ -463,6 +467,16 @@ GO = Artifact(
     15657,
     300 * 1024**2,
 )
+CURRENT_GO = Artifact(
+    "go",
+    "https://dl.google.com/go/go1.27.3.linux-amd64.tar.gz",
+    70588678,
+    "65efbc80fdc1fa2cd2631cad5b481777a68e8725f34e89f50fc6ac714e379b40",
+    "go",
+    17373,
+    15657,
+    300 * 1024**2,
+)
 UI = Artifact(
     "ui",
     "https://github.com/prometheus/prometheus/releases/download/v3.15.0/prometheus-web-ui-3.15.0.tar.gz",
@@ -541,6 +555,8 @@ def acquire(artifact: Artifact, path: Path, deadline: float | None = None) -> di
         "checksums": CHECKSUMS.url,
         "oras-source": ORAS_SOURCE.url,
     }
+    if artifact == CURRENT_GO:
+        expected["go"] = CURRENT_GO.url
     value = urlsplit(artifact.url)
     require(
         artifact.name in expected
@@ -1376,7 +1392,7 @@ def _derivation_phase(
         raw = native.run([str(go / "bin/go"), *command], label + "-" + key, environment, cwd=source)
         _derivation_guard(source, expected, remainder, go, go_hash, native.deadline)
         if key == "version":
-            require(raw.decode() == GO_VERSION, "derivation_native_Go_version")
+            require(raw.decode() == CURRENT_GO_VERSION, "derivation_native_Go_version")
         elif key == "edit":
             objects = decode_objects(raw)
             require(
@@ -1499,7 +1515,7 @@ def _derivation_offline(
             "readonly_derivation_cache_changed",
         )
         if command_name == "version":
-            require(raw.decode() == GO_VERSION, "sandbox_Go_version")
+            require(raw.decode() == CURRENT_GO_VERSION, "sandbox_Go_version")
         elif command_name in ("prometheus", "promtool"):
             observations[command_name] = decode_packages(raw, command_name)
             full_packages[command_name] = {
@@ -1786,7 +1802,7 @@ def qualify(
         downloads = work / "downloads"
         fresh_directory(downloads)
         report["acquisition"] = []
-        for artifact in (SOURCE, GO, UI, CHECKSUMS):
+        for artifact in (SOURCE, CURRENT_GO, UI, CHECKSUMS):
             require(time.monotonic() < deadline, "qualification_deadline")
             stage = "acquire_" + artifact.name
             report["acquisition"].append(acquire(artifact, downloads / artifact.name, deadline))
@@ -1796,7 +1812,7 @@ def qualify(
             "UI_checksum_row",
         )
         source, go, ui = work / "source", work / "go", work / "ui"
-        for artifact, target in ((SOURCE, source), (GO, go), (UI, ui)):
+        for artifact, target in ((SOURCE, source), (CURRENT_GO, go), (UI, ui)):
             stage = "extract_" + artifact.name
             rows = extract(artifact, downloads / artifact.name, target, deadline)
             (evidence / (artifact.name + "-members.json")).write_text(
@@ -1804,7 +1820,7 @@ def qualify(
             )
         require(
             (source / "VERSION").read_bytes() == b"3.15.0\n"
-            and (go / "VERSION").read_bytes() == b"go1.27.2\ntime 2026-10-02T20:28:03Z\n",
+            and (go / "VERSION").read_bytes() == CURRENT_GO_VERSION_FILE,
             "source_VERSION",
         )
         require(
@@ -1832,7 +1848,7 @@ def qualify(
             go_binary = str(go / "bin/go")
             require(
                 native.run([go_binary, "version"], "online-go-version", online, cwd=source).decode()
-                == GO_VERSION,
+                == CURRENT_GO_VERSION,
                 "native_Go_version",
             )
             module_raw = native.run(
@@ -1945,7 +1961,7 @@ def qualify(
                 )
                 report["container_completion"][label] = completion
                 if label == "go-version":
-                    require(raw.decode() == GO_VERSION, "sandbox_Go_version")
+                    require(raw.decode() == CURRENT_GO_VERSION, "sandbox_Go_version")
                 elif label in ("prometheus", "promtool"):
                     observations[label] = decode_packages(raw, label)
             require(set(observations) == {"prometheus", "promtool"}, "both_command_graphs_required")
@@ -2578,7 +2594,7 @@ def declared_inputs() -> dict[str, Any]:
             "original_locks": LOCKS,
             "derived_locks": DERIVED_LOCKS,
         },
-        "go": {"archive": GO.__dict__, "version": GO_VERSION},
+        "go": {"archive": CURRENT_GO.__dict__, "version": CURRENT_GO_VERSION},
         "ui": {
             "archive": UI.__dict__,
             "checksums": CHECKSUMS.__dict__,
@@ -2601,7 +2617,7 @@ def declared_inputs() -> dict[str, Any]:
             "raw_headers_sha256": ORAS_RAW_HEADERS,
             "original_locks": ORAS_LOCKS,
             "license_sha256": ORAS_LICENSE,
-            "compiler": "go1.27.2 linux/amd64 CGO_ENABLED=0",
+            "compiler": "go1.27.3 linux/amd64 CGO_ENABLED=0",
             "command": ORAS_COMMAND,
             "flags": [
                 "-mod=readonly",
@@ -2762,7 +2778,7 @@ def producer_projection(root: Path, acquired: object) -> dict[str, Any]:
             and re.fullmatch(r"[0-9a-f]{64}", acquired[name]) is not None,
             "acquired_digest_type",
         )
-    require(acquired["go"] == GO.digest, "acquired_qualified_Go")
+    require(acquired["go"] == CURRENT_GO.digest, "acquired_qualified_Go")
     transform, implementations = acquired["UI_transform"], acquired["tool_implementations"]
     require(
         type(transform) is dict
@@ -2869,6 +2885,34 @@ def _gunzip(raw: bytes, maximum: int) -> bytes:
     return bytes(output)
 
 
+BASE_CA_SHA256 = "e9c7b63ee2623386e9b0a3ee32f499d01a8ea23dc83b8383ddff9f8e749543b7"
+BASE_CA_BYTES = 222073
+REMOVED_CA_DER_SHA256 = frozenset(
+    {
+        "86a1ecba089c4a8d3bbe2734c612ba341d813e043cf9e8a862cd5c57a36bbe6b",
+        "d7a7a0fb5d7e2731d771e9484ebcdef71d5f0c3e0a2948782bc83ee0ea699ef4",
+    }
+)
+
+
+def validate_default_ca(data: bytes) -> None:
+    """Recognize only the admitted default bundle and the two removed DER identities."""
+    import ssl
+
+    require(len(data) == BASE_CA_BYTES and sha(data) == BASE_CA_SHA256, "vendor_default_CA_bytes")
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    try:
+        context.load_verify_locations(cadata=data.decode("ascii"))
+    except (UnicodeDecodeError, ssl.SSLError) as error:
+        raise QualificationError("vendor_default_CA_parse") from error
+    certificates = context.get_ca_certs(binary_form=True)
+    require(
+        len(certificates) == 148
+        and not REMOVED_CA_DER_SHA256.intersection(sha(value) for value in certificates),
+        "vendor_removed_CA_present",
+    )
+
+
 def base_graph(layout: Path) -> dict[str, Any]:
     """Authenticate and inspect the one vendor graph; never extract/apply its layers."""
     root_path = layout / "blobs/sha256" / BASE.rsplit(":", 1)[1]
@@ -2902,6 +2946,7 @@ def base_graph(layout: Path) -> dict[str, Any]:
     )
     layers = []
     topology = []
+    ca_occurrences = 0
     for contract in BASE_LAYER_CONTRACTS:
         compressed = _blob(layout, contract["descriptor"])
         expanded = _gunzip(compressed, contract["expanded"])
@@ -2933,6 +2978,9 @@ def base_graph(layout: Path) -> dict[str, Any]:
                     data = stream.read(member.size + 1)
                     require(len(data) == member.size, "vendor_member_size")
                     row["sha256"] = sha(data)
+                    if member.name == "etc/ssl/certs/ca-certificates.crt":
+                        validate_default_ca(data)
+                        ca_occurrences += 1
                 rows.append(row)
                 if member.name in ("bin", "usr", "usr/bin", "etc", "etc/prometheus", "prometheus"):
                     topology.append(row)
@@ -2954,6 +3002,7 @@ def base_graph(layout: Path) -> dict[str, Any]:
         and not any(row["name"] in ("etc/prometheus", "prometheus") for row in topology),
         "vendor_payload_parent_topology",
     )
+    require(ca_occurrences == 1, "vendor_default_CA_unique")
     _layout_inventory(
         layout,
         {BASE.rsplit("@", 1)[1], BASE_CONFIG}
@@ -4341,40 +4390,158 @@ def event_admission(
 
 
 def require_publication_predecessor(api: GitHubRead, head: str) -> dict[str, Any]:
+    """Recognize one observed publisher attempt; terminal evidence never grants another poll."""
+    require(
+        type(head) is str and re.fullmatch(r"[0-9a-f]{40}", head) is not None,
+        "publication_predecessor_head",
+    )
+    active = {"queued", "in_progress", "waiting", "pending", "requested"}
+    conclusions = {
+        "success",
+        "failure",
+        "cancelled",
+        "timed_out",
+        "skipped",
+        "neutral",
+        "action_required",
+        "stale",
+        "startup_failure",
+    }
+
+    def run_identity(value: object) -> tuple[object, ...]:
+        require(type(value) is dict, "publication_predecessor_run_identity")
+        row = cast(dict[str, Any], value)
+        require(
+            all(
+                type(row.get(key)) is int and row[key] > 0
+                for key in ("id", "run_attempt", "workflow_id")
+            )
+            and type(row.get("head_sha")) is str
+            and re.fullmatch(r"[0-9a-f]{40}", row["head_sha"]) is not None
+            and type(row.get("head_branch")) is str
+            and bool(row["head_branch"])
+            and type(row.get("event")) is str
+            and bool(row["event"])
+            and type(row.get("path")) is str
+            and bool(row["path"])
+            and all(
+                type(row.get(key)) is dict
+                and type(row[key].get("id")) is int
+                and row[key]["id"] > 0
+                for key in ("repository", "head_repository")
+            ),
+            "publication_predecessor_run_identity",
+        )
+        return (
+            row["id"],
+            row["run_attempt"],
+            row["workflow_id"],
+            row["head_sha"],
+            row["head_branch"],
+            row["event"],
+            row["repository"]["id"],
+            row["head_repository"]["id"],
+            row["path"],
+        )
+
+    def state(row: dict[str, Any]) -> tuple[str, str | None]:
+        status, conclusion = row.get("status"), row.get("conclusion")
+        require(
+            "conclusion" in row
+            and type(status) is str
+            and (
+                (status in active and conclusion is None)
+                or (status == "completed" and type(conclusion) is str and conclusion in conclusions)
+            ),
+            "publication_predecessor_state",
+        )
+        return cast(str, status), cast(str | None, conclusion)
+
     endpoint = (
         f"/repos/{GHCR_REPOSITORY}/actions/workflows/build.yml/runs?event=push&head_sha={head}"
     )
     first = api.json(endpoint + "&per_page=100&page=1")
+    require(
+        type(first) is dict and "total_count" in first,
+        "publication_predecessor_run_inventory",
+    )
     runs = api.pages(endpoint, "workflow_runs", first["total_count"])
     eligible = []
+    observed = []
     for run in runs:
+        identity = run_identity(run)
         if (
             run.get("head_sha") != head
             or run.get("head_branch") != "main"
             or run.get("repository", {}).get("id") != 1043311030
             or run.get("head_repository", {}).get("id") != 1043311030
             or run.get("event") != "push"
-            or run.get("status") != "completed"
-            or run.get("conclusion") != "success"
+            or run.get("path") != ".github/workflows/build.yml"
         ):
             continue
+        old_status, old_conclusion = state(run)
         jobs_endpoint = (
             f'/repos/{GHCR_REPOSITORY}/actions/runs/{run["id"]}/attempts/{run["run_attempt"]}/jobs'
         )
         page = api.json(jobs_endpoint + "?per_page=100&page=1")
+        require(
+            type(page) is dict and "total_count" in page,
+            "publication_predecessor_job_inventory",
+        )
         jobs = api.pages(jobs_endpoint, "jobs", page["total_count"])
-        positive = [
-            job
-            for job in jobs
-            if job.get("name") == "prometheus-publish"
-            and job.get("status") == "completed"
-            and job.get("conclusion") == "success"
-            and job.get("head_sha") == head
-        ]
-        if len(positive) == 1:
-            eligible.append({"run": run, "job": positive[0]})
-    require(bool(eligible), "positive_publication_predecessor_pending_or_missing")
-    return max(eligible, key=lambda value: value["run"]["id"])
+        for job in jobs:
+            require(
+                type(job.get("id")) is int
+                and job["id"] > 0
+                and type(job.get("run_id")) is int
+                and job["run_id"] == run["id"]
+                and type(job.get("run_attempt")) is int
+                and job["run_attempt"] == run["run_attempt"]
+                and job.get("head_sha") == head
+                and type(job.get("name")) is str
+                and bool(job["name"]),
+                "publication_predecessor_job_identity",
+            )
+        publishers = [job for job in jobs if job["name"] == "prometheus-publish"]
+        require(len(publishers) <= 1, "publication_predecessor_publisher_ambiguous")
+        publisher_job = publishers[0] if publishers else None
+        job_state = state(publisher_job) if publisher_job is not None else None
+        # A later allowed poll may discover an operator-created attempt. Within
+        # this observation the run and its jobs must still bind the same attempt.
+        current = api.json(f'/repos/{GHCR_REPOSITORY}/actions/runs/{run["id"]}')
+        require(run_identity(current) == identity, "publication_predecessor_run_drift")
+        current = cast(dict[str, Any], current)
+        run_state = state(current)
+        require(
+            old_status != "completed" or run_state == (old_status, old_conclusion),
+            "publication_predecessor_run_drift",
+        )
+        require(
+            run_state != ("completed", "success") or job_state in (None, ("completed", "success")),
+            "publication_predecessor_run_job_contradiction",
+        )
+        if run_state == job_state == ("completed", "success"):
+            eligible.append({"run": current, "job": publisher_job})
+        observed.append((current, run_state, job_state))
+    if eligible:
+        return max(eligible, key=lambda value: value["run"]["id"])
+    require(bool(observed), "positive_publication_predecessor_missing")
+    _run, run_state, job_state = max(observed, key=lambda value: value[0]["id"])
+    terminal = {
+        "failure": "publication_predecessor_failed",
+        "cancelled": "publication_predecessor_cancelled",
+        "timed_out": "publication_predecessor_timed_out",
+    }
+    for conclusion in (run_state[1], job_state[1] if job_state is not None else None):
+        diagnostic = terminal.get(conclusion) if conclusion is not None else None
+        if diagnostic is not None:
+            raise QualificationError(diagnostic)
+    require(
+        run_state[0] != "completed"
+        and (job_state is None or job_state[0] != "completed" or job_state[1] == "success"),
+        "publication_predecessor_not_published",
+    )
+    raise QualificationError("positive_publication_predecessor_active")
 
 
 def authenticated_artifact(
@@ -4516,9 +4683,87 @@ def _zip_members(path: Path) -> dict[str, bytes]:
     return result
 
 
-def qualification_locks(archive: Path) -> dict[str, bytes]:
+def _current_qualification_artifact(
+    api: GitHubRead, root: Path, admission: dict[str, Any], destination: Path
+) -> dict[str, Any]:
+    """Resolve one real same-producer qualification; never choose latest success."""
+    head = admission["head"]
     require(
-        file_hash(archive) == "1c1f72b037cc8a4446bfae7ff9812ba92fcf8fc10f5f27bd61ee96e889d57762",
+        admission.get("ref") == "refs/heads/codex/python-setup-security-stabilization",
+        "stabilization_qualification_owner",
+    )
+    endpoint = f"/repos/{GHCR_REPOSITORY}/actions/workflows/build.yml/runs?event=workflow_dispatch"
+    page = api.json(endpoint + "&per_page=100&page=1")
+    runs = api.pages(endpoint, "workflow_runs", page["total_count"])
+    candidates: list[dict[str, Any]] = []
+    for run in runs:
+        if run.get("head_sha") != head or run.get("id") == admission["run_id"]:
+            continue
+        jobs_endpoint = f'/repos/{GHCR_REPOSITORY}/actions/runs/{run["id"]}/jobs?filter=all'
+        jobs_page = api.json(jobs_endpoint + "&per_page=100&page=1")
+        jobs = api.pages(jobs_endpoint, "jobs", jobs_page["total_count"])
+        selected = [
+            row
+            for row in jobs
+            if row.get("name") == "prometheus-source-qualification"
+            and row.get("conclusion") != "skipped"
+        ]
+        if not selected:
+            continue
+        require(
+            len(selected) == 1
+            and run.get("head_branch") == "codex/python-setup-security-stabilization"
+            and type(run.get("run_attempt")) is int
+            and run["run_attempt"] == 1
+            and run.get("status") == "completed"
+            and run.get("conclusion") == "success"
+            and selected[0].get("status") == "completed"
+            and selected[0].get("conclusion") == "success"
+            and selected[0].get("run_id") == run["id"]
+            and selected[0].get("head_sha") == head,
+            "stabilization_qualification_terminal",
+        )
+        artifacts_endpoint = f'/repos/{GHCR_REPOSITORY}/actions/runs/{run["id"]}/artifacts'
+        artifact_page = api.json(artifacts_endpoint + "?per_page=100&page=1")
+        artifacts = api.pages(artifacts_endpoint, "artifacts", artifact_page["total_count"])
+        matching = [
+            row
+            for row in artifacts
+            if row.get("name") == f'prometheus-source-qualification-{run["id"]}-1'
+        ]
+        require(len(matching) == 1, "stabilization_qualification_artifact_unique")
+        candidates.append({"run": run, "artifact": matching[0]})
+    require(len(candidates) == 1, "stabilization_qualification_unique")
+    chosen = candidates[0]
+    result = authenticated_artifact(
+        api,
+        chosen["artifact"]["id"],
+        destination,
+        expected_run=chosen["run"]["id"],
+        expected_job="prometheus-source-qualification",
+        expected_head=head,
+    )
+    authenticate_producer_inputs(api, root, head)
+    return result
+
+
+def qualification_locks(
+    archive: Path,
+    *,
+    producer_root: Path | None = None,
+    artifact_digest: str | None = None,
+) -> dict[str, bytes]:
+    require(
+        (producer_root is None) == (artifact_digest is None),
+        "qualification_current_binding_pair",
+    )
+    expected_digest = (
+        "1c1f72b037cc8a4446bfae7ff9812ba92fcf8fc10f5f27bd61ee96e889d57762"
+        if artifact_digest is None
+        else _digest(artifact_digest)[7:]
+    )
+    require(
+        file_hash(archive) == expected_digest,
         "qualification_acquired_input_zip",
     )
     files = _zip_members(archive)
@@ -4541,6 +4786,62 @@ def qualification_locks(archive: Path) -> dict[str, bytes]:
         and type(report.get("heavy_build_invocations")) is int,
         "qualification_not_a_build_output",
     )
+    if producer_root is not None:
+        require(
+            report.get("source_revision") == REVISION
+            and report.get("source_tree") == TREE
+            and type(report.get("publication_commands")) is int
+            and report["publication_commands"] == 0
+            and type(report.get("automatic_retries")) is int
+            and report["automatic_retries"] == 0
+            and report.get("interruptions") == []
+            and report.get("module_action") == "xnet060-replay",
+            "qualification_current_source_outcome",
+        )
+        expected_acquisition = [
+            {
+                "artifact": item.name,
+                "public_source": item.url,
+                "bytes": item.size,
+                "sha256": item.digest,
+                "explicit_release_handoff": item.release,
+                "final_redirects": 0,
+            }
+            for item in (SOURCE, CURRENT_GO, UI, CHECKSUMS)
+        ]
+        exact_data(report.get("acquisition"), expected_acquisition)
+        expected_producer = {
+            str(producer_root / path): file_hash(producer_root / path)
+            for path in ("scripts/ci/prometheus_source_image.py", ".github/workflows/build.yml")
+        }
+        exact_data(report.get("producer"), expected_producer)
+        native = report.get("native_operations")
+        cleanup = report.get("cleanup")
+        require(
+            type(native) is list
+            and bool(native)
+            and all(
+                type(row) is dict
+                and type(row.get("exit")) is int
+                and row["exit"] == 0
+                and row.get("failure") is None
+                for row in native
+            )
+            and type(cleanup) is list
+            and all(
+                type(row) is dict
+                and row.get("native_absent") is True
+                and row.get("failure") is None
+                for row in cleanup
+            ),
+            "qualification_current_native_terminal",
+        )
+        for label in ("a", "b"):
+            require(
+                files[label + "-base-version.stdout"] == CURRENT_GO_VERSION.encode()
+                and files[label + "-derived-version.stdout"] == CURRENT_GO_VERSION.encode(),
+                "qualification_current_native_Go",
+            )
     return result
 
 
@@ -4687,6 +4988,7 @@ def manual_hosted_admission(
         "prometheus-oras-qualification" if purpose == "tool" else "prometheus-source-build-pair"
     )
     observed = []
+    observed_sources: dict[tuple[int, int], tuple[Any, Any]] = {}
     for run in history:
         if run["id"] == run_id:
             continue
@@ -4703,6 +5005,151 @@ def manual_hosted_admission(
             for job in jobs
             if job.get("name") == job_name and job.get("conclusion") != "skipped"
         ]
+        for job in jobs:
+            if job.get("name") == job_name and job.get("conclusion") != "skipped":
+                key = (run["id"], job["id"])
+                require(key not in observed_sources, "manual_history_duplicate_job")
+                observed_sources[key] = (job.get("run_id"), job.get("head_sha"))
+
+    # AM07 is one explicitly admitted continuation, not a renewable history policy.
+    if ref == "refs/heads/codex/python-setup-security-stabilization":
+        require(prefetch_predecessor is None, "stabilization_has_no_legacy_retry_selector")
+        pr = api.json(f"/repos/{GHCR_REPOSITORY}/pulls/2497")
+        require(
+            type(pr) is dict
+            and pr.get("number") == 2497
+            and pr.get("state") == "open"
+            and type(pr.get("head")) is dict
+            and type(pr.get("base")) is dict
+            and pr["head"].get("ref") == "codex/python-setup-security-stabilization"
+            and pr["head"].get("sha") == head
+            and pr["head"].get("repo", {}).get("id") == 1043311030
+            and pr["base"].get("ref") == "main"
+            and pr["base"].get("repo", {}).get("id") == 1043311030
+            and current.get("id") == run_id
+            and current.get("head_branch") == "codex/python-setup-security-stabilization",
+            "stabilization_current_PR_source",
+        )
+        expected_spent_runs = (
+            (
+                (
+                    38170923494,
+                    114563178711,
+                    "5de54811121079eadbd3f5d8dbbb8720f712530a",
+                    "codex/dependency-native-runtime-remediation",
+                    "failure",
+                ),
+                (
+                    38192419687,
+                    114627819440,
+                    "15097adaa871a900370f6c57a512fe862dddb041",
+                    "codex/dependency-native-runtime-remediation",
+                    "failure",
+                ),
+                (
+                    38239428418,
+                    114778090287,
+                    "f632572057453d57975a397a5b2db64894204be0",
+                    "codex/dependency-native-runtime-remediation",
+                    "failure",
+                ),
+                (
+                    38269614712,
+                    114880342307,
+                    "a18d636138bbab67e96c902b1c61f690263c8b55",
+                    "codex/dependency-native-runtime-remediation",
+                    "success",
+                ),
+                (
+                    39020247533,
+                    117360452632,
+                    "9c1b48f8b3a63bf827543cf69090505c1f157fc6",
+                    "codex/consolidate-legacy-ownership-guard",
+                    "success",
+                ),
+                (
+                    40188825249,
+                    121155232821,
+                    "c22d641bc0d4dce56925114c827be6d712db7070",
+                    "codex/python-setup-security-stabilization",
+                    "success",
+                ),
+            )
+            if purpose == "tool"
+            else (
+                (
+                    38291450453,
+                    114952275845,
+                    "b732222719f70fa592218d2255324850843e9eea",
+                    "codex/dependency-native-runtime-remediation",
+                    "success",
+                ),
+                (
+                    39033193167,
+                    117397709770,
+                    "e2b86644a9a0264098f57f1bbca5914a3438fbe6",
+                    "codex/consolidate-legacy-ownership-guard",
+                    "success",
+                ),
+                (
+                    40222244853,
+                    121256136190,
+                    "7e275934593fa83749c5d89054c019fd4f7c6e89",
+                    "codex/python-setup-security-stabilization",
+                    "success",
+                ),
+            )
+        )
+        expected_rows = [
+            {"run_id": r, "job_id": j, "status": "completed", "conclusion": outcome}
+            for r, j, _source, _branch, outcome in expected_spent_runs
+        ]
+        require(
+            sorted(observed, key=lambda value: (value["run_id"], value["job_id"])) == expected_rows,
+            "stabilization_complete_spent_history",
+        )
+        for prior_run, prior_job, prior_source, prior_branch, outcome in expected_spent_runs:
+            runs = [row for row in history if row.get("id") == prior_run]
+            require(len(runs) == 1, "stabilization_prior_run_unique")
+            prior = runs[0]
+            require(
+                prior.get("head_sha") == prior_source
+                and prior.get("head_branch") == prior_branch
+                and type(prior.get("run_attempt")) is int
+                and prior["run_attempt"] == 1
+                and prior.get("event") == "workflow_dispatch"
+                and prior.get("workflow_id") == workflow["id"]
+                and prior.get("status") == "completed"
+                and prior.get("conclusion") == outcome
+                and prior.get("repository", {}).get("id") == 1043311030
+                and prior.get("head_repository", {}).get("id") == 1043311030,
+                "stabilization_prior_run_identity",
+            )
+            bound = observed_sources.get((prior_run, prior_job))
+            require(
+                bound == (prior_run, prior_source),
+                "stabilization_prior_job_identity",
+            )
+        current_endpoint = f"/repos/{GHCR_REPOSITORY}/actions/runs/{run_id}/attempts/1/jobs"
+        current_page = api.json(current_endpoint + "?per_page=100&page=1")
+        current_jobs = api.pages(current_endpoint, "jobs", current_page["total_count"])
+        selected = [row for row in current_jobs if row.get("name") == job_name]
+        require(
+            len(selected) == 1
+            and selected[0].get("run_id") == run_id
+            and selected[0].get("head_sha") == head
+            and selected[0].get("status") == "in_progress",
+            "stabilization_current_job_identity",
+        )
+        return {
+            "run_id": run_id,
+            "head": head,
+            "ref": ref,
+            "workflow_id": workflow["id"],
+            "job": job_name,
+            "actual_prior_invocations": observed,
+            "budget": 1 if purpose == "tool" else 2,
+        }
     if prefetch_predecessor is None:
         require(not observed, "nonrenewable_hosted_invocation_budget_spent_or_unknown")
     else:
@@ -5172,7 +5619,7 @@ def manual_hosted_admission(
             name = create[create.index("--name") + 1]
             owner = create[create.index("--label") + 1].removeprefix(LABEL + "=")
             expected = {
-                "image": BASE_CONFIG,
+                "image": HISTORICAL_BASE_CONFIG,
                 "owner": owner,
                 "command": command,
                 "mounts": {
@@ -5183,10 +5630,10 @@ def manual_hosted_admission(
             }
             image = one_object(second_files[f"tool-{kind}-base.stdout"])
             require(
-                image.get("Id") == BASE_CONFIG
+                image.get("Id") == HISTORICAL_BASE_CONFIG
                 and image.get("Os") == "linux"
                 and image.get("Architecture") == "amd64"
-                and BASE in image.get("RepoDigests", [])
+                and HISTORICAL_BASE in image.get("RepoDigests", [])
                 and not image.get("Config", {}).get("Volumes"),
                 "tool_prefetch_second_fixed_base",
             )
@@ -5201,7 +5648,7 @@ def manual_hosted_admission(
             # prior hosted mount paths are data, not current host directories.
             require(
                 create[:4] == ["/usr/bin/docker", "--config", str(work / "docker-config"), "create"]
-                and create[-len(command) - 1 :] == [BASE_CONFIG, *command],
+                and create[-len(command) - 1 :] == [HISTORICAL_BASE_CONFIG, *command],
                 "tool_prefetch_second_exact_offline_argv",
             )
             for phase in ("before", "cleanup-inspect"):
@@ -5312,8 +5759,8 @@ def manual_hosted_admission(
             )
         exact_data(start["failure"], None)
         exact_data(final["failure"], {"class": "QualificationError", "code": "layout_regular_leaf"})
-        for key in set(start) - {"failure"}:
-            exact_data(start[key], final[key])
+        for report_key in set(start) - {"failure"}:
+            exact_data(start[report_key], final[report_key])
         exact_data(final["identity"], "PulsePlate-rebuilt ORAS 1.3.4")
         exact_data(final["source_revision"], ORAS_REVISION)
         exact_data(final["source_tree"], ORAS_TREE)
@@ -5592,7 +6039,7 @@ def manual_hosted_admission(
             container = create[create.index("--name") + 1]
             owner = create[create.index("--label") + 1].removeprefix(LABEL + "=")
             expected = {
-                "image": BASE_CONFIG,
+                "image": HISTORICAL_BASE_CONFIG,
                 "owner": owner,
                 "command": command,
                 "mounts": {
@@ -5603,10 +6050,10 @@ def manual_hosted_admission(
             }
             image = one_object(data["tool-" + name + "-base.stdout"])
             require(
-                image.get("Id") == BASE_CONFIG
+                image.get("Id") == HISTORICAL_BASE_CONFIG
                 and image.get("Os") == "linux"
                 and image.get("Architecture") == "amd64"
-                and BASE in image.get("RepoDigests", [])
+                and HISTORICAL_BASE in image.get("RepoDigests", [])
                 and not image.get("Config", {}).get("Volumes"),
                 "tool_third_fixed_base",
             )
@@ -5622,7 +6069,7 @@ def manual_hosted_admission(
             expected["environment"] = environment
             require(
                 create[:4] == ["/usr/bin/docker", "--config", str(work / "docker-config"), "create"]
-                and create[-len(command) - 1 :] == [BASE_CONFIG, *command],
+                and create[-len(command) - 1 :] == [HISTORICAL_BASE_CONFIG, *command],
                 "tool_third_exact_offline_argv",
             )
             for member in (
@@ -5698,7 +6145,7 @@ def manual_hosted_admission(
             records[41]["argv"] == [binary, "version"]
             and records[42]["argv"] == [binary, "cp", "--help"]
             and records[43]["argv"]
-            == [binary, "cp", "--to-oci-layout", BASE, str(work / "vendor") + ":base"],
+            == [binary, "cp", "--to-oci-layout", HISTORICAL_BASE, str(work / "vendor") + ":base"],
             "tool_third_postcompile_phase",
         )
         observed[2][
@@ -5870,7 +6317,7 @@ def prefetch_modules(
             try:
                 raw = native.run([binary, *command], label + "-" + name, online, cwd=source)
                 if name == "version":
-                    require(raw.decode() == GO_VERSION, "prefetch_qualified_Go")
+                    require(raw.decode() == CURRENT_GO_VERSION, "prefetch_qualified_Go")
                 elif name == "download":
                     decode_modules(raw)
                     downloads = raw
@@ -6208,7 +6655,7 @@ def native_import(
                 require(
                     re.search(rb"\bversion 3\.15\.0\b", output) is not None
                     and REVISION.encode() in output
-                    and b"go1.27.2" in output,
+                    and re.search(rb"\bgo1\.27\.3\b", output) is not None,
                     "native_candidate_version_revision_compiler",
                 )
         return {
@@ -6372,7 +6819,7 @@ def tool_scan_inventory(raw: bytes, subject: str) -> dict[str, Any]:
     )
     require(
         len({(row["Name"], row["Version"]) for row in packages}) == len(packages)
-        and [row["Version"] for row in packages if row["Name"] == "stdlib"] == ["v1.27.2"],
+        and [row["Version"] for row in packages if row["Name"] == "stdlib"] == ["v1.27.3"],
         "tool_native_Go_scanner_coverage",
     )
     identities = {(row["Name"], row["Version"]) for row in packages}
@@ -6504,6 +6951,10 @@ def qualify_tool(
     api = GitHubRead(work / "GitHub-private", evidence, native.deadline, cleanup)
     try:
         admission = manual_hosted_admission(api, "tool", prefetch_predecessor=prefetch_predecessor)
+        require(
+            admission.get("ref") == "refs/heads/codex/python-setup-security-stabilization",
+            "current_tool_requires_stabilization_admission",
+        )
         authenticate_producer_inputs(api, root, admission["head"], tool=True)
     finally:
         api.close()
@@ -6535,10 +6986,10 @@ def qualify_tool(
     try:
         downloads = work / "downloads"
         fresh_directory(downloads)
-        for artifact in (ORAS_SOURCE, GO):
+        for artifact in (ORAS_SOURCE, CURRENT_GO):
             acquire(artifact, downloads / artifact.name, native.deadline)
         source, go = work / "source", work / "go"
-        for artifact, path in ((ORAS_SOURCE, source), (GO, go)):
+        for artifact, path in ((ORAS_SOURCE, source), (CURRENT_GO, go)):
             rows = extract(artifact, downloads / artifact.name, path, native.deadline)
             (evidence / (artifact.name + "-members.json")).write_bytes(canonical_data(rows))
         require(
@@ -6578,7 +7029,7 @@ def qualify_tool(
                 command,
             )
             if label == "version":
-                require(raw.decode() == GO_VERSION, "tool_offline_compiler")
+                require(raw.decode() == CURRENT_GO_VERSION, "tool_offline_compiler")
             elif label == "modules":
                 report["full_modules"] = decode_selected_modules(raw, root_module="oras.land/oras")
                 require(
@@ -6643,7 +7094,7 @@ def qualify_tool(
             output=output,
         )
         require(
-            b"go1.27.2" in buildinfo
+            b"go1.27.3" in buildinfo
             and ORAS_COMMAND.encode() in buildinfo
             and b"\tbuild\tCGO_ENABLED=0" in buildinfo
             and b"\t=>\t" not in buildinfo,
@@ -6653,7 +7104,7 @@ def qualify_tool(
             raw = native.run([str(binary), *command], "ORAS-" + label, env, cwd=work)
             if label == "version":
                 require(
-                    b"1.3.4" in raw and ORAS_REVISION.encode() in raw and b"go1.27.2" in raw,
+                    b"1.3.4" in raw and ORAS_REVISION.encode() in raw and b"go1.27.3" in raw,
                     "tool_native_version",
                 )
             else:
@@ -6871,23 +7322,24 @@ def build_pair(work: Path, root: Path, seconds: int, cleanup: int) -> dict[str, 
     api = GitHubRead(work / "GitHub-private", evidence, preparatory.deadline, cleanup)
     try:
         admission = manual_hosted_admission(api, "pair")
+        require(
+            admission.get("ref") == "refs/heads/codex/python-setup-security-stabilization",
+            "current_pair_requires_stabilization_admission",
+        )
         authenticate_producer_inputs(api, root, admission["head"])
         tool, tool_record = retained_tool(api, root, work)
         qualification = work / "xnet-qualified-input.zip"
-        authenticated_artifact(
-            api,
-            11664089525,
+        qualified = _current_qualification_artifact(api, root, admission, qualification)
+        derived = qualification_locks(
             qualification,
-            expected_run=38037035815,
-            expected_job="prometheus-source-qualification",
-            expected_head="f0442f4fdf5f281730c4584f6352beac09cfd754",
+            producer_root=root,
+            artifact_digest=qualified["artifact"]["digest"],
         )
-        derived = qualification_locks(qualification)
     finally:
         api.close()
     downloads = work / "downloads"
     fresh_directory(downloads)
-    for artifact in (SOURCE, GO, UI, CHECKSUMS):
+    for artifact in (SOURCE, CURRENT_GO, UI, CHECKSUMS):
         acquire(artifact, downloads / artifact.name, preparatory.deadline)
     require(
         (downloads / "checksums")
@@ -6898,7 +7350,7 @@ def build_pair(work: Path, root: Path, seconds: int, cleanup: int) -> dict[str, 
         "pair_official_matching_UI",
     )
     go, ui = work / "go", work / "ui"
-    extract(GO, downloads / "go", go, preparatory.deadline)
+    extract(CURRENT_GO, downloads / "go", go, preparatory.deadline)
     extract(UI, downloads / "ui", ui, preparatory.deadline)
     require(file_hash(go / "LICENSE") == GO_LICENSE, "pair_Go_license")
     docker = shutil.which("docker")
@@ -6991,7 +7443,7 @@ def build_pair(work: Path, root: Path, seconds: int, cleanup: int) -> dict[str, 
                 graph_hashes[binary] = sha(raw)
             acquired = {
                 "source": sha(canonical_data(source_inventory)),
-                "go": GO.digest,
+                "go": CURRENT_GO.digest,
                 "modules": module_record["inventory_sha256"],
                 "UI_transform": transform,
                 "tool_implementations": {
@@ -7488,16 +7940,18 @@ def consume_image(work: Path, root: Path, seconds: int, cleanup: int) -> dict[st
         else:
             # No registry availability probe can substitute for a positive publisher.
             while True:
+                check_deadline(native.deadline)
                 try:
                     admission["publication_predecessor"] = require_publication_predecessor(
                         api, admission["publisher_head"]
                     )
                     break
                 except QualificationError as error:
-                    require(
-                        str(error) == "positive_publication_predecessor_pending_or_missing",
-                        "publication_read_failed",
-                    )
+                    if str(error) not in (
+                        "positive_publication_predecessor_missing",
+                        "positive_publication_predecessor_active",
+                    ):
+                        raise
                     check_deadline(native.deadline)
                     time.sleep(min(5, max(0, native.deadline - time.monotonic())))
             identity, versions = existing_public_package(api)
@@ -7694,14 +8148,16 @@ def consume_image(work: Path, root: Path, seconds: int, cleanup: int) -> dict[st
     return result
 
 
+PACKAGE_VERSION_COUNT_MAX = 20000
+PACKAGE_VERSION_CAPTURE_BYTES_MAX = 1024**2
+PACKAGE_VERSION_STDOUT_BYTES_MAX = 64 * 1024**2
+
+
 def existing_public_package(api: GitHubRead) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     repository = api.json("/repos/" + GHCR_REPOSITORY)
     endpoint = GHCR_REQUESTS[1]
-    package = one_object(
-        api._capture(
-            [api.gh, "api", "--hostname", "github.com", "--method", "GET", endpoint], 1024**2
-        )
-    )
+    package_argv = [api.gh, "api", "--hostname", "github.com", "--method", "GET", endpoint]
+    package = one_object(api._capture(package_argv, 1024**2))
     identity = ghcr_identity(repository, package)
     require(
         identity["repository"]["id"] == 1043311030
@@ -7709,8 +8165,19 @@ def existing_public_package(api: GitHubRead) -> tuple[dict[str, Any], list[dict[
         and identity["package"]["id"] == 9374404,
         "existing_public_package_exact_IDs",
     )
-    versions = []
-    for page in range(1, 101):
+    raw_count = package.get("version_count")
+    require(
+        type(raw_count) is int and 0 <= raw_count <= PACKAGE_VERSION_COUNT_MAX,
+        "package_version_count",
+    )
+    count = cast(int, raw_count)
+    versions: list[dict[str, Any]] = []
+    seen_ids: set[int] = set()
+    stdout_bytes = 0
+    terminal_page = count // 100 + 1
+    for page in range(1, terminal_page + 1):
+        remaining = PACKAGE_VERSION_STDOUT_BYTES_MAX - stdout_bytes
+        require(remaining > 0, "package_inventory_stdout_bound")
         raw = api._capture(
             [
                 api.gh,
@@ -7721,8 +8188,10 @@ def existing_public_package(api: GitHubRead) -> tuple[dict[str, Any], list[dict[
                 "GET",
                 endpoint + f"/versions?per_page=100&page={page}",
             ],
-            16 * 1024**2,
+            min(PACKAGE_VERSION_CAPTURE_BYTES_MAX, remaining),
         )
+        stdout_bytes += len(raw)
+        require(stdout_bytes <= PACKAGE_VERSION_STDOUT_BYTES_MAX, "package_inventory_stdout_bound")
         values = json.loads(raw, object_pairs_hook=unique_object, parse_constant=reject_constant)
         require(
             type(values) is list
@@ -7732,13 +8201,28 @@ def existing_public_package(api: GitHubRead) -> tuple[dict[str, Any], list[dict[
             ),
             "package_native_versions",
         )
-        versions.extend(values)
+        expected_rows = count % 100 if page == terminal_page else 100
         require(
-            len({row["id"] for row in versions}) == len(versions), "package_pagination_distinct"
+            len(values) == expected_rows and len(versions) + len(values) <= count,
+            "package_complete_inventory_count",
         )
-        if len(values) < 100:
-            return identity, versions
-    raise QualificationError("package_complete_inventory_bound")
+        page_ids = {row["id"] for row in values}
+        require(
+            len(page_ids) == len(values) and not seen_ids.intersection(page_ids),
+            "package_pagination_distinct",
+        )
+        seen_ids.update(page_ids)
+        versions.extend(values)
+    require(len(versions) == count, "package_complete_inventory_count")
+    after_repository = api.json("/repos/" + GHCR_REPOSITORY)
+    after_package = one_object(api._capture(package_argv, 1024**2))
+    after_identity = ghcr_identity(after_repository, after_package)
+    after_count = after_package.get("version_count")
+    require(
+        after_identity == identity and type(after_count) is int and after_count == count,
+        "package_inventory_identity_or_count_drift",
+    )
+    return identity, versions
 
 
 def immutable_tag_state(versions: list[dict[str, Any]], tag: str, digest: str) -> bool:
@@ -7788,18 +8272,78 @@ def promote_image(work: Path, root: Path, seconds: int, cleanup: int) -> dict[st
             in ("new_main_selection", "historical_main_recovery", "unchanged_published"),
             "publisher_event_table",
         )
-        endpoint = f'/repos/{GHCR_REPOSITORY}/actions/runs/{os.environ["GITHUB_RUN_ID"]}/attempts/{os.environ["GITHUB_RUN_ATTEMPT"]}/jobs'
-        page = api.json(endpoint + "?per_page=100&page=1")
-        jobs = api.pages(endpoint, "jobs", page["total_count"])
-        for name in ("build", "security-scan"):
-            required = [row for row in jobs if row.get("name") == name]
+        run_text = os.environ.get("GITHUB_RUN_ID", "")
+        attempt_text = os.environ.get("GITHUB_RUN_ATTEMPT", "")
+        require(
+            re.fullmatch(r"[1-9][0-9]*", run_text) is not None
+            and re.fullmatch(r"[1-9][0-9]*", attempt_text) is not None,
+            "publisher_run_attempt_coordinates",
+        )
+        run_id, attempt = int(run_text), int(attempt_text)
+        run_url = f"https://api.github.com/repos/{GHCR_REPOSITORY}/actions/runs/{run_text}"
+        endpoint = f"/repos/{GHCR_REPOSITORY}/actions/runs/{run_text}/attempts/{attempt_text}/jobs"
+        # Observe the whole same-run backend writer, including its attestations.
+        # Valid pending states share this publication deadline; failed reads never retry.
+        selected_ids: dict[str, int] | None = None
+        previous_publish_status: str | None = None
+        for observation in range(16):
+            check_deadline(api.deadline)
+            page = api.json(endpoint + "?per_page=100&page=1")
+            count = page.get("total_count") if type(page) is dict else None
             require(
-                len(required) == 1
-                and required[0].get("head_sha") == head
-                and required[0].get("conclusion") == "success"
-                and required[0].get("status") == "completed",
-                "publisher_positive_build_security_predecessors",
+                type(count) is int and 0 <= count <= 100,
+                "publisher_jobs_count",
             )
+            jobs = api.pages(endpoint, "jobs", cast(int, count))
+            selected: dict[str, dict[str, Any]] = {}
+            for name in ("build", "security-scan", "publish"):
+                required = [row for row in jobs if row.get("name") == name]
+                require(len(required) == 1, "publisher_selected_job_cardinality")
+                row = required[0]
+                require(
+                    all(
+                        type(row.get(key)) is int and row[key] > 0
+                        for key in ("id", "run_id", "run_attempt")
+                    )
+                    and row["run_id"] == run_id
+                    and row["run_attempt"] == attempt
+                    and row.get("head_sha") == head
+                    and row.get("head_branch") == "main"
+                    and row.get("run_url") == run_url,
+                    "publisher_selected_job_identity",
+                )
+                selected[name] = row
+            current_ids = {name: row["id"] for name, row in selected.items()}
+            require(
+                selected_ids is None or selected_ids == current_ids,
+                "publisher_selected_job_identity_drift",
+            )
+            selected_ids = current_ids
+            for name in ("build", "security-scan"):
+                require(
+                    selected[name].get("status") == "completed"
+                    and selected[name].get("conclusion") == "success",
+                    "publisher_positive_build_security_predecessors",
+                )
+            writer = selected["publish"]
+            status = writer.get("status")
+            require(
+                status in ("queued", "in_progress", "completed") and "conclusion" in writer,
+                "publisher_backend_publish_state",
+            )
+            require(
+                previous_publish_status != "in_progress" or status != "queued",
+                "publisher_backend_publish_regression",
+            )
+            if status == "completed":
+                require(writer["conclusion"] == "success", "publisher_backend_publish_success")
+                break
+            require(writer["conclusion"] is None, "publisher_backend_publish_state")
+            previous_publish_status = status
+            require(observation < 15, "publisher_backend_publish_wait_bound")
+            check_deadline(api.deadline)
+            time.sleep(min(60, max(0, api.deadline - time.monotonic())))
+            check_deadline(api.deadline)
         manifest = read_image_manifest(root / MANIFEST_PATH)
         selection = manifest["selection"]
         candidate = None
@@ -7814,6 +8358,8 @@ def promote_image(work: Path, root: Path, seconds: int, cleanup: int) -> dict[st
             require(file_hash(tool) == expected_tool, "publisher_retained_tool_changed")
         else:
             predecessor = require_publication_predecessor(api, event["before"])
+        current = api.json(f"/repos/{GHCR_REPOSITORY}/git/ref/heads/main")
+        require(current.get("object", {}).get("sha") == head, "publisher_main_before_inventory")
         identity, before = existing_public_package(api)
         tag = "prometheus-3.15.0-" + selection["manifest_digest"][7:]
         present = immutable_tag_state(before, tag, selection["manifest_digest"])

@@ -15,6 +15,7 @@ import tempfile
 import types
 import zipfile
 from contextlib import contextmanager
+from collections.abc import Callable
 from datetime import datetime, timezone
 from email.utils import format_datetime
 from pathlib import Path
@@ -23,6 +24,9 @@ from typing import Any
 from unittest.mock import patch
 from urllib.parse import urlparse
 
+from packaging.requirements import Requirement
+from packaging.utils import canonicalize_name
+from packaging.version import Version
 import pytest
 from pip._internal.network.session import InsecureHTTPAdapter, PipSession
 from pip._vendor import certifi
@@ -39,7 +43,7 @@ DEVPI_SIMPLE_TOKEN = "token-123"
 DEVPI_SIMPLE_URL = "https://packages.pulseplate.app/root/pulseplate/+simple/"
 DEVPI_ROOT_USER = "root"
 REPO_ROOT = Path(__file__).resolve().parents[1]
-RAG_VECTOR_EXPECTED_FASTEMBED_VERSION = "0.8.0"
+RAG_VECTOR_EXPECTED_FASTEMBED_VERSION = "0.8.0+pulseplate.1"
 MAIN_PREFLIGHT_TESTS = {
     "test_main_preflight_only_skips_requirements_file_resolution",
 }
@@ -2953,7 +2957,43 @@ def test_repo_mypy_dev_requirement_surfaces_no_longer_need_emergency_fallback() 
     assert not any(package == "mypy" for package, _version in artifacts)
 
 
+def _assert_black_install_profile(repo_root: Path) -> None:
+    """Use live artifact pins and source membership, without a second security floor."""
+    selected: str | None = None
+    for filename in (
+        "requirements-dev.txt",
+        "requirements-lock.txt",
+        "requirements-dev.in",
+        "constraints.txt",
+        "requirements-all.txt",
+    ):
+        path = repo_root / filename
+        entries = [
+            Requirement(line)
+            for raw in path.read_text(encoding="utf-8").splitlines()
+            if (line := raw.split("#", 1)[0].strip()) and not line.startswith("-")
+        ]
+        matching = [entry for entry in entries if canonicalize_name(entry.name) == "black"]
+        assert len(matching) == 1, f"{filename}: expected one Black owner"
+        requirement = matching[0]
+        assert requirement.marker is None and requirement.url is None and not requirement.extras
+        if filename in {"requirements-dev.txt", "requirements-lock.txt"}:
+            specifiers = tuple(requirement.specifier)
+            assert len(specifiers) == 1 and specifiers[0].operator == "=="
+            assert "*" not in specifiers[0].version
+            version = str(Version(specifiers[0].version))
+            assert ("black", version) in installer._exact_locked_artifacts([path])
+            if selected is None:
+                selected = version
+            else:
+                assert version == selected, "Black installed profile locks disagree"
+        else:
+            assert selected is not None and requirement.specifier
+            assert requirement.specifier.contains(selected), "Black is outside owning input range"
+
+
 def test_repo_quality_tooling_profile_matches_dependabot_replacement_contract() -> None:
+    _assert_black_install_profile(REPO_ROOT)
     artifacts = {(item["package"], item["version"]) for item in _repo_active_emergency_artifacts()}
     constraints_text = (REPO_ROOT / "constraints.txt").read_text(encoding="utf-8")
     requirements_all_text = (REPO_ROOT / "requirements-all.txt").read_text(encoding="utf-8")
@@ -2962,16 +3002,12 @@ def test_repo_quality_tooling_profile_matches_dependabot_replacement_contract() 
     requirements_lock_txt = (REPO_ROOT / "requirements-lock.txt").read_text(encoding="utf-8")
     expected_ruff_version = _compatible_release_version(requirements_dev_in, "ruff")
     assert expected_ruff_version is not None
-    assert _minimum_requirement_version(constraints_text, "black") == "26.5.1"
     assert _minimum_requirement_version(constraints_text, "mypy") == "2.3.1"
     assert _minimum_requirement_version(constraints_text, "ruff") == expected_ruff_version
-    assert _minimum_requirement_version(requirements_all_text, "black") == "26.5.1"
     assert _minimum_requirement_version(requirements_all_text, "mypy") == "2.3.1"
     assert _minimum_requirement_version(requirements_all_text, "ruff") == expected_ruff_version
 
-    assert _compatible_release_version(requirements_dev_in, "black") == "26.5.1"
     assert ("mypy", "2.3.1") in _exact_requirement_pairs(requirements_dev_in)
-    assert ("black", "26.5.1") in _exact_requirement_pairs(requirements_dev_txt)
     assert ("mypy", "2.3.1") in _exact_requirement_pairs(requirements_dev_txt)
     assert ("ruff", expected_ruff_version) in _exact_requirement_pairs(requirements_dev_txt)
     assert ("ast-serialize", "0.6.0") in _exact_requirement_pairs(requirements_dev_txt)
@@ -2986,10 +3022,11 @@ def test_repo_quality_tooling_profile_matches_dependabot_replacement_contract() 
 
 
 def test_repo_ds3_test_quality_inputs_locks_and_emergency_manifest_align() -> None:
+    _assert_black_install_profile(REPO_ROOT)
     artifacts = {(item["package"], item["version"]) for item in _repo_active_emergency_artifacts()}
+    assert not any(package == "black" for package, _version in artifacts)
     exact_targets = {
         "bandit": ("bandit", "1.9.4"),
-        "black": ("black", "26.5.1"),
         "coverage": ("coverage[toml]", "7.15.4"),
         "faker": ("faker", "40.37.0"),
         "hypothesis": ("hypothesis", "6.165.10"),
@@ -3043,7 +3080,7 @@ def test_repo_ds3_test_quality_inputs_locks_and_emergency_manifest_align() -> No
     docker_runtime_pairs = _exact_requirement_pairs(
         (REPO_ROOT / "requirements-docker-runtime.txt").read_text(encoding="utf-8")
     )
-    for package in exact_targets:
+    for package in (*exact_targets, "black"):
         assert not any(candidate == package for candidate, _version in runtime_pairs)
         assert not any(candidate == package for candidate, _version in docker_runtime_pairs)
 
@@ -3137,7 +3174,7 @@ def test_repo_rag_vector_profiles_use_fastembed_without_torch_backend() -> None:
 
 def test_repo_docker_pip_upgrade_uses_locked_installer_fallback() -> None:
     dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
-    assert 'ARG PIP_VERSION_RANGE="pip>=26.1,<27.0"' in dockerfile
+    assert 'ARG PIP_VERSION_RANGE="pip>=26.2.2,<27.0"' in dockerfile
     builder_stage = _dockerfile_stage(dockerfile, "builder")
     runtime_stage = _dockerfile_stage(dockerfile, "runtime-base")
 
@@ -6583,9 +6620,15 @@ def test_main_runs_download_install_and_static_guard_without_pip_self_upgrade(
     assert observed_guard_python == ["staging-python"]
 
 
+@pytest.mark.parametrize(
+    "explicit_spec,expected_spec",
+    [(None, "pip>=26.2.2,<27.0"), ("pip>=26.0,<27.0", "pip>=26.0,<27.0")],
+)
 def test_main_runs_optional_pip_upgrade_only_when_requested(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
+    explicit_spec: str | None,
+    expected_spec: str,
 ) -> None:
     requirements = tmp_path / "requirements.txt"
     requirements.write_text("openai==2.29.0\n", encoding="utf-8")
@@ -6612,6 +6655,7 @@ def test_main_runs_optional_pip_upgrade_only_when_requested(
             "--wheelhouse-dir",
             str(wheelhouse_dir),
             "--upgrade-pip",
+            *([] if explicit_spec is None else ["--upgrade-pip-spec", explicit_spec]),
         ]
     )
 
@@ -6631,13 +6675,19 @@ def test_main_runs_optional_pip_upgrade_only_when_requested(
         ":all:",
         "--index-url",
         APPROVED_PROXY_URL,
-        "pip",
+        expected_spec,
     ]
 
 
+@pytest.mark.parametrize(
+    "explicit_spec,expected_spec",
+    [(None, "pip>=26.2.2,<27.0"), ("pip>=26.0,<27.0", "pip>=26.0,<27.0")],
+)
 def test_main_upgrade_pip_only_skips_requirements_resolution(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
+    explicit_spec: str | None,
+    expected_spec: str,
 ) -> None:
     missing_requirements = tmp_path / "missing-requirements.txt"
     observed_calls: list[dict[str, object]] = []
@@ -6655,8 +6705,7 @@ def test_main_upgrade_pip_only_skips_requirements_resolution(
             "--requirements-file",
             str(missing_requirements),
             "--upgrade-pip-only",
-            "--upgrade-pip-spec",
-            "pip>=26.0,<27.0",
+            *([] if explicit_spec is None else ["--upgrade-pip-spec", explicit_spec]),
             "--index-url",
             APPROVED_PROXY_URL,
         ]
@@ -6666,7 +6715,7 @@ def test_main_upgrade_pip_only_skips_requirements_resolution(
     assert observed_calls == [
         {
             "python_executable": "python",
-            "pip_spec": "pip>=26.0,<27.0",
+            "pip_spec": expected_spec,
             "index_url": APPROVED_PROXY_URL,
             "trusted_host": None,
             "emergency_wheel_manifest": None,
@@ -8598,3 +8647,87 @@ def test_sdk_native_hash_check_is_static_and_preserves_exact_soname_rule(
     else:
         with pytest.raises((RuntimeError, OSError)):
             installer._check_psycopg_native_libraries(root, expected)
+
+
+@pytest.fixture
+def future_black_profile_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A later Black patch keeps current non-Black contracts and unchanged source floors."""
+    filenames = (
+        "constraints.txt",
+        "requirements-all.txt",
+        "requirements-dev.in",
+        "requirements-dev.txt",
+        "requirements-lock.txt",
+        "requirements-test.in",
+        "requirements-ci-lite.in",
+        "requirements-test.txt",
+        "requirements-ci-lite.txt",
+        "requirements.txt",
+        "requirements-docker-runtime.txt",
+        "scripts/ci/emergency_python_wheels.json",
+    )
+    for filename in filenames:
+        destination = tmp_path / filename
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes((REPO_ROOT / filename).read_bytes())
+    for filename in ("requirements-dev.txt", "requirements-lock.txt"):
+        path = tmp_path / filename
+        text, count = re.subn(r"(?m)^black==[^\s]+$", "black==26.10.2", path.read_text())
+        assert count == 1
+        path.write_text(text, encoding="utf-8")
+    for filename in ("requirements-dev.in", "constraints.txt", "requirements-all.txt"):
+        path = tmp_path / filename
+        operator = "~=" if filename == "requirements-dev.in" else ">="
+        text, count = re.subn(r"(?mi)^black[^\n]*$", f"black{operator}26.10.1", path.read_text())
+        assert count == 1
+        path.write_text(text, encoding="utf-8")
+    monkeypatch.setattr(f"{__name__}.REPO_ROOT", tmp_path)
+    return tmp_path
+
+
+@pytest.mark.parametrize(
+    "consumer",
+    (
+        test_repo_quality_tooling_profile_matches_dependabot_replacement_contract,
+        test_repo_ds3_test_quality_inputs_locks_and_emergency_manifest_align,
+    ),
+)
+def test_black_installer_consumers_allow_later_safe_patch(
+    future_black_profile_repo: Path, consumer: Callable[[], None]
+) -> None:
+    consumer()
+
+
+@pytest.mark.parametrize(
+    "consumer",
+    (
+        test_repo_quality_tooling_profile_matches_dependabot_replacement_contract,
+        test_repo_ds3_test_quality_inputs_locks_and_emergency_manifest_align,
+    ),
+)
+def test_black_installer_consumers_reject_any_emergency_version(
+    future_black_profile_repo: Path, monkeypatch: pytest.MonkeyPatch, consumer: Callable[[], None]
+) -> None:
+    monkeypatch.setattr(
+        f"{__name__}._repo_active_emergency_artifacts",
+        lambda: [{"package": "black", "version": "9999.0.0"}],
+    )
+    with pytest.raises(AssertionError):
+        consumer()
+
+
+@pytest.mark.parametrize("mutation", ("mismatch", "duplicate", "source-excludes"))
+def test_black_installer_profile_rejects_ambiguous_or_incompatible_inputs(
+    future_black_profile_repo: Path, mutation: str
+) -> None:
+    if mutation == "mismatch":
+        path = future_black_profile_repo / "requirements-lock.txt"
+        path.write_text(path.read_text().replace("black==26.10.2", "black==26.10.3"))
+    elif mutation == "duplicate":
+        path = future_black_profile_repo / "requirements-dev.txt"
+        path.write_text(path.read_text() + "Black==26.10.2\n")
+    else:
+        path = future_black_profile_repo / "requirements-dev.in"
+        path.write_text(path.read_text().replace("black~=26.10.1", "black~=26.11.0"))
+    with pytest.raises(AssertionError):
+        _assert_black_install_profile(future_black_profile_repo)

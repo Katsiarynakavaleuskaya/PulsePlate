@@ -597,6 +597,25 @@ _METADATA_MATERIAL_CONCURRENCY_GROUP = (
     "(github.event.action == 'edited' || github.event.action == 'labeled' || "
     "github.event.action == 'unlabeled') && 'metadata' || 'material' }}"
 )
+_CADDY_PRODUCER_CONCURRENCY_SUFFIX = (
+    "${{ inputs.caddy_action == 'candidate-D' && '-caddy-D-producer' || '' }}"
+)
+_CONCURRENCY_GROUP_BY_WORKFLOW = {
+    CI_WORKFLOW_PATH: _METADATA_MATERIAL_CONCURRENCY_GROUP,
+    FRONTEND_CI_WORKFLOW_PATH: (
+        _METADATA_MATERIAL_CONCURRENCY_GROUP + _CADDY_PRODUCER_CONCURRENCY_SUFFIX
+    ),
+}
+_FRONTEND_CADDY_DISPATCH = {
+    "inputs": {
+        "caddy_action": {
+            "description": "Import retained candidate, qualify metadata, or spend the single accepted D CI build",
+            "type": "choice",
+            "default": "contract",
+            "options": ["contract", "xnet060-metadata", "candidate-D"],
+        }
+    }
+}
 _CONCURRENCY_WORKFLOW_CONTRACTS = (
     (
         CI_WORKFLOW_PATH,
@@ -619,12 +638,14 @@ def _assert_metadata_material_concurrency_contract(
     workflow: dict[str, object],
     expected_pr_types: tuple[str, ...],
     expected_events: tuple[str, ...],
+    *,
+    path: Path,
 ) -> None:
     """Require the exact native event partition and unchanged declared trigger inventories."""
     concurrency = workflow["concurrency"]
     assert isinstance(concurrency, dict)
     assert concurrency == {
-        "group": _METADATA_MATERIAL_CONCURRENCY_GROUP,
+        "group": _CONCURRENCY_GROUP_BY_WORKFLOW[path],
         "cancel-in-progress": True,
     }
     assert concurrency["cancel-in-progress"] is True
@@ -636,6 +657,8 @@ def _assert_metadata_material_concurrency_contract(
     pull_request = on_section["pull_request"]
     assert isinstance(pull_request, dict)
     assert pull_request["types"] == list(expected_pr_types)
+    if path == FRONTEND_CI_WORKFLOW_PATH:
+        assert on_section["workflow_dispatch"] == _FRONTEND_CADDY_DISPATCH
 
 
 @pytest.mark.parametrize(
@@ -651,7 +674,9 @@ def test_ci_and_frontend_concurrency_separate_metadata_from_material(
     material_actions: tuple[str, ...],
 ) -> None:
     """Pin native concurrency source shape without interpreting GitHub expressions."""
-    _assert_metadata_material_concurrency_contract(_load_workflow(path), pr_types, events)
+    _assert_metadata_material_concurrency_contract(
+        _load_workflow(path), pr_types, events, path=path
+    )
 
 
 @pytest.mark.parametrize(
@@ -682,16 +707,7 @@ def test_ci_and_frontend_concurrency_preserve_declared_events(
     assert "push" in on_section
     if "workflow_dispatch" in events:
         if path == FRONTEND_CI_WORKFLOW_PATH:
-            assert on_section["workflow_dispatch"] == {
-                "inputs": {
-                    "caddy_action": {
-                        "description": "Explicit metadata qualification; never compiles a Caddy candidate",
-                        "type": "choice",
-                        "default": "contract",
-                        "options": ["contract", "xnet060-metadata"],
-                    }
-                }
-            }
+            assert on_section["workflow_dispatch"] == _FRONTEND_CADDY_DISPATCH
         else:
             assert on_section["workflow_dispatch"] is None
     # The exact native expression owns event-name guarding and material fallback.
@@ -733,7 +749,7 @@ def test_ci_and_frontend_concurrency_contract_rejects_mutations(
 ) -> None:
     """Reject bounded group, cancellation and trigger drift through the existing YAML seam."""
     workflow = _load_workflow(path)
-    _assert_metadata_material_concurrency_contract(workflow, pr_types, events)
+    _assert_metadata_material_concurrency_contract(workflow, pr_types, events, path=path)
     concurrency = workflow["concurrency"]
     assert isinstance(concurrency, dict)
     group = concurrency["group"]
@@ -786,7 +802,89 @@ def test_ci_and_frontend_concurrency_contract_rejects_mutations(
         else:
             raise AssertionError(f"Unexpected concurrency mutation: {mutation}")
     with pytest.raises(AssertionError):
-        _assert_metadata_material_concurrency_contract(workflow, pr_types, events)
+        _assert_metadata_material_concurrency_contract(workflow, pr_types, events, path=path)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "producer-suffix-missing",
+        "producer-discriminator",
+        "producer-suffix-value",
+        "producer-fallback",
+        "dispatch-input-missing",
+        "dispatch-extra-input",
+        "dispatch-description",
+        "dispatch-type",
+        "dispatch-default",
+        "dispatch-choice-missing",
+        "dispatch-choice-extra",
+        "dispatch-choice-order",
+        "dispatch-choice-duplicate",
+    ),
+)
+def test_frontend_caddy_producer_contract_rejects_independent_mutations(mutation: str) -> None:
+    """Challenge the exact accepted producer/dispatch literals without evaluating expressions."""
+    path, pr_types, events, _metadata_actions, _material_actions = _CONCURRENCY_WORKFLOW_CONTRACTS[
+        1
+    ]
+    assert path == FRONTEND_CI_WORKFLOW_PATH
+    workflow = _load_workflow(path)
+    _assert_metadata_material_concurrency_contract(workflow, pr_types, events, path=path)
+    baseline = deepcopy(workflow)
+    concurrency = workflow["concurrency"]
+    assert isinstance(concurrency, dict)
+    group = concurrency["group"]
+    assert isinstance(group, str)
+    if mutation == "producer-suffix-missing":
+        concurrency["group"] = group.replace(_CADDY_PRODUCER_CONCURRENCY_SUFFIX, "", 1)
+    elif mutation == "producer-discriminator":
+        concurrency["group"] = group.replace(
+            "inputs.caddy_action == 'candidate-D'", "inputs.caddy_action == 'contract'", 1
+        )
+    elif mutation == "producer-suffix-value":
+        concurrency["group"] = group.replace("'-caddy-D-producer'", "'-material'", 1)
+    elif mutation == "producer-fallback":
+        concurrency["group"] = group.replace("|| '' }}", "|| '-caddy-D-producer' }}", 1)
+    else:
+        on_section = workflow.get("on")
+        if on_section is None:
+            on_section = cast(dict[object, object], workflow).get(True)
+        assert isinstance(on_section, dict)
+        dispatch = on_section["workflow_dispatch"]
+        assert isinstance(dispatch, dict)
+        inputs = dispatch["inputs"]
+        assert isinstance(inputs, dict)
+        action = inputs["caddy_action"]
+        assert isinstance(action, dict)
+        if mutation == "dispatch-input-missing":
+            del inputs["caddy_action"]
+        elif mutation == "dispatch-extra-input":
+            inputs["second_action"] = deepcopy(action)
+        elif mutation == "dispatch-description":
+            action["description"] = (
+                "Explicit metadata qualification; never compiles a Caddy candidate"
+            )
+        elif mutation == "dispatch-type":
+            action["type"] = "string"
+        elif mutation == "dispatch-default":
+            action["default"] = "candidate-D"
+        else:
+            options = action["options"]
+            assert isinstance(options, list)
+            if mutation == "dispatch-choice-missing":
+                options.remove("candidate-D")
+            elif mutation == "dispatch-choice-extra":
+                options.append("rebuild")
+            elif mutation == "dispatch-choice-order":
+                options.reverse()
+            elif mutation == "dispatch-choice-duplicate":
+                options.append("candidate-D")
+            else:
+                raise AssertionError(f"Unexpected producer contract mutation: {mutation}")
+    assert workflow != baseline
+    with pytest.raises(AssertionError):
+        _assert_metadata_material_concurrency_contract(workflow, pr_types, events, path=path)
 
 
 _CANCELLATION_JOB_IDS = (
@@ -1153,9 +1251,8 @@ def test_all_active_checkout_uses_have_one_exact_v7_pin() -> None:
         ".github/workflows/security.yml",
         ".github/workflows/trivy.yml",
     }
-    # The 95 prior execution sites lose two redundant checkout steps in each
-    # of the two Prometheus CD jobs sharing the same step-list alias.
-    assert len(observed_checkout_uses) == 91
+    # Incoming 91 sites, six retained consumers and two restored manual producer/support sites.
+    assert len(observed_checkout_uses) == 99
     assert {path for path, _ in observed_checkout_uses} == expected_checkout_workflows
 
 
@@ -3579,7 +3676,7 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
             f"aquasecurity/trivy-action@{TRIVY_ACTION_NODE24_CACHE_SHA}",
             {
                 "version": "v0.74.0",
-                "image-ref": "gcr.io/distroless/static-debian13@sha256:2293b36c7c9082bf4115aab724b4d2cddec82c8eba39bf27ac0517e159acf150",
+                "image-ref": "gcr.io/distroless/static-debian13@sha256:433bb346cd0b6b8346462f879adaa4ac0fbb463a72901b46736ede4aeca3dadc",
                 "format": "table",
                 "severity": "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL",
                 "exit-code": "0",
@@ -6326,6 +6423,7 @@ def test_ci_lint_restores_workflow_sha_before_pr_python_startup() -> None:
     restore = _job_step_by_name(workflow, job_id="lint", step_name="Restore lint workflow revision")
     assert restore == {
         "name": "Restore lint workflow revision",
+        "timeout-minutes": 2,
         "if": "github.event_name == 'pull_request'",
         "uses": f"actions/checkout@{CHECKOUT_V7_SHA}",
         "with": {
@@ -6444,6 +6542,10 @@ def _assert_ci_lint_node24_frontend_hook_dependency_contract(
     assert lint_job["env"] == {
         "PROMETHEUS_CONSUME_SECONDS": "900",
         "PROMETHEUS_CLEANUP_SECONDS": "120",
+        "ALERTMANAGER_JOB_TIMEOUT_MINUTES": "${{ fromJSON(vars.CI_LINT_TIMEOUT_MINUTES || '190') }}",
+        "ALERTMANAGER_CALLER_KIND": "ci-lint",
+        "ALERTMANAGER_GENERIC_NATIVE_MINUTES": "${{ vars.OBS2A_NATIVE_JOB_TIMEOUT_MINUTES || '40' }}",
+        "ALERTMANAGER_LINT_CHECK_MINUTES": "${{ vars.CI_LINT_CHECKS_TIMEOUT_MINUTES || '60' }}",
     }
     assert "environment" not in lint_job, "ci_lint_reader_environment"
     for forbidden_key in (
@@ -6469,6 +6571,7 @@ def _assert_ci_lint_node24_frontend_hook_dependency_contract(
     checkout_step = unique_step("Checkout")
     assert checkout_step == {
         "name": "Checkout",
+        "timeout-minutes": 1,
         "uses": f"actions/checkout@{CHECKOUT_V7_SHA}",
         "with": {
             "fetch-depth": 0,
@@ -6480,6 +6583,7 @@ def _assert_ci_lint_node24_frontend_hook_dependency_contract(
     setup_node_step = unique_step("Setup Node.js")
     assert setup_node_step == {
         "name": "Setup Node.js",
+        "timeout-minutes": 3,
         "uses": f"actions/setup-node@{SETUP_NODE_NODE24_SHA}",
         "with": {
             "node-version-file": "${{ env.FRONTEND_NODE_VERSION_FILE }}",
@@ -6495,14 +6599,93 @@ def _assert_ci_lint_node24_frontend_hook_dependency_contract(
     install_step = install_steps[0]
     assert install_step == {
         "uses": "./.github/actions/npm-ci-with-retry",
+        "timeout-minutes": 6,
         "with": {"working-directory": "frontend"},
     }
 
     pre_commit_step = unique_step("Pre-commit (lint/format/security quick checks)")
     assert pre_commit_step == {
         "name": "Pre-commit (lint/format/security quick checks)",
-        "timeout-minutes": "${{ fromJSON(vars.CI_LINT_CHECKS_TIMEOUT_MINUTES || '40') }}",
-        "run": "pre-commit run --all-files --show-diff-on-failure",
+        "timeout-minutes": "${{ fromJSON(env.ALERTMANAGER_LINT_CHECK_MINUTES) }}",
+        "run": (
+            "set -euo pipefail\n"
+            ': "${RUNNER_TEMP:?RUNNER_TEMP is required for the owned pip seed.}"\n'
+            'pip_seed_root="$(mktemp -d "$RUNNER_TEMP/pulseplate-hook-seed.XXXXXXXX")"\n'
+            "trap 'rm -rf -- \"$pip_seed_root\"' EXIT\n"
+            "env -u PULSEPLATE_PSYCOPG_C_SDK python - \"$pip_seed_root\" <<'PY'\n"
+            "import json\n"
+            "from pathlib import Path\n"
+            "import sys\n"
+            "from scripts.ci.install_locked_python_requirements import (\n"
+            "    acquire_locked_wheelhouse,\n"
+            "    _validate_exact_wheelhouse,\n"
+            "    resolve_private_proxy_settings,\n"
+            ")\n"
+            "\n"
+            "root = Path(sys.argv[1])\n"
+            'requirement = root / "pip-seed.txt"\n'
+            'requirement.write_text("pip==26.2.2\\n", encoding="utf-8")\n'
+            "index, trusted_host = resolve_private_proxy_settings(index_url=None, trusted_host=None)\n"
+            "acquire_locked_wheelhouse(\n"
+            "    python_executable=sys.executable, requirement_files=[requirement],\n"
+            '    constraints_file=None, wheelhouse=root / "wheels",\n'
+            "    index_url=index, trusted_host=trusted_host, sdk=None,\n"
+            ")\n"
+            "artifacts = _validate_exact_wheelhouse(\n"
+            '    wheelhouse=root / "wheels", expected=frozenset({("pip", "26.2.2")}),\n'
+            ")\n"
+            "seed = artifacts[0]\n"
+            'if (seed.path.name != "pip-26.2.2-py3-none-any.whl"\n'
+            "    or seed.snapshot.size != 1819850\n"
+            '    or seed.snapshot.digest != "fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70"):\n'
+            '    raise SystemExit("Missing or incorrect reviewed pip seed")\n'
+            'print(json.dumps({"pip_seed": seed.path.name, "bytes": seed.snapshot.size,\n'
+            '                  "sha256": seed.snapshot.digest}))\n'
+            "PY\n"
+            "export VIRTUALENV_PIP=26.2.2\n"
+            'export VIRTUALENV_EXTRA_SEARCH_DIR="$pip_seed_root/wheels"\n'
+            "export VIRTUALENV_NO_PERIODIC_UPDATE=true\n"
+            "export VIRTUALENV_DOWNLOAD=false\n"
+            'export VIRTUALENV_APP_DATA="$pip_seed_root/app-data"\n'
+            'export PRE_COMMIT_HOME="$pip_seed_root/pre-commit"\n'
+            'mkdir -m 700 "$PRE_COMMIT_HOME"\n'
+            "pip_observation='import hashlib, importlib.metadata, json, sys\n"
+            "from pathlib import Path\n"
+            "import pip._vendor.certifi as certifi\n"
+            'version = importlib.metadata.version("pip")\n'
+            "trust = hashlib.sha256(Path(certifi.where()).read_bytes()).hexdigest()\n"
+            'print(json.dumps({"python": sys.executable, "prefix": sys.prefix,\n'
+            '                  "base_prefix": sys.base_prefix, "pip": version,\n'
+            '                  "embedded_trust_store_sha256": trust}))\n'
+            "assert sys.prefix != sys.base_prefix\n"
+            'assert version == "26.2.2"\n'
+            'assert trust == "50f79f98dac192b20dbf73f35c56f0b0c557ab267ff5199d1117cc1180b70785"\n'
+            "'\n"
+            "python -m virtualenv --no-download --no-periodic-update \\\n"
+            '  --app-data "$VIRTUALENV_APP_DATA" "$pip_seed_root/probe"\n'
+            '"$pip_seed_root/probe/bin/python" -I -c "$pip_observation"\n'
+            "if pre-commit run --all-files --show-diff-on-failure; then\n"
+            "  pre_commit_status=0\n"
+            "else\n"
+            "  pre_commit_status=$?\n"
+            "fi\n"
+            "shopt -s nullglob\n"
+            'hook_pythons=("$PRE_COMMIT_HOME"/repo*/py_env-*/bin/python)\n'
+            "observation_status=0\n"
+            'if [[ "${#hook_pythons[@]}" -eq 0 ]]; then\n'
+            '  echo "::error::No fresh Python hook interpreter was observed."\n'
+            "  observation_status=1\n"
+            "fi\n"
+            'for hook_python in "${hook_pythons[@]}"; do\n'
+            '  if ! "$hook_python" -I -c "$pip_observation"; then\n'
+            "    observation_status=1\n"
+            "  fi\n"
+            "done\n"
+            'if [[ "$pre_commit_status" -ne 0 ]]; then\n'
+            '  exit "$pre_commit_status"\n'
+            "fi\n"
+            'exit "$observation_status"\n'
+        ),
         "env": {"SKIP": "no-commit-to-branch"},
     }
 
@@ -6797,8 +6980,8 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
     assert "TEST_STEP_FINISHED_AT=" in shared_shard_runner_block
 
     assert "MAIN_TEST_SHARDS=32" in py313_block
-    assert "MAIN_TEST_MAX_PARALLEL=8" in py313_block
-    assert "export MAIN_TEST_SHARD_TIMEOUT_SECONDS=4800" in py313_block
+    assert "MAIN_TEST_MAX_PARALLEL=4" in py313_block
+    assert "export MAIN_TEST_SHARD_TIMEOUT_SECONDS=5400" in py313_block
     assert "PYTEST_XDIST_ARGS=(-p no:xdist)" not in py313_block
     assert "PYTEST_XDIST_ARGS=(-n 2 --dist=loadscope)" not in py313_block
     assert "PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)" not in py313_block

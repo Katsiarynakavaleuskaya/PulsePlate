@@ -385,3 +385,24 @@ source/security admission. All 29 retained baseline findings, including cel-go,
 OpenTelemetry and zlib, still need individual final evidence or bounded rescope.
 No additional authored Go action, ignore, empty Secrets list or zero-secret
 claim follows from metadata preparation or native JSON omission.
+
+
+## October 28 Caddy CI-only go-jose continuation
+
+The preceding metadata/source observations retain their historical identities.
+PR #2497 now implements the separately human-accepted
+[CVE-2026-116587 D contract](CVE-2026-116587-caddy-go-jose.md): actual v4.1.6,
+exactly one visibly retained affected v3.0.5 HIGH, isolated loaded CI execution,
+review October 30 and hard removal November 4, both inclusive. Two independent
+compiler-free v4 metadata derivations precede the sole explicitly selected
+frontend CI candidate build. The same existing artifact retains the exact image
+for imported current-head PR/main observations; missing or changed proof holds
+without another build. See `.github/workflows/frontend-ci.yml:1` and
+`scripts/ci/check_docker_runtime_dependency_surface.py:1`.
+
+Native candidate/metadata/scan/runtime evidence is pending actual execution;
+this text does not turn implementation into observed proof. Generic report
+validation and strict CD remain unchanged. The original suppression-free
+Caddy CD/release requirement remains open, with permanent v3/CD work assigned
+by the human owner to PR #2494. Other accepted criteria, original findings and
+historical missed/unproven outcomes are not rewritten by this temporary choice.
