@@ -51,16 +51,16 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
 
 ### Caddy CI retained candidate and temporary risk boundary
 
-- Under the direct owner decision of 2026-10-29, the closed PR #2497 recovery
-  permits one final third build; the two original slots remain spent.
-  Keep both exact failed predecessors charged: run `40809053754` / job
-  `123234862421` and run `40874768112` / job `123450755201`, each attempt 1.
-  After the ordinary gates, one fresh first-attempt producer on corrected
-  source, created after the second job completed, may consume that final slot.
-  Both failed sources remain authenticated PR ancestors; only a uniquely
-  successful third producer may be reused. Any third start spends the slot;
-  failed/unknown state, missing artifacts or changed inputs grant no fourth.
-  Keep every existing source/scan/runtime check, date and other lane budget.
+- Under the direct owner decision of 2026-10-30, PR #2497 permits one final
+  fourth CI build after the required gates and publication. The three original
+  starts remain spent. Keep exact failed P (`40809053754` / `123234862421`), Q
+  (`40874768112` / `123450755201`) and R (`40971831227` / `123790320307`)
+  permanently charged, each attempt 1, with all three source ancestries checked.
+  Only one fresh first-attempt S on corrected published source,
+  created strictly after R's job completed at `2026-10-29T23:19:41Z`, may fill
+  the fourth slot. Any S start spends it; there is no fifth. Reuse requires the
+  unique successful S and every unchanged source/artifact/runtime/security/date
+  check. Failed predecessors, unknown history and caches never supply a slot.
 - Run the frontend `caddy-contract` producer and consumers on `ubuntu-24.04`.
   A runner or image-store change requires native requalification under the
   unchanged compiler/config, archive-import and report identity checks; the
@@ -81,12 +81,14 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   unfiltered native report and require successful strict/D native controls; an
   error is never proof of policy rejection. Native runtime evidence is bounded to
   its actual immutable config, process and listeners, not deployed reachability.
-- Bound synthetic Caddy environment evidence to the pinned foreground PID 1
-  startup interface and exact native stdout frame. Admit the complete synthetic
-  input environment before printing; retain only accepted output. Recheck the
-  same container/process identity at cleanup and keep actual private-tmpfs checks.
-  Configured values, another exec process and old logs are not that observation;
-  a startup snapshot does not prove continuing environment immutability.
+- Mocked Caddy observer outputs prove branch behavior, not native compatibility.
+  Bind only the required HOME/TMPDIR properties through the pinned serving
+  process's existing static-response placeholders and exact loopback response.
+  Keep literal placeholders in the immutable config; configured values alone,
+  a separate exec process or startup logs cannot supply actual-process proof.
+  Preserve raw CR/LF, private tmpfs and final same-instance checks. Do not model
+  the complete runtime environment or retain unexpected values in diagnostics;
+  phase/predicate/length/hash notes do not establish native acceptance.
 - Follow the individual owner/review/expiry/removal contract in
   [the CVE owner](../docs/security/CVE-2026-116587-caddy-go-jose.md).
   The original suppression-free CD/release outcome remains open; permanent v3/CD

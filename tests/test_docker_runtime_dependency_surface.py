@@ -150,17 +150,45 @@ def test_run_docker_wraps_called_process_error(monkeypatch: pytest.MonkeyPatch) 
         runtime_surface._run_docker(["run", "--rm", "pulseplate:test", "python", "-V"])
 
 
-@pytest.mark.parametrize("fault", [None, "invalid-stdout", "invalid-stderr", "nonzero", "timeout"])
+@pytest.mark.parametrize("argv_kind", ["logs", "readiness"])
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "invalid-stdout",
+        "invalid-stderr",
+        "nonzero",
+        "timeout",
+        "nonzero-no-output",
+        "timeout-no-output",
+    ],
+)
 def test_run_docker_preserves_native_log_framing_and_hides_private_failures(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fault: str | None
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fault: str | None, argv_kind: str
 ) -> None:
     sentinel = b"synthetic-private-transport-sentinel"
     requested_fault, fault = fault, None
     kwargs_seen: list[dict[str, object]] = []
+    command = (
+        ["logs", "synthetic-owned-container"]
+        if argv_kind == "logs"
+        else [
+            "exec",
+            "synthetic-owned-container",
+            "/bin/busybox",
+            "sh",
+            "-c",
+            "synthetic readiness",
+        ]
+    )
 
     def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
         kwargs_seen.append(kwargs)
-        assert args == ["/usr/bin/docker", "logs", "synthetic-owned-container"]
+        assert args == ["/usr/bin/docker", *command]
+        if fault == "nonzero-no-output":
+            raise subprocess.CalledProcessError(1, args)
+        if fault == "timeout-no-output":
+            raise subprocess.TimeoutExpired(args, 60)
         if fault == "nonzero":
             raise subprocess.CalledProcessError(1, args, output=sentinel, stderr=sentinel)
         if fault == "timeout":
@@ -174,9 +202,7 @@ def test_run_docker_preserves_native_log_framing_and_hides_private_failures(
 
     monkeypatch.setattr(runtime_surface, "DOCKER_BINARY", "/usr/bin/docker")
     monkeypatch.setattr(runtime_surface.subprocess, "run", fake_run)
-    baseline = runtime_surface._run_docker(
-        ["logs", "synthetic-owned-container"], preserve_newlines=True
-    )
+    baseline = runtime_surface._run_docker(command, preserve_newlines=True)
     assert baseline.stdout == "first\r\nsecond\rlast\n"
     assert baseline.stderr == "diagnostic\r\n"
     assert kwargs_seen[-1] == {
@@ -190,12 +216,10 @@ def test_run_docker_preserves_native_log_framing_and_hides_private_failures(
         message = (
             "UTF-8"
             if fault.startswith("invalid-")
-            else "returncode=1" if fault == "nonzero" else "timed out"
+            else "returncode=1" if fault.startswith("nonzero") else "timed out"
         )
         with pytest.raises(RuntimeError, match=message) as caught:
-            runtime_surface._run_docker(
-                ["logs", "synthetic-owned-container"], preserve_newlines=True
-            )
+            runtime_surface._run_docker(command, preserve_newlines=True)
         rendered = "".join(traceback.format_exception(caught.value))
         assert sentinel.decode() not in rendered
         assert "CalledProcessError" not in rendered
@@ -205,6 +229,29 @@ def test_run_docker_preserves_native_log_framing_and_hides_private_failures(
         assert caught.value.__suppress_context__ is True
         # Suppression is a rendering boundary; exception memory is not erased.
         assert caught.value.__context__ is not None
+        if fault.endswith("-no-output"):
+            assert "Docker stdout capture unavailable" in caught.value.__notes__
+            assert "Docker stderr capture unavailable" in caught.value.__notes__
+        else:
+            outputs = (
+                (sentinel + b"\xff", b"diagnostic\r\n")
+                if fault == "invalid-stdout"
+                else (
+                    (b"first\r\nsecond\rlast\n", sentinel + b"\xff")
+                    if fault == "invalid-stderr"
+                    else (sentinel, sentinel)
+                )
+            )
+            for channel, output in zip(("stdout", "stderr"), outputs):
+                assert (
+                    "Docker "
+                    + channel
+                    + " bytes="
+                    + str(len(output))
+                    + " sha256="
+                    + hashlib.sha256(output).hexdigest()
+                    in caught.value.__notes__
+                )
         path = tmp_path / "rendered-failure.txt"
         path.write_text(rendered)
         assert sentinel not in path.read_bytes()
@@ -784,6 +831,33 @@ def test_caddy_native_policy_projection_preserves_every_other_member(
             )
 
 
+def test_caddy_private_environment_response_uses_literal_native_placeholders() -> None:
+    config = json.loads(runtime_surface.CADDY_D_CONFIG)
+    assert config == {
+        "admin": {"disabled": True, "config": {"persist": False}},
+        "apps": {
+            "http": {
+                "servers": {
+                    "ci": {
+                        "listen": ["127.0.0.1:18080"],
+                        "automatic_https": {"disable": True},
+                        "routes": [
+                            {
+                                "handle": [
+                                    {
+                                        "handler": "static_response",
+                                        "body": "pulseplate-caddy-D\nHOME={env.HOME}\nTMPDIR={env.TMPDIR}\n",
+                                    }
+                                ]
+                            }
+                        ],
+                    }
+                }
+            }
+        },
+    }
+
+
 @pytest.mark.parametrize(
     "fault",
     [
@@ -833,7 +907,7 @@ def test_caddy_native_policy_projection_preserves_every_other_member(
         "process-tmpdir-wrong",
         "process-tmpdir-missing",
         "process-tmpdir-duplicate",
-        "process-env-unterminated",
+        "response-unterminated",
         "directory-uid",
         "directory-gid",
         "directory-mode",
@@ -861,37 +935,17 @@ def test_caddy_native_policy_projection_preserves_every_other_member(
         "main-pid-bool",
         "main-start-empty",
         "main-start-zero",
-        "header-field-0",
-        "header-field-1",
-        "header-field-2",
-        "header-field-3",
-        "header-field-4",
-        "header-field-5",
-        "header-field-6",
-        "header-field-7",
-        "header-field-8",
-        "header-field-9",
-        "header-field-10",
-        "header-field-11",
-        "header-missing",
-        "header-duplicate",
-        "header-order",
-        "process-hostname-wrong",
-        "process-hostname-missing",
-        "process-hostname-duplicate",
-        "process-extra",
-        "process-malformed",
-        "frame-missing-separator",
-        "frame-extra-separator",
-        "frame-duplicate",
-        "frame-prefix",
-        "frame-stderr-only",
-        "frame-crlf",
-        "frame-cr",
-        "frame-nul",
-        "frame-unicode",
-        "frame-stdout-size",
-        "frame-stderr-size",
+        "response-extra",
+        "response-malformed",
+        "response-duplicate",
+        "response-prefix",
+        "response-stderr-only",
+        "response-crlf",
+        "response-cr",
+        "response-nul",
+        "response-unicode",
+        "log-stdout-size",
+        "log-stderr-size",
         "logs-command",
         "stat-command",
         "final-id",
@@ -908,12 +962,30 @@ def test_caddy_native_policy_projection_preserves_every_other_member(
         "final-missing-pid",
         "final-missing-state",
         "final-env-unknown",
-        "diagnostic-startup-stdout",
-        "diagnostic-stat-startup-stdout",
-        "diagnostic-final-startup-stdout",
-        "diagnostic-stat-cleanup-owner-startup",
+        "diagnostic-stat-main-stdout",
+        "diagnostic-final-main-stdout",
+        "diagnostic-stat-cleanup-owner-main",
         "cleanup-command",
         "diagnostic-primary-cleanup-command",
+        "response-marker-missing",
+        "response-invalid-utf8",
+        "config-hardcoded",
+        "config-admin",
+        "config-crlf",
+        "argv-cr",
+        "stat-crlf",
+        "native-create",
+        "native-preinspect",
+        "native-start",
+        "native-readiness",
+        "native-config",
+        "native-cmdline",
+        "native-tcp",
+        "native-tcp6",
+        "native-udp",
+        "native-udp6",
+        "native-main-inspect",
+        "native-cleanup-inspect",
     ],
 )
 def test_caddy_actual_loaded_runtime_requires_complete_native_boundary_and_cleanup(
@@ -930,22 +1002,9 @@ def test_caddy_actual_loaded_runtime_requires_complete_native_boundary_and_clean
         "XDG_CONFIG_HOME=/config",
         "XDG_DATA_HOME=/data",
     ]
-    prelude = [
-        "caddy.HomeDir=/run/pulseplate-caddy-tmp",
-        "caddy.AppDataDir=/data/caddy",
-        "caddy.AppConfigDir=/config/caddy",
-        "caddy.ConfigAutosavePath=/config/caddy/autosave.json",
-        "caddy.Version=v2.11.4",
-        "runtime.GOOS=linux",
-        "runtime.GOARCH=amd64",
-        "runtime.Compiler=gc",
-        "runtime.NumCPU=4",
-        "runtime.GOMAXPROCS=2",
-        "runtime.Version=go1.26.10",
-        "os.Getwd=/srv",
-    ]
-    process_values = synthetic_environment + ["HOSTNAME=" + container_id[:12]]
-    native_stdout = "\n".join(prelude) + "\n\n" + "\n".join(process_values) + "\n"
+    property_lines = synthetic_environment[:2]
+    expected_response = "pulseplate-caddy-D\n" + "\n".join(property_lines) + "\n"
+    native_stdout = "unrelated native output\nGOTRACEBACK=none\n" + sentinel
     calls: list[list[str]] = []
     selected: dict[str, object] = {}
     inspect_outputs: list[tuple[str, str]] = []
@@ -954,14 +1013,23 @@ def test_caddy_actual_loaded_runtime_requires_complete_native_boundary_and_clean
         args: list[str], *, preserve_newlines: bool = False
     ) -> subprocess.CompletedProcess[str]:
         calls.append(args)
-        assert preserve_newlines is (args[0] == "logs")
+        private_capture = args[0] == "logs" or (
+            args[0] == "exec"
+            and (args[3] in ("sh", "stat") or args[-1] in ("/ci.json", "/proc/1/cmdline"))
+        )
+        assert preserve_newlines is private_capture
         stdout, stderr = "", "inspection-diagnostic\n"
         if args[0] == "create":
             selected.clear()
             selected.update(name=args[args.index("--name") + 1], count=0, started=False)
-            assert args[-4:] == ["run", "--config", "/ci.json", "--environ"]
+            assert args[-3:] == ["run", "--config", "/ci.json"]
+            assert "--environ" not in args
+            if fault == "native-create":
+                raise RuntimeError("synthetic native command failed")
             assert args[args.index("--entrypoint") + 1] == "/usr/bin/caddy"
         elif args[0] == "start":
+            if fault == "native-start":
+                raise RuntimeError("synthetic native command failed")
             selected["started"] = True
         elif args[0] == "inspect":
             selected["count"] += 1
@@ -976,11 +1044,17 @@ def test_caddy_actual_loaded_runtime_requires_complete_native_boundary_and_clean
                     else "main"
                 )
             )
+            if (
+                (fault == "native-preinspect" and phase == "prepared")
+                or (fault == "native-main-inspect" and phase == "main")
+                or (fault == "native-cleanup-inspect" and phase == "cleanup")
+            ):
+                raise RuntimeError("synthetic native command failed")
             observed = {
                 "Id": container_id,
                 "Image": image,
                 "Path": "/usr/bin/caddy",
-                "Args": ["run", "--config", "/ci.json", "--environ"],
+                "Args": ["run", "--config", "/ci.json"],
                 "RestartCount": 0,
                 "Config": {
                     "User": "65532:65532",
@@ -1135,14 +1209,14 @@ def test_caddy_actual_loaded_runtime_requires_complete_native_boundary_and_clean
             if phase == "cleanup":
                 if fault is not None and "cleanup-owner" in fault:
                     observed["Config"]["Labels"]["pulseplate.caddy-D"] = "foreign-container"
-                if fault in ("final-id", "diagnostic-final-startup-stdout"):
+                if fault in ("final-id", "diagnostic-final-main-stdout"):
                     observed["Id"] = "c" * 64
                 if fault == "final-image":
                     observed["Image"] = "sha256:" + "c" * 64
                 if fault == "final-path":
                     observed["Path"] = "/bin/sh"
                 if fault == "final-args":
-                    observed["Args"] = ["run", "--config", "/ci.json"]
+                    observed["Args"] = ["run", "--resume"]
                 if fault == "final-tty":
                     observed["Config"]["Tty"] = True
                 if fault == "final-restart":
@@ -1172,9 +1246,59 @@ def test_caddy_actual_loaded_runtime_requires_complete_native_boundary_and_clean
             inspect_outputs.append((phase, stdout))
         elif args[0] == "exec":
             assert args[-1] != "/proc/1/environ", "the unsupported cross-process read must be gone"
+            native_failure_target = {
+                "native-readiness": "sh",
+                "native-config": "/ci.json",
+                "native-cmdline": "/proc/1/cmdline",
+                "native-tcp": "/proc/net/tcp",
+                "native-tcp6": "/proc/net/tcp6",
+                "native-udp": "/proc/net/udp",
+                "native-udp6": "/proc/net/udp6",
+            }.get(fault)
+            if native_failure_target in (args[3], args[-1]):
+                selected["early_stop"] = True
+                raise RuntimeError("synthetic native command failed")
             if args[3] == "sh":
-                stdout = "wrong" if fault == "response" else "pulseplate-caddy-D\n"
-                selected["early_stop"] = fault == "response"
+                if fault == "response-invalid-utf8":
+                    selected["early_stop"] = True
+                    raise RuntimeError("Docker output is not valid UTF-8")
+                values = property_lines.copy()
+                if fault is not None and fault.startswith("process-"):
+                    key = "HOME" if "home" in fault else "TMPDIR"
+                    binding = key + "=/run/pulseplate-caddy-tmp"
+                    if fault.endswith("-wrong"):
+                        values[values.index(binding)] = key + "=" + sentinel
+                    elif fault.endswith("-missing"):
+                        values.remove(binding)
+                    else:
+                        values.append(binding)
+                stdout = "pulseplate-caddy-D\n" + "\n".join(values) + "\n"
+                if fault == "response":
+                    stdout = "wrong"
+                if fault == "response-extra":
+                    stdout += "UNKNOWN=" + sentinel + "\n"
+                if fault == "response-malformed":
+                    stdout = stdout.replace("HOME=", "HOME:", 1)
+                if fault == "response-marker-missing":
+                    stdout = stdout.removeprefix("pulseplate-caddy-D\n")
+                if fault == "response-unterminated":
+                    stdout = stdout[:-1]
+                if fault == "response-duplicate":
+                    stdout += stdout
+                if fault == "response-prefix":
+                    stdout = sentinel + "\n" + stdout
+                if fault == "response-stderr-only":
+                    stderr, stdout = stdout, ""
+                if fault == "response-crlf":
+                    stdout = stdout.replace("\n", "\r\n")
+                if fault == "response-cr":
+                    stdout = stdout.replace("HOME=", "HOME=\r", 1)
+                if fault == "response-nul":
+                    stdout = stdout.replace("HOME=", "HOME=\0", 1)
+                if fault == "response-unicode":
+                    stdout = stdout.replace("HOME=", "HOME=\u2028", 1)
+                selected["last_response"] = stdout
+                selected["early_stop"] = stdout != expected_response
             elif args[3] == "stat":
                 if fault == "stat-command":
                     raise RuntimeError("synthetic stat command failed")
@@ -1183,19 +1307,30 @@ def test_caddy_actual_loaded_runtime_requires_complete_native_boundary_and_clean
                     "directory-gid": "65532:0:700:directory\n",
                     "directory-mode": "65532:65532:777:directory\n",
                     "directory-type": "65532:65532:700:symbolic link\n",
-                    "diagnostic-stat-startup-stdout": "65532:65532:777:directory\n",
-                    "diagnostic-stat-cleanup-owner-startup": "65532:65532:777:directory\n",
+                    "stat-crlf": "65532:65532:700:directory\r\n",
+                    "diagnostic-stat-main-stdout": "65532:65532:777:directory\n",
+                    "diagnostic-stat-cleanup-owner-main": "65532:65532:777:directory\n",
                 }.get(fault, "65532:65532:700:directory\n")
             elif args[-1] == "/ci.json":
                 stdout = "{}" if fault == "config" else runtime_surface.CADDY_D_CONFIG.decode()
-                selected["early_stop"] = fault == "config"
+                if fault == "config-hardcoded":
+                    stdout = stdout.replace("{env.HOME}", "/run/pulseplate-caddy-tmp").replace(
+                        "{env.TMPDIR}", "/run/pulseplate-caddy-tmp"
+                    )
+                if fault == "config-admin":
+                    stdout = stdout.replace('"disabled":true', '"disabled":false', 1)
+                if fault == "config-crlf":
+                    stdout = stdout.replace("\n", "\r\n")
+                selected["early_stop"] = stdout.encode() != runtime_surface.CADDY_D_CONFIG
             elif args[-1] == "/proc/1/cmdline":
                 stdout = (
                     "wrong"
                     if fault == "process"
-                    else "/usr/bin/caddy\x00run\x00--config\x00/ci.json\x00--environ\x00"
+                    else "/usr/bin/caddy\x00run\x00--config\x00/ci.json\x00"
                 )
-                if fault == "process":
+                if fault == "argv-cr":
+                    stdout = stdout.replace("run", "run\r", 1)
+                if fault in ("process", "argv-cr"):
                     selected["early_stop"] = True
             else:
                 assert args[-1] in ["/proc/net/" + kind for kind in ("tcp", "tcp6", "udp", "udp6")]
@@ -1211,67 +1346,11 @@ def test_caddy_actual_loaded_runtime_requires_complete_native_boundary_and_clean
         elif args[0] == "logs":
             if fault == "logs-command":
                 raise RuntimeError("synthetic logs command failed")
-            header, values = prelude.copy(), process_values.copy()
-            if fault is not None and fault.startswith("header-field-"):
-                header[int(fault.removeprefix("header-field-"))] += "-invalid"
-            if fault == "header-missing":
-                header.pop()
-            if fault == "header-duplicate":
-                header.insert(0, header[0])
-            if fault == "header-order":
-                header[0], header[1] = header[1], header[0]
-            if (
-                fault is not None
-                and fault.startswith("process-")
-                and fault != "process-env-unterminated"
-            ):
-                if fault in ("process-extra", "process-malformed"):
-                    values.append(("UNKNOWN=" if fault == "process-extra" else "") + sentinel)
-                else:
-                    key = (
-                        "HOSTNAME"
-                        if "hostname" in fault
-                        else "HOME" if "home" in fault else "TMPDIR"
-                    )
-                    binding = (
-                        key
-                        + "="
-                        + (container_id[:12] if key == "HOSTNAME" else "/run/pulseplate-caddy-tmp")
-                    )
-                    if fault.endswith("-wrong"):
-                        values[values.index(binding)] = key + "=/foreign"
-                    elif fault.endswith("-missing"):
-                        values.remove(binding)
-                    else:
-                        values.append(binding)
-            stdout = "\n".join(header) + "\n\n" + "\n".join(values) + "\n"
-            stderr = sentinel
-            if fault == "process-env-unterminated":
-                stdout = stdout[:-1]
-            if fault == "frame-missing-separator":
-                stdout = stdout.replace("\n\n", "\n", 1)
-            if fault == "frame-extra-separator":
-                stdout = stdout.replace("\n\n", "\n\n\n", 1)
-            if fault == "frame-duplicate":
-                stdout += stdout
-            if fault == "frame-prefix":
-                stdout = sentinel + "\n" + stdout
-            if fault == "frame-stderr-only":
-                stderr, stdout = stdout, ""
-            if fault == "frame-crlf":
-                stdout = stdout.replace("\n", "\r\n")
-            if fault == "frame-cr":
-                stdout = stdout.replace("HOME=", "HOME=\r", 1)
-            if fault == "frame-nul":
-                stdout = stdout.replace("HOME=", "HOME=\0", 1)
-            if fault == "frame-unicode":
-                stdout = stdout.replace("HOME=", "HOME=\u2028", 1)
-            if fault == "frame-stdout-size":
-                stdout = stdout.replace(
-                    "runtime.NumCPU=4\n", "runtime.NumCPU=" + "4" * 65537 + "\n", 1
-                )
-            if fault == "frame-stderr-size":
-                stderr = "x" * 65537 + sentinel
+            stdout, stderr = native_stdout, sentinel
+            if fault == "log-stdout-size":
+                stdout = "x" * 65537
+            if fault == "log-stderr-size":
+                stderr = "x" * 65537
         elif args[0] == "rm":
             if fault in ("cleanup-command", "diagnostic-primary-cleanup-command"):
                 raise RuntimeError("synthetic cleanup command failed")
@@ -1284,18 +1363,16 @@ def test_caddy_actual_loaded_runtime_requires_complete_native_boundary_and_clean
     current_directory = tmp_path / "valid-baseline"
     current_directory.mkdir()
     baseline = runtime_surface.observe_caddy_ci_runtime(image, current_directory)
-    assert baseline["response"] == "pulseplate-caddy-D\n"
+    assert baseline["response"] == expected_response
     assert baseline["inspected"]["HostConfig"]["CapAdd"] == ["CAP_NET_BIND_SERVICE"]
     assert baseline["private_temporary_directory"] == "65532:65532:700:directory\n"
     assert baseline["private_temporary_environment"] == synthetic_environment[:2]
-    assert baseline["startup_stdout"] == native_stdout
+    assert baseline["startup_stdout_sha256"] == hashlib.sha256(native_stdout.encode()).hexdigest()
     assert baseline["startup_stderr_sha256"] == hashlib.sha256(sentinel.encode()).hexdigest()
     assert "startup_stderr" not in baseline
+    assert "startup_stdout" not in baseline
+    assert "process_environment_sha256" not in baseline
     assert sentinel not in json.dumps(baseline)
-    assert (
-        baseline["process_environment_sha256"]
-        == hashlib.sha256(("\n".join(process_values) + "\n").encode()).hexdigest()
-    )
     assert calls[-1] == ["rm", "--force", selected["name"]]
     fault = requested_fault
     calls.clear()
@@ -1312,19 +1389,22 @@ def test_caddy_actual_loaded_runtime_requires_complete_native_boundary_and_clean
         "diagnostic-primary-cleanup-stdout": {"cleanup-inspect.stdout"},
         "diagnostic-cleanup-owner-stdout": {"cleanup-inspect.stdout"},
         "diagnostic-primary-cleanup-owner-stdout": {"cleanup-inspect.stdout"},
-        "diagnostic-startup-stdout": {"startup.stdout"},
-        "diagnostic-stat-startup-stdout": {"startup.stdout"},
-        "diagnostic-final-startup-stdout": {"startup.stdout"},
-        "diagnostic-stat-cleanup-owner-startup": {"startup.stdout"},
+        "diagnostic-stat-main-stdout": {"container-inspect.stdout"},
+        "diagnostic-final-main-stdout": {"container-inspect.stdout"},
+        "diagnostic-stat-cleanup-owner-main": {"container-inspect.stdout"},
     }.get(fault, set())
     for filename in capture_obstructions:
         (current_directory / filename).mkdir()
     if fault is None:
         result = runtime_surface.observe_caddy_ci_runtime(image, current_directory)
-        assert result["response"] == "pulseplate-caddy-D\n"
+        assert result["response"] == expected_response
     else:
         error_type: type[Exception] = ValueError
-        if fault.startswith("env-") or fault.startswith("pre-"):
+        if fault.startswith("native-"):
+            error_type, message = RuntimeError, "synthetic native command failed"
+        elif fault == "response-invalid-utf8":
+            error_type, message = RuntimeError, "Docker output is not valid UTF-8"
+        elif fault.startswith("env-") or fault.startswith("pre-"):
             message = "Caddy pre-start synthetic environment binding differs"
         elif fault == "post-env-unknown":
             message = "Caddy synthetic environment changed after startup"
@@ -1337,12 +1417,16 @@ def test_caddy_actual_loaded_runtime_requires_complete_native_boundary_and_clean
             or fault in ("image", "restart")
         ):
             message = "Caddy native isolation/state differs"
-        elif fault.startswith("diagnostic-stat-") or fault.startswith("directory-"):
+        elif (
+            fault.startswith("diagnostic-stat-")
+            or fault.startswith("directory-")
+            or fault == "stat-crlf"
+        ):
             message = "Caddy private temporary directory owner/mode differs"
         elif fault in ("final-missing-pid", "final-missing-state"):
             error_type = KeyError
             message = "Pid" if fault == "final-missing-pid" else "State"
-        elif fault.startswith("final-") or fault == "diagnostic-final-startup-stdout":
+        elif fault.startswith("final-") or fault == "diagnostic-final-main-stdout":
             message = "Caddy final process identity differs"
         elif "cleanup-owner" in fault:
             message = "Caddy cleanup ownership differs"
@@ -1353,13 +1437,17 @@ def test_caddy_actual_loaded_runtime_requires_complete_native_boundary_and_clean
                 RuntimeError,
                 "synthetic " + fault.split("-")[0] + " command failed",
             )
-        elif fault.startswith(("process-", "header-", "frame-")):
-            message = "Caddy actual private temporary environment differs"
+        elif fault.startswith(("process-", "response-")):
+            message = "Caddy loaded configuration/private environment response differs"
+        elif fault.startswith("log-"):
+            message = "Caddy native log output exceeds retained bound"
+        elif fault.startswith("config-") or fault == "argv-cr":
+            message = "Caddy actual process/config binding differs"
         elif fault.startswith("tmpfs-"):
             message = "Caddy native tmpfs configuration differs"
         else:
             message = {
-                "response": "Caddy loaded configuration response differs",
+                "response": "Caddy loaded configuration/private environment response differs",
                 "config": "Caddy actual process/config binding differs",
                 "process": "Caddy actual process/config binding differs",
                 "admin": "Caddy native listener/admin boundary differs",
@@ -1373,6 +1461,74 @@ def test_caddy_actual_loaded_runtime_requires_complete_native_boundary_and_clean
             runtime_surface.observe_caddy_ci_runtime(image, current_directory)
         rendered = "".join(traceback.format_exception(caught.value))
         assert sentinel not in rendered
+        notes = getattr(caught.value, "__notes__", [])
+        expected_phase = {
+            "native-create": "create",
+            "native-preinspect": "pre-start-inspect",
+            "native-start": "start",
+            "native-readiness": "readiness-private-environment",
+            "native-config": "config-readback",
+            "native-cmdline": "process-command",
+            "native-tcp": "sockets-tcp",
+            "native-tcp6": "sockets-tcp6",
+            "native-udp": "sockets-udp",
+            "native-udp6": "sockets-udp6",
+            "native-main-inspect": "runtime-inspect",
+            "native-cleanup-inspect": "cleanup",
+            "logs-command": "native-log-bounds",
+            "stat-command": "private-directory",
+            "cleanup-command": "cleanup",
+            "response-invalid-utf8": "readiness-private-environment",
+        }.get(fault)
+        if expected_phase is not None:
+            assert "Caddy runtime phase: " + expected_phase in notes
+        if fault == "native-cmdline":
+            raw = runtime_surface.CADDY_D_CONFIG
+            assert (
+                "Caddy config.stdout utf8_bytes="
+                + str(len(raw))
+                + " sha256="
+                + hashlib.sha256(raw).hexdigest()
+                in notes
+            )
+            assert not any(note.startswith("Caddy command.stdout ") for note in notes)
+        if fault in (
+            "native-readiness",
+            "native-config",
+            "native-main-inspect",
+            "logs-command",
+            "stat-command",
+        ):
+            assert not any(" utf8_bytes=" in note for note in notes)
+        if fault in (
+            "process-home-wrong",
+            "process-tmpdir-wrong",
+            "response-prefix",
+            "response-extra",
+        ):
+            raw = selected["last_response"].encode()
+            assert "Caddy runtime phase: readiness-private-environment" in notes
+            assert (
+                "Caddy response.stdout utf8_bytes="
+                + str(len(raw))
+                + " sha256="
+                + hashlib.sha256(raw).hexdigest()
+                in notes
+            )
+        if fault in ("config-hardcoded", "config-admin", "config-crlf"):
+            assert "Caddy config_equal=False command_equal=True" in notes
+        if fault == "argv-cr":
+            assert "Caddy config_equal=True command_equal=False" in notes
+        if fault in ("log-stdout-size", "log-stderr-size"):
+            channel = "stdout" if fault == "log-stdout-size" else "stderr"
+            assert "Caddy runtime phase: native-log-bounds" in notes
+            assert (
+                "Caddy logs."
+                + channel
+                + " utf8_bytes=65537 sha256="
+                + hashlib.sha256(b"x" * 65537).hexdigest()
+                in notes
+            )
         for filename in capture_obstructions:
             assert (
                 "Caddy diagnostic write failed (" + filename + "): FileExistsError"
@@ -1380,13 +1536,18 @@ def test_caddy_actual_loaded_runtime_requires_complete_native_boundary_and_clean
             )
         if fault in (
             "diagnostic-primary-cleanup-owner-stdout",
-            "diagnostic-stat-cleanup-owner-startup",
+            "diagnostic-stat-cleanup-owner-main",
         ):
             assert "Caddy cleanup also failed: ValueError" in caught.value.__notes__
         if fault == "diagnostic-primary-cleanup-command":
             assert "Caddy cleanup also failed: RuntimeError" in caught.value.__notes__
-    assert inspect_outputs[0][0] == "prepared"
-    assert inspect_outputs[-1][0] == "cleanup"
+    if fault == "native-create":
+        assert inspect_outputs == []
+    else:
+        if fault != "native-preinspect":
+            assert inspect_outputs[0][0] == "prepared"
+        if fault != "native-cleanup-inspect":
+            assert inspect_outputs[-1][0] == "cleanup"
     for phase, output in inspect_outputs:
         if phase == "prepared":
             continue
@@ -1402,14 +1563,16 @@ def test_caddy_actual_loaded_runtime_requires_complete_native_boundary_and_clean
             else:
                 assert not path.exists()
     for directory in (tmp_path / "valid-baseline", current_directory):
+        assert not (directory / "startup.stdout").exists()
         for path in directory.iterdir():
             if path.is_file():
                 assert sentinel not in path.read_text()
     if fault is not None and (fault.startswith("env-") or fault.startswith("pre-")):
         assert not any(args[0] in ("start", "logs") for args in calls)
-    if fault is not None and fault.startswith(("process-", "header-", "frame-")):
-        assert not (current_directory / "startup.stdout").exists()
-    if fault is not None and "cleanup-owner" in fault:
+    if fault == "native-create":
+        assert calls[-1][0] == "create"
+        assert not any(args[0] == "rm" for args in calls)
+    elif fault == "native-cleanup-inspect" or (fault is not None and "cleanup-owner" in fault):
         assert calls[-1] == ["inspect", selected["name"]]
         assert ["rm", "--force", selected["name"]] not in calls
     else:
