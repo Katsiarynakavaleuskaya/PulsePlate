@@ -13,9 +13,12 @@ not validated (v1) to avoid false positives from ambient PATH.
 
 from __future__ import annotations
 
+import hashlib
 import importlib
+import importlib.util
+import re
 import os
-import subprocess  # nosec B404: subprocess is required for bounded local guard execution (remove-by: 2026-10-31, ref: PR-1243)
+import subprocess  # nosec B404: subprocess is required for bounded local guard execution (remove-by: 2027-01-01, ref: PR-1243)
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -49,9 +52,8 @@ VERIFY_CRITICAL_CONSOLE_SCRIPT_NAMES: tuple[str, ...] = (
 class StartupHookFinding:
     """A parsed startup-hook finding from the external guard."""
 
-    path: Path
+    location_id: str
     line_number: int
-    line: str
 
 
 def _import_module(module_name: str) -> str | None:
@@ -65,45 +67,99 @@ def _import_module(module_name: str) -> str | None:
 
 def collect_unexpected_startup_hooks() -> list[StartupHookFinding]:
     """Return unexpected executable .pth hooks for the current repo interpreter."""
-    if not STARTUP_HOOK_GUARD.exists():
-        raise RuntimeError(f"Unable to load startup hook guard: {STARTUP_HOOK_GUARD}")
-
-    result = subprocess.run(  # nosec B603: argv uses fixed repo-local Python and guard paths only (remove-by: 2026-10-31, ref: PR-1243)
-        [
-            str(VENV_PYTHON),
-            "-S",
-            str(STARTUP_HOOK_GUARD),
-            "--python-executable",
-            str(VENV_PYTHON),
-        ],
-        check=False,
-        capture_output=True,
-        text=True,
+    expected_guard = Path(__file__).resolve().with_name("check_python_startup_hooks.py")
+    if (
+        STARTUP_HOOK_GUARD != expected_guard
+        or expected_guard.is_symlink()
+        or not expected_guard.is_file()
+        or VENV_PYTHON != REPO_ROOT / ".venv" / "bin" / "python"
+    ):
+        raise RuntimeError("Local startup guard inputs are unavailable.")
+    module_name = (
+        "scripts.ci.check_python_startup_hooks" if __package__ else "check_python_startup_hooks"
     )
-    if result.returncode == 0:
-        return []
-    if result.returncode != 1:
-        diagnostic = result.stderr.strip() or result.stdout.strip() or "no diagnostic output"
-        raise RuntimeError(f"Unable to load startup hook guard: {diagnostic}")
-
-    findings: list[StartupHookFinding] = []
-    for raw_line in result.stdout.splitlines():
-        if not raw_line.startswith("- "):
-            continue
-        location, separator, line = raw_line[2:].partition(" :: ")
-        path_text, _, line_number_text = location.rpartition(":")
-        if not separator or not path_text or not line_number_text.isdigit():
-            continue
-        findings.append(
-            StartupHookFinding(
-                path=Path(path_text),
-                line_number=int(line_number_text),
-                line=line,
-            )
+    try:
+        spec = importlib.util.find_spec(module_name)
+        guard = (
+            importlib.import_module(module_name)
+            if spec is not None and spec.origin == str(expected_guard)
+            else None
         )
-    if findings:
-        return findings
-    raise RuntimeError("Unable to parse startup hook guard output.")
+    except (ImportError, OSError, ValueError):
+        guard = None
+    if guard is None:
+        raise RuntimeError("Local startup guard source is unavailable.")
+    try:
+        executable = guard.resolve_python_executable(str(VENV_PYTHON))
+        guard._revalidate_python_executable(executable)
+    except (OSError, RuntimeError, ValueError):
+        executable = None
+    if executable is None:
+        raise RuntimeError("Local startup guard interpreter is unavailable.")
+    python = str(executable.invocation_path)
+    try:
+        result = subprocess.run(  # nosec B603: argv uses fixed repo-local Python and guard paths only (remove-by: 2027-01-01, ref: PR-1243)
+            [python, "-P", "-S", str(expected_guard), "--python-executable", python],
+            cwd=REPO_ROOT,
+            env=guard._startup_probe_environment(),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            encoding="utf-8",
+            timeout=60,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        failure = "Local startup guard timed out."
+    except (OSError, UnicodeError, ValueError):
+        failure = "Local startup guard execution or decoding failed."
+    else:
+        failure = ""
+    if failure:
+        raise RuntimeError(failure)
+    if result.returncode == 0:
+        if result.stdout == "startup-hook-guard: no unexpected executable .pth files detected.\n":
+            return []
+        raise RuntimeError("Invalid local startup guard clean report.")
+    if result.returncode != 1:
+        raise RuntimeError("Local startup guard failed.")
+
+    # The stock formatter owns both header lines and the exact current allowlist footer.
+    header, subheader, footer = guard.format_failure_lines([])
+    lines = result.stdout.split("\n")
+    if len(lines) < 5 or lines[:2] != [header, subheader] or lines[-2:] != [footer, ""]:
+        raise RuntimeError("Invalid local startup guard finding report.")
+    findings = []
+    seen: set[tuple[str, int]] = set()
+    for row in lines[2:-2]:
+        if not row.startswith("- "):
+            raise RuntimeError("Invalid local startup guard finding row.")
+        location, sep, statement = row[2:].partition(" :: ")
+        path_text, colon, number = location.rpartition(":")
+        path = Path(path_text)
+        if (
+            not sep
+            or not colon
+            or not path.is_absolute()
+            or path.suffix != ".pth"
+            or path.name in guard.ALLOWED_EXECUTABLE_PTH_FILENAMES
+            or ".." in path.parts
+            or not path_text.isprintable()
+            or not re.fullmatch(r"[1-9][0-9]{0,8}", number)
+            or not guard.EXECUTABLE_IMPORT_PATTERN.match(statement)
+            or not statement.replace("\t", " ").isprintable()
+        ):
+            raise RuntimeError("Invalid local startup guard finding row.")
+        # Keep a stable locator without disclosing directory names or executable text.
+        line_number = int(number)
+        identity = (path_text, line_number)
+        if identity in seen:
+            raise RuntimeError("Duplicate local startup guard finding.")
+        seen.add(identity)
+        locator = hashlib.sha256(path_text.encode("utf-8")).hexdigest()[:16]
+        findings.append(StartupHookFinding(location_id=locator, line_number=line_number))
+    return findings
 
 
 def _parse_absolute_shebang_interpreter(first_line: str) -> Path | None:
@@ -231,7 +287,7 @@ def build_failure_output(
     if unexpected_startup_hooks:
         lines.append("Unexpected executable startup hooks (.pth):")
         lines.extend(
-            f"- {finding.path}:{finding.line_number} :: {finding.line}"
+            f"- .pth location sha256:{finding.location_id}, line {finding.line_number}"
             for finding in unexpected_startup_hooks
         )
     lines.extend(

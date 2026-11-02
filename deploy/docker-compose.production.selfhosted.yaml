@@ -140,7 +140,7 @@ services:
       start_period: 10s
 
   alertmanager:
-    image: ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:bc6c847d25e48a8bcddfd8fef0aec25b6ac890346b4bfe6dea3d2d82cd0dc3b9
+    image: ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:5a476cb3c572d11f8b5fcb6d42400f4613011a5f592ca574b7015c5231b70781
     platform: linux/amd64
     user: "65534:65534"
     profiles: ["alerting"]

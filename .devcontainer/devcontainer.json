@@ -6,6 +6,13 @@
   "service": "devcontainer",
   "workspaceFolder": "/workspaces/PulsePlate",
   "remoteUser": "vscode",
+  "initializeCommand": [
+    "make",
+    "--directory",
+    "${localWorkspaceFolder}",
+    "docker-source-artifacts",
+    "DEV_PYTHON=python3"
+  ],
   "features": {
     "ghcr.io/devcontainers/features/node:1": {
       "version": "24"

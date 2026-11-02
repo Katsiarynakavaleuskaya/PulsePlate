@@ -8,7 +8,7 @@ echo "[CI-LOCAL] Backend tests (pytest) with coverage..."
 pytest -q -n auto --dist=worksteal --cov=. --cov-report=term-missing
 
 echo "[CI-LOCAL] Frontend lint..."
-./scripts/frontend_npm.sh --prefix frontend ci || ./scripts/frontend_npm.sh --prefix frontend install
+./scripts/frontend_npm.sh --prefix frontend ci
 ./scripts/frontend_npm.sh --prefix frontend run lint || true
 
 echo "[CI-LOCAL] Frontend unit tests (Vitest)..."

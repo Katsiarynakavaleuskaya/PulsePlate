@@ -279,6 +279,7 @@ def test_drain_stream_ignores_oserror_and_closes_stream() -> None:
     collector = sandbox._StreamingOutputBuffer(budget=sandbox._SharedOutputBudget(max_bytes=8))
     sandbox._drain_stream(cast(IO[bytes], stream), collector=collector)
     assert stream.closed is True
+    assert not collector.drained_and_closed
 
 
 def test_terminate_sandbox_process_uses_kill_on_non_posix(
@@ -312,33 +313,18 @@ def test_terminate_sandbox_process_ignores_missing_posix_process_group(
     sandbox._terminate_sandbox_process(cast(subprocess.Popen[bytes], _DummyProcess()))
 
 
-def test_join_drain_thread_closes_stream_when_reader_stays_alive() -> None:
-    class _DummyThread:
-        def __init__(self) -> None:
-            self.join_calls: list[float] = []
-
-        def join(self, timeout: float | None = None) -> None:
-            self.join_calls.append(float(timeout or 0))
+def test_join_drain_thread_never_closes_a_live_readers_stream(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Reader:
+        def join(self, *, timeout: float) -> None:
+            assert timeout == 0
 
         def is_alive(self) -> bool:
-            return len(self.join_calls) == 1
+            return True
 
-    class _DummyStream:
-        def __init__(self) -> None:
-            self.closed = False
-
-        def close(self) -> None:
-            self.closed = True
-
-    thread = _DummyThread()
-    stream = _DummyStream()
-    sandbox._join_drain_thread(
-        cast(sandbox.threading.Thread, thread),
-        stream=cast(IO[bytes], stream),
-        timeout_seconds=2,
-    )
-    assert thread.join_calls == [2.0, sandbox._STREAM_JOIN_GRACE_SECONDS]
-    assert stream.closed is True
+    monkeypatch.setattr(sandbox.time, "monotonic", lambda: 20.0)
+    assert not sandbox._join_drain_thread(cast(sandbox.threading.Thread, Reader()), 19.0)
 
 
 def test_run_local_sandbox_executes_allowlisted_python(
@@ -556,6 +542,7 @@ def test_run_local_sandbox_cli_emits_deterministic_json(sandbox_root: Path) -> N
     repo_root = Path(__file__).resolve().parents[1]
     script_path = repo_root / "scripts" / "orchestration" / "run_local_sandbox.py"
     env = os.environ.copy()
+    env.pop("PYTHONPATH", None)
     env[sandbox.SANDBOX_ENABLED_ENV] = "true"
     env[sandbox.SANDBOX_ROOT_ENV] = str(sandbox_root)
     env[cp.ALLOWLIST_ENV] = "sandbox.exec:local://sandbox"
@@ -592,6 +579,7 @@ def test_run_local_sandbox_cli_emits_json_on_permission_error(sandbox_root: Path
     repo_root = Path(__file__).resolve().parents[1]
     script_path = repo_root / "scripts" / "orchestration" / "run_local_sandbox.py"
     env = os.environ.copy()
+    env.pop("PYTHONPATH", None)
     env[sandbox.SANDBOX_ENABLED_ENV] = "true"
     env[sandbox.SANDBOX_ROOT_ENV] = str(sandbox_root)
     env[cp.ALLOWLIST_ENV] = "sandbox.exec:local://sandbox"
@@ -631,6 +619,7 @@ def test_run_local_sandbox_cli_emits_json_on_argument_error(
     repo_root = Path(__file__).resolve().parents[1]
     script_path = repo_root / "scripts" / "orchestration" / "run_local_sandbox.py"
     env = os.environ.copy()
+    env.pop("PYTHONPATH", None)
     env[sandbox.SANDBOX_ENABLED_ENV] = "true"
     env[sandbox.SANDBOX_ROOT_ENV] = str(sandbox_root)
     env[sandbox.SANDBOX_ALLOWED_BINARIES_ENV] = "python3,pytest"
@@ -674,3 +663,269 @@ def test_run_local_sandbox_cli_emits_json_on_unexpected_exception(
     assert payload["argv"] == ["python3", "-c", "print('x')"]
     assert payload["stdout"] == ""
     assert payload["stderr"] == "unexpected sandbox failure"
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "success",
+        "native-124",
+        "native-nonzero",
+        "timeout-settled",
+        "failed-reap",
+        "stdout-stalled",
+        "stderr-stalled",
+        "both-stalled",
+        "timeout-drain-stalled",
+        "expired",
+        "initial-oserror",
+        "cancel-wait",
+        "cancel-reap",
+        "cancel-drain",
+        "timeout-already-reaped",
+    ],
+)
+def test_sandbox_result_requires_direct_reap_and_both_drains(
+    sandbox_root: Path, monkeypatch: pytest.MonkeyPatch, case: str
+) -> None:
+    import traceback
+
+    marker = "synthetic-sandbox-private-input"
+    monkeypatch.setenv(sandbox.SANDBOX_TIMEOUT_ENV, "10")
+    clock = [0.0]
+    events = []
+    joins = []
+    checked_output = []
+
+    class Pipe:
+        def close(self) -> None:
+            pytest.fail("controller closed a reader-owned pipe")
+
+    class Child:
+        pid = 7654321
+        returncode = None
+        stdout = Pipe()
+        stderr = Pipe()
+
+        def wait(self, *, timeout: float) -> int:
+            events.append(("wait", timeout))
+            if len(events) == 1:
+                assert timeout == 10
+                if case == "cancel-wait":
+                    raise KeyboardInterrupt
+                if case == "initial-oserror":
+                    raise OSError(marker)
+                if case == "timeout-already-reaped":
+                    self.returncode = 9
+                    raise subprocess.TimeoutExpired([marker], timeout)
+                if case in {
+                    "timeout-settled",
+                    "failed-reap",
+                    "timeout-drain-stalled",
+                    "cancel-reap",
+                }:
+                    raise subprocess.TimeoutExpired([marker], timeout, output=marker, stderr=marker)
+                self.returncode = {"native-124": 124, "native-nonzero": 7}.get(case, 0)
+            else:
+                if case == "timeout-already-reaped":
+                    assert timeout == 10 and self.returncode == 9
+                    return self.returncode
+                assert events[-2][0] == "kill" and timeout == 8
+                if case == "cancel-reap":
+                    raise SystemExit(77)
+                clock[0] += 3
+                if case == "failed-reap":
+                    raise subprocess.TimeoutExpired([marker], timeout, output=marker, stderr=marker)
+                self.returncode = -9
+            return self.returncode
+
+    class Reader:
+        def __init__(self, *, target: object, args: tuple, kwargs: dict, daemon: bool) -> None:
+            self.collector = kwargs["collector"]
+            self.name = "stdout" if args[0] is child.stdout else "stderr"
+
+        def start(self) -> None:
+            self.collector.drained_and_closed = True
+
+        def join(self, *, timeout: float) -> None:
+            joins.append((self.name, timeout))
+            if case == "cancel-drain":
+                raise KeyboardInterrupt
+            clock[0] += timeout if case == "expired" else 1
+
+        def is_alive(self) -> bool:
+            return (
+                case == "both-stalled"
+                or case == self.name + "-stalled"
+                or case == "timeout-drain-stalled"
+                and self.name == "stderr"
+                or case == "expired"
+                and self.name == "stderr"
+            )
+
+    child = Child()
+    monkeypatch.setattr(sandbox.subprocess, "Popen", lambda *a, **kw: child)
+    monkeypatch.setattr(sandbox.threading, "Thread", Reader)
+    monkeypatch.setattr(sandbox.time, "monotonic", lambda: clock[0])
+
+    def terminate(process: object) -> None:
+        assert process is child and child.returncode is None
+        events.append(("kill", 0))
+        clock[0] += 2
+
+    monkeypatch.setattr(sandbox, "_terminate_sandbox_process", terminate)
+    collector = sandbox._StreamingOutputBuffer
+
+    def project(_self: object) -> str:
+        checked_output.append(True)
+        return "complete"
+
+    monkeypatch.setattr(collector, "to_text", project)
+
+    def execute() -> sandbox.SandboxResult:
+        return sandbox.run_local_sandbox(
+            sandbox.SandboxRequest(binary="python3", args=("-c", marker), cwd=sandbox_root)
+        )
+
+    if case.startswith("cancel-"):
+        with pytest.raises(SystemExit if case == "cancel-reap" else KeyboardInterrupt):
+            execute()
+        assert not checked_output
+        if case != "cancel-reap":
+            assert all(kind != "kill" for kind, _ in events)
+        return
+    if case in {"success", "native-124", "native-nonzero", "timeout-settled"}:
+        result = execute()
+        assert result.returncode == {
+            "native-124": 124,
+            "native-nonzero": 7,
+            "timeout-settled": 124,
+        }.get(case, 0)
+        assert result.timed_out is (case == "timeout-settled")
+        assert len(checked_output) == 2
+    else:
+        with pytest.raises(subprocess.TimeoutExpired) as captured:
+            execute()
+        error = captured.value
+        assert error.cmd == "sandbox cleanup" and error.timeout == 10
+        assert (
+            error.stdout is None
+            and error.stderr is None
+            and error.__cause__ is None
+            and error.__context__ is None
+        )
+        assert marker not in repr(error.args) + "".join(traceback.format_exception(error))
+        assert not checked_output
+    initial_timeout = case in {"timeout-settled", "failed-reap", "timeout-drain-stalled"}
+    expected_calls = ["wait", "kill", "wait"] if initial_timeout else ["wait"]
+    if case == "timeout-already-reaped":
+        expected_calls = ["wait", "wait"]
+    assert [x[0] for x in events] == expected_calls
+    first = 5 if initial_timeout else 10
+    assert joins == [("stdout", first), ("stderr", 0 if case == "expired" else first - 1)]
+
+
+@pytest.mark.parametrize("side", ["stdout", "stderr"])
+@pytest.mark.parametrize("fault", ["read", "close"])
+def test_sandbox_does_not_publish_partial_output_after_reader_io_failure(
+    sandbox_root: Path, monkeypatch: pytest.MonkeyPatch, side: str, fault: str
+) -> None:
+    import io
+
+    marker = b"private partial sandbox output"
+
+    class BrokenPipe(io.BytesIO):
+        def read(self, size: int = -1) -> bytes:
+            if fault == "read" and self.tell() > 0:
+                raise OSError(marker)
+            return super().read(size)
+
+        def close(self) -> None:
+            super().close()
+            if fault == "close":
+                raise OSError(marker)
+
+    broken = BrokenPipe(marker)
+    healthy = io.BytesIO(b"other stream")
+
+    class Child:
+        stdout = broken if side == "stdout" else healthy
+        stderr = broken if side == "stderr" else healthy
+
+        def wait(self, *, timeout: float) -> int:
+            return 0
+
+    monkeypatch.setattr(sandbox.subprocess, "Popen", lambda *args, **kwargs: Child())
+    with pytest.raises(subprocess.TimeoutExpired) as caught:
+        sandbox.run_local_sandbox(sandbox.SandboxRequest(binary="python3", cwd=sandbox_root))
+    assert caught.value.cmd == "sandbox cleanup"
+    assert caught.value.output is None and caught.value.stderr is None
+    assert broken.closed and healthy.closed
+    assert marker.decode() not in repr(caught.value.args)
+
+
+def test_relative_path_binary_is_bound_before_sandbox_cwd(
+    sandbox_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    parent_bin = sandbox_root / "bin"
+    parent_bin.mkdir()
+    selected = parent_bin / "python3"
+    selected.symlink_to(sys.executable)
+    child = sandbox_root / "child"
+    (child / "bin").mkdir(parents=True)
+    competing = child / "bin" / "python3"
+    competing.write_text("This is not the selected executable.")
+    competing.chmod(0o755)
+    monkeypatch.chdir(sandbox_root)
+    monkeypatch.setenv("PATH", "bin")
+    result = sandbox.run_local_sandbox(
+        sandbox.SandboxRequest(
+            binary="python3", args=("-I", "-S", "-c", "print('selected-parent')"), cwd=child
+        )
+    )
+    assert result.returncode == 0
+    assert result.stdout == "selected-parent\n"
+    assert result.argv[0] == str(selected)
+    assert selected.is_symlink()
+
+
+def test_sandbox_resolver_preserves_real_virtualenv_invocation(
+    sandbox_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import venv
+
+    root = sandbox_root / "venv"
+    venv.EnvBuilder(with_pip=False, symlinks=True).create(root)
+    executable = root / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    monkeypatch.setenv(sandbox.SANDBOX_ALLOWED_BINARIES_ENV, "python")
+    monkeypatch.setenv("PATH", str(executable.parent))
+    result = sandbox.run_local_sandbox(
+        sandbox.SandboxRequest(
+            binary="python",
+            args=("-I", "-c", "import sys; print(sys.prefix); print(sys.executable)"),
+            cwd=sandbox_root,
+        )
+    )
+    assert result.returncode == 0
+    assert result.stdout.splitlines() == [str(root), str(executable)]
+    assert result.argv[0] == str(executable)
+
+
+@pytest.mark.parametrize("kind", ["directory", "nonexecutable", "missing", "broken-symlink"])
+def test_sandbox_invalid_resolved_executable_rejects_before_spawn(
+    sandbox_root: Path, monkeypatch: pytest.MonkeyPatch, kind: str
+) -> None:
+    selected = sandbox_root / "selected-python"
+    if kind == "directory":
+        selected.mkdir()
+    elif kind == "nonexecutable":
+        selected.write_text("not executable")
+        selected.chmod(0o600)
+    elif kind == "broken-symlink":
+        selected.symlink_to(sandbox_root / "missing-target")
+    monkeypatch.setattr(sandbox.shutil, "which", lambda name: str(selected))
+    monkeypatch.setattr(
+        sandbox.subprocess, "Popen", lambda *args, **kwargs: pytest.fail("invalid binary spawned")
+    )
+    with pytest.raises(RuntimeError, match="executable regular file"):
+        sandbox.run_local_sandbox(sandbox.SandboxRequest(binary="python3", cwd=sandbox_root))

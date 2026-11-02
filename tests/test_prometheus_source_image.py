@@ -25,10 +25,243 @@ import pytest
 from scripts.ci import prometheus_source_image as source
 
 
+@pytest.mark.parametrize("purpose", ["tool", "pair"])
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "missing",
+        "extra",
+        "duplicate",
+        "source",
+        "attempt",
+        "active",
+        "job-source",
+        "branch",
+        "foreign-PR",
+        "current-job",
+        "retry-selector",
+    ],
+)
+def test_stabilization_manual_budget_preserves_complete_spent_history(
+    monkeypatch: pytest.MonkeyPatch, purpose: str, fault: str | None
+) -> None:
+    """Synthetic API responses retain the observed historical identities; no build is run."""
+    tool_rows = [
+        (
+            38170923494,
+            114563178711,
+            "5de54811121079eadbd3f5d8dbbb8720f712530a",
+            "codex/dependency-native-runtime-remediation",
+            "failure",
+        ),
+        (
+            38192419687,
+            114627819440,
+            "15097adaa871a900370f6c57a512fe862dddb041",
+            "codex/dependency-native-runtime-remediation",
+            "failure",
+        ),
+        (
+            38239428418,
+            114778090287,
+            "f632572057453d57975a397a5b2db64894204be0",
+            "codex/dependency-native-runtime-remediation",
+            "failure",
+        ),
+        (
+            38269614712,
+            114880342307,
+            "a18d636138bbab67e96c902b1c61f690263c8b55",
+            "codex/dependency-native-runtime-remediation",
+            "success",
+        ),
+        (
+            39020247533,
+            117360452632,
+            "9c1b48f8b3a63bf827543cf69090505c1f157fc6",
+            "codex/consolidate-legacy-ownership-guard",
+            "success",
+        ),
+    ]
+    tool_rows.append(
+        (
+            40188825249,
+            121155232821,
+            "c22d641bc0d4dce56925114c827be6d712db7070",
+            "codex/python-setup-security-stabilization",
+            "success",
+        )
+    )
+    pair_rows = [
+        (
+            38291450453,
+            114952275845,
+            "b732222719f70fa592218d2255324850843e9eea",
+            "codex/dependency-native-runtime-remediation",
+            "success",
+        ),
+        (
+            39033193167,
+            117397709770,
+            "e2b86644a9a0264098f57f1bbca5914a3438fbe6",
+            "codex/consolidate-legacy-ownership-guard",
+            "success",
+        ),
+    ]
+    pair_rows.append(
+        (
+            40222244853,
+            121256136190,
+            "7e275934593fa83749c5d89054c019fd4f7c6e89",
+            "codex/python-setup-security-stabilization",
+            "success",
+        )
+    )
+    branch = "codex/python-setup-security-stabilization"
+    head = "a" * 40
+    job_name = (
+        "prometheus-oras-qualification" if purpose == "tool" else "prometheus-source-build-pair"
+    )
+    rows = tool_rows if purpose == "tool" else pair_rows
+    runs = [
+        {
+            "id": run,
+            "head_sha": revision,
+            "head_branch": ref,
+            "run_attempt": 1,
+            "event": "workflow_dispatch",
+            "workflow_id": 99,
+            "status": "completed",
+            "conclusion": outcome,
+            "repository": {"id": 1043311030},
+            "head_repository": {"id": 1043311030},
+        }
+        for run, _, revision, ref, outcome in rows
+    ]
+    jobs = {
+        run: [
+            {
+                "id": job,
+                "run_id": run,
+                "head_sha": revision,
+                "name": job_name,
+                "status": "completed",
+                "conclusion": outcome,
+            }
+        ]
+        for run, job, revision, _, outcome in rows
+    }
+    current = {
+        "id": 999,
+        "head_sha": head,
+        "head_branch": branch,
+        "run_attempt": 1,
+        "event": "workflow_dispatch",
+        "workflow_id": 99,
+        "repository": {"id": 1043311030},
+        "head_repository": {"id": 1043311030},
+    }
+    pr = {
+        "number": 2497,
+        "state": "open",
+        "head": {"ref": branch, "sha": head, "repo": {"id": 1043311030}},
+        "base": {"ref": "main", "repo": {"id": 1043311030}},
+    }
+    jobs[999] = [
+        {"id": 1999, "run_id": 999, "head_sha": head, "name": job_name, "status": "in_progress"}
+    ]
+    if fault == "missing":
+        runs.pop()
+    elif fault == "extra":
+        extra = {**runs[-1], "id": 888}
+        runs.append(extra)
+        jobs[888] = [{**jobs[rows[-1][0]][0], "run_id": 888, "id": 1888}]
+    elif fault == "duplicate":
+        jobs[rows[0][0]].append(dict(jobs[rows[0][0]][0]))
+    elif fault == "source":
+        runs[0]["head_sha"] = "b" * 40
+    elif fault == "attempt":
+        runs[0]["run_attempt"] = 2
+    elif fault == "active":
+        runs[0]["status"] = "in_progress"
+    elif fault == "job-source":
+        jobs[rows[0][0]][0]["head_sha"] = "b" * 40
+    elif fault == "branch":
+        runs[0]["head_branch"] = "unrelated"
+    elif fault == "foreign-PR":
+        pr["head"]["repo"]["id"] = 1
+    elif fault == "current-job":
+        jobs[999][0]["status"] = "completed"
+
+    class API:
+        def json(self, endpoint: str) -> dict[str, Any]:
+            if endpoint.endswith("/runs/999"):
+                return current
+            if endpoint.endswith("/workflows/build.yml"):
+                return {"id": 99, "path": ".github/workflows/build.yml"}
+            if endpoint.endswith("/pulls/2497"):
+                return pr
+            return {"total_count": len(runs) + 1 if "/workflows/" in endpoint else 1}
+
+        def pages(self, endpoint: str, key: str, count: int) -> list[dict[str, Any]]:
+            if key == "workflow_runs":
+                return [*runs, current]
+            return jobs[int(endpoint.split("/runs/")[1].split("/")[0])]
+
+    monkeypatch.setattr(source.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(source.platform, "machine", lambda: "x86_64")
+    for key, value in {
+        "GITHUB_ACTIONS": "true",
+        "GITHUB_EVENT_NAME": "workflow_dispatch",
+        "GITHUB_REPOSITORY": source.GHCR_REPOSITORY,
+        "GITHUB_REPOSITORY_ID": "1043311030",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "GITHUB_RUN_ID": "999",
+        "GITHUB_SHA": head,
+        "GITHUB_REF": "refs/heads/" + branch,
+    }.items():
+        monkeypatch.setenv(key, value)
+    selector = source.TOOL_THREE_PREDECESSORS if fault == "retry-selector" else None
+    if fault is None:
+        result = source.manual_hosted_admission(API(), purpose, prefetch_predecessor=selector)
+        assert result["budget"] == (1 if purpose == "tool" else 2)
+        assert len(result["actual_prior_invocations"]) == (6 if purpose == "tool" else 3)
+    else:
+        with pytest.raises(source.QualificationError):
+            source.manual_hosted_admission(API(), purpose, prefetch_predecessor=selector)
+
+
+def _synthetic_ca_bundle(monkeypatch: pytest.MonkeyPatch) -> bytes:
+    """Mock the X509 transport only for graph units; actual bundle/TLS proof stays native."""
+    import ssl
+
+    data = b"synthetic admitted bundle for graph unit tests\n"
+    certificates = [f"synthetic DER {number}".encode() for number in range(148)]
+
+    class Context:
+        def load_verify_locations(self, *, cadata: str) -> None:
+            assert cadata == data.decode("ascii")
+
+        def get_ca_certs(self, *, binary_form: bool) -> list[bytes]:
+            assert binary_form is True
+            return certificates
+
+    def context(protocol: int) -> Context:
+        assert protocol == ssl.PROTOCOL_TLS_CLIENT
+        return Context()
+
+    monkeypatch.setattr(ssl, "SSLContext", context)
+    monkeypatch.setattr(source, "BASE_CA_SHA256", source.sha(data))
+    monkeypatch.setattr(source, "BASE_CA_BYTES", len(data))
+    return data
+
+
 def _finite_vendor_input(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, wrong_diff: bool = False
 ) -> Path:
     """Synthetic graph data only; no native format, origin or build-success fixture."""
+    ca = _synthetic_ca_bundle(monkeypatch)
     layout = tmp_path / "vendor"
     (layout / "blobs/sha256").mkdir(parents=True)
     contracts = []
@@ -36,10 +269,16 @@ def _finite_vendor_input(
         stream = io.BytesIO()
         rows = []
         with tarfile.open(fileobj=stream, mode="w", format=tarfile.USTAR_FORMAT) as archive:
-            names = ("usr", "usr/bin", "etc", "bin") if index == 0 else (f"vendor-{index}",)
+            names = (
+                ("usr", "usr/bin", "etc", "bin")
+                if index == 0
+                else (
+                    ("etc/ssl/certs/ca-certificates.crt",) if index == 12 else (f"vendor-{index}",)
+                )
+            )
             for name in names:
                 member = tarfile.TarInfo(name)
-                data = ("synthetic vendor " + str(index)).encode()
+                data = ca if index == 12 else ("synthetic vendor " + str(index)).encode()
                 if index == 0:
                     member.type = tarfile.SYMTYPE if name == "bin" else tarfile.DIRTYPE
                     member.linkname = "usr/bin" if name == "bin" else ""
@@ -314,7 +553,12 @@ def test_actual_layout_rejection_reaches_tool_report_and_keeps_cleanup_separate(
 
     monkeypatch.setattr(source, "GitHubRead", API)
     monkeypatch.setattr(
-        source, "manual_hosted_admission", lambda *args, **kwargs: {"head": "synthetic"}
+        source,
+        "manual_hosted_admission",
+        lambda *args, **kwargs: {
+            "head": "synthetic",
+            "ref": "refs/heads/codex/python-setup-security-stabilization",
+        },
     )
     monkeypatch.setattr(source, "authenticate_producer_inputs", lambda *args, **kwargs: None)
     monkeypatch.setattr(source, "tool_input_projection", lambda root: {"synthetic": True})
@@ -482,7 +726,7 @@ def _tool_scan_data(subject: str = "/synthetic/tool-rootfs") -> dict[str, Any]:
                 "Class": "lang-pkgs",
                 "Type": "gobinary",
                 "Packages": [
-                    {"Name": "stdlib", "Version": "v1.27.2"},
+                    {"Name": "stdlib", "Version": "v1.27.3"},
                     {"Name": "golang.org/x/crypto", "Version": "v0.52.0"},
                 ],
                 "Vulnerabilities": [
@@ -1138,7 +1382,7 @@ def _projection_case(tmp_path: Path) -> tuple[Path, dict[str, Any], dict[str, An
     (root / source.MANIFEST_PATH).write_text(json.dumps(manifest))
     acquired = {
         "source": "a" * 64,
-        "go": source.GO.digest,
+        "go": source.CURRENT_GO.digest,
         "modules": "b" * 64,
         "UI_transform": {
             "generated_paths": [name + ".gz" for name in sorted(source.UI_FILES)],
@@ -1935,9 +2179,7 @@ def test_main_prefetch_uses_no_explicit_module_args_and_rejects_lock_drift(
         if artifact.name in ("source", "go"):
             (target / "LICENSE").write_bytes(b"synthetic license")
             (target / "VERSION").write_bytes(
-                b"3.15.0\n"
-                if artifact.name == "source"
-                else b"go1.27.2\ntime 2026-10-02T20:28:03Z\n"
+                b"3.15.0\n" if artifact.name == "source" else source.CURRENT_GO_VERSION_FILE
             )
         if artifact.name == "source":
             for name, data in locks.items():
@@ -1959,7 +2201,7 @@ def test_main_prefetch_uses_no_explicit_module_args_and_rejects_lock_drift(
         assert not cleaning
         assert env["GOTOOLCHAIN"] == "local" and env["GOFLAGS"] == "-mod=readonly"
         if name == "online-go-version":
-            return source.GO_VERSION.encode()
+            return source.CURRENT_GO_VERSION.encode()
         if name == "public-module-download":
             if changed_lock is not None:
                 (cwd / changed_lock).write_bytes(b"unexpected native lock mutation\n")
@@ -3683,8 +3925,8 @@ def test_promote_known_writer_order_has_frozen_acyclic_workflow() -> None:
     raw = (Path(__file__).resolve().parents[1] / ".github/workflows/build.yml").read_bytes()
     assert (
         hashlib.sha256(raw).hexdigest()
-        # pragma: allowlist nextline secret - public frozen build workflow digest
-        == "6530b5170bb6bd3e3186d21ba7e88cb91e52bcd13a0083788a06119df059038c"
+        # Public frozen build workflow digest
+        == "31860b30580c3b389380d7f88722d150fa0ac14ab3c9b773e29f9113d43422e7"
     )
     jobs = yaml.safe_load(raw)["jobs"]
     assert jobs["publish"]["needs"] == ["build", "security-scan"]
@@ -4374,7 +4616,7 @@ def test_derivation_controller_uses_two_clean_original_fixed_get_replays_or_stop
                 return b""
             assert env["GOFLAGS"] == "-mod=readonly"
             if command == ["version"]:
-                return source.GO_VERSION.encode()
+                return source.CURRENT_GO_VERSION.encode()
             if command == ["mod", "edit", "-json"]:
                 if fault == "base-lock" and not changed:
                     (cwd / "go.sum").write_bytes(b"unexpected sum")
@@ -4507,7 +4749,7 @@ def test_derivation_offline_keeps_both_production_graphs_and_existing_sandbox_co
     ) -> tuple[bytes, dict[str, Any]]:
         command = expected["command"]
         if command == ["version"]:
-            raw = source.GO_VERSION.encode()
+            raw = source.CURRENT_GO_VERSION.encode()
         elif command == ["mod", "verify"]:
             raw = b"all modules verified"
         else:
@@ -5063,7 +5305,7 @@ def test_tool_prefetch_retains_before_after_and_preserves_primary(
         calls.append(argv)
         assert cwd == tree and env["GOTOOLCHAIN"] == "local" and env["GOWORK"] == "off"
         if name.endswith("-version"):
-            return source.GO_VERSION.encode()
+            return source.CURRENT_GO_VERSION.encode()
         if name.endswith("-download"):
             if variant == "lock":
                 (tree / "go.sum").write_bytes(b"actual synthetic lock drift\n")
@@ -5595,7 +5837,7 @@ def _two_tool_prefetch_recovery_fixture(
         b"all modules verified\n",
         online_go=True,
     )
-    native("vendor-pull", [*docker, "pull", "--platform", "linux/amd64", source.BASE])
+    native("vendor-pull", [*docker, "pull", "--platform", "linux/amd64", source.HISTORICAL_BASE])
     containers = []
     for index, (kind, command) in enumerate(
         (
@@ -5606,15 +5848,15 @@ def _two_tool_prefetch_recovery_fixture(
     ):
         name, owner = "synthetic-owned-" + kind, "synthetic-owner-" + kind
         image = {
-            "Id": source.BASE_CONFIG,
+            "Id": source.HISTORICAL_BASE_CONFIG,
             "Os": "linux",
             "Architecture": "amd64",
-            "RepoDigests": [source.BASE],
+            "RepoDigests": [source.HISTORICAL_BASE],
             "Config": {"Env": []},
         }
         native(
             f"tool-{kind}-base",
-            [*docker, "image", "inspect", source.BASE],
+            [*docker, "image", "inspect", source.HISTORICAL_BASE],
             source.canonical_data(image),
         )
         # Historical argv is opaque data; no current-host directory constructor is invoked.
@@ -5625,13 +5867,13 @@ def _two_tool_prefetch_recovery_fixture(
             name,
             "--label",
             source.LABEL + "=" + owner,
-            source.BASE_CONFIG,
+            source.HISTORICAL_BASE_CONFIG,
             *command,
         ]
         native(f"tool-{kind}-create", create, name.encode())
         container = {
             "Name": "/" + name,
-            "Image": source.BASE_CONFIG,
+            "Image": source.HISTORICAL_BASE_CONFIG,
             "Config": {
                 "Labels": {source.LABEL: owner},
                 "User": "65532:65532",
@@ -5933,7 +6175,7 @@ def _three_tool_failure_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     }
     for number in range(1, 64):
         for suffix in ("json", "stdout", "stderr"):
-            files[f"GitHub-{number}.{suffix}"] = old[f"GitHub-{min(number,49)}.{suffix}"]
+            files[f"GitHub-{number}.{suffix}"] = old[f"GitHub-{min(number, 49)}.{suffix}"]
     before = {
         "locks": source.one_object(old["tool-prefetch.json"])["before"]["locks"],
         "source_inventory": [
@@ -6012,7 +6254,7 @@ def _three_tool_failure_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     frozen = [dict(cache[0], mode=0o444)]
     files["tool-prefetch-cache-before-freeze.json"] = source.canonical_data(cache)
     files["tool-prefetch-cache-frozen.json"] = source.canonical_data(frozen)
-    native("tool-base-pull", [*docker, "pull", "--platform", "linux/amd64", source.BASE])
+    native("tool-base-pull", [*docker, "pull", "--platform", "linux/amd64", source.HISTORICAL_BASE])
     commands = (
         ("version", ["version"], source.GO_VERSION.encode()),
         ("verify", ["mod", "verify"], b"all modules verified\n"),
@@ -6040,15 +6282,15 @@ def _three_tool_failure_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     for number, (name, command, raw) in enumerate(commands):
         container, owner = "synthetic-third-" + name, "synthetic-owner-" + name
         image = {
-            "Id": source.BASE_CONFIG,
+            "Id": source.HISTORICAL_BASE_CONFIG,
             "Os": "linux",
             "Architecture": "amd64",
-            "RepoDigests": [source.BASE],
+            "RepoDigests": [source.HISTORICAL_BASE],
             "Config": {"Env": []},
         }
         native(
             "tool-" + name + "-base",
-            [*docker, "image", "inspect", source.BASE],
+            [*docker, "image", "inspect", source.HISTORICAL_BASE],
             source.canonical_data(image),
         )
         create = [
@@ -6058,7 +6300,7 @@ def _three_tool_failure_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
             container,
             "--label",
             source.LABEL + "=" + owner,
-            source.BASE_CONFIG,
+            source.HISTORICAL_BASE_CONFIG,
             *command,
         ]
         native("tool-" + name + "-create", create, container.encode())
@@ -6089,7 +6331,7 @@ def _three_tool_failure_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
             )
         value = {
             "Name": "/" + container,
-            "Image": source.BASE_CONFIG,
+            "Image": source.HISTORICAL_BASE_CONFIG,
             "Config": {
                 "Labels": {source.LABEL: owner},
                 "User": "65532:65532",
@@ -6129,7 +6371,7 @@ def _three_tool_failure_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     native("ORAS-help", [binary, "cp", "--help"], b"synthetic help")
     native(
         "ORAS-authenticated-base",
-        [binary, "cp", "--to-oci-layout", source.BASE, str(work / "vendor") + ":base"],
+        [binary, "cp", "--to-oci-layout", source.HISTORICAL_BASE, str(work / "vendor") + ":base"],
     )
     for container, value in containers:
         argv = [*docker, "ps", "--all", "--format", "{{.Names}}"]
@@ -7203,3 +7445,60 @@ def test_public_package_inventory_real_capture_combined_stream_bound_and_cleanup
     for path in evidence.iterdir():
         raw = path.read_bytes()
         assert credential.encode() not in raw and b"synthetic.capture.writer" not in raw
+
+
+@pytest.mark.parametrize(
+    "fault", [None, "bytes", "length", "parse", "count", "removed-emsign", "removed-aaa"]
+)
+def test_current_default_CA_recognizer_binds_bytes_and_closed_DER_inventory(
+    monkeypatch: pytest.MonkeyPatch, fault: str | None
+) -> None:
+    import ssl
+
+    assert (
+        source.BASE_CA_SHA256 == "e9c7b63ee2623386e9b0a3ee32f499d01a8ea23dc83b8383ddff9f8e749543b7"
+    )
+    assert source.BASE_CA_BYTES == 222073
+    assert source.REMOVED_CA_DER_SHA256 == {
+        "86a1ecba089c4a8d3bbe2734c612ba341d813e043cf9e8a862cd5c57a36bbe6b",
+        "d7a7a0fb5d7e2731d771e9484ebcdef71d5f0c3e0a2948782bc83ee0ea699ef4",
+    }
+    raw = b"synthetic exact bundle\n"
+    certificates = [f"synthetic DER {i}".encode() for i in range(148)]
+    monkeypatch.setattr(source, "BASE_CA_BYTES", len(raw))
+    monkeypatch.setattr(source, "BASE_CA_SHA256", source.sha(raw))
+    calls: list[str] = []
+
+    class Context:
+        def load_verify_locations(self, *, cadata: str) -> None:
+            calls.append("explicit-cadata")
+            assert cadata == raw.decode("ascii")
+            if fault == "parse":
+                raise ssl.SSLError("synthetic parse rejection")
+
+        def get_ca_certs(self, *, binary_form: bool) -> list[bytes]:
+            calls.append("DER")
+            assert binary_form is True
+            return certificates[:-1] if fault == "count" else certificates
+
+    def context(protocol: int) -> Context:
+        calls.append("new-context")
+        assert protocol == ssl.PROTOCOL_TLS_CLIENT
+        return Context()
+
+    monkeypatch.setattr(ssl, "SSLContext", context)
+    if fault in ("removed-emsign", "removed-aaa"):
+        # Controlled fingerprints test both positions without fabricating native roots.
+        index = 0 if fault == "removed-emsign" else 1
+        monkeypatch.setattr(
+            source, "REMOVED_CA_DER_SHA256", frozenset({source.sha(certificates[index])})
+        )
+    candidate = raw + b"x" if fault == "length" else (b"X" + raw[1:] if fault == "bytes" else raw)
+    if fault is None:
+        source.validate_default_ca(candidate)
+        assert calls == ["new-context", "explicit-cadata", "DER"]
+    else:
+        with pytest.raises(source.QualificationError):
+            source.validate_default_ca(candidate)
+        if fault in ("bytes", "length"):
+            assert calls == []

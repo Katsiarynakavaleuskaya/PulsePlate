@@ -17,7 +17,7 @@ import os
 from pathlib import Path, PurePosixPath
 import shlex
 import shutil
-import subprocess  # nosec B404: git subprocesses are required for isolated temp checkouts (remove-by: 2026-10-31, ref: PR-1082)
+import subprocess  # nosec B404: git subprocesses are required for isolated temp checkouts (remove-by: 2027-02-01, ref: PR-1082)
 import sys
 import tempfile
 import time
@@ -96,6 +96,9 @@ class PolicyViolationError(ExperimentRunnerError):
 
 class InfraFlakeError(ExperimentRunnerError):
     """Patch/apply/oracle execution failed for runner reasons, not code signal."""
+
+    _checkout_uncertain = False
+    _retained_checkout: str | None = None
 
 
 class CapabilityMismatchError(ExperimentRunnerError):
@@ -289,22 +292,33 @@ def _run_git(
 ) -> subprocess.CompletedProcess[str]:
     """Run git with an absolute binary and stable text capture."""
 
-    process = subprocess.run(  # nosec B603: absolute git binary with bounded argv is required for isolated checkouts (remove-by: 2026-10-31, ref: PR-1082)
-        [
-            _resolve_git_binary(),
-            *_safe_git_config_args_for(cwd, bind_work_tree=bind_work_tree),
-            *args,
-        ],
-        cwd=str(cwd),
-        env=_sanitized_git_env_without_parent_state(),
-        capture_output=True,
-        text=True,
-        check=False,
-        input=input_text,
-    )
+    argv = [
+        _resolve_git_binary(),
+        *_safe_git_config_args_for(cwd, bind_work_tree=bind_work_tree),
+        *args,
+    ]
+    environment = _sanitized_git_env_without_parent_state()
+    mutates_checkout = args[:1] in (["clone"], ["checkout"], ["apply"]) and "--check" not in args
+    try:
+        process = subprocess.run(  # nosec B603: absolute git binary with bounded argv is required for isolated checkouts (remove-by: 2027-01-01, ref: PR-1082)
+            argv,
+            cwd=str(cwd),
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+            input=input_text,
+        )
+    except (KeyboardInterrupt, SystemExit) as interruption:
+        if mutates_checkout:
+            setattr(interruption, "_checkout_uncertain", True)
+        raise
+    if mutates_checkout and process.returncode < 0:
+        failure = InfraFlakeError("Isolated checkout writer terminated by signal.")
+        failure._checkout_uncertain = True
+        raise failure
     if check and process.returncode != 0:
-        stderr = process.stderr.strip() or process.stdout.strip() or "unknown git failure"
-        raise InfraFlakeError(f"git {' '.join(args)} failed: {stderr}")
+        raise InfraFlakeError(f"Git operation failed (exit {process.returncode}).")
     return process
 
 
@@ -509,25 +523,139 @@ def _temporary_sandbox_env(
                 os.environ[key] = original
 
 
-def _create_temp_checkout(root: Path) -> tuple[tempfile.TemporaryDirectory[str], Path]:
-    """Clone the current repo into a detached temporary checkout."""
+class _CheckoutReservation:
+    """Explicit ownership of one temporary checkout, without GC-triggered removal."""
 
-    temp_dir = tempfile.TemporaryDirectory(prefix="experiment-runner-")
+    def __init__(self, root: Path) -> None:
+        parent = Path(tempfile.gettempdir()).resolve(strict=True)
+        if parent.is_relative_to(root.resolve(strict=True)):
+            raise InfraFlakeError("Temporary checkout parent overlaps the source.")
+        self.name = tempfile.mkdtemp(prefix="experiment-runner-", dir=parent)
+        try:
+            self._fd = os.open(self.name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        except OSError:
+            failure = InfraFlakeError("Temporary checkout reservation could not be identified.")
+            failure._checkout_uncertain = True
+            failure._retained_checkout = self.name
+            raise failure from None
+        self.removal_completed = False
+        try:
+            self.identity = os.fstat(self._fd)
+        except BaseException as primary:
+            failure = InfraFlakeError("Temporary checkout reservation could not be identified.")
+            failure._checkout_uncertain = True
+            failure._retained_checkout = self.name
+            try:
+                os.close(self._fd)
+            except OSError as secondary:
+                failure.add_note("Checkout descriptor cleanup failed: " + type(secondary).__name__)
+            if not isinstance(primary, Exception):
+                setattr(primary, "_checkout_uncertain", True)
+                setattr(primary, "_retained_checkout", self.name)
+                for note in getattr(failure, "__notes__", ()):
+                    primary.add_note(note)
+                raise
+            raise failure from None
+
+    def retain(self) -> None:
+        os.close(self._fd)
+
+    def cleanup(self) -> None:
+        reservation = Path(self.name)
+        try:
+            if not os.path.samestat(reservation.lstat(), self.identity):
+                raise InfraFlakeError("Temporary checkout reservation identity changed.")
+            children = os.listdir(self._fd)
+            if children:
+                if children != ["checkout"]:
+                    raise InfraFlakeError("Unexpected member in temporary checkout reservation.")
+                shutil.rmtree("checkout", dir_fd=self._fd)
+            if not os.path.samestat(reservation.lstat(), self.identity):
+                raise InfraFlakeError("Temporary checkout reservation identity changed.")
+            reservation.rmdir()
+            self.removal_completed = True
+        finally:
+            os.close(self._fd)
+
+
+def _finish_checkout(owner: _CheckoutReservation, primary: BaseException | None) -> None:
+    if primary is not None and getattr(primary, "_checkout_uncertain", False):
+        setattr(primary, "_retained_checkout", owner.name)
+        try:
+            owner.retain()
+        except OSError as secondary:
+            primary.add_note("Checkout descriptor cleanup failed: " + type(secondary).__name__)
+        primary.add_note("Isolated checkout retained after writer interruption.")
+        return
+    try:
+        owner.cleanup()
+        try:
+            Path(owner.name).lstat()
+        except FileNotFoundError:
+            if owner.removal_completed:
+                return
+        raise InfraFlakeError("Temporary checkout removal was not observed.")
+    except BaseException as cleanup:
+        # Only an observed absent entry permits the incumbent infrastructure retry.
+        try:
+            Path(owner.name).lstat()
+        except FileNotFoundError:
+            uncertain = not owner.removal_completed
+        except OSError:
+            uncertain = True
+        else:
+            uncertain = True
+        if primary is not None:
+            setattr(primary, "_checkout_cleanup_failed", True)
+            primary.add_note("Isolated checkout cleanup failed: " + type(cleanup).__name__)
+            if uncertain:
+                setattr(primary, "_checkout_uncertain", True)
+                setattr(primary, "_retained_checkout", owner.name)
+            return
+        if not isinstance(cleanup, Exception):
+            raise
+        failure = InfraFlakeError("Unable to clean temp checkout.")
+        if uncertain:
+            failure._checkout_uncertain = True
+            failure._retained_checkout = owner.name
+        raise failure from None
+
+
+def _checkout_failure_message(error: ExperimentRunnerError) -> str:
+    """Project cleanup state without exposing private paths or subprocess details."""
+    if getattr(error, "_checkout_uncertain", False):
+        if getattr(error, "_checkout_cleanup_failed", False):
+            return (
+                "Experiment failed; secondary checkout cleanup failed and removal is unconfirmed."
+            )
+        return "Isolated checkout state is uncertain; retry is blocked."
+    if getattr(error, "_checkout_cleanup_failed", False):
+        return "Experiment failed; secondary checkout cleanup also failed."
+    return str(error)
+
+
+def _create_temp_checkout(root: Path) -> tuple[_CheckoutReservation, Path]:
+    """Transfer the explicit reservation only after checkout succeeds."""
+    temp_dir = _CheckoutReservation(root)
     checkout_root = Path(temp_dir.name) / "checkout"
-    _run_git(
-        [
-            "clone",
-            "--quiet",
-            "--no-checkout",
-            "--no-hardlinks",
-            str(root),
-            str(checkout_root),
-        ],
-        cwd=root,
-        bind_work_tree=False,
-    )
-    head_sha = _run_git(["rev-parse", "HEAD"], cwd=root).stdout.strip()
-    _run_git(["checkout", "--quiet", "--detach", head_sha], cwd=checkout_root)
+    try:
+        _run_git(
+            [
+                "clone",
+                "--quiet",
+                "--no-checkout",
+                "--no-hardlinks",
+                str(root),
+                str(checkout_root),
+            ],
+            cwd=root,
+            bind_work_tree=False,
+        )
+        head_sha = _run_git(["rev-parse", "HEAD"], cwd=root).stdout.strip()
+        _run_git(["checkout", "--quiet", "--detach", head_sha], cwd=checkout_root)
+    except BaseException as primary:
+        _finish_checkout(temp_dir, primary)
+        raise
     return temp_dir, checkout_root
 
 
@@ -566,8 +694,7 @@ def _has_effective_diff(checkout_root: Path) -> bool:
 
     process = _run_git(["status", "--short"], cwd=checkout_root, check=False)
     if process.returncode != 0:
-        stderr = process.stderr.strip() or process.stdout.strip() or "unknown git failure"
-        raise InfraFlakeError(f"git status failed after patch apply: {stderr}")
+        raise InfraFlakeError(f"Git status after patch failed (exit {process.returncode}).")
     return bool(process.stdout.strip())
 
 
@@ -659,6 +786,16 @@ def _run_oracles(
                     request,
                     allowlist={("sandbox.exec", "local://sandbox")},
                 )
+            except (KeyboardInterrupt, SystemExit) as interruption:
+                # The call was entered and did not return its terminal result.
+                setattr(interruption, "_checkout_uncertain", True)
+                raise
+            except subprocess.TimeoutExpired:
+                failure = InfraFlakeError(
+                    "Sandbox command interrupted before terminal observation."
+                )
+                failure._checkout_uncertain = True
+                raise failure from None
             except Exception as exc:
                 message = str(exc).lower()
                 if disable_network and (
@@ -724,6 +861,7 @@ def _evaluate_attempt(
     temp_dir, checkout_root = _create_temp_checkout(
         REPO_ROOT if execution_root is None else execution_root
     )
+    primary: BaseException | None = None
     try:
         _apply_candidate_patch(checkout_root, patch_text)
         if not _has_effective_diff(checkout_root):
@@ -753,11 +891,11 @@ def _evaluate_attempt(
             budget_observations=budget_observations,
             shared_tree_untouched=True,
         )
+    except BaseException as error:
+        primary = error
+        raise
     finally:
-        try:
-            temp_dir.cleanup()
-        except Exception as exc:
-            raise InfraFlakeError(f"Unable to clean temp checkout: {exc}") from exc
+        _finish_checkout(temp_dir, primary)
 
 
 def evaluate_candidate(
@@ -855,7 +993,7 @@ def evaluate_candidate(
                 raise
             except InfraFlakeError as exc:
                 last_infra_error = str(exc)
-                if attempt_number == max_attempts:
+                if exc._checkout_uncertain or attempt_number == max_attempts:
                     raise
                 continue
             if (
@@ -881,7 +1019,7 @@ def evaluate_candidate(
         else:
             raise InfraFlakeError(last_infra_error or "Unknown infra_flake during experiment run.")
     except PolicyViolationError as exc:
-        budget_observations["runner_error"] = str(exc)
+        budget_observations["runner_error"] = _checkout_failure_message(exc)
         result = _result_payload(
             experiment_id=packet["experiment_id"],
             runner_mode=packet.get("runner_mode", DEFAULT_RUNNER_MODE),
@@ -912,7 +1050,7 @@ def evaluate_candidate(
         )
     except InfraFlakeError as exc:
         capability_signal = False
-        budget_observations["runner_error"] = str(exc)
+        budget_observations["runner_error"] = _checkout_failure_message(exc)
         result = _result_payload(
             experiment_id=packet["experiment_id"],
             runner_mode=packet.get("runner_mode", DEFAULT_RUNNER_MODE),
@@ -1021,6 +1159,7 @@ def evaluate_oracle_only_governance_reviewer(
                 "Oracle-only source diff must stay within packet context surface: " f"{joined}"
             )
         temp_dir, checkout_root = _create_temp_checkout(material_root)
+        primary: BaseException | None = None
         try:
             if source_diff:
                 _apply_candidate_patch(checkout_root, source_diff)
@@ -1056,13 +1195,13 @@ def evaluate_oracle_only_governance_reviewer(
                     budget_observations=budget_observations,
                     shared_tree_untouched=True,
                 )
+        except BaseException as error:
+            primary = error
+            raise
         finally:
-            try:
-                temp_dir.cleanup()
-            except Exception as exc:
-                raise InfraFlakeError(f"Unable to clean temp checkout: {exc}") from exc
+            _finish_checkout(temp_dir, primary)
     except PolicyViolationError as exc:
-        budget_observations["runner_error"] = str(exc)
+        budget_observations["runner_error"] = _checkout_failure_message(exc)
         result = _result_payload(
             experiment_id=packet["experiment_id"],
             runner_mode=ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
@@ -1090,7 +1229,7 @@ def evaluate_oracle_only_governance_reviewer(
         )
     except InfraFlakeError as exc:
         capability_signal = False
-        budget_observations["runner_error"] = str(exc)
+        budget_observations["runner_error"] = _checkout_failure_message(exc)
         result = _result_payload(
             experiment_id=packet["experiment_id"],
             runner_mode=ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,

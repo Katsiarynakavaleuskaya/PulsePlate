@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
+import os
 import re
+import shutil
+import stat
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -514,7 +520,6 @@ def test_cd_has_no_prometheus_candidate_publication_carrier() -> None:
     assert dispatch["inputs"]["alertmanager_mode"]["options"] == [
         "disabled",
         "module-qualify",
-        "input-inspect",
         "support-inspect",
         "build",
         "publish",
@@ -615,7 +620,7 @@ def test_prometheus_cd_registry_credential_route_preserves_base_execution_bounda
     assert (
         control["with"]["ref"]
         # pragma: allowlist nextline secret - public trusted control commit
-        == "0d6a4c09477ad3174252eab15f80cdd4a76df5bc"
+        == "dab47fc6153f87e35233e20aa255d97e68a5ed93"
     )
     assert control["with"]["persist-credentials"] is False
     assert control["with"]["sparse-checkout"] == "scripts/ci/prometheus_source_image.py"
@@ -625,19 +630,17 @@ def test_prometheus_cd_registry_credential_route_preserves_base_execution_bounda
         "(steps.prometheus-control-checkout.outcome == 'success' || "
         "steps.prometheus-control-checkout.outcome == 'failure') }}"
     )
+    control_bytes = (REPO_ROOT / "scripts/ci/prometheus_source_image.py").read_bytes()
+    control_blob = hashlib.sha1(
+        b"blob " + str(len(control_bytes)).encode("ascii") + b"\0" + control_bytes,
+        usedforsecurity=False,
+    ).hexdigest()
+    control_object = f"100644 blob {control_blob}\\tscripts/ci/prometheus_source_image.py\\0"
     for script in (route["run"], consumer["run"]):
         assert "Prometheus_control_interface_HOLD" in script
-        assert "338536" in script
-        assert (
-            # pragma: allowlist nextline secret - public trusted control blob
-            "175520fe70b30c885448b95718b25b27985d3f8c"
-            in script
-        )
-        assert (
-            # pragma: allowlist nextline secret - public trusted control digest
-            "2b6edfa63f55b17cafdff100151b4b7cebef93a757fc3ab04b00eea77ca0ac6a"
-            in script
-        )
+        assert str(len(control_bytes)) in script
+        assert control_object in script
+        assert hashlib.sha256(control_bytes).hexdigest() in script
     assert 'trusted["consume_image"](work, material' in consumer["run"]
     assert 'trusted["one_object"](raw).get("admission")' in consumer["run"]
     assert 'admission != result["admission"]' in consumer["run"]
@@ -808,3 +811,255 @@ def test_checkpoint_native_consumer_precedes_secret_free_child(
     ) in script
     assert 'exit "$native_status"' in script and 'exit "$capture_status"' in script
     assert not any("login-action" in str(s.get("uses", "")) for s in selected["steps"])
+
+
+@pytest.mark.parametrize("symlink_position", [None, 0, 1, 2])
+@pytest.mark.parametrize("old_and_list_oracle", [False, True])
+def test_trusted_ssh_file_loop_rejects_matching_symlink_before_file_effects(
+    tmp_path: Path,
+    symlink_position: int | None,
+    old_and_list_oracle: bool,
+) -> None:
+    """Execute only the extracted local boundary with synthetic files, never SSH/deployment."""
+    workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text())
+    step = next(
+        item
+        for item in workflow["jobs"]["deploy-production"]["steps"]
+        if item.get("name") == "Deploy to production over SSH (pinned digest)"
+    )
+    actual = step["with"]["script"]
+    start = actual.index('for trusted in "$tmp_script"')
+    end = actual.index("\nbundle_name=", start)
+    snippet = actual[start:end]
+    fixed = '[ ! -L "$trusted" ]\n  [ -f "$trusted" ]'
+    assert fixed in snippet
+    if old_and_list_oracle:
+        snippet = snippet.replace(fixed, '[ ! -L "$trusted" ] && [ -f "$trusted" ]')
+    assert '/bin/bash "$tmp_script" --preflight-only' in actual
+    snippet = "set -euo pipefail\n" + snippet + '\n/bin/bash "$tmp_script" --preflight-only\n'
+    tools = tmp_path / "trusted-tools"
+    tools.mkdir(mode=0o700)
+    trace = tmp_path / "effects"
+    contents = [
+        b'#!/bin/sh\nprintf "launch\\n" >> "$CONTROL_TRACE"\n',
+        b"# synthetic Prometheus helper\n",
+        b"# synthetic AM helper\n",
+    ]
+    files = [tools / name for name in ("deploy.sh", "prometheus.py", "alertmanager.py")]
+    for path, content in zip(files, contents):
+        path.write_bytes(content)
+        path.chmod(0o640)
+    target = tmp_path / "owned-target-outside-tool-directory"
+    if symlink_position is not None:
+        target.write_bytes(contents[symlink_position])
+        target.chmod(0o640)
+        files[symlink_position].unlink()
+        files[symlink_position].symlink_to(target)
+        assert files[symlink_position].read_bytes() == contents[symlink_position]
+        assert files[symlink_position].lstat().st_uid == os.geteuid()
+        assert files[symlink_position].lstat().st_nlink == 1
+    commands = tmp_path / "commands"
+    commands.mkdir()
+    native_observer = f"#!{sys.executable}\n" + r"""
+import hashlib
+import os
+from pathlib import Path
+import sys
+name = Path(sys.argv[0]).name
+args = sys.argv[1:]
+trace = Path(os.environ["CONTROL_TRACE"])
+def record(value):
+    with trace.open("a") as stream:
+        stream.write(value + "\n")
+if name == "stat":
+    assert args[:2] == ["-c", "%u:%h"] and len(args) == 3
+    path = Path(args[2])
+    record("stat|" + str(path))
+    value = path.lstat()
+    print(str(value.st_uid) + ":" + str(value.st_nlink))
+elif name == "sha256sum":
+    assert len(args) == 1
+    path = Path(args[0])
+    record("hash|" + str(path))
+    print(hashlib.sha256(path.read_bytes()).hexdigest() + "  " + str(path))
+elif name == "chmod":
+    assert args[:2] == ["600", "--"] and len(args) == 5
+    record("chmod")
+    for raw in args[2:]:
+        path = Path(raw)
+        assert path.resolve().is_relative_to(Path(os.environ["CONTROL_ROOT"]))
+        path.chmod(0o600)
+else:
+    raise AssertionError(name)
+"""
+    for name in ("stat", "sha256sum", "chmod"):
+        command = commands / name
+        command.write_text(native_observer)
+        command.chmod(0o700)
+    environment = {
+        "PATH": str(commands) + os.pathsep + os.defpath,
+        "HOME": str(tmp_path),
+        "LANG": "C",
+        "tmp_script": str(files[0]),
+        "PROMETHEUS_CONTRACT_HELPER": str(files[1]),
+        "ALERTMANAGER_CONTRACT_HELPER": str(files[2]),
+        "DEPLOY_SCRIPT_SHA256": hashlib.sha256(contents[0]).hexdigest(),
+        "PROMETHEUS_HELPER_SHA256": hashlib.sha256(contents[1]).hexdigest(),
+        "ALERTMANAGER_HELPER_SHA256": hashlib.sha256(contents[2]).hexdigest(),
+        "CONTROL_TRACE": str(trace),
+        "CONTROL_ROOT": str(tmp_path),
+    }
+    bash = shutil.which("bash")
+    assert bash is not None
+    result = subprocess.run(
+        [bash, "-c", snippet],
+        env=environment,
+        text=True,
+        capture_output=True,
+        timeout=10,
+        check=False,
+    )
+    events = trace.read_text().splitlines() if trace.exists() else []
+    if symlink_position is None:
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert events == [
+            *("stat|" + str(path) for path in files),
+            *("hash|" + str(path) for path in files),
+            "chmod",
+            "launch",
+        ]
+        assert all(stat.S_IMODE(path.stat().st_mode) == 0o600 for path in files)
+    elif old_and_list_oracle:
+        # Counterfactual reproduces the original bug despite matching hash/owner/link count.
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "stat|" + str(files[symlink_position]) in events
+        assert events[-2:] == ["chmod", "launch"]
+        assert stat.S_IMODE(target.stat().st_mode) == 0o600
+    else:
+        assert result.returncode != 0
+        assert events == ["stat|" + str(path) for path in files[:symlink_position]]
+        assert stat.S_IMODE(target.stat().st_mode) == 0o640
+        assert all(stat.S_IMODE(path.stat().st_mode) == 0o640 for path in files)
+        assert target.read_bytes() == contents[symlink_position]
+
+
+def test_am_current_Q_S_producer_have_closed_sources_and_complete_owned_budgets() -> None:
+    """This is producer qualification; the separate publisher retains its own admission."""
+    workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    jobs = workflow["jobs"]
+    for name in (
+        "alertmanager-module-qualification",
+        "alertmanager-input-inspection",
+        "alertmanager-candidate-build",
+    ):
+        job = jobs[name]
+        assert "github.event_name == 'workflow_dispatch'" in job["if"]
+        assert "github.run_attempt == 1" in job["if"]
+        assert "refs/heads/codex/dependency-alertmanager-remediation" in job["if"]
+        assert "refs/heads/main" in job["if"]
+        assert "refs/heads/codex/python-setup-security-stabilization" not in job["if"]
+        clean = next(
+            step
+            for step in job["steps"]
+            if step["name"] == "Require clean AM source before executable imports"
+        )
+        assert "--others --ignored --exclude-standard" in clean["run"]
+        assert "--others --exclude-standard" in clean["run"]
+        assert "git clean" not in clean["run"]
+    qualification = jobs["alertmanager-module-qualification"]
+    assert qualification["timeout-minutes"] == 25
+    assert sum(step["timeout-minutes"] for step in qualification["steps"]) == 24
+    assert (
+        int(qualification["env"]["ALERTMANAGER_QUALIFY_SECONDS"])
+        + int(workflow["env"]["ALERTMANAGER_CLEANUP_SECONDS"])
+        <= 16 * 60
+    )
+    qualifier = next(
+        step for step in qualification["steps"] if "metadata-only clock" in step["name"]
+    )
+    assert '--output-dir "$RUNNER_TEMP/alertmanager-module-' in qualifier["run"]
+    assert "build/docker-sources" not in qualifier["run"]
+    support = jobs["alertmanager-input-inspection"]
+    assert support["timeout-minutes"] == 60
+    assert sum(step["timeout-minutes"] for step in support["steps"]) == 59
+    producer = jobs["alertmanager-candidate-build"]
+    assert (
+        producer["timeout-minutes"]
+        == "${{ fromJSON(vars.ALERTMANAGER_PRODUCER_JOB_MINUTES || '180') }}"
+    )
+    assert producer["env"]["ALERTMANAGER_PRODUCER_JOB_MINUTES"] == producer["timeout-minutes"]
+    limits = {**workflow["env"], **producer["env"]}
+    phases = sum(
+        int(limits["ALERTMANAGER_" + part])
+        for part in (
+            "PREP_SECONDS",
+            "PAIR_SECONDS",
+            "SECURITY_SECONDS",
+            "NATIVE_SECONDS",
+            "NATIVE_CLEANUP_SECONDS",
+        )
+    )
+    helper = (
+        phases
+        + int(limits["ALERTMANAGER_PRODUCER_MATERIAL_SECONDS"])
+        + int(limits["ALERTMANAGER_PRODUCER_OTHER_CLEANUP_SECONDS"])
+    )
+    assert helper == int(limits["ALERTMANAGER_PRODUCER_SECONDS"]) == 136 * 60
+    assert helper + 120 == int(limits["ALERTMANAGER_PRODUCER_STEP_MINUTES"]) * 60
+    assert 4 * int(limits["ALERTMANAGER_CLEANUP_SECONDS"]) + int(
+        limits["ALERTMANAGER_PRODUCER_FAILURE_SECONDS"]
+    ) + int(limits["ALERTMANAGER_PRODUCER_RETENTION_SECONDS"]) + 75 == int(
+        limits["ALERTMANAGER_PRODUCER_OTHER_CLEANUP_SECONDS"]
+    )
+    assert helper // 60 + 1 + 10 + 5 + 12 + 16 == 180
+    checkout = producer["steps"][0]
+    assert checkout["with"]["ref"] == "${{ github.sha }}"
+    assert checkout["with"]["fetch-depth"] == 0
+    assert checkout["with"]["persist-credentials"] is False
+    install = next(
+        step
+        for step in producer["steps"]
+        if step["name"] == "Select AM Python without dependency or SDK installation"
+    )
+    assert install["with"]["skip-base-install"] == "true"
+    assert producer["permissions"] == {"contents": "read", "actions": "read", "packages": "read"}
+
+
+def test_alertmanager_publication_owns_complete_budget_without_other_job_changes() -> None:
+    workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text())
+    job = workflow["jobs"]["alertmanager-main-publication"]
+    env = {**workflow["env"], **job["env"]}
+    assert (
+        job["timeout-minutes"]
+        == "${{ fromJSON(vars.ALERTMANAGER_PUBLISHER_JOB_MINUTES || '240') }}"
+    )
+    assert env["ALERTMANAGER_PUBLISHER_JOB_MINUTES"] == job["timeout-minutes"]
+    native = int(env["ALERTMANAGER_NATIVE_SECONDS"]) + int(
+        env["ALERTMANAGER_NATIVE_CLEANUP_SECONDS"]
+    )
+    helper = (
+        int(env["ALERTMANAGER_PREP_SECONDS"])
+        + int(env["ALERTMANAGER_SECURITY_SECONDS"])
+        + 2 * native
+        + int(env["ALERTMANAGER_PUBLISHER_REBIND_SECONDS"])
+        + int(env["ALERTMANAGER_PUBLICATION_SECONDS"])
+        + int(env["ALERTMANAGER_PUBLISHER_OTHER_CLEANUP_SECONDS"])
+    )
+    assert helper == int(env["ALERTMANAGER_PUBLISHER_SECONDS"])
+    other = (
+        3 * int(env["ALERTMANAGER_CLEANUP_SECONDS"])
+        + int(env["ALERTMANAGER_PUBLISHER_API_CLEANUP_SECONDS"])
+        + int(env["ALERTMANAGER_PUBLISHER_FAILURE_SECONDS"])
+        + int(env["ALERTMANAGER_PUBLISHER_RETENTION_SECONDS"])
+    )
+    assert other == int(env["ALERTMANAGER_PUBLISHER_OTHER_CLEANUP_SECONDS"])
+    steps = {step["name"]: step for step in job["steps"]}
+    assert (
+        steps[
+            "Publish the accepted AM bytes after canonical merged-main package and tag admission"
+        ]["timeout-minutes"]
+        == "${{ fromJSON(env.ALERTMANAGER_PUBLISHER_STEP_MINUTES) }}"
+    )
+    assert int(env["ALERTMANAGER_PUBLISHER_STEP_MINUTES"]) * 60 >= helper + 120
+    assert job["permissions"] == {"contents": "read", "actions": "read", "packages": "write"}
+    assert workflow["jobs"]["alertmanager-retained-candidate"]["timeout-minutes"] == 80

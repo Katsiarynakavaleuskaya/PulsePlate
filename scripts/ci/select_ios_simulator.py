@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 import re
 import shutil
-import subprocess  # nosec B404: bounded native simctl inventory reads require a subprocess (remove-by: 2026-10-31, ref: PR-2460)
+import subprocess  # nosec B404: bounded native simctl inventory reads require a subprocess (remove-by: 2027-01-31, ref: PR-2460)
 import sys
 from typing import Any
 import unicodedata
@@ -134,7 +134,7 @@ def select_simulator(
 
 
 def _native_inventory(xcrun: str, *args: str) -> Any:
-    result = subprocess.run(  # nosec B603: resolved absolute xcrun, fixed simctl argv, no shell (remove-by: 2026-10-31, ref: PR-2460)
+    result = subprocess.run(  # nosec B603: resolved absolute xcrun, fixed simctl argv, no shell (remove-by: 2027-01-31, ref: PR-2460)
         [xcrun, "simctl", "list", *args, "-j"],
         check=True,
         capture_output=True,

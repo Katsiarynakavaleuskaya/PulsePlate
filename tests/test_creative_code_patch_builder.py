@@ -2260,3 +2260,309 @@ def test_cli_prepare_generate_evaluate_cleanup(
     assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
     assert creative_code_patch_builder.main(["cleanup", "--run-dir", run_id]) == 0
     assert not run_dir.exists()
+
+
+@pytest.mark.parametrize("fault", ["success", "nonzero", "timeout", "launch", "decode", "encode"])
+def test_executor_preserves_counts_and_failure_class_without_private_text(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], fault: str
+) -> None:
+    secret = "synthetic-executor-private"
+    monkeypatch.setattr(
+        creative_code_patch_executor, "build_codex_exec_argv", lambda **_: ["/fixture/codex", "-"]
+    )
+
+    def run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        assert kwargs["input"] == secret and kwargs["timeout"] == 7
+        if fault == "timeout":
+            raise subprocess.TimeoutExpired([secret], 7, output=secret, stderr=secret)
+        if fault == "launch":
+            raise OSError(secret)
+        if fault == "decode":
+            raise UnicodeDecodeError("utf-8", secret.encode(), 0, 1, secret)
+        if fault == "encode":
+            raise UnicodeEncodeError("utf-8", secret, 0, 1, secret)
+        return subprocess.CompletedProcess(
+            argv, 8 if fault == "nonzero" else 0, stdout=secret + "\n" + secret, stderr=secret
+        )
+
+    monkeypatch.setattr(creative_code_patch_executor.subprocess, "run", run)
+
+    def execute() -> dict[str, int]:
+        return creative_code_patch_executor.run_codex_exec(
+            checkout=tmp_path, prompt=secret, timeout_seconds=7, env={}
+        )
+
+    if fault == "success":
+        assert execute() == {"returncode": 0, "stdout_lines": 2, "stderr_lines": 1}
+    else:
+        cls = {"launch": OSError, "decode": UnicodeDecodeError, "encode": UnicodeEncodeError}.get(
+            fault, creative_code_patch_executor.CreativeCodePatchExecutorError
+        )
+        with pytest.raises(cls) as caught:
+            execute()
+        assert secret not in str(caught.value) + repr(caught.value) + repr(caught.value.args)
+        assert caught.value.__cause__ is None and caught.value.__context__ is None
+        if fault == "nonzero":
+            assert "8; stdout_lines=2; stderr_lines=1" in str(caught.value)
+    assert capsys.readouterr() == ("", "")
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "settled-clone",
+        "settled-checkout",
+        "head-error",
+        "head-timeout",
+        "interrupted",
+        "signalled",
+        "exchange",
+    ],
+)
+def test_generation_checkout_creator_owns_partial_failures(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str
+) -> None:
+    workspace = creative_code_patch_workspace
+    source, base = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, source)
+    run_dir = workspace.resolve_run_dir("partial-generation-test", create=True)
+    checkout = run_dir / workspace.CHECKOUT_DIRNAME
+    sibling = run_dir / "unrelated"
+    sibling.write_text("preserve")
+    tracked_before = _git(source, "status", "--porcelain").stdout
+    calls = []
+
+    def git(
+        args: list[str],
+        *,
+        cwd: Path,
+        check: bool = True,
+        timeout: int | None = None,
+        **kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(args[0])
+        if args[0] == "rev-parse":
+            assert timeout == 30 and not check
+            if args[1] == "HEAD" and fault == "head-timeout":
+                raise subprocess.TimeoutExpired(["private-marker"], 30, output=base)
+            if args[1] == "HEAD" and fault == "head-error":
+                return subprocess.CompletedProcess(args, 128, stdout=base, stderr="private-marker")
+            return subprocess.CompletedProcess(args, 0, stdout=base + "\n", stderr="")
+        assert timeout is None
+        if args[0] == "status":
+            return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+        if args[0] == "clone":
+            assert not check and cwd == source and args[-1] == str(checkout)
+            assert checkout.is_dir() and list(checkout.iterdir()) == []
+            assert checkout.stat().st_mode & 0o077 == 0
+            (checkout / "partial").write_text("known partial")
+            if fault == "settled-clone":
+                return subprocess.CompletedProcess(args, 128, stdout="", stderr="private-marker")
+            if fault == "interrupted":
+                raise KeyboardInterrupt()
+            if fault == "signalled":
+                return subprocess.CompletedProcess(args, -15, stdout="", stderr="private-marker")
+            if fault == "exchange":
+                checkout.rename(run_dir / "owned-moved")
+                checkout.mkdir()
+                (checkout / "foreign").write_text("preserve")
+                return subprocess.CompletedProcess(args, 1, stdout="", stderr="private-marker")
+        if args[0] == "checkout" and fault == "settled-checkout":
+            return subprocess.CompletedProcess(args, 1, stdout="", stderr="private-marker")
+        return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(workspace, "run_git", git)
+    with pytest.raises(
+        KeyboardInterrupt if fault == "interrupted" else workspace.CreativeCodePatchWorkspaceError
+    ) as primary:
+        workspace.prepare_generation_checkout(run_dir=run_dir, base_commit_sha=base)
+    assert "private-marker" not in str(primary.value)
+    if fault == "exchange":
+        assert (checkout / "foreign").read_text() == "preserve"
+        assert (run_dir / "owned-moved/partial").read_text() == "known partial"
+        assert any("cleanup unconfirmed" in note for note in primary.value.__notes__)
+    elif fault in ("interrupted", "signalled"):
+        assert (checkout / "partial").read_text() == "known partial"
+        assert calls[-1] == "clone"
+    else:
+        assert not checkout.exists()
+    assert sibling.read_text() == "preserve"
+    assert _git(source, "status", "--porcelain").stdout == tracked_before
+
+
+@pytest.mark.parametrize("existing", ["directory", "symlink"])
+def test_generation_checkout_refuses_preexisting_leaf(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, existing: str
+) -> None:
+    workspace = creative_code_patch_workspace
+    source, base = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, source)
+    run_dir = workspace.resolve_run_dir("existing-generation-test", create=True)
+    checkout = run_dir / workspace.CHECKOUT_DIRNAME
+    if existing == "directory":
+        checkout.mkdir()
+        (checkout / "keep").write_text("owned elsewhere")
+    else:
+        checkout.symlink_to(source, target_is_directory=True)
+    with pytest.raises(workspace.CreativeCodePatchWorkspaceError, match="already exists"):
+        workspace.prepare_generation_checkout(run_dir=run_dir, base_commit_sha=base)
+    if existing == "directory":
+        assert (checkout / "keep").read_text() == "owned elsewhere"
+    else:
+        assert checkout.is_symlink() and source.is_dir()
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "ok",
+        "apply-rejected",
+        "clone-nonzero",
+        "clone-signal",
+        "apply-interrupt",
+        "identity-swap",
+        "cleanup-failure",
+    ],
+)
+def test_validation_checkout_preserves_only_its_owned_leaf(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str
+) -> None:
+    workspace = creative_code_patch_workspace
+    source, base = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, source)
+    run_dir = workspace.resolve_run_dir("checked-validation", create=True)
+    checkout = run_dir / "validation_checkout"
+    sibling = run_dir / "sibling"
+    sibling.write_text("preserve", encoding="utf-8")
+    original_status = _git(source, "status", "--porcelain").stdout
+    calls: list[str] = []
+    interrupt = KeyboardInterrupt("synthetic cancellation")
+
+    def git(args: list[str], *, cwd: Path, **kwargs: Any) -> Any:
+        calls.append(args[0])
+        if args[0] == "clone":
+            (checkout / "partial").write_text("owned", encoding="utf-8")
+            if fault == "identity-swap":
+                checkout.rename(run_dir / "moved")
+                checkout.symlink_to(source, target_is_directory=True)
+            rc = {"clone-nonzero": 19, "clone-signal": -15}.get(fault, 0)
+        elif args[:2] == ["apply", "--check"]:
+            if fault == "apply-interrupt":
+                raise interrupt
+            rc = 1 if fault in {"apply-rejected", "cleanup-failure"} else 0
+        else:
+            rc = 0
+        return subprocess.CompletedProcess(args, rc, "", "")
+
+    monkeypatch.setattr(workspace, "run_git", git)
+    monkeypatch.setattr(creative_code_patch_builder, "run_git", git)
+
+    def check() -> None:
+        creative_code_patch_builder._check_patch_applies_cleanly(
+            patch_text="synthetic", base_commit_sha=base, run_dir=run_dir
+        )
+
+    if fault == "cleanup-failure":
+        real_rmdir = os.rmdir
+
+        def fail_owned_remove(path: str | Path, **kwargs: Any) -> None:
+            if path == "validation_checkout" and kwargs.get("dir_fd") is not None:
+                raise OSError("synthetic cleanup failure")
+            real_rmdir(path, **kwargs)
+
+        monkeypatch.setattr(os, "rmdir", fail_owned_remove)
+        with pytest.raises(
+            workspace.CreativeCodePatchWorkspaceError, match="Git apply failed"
+        ) as caught_failure:
+            check()
+        assert any("cleanup unconfirmed" in note for note in caught_failure.value.__notes__)
+    elif fault == "ok":
+        check()
+    elif fault == "apply-interrupt":
+        with pytest.raises(KeyboardInterrupt) as caught:
+            check()
+        assert caught.value is interrupt
+        assert any("retained" in note for note in caught.value.__notes__)
+    else:
+        with pytest.raises(workspace.CreativeCodePatchWorkspaceError):
+            check()
+    if fault in {"clone-nonzero", "clone-signal", "identity-swap"}:
+        assert calls == ["clone"]
+    if fault == "identity-swap":
+        assert checkout.is_symlink() and (run_dir / "moved" / "partial").read_text() == "owned"
+    elif fault == "cleanup-failure":
+        assert checkout.is_dir()
+    elif fault in {"ok", "apply-rejected"}:
+        assert not checkout.exists()
+    else:
+        assert (checkout / "partial").read_text() == "owned"
+    assert sibling.read_text() == "preserve"
+    assert _git(source, "status", "--porcelain").stdout == original_status
+
+
+@pytest.mark.parametrize("leaf", ["directory", "symlink"])
+def test_validation_checkout_refuses_preexisting_leaf(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, leaf: str
+) -> None:
+    source, base = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, source)
+    run_dir = creative_code_patch_workspace.resolve_run_dir("existing-validation", create=True)
+    checkout = run_dir / "validation_checkout"
+    if leaf == "directory":
+        checkout.mkdir()
+        (checkout / "unrelated").write_text("keep")
+    else:
+        checkout.symlink_to(source, target_is_directory=True)
+    with pytest.raises(CreativeCodePatchBuilderError, match="already exists"):
+        creative_code_patch_builder._check_patch_applies_cleanly(
+            patch_text="synthetic", base_commit_sha=base, run_dir=run_dir
+        )
+    if leaf == "directory":
+        assert (checkout / "unrelated").read_text() == "keep"
+    else:
+        assert checkout.is_symlink() and source.is_dir()
+
+
+@pytest.mark.parametrize("operation,expected", [("diff", "diff"), ("private-operand", "operation")])
+def test_workspace_checked_git_failure_keeps_cli_diagnostics_value_free(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    operation: str,
+    expected: str,
+) -> None:
+    workspace = creative_code_patch_workspace
+    native = subprocess.CompletedProcess(
+        ["git", operation, "private-arg"],
+        23,
+        "private-out1\nprivate-out2",
+        "private-err1\nprivate-err2",
+    )
+
+    def simulated(*args: Any, **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        return native
+
+    monkeypatch.setattr(workspace, "resolve_git_binary", lambda: "/synthetic/git")
+    monkeypatch.setattr(workspace.subprocess, "run", simulated)
+    args = [operation, "private-arg"]
+    assert workspace.run_git(args, cwd=tmp_path, input_text="private-input", check=False) is native
+
+    def fail_generate(*, run_id: str) -> None:
+        workspace.run_git(args, cwd=tmp_path, input_text="private-input")
+
+    monkeypatch.setattr(creative_code_patch_builder, "generate", fail_generate)
+    assert creative_code_patch_builder.main(["generate", "--run-dir", "safe-fixture"]) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == f"FAIL: Git {expected} failed (exit 23).\n"
+
+
+def test_workspace_real_git_nonzero_hides_stderr_and_revision(tmp_path: Path) -> None:
+    workspace = creative_code_patch_workspace
+    repo, _ = _init_patch_repo(tmp_path)
+    args = ["rev-parse", "--verify", "private-missing-revision"]
+    raw = workspace.run_git(args, cwd=repo, check=False)
+    assert raw.returncode != 0
+    with pytest.raises(workspace.CreativeCodePatchWorkspaceError) as failure:
+        workspace.run_git(args, cwd=repo)
+    assert str(failure.value) == f"Git rev-parse failed (exit {raw.returncode})."

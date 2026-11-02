@@ -1185,7 +1185,11 @@ def test_evaluate_candidate_maps_timeout_oracle_to_timeout(
         ),
     )
 
+    scratch = tmp_path / "checkout-reservations"
+    scratch.mkdir()
+    monkeypatch.setattr(tempfile, "gettempdir", lambda: str(scratch))
     result = experiment_runner.evaluate_candidate(validated_packet, patch_path)
+    assert list(scratch.iterdir()) == []
 
     assert result["status"] == "rejected"
     assert result["failure_class"] == "timeout"
@@ -1673,10 +1677,14 @@ def test_evaluate_candidate_retries_cleanup_infra_flake(
         )
 
     class _CleanupWrapper:
-        def __init__(self, inner: tempfile.TemporaryDirectory[str], *, fail: bool) -> None:
+        def __init__(self, inner: experiment_runner._CheckoutReservation, *, fail: bool) -> None:
             self._inner = inner
             self.name = inner.name
             self._fail = fail
+
+        @property
+        def removal_completed(self) -> bool:
+            return self._inner.removal_completed
 
         def cleanup(self) -> None:
             self._inner.cleanup()
@@ -1737,7 +1745,7 @@ def test_evaluate_candidate_retries_temp_checkout_infra_flake(
     attempts = {"count": 0}
     real_create_temp_checkout = experiment_runner._create_temp_checkout
 
-    def _flaky_checkout(root: Path) -> tuple[tempfile.TemporaryDirectory[str], Path]:
+    def _flaky_checkout(root: Path) -> tuple[experiment_runner._CheckoutReservation, Path]:
         attempts["count"] += 1
         if attempts["count"] == 1:
             raise experiment_runner.InfraFlakeError("temporary checkout failure")
@@ -1805,7 +1813,11 @@ def test_evaluate_candidate_enforces_total_wall_clock_budget_across_oracles(
         ),
     )
 
+    scratch = tmp_path / "checkout-reservations"
+    scratch.mkdir()
+    monkeypatch.setattr(tempfile, "gettempdir", lambda: str(scratch))
     result = experiment_runner.evaluate_candidate(validated_packet, patch_path)
+    assert list(scratch.iterdir()) == []
 
     assert result["status"] == "rejected"
     assert result["failure_class"] == "timeout"
@@ -2285,17 +2297,21 @@ def test_oracle_only_capability_loss_raises_data_free_signal_after_cleanup(
             network_budget=0,
         )
     )
-    temp_cleanup = {"completed": False}
+    # Use the production reservation/clone/cleanup contract in a test-owned parent.
+    monkeypatch.setattr(experiment_runner.tempfile, "tempdir", str(tmp_path))
+    original_create = experiment_runner._create_temp_checkout
+    reservations: list[experiment_runner._CheckoutReservation] = []
 
-    class _CleanupProbe:
-        def cleanup(self) -> None:
-            temp_cleanup["completed"] = True
+    def observe_checkout(root: Path) -> tuple[experiment_runner._CheckoutReservation, Path]:
+        owner, checkout = original_create(root)
+        reservations.append(owner)
+        assert checkout == Path(owner.name) / "checkout"
+        assert Path(owner.name).parent == tmp_path
+        assert os.path.samestat(Path(owner.name).lstat(), owner.identity)
+        assert not owner.removal_completed
+        return owner, checkout
 
-    monkeypatch.setattr(
-        experiment_runner,
-        "_create_temp_checkout",
-        lambda _root: (_CleanupProbe(), repo),
-    )
+    monkeypatch.setattr(experiment_runner, "_create_temp_checkout", observe_checkout)
     if returned:
         monkeypatch.setattr(
             experiment_runner,
@@ -2324,7 +2340,13 @@ def test_oracle_only_capability_loss_raises_data_free_signal_after_cleanup(
         experiment_runner.evaluate_oracle_only_governance_reviewer(packet)
 
     assert caught.value.args == ()
-    assert temp_cleanup["completed"] is True
+    assert len(reservations) == 1
+    owner = reservations[0]
+    assert owner.removal_completed is True
+    assert not Path(owner.name).exists()
+    assert not Path(owner.name).is_symlink()
+    assert repo.is_dir()
+    assert "private-oracle-capability-canary" not in str(caught.value) + repr(caught.value.args)
 
 
 def test_oracle_only_shared_tree_change_overrides_capability_signal(
@@ -2435,6 +2457,85 @@ def test_oracle_only_context_surface_must_be_tracked(
 
     with pytest.raises(ValueError, match="tracked by git"):
         experiment_contract.validate_experiment_packet(packet)
+
+
+def test_oracle_context_metadata_matches_only_literal_index_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    tracked = "core/rag/allowed.py"
+    assert experiment_contract.validate_oracle_context_surface([tracked]) == [tracked]
+    (repo / "core/rag/untracked.py").write_text("fixture")
+    for name in ("core/rag/untracked.py", "core/rag/*.py"):
+        with pytest.raises(ValueError, match="tracked by git"):
+            experiment_contract.validate_oracle_context_surface([name])
+
+
+@pytest.mark.parametrize("fault", ["timeout", "oserror", "bad-index", "relative", "non-executable"])
+def test_oracle_context_metadata_failure_rejects_before_execution(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    selected = "core/rag/allowed.py"
+    packet = _base_packet(
+        mutable_path=selected,
+        oracle_command='python3 -c "pass"',
+        runner_mode="oracle_only_governance_reviewer",
+    )
+    binary = tmp_path / "git-fixture"
+    binary.write_bytes(b"controlled subprocess seam")
+    binary.chmod(0o600 if fault == "non-executable" else 0o700)
+    monkeypatch.setattr(
+        experiment_contract.shutil,
+        "which",
+        lambda _: "bin/git" if fault == "relative" else str(binary),
+    )
+    monkeypatch.setenv("GIT_DIR", "synthetic-private")
+    calls = []
+
+    def run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[bytes]:
+        calls.append(argv)
+        assert argv == [
+            str(binary),
+            "--literal-pathspecs",
+            "ls-files",
+            "--error-unmatch",
+            "--",
+            selected,
+        ]
+        assert kwargs["cwd"] == str(repo.resolve()) and kwargs["timeout"] == 30
+        assert "GIT_DIR" not in kwargs["env"] and kwargs.get("shell", False) is False
+        assert kwargs["stdout"] == kwargs["stderr"] == kwargs["stdin"] == subprocess.DEVNULL
+        if fault == "timeout":
+            raise subprocess.TimeoutExpired(
+                ["synthetic-private"], 30, output=b"partial tracked", stderr=b"synthetic-private"
+            )
+        if fault == "oserror":
+            raise OSError("synthetic-private")
+        return subprocess.CompletedProcess(
+            argv, 128, stdout=b"partial tracked", stderr=b"synthetic-private"
+        )
+
+    monkeypatch.setattr(experiment_contract.subprocess, "run", run)
+    monkeypatch.setattr(
+        experiment_runner, "_run_oracles", lambda *args, **kwargs: pytest.fail("unexpected Oracle")
+    )
+    result = experiment_runner.evaluate_oracle_only_governance_reviewer(packet)
+    assert result["status"] == "rejected" and result["failure_class"] == "policy_violation"
+    diagnostic = result["budget_observations"]["runner_error"]
+    assert (
+        diagnostic
+        == {
+            "timeout": "Git tracked-context query timed out.",
+            "oserror": "Git tracked-context query could not execute.",
+            "bad-index": "Git tracked-context query failed.",
+            "relative": "An absolute executable Git is required for the context query.",
+            "non-executable": "An absolute executable Git is required for the context query.",
+        }[fault]
+    )
+    assert len(calls) == (0 if fault in ("relative", "non-executable") else 1)
 
 
 def test_oracle_only_direct_api_validates_raw_packet(
@@ -2782,3 +2883,275 @@ def test_evaluate_candidate_rejects_fingerprinted_packet_in_dirty_checkout(
     assert result["budget_observations"]["runner_error"] == (
         "Fingerprinted candidate packets require a clean tracked repository checkout."
     )
+
+
+@pytest.mark.parametrize(
+    "fault", ["clone-interrupted", "checkout-interrupted", "settled-clone", "metadata-error"]
+)
+def test_checkout_creator_owns_partial_reservation_until_transfer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str
+) -> None:
+    repo = tmp_path / "source"
+    repo.mkdir()
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    sibling = scratch / "sibling"
+    sibling.write_text("preserve")
+    monkeypatch.setattr(tempfile, "gettempdir", lambda: str(scratch))
+    observed: list[Path] = []
+
+    def native(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if "clone" in argv:
+            dest = Path(argv[-1])
+            dest.mkdir()
+            (dest / "partial").write_text("partial clone")
+            observed.append(dest.parent)
+            if fault == "clone-interrupted":
+                raise KeyboardInterrupt()
+            code = int(fault == "settled-clone")
+        elif "rev-parse" in argv:
+            code = int(fault == "metadata-error")
+        else:
+            assert "checkout" in argv and fault == "checkout-interrupted"
+            code = -15
+        return subprocess.CompletedProcess(argv, code, stdout="a" * 40, stderr="controlled")
+
+    monkeypatch.setattr(experiment_runner.subprocess, "run", native)
+    with pytest.raises((KeyboardInterrupt, experiment_runner.InfraFlakeError)) as failed:
+        experiment_runner._create_temp_checkout(repo)
+    assert len(observed) == 1
+    retained = fault.endswith("interrupted")
+    assert observed[0].exists() is retained
+    assert getattr(failed.value, "_checkout_uncertain", False) is retained
+    if retained:
+        assert Path(getattr(failed.value, "_retained_checkout")) == observed[0]
+        assert (observed[0] / "checkout/partial").read_text() == "partial clone"
+    assert sibling.read_text() == "preserve" and list(repo.iterdir()) == []
+
+
+@pytest.mark.parametrize("cancel", [False, True])
+def test_replaced_checkout_reservation_preserves_sibling_and_primary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, cancel: bool
+) -> None:
+    source = tmp_path / "source"
+    scratch = tmp_path / "scratch"
+    source.mkdir()
+    scratch.mkdir()
+    monkeypatch.setattr(tempfile, "gettempdir", lambda: str(scratch))
+    owner = experiment_runner._CheckoutReservation(source)
+    original = Path(owner.name)
+    original.rename(scratch / "retained")
+    original.mkdir()
+    (original / "foreign").write_text("untouched")
+    if cancel:
+        with pytest.raises(KeyboardInterrupt) as caught:
+            try:
+                raise KeyboardInterrupt()
+            except KeyboardInterrupt as primary:
+                experiment_runner._finish_checkout(owner, primary)
+                raise
+        assert getattr(caught.value, "_checkout_uncertain")
+        assert any("cleanup failed" in note for note in caught.value.__notes__)
+    else:
+        with pytest.raises(experiment_runner.InfraFlakeError) as failed:
+            experiment_runner._finish_checkout(owner, None)
+        assert failed.value._checkout_uncertain
+    assert (original / "foreign").read_text() == "untouched" and source.is_dir()
+
+
+@pytest.mark.parametrize("mode", ["candidate_patch", "oracle_only_governance_reviewer"])
+@pytest.mark.parametrize("fault", ["extra-member", "renamed-away"])
+def test_unknown_cleanup_blocks_reuse_in_both_runner_modes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: str, fault: str
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    patch_path = _write_patch(
+        repo,
+        "core/rag/allowed.py",
+        "def candidate_value() -> int:\n    return 2\n",
+        patch_path=tmp_path / "uncertain-cleanup.patch",
+    )
+    packet = _base_packet(
+        mutable_path="core/rag/allowed.py", oracle_command='python3 -c "pass"', runner_mode=mode
+    )
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    monkeypatch.setattr(tempfile, "gettempdir", lambda: str(scratch))
+    sibling = scratch / "separate"
+    sibling.write_text("preserve")
+    runs = []
+
+    def synthetic(_packet: dict[str, Any], checkout: Path) -> tuple[list[dict[str, Any]], None]:
+        runs.append(checkout)
+        if fault == "renamed-away":
+            checkout.parent.rename(scratch / "moved-reservation")
+        else:
+            (checkout.parent / "unexpected").write_text("unknown ownership")
+        return [], None
+
+    monkeypatch.setattr(experiment_runner, "_run_oracles", synthetic)
+    if mode == "candidate_patch":
+        result = experiment_runner.evaluate_candidate(packet, patch_path)
+    else:
+        result = experiment_runner.evaluate_oracle_only_governance_reviewer(packet)
+    assert result["status"] == "rejected" and result["failure_class"] == "infra_flake"
+    assert len(runs) == 1
+    if fault == "renamed-away":
+        assert not runs[0].parent.exists() and (scratch / "moved-reservation/checkout").is_dir()
+    else:
+        assert (runs[0].parent / "unexpected").is_file()
+    assert (
+        result["budget_observations"]["runner_error"]
+        == "Isolated checkout state is uncertain; retry is blocked."
+    )
+    assert sibling.read_text() == "preserve" and (repo / "core/rag/allowed.py").is_file()
+
+
+@pytest.mark.parametrize("mode", ["candidate_patch", "oracle_only_governance_reviewer"])
+def test_checkout_retained_when_entered_sandbox_call_is_interrupted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: str
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    patch_path = _write_patch(
+        repo,
+        "core/rag/allowed.py",
+        "def candidate_value() -> int:\n    return 2\n",
+        patch_path=tmp_path / "interrupted-sandbox.patch",
+    )
+    packet = _base_packet(
+        mutable_path="core/rag/allowed.py", oracle_command='python3 -c "pass"', runner_mode=mode
+    )
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    monkeypatch.setattr(tempfile, "gettempdir", lambda: str(scratch))
+    calls = []
+
+    def synthetic_interruption(*args: object, **kwargs: object) -> SandboxResult:
+        checkout = Path(os.environ[experiment_runner.sandbox.SANDBOX_ROOT_ENV])
+        calls.append(checkout)
+        (checkout / "partial-control").write_text("interrupted fixture")
+        raise KeyboardInterrupt()
+
+    monkeypatch.setattr(experiment_runner.sandbox, "run_local_sandbox", synthetic_interruption)
+    with pytest.raises(KeyboardInterrupt) as failure:
+        if mode == "candidate_patch":
+            experiment_runner.evaluate_candidate(packet, patch_path)
+        else:
+            experiment_runner.evaluate_oracle_only_governance_reviewer(packet)
+    assert len(calls) == 1
+    assert list(scratch.iterdir()) == [calls[0].parent]
+    assert getattr(failure.value, "_retained_checkout") == str(calls[0].parent)
+    assert (calls[0] / "partial-control").read_text() == "interrupted fixture"
+    assert not (repo / "partial-control").exists()
+
+
+@pytest.mark.parametrize("operation", ["clone", "checkout", "apply"])
+def test_native_signalled_git_writer_is_uncertain_even_without_check(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, operation: str
+) -> None:
+    binary = tmp_path / "fixture-git"
+    binary.write_text(
+        f"#!{sys.executable}\nimport os, signal\nfrom pathlib import Path\n"
+        "signal.signal(signal.SIGTERM, signal.SIG_DFL)\nPath('partial').write_text('started')\nos.kill(os.getpid(), signal.SIGTERM)\n"
+    )
+    binary.chmod(0o700)
+    monkeypatch.setattr(experiment_runner, "_resolve_git_binary", lambda: str(binary))
+    with pytest.raises(experiment_runner.InfraFlakeError, match="terminated by signal") as failed:
+        experiment_runner._run_git([operation], cwd=tmp_path, check=False)
+    assert failed.value._checkout_uncertain and (tmp_path / "partial").read_text() == "started"
+    readonly = experiment_runner._run_git(["apply", "--check"], cwd=tmp_path, check=False)
+    assert readonly.returncode < 0
+
+
+def test_checkout_identification_failure_releases_fd_and_preserves_private_locator(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "source"
+    scratch = tmp_path / "scratch"
+    root.mkdir()
+    scratch.mkdir()
+    monkeypatch.setattr(tempfile, "gettempdir", lambda: str(scratch))
+    original = os.fstat
+    descriptors = []
+
+    def fail(fd: int) -> os.stat_result:
+        descriptors.append(fd)
+        raise OSError("private-identification-detail")
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(experiment_runner.os, "fstat", fail)
+        with pytest.raises(experiment_runner.InfraFlakeError) as caught:
+            experiment_runner._CheckoutReservation(root)
+    assert caught.value._checkout_uncertain and caught.value._retained_checkout is not None
+    assert Path(caught.value._retained_checkout).parent == scratch
+    assert list(scratch.iterdir()) == [Path(caught.value._retained_checkout)]
+    assert str(scratch) not in str(caught.value) and "private-identification-detail" not in str(
+        caught.value
+    )
+    assert len(descriptors) == 1
+    with pytest.raises(OSError):
+        original(descriptors[0])
+
+
+@pytest.mark.parametrize("fault", ["checked", "status"])
+@pytest.mark.parametrize("stderr_present", [False, True])
+def test_completed_git_failure_keeps_private_process_data_out_of_runner_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str, stderr_present: bool
+) -> None:
+    import traceback
+
+    marker = "synthetic-runner-private"
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    patch_path = _write_patch(
+        repo,
+        "core/rag/allowed.py",
+        "def candidate_value() -> int:\n    return 2\n",
+        tmp_path / "candidate.patch",
+    )
+    packet = _validate_packet(
+        _base_packet(mutable_path="core/rag/allowed.py", oracle_command='python3 -c "pass"')
+    )
+    original = subprocess.run
+    failed_calls = []
+
+    def run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        in_checkout = Path(kwargs.get("cwd") or repo) != repo
+        if marker in argv or (
+            in_checkout
+            and (
+                ("apply" in argv and fault == "checked")
+                or (argv[-2:] == ["status", "--short"] and fault == "status")
+            )
+        ):
+            failed_calls.append(1)
+            return subprocess.CompletedProcess(
+                argv, 23, stdout=marker, stderr=marker if stderr_present else ""
+            )
+        return original(argv, **kwargs)
+
+    monkeypatch.setattr(experiment_runner.subprocess, "run", run)
+    checked_text = "Git operation failed (exit 23)."
+    with pytest.raises(experiment_runner.InfraFlakeError) as failed:
+        experiment_runner._run_git(["status", marker], cwd=repo)
+    assert str(failed.value) == checked_text
+    assert marker not in repr(failed.value.args) + repr(failed.value) + "".join(
+        traceback.format_exception(failed.value)
+    )
+    private = experiment_runner._run_git(["status", marker], cwd=repo, check=False)
+    assert private.returncode == 23 and private.stdout == marker
+    failed_calls.clear()
+    monkeypatch.setattr(
+        experiment_runner,
+        "_run_oracles",
+        lambda *_: pytest.fail("Oracle reached after Git failure"),
+    )
+    result = experiment_runner.evaluate_candidate(packet, patch_path)
+    assert result["status"] == "rejected" and result["failure_class"] == "infra_flake"
+    expected = checked_text if fault == "checked" else "Git status after patch failed (exit 23)."
+    assert result["budget_observations"]["runner_error"] == expected
+    assert len(failed_calls) == result["budget_observations"]["attempts"] == 2
+    assert result["budget_observations"]["retries_consumed"] == 1
+    assert marker not in json.dumps(result)

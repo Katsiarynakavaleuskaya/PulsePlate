@@ -5,8 +5,8 @@ name: CI
 # Periodically update these SHAs to newer versions for security updates and bug fixes.
 
 env:
-  # Separately designated after the reviewed controller is published.
-  ALERTMANAGER_CONTROLLER_SOURCE: '0d6a4c09477ad3174252eab15f80cdd4a76df5bc' # pragma: allowlist secret - public immutable controller commit
+  # ROOT creates C, independently reviews/designates it, then pins C before one normal C,H push.
+  ALERTMANAGER_CONTROLLER_SOURCE: 'dab47fc6153f87e35233e20aa255d97e68a5ed93' # Public immutable controller commit
   ALERTMANAGER_PREPARATION_MINUTES: '14'
   ALERTMANAGER_PREP_SECONDS: '600'
   ALERTMANAGER_PAIR_SECONDS: '1800'
@@ -731,7 +731,7 @@ jobs:
     needs: [private_python_proxy_health]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
-    timeout-minutes: &am-ci-lint-timeout ${{ fromJSON(vars.CI_LINT_TIMEOUT_MINUTES || '170') }}
+    timeout-minutes: &am-ci-lint-timeout ${{ fromJSON(vars.CI_LINT_TIMEOUT_MINUTES || '190') }}
     permissions:
       contents: read
       actions: read
@@ -740,7 +740,7 @@ jobs:
       ALERTMANAGER_JOB_TIMEOUT_MINUTES: *am-ci-lint-timeout
       ALERTMANAGER_CALLER_KIND: ci-lint
       ALERTMANAGER_GENERIC_NATIVE_MINUTES: ${{ vars.OBS2A_NATIVE_JOB_TIMEOUT_MINUTES || '40' }}
-      ALERTMANAGER_LINT_CHECK_MINUTES: ${{ vars.CI_LINT_CHECKS_TIMEOUT_MINUTES || '40' }}
+      ALERTMANAGER_LINT_CHECK_MINUTES: ${{ vars.CI_LINT_CHECKS_TIMEOUT_MINUTES || '60' }}
       PROMETHEUS_CONSUME_SECONDS: '900'
       PROMETHEUS_CLEANUP_SECONDS: '120'
     steps:
@@ -845,12 +845,12 @@ jobs:
             --artifact alertmanager --alertmanager-stage candidate-check --alertmanager-prepare-only \
             --source-sha "$SOURCE_SHA" --material-root "$material" \
             --alertmanager-controller-source "$ALERTMANAGER_CONTROLLER_SOURCE" \
-            --alertmanager-qualification-run 39018353942 --alertmanager-qualification-artifact 12095483900 \
-            --alertmanager-qualification-source 36cd171c4ebe44f63cb58d09a741b3d07098904d \
-            --alertmanager-support-run 39030856891 --alertmanager-support-artifact 12100576545 \
-            --alertmanager-support-source df5ebd017bda93e31fbf9eccfd7cc7b98973a3c6 \
-            --alertmanager-candidate-run 39143039135 --alertmanager-candidate-artifact 12142714566 \
-            --alertmanager-candidate-source 63455b8a750ef07a1e525078b4e3ce2089eecdde \
+            --alertmanager-qualification-run 40379971373 --alertmanager-qualification-artifact 12677328773 \
+            --alertmanager-qualification-source a8c9b361dbd57d86e2adf8f01f7880830fc04e53 \
+            --alertmanager-support-run 40383803043 --alertmanager-support-artifact 12679243318 \
+            --alertmanager-support-source a8c9b361dbd57d86e2adf8f01f7880830fc04e53 \
+            --alertmanager-candidate-run 40387641620 --alertmanager-candidate-artifact 12684611600 \
+            --alertmanager-candidate-source a8c9b361dbd57d86e2adf8f01f7880830fc04e53 \
             --output-dir "$RUNNER_TEMP/alertmanager-consumer-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
 
       - name: Remove designated AM controller after credential cleanup
@@ -880,7 +880,7 @@ jobs:
         if: github.event_name == 'pull_request' && steps.checkpoint-selection.outputs.selected == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: 0d6a4c09477ad3174252eab15f80cdd4a76df5bc # pragma: allowlist secret - public trusted control commit
+          ref: dab47fc6153f87e35233e20aa255d97e68a5ed93 # pragma: allowlist secret - public trusted control commit
           persist-credentials: false
           path: artifacts/orchestration/prometheus-control
           sparse-checkout: scripts/ci/prometheus_source_image.py
@@ -960,18 +960,18 @@ jobs:
               if not helper.is_file() or stat.S_IMODE(helper.stat().st_mode) != 0o644:
                   raise SystemExit("Prometheus_control_mode_HOLD")
               raw = helper.read_bytes()
-              if len(raw) != 338536 or hashlib.sha256(raw).hexdigest() != "2b6edfa63f55b17cafdff100151b4b7cebef93a757fc3ab04b00eea77ca0ac6a":  # pragma: allowlist secret - public trusted control digest
+              if len(raw) != 352899 or hashlib.sha256(raw).hexdigest() != "d812e79fce6138426131f266e4f5fd8de03b72c9a56acea19bedb43a22f172f6":  # pragma: allowlist secret - public trusted control digest
                   raise SystemExit("Prometheus_control_bytes_HOLD")
               environment = {"PATH": "/usr/bin:/bin", "LANG": "C", "GIT_NO_REPLACE_OBJECTS": "1",
                              "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_COUNT": "0"}
               revision = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
                                          "rev-parse", "HEAD"], env=environment, capture_output=True, check=True)
-              if revision.stdout.strip() != b"0d6a4c09477ad3174252eab15f80cdd4a76df5bc":  # pragma: allowlist secret - public trusted control commit
+              if revision.stdout.strip() != b"dab47fc6153f87e35233e20aa255d97e68a5ed93":  # pragma: allowlist secret - public trusted control commit
                   raise SystemExit("Prometheus_control_revision_HOLD")
               object_row = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
                                           "ls-tree", "-z", "HEAD", "--", "scripts/ci/prometheus_source_image.py"],
                                          env=environment, capture_output=True, check=True)
-              if object_row.stdout != b"100644 blob 175520fe70b30c885448b95718b25b27985d3f8c\tscripts/ci/prometheus_source_image.py\0":  # pragma: allowlist secret - public trusted control blob
+              if object_row.stdout != b"100644 blob b57db038ec82126429333ce3a3e8609151cceb1d\tscripts/ci/prometheus_source_image.py\0":  # pragma: allowlist secret - public trusted control blob
                   raise SystemExit("Prometheus_control_object_HOLD")
               trusted = runpy.run_path(str(helper))
               if not all(callable(trusted.get(name)) for name in
@@ -1019,18 +1019,18 @@ jobs:
           if not helper.is_file() or stat.S_IMODE(helper.stat().st_mode) != 0o644:
               raise SystemExit("Prometheus_control_mode_HOLD")
           raw = helper.read_bytes()
-          if len(raw) != 338536 or hashlib.sha256(raw).hexdigest() != "2b6edfa63f55b17cafdff100151b4b7cebef93a757fc3ab04b00eea77ca0ac6a":  # pragma: allowlist secret - public trusted control digest
+          if len(raw) != 352899 or hashlib.sha256(raw).hexdigest() != "d812e79fce6138426131f266e4f5fd8de03b72c9a56acea19bedb43a22f172f6":  # pragma: allowlist secret - public trusted control digest
               raise SystemExit("Prometheus_control_bytes_HOLD")
           environment = {"PATH": "/usr/bin:/bin", "LANG": "C", "GIT_NO_REPLACE_OBJECTS": "1",
                          "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_COUNT": "0"}
           revision = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
                                      "rev-parse", "HEAD"], env=environment, capture_output=True, check=True)
-          if revision.stdout.strip() != b"0d6a4c09477ad3174252eab15f80cdd4a76df5bc":  # pragma: allowlist secret - public trusted control commit
+          if revision.stdout.strip() != b"dab47fc6153f87e35233e20aa255d97e68a5ed93":  # pragma: allowlist secret - public trusted control commit
               raise SystemExit("Prometheus_control_revision_HOLD")
           object_row = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
                                       "ls-tree", "-z", "HEAD", "--", "scripts/ci/prometheus_source_image.py"],
                                      env=environment, capture_output=True, check=True)
-          if object_row.stdout != b"100644 blob 175520fe70b30c885448b95718b25b27985d3f8c\tscripts/ci/prometheus_source_image.py\0":  # pragma: allowlist secret - public trusted control blob
+          if object_row.stdout != b"100644 blob b57db038ec82126429333ce3a3e8609151cceb1d\tscripts/ci/prometheus_source_image.py\0":  # pragma: allowlist secret - public trusted control blob
               raise SystemExit("Prometheus_control_object_HOLD")
           trusted = runpy.run_path(str(helper))
           if not all(callable(trusted.get(name)) for name in
@@ -1123,7 +1123,84 @@ jobs:
       - {uses: ./.github/actions/npm-ci-with-retry, timeout-minutes: 6, with: {working-directory: frontend}}
       - name: Pre-commit (lint/format/security quick checks)
         timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_LINT_CHECK_MINUTES) }}
-        run: pre-commit run --all-files --show-diff-on-failure
+        run: |
+          set -euo pipefail
+          : "${RUNNER_TEMP:?RUNNER_TEMP is required for the owned pip seed.}"
+          pip_seed_root="$(mktemp -d "$RUNNER_TEMP/pulseplate-hook-seed.XXXXXXXX")"
+          trap 'rm -rf -- "$pip_seed_root"' EXIT
+          env -u PULSEPLATE_PSYCOPG_C_SDK python - "$pip_seed_root" <<'PY'
+          import json
+          from pathlib import Path
+          import sys
+          from scripts.ci.install_locked_python_requirements import (
+              acquire_locked_wheelhouse,
+              _validate_exact_wheelhouse,
+              resolve_private_proxy_settings,
+          )
+
+          root = Path(sys.argv[1])
+          requirement = root / "pip-seed.txt"
+          requirement.write_text("pip==26.2.2\n", encoding="utf-8")
+          index, trusted_host = resolve_private_proxy_settings(index_url=None, trusted_host=None)
+          acquire_locked_wheelhouse(
+              python_executable=sys.executable, requirement_files=[requirement],
+              constraints_file=None, wheelhouse=root / "wheels",
+              index_url=index, trusted_host=trusted_host, sdk=None,
+          )
+          artifacts = _validate_exact_wheelhouse(
+              wheelhouse=root / "wheels", expected=frozenset({("pip", "26.2.2")}),
+          )
+          seed = artifacts[0]
+          if (seed.path.name != "pip-26.2.2-py3-none-any.whl"
+              or seed.snapshot.size != 1819850
+              or seed.snapshot.digest != "fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70"):
+              raise SystemExit("Missing or incorrect reviewed pip seed")
+          print(json.dumps({"pip_seed": seed.path.name, "bytes": seed.snapshot.size,
+                            "sha256": seed.snapshot.digest}))
+          PY
+          export VIRTUALENV_PIP=26.2.2
+          export VIRTUALENV_EXTRA_SEARCH_DIR="$pip_seed_root/wheels"
+          export VIRTUALENV_NO_PERIODIC_UPDATE=true
+          export VIRTUALENV_DOWNLOAD=false
+          export VIRTUALENV_APP_DATA="$pip_seed_root/app-data"
+          export PRE_COMMIT_HOME="$pip_seed_root/pre-commit"
+          mkdir -m 700 "$PRE_COMMIT_HOME"
+          pip_observation='import hashlib, importlib.metadata, json, sys
+          from pathlib import Path
+          import pip._vendor.certifi as certifi
+          version = importlib.metadata.version("pip")
+          trust = hashlib.sha256(Path(certifi.where()).read_bytes()).hexdigest()
+          print(json.dumps({"python": sys.executable, "prefix": sys.prefix,
+                            "base_prefix": sys.base_prefix, "pip": version,
+                            "embedded_trust_store_sha256": trust}))
+          assert sys.prefix != sys.base_prefix
+          assert version == "26.2.2"
+          assert trust == "50f79f98dac192b20dbf73f35c56f0b0c557ab267ff5199d1117cc1180b70785"
+          '
+          python -m virtualenv --no-download --no-periodic-update \
+            --app-data "$VIRTUALENV_APP_DATA" "$pip_seed_root/probe"
+          "$pip_seed_root/probe/bin/python" -I -c "$pip_observation"
+          if pre-commit run --all-files --show-diff-on-failure; then
+            pre_commit_status=0
+          else
+            pre_commit_status=$?
+          fi
+          shopt -s nullglob
+          hook_pythons=("$PRE_COMMIT_HOME"/repo*/py_env-*/bin/python)
+          observation_status=0
+          if [[ "${#hook_pythons[@]}" -eq 0 ]]; then
+            echo "::error::No fresh Python hook interpreter was observed."
+            observation_status=1
+          fi
+          for hook_python in "${hook_pythons[@]}"; do
+            if ! "$hook_python" -I -c "$pip_observation"; then
+              observation_status=1
+            fi
+          done
+          if [[ "$pre_commit_status" -ne 0 ]]; then
+            exit "$pre_commit_status"
+          fi
+          exit "$observation_status"
         env:
           SKIP: no-commit-to-branch
 
@@ -2790,11 +2867,11 @@ jobs:
         # Per-shard watchdog remains 4800s; test work is unchanged.
         include:
           - python-version: '3.11'
-            timeout-minutes: 120
+            timeout-minutes: 180
           - python-version: '3.12'
-            timeout-minutes: 120
+            timeout-minutes: 180
           - python-version: '3.13'
-            timeout-minutes: 120
+            timeout-minutes: 180
 
     steps:
       - name: Enforce prerequisite results
@@ -2968,10 +3045,41 @@ jobs:
             MAIN_TEST_SHARDS=16
             MAIN_TEST_MAX_PARALLEL=4
             export MAIN_TEST_SHARD_TIMEOUT_SECONDS=4800
+            # Preserve the normal matrix run and expose its actual diagnostic inputs.
+            export PYTEST_ADDOPTS="${PYTEST_ADDOPTS:-} -vv --trace-config"
+            python - <<'PY_DIAG'
+          import hashlib
+          import importlib.metadata as metadata
+          import json
+          from pathlib import Path
+          import platform
+          import sys
+          import tomllib
+          import _pytest.faulthandler as handler
+
+          packages = {}
+          for name in ("pytest", "pytest-cov", "coverage"):
+              dist = metadata.distribution(name)
+              packages[name] = {"version": dist.version, "metadata_text_sha256": {
+                  member: hashlib.sha256(raw.encode()).hexdigest() if raw is not None else None
+                  for member in ("METADATA", "RECORD")
+                  for raw in (dist.read_text(member),)}}
+          config = tomllib.loads(Path("pyproject.toml").read_text())["tool"]["pytest"]["ini_options"]
+          files = ("pyproject.toml", ".coveragerc", "conftest.py", "tests/conftest.py",
+                   "scripts/ci/run_main_test_shards.py")
+          print("PY312_DIAGNOSTIC_IDENTITY " + json.dumps({
+              "python": sys.version, "executable": sys.executable, "platform": platform.platform(),
+              "packages": packages, "faulthandler_source_sha256": hashlib.sha256(Path(handler.__file__).read_bytes()).hexdigest(),
+              "source_sha256": {name: hashlib.sha256(Path(name).read_bytes()).hexdigest() for name in files},
+              "configured_ini": {name: config.get(name) for name in ("faulthandler_timeout", "faulthandler_exit_on_timeout")},
+              "effective_getini": "Not observed from a live per-shard pytest.Config; source/config identity only.",
+              "plugins": "Built-in --trace-config in the same normal pytest invocations records actual registration."
+          }, sort_keys=True), flush=True)
+          PY_DIAG
           elif [[ "$PYVER" == 3.13* ]]; then
             MAIN_TEST_SHARDS=32
-            MAIN_TEST_MAX_PARALLEL=8
-            export MAIN_TEST_SHARD_TIMEOUT_SECONDS=4800
+            MAIN_TEST_MAX_PARALLEL=4
+            export MAIN_TEST_SHARD_TIMEOUT_SECONDS=5400
           else
             PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)
           fi

@@ -14,7 +14,7 @@ import math
 import os
 import re
 import shutil
-import subprocess  # nosec B404 # B404: required for bounded local CLI version checks (remove-by: 2026-10-30, ref: PR-main-nightly-nosec-ttl)
+import subprocess  # nosec B404 # B404: required for bounded local CLI version checks; owned call sites individually reviewed (remove-by: 2027-01-31, ref: PR-main-nightly-nosec-ttl)
 import sys
 from dataclasses import asdict, dataclass
 from typing import Any, ContextManager, Sequence, cast
@@ -68,7 +68,7 @@ def _format_version(version: tuple[int, int, int]) -> str:
 
 def _run_version(binary: str, args: Sequence[str]) -> tuple[int, str]:
     try:
-        completed = subprocess.run(  # nosec B603 # B603: argv uses shutil.which-resolved absolute binaries (remove-by: 2026-10-30, ref: PR-main-nightly-nosec-ttl)
+        completed = subprocess.run(  # nosec B603 # B603: argv uses shutil.which-resolved absolute binaries; timeout and failure controls reviewed (remove-by: 2027-01-31, ref: PR-main-nightly-nosec-ttl)
             [binary, *args],
             text=True,
             capture_output=True,

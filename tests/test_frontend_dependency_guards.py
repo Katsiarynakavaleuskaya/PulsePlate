@@ -30,6 +30,7 @@ from tests.test_root_npm_dependency_guards import (
     _find_manifest_occurrences,
     _find_opaque_npm_dependency_source_occurrences,
     _lock_path_package_identity,
+    _resolve_current_npm_registry_parser_runtime,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -49,11 +50,11 @@ EXACT_NPM_SEMVER_RE = re.compile(
     r"(?P<prerelease>-(?:[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
     r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?"
 )
-MIN_DOMPURIFY_VERSION = Version("3.4.13")
+MIN_DOMPURIFY_VERSION = Version("3.4.17")
+MIN_ZOD_VERSION = Version("4.6.6")
 MIN_JS_YAML_VERSION = Version("4.3.2")
 MIN_POSTCSS_VERSION = Version("8.5.23")
-MIN_STYLE_DICTIONARY_VERSION = Version("5.4.4")
-MIN_UNDICI_VERSION = Version("7.29.0")
+MIN_UNDICI_VERSION = Version("7.30.1")
 MIN_WS_VERSION = Version("8.21.0")
 BRACE_EXPANSION_APPROVED_OUTPUTS = {2: "2.1.4", 5: "5.0.9"}
 BRACE_EXPANSION_OVERRIDE_CARRIERS = {
@@ -343,16 +344,171 @@ NPM_LOCK_SURFACE_BASENAMES = frozenset({"package-lock.json", "npm-shrinkwrap.jso
 FRONTEND_BRACE_EXPANSION_SURFACES = frozenset(
     {"frontend/package.json", "frontend/package-lock.json"}
 )
+NPM_READINESS_ADVISORY_RANGES = {
+    "dompurify": {
+        "GHSA-39q2-94rc-95cp": ("<=3.3.3",),
+        "GHSA-55q2-fjhq-7xh7": ("<=3.4.12",),
+        "GHSA-63q7-h895-m982": ("<2.0.17",),
+        "GHSA-6688-9rhm-gjv2": ("<=3.4.15",),
+        "GHSA-76mc-f452-cxcm": ("<3.4.7",),
+        "GHSA-87xg-pxx2-7hvx": ("==3.4.4",),
+        "GHSA-8hgg-xxm5-3873": ("<1.0.11",),
+        "GHSA-c2j3-45gr-mqc4": ("<=3.4.11",),
+        "GHSA-c6gr-qvv4-5v3f": ("<=3.4.16",),
+        "GHSA-cg2g-xh64-v4q7": (">=3.4.4,<=3.4.16",),
+        "GHSA-chqj-j4fh-rw7m": ("<2.0.3",),
+        "GHSA-cj63-jhhr-wcxv": ("<=3.3.1",),
+        "GHSA-cjmm-f4jc-qw8r": ("<=3.3.1",),
+        "GHSA-cmwh-pvxp-8882": ("<=3.4.10",),
+        "GHSA-crv5-9vww-q3g8": (">=1.0.10,<3.4.0",),
+        "GHSA-gvmj-g25r-r7wr": (">=3.0.0,<=3.4.7",),
+        "GHSA-gx9m-whjm-85jf": ("<2.5.0", ">=3.0.0,<3.1.3"),
+        "GHSA-h7mw-gpvr-xq4m": ("<3.4.0",),
+        "GHSA-h8r8-wccr-v5f2": ("<3.3.2",),
+        "GHSA-hpcv-96wg-7vj8": ("<=3.4.5",),
+        "GHSA-jxrp-r7gx-q4j8": ("<=3.4.11",),
+        "GHSA-mjjq-c88q-qhr6": ("<2.0.7",),
+        "GHSA-mmhx-hmjr-r674": ("<2.5.4", ">=3.0.0,<3.1.3"),
+        "GHSA-mrv2-3pqr-j5jr": ("<=3.4.16",),
+        "GHSA-p3vf-v8qc-cwcr": ("<2.4.2",),
+        "GHSA-p98j-92pf-mc4p": (">=3.4.13,<=3.4.15",),
+        "GHSA-r47g-fvhr-h676": ("<=3.4.5",),
+        "GHSA-rp9w-3fw7-7cwq": ("<=3.4.6",),
+        "GHSA-v2wj-7wpq-c8vv": (">=3.1.3,<=3.3.1", ">=2.5.3,<=2.5.8"),
+        "GHSA-v8jm-5vwx-cfxm": (">=3.1.3,<3.2.7", ">=2.5.3,<=2.5.8"),
+        "GHSA-v9jr-rg53-9pgp": (">=3.0.1,<3.4.0",),
+        "GHSA-vhxf-7vqr-mrjg": ("<3.2.4",),
+        "GHSA-vxr8-fq34-vvx9": ("<3.4.9",),
+        "GHSA-x4vx-rjvf-j5p4": ("<=3.4.6",),
+    },
+    "zod": {"GHSA-m95q-7qp3-xv42": ("<=3.22.2",), "GHSA-mrhx-c7xc-m3w5": ("<4.6.6",)},
+}
+
+NPM_READINESS_ADVISORY_CONTROLS = (
+    (
+        "dompurify",
+        "GHSA-cg2g-xh64-v4q7",
+        ">=3.4.4,<=3.4.16",
+        ("3.4.15", "3.4.16", "3.4.4", "3.4.5"),
+        ("3.4.17", "3.4.3"),
+    ),
+    ("dompurify", "GHSA-mrv2-3pqr-j5jr", "<=3.4.16", ("3.4.15", "3.4.16"), ("3.4.17",)),
+    ("dompurify", "GHSA-c6gr-qvv4-5v3f", "<=3.4.16", ("3.4.15", "3.4.16"), ("3.4.17",)),
+    ("dompurify", "GHSA-6688-9rhm-gjv2", "<=3.4.15", ("3.4.14", "3.4.15"), ("3.4.16", "3.4.17")),
+    (
+        "dompurify",
+        "GHSA-p98j-92pf-mc4p",
+        ">=3.4.13,<=3.4.15",
+        ("3.4.13", "3.4.14", "3.4.15"),
+        ("3.4.12", "3.4.16", "3.4.17"),
+    ),
+    ("dompurify", "GHSA-55q2-fjhq-7xh7", "<=3.4.12", ("3.4.11", "3.4.12"), ("3.4.13", "3.4.17")),
+    ("dompurify", "GHSA-jxrp-r7gx-q4j8", "<=3.4.11", ("3.4.10", "3.4.11"), ("3.4.12", "3.4.17")),
+    ("dompurify", "GHSA-c2j3-45gr-mqc4", "<=3.4.11", ("3.4.10", "3.4.11"), ("3.4.12", "3.4.17")),
+    ("dompurify", "GHSA-cmwh-pvxp-8882", "<=3.4.10", ("3.4.10", "3.4.9"), ("3.4.11", "3.4.17")),
+    ("dompurify", "GHSA-vxr8-fq34-vvx9", "<3.4.9", ("3.4.8",), ("3.4.10", "3.4.17", "3.4.9")),
+    (
+        "dompurify",
+        "GHSA-gvmj-g25r-r7wr",
+        ">=3.0.0,<=3.4.7",
+        ("3.0.0", "3.0.1", "3.4.6", "3.4.7"),
+        ("2.999.999", "3.4.17", "3.4.8"),
+    ),
+    ("dompurify", "GHSA-rp9w-3fw7-7cwq", "<=3.4.6", ("3.4.5", "3.4.6"), ("3.4.17", "3.4.7")),
+    ("dompurify", "GHSA-x4vx-rjvf-j5p4", "<=3.4.6", ("3.4.5", "3.4.6"), ("3.4.17", "3.4.7")),
+    ("dompurify", "GHSA-76mc-f452-cxcm", "<3.4.7", ("3.4.6",), ("3.4.17", "3.4.7", "3.4.8")),
+    ("dompurify", "GHSA-hpcv-96wg-7vj8", "<=3.4.5", ("3.4.4", "3.4.5"), ("3.4.17", "3.4.6")),
+    ("dompurify", "GHSA-r47g-fvhr-h676", "<=3.4.5", ("3.4.4", "3.4.5"), ("3.4.17", "3.4.6")),
+    ("dompurify", "GHSA-87xg-pxx2-7hvx", "==3.4.4", ("3.4.4",), ("3.4.17", "3.4.3", "3.4.5")),
+    ("dompurify", "GHSA-h7mw-gpvr-xq4m", "<3.4.0", ("3.3.999",), ("3.4.0", "3.4.1", "3.4.17")),
+    (
+        "dompurify",
+        "GHSA-crv5-9vww-q3g8",
+        ">=1.0.10,<3.4.0",
+        ("1.0.10", "1.0.11", "3.3.999"),
+        ("1.0.9", "3.4.0", "3.4.1", "3.4.17"),
+    ),
+    (
+        "dompurify",
+        "GHSA-v9jr-rg53-9pgp",
+        ">=3.0.1,<3.4.0",
+        ("3.0.1", "3.0.2", "3.3.999"),
+        ("3.0.0", "3.4.0", "3.4.1", "3.4.17"),
+    ),
+    ("dompurify", "GHSA-39q2-94rc-95cp", "<=3.3.3", ("3.3.2", "3.3.3"), ("3.3.4", "3.4.17")),
+    ("dompurify", "GHSA-cjmm-f4jc-qw8r", "<=3.3.1", ("3.3.0", "3.3.1"), ("3.3.2", "3.4.17")),
+    ("dompurify", "GHSA-cj63-jhhr-wcxv", "<=3.3.1", ("3.3.0", "3.3.1"), ("3.3.2", "3.4.17")),
+    ("dompurify", "GHSA-h8r8-wccr-v5f2", "<3.3.2", ("3.3.1",), ("3.3.2", "3.3.3", "3.4.17")),
+    (
+        "dompurify",
+        "GHSA-v2wj-7wpq-c8vv",
+        ">=3.1.3,<=3.3.1",
+        ("3.1.3", "3.1.4", "3.3.0", "3.3.1"),
+        ("3.1.2", "3.3.2", "3.4.17"),
+    ),
+    (
+        "dompurify",
+        "GHSA-v2wj-7wpq-c8vv",
+        ">=2.5.3,<=2.5.8",
+        ("2.5.3", "2.5.4", "2.5.7", "2.5.8"),
+        ("2.5.2", "2.5.9", "3.4.17"),
+    ),
+    (
+        "dompurify",
+        "GHSA-v8jm-5vwx-cfxm",
+        ">=3.1.3,<3.2.7",
+        ("3.1.3", "3.1.4", "3.2.6"),
+        ("3.1.2", "3.2.7", "3.2.8", "3.4.17"),
+    ),
+    (
+        "dompurify",
+        "GHSA-v8jm-5vwx-cfxm",
+        ">=2.5.3,<=2.5.8",
+        ("2.5.3", "2.5.4", "2.5.7", "2.5.8"),
+        ("2.5.2", "2.5.9", "3.4.17"),
+    ),
+    ("dompurify", "GHSA-vhxf-7vqr-mrjg", "<3.2.4", ("3.2.3",), ("3.2.4", "3.2.5", "3.4.17")),
+    ("dompurify", "GHSA-p3vf-v8qc-cwcr", "<2.4.2", ("2.4.1",), ("2.4.2", "2.4.3", "3.4.17")),
+    ("dompurify", "GHSA-gx9m-whjm-85jf", "<2.5.0", ("2.4.999",), ("2.5.0", "2.5.1", "3.4.17")),
+    (
+        "dompurify",
+        "GHSA-gx9m-whjm-85jf",
+        ">=3.0.0,<3.1.3",
+        ("3.0.0", "3.0.1", "3.1.2"),
+        ("2.999.999", "3.1.3", "3.1.4", "3.4.17"),
+    ),
+    ("dompurify", "GHSA-mmhx-hmjr-r674", "<2.5.4", ("2.5.3",), ("2.5.4", "2.5.5", "3.4.17")),
+    (
+        "dompurify",
+        "GHSA-mmhx-hmjr-r674",
+        ">=3.0.0,<3.1.3",
+        ("3.0.0", "3.0.1", "3.1.2"),
+        ("2.999.999", "3.1.3", "3.1.4", "3.4.17"),
+    ),
+    ("dompurify", "GHSA-8hgg-xxm5-3873", "<1.0.11", ("1.0.10",), ("1.0.11", "1.0.12", "3.4.17")),
+    ("dompurify", "GHSA-63q7-h895-m982", "<2.0.17", ("2.0.16",), ("2.0.17", "2.0.18", "3.4.17")),
+    ("dompurify", "GHSA-mjjq-c88q-qhr6", "<2.0.7", ("2.0.6",), ("2.0.7", "2.0.8", "3.4.17")),
+    ("dompurify", "GHSA-chqj-j4fh-rw7m", "<2.0.3", ("2.0.2",), ("2.0.3", "2.0.4", "3.4.17")),
+    ("zod", "GHSA-mrhx-c7xc-m3w5", "<4.6.6", ("4.6.5",), ("4.6.6", "4.6.7")),
+    ("zod", "GHSA-m95q-7qp3-xv42", "<=3.22.2", ("3.22.1", "3.22.2"), ("3.22.3", "4.6.7")),
+)
+
 FRONTEND_SECURITY_TARGETS = {
     "dompurify": {
         "manifest_path": ("overrides", "dompurify"),
-        "manifest_value": "3.4.13",
+        "owner_kind": "exact",
+        "fixture_manifest": "3.4.17",
+        "fixture_version": "3.4.17",
         "floor": str(MIN_DOMPURIFY_VERSION),
-        "selected": "3.4.13",
-        "advisories": {
-            "GHSA-c2j3-45gr-mqc4": ("<=3.4.11",),
-            "GHSA-55q2-fjhq-7xh7": ("<=3.4.12",),
-        },
+        "advisories": NPM_READINESS_ADVISORY_RANGES["dompurify"],
+    },
+    "zod": {
+        "manifest_path": ("dependencies", "zod"),
+        "owner_kind": "caret",
+        "fixture_manifest": "^4.6.7",
+        "fixture_version": "4.6.7",
+        "floor": str(MIN_ZOD_VERSION),
+        "advisories": NPM_READINESS_ADVISORY_RANGES["zod"],
     },
     "js-yaml": {
         "manifest_path": ("overrides", "js-yaml"),
@@ -384,20 +540,11 @@ FRONTEND_SECURITY_TARGETS = {
             "GHSA-fxqj-rqcc-2cmp": ("<=8.5.22",),
         },
     },
-    "style-dictionary": {
-        "manifest_path": ("devDependencies", "style-dictionary"),
-        "manifest_value": "5.4.4",
-        "floor": str(MIN_STYLE_DICTIONARY_VERSION),
-        "selected": "5.4.4",
-        "advisories": {
-            "GHSA-vj5c-m527-mpff": (">=4.3.0,<5.4.4",),
-        },
-    },
     "undici": {
         "manifest_path": ("overrides", "undici"),
-        "manifest_value": "7.29.0",
+        "manifest_value": "7.30.1",
         "floor": str(MIN_UNDICI_VERSION),
-        "selected": "7.29.0",
+        "selected": "7.30.1",
         "advisories": {
             "GHSA-8xcm-r25x-g524": ("<6.28.0", ">=7.0.0,<7.29.0", ">=8.0.0,<8.9.0"),
             "GHSA-4cwx-7wf7-3272": (">=7.0.0,<7.29.0", ">=8.0.0,<8.9.0"),
@@ -408,21 +555,22 @@ FRONTEND_SECURITY_TARGETS = {
     },
 }
 FRONTEND_SECURITY_BOUNDARY_CASES = (
-    ("dompurify-below", "dompurify", "3.4.12", False),
-    ("dompurify-floor", "dompurify", "3.4.13", True),
-    ("dompurify-selected", "dompurify", "3.4.13", True),
+    ("dompurify-below", "dompurify", "3.4.16", False),
+    ("dompurify-floor", "dompurify", "3.4.17", True),
+    ("dompurify-later", "dompurify", "3.4.18", True),
+    ("zod-below", "zod", "4.6.5", False),
+    ("zod-floor", "zod", "4.6.6", True),
+    ("zod-selected", "zod", "4.6.7", True),
+    ("zod-later", "zod", "4.6.8", True),
     ("js-yaml-below", "js-yaml", "4.3.1", False),
     ("js-yaml-floor", "js-yaml", "4.3.2", True),
     ("js-yaml-selected", "js-yaml", "4.3.2", True),
     ("postcss-below", "postcss", "8.5.22", False),
     ("postcss-floor", "postcss", "8.5.23", True),
     ("postcss-selected", "postcss", "8.5.26", True),
-    ("style-dictionary-below", "style-dictionary", "5.4.3", False),
-    ("style-dictionary-floor", "style-dictionary", "5.4.4", True),
-    ("style-dictionary-selected", "style-dictionary", "5.4.4", True),
     ("undici-below", "undici", "7.28.0", False),
-    ("undici-floor", "undici", "7.29.0", True),
-    ("undici-selected", "undici", "7.29.0", True),
+    ("undici-floor", "undici", "7.30.1", True),
+    ("undici-selected", "undici", "7.30.1", True),
 )
 
 
@@ -468,11 +616,12 @@ def test_recorded_git_objects_ignore_replacements_and_missing_objects(
     fixture_env.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1")
 
     def fixture_git(*args: str) -> bytes:
-        result = subprocess.run(  # nosec B603: resolved Git binary with test-owned fixed argv (remove-by: 2026-10-31, ref: PR-consol-ci-1)
+        result = subprocess.run(
             [git_binary, "-C", str(tmp_path), *args],
             check=True,
             capture_output=True,
             env=fixture_env,
+            timeout=30,
         )
         return result.stdout.strip()
 
@@ -1823,6 +1972,13 @@ def _assert_transitive_npm_security_batch(*, root: Path = REPO_ROOT) -> dict[str
             _assert_manifest_dependency_container_shapes(document=document, surface=relative)
             for target in AUTHORIZED_TRANSITIVE_NPM_BATCH:
                 target_occurrences = _find_manifest_occurrences(document, target=target)
+                if target == "qs" and relative == "frontend/package.json":
+                    # Current authored override; combined replay removes installed qs.
+                    approved = target_occurrences.pop(("overrides", "qs"), None)
+                    assert approved in (
+                        None,
+                        "6.16.1",
+                    ), "qs override must retain the admitted target"
                 assert not target_occurrences, (
                     f"{relative}: direct {target} manifest authority is forbidden; "
                     f"found {target_occurrences!r}"
@@ -1902,9 +2058,30 @@ def _extract_transitive_npm_batch_receipt(document: str) -> dict[str, object]:
     return receipt
 
 
-def _assert_frontend_security_targets(*, root: Path = REPO_ROOT) -> None:
-    """Validate the declared non-brace targets across every tracked npm surface."""
+def _assert_npm_readiness_advisory_inventory() -> None:
+    """Bind the two finite policy tables to independently retained interval controls."""
 
+    expected: dict[str, dict[str, set[str]]] = {"dompurify": {}, "zod": {}}
+    for target, advisory, interval, affected, unaffected in NPM_READINESS_ADVISORY_CONTROLS:
+        assert affected and unaffected
+        expected[target].setdefault(advisory, set()).add(interval)
+    assert {target: len(rows) for target, rows in expected.items()} == {
+        "dompurify": 34,
+        "zod": 2,
+    }, "NPM readiness advisory inventory drift"
+    assert len(NPM_READINESS_ADVISORY_CONTROLS) == 40
+    for target, rows in expected.items():
+        actual = FRONTEND_SECURITY_TARGETS[target]["advisories"]
+        assert {
+            advisory: set(ranges) for advisory, ranges in actual.items()
+        } == rows, f"{target}: NPM readiness advisory range inventory drift"
+        assert all(len(ranges) == len(set(ranges)) for ranges in actual.values())
+
+
+def _assert_frontend_security_targets(*, root: Path = REPO_ROOT) -> None:
+    """Validate finite owners and universal safety before the native graph check."""
+
+    _assert_npm_readiness_advisory_inventory()
     surfaces = {
         relative: _load_transitive_npm_surface(root / relative)
         for relative in _enumerate_repo_npm_surfaces(root=root)
@@ -1918,65 +2095,99 @@ def _assert_frontend_security_targets(*, root: Path = REPO_ROOT) -> None:
                 assert isinstance(
                     package, dict
                 ), f"{relative}:{path}: package entry must be an object"
-                _assert_manifest_dependency_container_shapes(
-                    document=package, surface=f"{relative}:{path}"
-                )
+            _assert_no_published_opaque_inner_graph(surface=relative, document=document)
+
     for target, policy in FRONTEND_SECURITY_TARGETS.items():
         manifest_occurrences: dict[tuple[str, ...], object] = {}
         lock_occurrences: dict[tuple[str, str], dict] = {}
         for relative, document in surfaces.items():
-            basename = PurePosixPath(relative).name
-            if basename == "package.json":
+            if PurePosixPath(relative).name == "package.json":
                 for path, value in _find_manifest_target_paths(
-                    document,
-                    target=target,
-                    surface=relative,
-                    surfaces=surfaces,
+                    document, target=target, surface=relative, surfaces=surfaces
                 ).items():
                     manifest_occurrences[(relative, *path)] = value
-                continue
-            assert basename in NPM_LOCK_SURFACE_BASENAMES
-            for path, package in _discover_frontend_target_lock_entries(
-                document.get("packages"), target=target
-            ).items():
-                lock_occurrences[(relative, path)] = package
+            else:
+                for path, package in _discover_frontend_target_lock_entries(
+                    document.get("packages"), target=target
+                ).items():
+                    lock_occurrences[(relative, path)] = package
 
         manifest_path = policy["manifest_path"]
         assert isinstance(manifest_path, tuple)
-        expected_manifest_occurrences = {
-            ("frontend/package.json", *manifest_path): policy["manifest_value"]
-        }
-        assert manifest_occurrences == expected_manifest_occurrences, (
-            f"{target}: manifest carriers disagree with the approved current owner; "
-            f"found {manifest_occurrences!r}"
-        )
-        assert lock_occurrences, f"{target}: governed lock occurrence missing"
-        assert {relative for relative, _ in lock_occurrences} == {
-            "frontend/package-lock.json"
-        }, f"{target}: unexpected tracked lock owner"
+        owner = ("frontend/package.json", *manifest_path)
+        owner_kind = policy.get("owner_kind")
+        live_owner = owner_kind is not None
+        declared: Version | None = None
+        if live_owner:
+            assert set(manifest_occurrences) == {owner}, (
+                f"{target}: direct manifest owners disagree with the supported owner; "
+                f"found {manifest_occurrences!r}"
+            )
+            raw_owner = manifest_occurrences[owner]
+            assert isinstance(raw_owner, str), f"{target}: owner selector must be text"
+            if owner_kind == "caret":
+                assert raw_owner.startswith("^"), f"{target}: owner must be one stable caret"
+                raw_floor = raw_owner[1:]
+            else:
+                assert owner_kind == "exact", f"{target}: unsupported owner operation"
+                raw_floor = raw_owner
+            declared = _assert_frontend_security_target_version(
+                target=target, raw_version=raw_floor
+            )
+        else:
+            assert manifest_occurrences == {owner: policy["manifest_value"]}, (
+                f"{target}: manifest carriers disagree with the approved current owner; "
+                f"found {manifest_occurrences!r}"
+            )
 
-        selected = policy["selected"]
-        assert isinstance(selected, str)
-        lock_versions: set[Version] = set()
+        assert lock_occurrences, f"{target}: governed lock occurrence missing"
+        if not live_owner:
+            assert {relative for relative, _ in lock_occurrences} == {
+                "frontend/package-lock.json"
+            }, f"{target}: unexpected tracked lock owner"
         for (relative, path), package in lock_occurrences.items():
             raw_version = package.get("version")
-            parsed_version = _assert_frontend_security_target_version(
-                target=target,
-                raw_version=raw_version,
-            )
-            assert raw_version == selected, f"{relative}:{path}: {target} selected target drift"
-            expected_resolved = f"https://registry.npmjs.org/{target}/-/{target}-{selected}.tgz"
+            _assert_frontend_security_target_version(target=target, raw_version=raw_version)
+            if not live_owner:
+                assert (
+                    raw_version == policy["selected"]
+                ), f"{relative}:{path}: {target} selected target drift"
+            expected_resolved = f"https://registry.npmjs.org/{target}/-/{target}-{raw_version}.tgz"
             assert (
                 package.get("resolved") == expected_resolved
             ), f"{relative}:{path}: {target} canonical provenance mismatch"
             source = f"{relative}:{path}"
             assert "link" not in package, f"{source}: symbolic link lock occurrence is forbidden"
-            in_bundle = package.get("inBundle", False)
-            assert type(in_bundle) is bool, f"{source}: inBundle must be boolean when present"
-            assert not in_bundle, f"{source}: bundled lock occurrence is forbidden"
             _assert_sha512_integrity(value=package.get("integrity"), source=source)
-            lock_versions.add(parsed_version)
-        assert lock_versions == {Version(selected)}, f"{target}: manifest/lock target disagreement"
+
+        if live_owner:
+            # Only the direct root owner is constrained by its own selector. Safe
+            # nested and other-project occurrences retain their actual parent edges.
+            root_key = ("frontend/package-lock.json", f"node_modules/{target}")
+            if owner_kind == "caret":
+                assert root_key in lock_occurrences, f"{target}: direct root lock is missing"
+            if root_key in lock_occurrences:
+                root_version = _parse_version(
+                    value=lock_occurrences[root_key]["version"], source=f"{target} root lock"
+                )
+                assert declared is not None
+                if owner_kind == "exact":
+                    assert (
+                        root_version == declared
+                    ), f"{target}: root lock disagrees with exact owner"
+                else:
+                    # The admitted stable caret starts at major>=4. Native npm
+                    # independently checks the complete source/peer/parent graph.
+                    assert declared.major >= 1
+                    assert (
+                        root_version >= declared and root_version.major == declared.major
+                    ), f"{target}: root lock is outside its direct caret"
+
+    for relative, document in surfaces.items():
+        if PurePosixPath(relative).name == "package.json":
+            opaque = _find_opaque_npm_dependency_source_occurrences(document)
+            assert not opaque, f"{relative}: opaque dependency source blocks target inventory"
+    _assert_npm_virtual_lock_graphs(surfaces=surfaces)
 
 
 VITEST_ADVISORY_RANGES: dict[str, dict[str, tuple[SpecifierSet, ...]]] = {
@@ -4451,6 +4662,274 @@ def test_frontend_security_targets_cover_all_current_tracked_surfaces() -> None:
     _assert_frontend_security_targets()
 
 
+def test_npm_readiness_retains_all_advisory_intervals() -> None:
+    """Non-base, disjoint and withdrawn intervals remain mandatory policy inputs."""
+    _assert_npm_readiness_advisory_inventory()
+
+
+@pytest.mark.parametrize(
+    ("target", "advisory", "interval", "affected", "unaffected"),
+    NPM_READINESS_ADVISORY_CONTROLS,
+)
+def test_npm_readiness_each_interval_without_floor_masking(
+    target: str,
+    advisory: str,
+    interval: str,
+    affected: tuple[str, ...],
+    unaffected: tuple[str, ...],
+) -> None:
+    """Independent primary boundary witnesses exercise the interval itself."""
+    assert interval in FRONTEND_SECURITY_TARGETS[target]["advisories"][advisory]
+    predicate = SpecifierSet(interval)
+    assert all(_parse_version(value=value, source=advisory) in predicate for value in affected)
+    assert all(
+        _parse_version(value=value, source=advisory) not in predicate for value in unaffected
+    )
+
+
+@pytest.mark.parametrize("omission", ("non-base", "withdrawn", "disjoint"))
+def test_npm_readiness_inventory_rejects_omissions(
+    monkeypatch: pytest.MonkeyPatch, omission: str
+) -> None:
+    """A safe current floor cannot conceal a missing frozen range or advisory."""
+    changed = deepcopy(FRONTEND_SECURITY_TARGETS["dompurify"]["advisories"])
+    if omission == "withdrawn":
+        del changed["GHSA-jxrp-r7gx-q4j8"]
+    elif omission == "non-base":
+        del changed["GHSA-55q2-fjhq-7xh7"]
+    else:
+        advisory = next(key for key, ranges in changed.items() if len(ranges) > 1)
+        changed[advisory] = changed[advisory][1:]
+    monkeypatch.setitem(FRONTEND_SECURITY_TARGETS["dompurify"], "advisories", changed)
+    with pytest.raises(AssertionError, match="advisory range inventory drift"):
+        _assert_npm_readiness_advisory_inventory()
+
+
+def test_npm_readiness_single_equals_matches_native_npm() -> None:
+    """Only the recorded single equality receives the admitted == representation."""
+    node, npm_cli = _resolve_current_npm_registry_parser_runtime()
+    script = (
+        "const semver=require('node:module').createRequire(process.argv[1])('semver');"
+        "console.log(JSON.stringify(['3.4.3','3.4.4','3.4.5'].map("
+        "v=>semver.satisfies(v,'=3.4.4',{loose:false}))));"
+    )
+    result = subprocess.run(
+        [node, "-e", script, npm_cli],
+        capture_output=True,
+        check=True,
+        timeout=30,
+        env={"PATH": os.defpath, "LANG": "C.UTF-8"},
+    )
+    assert json.loads(result.stdout) == [False, True, False]
+    intervals = FRONTEND_SECURITY_TARGETS["dompurify"]["advisories"]["GHSA-87xg-pxx2-7hvx"]
+    assert intervals == ("==3.4.4",)
+    assert [
+        Version(value) in SpecifierSet(intervals[0]) for value in ("3.4.3", "3.4.4", "3.4.5")
+    ] == [
+        False,
+        True,
+        False,
+    ]
+
+
+def test_npm_readiness_allows_later_live_dompurify_owner(frontend_security_repo: Path) -> None:
+    root = frontend_security_repo
+    manifest_path = root / "frontend/package.json"
+    lock_path = root / "frontend/package-lock.json"
+    manifest, lock = _load_json(manifest_path), _load_json(lock_path)
+    manifest["overrides"]["dompurify"] = "3.4.18"
+    lock["packages"]["node_modules/dompurify"] = _transitive_npm_entry(
+        target="dompurify", version="3.4.18"
+    )
+    manifest_path.write_text(json.dumps(manifest))
+    lock_path.write_text(json.dumps(lock))
+    _assert_frontend_security_targets(root=root)
+
+
+def test_npm_readiness_allows_safe_nested_zod_outside_root_caret(
+    frontend_security_repo: Path,
+) -> None:
+    root = frontend_security_repo
+    manifest_path, lock_path = root / "frontend/package.json", root / "frontend/package-lock.json"
+    manifest, lock = _load_json(manifest_path), _load_json(lock_path)
+    manifest["dependencies"]["zod"] = "^4.6.8"
+    lock["packages"][""]["dependencies"]["zod"] = "^4.6.8"
+    lock["packages"]["node_modules/zod"] = _transitive_npm_entry(target="zod", version="4.6.9")
+    lock["packages"]["node_modules/fixture-parent"]["dependencies"]["zod"] = "^5.0.0"
+    lock["packages"]["node_modules/fixture-parent/node_modules/zod"] = _transitive_npm_entry(
+        target="zod", version="5.0.1"
+    )
+    manifest_path.write_text(json.dumps(manifest))
+    lock_path.write_text(json.dumps(lock))
+    _assert_frontend_security_targets(root=root)
+
+
+@pytest.mark.parametrize(("version", "allowed"), (("3.4.18", True), ("3.4.16", False)))
+def test_npm_readiness_discovers_transitive_cross_lock_occurrences(
+    frontend_security_repo: Path, version: str, allowed: bool
+) -> None:
+    root = frontend_security_repo
+    manifest = {
+        "name": "secondary-fixture",
+        "version": "1.0.0",
+        "dependencies": {"other-parent": "1.0.0"},
+    }
+    parent: dict = _transitive_npm_entry(target="other-parent", version="1.0.0")
+    parent["dependencies"] = {"dompurify": "^" + version}
+    lock = {
+        "lockfileVersion": 3,
+        "packages": {
+            "": manifest,
+            "node_modules/other-parent": parent,
+            "node_modules/dompurify": _transitive_npm_entry(target="dompurify", version=version),
+        },
+    }
+    _write_browserslist_repo(
+        root, project_directory="secondary", package_json=manifest, package_lock=lock
+    )
+    if allowed:
+        _assert_frontend_security_targets(root=root)
+    else:
+        with pytest.raises(AssertionError, match="below security floor"):
+            _assert_frontend_security_targets(root=root)
+
+
+@pytest.mark.parametrize(
+    ("case", "message"),
+    (
+        ("unsafe-nested", "below security floor"),
+        ("root-caret-mismatch", "outside its direct caret"),
+        ("exact-owner-mismatch", "disagrees with exact owner"),
+        ("extra-direct-owner", "direct manifest owners disagree"),
+        ("unsupported-selector", "one stable caret"),
+        ("missing-zod", "governed lock occurrence missing"),
+        ("unsafe-source", "below security floor"),
+        ("opaque-source", "opaque dependency source"),
+    ),
+)
+def test_npm_readiness_rejects_invalid_owner_and_occurrence(
+    frontend_security_repo: Path, case: str, message: str
+) -> None:
+    root = frontend_security_repo
+    mp, lp = root / "frontend/package.json", root / "frontend/package-lock.json"
+    manifest, lock = _load_json(mp), _load_json(lp)
+    if case == "unsafe-nested":
+        lock["packages"]["node_modules/fixture-parent"]["dependencies"]["zod"] = "^3.25.0"
+        lock["packages"]["node_modules/fixture-parent/node_modules/zod"] = _transitive_npm_entry(
+            target="zod", version="3.25.76"
+        )
+    elif case == "root-caret-mismatch":
+        manifest["dependencies"]["zod"] = "^4.7.0"
+        lock["packages"][""]["dependencies"]["zod"] = "^4.7.0"
+    elif case == "exact-owner-mismatch":
+        lock["packages"]["node_modules/dompurify"] = _transitive_npm_entry(
+            target="dompurify", version="3.4.18"
+        )
+    elif case == "extra-direct-owner":
+        manifest["optionalDependencies"] = {"zod": "^4.6.7"}
+        lock["packages"][""]["optionalDependencies"] = {"zod": "^4.6.7"}
+    elif case == "unsupported-selector":
+        manifest["dependencies"]["zod"] = "~4.6.7"
+        lock["packages"][""]["dependencies"]["zod"] = "~4.6.7"
+    elif case == "missing-zod":
+        del lock["packages"]["node_modules/zod"]
+    elif case == "unsafe-source":
+        manifest["dependencies"]["zod"] = "^4.6.5"
+        lock["packages"][""]["dependencies"]["zod"] = "^4.6.5"
+    elif case == "opaque-source":
+        source = "https://registry.npmjs.org/fixture-parent/-/fixture-parent-1.0.0.tgz"
+        manifest["dependencies"]["fixture-parent"] = source
+        lock["packages"][""]["dependencies"]["fixture-parent"] = source
+    mp.write_text(json.dumps(manifest))
+    lp.write_text(json.dumps(lock))
+    with pytest.raises(AssertionError, match=message):
+        _assert_frontend_security_targets(root=root)
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    (
+        ("hasShrinkwrap", True, "published nested shrinkwrap"),
+        ("hasShrinkwrap", "false", "hasShrinkwrap must be an exact boolean"),
+        ("inBundle", True, "bundled lock occurrence"),
+        ("inBundle", "false", "inBundle must be boolean"),
+        ("bundleDependencies", ["zod"], "published bundled dependencies"),
+        ("bundledDependencies", True, "published bundled dependencies"),
+    ),
+)
+def test_npm_readiness_rejects_opaque_non_target_records(
+    frontend_security_repo: Path, field: str, value: object, message: str
+) -> None:
+    path = frontend_security_repo / "frontend/package-lock.json"
+    lock = _load_json(path)
+    lock["packages"]["node_modules/fixture-parent"][field] = value
+    path.write_text(json.dumps(lock))
+    with pytest.raises(AssertionError, match=message):
+        _assert_frontend_security_targets(root=frontend_security_repo)
+
+
+def test_npm_readiness_accepts_empty_inner_graph_controls(frontend_security_repo: Path) -> None:
+    path = frontend_security_repo / "frontend/package-lock.json"
+    lock = _load_json(path)
+    lock["packages"]["node_modules/fixture-parent"].update(
+        hasShrinkwrap=False, inBundle=False, bundleDependencies=[], bundledDependencies=[]
+    )
+    path.write_text(json.dumps(lock))
+    _assert_frontend_security_targets(root=frontend_security_repo)
+
+
+@pytest.mark.parametrize("target", ("dompurify", "zod"))
+@pytest.mark.parametrize(
+    ("case", "message"),
+    (
+        ("alias", "alias/noncanonical"),
+        ("source", "canonical npm registry tarball"),
+        ("integrity", "integrity must use sha512"),
+        ("missing-version", "version must be text"),
+        ("duplicate-json", "duplicate JSON key"),
+    ),
+)
+def test_npm_readiness_live_targets_keep_source_integrity_controls(
+    frontend_security_repo: Path, target: str, case: str, message: str
+) -> None:
+    path = frontend_security_repo / "frontend/package-lock.json"
+    lock = _load_json(path)
+    package_path = f"node_modules/{target}"
+    package = lock["packages"][package_path]
+    if case == "alias":
+        package["name"] = target
+        lock["packages"]["node_modules/renamed-target"] = lock["packages"].pop(package_path)
+    elif case == "source":
+        package["resolved"] = (
+            f"https://example.invalid/{target}/-/{target}-{package['version']}.tgz"
+        )
+    elif case == "integrity":
+        package["integrity"] = "invalid-integrity"
+    elif case == "missing-version":
+        del package["version"]
+    serialized = json.dumps(lock)
+    if case == "duplicate-json":
+        needle = json.dumps(package_path) + ":"
+        assert serialized.count(needle) == 1
+        serialized = serialized.replace(needle, needle + "{}, " + needle, 1)
+    path.write_text(serialized)
+    with pytest.raises(AssertionError, match=message):
+        _assert_frontend_security_targets(root=frontend_security_repo)
+
+
+def test_npm_readiness_native_graph_rejects_peer_conflict(tmp_path: Path) -> None:
+    manifest, lock = _load_json(FRONTEND_PACKAGE_JSON), _load_json(FRONTEND_LOCK_JSON)
+    _write_browserslist_repo(tmp_path, package_json=manifest, package_lock=lock)
+    _assert_frontend_security_targets(root=tmp_path)
+    path = tmp_path / "frontend/package-lock.json"
+    lock = _load_json(path)
+    peer = lock["packages"]["node_modules/react-hook-form"]
+    peer.update(_transitive_npm_entry(target="react-hook-form", version="7.54.0"))
+    path.write_text(json.dumps(lock))
+    with pytest.raises(AssertionError, match="npm virtual graph rejected"):
+        _assert_frontend_security_targets(root=tmp_path)
+
+
 @pytest.mark.parametrize(
     ("case_id", "target", "version", "allowed"),
     FRONTEND_SECURITY_BOUNDARY_CASES,
@@ -4541,14 +5020,23 @@ def test_js_yaml_each_advisory_range_boundary(
 def frontend_security_repo(tmp_path: Path) -> Path:
     """Exercise the ordinary guard against independently tracked fixture surfaces."""
 
-    manifest: dict = {"name": "frontend-security-fixture", "version": "1.0.0"}
-    packages: dict = {}
+    manifest: dict = {
+        "name": "frontend-security-fixture",
+        "version": "1.0.0",
+        "dependencies": {"fixture-parent": "1.0.0"},
+    }
+    parent: dict = _transitive_npm_entry(target="fixture-parent", version="1.0.0")
+    parent["dependencies"] = {}
+    packages: dict = {"node_modules/fixture-parent": parent}
     for target, policy in FRONTEND_SECURITY_TARGETS.items():
         field, name = policy["manifest_path"]
-        manifest.setdefault(field, {})[name] = policy["manifest_value"]
-        packages[f"node_modules/{target}"] = _transitive_npm_entry(
-            target=target, version=policy["selected"]
-        )
+        value = policy.get("fixture_manifest", policy.get("manifest_value"))
+        version = policy.get("fixture_version", policy.get("selected"))
+        assert isinstance(value, str) and isinstance(version, str)
+        manifest.setdefault(field, {})[name] = value
+        packages[f"node_modules/{target}"] = _transitive_npm_entry(target=target, version=version)
+        if field == "overrides":
+            parent["dependencies"][target] = "^" + version
     packages[""] = {key: value for key, value in manifest.items() if key != "overrides"}
     _write_browserslist_repo(
         tmp_path,
@@ -5019,3 +5507,466 @@ def test_brace_expansion_new_cutoff_record_boundaries(
     assert _version_is_affected(version=Version(below), advisory=advisory)
     assert not _version_is_affected(version=Version(floor), advisory=advisory)
     assert not _version_is_affected(version=Version(selected), advisory=advisory)
+
+
+# Accepted audit03 extends the audit02 cutoff; prior inventories remain history.
+NPM_SNAPSHOT_ADVISORY_RANGES = {
+    "@vitest/mocker": {
+        "GHSA-82fw-gwwq-j7x9": (">=2.1.0,<4.1.11", ">=5.0.0-beta.1,<5.0.0-rc.2"),
+        "GHSA-qxg6-89mg-rqv8": (">=2.1.0-beta.7,<4.1.12", ">=5.0.0-beta.1,<5.0.3"),
+        "GHSA-xp26-3454-mjgp": (">=4.1.11,<4.1.12", ">=5.0.0-rc.2,<5.0.3"),
+    },
+    "deepmerge": {"GHSA-gcqx-w48m-w2h4": (">=4.2.0,<=4.3.1",)},
+    "glob": {"GHSA-3g3m-2fjr-6pw4": (">=9.0.0,<=14.0.1",)},
+    "minimatch": {"GHSA-g3hv-75wg-m249": ("<11.0.1",)},
+    "postcss-selector-parser": {"GHSA-rj75-hqrm-r3gf": (">=7.0.0,<7.1.6", "<6.1.5")},
+    "qs": {"GHSA-6pq8-jhm2-2vcw": (">=6.7.0,<=6.16.0",)},
+    "source-map-js": {"GHSA-68fv-2mgg-jv7q": (">=1.0.0,<1.2.2",)},
+    "storybook": {
+        "GHSA-f2ph-cmg5-wxc8": (
+            ">=8.0.0,<8.6.19",
+            ">=9.0.0,<9.1.21",
+            ">=10.0.0,<10.6.2",
+            ">=11.0.0-alpha.0,<11.0.0-alpha.6",
+        ),
+        "GHSA-px85-f4q5-jh77": (
+            ">=8.0.0,<8.6.19",
+            ">=9.0.0,<9.1.21",
+            ">=10.0.0,<10.6.2",
+            ">=11.0.0-alpha.0,<11.0.0-alpha.6",
+        ),
+    },
+    "undici": {
+        "GHSA-2gqq-gqf2-x968": (">=7.1.0,<7.29.1", ">=8.0.0,<8.10.2"),
+        "GHSA-2jfj-6hjv-fm6j": (">=7.0.0,<7.29.1", ">=8.0.0,<8.10.2"),
+        "GHSA-2m5v-pch6-74hx": (">=4.0.0,<6.29.1", ">=7.0.0,<7.30.1", ">=8.0.0,<8.12.2"),
+        "GHSA-3wwx-pv8p-q78v": (">=6.25.0,<6.28.1", ">=7.28.0,<7.29.1", ">=8.1.0,<8.10.2"),
+        "GHSA-3xpg-4rpp-hhhm": (">=7.15.0,<7.29.1", ">=8.0.0,<8.10.2"),
+        "GHSA-4qv8-2p9j-2685": (">=6.5.0,<6.29.1", ">=7.0.0,<7.30.1", ">=8.0.0,<8.12.2"),
+        "GHSA-4w7w-5xrc-9h26": (">=7.0.0,<7.30.1", ">=8.0.0,<8.12.2"),
+        "GHSA-55wc-3pg8-jfw6": (">=7.15.0,<7.30.1", ">=8.0.0,<8.12.2"),
+        "GHSA-8436-99hf-9mmv": (">=7.0.0,<7.29.1", ">=8.0.0,<8.10.2"),
+        "GHSA-9fm3-97px-rjf6": (">=5.15.0,<6.29.1", ">=7.0.0,<7.30.1", ">=8.0.0,<8.12.2"),
+        "GHSA-f72v-6w45-q472": (">=7.15.0,<7.30.1", ">=8.0.0,<8.12.2"),
+        "GHSA-pmjh-fq2x-6v4x": (">=7.11.0,<7.29.1", ">=8.0.0,<8.10.2"),
+        "GHSA-qrxm-fqhp-jwvm": (">=4.2.1,<6.29.1", ">=7.0.0,<7.30.1", ">=8.0.0,<8.12.2"),
+        "GHSA-r53p-7pc4-xj5r": ("<6.28.1", ">=7.0.0,<7.29.1", ">=8.0.0,<8.10.2"),
+        "GHSA-rfgv-xxqx-mfg5": (">=6.7.0,<6.28.1", ">=7.0.0,<7.29.1", ">=8.0.0,<8.10.2"),
+        "GHSA-rx4f-c7p8-82vq": (">=7.0.0,<7.29.1", ">=8.0.0,<8.10.2"),
+        "GHSA-w293-vg96-wgc3": (">=7.24.1,<7.29.1", ">=8.0.0,<8.10.2"),
+        "GHSA-xjj6-f33q-929c": (">=6.23.0,<6.29.1", ">=7.18.0,<7.30.1", ">=8.0.0,<8.12.2"),
+    },
+    "vite": {
+        "GHSA-587h-7wmj-h5pm": (
+            ">=8.3.0,<=8.3.2",
+            ">=8.2.0,<=8.2.3",
+            ">=8.0.0,<=8.1.5",
+            ">=7.0.0,<=7.3.6",
+            "<=6.4.3",
+        ),
+        "GHSA-698v-4r3x-3vcv": (
+            ">=8.3.0,<=8.3.2",
+            ">=8.2.0,<=8.2.3",
+            ">=8.0.0,<=8.1.5",
+            ">=7.0.0,<=7.3.6",
+            "<=6.4.3",
+        ),
+        "GHSA-9jrq-w75r-8gcw": (
+            ">=8.3.0,<=8.3.2",
+            ">=8.2.0,<=8.2.3",
+            ">=8.0.0,<=8.1.5",
+            ">=7.0.0,<=7.3.6",
+            "<=6.4.3",
+        ),
+        "GHSA-r825-w8mm-5pxw": (
+            ">=8.3.0,<=8.3.2",
+            ">=8.2.0,<=8.2.3",
+            ">=8.0.0,<=8.1.5",
+            ">=7.0.0,<=7.3.6",
+            "<=6.4.3",
+        ),
+        "GHSA-rq7h-c2jc-7f22": (
+            ">=8.3.0,<=8.3.2",
+            ">=8.2.0,<=8.2.3",
+            ">=8.0.0,<=8.1.5",
+            ">=7.0.0,<=7.3.6",
+            "<=6.4.3",
+        ),
+    },
+    "vitest": {
+        "GHSA-5xrq-8626-4rwp": (">=4.0.0,<4.1.0", "<3.2.6"),
+        "GHSA-82fw-gwwq-j7x9": (">=2.1.0,<4.1.11", ">=5.0.0-beta.1,<5.0.0-rc.2"),
+        "GHSA-9crc-q9x8-hgqq": (">=1.0.0,<1.6.1", ">=2.0.0,<2.1.9", ">=3.0.0,<3.0.5", "<=0.0.125"),
+    },
+}
+
+
+@pytest.mark.parametrize("target", sorted(NPM_SNAPSHOT_ADVISORY_RANGES))
+def test_npm_snapshot_all_current_occurrences_outside_every_advisory(target: str) -> None:
+    surfaces = {
+        relative: _load_transitive_npm_surface(REPO_ROOT / relative)
+        for relative in _enumerate_repo_npm_surfaces()
+    }
+    for relative, document in surfaces.items():
+        if PurePosixPath(relative).name not in NPM_LOCK_SURFACE_BASENAMES:
+            continue
+        _assert_lock_surface_canonical_provenance(surface=relative, document=document)
+        for path, package in _find_lock_occurrences(document, target=target).items():
+            version = _parse_version(value=package.get("version"), source=f"{relative}:{path}")
+            for advisory, ranges in NPM_SNAPSHOT_ADVISORY_RANGES[target].items():
+                assert all(
+                    version not in SpecifierSet(value) for value in ranges
+                ), f"{relative}:{path}: {target}/{advisory} affected {version}"
+
+
+@pytest.mark.parametrize(
+    "target", ["deepmerge", "@bundled-es-modules/deepmerge", "style-dictionary"]
+)
+def test_retired_token_loader_dependencies_are_absent_from_governed_surfaces(target: str) -> None:
+    surfaces = {
+        relative: _load_transitive_npm_surface(REPO_ROOT / relative)
+        for relative in _enumerate_repo_npm_surfaces()
+    }
+    for relative, document in surfaces.items():
+        if PurePosixPath(relative).name == "package.json":
+            assert not _find_manifest_target_paths(
+                document, target=target, surface=relative, surfaces=surfaces
+            ), f"{relative}: retired {target} declaration"
+        else:
+            _assert_lock_surface_canonical_provenance(surface=relative, document=document)
+            assert not _find_lock_occurrences(document, target=target), relative
+    loader = (REPO_ROOT / "frontend/style-dictionary.config.mjs").read_text()
+    assert 'from "style-dictionary"' not in loader
+    assert 'from "deepmerge"' not in loader
+    assert 'from "@bundled-es-modules/deepmerge"' not in loader
+
+
+def test_redocly_fixed_inventory_has_one_derived_member_and_measured_modes() -> None:
+    """Published data is the finite source operand, not an installed/native claim."""
+    directory = REPO_ROOT / "frontend/patches"
+    data = _load_json(directory / "redocly-1.34.15-minimatch11.inventory.json")
+    rows = data["files"]
+    assert len(rows) == len({row["path"] for row in rows}) == 687
+    assert sum(row["mode"] == 0o644 for row in rows) == 680
+    assert sum(row["mode"] == 0o755 for row in rows) == 7
+    assert [
+        row["path"]
+        for row in rows
+        if (row["bytes"], row["sha256"]) != (row["derived_bytes"], row["derived_sha256"])
+    ] == ["lib/utils.js"]
+    assert (
+        hashlib.sha256((directory / "redocly-1.34.15-minimatch11.patch").read_bytes()).hexdigest()
+        == "cb808b31c5dc55edd2d86485f4298b0f2b5dcaacf2f69803c71966be1c842804"
+    )
+    assert (
+        data["archive_sha256"] == "d07f7d934e6b18c41beafac967ab0fca567da9f878a0b03bcf285103f9ee1ea2"
+    )
+
+
+REDOCLY_LOCK_ADMISSION_CASES = {
+    f"lock-{location}-{field}-{kind}": (location, field, value, f"{field} must be an exact boolean")
+    for location in ("root", "nontarget")
+    for field in ("link", "inBundle", "hasShrinkwrap")
+    for kind, value in (("zero", 0), ("null", None), ("empty", ""))
+}
+REDOCLY_LOCK_ADMISSION_CASES.update(
+    {
+        f"lock-{location}-{field}-{kind}": (
+            location,
+            field,
+            value,
+            f"{field} must be boolean or an array",
+        )
+        for location in ("root", "nontarget")
+        for field in ("bundleDependencies", "bundledDependencies")
+        for kind, value in (("zero", 0), ("null", None), ("empty", ""), ("bad-name", [""]))
+    }
+)
+REDOCLY_LOCK_ADMISSION_CASES.update(
+    {
+        "lock-root-dependencies": ("root", "dependencies", [], "dependencies must be an object"),
+        "lock-nontarget-peers": (
+            "nontarget",
+            "peerDependenciesMeta",
+            None,
+            "peerDependenciesMeta must be an object",
+        ),
+        "lock-root-peer-optional": (
+            "root",
+            "peerDependenciesMeta",
+            {"x": {"optional": 0}},
+            "peer optional must be an exact boolean",
+        ),
+        "lock-nontarget-peer-unknown": (
+            "nontarget",
+            "peerDependenciesMeta",
+            {"x": {"unknown": True}},
+            "unknown peer metadata field",
+        ),
+        "lock-root-opaque": ("root", "hasShrinkwrap", True, "hasShrinkwrap opaque graph forbidden"),
+        "lock-nontarget-bundled": (
+            "nontarget",
+            "bundleDependencies",
+            ["x"],
+            "bundleDependencies opaque graph forbidden",
+        ),
+    }
+)
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "apply",
+        "idempotent",
+        "verify-original",
+        "missing",
+        "extra",
+        "sibling",
+        "mode",
+        "symlink",
+        "hardlink",
+        "nested-old",
+        "alias",
+        "wrong-export",
+        "wrong-integrity",
+        "write-failure",
+        "rename-failure",
+        "post-write-drift",
+        "inode-drift",
+        "cleanup-failure",
+        "valid-empty-records",
+        "selected-name-absent",
+        "selected-name-exact",
+        "selected-name-zero",
+        "selected-name-null",
+        "selected-name-empty",
+        "selected-name-false",
+        "short-sri",
+        "invalid-sri",
+        "noncanonical-sri",
+        *sorted(REDOCLY_LOCK_ADMISSION_CASES),
+    ],
+)
+def test_redocly_existing_transition_on_complete_synthetic_payload(
+    tmp_path: Path, case: str
+) -> None:
+    """Real file/Node operations on 687 synthetic members test control flow, not upstream identity."""
+    node = shutil.which("node")
+    assert node is not None, "qualified Node is required for the existing npm guard surface"
+    frontend = tmp_path / "frontend"
+    parent = frontend / "node_modules/@redocly/openapi-core"
+    parent.mkdir(parents=True)
+    original = b'const minimatch = require("minimatch");\n'
+    derived = b'const { minimatch } = require("minimatch");\n'
+    files = {
+        "lib/utils.js": original,
+        "package.json": b'{"name":"@redocly/openapi-core","version":"1.34.15"}\n',
+    }
+    files.update(
+        {f"fixtures/member-{index}.txt": f"synthetic-{index}\n".encode() for index in range(685)}
+    )
+    rows = []
+    for name, raw in sorted(files.items()):
+        target = parent / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(raw)
+        target.chmod(0o644)
+        changed = derived if name == "lib/utils.js" else raw
+        rows.append(
+            {
+                "path": name,
+                "bytes": len(raw),
+                "sha256": hashlib.sha256(raw).hexdigest(),
+                "mode": 0o644,
+                "derived_bytes": len(changed),
+                "derived_sha256": hashlib.sha256(changed).hexdigest(),
+            }
+        )
+    minimatch = frontend / "node_modules/minimatch"
+    minimatch.mkdir()
+    (minimatch / "package.json").write_text(
+        '{"name":"minimatch","version":"11.0.1","main":"index.cjs"}'
+    )
+    (minimatch / "index.cjs").write_text(
+        "require('node:fs').writeFileSync(require('node:path').join(__dirname, 'executed'), 'yes'); exports.minimatch = () => true;\n"
+    )
+    url = "https://registry.npmjs.org/@redocly/openapi-core/-/openapi-core-1.34.15.tgz"
+    integrity = "sha512-" + base64.b64encode(b"synthetic".ljust(64, b"0")).decode()
+    lock = {
+        "lockfileVersion": 3,
+        "packages": {
+            "": {},
+            "node_modules/@redocly/openapi-core": {
+                "version": "1.34.15",
+                "resolved": url,
+                "integrity": integrity,
+            },
+            "node_modules/minimatch": {
+                "version": "11.0.1",
+                "resolved": "https://registry.npmjs.org/minimatch/-/minimatch-11.0.1.tgz",
+                "integrity": integrity,
+            },
+        },
+    }
+    mode = "verify" if case == "verify-original" else "apply"
+    target = parent / "lib/utils.js"
+    if case == "idempotent":
+        target.write_bytes(derived)
+    elif case == "missing":
+        (parent / "fixtures/member-0.txt").unlink()
+    elif case == "extra":
+        (parent / "unexpected").write_text("extra")
+    elif case == "sibling":
+        (parent / "fixtures/member-0.txt").write_text("changed")
+    elif case == "mode":
+        target.chmod(0o666)
+    elif case == "symlink":
+        target.unlink()
+        target.symlink_to(parent / "fixtures/member-1.txt")
+    elif case == "hardlink":
+        os.link(target, tmp_path / "target-alias")
+    elif case == "nested-old":
+        nested = parent / "node_modules/minimatch"
+        nested.mkdir(parents=True)
+        (nested / "package.json").write_text(
+            '{"name":"minimatch","version":"5.1.9","main":"index.cjs"}'
+        )
+        (nested / "index.cjs").write_text("module.exports = () => true;")
+        lock["packages"]["node_modules/@redocly/openapi-core/node_modules/minimatch"] = {
+            "version": "5.1.9"
+        }
+    elif case == "alias":
+        (minimatch / "package.json").write_text(
+            '{"name":"other","version":"11.0.1","main":"index.cjs"}'
+        )
+    elif case == "wrong-export":
+        (minimatch / "index.cjs").write_text("module.exports = () => true;")
+    elif case == "wrong-integrity":
+        lock["packages"]["node_modules/@redocly/openapi-core"]["integrity"] = "wrong"
+    if case in REDOCLY_LOCK_ADMISSION_CASES:
+        location, field, value, _ = REDOCLY_LOCK_ADMISSION_CASES[case]
+        key = "" if location == "root" else "node_modules/unrelated"
+        lock["packages"].setdefault(key, {})[field] = value
+    elif case == "valid-empty-records":
+        for key in ("", "node_modules/unrelated"):
+            lock["packages"][key] = {
+                "link": False,
+                "inBundle": False,
+                "hasShrinkwrap": False,
+                "bundleDependencies": [],
+                "bundledDependencies": False,
+                "dependencies": {},
+                "peerDependenciesMeta": {"x": {"optional": False}},
+            }
+        lock["packages"]["node_modules/minimatch"]["bundledDependencies"] = []
+    elif case in {"short-sri", "invalid-sri", "noncanonical-sri"}:
+        lock["packages"]["node_modules/minimatch"]["integrity"] = {
+            "short-sri": "sha512-AA==",
+            "invalid-sri": "sha512-@@@@",
+            "noncanonical-sri": "sha512-" + base64.b64encode(bytes(64)).decode()[:-3] + "B==",
+        }[case]
+    if case.startswith("selected-name-"):
+        record = lock["packages"]["node_modules/minimatch"]
+        if case == "selected-name-absent":
+            assert "name" not in record
+        else:
+            record["name"] = {
+                "selected-name-exact": "minimatch",
+                "selected-name-zero": 0,
+                "selected-name-null": None,
+                "selected-name-empty": "",
+                "selected-name-false": False,
+            }[case]
+    (frontend / "package-lock.json").write_text(json.dumps(lock))
+    script = (REPO_ROOT / "frontend/scripts/check-redocly-compat.mjs").read_text()
+    boundary = "// REDOCLY_FIXED_CLI_BOUNDARY"
+    assert script.count(boundary) == 1
+    script, _, terminal = script.partition(boundary)
+    assert re.fullmatch(
+        r"\s*try\s*\{\s*main\(\);\s*\}\s*catch\s*\(error\)\s*\{"
+        r"\s*console\.error\(error\.message\);\s*process\.exitCode\s*=\s*1;\s*\}\s*",
+        terminal,
+    ), "the boundary must remove only the final CLI invocation"
+    assert "function main()" in script and "function transition(data, mode)" in script
+    # Every production function remains intact, including transition after main.
+    # This synthetic invocation does not stand in for the fixed main/data gate.
+    if case == "write-failure":
+        script += '\nfs.writeFileSync = () => { throw new Error("synthetic write failure"); };\n'
+    elif case == "rename-failure":
+        script += '\nfs.renameSync = () => { throw new Error("synthetic rename failure"); };\n'
+    elif case == "post-write-drift":
+        script += '\nconst nativeRename = fs.renameSync; fs.renameSync = (...args) => { nativeRename(...args); fs.writeFileSync(path.join(parent, "fixtures/member-0.txt"), "drift"); };\n'
+    elif case == "inode-drift":
+        script += "\nconst nativeSync = fs.fsyncSync; fs.fsyncSync = (fd) => { nativeSync(fd); const bytes = fs.readFileSync(target); fs.unlinkSync(target); fs.writeFileSync(target, bytes); };\n"
+    elif case == "cleanup-failure":
+        script += '\nfs.renameSync = () => { throw new Error("synthetic rename failure"); }; fs.unlinkSync = () => { throw new Error("synthetic cleanup failure"); };\n'
+    data = {"files": rows, "url": url, "integrity": integrity}
+    script += "\ntransition(" + json.dumps(data) + ", " + json.dumps(mode) + ");\n"
+    script += (
+        "if (payload("
+        + json.dumps(data)
+        + ").state !== 'after') throw new Error('missing full AFTER');\n"
+    )
+    scripts = frontend / "scripts"
+    scripts.mkdir()
+    child = scripts / "check-redocly-compat.mjs"
+    child.write_text(script)
+    environment = {
+        "PATH": str(Path(node).parent),
+        "HOME": str(tmp_path),
+        "NODE_PATH": "",
+        "NODE_OPTIONS": "",
+    }
+    result = subprocess.run(
+        [str(Path(node).resolve()), str(child)],
+        cwd=frontend,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    if case in {
+        "apply",
+        "idempotent",
+        "valid-empty-records",
+        "selected-name-absent",
+        "selected-name-exact",
+    }:
+        assert result.returncode == 0, result.stderr
+        assert target.read_bytes() == derived
+    else:
+        assert result.returncode != 0, case
+        if case.startswith("selected-name-"):
+            assert "minimatch provenance/version" in result.stderr
+            assert target.read_bytes() == original
+            assert not (minimatch / "executed").exists()
+        if case in REDOCLY_LOCK_ADMISSION_CASES:
+            assert REDOCLY_LOCK_ADMISSION_CASES[case][3] in result.stderr
+        if case in {"short-sri", "invalid-sri", "noncanonical-sri"}:
+            assert {
+                "short-sri": "integrity sha512 digest must be 64 bytes",
+                "invalid-sri": "integrity must contain valid base64",
+                "noncanonical-sri": "integrity must contain canonical base64",
+            }[case] in result.stderr
+        if case in REDOCLY_LOCK_ADMISSION_CASES or case in {
+            "short-sri",
+            "invalid-sri",
+            "noncanonical-sri",
+        }:
+            assert target.read_bytes() == original
+            assert not (
+                minimatch / "executed"
+            ).exists(), "admission must precede dependency execution"
+        if case in {
+            "verify-original",
+            "nested-old",
+            "alias",
+            "wrong-export",
+            "wrong-integrity",
+            "write-failure",
+            "rename-failure",
+        }:
+            assert target.read_bytes() == original
+    assert len(list(frontend.glob("*.redocly-tmp"))) == int(case == "cleanup-failure")

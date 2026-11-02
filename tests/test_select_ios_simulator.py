@@ -339,15 +339,47 @@ def test_cli_summary_is_optional(monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     assert f"udid={IPHONE_UDID}\n" in output_path.read_text()
 
 
+@pytest.mark.parametrize(
+    "failed_call,error",
+    [(0, None), (1, "timeout"), (2, "timeout"), (1, "nonzero"), (2, "nonzero")],
+)
 def test_native_inventory_uses_resolved_xcrun_with_exact_arguments(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, failed_call: int, error: str | None
 ) -> None:
+    inventories = _inventories()
+    tool = "/managed-runner/bin/xcrun"
+    expected = [
+        [tool, "simctl", "list", "devices", "available", "-j"],
+        [tool, "simctl", "list", "devicetypes", "-j"],
+    ]
     calls: list[list[str]] = []
+    output = tmp_path / "github-output"
+    sentinel = b"previous-step-output=preserved\n"
+    output.write_bytes(sentinel)
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+    monkeypatch.setattr(selector.sys, "argv", ["select_ios_simulator.py", "--family", "iphone"])
+    monkeypatch.setattr(selector.shutil, "which", lambda name: tool if name == "xcrun" else None)
 
-    def fake_run(args: list[str], **_kwargs: object) -> object:
+    def fake_run(args: list[str], **kwargs: object) -> object:
         calls.append(args)
-        return type("Result", (), {"stdout": json.dumps({"devices": {}})})()
+        assert args == expected[len(calls) - 1]
+        assert kwargs.pop("shell", False) is False
+        assert kwargs == {"check": True, "capture_output": True, "text": True, "timeout": 30}
+        if len(calls) == failed_call:
+            if error == "timeout":
+                raise selector.subprocess.TimeoutExpired(args, 30)
+            raise selector.subprocess.CalledProcessError(1, args)
+        return selector.subprocess.CompletedProcess(
+            args, 0, stdout=json.dumps(inventories[len(calls) - 1])
+        )
 
     monkeypatch.setattr(selector.subprocess, "run", fake_run)
-    assert selector._native_inventory("/usr/bin/xcrun", "devices", "available") == {"devices": {}}
-    assert calls == [["/usr/bin/xcrun", "simctl", "list", "devices", "available", "-j"]]
+    if failed_call:
+        assert selector.main() == 1
+        assert calls == expected[:failed_call]
+        assert output.read_bytes() == sentinel
+    else:
+        assert selector.main() == 0
+        assert calls == expected
+        assert f"udid={IPHONE_UDID}\n" in output.read_text()

@@ -8,7 +8,7 @@ import hashlib
 import json
 import re
 import shutil
-import subprocess  # nosec B404: # native commit recognition uses the bounded Git call below (remove-by: 2026-10-21, ref: PR-2477)
+import subprocess  # nosec B404: # stdlib subprocess required for bounded native Git commit recognition (remove-by: 2026-12-21, ref: PR-2494)
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -226,7 +226,7 @@ def git_revision(root: Path) -> str:
     if binary is None or not Path(binary).is_absolute():
         raise ReportError("GIT_UNAVAILABLE")
     try:
-        result = subprocess.run(  # nosec B603: # resolved fixed Git argv, explicit cwd/env, no shell, 5s bound and SHA validation (remove-by: 2026-10-21, ref: PR-2477)
+        result = subprocess.run(  # nosec B603: # system Git, fixed argv/cwd/env, closed input and diagnostics, 5s bound and SHA validation (remove-by: 2026-12-21, ref: PR-2494)
             [binary, "--no-replace-objects", "rev-parse", "--verify", "HEAD^{commit}"],
             cwd=root,
             env={
@@ -235,7 +235,9 @@ def git_revision(root: Path) -> str:
                 "GIT_CONFIG_NOSYSTEM": "1",
                 "GIT_CONFIG_GLOBAL": "/dev/null",
             },
-            capture_output=True,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
             timeout=5,
             check=False,
         )

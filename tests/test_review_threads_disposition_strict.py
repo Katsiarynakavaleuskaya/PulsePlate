@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
 import re
 from typing import TYPE_CHECKING
 
@@ -1707,7 +1711,7 @@ def test_trigger_only_mapping_fails_on_rerun_subject(monkeypatch: "MonkeyPatch")
     monkeypatch.setattr(
         _disposition_mod,
         "_git_commit_subject",
-        lambda _sha: "chore: trigger CI after resolving threads",
+        lambda _sha: "chore: trigger CI synthetic-private-subject",
     )
 
     threads = [
@@ -1723,6 +1727,7 @@ def test_trigger_only_mapping_fails_on_rerun_subject(monkeypatch: "MonkeyPatch")
     violations = _check_trigger_only_mapping(threads, section)
     assert violations
     assert "rerun/trigger" in violations[0]
+    assert "synthetic-private-subject" not in violations[0]
 
 
 def test_trigger_only_mapping_passes_on_normal_commit(monkeypatch: "MonkeyPatch") -> None:
@@ -1832,3 +1837,359 @@ def test_main_rejects_ambiguous_mapping_before_no_threads(
     captured = capsys.readouterr()
     assert captured.out == f"ERROR: {message}\n"
     assert captured.err == ""
+
+
+@pytest.mark.parametrize("operation", ["token", "pr", "graphql", "strict"])
+@pytest.mark.parametrize("fault", ["exit", "timeout", "oserror"])
+def test_gh_failures_do_not_disclose_private_transport(
+    monkeypatch: MonkeyPatch, capsys: pytest.CaptureFixture[str], operation: str, fault: str
+) -> None:
+    secret = "synthetic-credential-reflected-in-all-streams"
+    for key in ("GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN"):
+        monkeypatch.delenv(key, raising=False)
+    if operation == "strict":
+        monkeypatch.setenv("GH_TOKEN", secret)
+    monkeypatch.setattr(_disposition_mod.shutil, "which", lambda name: "/test/bin/gh")
+    calls = []
+
+    def run(argv: list[str], **kwargs: object) -> object:
+        calls.append(argv)
+        assert argv[0] == "/test/bin/gh"
+        if fault == "timeout":
+            raise _disposition_mod.subprocess.TimeoutExpired(
+                [secret], 1, output=secret, stderr=secret
+            )
+        if fault == "oserror":
+            raise OSError(secret)
+        return _disposition_mod.subprocess.CompletedProcess(argv, 1, stdout=secret, stderr=secret)
+
+    monkeypatch.setattr(_disposition_mod.subprocess, "run", run)
+    with pytest.raises(SystemExit if operation == "strict" else RuntimeError) as caught:
+        if operation == "token":
+            _disposition_mod._github_api_token()
+        elif operation == "graphql":
+            _disposition_mod._graphql(secret, {"value": secret})
+        elif operation == "pr":
+            _disposition_mod._get_pr_number()
+        else:
+            _require_gh_token_preflight(True, True)
+    assert len(calls) == 1
+    stdout, stderr = capsys.readouterr()
+    assert secret not in str(caught.value) + stdout + stderr
+    assert caught.value.__context__ is None and caught.value.__cause__ is None
+
+
+@pytest.mark.parametrize("payload", ["invalid", "errors", "missing", "wrong-data", "pr", "token"])
+def test_gh_success_payload_remains_private(
+    monkeypatch: MonkeyPatch, capsys: pytest.CaptureFixture[str], payload: str
+) -> None:
+    secret = "synthetic-private-token"
+    for key in ("GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN"):
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setattr(_disposition_mod.shutil, "which", lambda name: "/test/bin/gh")
+    raw = {
+        "errors": json.dumps({"errors": [secret], "data": {}}),
+        "missing": json.dumps({"invalid": secret}),
+        "wrong-data": json.dumps({"data": [secret]}),
+    }.get(payload, secret)
+    monkeypatch.setattr(
+        _disposition_mod.subprocess,
+        "run",
+        lambda *a, **kw: _disposition_mod.subprocess.CompletedProcess(
+            [], 0, stdout=raw, stderr=secret
+        ),
+    )
+    if payload == "token":
+        assert _disposition_mod._github_api_token() == secret
+    else:
+        with pytest.raises(RuntimeError) as caught:
+            if payload == "pr":
+                _disposition_mod._get_pr_number()
+            else:
+                _disposition_mod._graphql(secret, {})
+        assert secret not in str(caught.value)
+        assert caught.value.__context__ is None and caught.value.__cause__ is None
+    assert capsys.readouterr() == ("", "")
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        [],
+        ["/tmp/gh", "auth", "token"],
+        ["gh", "api", "--method", "POST"],
+        ["gh", "api", "repos/../x/pulls/1"],
+    ],
+)
+def test_gh_unknown_command_never_starts(monkeypatch: MonkeyPatch, argv: list[str]) -> None:
+    monkeypatch.setattr(
+        _disposition_mod.subprocess, "run", lambda *a, **kw: pytest.fail("unexpected subprocess")
+    )
+    with pytest.raises(RuntimeError, match="Unsupported gh operation"):
+        _disposition_mod._run(argv)
+
+
+def test_local_git_metadata_resolves_exact_commit_and_preserves_native_show(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    repo = tmp_path / "source"
+    repo.mkdir()
+    binary = shutil.which("git", path=os.defpath)
+    assert binary and Path(binary).is_absolute()
+    env = {
+        "PATH": os.defpath,
+        "HOME": str(tmp_path),
+        "LC_ALL": "C",
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_AUTHOR_NAME": "Fixture",
+        "GIT_COMMITTER_NAME": "Fixture",
+        "GIT_AUTHOR_EMAIL": "test@example.invalid",
+        "GIT_COMMITTER_EMAIL": "test@example.invalid",
+        "GIT_AUTHOR_DATE": "2026-01-02T03:04:05+00:00",
+        "GIT_COMMITTER_DATE": "2026-01-02T03:04:05+00:00",
+    }
+
+    def git(*args: str) -> bytes:
+        return subprocess.check_output(
+            [binary, "-c", "core.hooksPath=" + os.devnull, "-c", "init.templateDir=", *args],
+            env=env,
+            cwd=repo,
+            timeout=15,
+        )
+
+    git("init", "-q", "-b", "main")
+    odd = os.fsdecode(b" odd\nfile\xff ")
+    (repo / odd).write_text("first")
+    git("add", "--", odd)
+    git("commit", "-qm", "real change")
+    first = git("rev-parse", "HEAD").decode().strip()
+    git("commit", "--allow-empty", "--allow-empty-message", "-qm", "")
+    empty = git("rev-parse", "HEAD").decode().strip()
+    git("tag", "-a", "-m", "tag object", "annotated", empty)
+    tag = git("rev-parse", "refs/tags/annotated").decode().strip()
+    git("checkout", "-qb", "side")
+    (repo / "side").write_text("side")
+    git("add", "side")
+    git("commit", "-qm", "side")
+    git("checkout", "-q", "main")
+    (repo / "main").write_text("main")
+    git("add", "main")
+    git("commit", "-qm", "main")
+    git("merge", "--no-ff", "-qm", "merge", "side")
+    merge = git("rev-parse", "HEAD").decode().strip()
+    monkeypatch.setattr(_disposition_mod, "REPO_ROOT", repo)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("GIT_DIR", str(tmp_path / "foreign"))
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(tmp_path / "hostile-config"))
+    (tmp_path / "hostile-config").write_text("[invalid global config")
+    git("replace", first, empty)
+    assert _disposition_mod._git_changed_files(first[:12].upper()) == [odd]
+    assert _disposition_mod._git_commit_subject(" " + first + " ") == "real change"
+    assert _disposition_mod._git_commit_time_iso(first) == "2026-01-02T03:04:05+00:00"
+    assert _disposition_mod._git_commit_subject(empty) == ""
+    assert _disposition_mod._git_changed_files(empty) == []
+    assert _disposition_mod._git_changed_files(merge) == []
+    for invalid in (tag, git("rev-parse", "HEAD^{tree}").decode().strip(), "0" * 40, "HEAD"):
+        with pytest.raises(RuntimeError):
+            _disposition_mod._git_commit_subject(invalid)
+    git("branch", first[:12], empty)
+    git("branch", first, empty)
+    git("branch", "badcafe01234", empty)
+    for invalid in (first[:12], first, "badcafe01234"):
+        with pytest.raises(RuntimeError):
+            _disposition_mod._git_commit_subject(invalid)
+    git("branch", "-D", first[:12])
+    git("branch", "-D", first)
+    (repo / ".git/shallow").write_text(empty + "\n")
+    assert _disposition_mod._git_changed_files(first) == [odd]
+    with pytest.raises(RuntimeError):
+        _disposition_mod._git_changed_files(empty)
+    (repo / ".git/info").mkdir(exist_ok=True)
+    (repo / ".git/info/grafts").write_text(first + "\n")
+    with pytest.raises(RuntimeError):
+        _disposition_mod._git_commit_subject(first)
+
+
+@pytest.mark.parametrize("fault", ["timeout", "nonzero", "ambiguous", "time", "subject", "files"])
+def test_local_git_metadata_uncertainty_cannot_become_success(
+    tmp_path: Path, monkeypatch: MonkeyPatch, fault: str
+) -> None:
+    oid = "a" * 40
+    secret = "synthetic-private-metadata"
+    monkeypatch.setattr(_disposition_mod, "REPO_ROOT", tmp_path)
+    for name in (
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "GH_ENTERPRISE_TOKEN",
+        "GITHUB_ENTERPRISE_TOKEN",
+        "GIT_DIR",
+    ):
+        monkeypatch.setenv(name, secret)
+
+    def run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        assert Path(argv[0]).is_absolute() and kwargs["cwd"] == tmp_path
+        assert kwargs["timeout"] == 15 and kwargs.get("shell", False) is False
+        assert secret not in repr(kwargs["env"])
+        if fault == "timeout":
+            raise subprocess.TimeoutExpired([secret], 15, output=b"partial", stderr=secret.encode())
+        if fault == "nonzero":
+            return subprocess.CompletedProcess(argv, 1, stdout=b"plausible", stderr=secret.encode())
+        if "--show-toplevel" in argv:
+            raw = os.fsencode(tmp_path) + b"\n"
+        elif "--git-path" in argv:
+            raw = argv[-1].encode() + b"\n"
+        elif "--verify" in argv or any(x.startswith("--disambiguate=") for x in argv):
+            raw = (oid + "\n").encode()
+            if fault == "ambiguous":
+                raw += ("a" * 39 + "b\n").encode()
+        elif "cat-file" in argv:
+            raw = b"commit\n"
+        else:
+            raw = {
+                "time": b"2026-02-40T00:00:00+00:00\n",
+                "subject": b"synthetic-private-metadata\xff\n",
+                "files": b"unterminated",
+            }[fault]
+        return subprocess.CompletedProcess(argv, 0, stdout=raw, stderr=b"")
+
+    monkeypatch.setattr(_disposition_mod.subprocess, "run", run)
+    reader = {
+        "time": _disposition_mod._git_commit_time_iso,
+        "files": _disposition_mod._git_changed_files,
+    }.get(fault, _disposition_mod._git_commit_subject)
+    with pytest.raises(RuntimeError) as failure:
+        reader(oid)
+    assert secret not in str(failure.value) and failure.value.__context__ is None
+
+
+@pytest.mark.parametrize("kind", ["threads", "timeline"])
+@pytest.mark.parametrize(
+    "case", ["empty", "complete", "missing-cursor", "repeat", "cycle", "partial", "transport"]
+)
+def test_paginated_review_evidence_requires_complete_cursor_chain(
+    monkeypatch: MonkeyPatch, kind: str, case: str
+) -> None:
+    cursors = []
+    root = {
+        "url": "https://github.com/org/repo/pull/1#discussion_r1",
+        "createdAt": "2026-10-31T00:00:00Z",
+        "author": None,
+    }
+
+    def graphql(_query: str, variables: dict[str, object]) -> dict[str, object]:
+        cursor = variables["after"]
+        cursors.append(cursor)
+        assert len(cursors) <= 3
+        if cursor is not None and case == "transport":
+            raise RuntimeError("synthetic transport failure")
+        key = "reviewThreads" if kind == "threads" else "timelineItems"
+        nodes = (
+            [{"isResolved": False}, {"isResolved": True, "comments": {"nodes": [root]}}]
+            if kind == "threads"
+            else [
+                {
+                    "beforeCommit": None,
+                    "afterCommit": {"oid": "a" * 40},
+                    "createdAt": root["createdAt"],
+                }
+            ]
+        )
+        more = case not in ("empty", "complete") or (case == "complete" and cursor is None)
+        end = ("A" if cursor is None or case != "cycle" or cursor == "B" else "B") if more else None
+        if case == "missing-cursor":
+            end = None
+        connection = {
+            "nodes": [] if case == "empty" or cursor is not None else nodes,
+            "pageInfo": {"hasNextPage": more, "endCursor": end},
+        }
+        if cursor is not None and case == "partial":
+            del connection["nodes"]
+        return {"repository": {"pullRequest": {key: connection}}}
+
+    monkeypatch.setattr(_disposition_mod, "_get_owner_repo", lambda: ("org", "repo"))
+    monkeypatch.setattr(_disposition_mod, "_graphql", graphql)
+
+    def collect() -> list:
+        if kind == "threads":
+            return _disposition_mod._collect_resolved_threads(1)
+        return _disposition_mod._fetch_pr_force_push_boundaries(repository="org/repo", pr_number=1)
+
+    if case in ("empty", "complete"):
+        rows = collect()
+        assert len(rows) == (case == "complete")
+        if rows and kind == "threads":
+            assert rows[0].author_login == "" and rows[0].url == root["url"]
+    else:
+        with pytest.raises(RuntimeError):
+            collect()
+    assert cursors == (
+        [None]
+        if case in ("empty", "missing-cursor")
+        else [None, "A", "B"] if case == "cycle" else [None, "A"]
+    )
+
+
+@pytest.mark.parametrize(
+    "fault", ["state", "comments", "empty", "multiple", "url", "time", "author", "missing-author"]
+)
+def test_partial_resolved_root_cannot_drop_from_inventory(
+    monkeypatch: MonkeyPatch, fault: str
+) -> None:
+    root = {"url": "fixture-url", "createdAt": "2026-10-31T00:00:00Z", "author": None}
+    row = {"isResolved": True, "comments": {"nodes": [root]}}
+    if fault == "state":
+        row["isResolved"] = 1
+    elif fault == "comments":
+        del row["comments"]
+    elif fault in ("empty", "multiple"):
+        row["comments"] = {"nodes": [] if fault == "empty" else [root, root]}
+    elif fault == "missing-author":
+        del root["author"]
+    else:
+        root[{"url": "url", "time": "createdAt", "author": "author"}[fault]] = ""
+    payload = {
+        "repository": {
+            "pullRequest": {
+                "reviewThreads": {
+                    "nodes": [row],
+                    "pageInfo": {"hasNextPage": False, "endCursor": None},
+                }
+            }
+        }
+    }
+    monkeypatch.setattr(_disposition_mod, "_get_owner_repo", lambda: ("org", "repo"))
+    monkeypatch.setattr(_disposition_mod, "_graphql", lambda *_: payload)
+    with pytest.raises(RuntimeError):
+        _disposition_mod._collect_resolved_threads(1)
+
+
+@pytest.mark.parametrize("more", [False, True])
+def test_review_thread_page_limit_accepts_only_terminal_hundredth_page(
+    monkeypatch: MonkeyPatch, more: bool
+) -> None:
+    calls = []
+
+    def graphql(_query: str, variables: dict[str, object]) -> dict[str, object]:
+        calls.append(variables["after"])
+        n = len(calls)
+        assert n <= 100
+        return {
+            "repository": {
+                "pullRequest": {
+                    "reviewThreads": {
+                        "nodes": [],
+                        "pageInfo": {"hasNextPage": n < 100 or more, "endCursor": str(n)},
+                    }
+                }
+            }
+        }
+
+    monkeypatch.setattr(_disposition_mod, "_get_owner_repo", lambda: ("org", "repo"))
+    monkeypatch.setattr(_disposition_mod, "_graphql", graphql)
+    if more:
+        with pytest.raises(RuntimeError, match="page limit"):
+            _disposition_mod._collect_resolved_threads(1)
+    else:
+        assert _disposition_mod._collect_resolved_threads(1) == []
+    assert len(calls) == 100

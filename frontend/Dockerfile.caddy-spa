@@ -5,12 +5,22 @@
 # Or with explicit absolute API base (split-origin / Workers):
 #   docker build -f Dockerfile.caddy-spa --build-arg VITE_API_BASE=https://example.com/api/v1 -t pulseplate-caddy:local .
 
-FROM golang:1.26.9-alpine3.23@sha256:96123126ac58e910f4dd3619a8901e2fb6d1ad84b59b1232cac7c9ea65a8f888 AS caddy-build
+FROM golang:1.26.10-alpine3.23@sha256:0525c952defebc693cdaf62cdf43afa32be5a7f377e99260642ea19c240c708e AS caddy-build
 
 ENV CGO_ENABLED=0 \
     GOTOOLCHAIN=local \
+    GOENV=off \
+    GOWORK=off \
+    GOFLAGS="" \
+    GOEXPERIMENT="" \
+    GOMAXPROCS=2 \
     GOPROXY=https://proxy.golang.org,direct \
     GOSUMDB=sum.golang.org
+
+# The stock builder has no patch tool. Install only in this build stage.
+RUN apk add --no-cache git
+COPY patches/go-jose-v3.0.5-CVE-2026-116587.patch /opt/go-jose-v3.patch
+COPY patches/caddy_v3_compat_test.go /opt/caddy_v3_compat_test.go
 
 RUN set -eux; \
     set -o pipefail; \
@@ -21,14 +31,70 @@ RUN set -eux; \
     go get google.golang.org/grpc@v1.83.2; \
     go get golang.org/x/crypto@v0.55.0; \
     go get golang.org/x/net@v0.60.0; \
+    go get github.com/klauspost/compress@v1.18.7; \
+    go get github.com/go-jose/go-jose/v4@v4.1.6; \
     go mod download all; \
     go mod verify; \
     test -z "$(go list -m -f '{{if .Replace}}{{.Path}} => {{.Replace.Path}}{{end}}' all)"; \
-    go list -m -f '{{if or (eq .Path "github.com/caddyserver/caddy/v2") (eq .Path "google.golang.org/grpc") (eq .Path "golang.org/x/crypto") (eq .Path "golang.org/x/mod") (eq .Path "golang.org/x/net") (eq .Path "golang.org/x/sync") (eq .Path "golang.org/x/sys") (eq .Path "golang.org/x/telemetry") (eq .Path "golang.org/x/term") (eq .Path "golang.org/x/text") (eq .Path "golang.org/x/tools")}}{{.Path}} {{.Version}}{{end}}' all \
+    evidence=/caddy-build-evidence; \
+    mkdir "$evidence"; \
+    git_bin="$(command -v git)"; \
+    test "$git_bin" = /usr/bin/git; \
+    "$git_bin" --version > "$evidence/patch-tool.txt"; \
+    sha256sum "$git_bin" >> "$evidence/patch-tool.txt"; \
+    sha256sum /opt/go-jose-v3.patch /opt/caddy_v3_compat_test.go > "$evidence/inputs.sha256"; \
+    echo '628d25c62a2141fb35bea13003483a22f277b3b2c9ba319ff5a53b7b591e7de6  /opt/caddy_v3_compat_test.go' | sha256sum -c -; \
+    echo 'f0e1b6f4791089dfebbc9a742533af650268e87bffec09847190e59da04aad27  /opt/go-jose-v3.patch' | sha256sum -c -; \
+    verify_jose_source() { ( \
+      if test -L "$1" || test ! -d "$1"; then echo caddy_source_root >&2; exit 1; fi; \
+      cd "$1"; \
+      if test -n "$(find . -mindepth 1 ! -type d ! -type f -print)"; then echo caddy_source_nonregular >&2; exit 1; fi; \
+      if test -n "$(find . -mindepth 1 -print | LC_ALL=C awk '$0 !~ /^\.\/[A-Za-z0-9_.\/-]+$/ { print }')"; then echo caddy_source_path >&2; exit 1; fi; \
+      if test "$(find . -type f | wc -l | tr -d '[:space:]')" != "$2"; then echo caddy_source_count >&2; exit 1; fi; \
+      find . -type f -exec sha256sum {} + | LC_ALL=C sort > "$evidence/$4-tree.sha256"; \
+      if test "$(sha256sum "$evidence/$4-tree.sha256" | cut -d' ' -f1)" != "$3"; then echo caddy_source_digest >&2; exit 1; fi; \
+    ); }; \
+    echo '4e7e6b60541ab03bd402e573fc2c1264297e661726c5f53529ca14ae58625a27  '$(go env GOMODCACHE)'/cache/download/github.com/go-jose/go-jose/v3/@v/v3.0.5.zip' | sha256sum -c -; \
+    original_tree=1c0d532bafdf2a7de4fea465082117f97e6e8bcf31e1704203f838a873901ce1; \
+    patched_tree=e71a63d7a08abecf4c3f2f72c41c1f469c097d853eafe854fdb6e782a70e1065; \
+    test "$(go list -m -f '{{.Version}}' github.com/go-jose/go-jose/v3)" = v3.0.5; \
+    test "$(go list -m -f '{{.Sum}}' github.com/go-jose/go-jose/v3)" = 'h1:BLLJWbC4nMZOfuPVxoZIxeYsn6Nl2r1fITaJ78UQlVQ='; \
+    original_dir="$(go list -m -f '{{.Dir}}' github.com/go-jose/go-jose/v3)"; \
+    verify_jose_source "$original_dir" 71 "$original_tree" original; \
+    test ! -e /opt/go-jose-v3.0.5-patched; test ! -L /opt/go-jose-v3.0.5-patched; \
+    cp -R "$original_dir" /opt/go-jose-v3.0.5-patched; \
+    chmod -R u+w /opt/go-jose-v3.0.5-patched; \
+    verify_jose_source /opt/go-jose-v3.0.5-patched 71 "$original_tree" copied; \
+    (cd /opt/go-jose-v3.0.5-patched; \
+      env -i PATH=/usr/bin:/bin GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_CEILING_DIRECTORIES=/opt "$git_bin" apply --no-index --check --whitespace=error-all /opt/go-jose-v3.patch; \
+      env -i PATH=/usr/bin:/bin GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_CEILING_DIRECTORIES=/opt "$git_bin" apply --no-index --whitespace=error-all /opt/go-jose-v3.patch); \
+    verify_jose_source /opt/go-jose-v3.0.5-patched 72 "$patched_tree" patched; \
+    (cd /opt/go-jose-v3.0.5-patched; \
+      go mod download; \
+      go mod verify; \
+      if go test -mod=readonly -count=1 -parallel=2 -timeout=300s -json ./... > "$evidence/jose-tests.jsonl" 2>&1; then :; else cat "$evidence/jose-tests.jsonl"; exit 1; fi); \
+    verify_jose_source /opt/go-jose-v3.0.5-patched 72 "$patched_tree" post-unit; \
+    go mod edit -replace=github.com/go-jose/go-jose/v3@v3.0.5=/opt/go-jose-v3.0.5-patched; \
+    go list -mod=readonly -m -json all > "$evidence/modules.json"; \
+    go mod graph > "$evidence/module-graph.txt"; \
+    test "$(go list -mod=readonly -m -f '{{if .Replace}}{{.Path}}@{{.Version}}=>{{.Replace.Path}}@{{.Replace.Version}}{{end}}' all | awk 'NF')" = 'github.com/go-jose/go-jose/v3@v3.0.5=>/opt/go-jose-v3.0.5-patched@'; \
+    test "$(go list -mod=readonly -m -f '{{.Version}}' go.step.sm/crypto)" = v0.81.0; \
+    test "$(go list -mod=readonly -m -f '{{.Version}}' github.com/smallstep/certificates)" = v0.30.2; \
+    mkdir compat; \
+    cp /opt/caddy_v3_compat_test.go compat/caddy_v3_compat_test.go; \
+    sha256sum go.mod go.sum > "$evidence/build-module.sha256"; \
+    if go test -mod=readonly -count=1 -parallel=2 -timeout=300s -json ./compat > "$evidence/compat-tests.jsonl" 2>&1; then :; else cat "$evidence/compat-tests.jsonl"; exit 1; fi; \
+    go list -mod=readonly -deps -json github.com/caddyserver/caddy/v2/cmd/caddy > "$evidence/packages.json"; \
+    go list -mod=readonly -deps -f '{{.ImportPath}}|{{.Dir}}|{{join .Imports " "}}' github.com/caddyserver/caddy/v2/cmd/caddy > "$evidence/import-graph.txt"; \
+    test "$(go list -mod=readonly -deps -f '{{if eq .ImportPath "github.com/go-jose/go-jose/v3"}}{{.Dir}}{{end}}' github.com/caddyserver/caddy/v2/cmd/caddy | awk 'NF')" = /opt/go-jose-v3.0.5-patched; \
+    go list -m -f '{{if or (eq .Path "github.com/caddyserver/caddy/v2") (eq .Path "github.com/go-jose/go-jose/v3") (eq .Path "github.com/go-jose/go-jose/v4") (eq .Path "github.com/klauspost/compress") (eq .Path "google.golang.org/grpc") (eq .Path "golang.org/x/crypto") (eq .Path "golang.org/x/mod") (eq .Path "golang.org/x/net") (eq .Path "golang.org/x/sync") (eq .Path "golang.org/x/sys") (eq .Path "golang.org/x/telemetry") (eq .Path "golang.org/x/term") (eq .Path "golang.org/x/text") (eq .Path "golang.org/x/tools")}}{{.Path}} {{.Version}}{{end}}' all \
       | awk 'NF' \
       | LC_ALL=C sort > /tmp/caddy-governed-graph; \
     printf '%s\n' \
       'github.com/caddyserver/caddy/v2 v2.11.4' \
+      'github.com/go-jose/go-jose/v3 v3.0.5' \
+      'github.com/go-jose/go-jose/v4 v4.1.6' \
+      'github.com/klauspost/compress v1.18.7' \
       'golang.org/x/crypto v0.57.0' \
       'golang.org/x/mod v0.41.0' \
       'golang.org/x/net v0.60.0' \
@@ -40,7 +106,7 @@ RUN set -eux; \
       'golang.org/x/tools v0.49.0' \
       'google.golang.org/grpc v1.83.2' \
       | LC_ALL=C sort > /tmp/caddy-expected-graph; \
-    test "$(wc -l < /tmp/caddy-governed-graph | tr -d '[:space:]')" = '11'; \
+    test "$(wc -l < /tmp/caddy-governed-graph | tr -d '[:space:]')" = '14'; \
     cmp /tmp/caddy-expected-graph /tmp/caddy-governed-graph; \
     go build -mod=readonly -trimpath \
       -ldflags '-X github.com/caddyserver/caddy/v2.CustomVersion=v2.11.4' \
@@ -49,11 +115,14 @@ RUN set -eux; \
     /go/bin/caddy version; \
     go version -m /go/bin/caddy > /tmp/caddy-binary-metadata; \
     cat /tmp/caddy-binary-metadata; \
-    test "$(awk '$1 == "=>" { count++ } END { print count + 0 }' /tmp/caddy-binary-metadata)" = '0'; \
-    awk '$1 == "mod" && $2 == "github.com/caddyserver/caddy/v2" { print $1, $2, $3 } $1 == "dep" && ($2 == "google.golang.org/grpc" || $2 == "golang.org/x/crypto" || $2 == "golang.org/x/net" || $2 == "golang.org/x/sync" || $2 == "golang.org/x/sys" || $2 == "golang.org/x/term" || $2 == "golang.org/x/text") { print $1, $2, $3 }' /tmp/caddy-binary-metadata \
+    test "$(awk '$1 == "dep" { dependency=$2 "@" $3 } $1 == "=>" { print dependency "=>" $2 "@" $3 }' /tmp/caddy-binary-metadata)" = 'github.com/go-jose/go-jose/v3@v3.0.5=>/opt/go-jose-v3.0.5-patched@(devel)'; \
+    awk '$1 == "mod" && $2 == "github.com/caddyserver/caddy/v2" { print $1, $2, $3 } $1 == "dep" && ($2 == "github.com/go-jose/go-jose/v3" || $2 == "github.com/go-jose/go-jose/v4" || $2 == "github.com/klauspost/compress" || $2 == "google.golang.org/grpc" || $2 == "golang.org/x/crypto" || $2 == "golang.org/x/net" || $2 == "golang.org/x/sync" || $2 == "golang.org/x/sys" || $2 == "golang.org/x/term" || $2 == "golang.org/x/text") { print $1, $2, $3 }' /tmp/caddy-binary-metadata \
       | LC_ALL=C sort > /tmp/caddy-governed-binary; \
     printf '%s\n' \
       'mod github.com/caddyserver/caddy/v2 v2.11.4' \
+      'dep github.com/go-jose/go-jose/v3 v3.0.5' \
+      'dep github.com/go-jose/go-jose/v4 v4.1.6' \
+      'dep github.com/klauspost/compress v1.18.7' \
       'dep golang.org/x/crypto v0.57.0' \
       'dep golang.org/x/net v0.60.0' \
       'dep golang.org/x/sync v0.23.0' \
@@ -62,8 +131,23 @@ RUN set -eux; \
       'dep golang.org/x/text v0.42.0' \
       'dep google.golang.org/grpc v1.83.2' \
       | LC_ALL=C sort > /tmp/caddy-expected-binary; \
-    test "$(wc -l < /tmp/caddy-governed-binary | tr -d '[:space:]')" = '8'; \
+    test "$(wc -l < /tmp/caddy-governed-binary | tr -d '[:space:]')" = '11'; \
     cmp /tmp/caddy-expected-binary /tmp/caddy-governed-binary; \
+    sha256sum -c "$evidence/build-module.sha256"; \
+    verify_jose_source /opt/go-jose-v3.0.5-patched 72 "$patched_tree" post-build; \
+    verify_jose_source "$original_dir" 71 "$original_tree" original-post-build; \
+    cp /tmp/caddy-binary-metadata "$evidence/build-info.txt"; \
+    sha256sum /go/bin/caddy > "$evidence/binary.sha256"; \
+    rm "$evidence/packages.json"; \
+    total_bytes=0; \
+    for name in patch-tool.txt inputs.sha256 original-tree.sha256 copied-tree.sha256 patched-tree.sha256 post-unit-tree.sha256 post-build-tree.sha256 original-post-build-tree.sha256 jose-tests.jsonl compat-tests.jsonl modules.json module-graph.txt import-graph.txt build-module.sha256 build-info.txt binary.sha256; do \
+      test -f "$evidence/$name"; \
+      bytes="$(wc -c < "$evidence/$name")"; \
+      test "$bytes" -gt 0; test "$bytes" -le 2097152; \
+      total_bytes=$((total_bytes + bytes)); \
+    done; \
+    test "$total_bytes" -le 8388608; \
+    test "$(find "$evidence" -type f | wc -l | tr -d '[:space:]')" = 16; \
     rm -f \
       /tmp/caddy-binary-metadata \
       /tmp/caddy-expected-binary \
@@ -77,7 +161,9 @@ FROM node:24.22.1-bookworm-slim@sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b34
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci
+COPY scripts/check-redocly-compat.mjs ./scripts/check-redocly-compat.mjs
+COPY patches/redocly-1.34.15-minimatch11.patch patches/redocly-1.34.15-minimatch11.inventory.json ./patches/
+RUN npm ci && node scripts/check-redocly-compat.mjs apply
 
 COPY . .
 
@@ -90,10 +176,12 @@ RUN npm run build
 FROM caddy:2.11.4-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
 
 LABEL org.opencontainers.image.title="PulsePlate Caddy SPA shell" \
-      org.opencontainers.image.description="Caddy 2.11.4 rebuilt with Go 1.26.9 and PulsePlate frontend assets"
+      org.opencontainers.image.description="Caddy 2.11.4 rebuilt with Go 1.26.10 and PulsePlate frontend assets"
 
 # Compare the standard module surface before replacing the upstream binary.
 # Package versions and build metadata are intentionally excluded from parity.
+# Public synthetic build evidence; cached-stage output is not fresh test execution.
+COPY --from=caddy-build /caddy-build-evidence /usr/share/pulseplate-caddy-build
 COPY --from=caddy-build --chmod=0755 /go/bin/caddy /usr/bin/caddy.pulseplate
 RUN set -eux; \
     set -o pipefail; \
@@ -101,6 +189,9 @@ RUN set -eux; \
     /usr/bin/caddy.pulseplate list-modules --packages | awk 'NF && $1 != "Standard" { print $1 }' | LC_ALL=C sort > /tmp/caddy-rebuilt-modules; \
     diff -u /tmp/caddy-official-modules /tmp/caddy-rebuilt-modules; \
     apk add --no-cache \
+      "ca-certificates>=20261020-r0" \
+      "ca-certificates-bundle>=20261020-r0" \
+      "brotli-libs>=1.2.1-r0" \
       "c-ares>=1.34.8-r0" \
       "curl>=8.20.0-r0" \
       "libcurl>=8.20.0-r0" \
@@ -111,7 +202,7 @@ RUN set -eux; \
     setcap cap_net_bind_service=+ep /usr/bin/caddy; \
     getcap /usr/bin/caddy | grep -F 'cap_net_bind_service=ep'; \
     caddy version | awk 'NR == 1 && $1 == "v2.11.4" { found=1 } END { exit found ? 0 : 1 }'; \
-    caddy build-info | awk -F '\t' '$1 == "go" && $2 == "go1.26.9" { found=1 } END { exit found ? 0 : 1 }'; \
+    caddy build-info | awk -F '\t' '$1 == "go" && $2 == "go1.26.10" { found=1 } END { exit found ? 0 : 1 }'; \
     rm -f /tmp/caddy-official-modules /tmp/caddy-rebuilt-modules
 
 RUN ["/bin/busybox", "rm", "-rf", "/srv/frontend"]

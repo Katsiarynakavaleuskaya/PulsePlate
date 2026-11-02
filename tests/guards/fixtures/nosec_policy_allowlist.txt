@@ -1,4 +1,14 @@
 # Legacy nosec TTL allowlist (Phase 2 shrink-to-zero).
 # Prefer canonical inline suppressions on each line:
 #   # nosec BXXX: <why> (remove-by: YYYY-MM-DD, ref: <issue/pr>)
-# Empty allowlist: all suppressions must validate inline (tests/guards/test_nosec_policy_guard.py).
+# Exact seven-line source-preserving instance; see the existing security owner
+# and ledger-p1-source-preserving-native-nosec-seven-20261028.
+# This loader matches path/line and hard expiry; manual review is due 2026-11-04.
+# Source/rule hashes are separately reviewed evidence, not loader predicates.
+scripts/ci/check_trivy_ignore_policy_native.py:11 remove-by=2026-11-11 ref=PR-2497
+scripts/ci/check_trivy_ignore_policy_native.py:63 remove-by=2026-11-11 ref=PR-2497
+scripts/ci/prometheus_source_image.py:30 remove-by=2026-11-11 ref=PR-2497
+scripts/ci/prometheus_source_image.py:1060 remove-by=2026-11-11 ref=PR-2497
+scripts/ci/prometheus_source_image.py:2175 remove-by=2026-11-11 ref=PR-2497
+scripts/ci/prometheus_source_image.py:2404 remove-by=2026-11-11 ref=PR-2497
+scripts/ci/prometheus_source_image.py:3759 remove-by=2026-11-11 ref=PR-2497

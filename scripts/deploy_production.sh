@@ -536,7 +536,7 @@ validate_postgres_contract_files() {
 }
 
 PROMETHEUS_CONTRACT_HELPER="${PROMETHEUS_CONTRACT_HELPER:-${DEPLOY_DIR}/scripts/ci/prometheus_source_image.py}"
-PROMETHEUS_CONTRACT_HELPER_SHA256="2b6edfa63f55b17cafdff100151b4b7cebef93a757fc3ab04b00eea77ca0ac6a" # pragma: allowlist secret - public source digest
+PROMETHEUS_CONTRACT_HELPER_SHA256="d812e79fce6138426131f266e4f5fd8de03b72c9a56acea19bedb43a22f172f6" # pragma: allowlist secret - public source digest
 readonly PROMETHEUS_CONTRACT_HELPER PROMETHEUS_CONTRACT_HELPER_SHA256
 
 run_trusted_contract() {
@@ -572,7 +572,7 @@ os.execv(sys.executable, [sys.executable, "-I", "-S", "/dev/fd/" + str(fd), *sys
 }
 
 ALERTMANAGER_CONTRACT_HELPER="${ALERTMANAGER_CONTRACT_HELPER:-${DEPLOY_DIR}/scripts/ci/fetch_docker_source_artifacts.py}"
-ALERTMANAGER_CONTRACT_HELPER_SHA256="2fc2016da9eaea0b4638eddb2dd4f406b4e8101ceefd9404041714dfe9396703"
+ALERTMANAGER_CONTRACT_HELPER_SHA256="5cba11d4c02a73b4061e9d3c62c04a3d5846d48b6f26c0f3d88782a909c5e36f"
 readonly ALERTMANAGER_CONTRACT_HELPER ALERTMANAGER_CONTRACT_HELPER_SHA256
 
 run_prometheus_contract() {
@@ -1083,8 +1083,8 @@ prometheus_helper_hash = "sha256:" + sys.argv[27]
 prometheus_helper_source = str(Path(source_backup_helper).parents[2] / prometheus_helper_target) if source_backup_helper else ""
 checkpoint_contracts = {
     "scripts/ci/fetch_docker_source_artifacts.py": "sha256:" + sys.argv[28],
-    'scripts/verify_premium_alias_telemetry.py': 'sha256:6bd6d11a019f6a09a7bad1a5195b4b285fe747a781c494a12c3eaed0da996153',
-    'scripts/ops/notify_premium_alias_checkpoint_failure.py': 'sha256:23f12a00308632562ba09dd98b3c054efd65e93f34b55b6adff33bc66695ffa6',
+    'scripts/verify_premium_alias_telemetry.py': 'sha256:906db8d718e5818593f81b7a6a19585a2b273d9d5ff0af8d015d812e8102f829',
+    'scripts/ops/notify_premium_alias_checkpoint_failure.py': 'sha256:6d8ab4b1c0b94f7c067d753fd21d69ecde31f669456bdf8724e9435bef09b2cf',
     'deploy/systemd/pulseplate-premium-alias-checkpoint.service.example': 'sha256:a52742a89b87d02b3b75834b27db741b72a9c6c4a021711611db2a53b197a030',
     'deploy/systemd/pulseplate-premium-alias-checkpoint.timer.example': 'sha256:f6dd053b986cf68b133cf855208b86f44fc975e84dc7acbf490b35a6bb88c9cf',
     'deploy/systemd/pulseplate-premium-alias-checkpoint-failure.service.example': 'sha256:285c5e05bd72f4c99a22c9657a8443becfda4ff93975a21d70feb01812ed1b6d',

@@ -58,8 +58,8 @@ EXPECTED_AUXILIARY_PYTHON_SETUP_OWNERS = (
     (".github/workflows/build.yml", "backend-arm-sdk-qualification"),
     (".github/workflows/build-equivalence-evidence.yml", "publish-build-equivalence-evidence"),
     (".github/workflows/cd.yml", "alertmanager-candidate-build"),
-    (".github/workflows/cd.yml", "alertmanager-retained-candidate"),
     (".github/workflows/cd.yml", "alertmanager-main-publication"),
+    (".github/workflows/cd.yml", "alertmanager-retained-candidate"),
     (".github/workflows/cd.yml", "prometheus-image-security-pr"),
     (".github/workflows/cd.yml", "prometheus-image-security-trusted"),
     (".github/workflows/cd.yml", "postgres-pgvector-ci-admission"),
@@ -297,7 +297,7 @@ def test_canonical_ci_uses_patch_pin_without_renaming_visible_labels() -> None:
 
     test_main_include = jobs["test-main"]["strategy"]["matrix"]["include"]
     assert [entry["python-version"] for entry in test_main_include] == ["3.11", "3.12", "3.13"]
-    assert [entry["timeout-minutes"] for entry in test_main_include] == [120, 120, 120]
+    assert [entry["timeout-minutes"] for entry in test_main_include] == [180, 180, 180]
 
     discovered = _iter_python_setup_steps(".github/workflows/ci.yml")
     _assert_expected_python_setup_steps(

@@ -15,6 +15,7 @@
 
 ## Conventions
 
+- Give distinct test scenarios unique function names within each module or class namespace; a later definition with the same name silently replaces the earlier test. Use parametrization with distinct case IDs when scenarios share one test body. After adding or changing regression scenarios, confirm that pytest collects each intended case ID.
 - Use pytest fixtures from `conftest.py`; keep tests isolated.
 - For a negative test targeting a specific guard, start from a valid complete
   baseline, change the intended input, and assert the guard's stable diagnostic

@@ -26,16 +26,38 @@ REL_INDEX = "docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.json"
 REL_SCHEMA = "docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.schema.json"
 
 
-def _fixture_git(repo: Path, *args: str) -> bytes:
-    git = shutil.which("git")
-    assert git is not None
-    fixture_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
-    fixture_env.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1")
-    completed = subprocess.run(  # nosec B603: resolved Git binary with test-owned argv (remove-by: 2026-10-31, ref: PR-2446)
-        [git, "-C", str(repo), *args],
+def _fixture_git(repo: Path, *args: str, allow_replacement_control: bool = False) -> bytes:
+    git = shutil.which("git", path=os.defpath)
+    assert git is not None and Path(git).is_absolute() and Path(git).is_file()
+    fixture_env = {
+        "PATH": os.defpath,
+        "HOME": str(repo),
+        "LC_ALL": "C",
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_TERMINAL_PROMPT": "0",
+        "GIT_NO_REPLACE_OBJECTS": "1",
+        "GIT_ALLOW_PROTOCOL": "file",
+    }
+    if allow_replacement_control:
+        assert args[:1] == ("show",)
+        del fixture_env["GIT_NO_REPLACE_OBJECTS"]
+    completed = subprocess.run(
+        [
+            git,
+            "-c",
+            f"core.hooksPath={os.devnull}",
+            "-c",
+            "init.templateDir=",
+            "-C",
+            str(repo),
+            *args,
+        ],
         check=True,
         capture_output=True,
         env=fixture_env,
+        stdin=subprocess.DEVNULL,
+        timeout=30,
     )
     return completed.stdout.strip()
 
@@ -1127,7 +1149,10 @@ def test_source_corpus_differential_ignores_git_replacement_objects(
         "replacement",
     ).decode("ascii")
     _fixture_git(tmp_path, "replace", base_ref, replacement)
-    assert _fixture_git(tmp_path, "show", f"{base_ref}:{path}") == head_data.strip()
+    assert (
+        _fixture_git(tmp_path, "show", f"{base_ref}:{path}", allow_replacement_control=True)
+        == head_data.strip()
+    )
     monkeypatch.setattr(corpus, "REPO_ROOT", tmp_path)
 
     assert (
@@ -1823,3 +1848,24 @@ def test_philosophy_source_corpus_index_phase1_docs_gate_rejects_page_count_drif
         error.startswith(f"{REL_INDEX}: analytic_linguistic_audit.page_count must be 22")
         for error in errors
     )
+
+
+@pytest.mark.parametrize("fault", ["timeout", "launch"])
+def test_corpus_git_exception_drops_private_child_context(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], fault: str
+) -> None:
+    secret = "synthetic-private-corpus-marker"
+
+    def fail(*args: object, **kwargs: object) -> None:
+        if fault == "timeout":
+            raise subprocess.TimeoutExpired([secret], 30, output=secret, stderr=secret)
+        raise OSError(secret)
+
+    monkeypatch.setattr(corpus.subprocess, "run", fail)
+    with pytest.raises(
+        ValueError, match="^source corpus Git cat-file object check unavailable$"
+    ) as caught:
+        corpus._corpus_git_bytes("cat-file", "-e", "a" * 40)
+    assert caught.value.__cause__ is None and caught.value.__context__ is None
+    assert secret not in str(caught.value) + repr(caught.value.args)
+    assert capsys.readouterr() == ("", "")

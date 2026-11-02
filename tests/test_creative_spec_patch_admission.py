@@ -601,9 +601,25 @@ def test_prepare_builder_rejects_stale_base_after_request_build(
     assert "base_commit_sha must match current origin/main" in capsys.readouterr().err
 
 
-def test_prepare_builder_cleans_new_run_dir_on_prepare_failure(
+@pytest.mark.parametrize(
+    "case",
+    [
+        "empty",
+        "preexisting",
+        "partial.json",
+        "foreign.txt",
+        "checkout",
+        "swapped-root",
+        "swapped-run",
+        "cleanup-error",
+        "summary-error",
+        "published-error",
+    ],
+)
+def test_prepare_builder_removes_only_its_verified_empty_reservation(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
+    case: str,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     repo, base_sha = _init_patch_repo(tmp_path)
@@ -632,12 +648,46 @@ def test_prepare_builder_cleans_new_run_dir_on_prepare_failure(
     )
     capsys.readouterr()
 
+    artifact_root = creative_code_patch_workspace.ensure_artifact_root()
+    run = artifact_root / run_id
+    if case == "preexisting":
+        run.mkdir()
+    if case == "cleanup-error":
+
+        def fail_rmdir(*args: Any, **kwargs: Any) -> None:
+            raise OSError("private cleanup error")
+
+        monkeypatch.setattr(admission_cli.os, "rmdir", fail_rmdir)
+
     def fail_prepare(*args: Any, **kwargs: Any) -> dict[str, Any]:
-        run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=True)
-        (run_dir / "partial.json").write_text("{}", encoding="utf-8")
+        assert run.is_dir()
+        if case in {"partial.json", "foreign.txt"}:
+            (run / case).write_text("{}")
+        elif case == "checkout":
+            checkout = run / creative_code_patch_workspace.CHECKOUT_DIRNAME
+            checkout.mkdir()
+            (checkout / "writer-state").write_text("retain")
+        elif case in {"swapped-root", "swapped-run"}:
+            victim = artifact_root if case == "swapped-root" else run
+            victim.rename(victim.with_name(victim.name + "-original"))
+            run.mkdir(parents=True)
         raise creative_code_patch_builder.CreativeCodePatchBuilderError("injected prepare failure")
 
-    monkeypatch.setattr(creative_code_patch_builder, "prepare", fail_prepare)
+    def fail_summary(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        raise admission_cli.CreativeSpecPatchAdmissionCliError("injected summary failure")
+
+    original_write = admission_cli.write_json_atomic
+
+    def fail_after_publication(path: Path, value: dict[str, Any]) -> None:
+        original_write(path, value)
+        raise admission_cli.CreativeSpecPatchAdmissionCliError("injected publication failure")
+
+    if case == "summary-error":
+        monkeypatch.setattr(admission_cli, "build_builder_prepare_summary", fail_summary)
+    elif case == "published-error":
+        monkeypatch.setattr(admission_cli, "write_json_atomic", fail_after_publication)
+    else:
+        monkeypatch.setattr(creative_code_patch_builder, "prepare", fail_prepare)
 
     assert (
         admission_cli.main(
@@ -651,12 +701,34 @@ def test_prepare_builder_cleans_new_run_dir_on_prepare_failure(
         )
         == 1
     )
-    assert "injected prepare failure" in capsys.readouterr().err
-    with pytest.raises(creative_code_patch_workspace.CreativeCodePatchWorkspaceError):
-        creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
+    stderr = capsys.readouterr().err
+    expected = {"summary-error": "summary", "published-error": "publication"}.get(case, "prepare")
+    assert f"injected {expected} failure" in stderr
+    assert "private cleanup error" not in stderr
+    assert run.exists() is (case != "empty")
+    if case in {"partial.json", "foreign.txt"}:
+        assert (run / case).read_text() == "{}"
+    elif case == "checkout":
+        assert (
+            run / creative_code_patch_workspace.CHECKOUT_DIRNAME / "writer-state"
+        ).read_text() == "retain"
+    elif case in {"swapped-root", "swapped-run"}:
+        victim = artifact_root if case == "swapped-root" else run
+        assert victim.with_name(victim.name + "-original").is_dir()
+        assert list(run.iterdir()) == []
+    elif case in {"summary-error", "published-error"}:
+        assert {p.name for p in run.iterdir()} == {
+            creative_code_patch_workspace.CHECKOUT_DIRNAME,
+            creative_code_patch_builder.REQUEST_FILE,
+            creative_code_patch_builder.SOURCE_BUNDLE_FILE,
+            creative_code_patch_builder.SELECTED_VARIANT_FILE,
+            creative_code_patch_builder.STATE_FILE,
+        }
+        stored = json.loads((output_dir / admission_cli.ADMISSION_FILENAME).read_bytes())
+        assert stored["builder_prepare"]["prepared"] is (case == "published-error")
 
 
-def test_build_and_prepare_cleans_new_run_dir_when_prepare_proof_rejects_candidate_patch(
+def test_build_and_prepare_preserves_unattributed_candidate_patch_on_rejection(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -710,8 +782,8 @@ def test_build_and_prepare_cleans_new_run_dir_when_prepare_proof_rejects_candida
     )
     assert "candidate.patch" in capsys.readouterr().err
     assert not output_dir.exists()
-    with pytest.raises(creative_code_patch_workspace.CreativeCodePatchWorkspaceError):
-        creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
+    retained = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
+    assert (retained / creative_code_patch_builder.CANDIDATE_PATCH_FILE).is_file()
 
 
 def test_schemas_closed_and_cli_has_no_generate_or_evaluate_commands() -> None:

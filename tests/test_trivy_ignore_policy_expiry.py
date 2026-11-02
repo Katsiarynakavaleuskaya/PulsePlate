@@ -1854,3 +1854,8 @@ def test_new_native_negatives_fail_closed_on_output_or_execution_error(
     with pytest.raises(ValueError, match=message):
         native_policy._run_contract("/usr/bin/trivy", Path("/tmp/policy.rego"))
     assert cases[calls - 1][0] == target
+
+
+def test_retired_caddy_v3_policy_is_absent_without_weakening_strict_policy() -> None:
+    assert not (REPO_ROOT / "trivy/ignore-policy-caddy-go-jose-v3.rego").exists()
+    assert POLICY_PATH.read_text() == "package trivy\n\nimport rego.v1\n\ndefault ignore := false\n"

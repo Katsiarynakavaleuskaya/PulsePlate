@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import replace
-import ast
-from datetime import datetime, timezone
 import hashlib
 import json
 import netrc
@@ -39,9 +37,24 @@ OBSERVABILITY_REMOVALS = frozenset({"importlib-metadata", "zipp"})
 def _run_fixture_git(repo: Path, *args: str) -> None:
     git_binary = shutil.which("git")
     assert git_binary is not None
-    fixture_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
-    subprocess.run(  # nosec B603: resolved Git binary with test-owned argv (remove-by: 2026-10-31, ref: PR-2181)
-        [git_binary, "-C", str(repo), *args],
+    fixture_env = {
+        "PATH": os.defpath,
+        "LC_ALL": "C",
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_TERMINAL_PROMPT": "0",
+    }
+    subprocess.run(
+        [
+            git_binary,
+            "-c",
+            f"core.hooksPath={os.devnull}",
+            "-c",
+            "init.templateDir=",
+            "-C",
+            str(repo),
+            *args,
+        ],
         check=True,
         capture_output=True,
         env=fixture_env,
@@ -1406,6 +1419,123 @@ def test_download_phase_batches_exact_profile_pins_without_dependencies(
     }
 
 
+@pytest.mark.parametrize("phase", ["download", "compile"])
+@pytest.mark.parametrize(
+    ("stdout", "stderr", "expected_stdout", "expected_stderr"),
+    [
+        (None, None, "", ""),
+        ("", b"", "", ""),
+        (
+            "Fetching https://test-user:test-password@packages.example.test/file.whl\n",
+            "Authorization: Bearer test-bearer\npassword=test-password token=test-token\n",
+            "Fetching https://packages.example.test/file.whl",
+            "Authorization=<redacted>\npassword=<redacted> token=<redacted>",
+        ),
+        (
+            b"\xffFetching https://test-user:test-password@packages.example.test/file.whl\n",
+            b"Authorization: Basic test-basic\nsecret=test-secret\n",
+            "\ufffdFetching https://packages.example.test/file.whl",
+            "Authorization=<redacted>\nsecret=<redacted>",
+        ),
+        (None, b"stderr-only\n", "", "stderr-only"),
+        ("stdout-only\n", None, "stdout-only", ""),
+        (
+            "x" * 2100 + " token=" + "s" * 4000 + "\nstdout-tail",
+            b"y" * 2100 + b"\nstderr-tail",
+            ("x" * 2100 + " token=<redacted>\nstdout-tail")[-2000:],
+            ("y" * 2100 + "\nstderr-tail")[-2000:],
+        ),
+    ],
+)
+def test_timeout_reports_bounded_redacted_streams_and_cleans_owned_outputs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    phase: str,
+    stdout: str | bytes | None,
+    stderr: str | bytes | None,
+    expected_stdout: str,
+    expected_stderr: str,
+) -> None:
+    surface = _write_test_profile(tmp_path)
+    original_files = {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
+    timeout = subprocess.TimeoutExpired("fixed synthetic argv", 300, output=stdout, stderr=stderr)
+    temporary_paths: list[Path] = []
+
+    def timed_out(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        assert kwargs["timeout"] == 300
+        assert kwargs["text"] is True
+        assert kwargs["capture_output"] is True
+        assert kwargs["check"] is False
+        cwd = kwargs["cwd"]
+        assert isinstance(cwd, Path)
+        temporary_paths.append(cwd)
+        if phase == "download":
+            assert command[1:4] == ["-m", "pip", "download"]
+            (cwd / "partial.whl").write_bytes(b"partial download")
+        else:
+            assert command[1:4] == ["-m", "piptools", "compile"]
+            candidate = Path(
+                next(arg.split("=", 1)[1] for arg in command if arg.startswith("--output-file="))
+            )
+            temporary_paths.append(candidate)
+            candidate.write_bytes(b"partial resolver output")
+        raise timeout
+
+    monkeypatch.setattr(compiler.subprocess, "run", timed_out)
+    upgrades = {"coverage": "7.15.1", "faker": "40.31.0"}
+    if phase == "download":
+        monkeypatch.setattr(compiler, "_profile_registry", lambda: {"test": surface})
+        monkeypatch.setattr(compiler, "_resolver_bootstrap_artifacts", frozenset)
+        monkeypatch.setattr(
+            compiler, "_collect_private_proxy_artifact_hashes", lambda **_kwargs: {}
+        )
+
+        def credentialed_env(
+            _environment: dict[str, str], *, resolver_home: Path
+        ) -> dict[str, str]:
+            temporary_paths.append(resolver_home)
+            (resolver_home / ".netrc").write_text("environment-only-canary", encoding="utf-8")
+            return {"HOME": str(resolver_home), "PIP_INDEX_URL": APPROVED_INDEX}
+
+        monkeypatch.setattr(compiler, "_private_proxy_child_env", credentialed_env)
+        with pytest.raises(subprocess.TimeoutExpired) as caught:
+            compiler._compile_selected_profiles_locked(
+                repo_root=tmp_path,
+                profiles=("test",),
+                upgrades=upgrades,
+                graph_changes=frozenset(),
+                environment={"TOKEN": "environment-only-canary"},
+            )
+        label = f"{surface.lockfile}: exact artifact download"
+    else:
+        with pytest.raises(subprocess.TimeoutExpired) as caught:
+            compiler._prepare_lock(
+                repo_root=tmp_path,
+                surface=surface,
+                upgrades=upgrades,
+                graph_changes=frozenset(),
+                child_env={"TOKEN": "environment-only-canary"},
+            )
+        label = f"{surface.lockfile}: governed resolver"
+
+    assert caught.value is timeout
+    assert caught.value.output == stdout
+    assert caught.value.stderr == stderr
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == "".join(
+        f"{label}: timed out; partial {stream}:\n{detail}\n"
+        for stream, detail in (("stdout", expected_stdout), ("stderr", expected_stderr))
+        if detail
+    )
+    assert "environment-only-canary" not in captured.err
+    assert all(not path.exists() for path in temporary_paths)
+    assert {
+        path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()
+    } == original_files
+
+
 def test_artifact_admission_collects_only_proxy_hash_bound_wheels(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2484,7 +2614,7 @@ def _copy_graph_change_admission_repo(destination: Path) -> None:
     payload["record"]["runtime_target_observation"]["sha256_bytes"] = list(
         hashlib.sha256(_synthetic_runtime_target(destination)).digest()
     )
-    admission_path.write_text(json.dumps(payload), encoding="utf-8")
+    admission_path.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
 
 
 def _synthetic_runtime_surface() -> surfaces.DependencySurface:
@@ -2793,7 +2923,7 @@ def test_closed_graph_change_admission_rejects_malformed_schema(
         else:
             payload["record"]["profile_universe"] = "runtime"
             expected = "array of strings"
-        path.write_text(json.dumps(payload), encoding="utf-8")
+        path.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
 
     with pytest.raises(RuntimeError, match=expected):
         compiler._authorize_graph_changes(
@@ -3297,7 +3427,7 @@ def _write_psycopg_admission_repo(root: Path, monkeypatch: pytest.MonkeyPatch) -
         json.dumps(record, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
     monkeypatch.setattr(compiler, "PSYCOPG_C_RECORD_SHA256", digest)
-    path.write_text(json.dumps(payload), encoding="utf-8")
+    path.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
     return baselines
 
 
@@ -3397,7 +3527,7 @@ def test_psycopg_admission_rejects_source_and_record_drift(
     path = tmp_path / compiler.GRAPH_CHANGE_ADMISSION_PATH
     payload = json.loads(path.read_text())
     payload["psycopg_c_oct2"]["graph_change"]["additions"].append("other")
-    path.write_text(json.dumps(payload))
+    path.write_text(json.dumps(payload, separators=(",", ":")))
     with pytest.raises(RuntimeError, match="exact fixed v1 migration alternative"):
         _select_psycopg_runtime(tmp_path)
 
@@ -3468,7 +3598,7 @@ def _write_virtualenv_admission_repo(
         json.dumps(record, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
     monkeypatch.setattr(compiler, "VIRTUALENV_2455_RECORD_SHA256", fingerprint)
-    admission_path.write_text(json.dumps(payload), encoding="utf-8")
+    admission_path.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
     return registry, baselines, candidates
 
 
@@ -3520,7 +3650,7 @@ def test_virtualenv_whole_transaction_captures_three_distinct_relations(
     path = tmp_path / compiler.GRAPH_CHANGE_ADMISSION_PATH
     payload = json.loads(path.read_text(encoding="utf-8"))
     del payload["virtualenv_2455"]
-    path.write_text(json.dumps(payload), encoding="utf-8")
+    path.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
     with pytest.raises(RuntimeError, match="fixed virtualenv_2455 slot"):
         _select_virtualenv_admission(tmp_path)
 
@@ -3532,7 +3662,7 @@ def test_virtualenv_fixed_record_preserves_legacy_root_and_unselected_bindings(
     path = tmp_path / compiler.GRAPH_CHANGE_ADMISSION_PATH
     extended = json.loads(path.read_text(encoding="utf-8"))
     for payload in (extended, {"schema": extended["schema"], "record": extended["record"]}):
-        path.write_text(json.dumps(payload), encoding="utf-8")
+        path.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
         admission = compiler._authorize_graph_changes(
             repo_root=tmp_path,
             profiles=("runtime",),
@@ -3636,7 +3766,7 @@ def test_virtualenv_changed_or_malformed_record_rejects_before_acquisition(
     if malformation == "duplicate":
         path.write_text(
             path.read_text().replace(
-                '"virtualenv_2455": {', '"virtualenv_2455": {"admission_id": "duplicate",', 1
+                '"virtualenv_2455":{', '"virtualenv_2455":{"admission_id":"duplicate",', 1
             ),
             encoding="utf-8",
         )
@@ -3661,7 +3791,7 @@ def test_virtualenv_changed_or_malformed_record_rejects_before_acquisition(
             record["profile_deltas"]["dev"]["python-discovery"]["before"] = "1.2.1"
         elif malformation == "second-intent":
             record["upgrades"]["python-discovery"] = "1.6.1"
-        path.write_text(json.dumps(payload), encoding="utf-8")
+        path.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
 
     def acquisition_must_not_run(*_: object, **__: object) -> dict[str, str]:
         raise AssertionError("malformed transaction reached credentialed acquisition")
@@ -4018,478 +4148,716 @@ def test_virtualenv_captured_plan_cannot_borrow_another_input_tuple(
         compiler._assert_plans_match_graph_change_admission((changed,), admission)
 
 
-# PR2494: meaningful behavior tests for the literal compatibility exception.
-def _pillow_exception_repo(root: Path) -> None:
-    _write_valid_contract_repo(root)
-    locks = {
-        "runtime",
-        "docker-runtime",
-        "ci-lite",
-        "dev",
-        "rag-vector",
-        "rag-vector-cpu",
-        "aggregate",
-    }
-    for surface in surfaces.compiled_dependency_surfaces():
-        if surface.compile_profile in locks:
-            _append_requirement(root, surface.lockfile, "pillow==12.3.0")
-    for name in (
-        "requirements.in",
-        "requirements-docker-runtime.in",
-        "requirements-ci-lite.in",
-        "requirements-dev.in",
-    ):
-        _append_requirement(root, name, "pillow>=12.3.0,<13.0.0")
-    (root / "constraints.txt").write_text("pillow==12.3.0\n", encoding="utf-8")
-    _stage_fixture_paths(root, ".")
-
-
-def _pillow_native_report(expected: dict[str, str], findings: bool = True) -> dict[str, object]:
-    return {
-        "dependencies": [
-            {
-                "name": name,
-                "version": version,
-                "vulns": (
-                    [
-                        {
-                            "id": identifier,
-                            "aliases": [alias],
-                            "fix_versions": ["13.0.0"],
-                            "description": "retained synthetic finding",
-                        }
-                        for identifier, alias in surfaces.PILLOW_AUDIT_ALIASES.items()
-                    ]
-                    if name == "pillow" and findings
-                    else []
-                ),
-            }
-            for name, version in expected.items()
-        ],
-        "fixes": [],
-    }
-
-
-def _write_pillow_native_pair(root: Path) -> tuple[Path, Path, dict[str, str]]:
-    expected = {"example": "1.0.0", "pillow": "12.3.0"}
-    raw, ignored = root / "raw.json", root / "ignored.json"
-    raw.write_text(json.dumps(_pillow_native_report(expected)), encoding="utf-8")
-    ignored.write_text(json.dumps(_pillow_native_report(expected, False)), encoding="utf-8")
-    return raw, ignored, expected
-
-
-@pytest.mark.parametrize(
-    "instant,accepted",
-    [
-        (datetime(2026, 10, 22, tzinfo=timezone.utc), True),
-        (datetime(2026, 10, 28, tzinfo=timezone.utc), True),
-        (datetime(2026, 11, 6, tzinfo=timezone.utc), True),
-        (datetime(2026, 11, 20, 23, 59, 59, tzinfo=timezone.utc), True),
-        (datetime(2026, 11, 21, tzinfo=timezone.utc), False),
-        (datetime.fromisoformat("2026-11-21T03:00:00+03:00"), False),
-        (datetime(2026, 11, 22, tzinfo=timezone.utc), False),
-        (datetime(2026, 11, 20), False),
-    ],
-)
-def test_pillow_exception_current_carriers_and_utc_boundary(
-    tmp_path: Path, instant: datetime, accepted: bool
-) -> None:
-    _pillow_exception_repo(tmp_path)
-    if accepted:
-        assert (
-            set(surfaces.pillow_exception_inputs(tmp_path, instant))
-            == surfaces.registered_dependabot_requirement_carriers()
+# The fourth fixed alternative is synthetic here; these tests are not native C_R.
+def _write_stabilization_repo(
+    root: Path, monkeypatch: pytest.MonkeyPatch
+) -> tuple[dict[str, surfaces.DependencySurface], dict[str, bytes], dict[str, str], dict[str, str]]:
+    _copy_graph_change_admission_repo(root)
+    path = root / compiler.GRAPH_CHANGE_ADMISSION_PATH
+    document = json.loads(path.read_text())
+    record = document["python_stabilization_oct23"]
+    registry = {profile: _surface(profile) for profile in compiler.STABILIZATION_PROFILES}
+    baselines: dict[str, bytes] = {}
+    candidates: dict[str, str] = {}
+    for profile, surface in registry.items():
+        relations = [record["changes"][name] for name in record["profile_changes"][profile]]
+        before_values = [
+            row["before"][profile] if isinstance(row["before"], dict) else row["before"]
+            for row in relations
+        ]
+        before = "example==1.0.0\n" + "".join(
+            value + "\n" for value in before_values if value is not None
         )
-    else:
-        with pytest.raises(ValueError, match="expired|aware"):
-            surfaces.pillow_exception_inputs(tmp_path, instant)
+        after = "example==1.0.0\n" + "".join(row["after"] + "\n" for row in relations)
+        baselines[profile] = before.encode()
+        candidates[profile] = after
+        (root / surface.lockfile).write_bytes(baselines[profile])
+        record["baselines"][profile]["bytes"] = len(baselines[profile])
+        record["baselines"][profile]["sha256_bytes"] = list(
+            hashlib.sha256(baselines[profile]).digest()
+        )
+    record["runtime_baseline_utf8"] = baselines["runtime"].decode()
+    for name, binding in record["source_inputs"].items():
+        content = b"example>=1.0.0\n"
+        if name.endswith(".in") and name != "requirements.in":
+            content = b"-c requirements.txt\n" + content
+        (root / name).write_bytes(content)
+        binding["bytes"] = len(content)
+        binding["sha256_bytes"] = list(hashlib.sha256(content).digest())
+    wheelhouse = root / "proposal-wheels"
+    wheelhouse.mkdir(mode=0o700)
+    for name, binding in record["artifacts"].items():
+        pin = compiler._exact_pin_map(record["changes"][name]["after"], label="fixture")[name]
+        wheel = _write_test_wheel(wheelhouse, name=name, version=pin.version)
+        with zipfile.ZipFile(wheel) as archive:
+            metadata = archive.read(next(n for n in archive.namelist() if n.endswith("/METADATA")))
+        binding.update(
+            filename=wheel.name,
+            bytes=wheel.stat().st_size,
+            sha256_bytes=list(hashlib.sha256(wheel.read_bytes()).digest()),
+            metadata_sha256_bytes=list(hashlib.sha256(metadata).digest()),
+        )
+    fingerprint = hashlib.sha256(
+        json.dumps(record, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    monkeypatch.setattr(compiler, "STABILIZATION_RECORD_SHA256", fingerprint)
+    monkeypatch.setattr(
+        compiler, "_stabilization_runtime", lambda: ("linux", "x86_64", "cpython", "3.13")
+    )
+    path.write_text(json.dumps(document, separators=(",", ":")), encoding="utf-8")
+    return registry, baselines, candidates, record["upgrades"]
 
 
-@pytest.mark.parametrize(
-    "declaration",
-    [
-        "pillow==12.2.0",
-        "pillow==13.0.0",
-        "pillow==12.3.0rc1",
-        "PILLOW==12.3.0",
-        "pillow==12.3.0\npillow==12.3.0",
-        "pillow[extra]==12.3.0",
-        "pillow==12.3.0; python_version >= '3.13'",
-        "pillow @ https://example.invalid/pillow.whl",
-        "pillow",
-        "pillow==not-a-version",
-        "example==1.0.0",
-    ],
-)
-def test_pillow_exception_rejects_ambiguous_or_different_lock(
-    tmp_path: Path, declaration: str
+def _select_stabilization(
+    root: Path, upgrades: dict[str, str], *, dependent: bool = False
+) -> compiler.GraphChangeAdmission:
+    admission = compiler._authorize_graph_changes(
+        repo_root=root,
+        profiles=compiler.STABILIZATION_PROFILES[1:] if dependent else ("runtime",),
+        upgrades=upgrades,
+        graph_changes=compiler.STABILIZATION_GRAPH,
+        admission_id=compiler.STABILIZATION_ADMISSION_ID,
+    )
+    assert admission is not None
+    return admission
+
+
+def test_stabilization_frozen_record_and_legacy_fingerprints() -> None:
+    data = (REPO_ROOT / compiler.GRAPH_CHANGE_ADMISSION_PATH).read_bytes()
+    assert len(data) <= compiler.GRAPH_CHANGE_ADMISSION_MAX_BYTES == 32768
+    document = json.loads(data)
+    for key, expected in (
+        ("virtualenv_2455", compiler.VIRTUALENV_2455_RECORD_SHA256),
+        ("psycopg_c_oct2", compiler.PSYCOPG_C_RECORD_SHA256),
+        ("python_stabilization_oct23", compiler.STABILIZATION_RECORD_SHA256),
+    ):
+        assert (
+            hashlib.sha256(
+                json.dumps(document[key], sort_keys=True, separators=(",", ":")).encode()
+            ).hexdigest()
+            == expected
+        )
+    assert document["record"]["upgrades"] == OBSERVABILITY_UPGRADES
+    assert document["record"]["graph_change"] == {
+        "removals": ["importlib-metadata", "zipp"],
+        "additions": [],
+    }
+
+
+def test_stabilization_runtime_then_all_dependent_profiles_keep_exact_extras(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    _pillow_exception_repo(tmp_path)
-    valid_time = datetime(2026, 10, 21, tzinfo=timezone.utc)
-    surfaces.pillow_exception_inputs(tmp_path, valid_time)
-    (tmp_path / "requirements.txt").write_text(declaration + "\n", encoding="utf-8")
-    with pytest.raises(ValueError):
-        surfaces.pillow_exception_inputs(tmp_path, valid_time)
-
-
-@pytest.mark.parametrize(
-    "declaration", ["pillow>=12.3.0,<13.0.0,!=12.3.0", "pillow==12.3.0", "pillow>=12.2.0,<13.0.0"]
-)
-def test_pillow_exception_source_is_true_retained_range(tmp_path: Path, declaration: str) -> None:
-    _pillow_exception_repo(tmp_path)
-    (tmp_path / "requirements.in").write_text(declaration + "\n", encoding="utf-8")
-    with pytest.raises(ValueError, match="carrier"):
-        surfaces.pillow_exception_inputs(tmp_path, datetime(2026, 10, 21, tzinfo=timezone.utc))
-
-
-def test_pillow_exception_rejects_discovery_drift(tmp_path: Path) -> None:
-    _pillow_exception_repo(tmp_path)
-    (tmp_path / "requirements-new.in").write_text("pillow>=12.3.0\n", encoding="utf-8")
-    _stage_fixture_paths(tmp_path, "requirements-new.in")
-    with pytest.raises(ValueError, match="discovery"):
-        surfaces.pillow_exception_inputs(tmp_path, datetime(2026, 10, 21, tzinfo=timezone.utc))
-
-
-def test_pillow_native_pair_accepts_only_complete_removed_tuples(tmp_path: Path) -> None:
-    raw, ignored, expected = _write_pillow_native_pair(tmp_path)
-    assert surfaces.validate_pillow_audit_reports(raw, 1, expected, ignored, 0) == 24
-    report = json.loads(raw.read_text())
-    report["dependencies"][1]["vulns"] = report["dependencies"][1]["vulns"][:1]
-    raw.write_text(json.dumps(report), encoding="utf-8")
-    assert surfaces.validate_pillow_audit_reports(raw, 1, expected, ignored, 0) == 1
+    registry, baselines, candidates, upgrades = _write_stabilization_repo(tmp_path, monkeypatch)
+    runtime = _select_stabilization(tmp_path, upgrades)
+    with pytest.raises(RuntimeError, match="complete exact runtime result"):
+        _select_stabilization(tmp_path, upgrades, dependent=True)
+    runtime_plan = compiler._capture_lock_input_plan(
+        repo_root=tmp_path, surface=registry["runtime"], upgrades=upgrades, graph_admission=runtime
+    )
+    assert runtime_plan.output_capture.content == baselines["runtime"]
+    assert "black" not in runtime.effective_upgrades("runtime", upgrades)
+    assert "pip-tools" not in runtime.effective_upgrades("runtime", upgrades)
+    assert runtime.effective_upgrades("runtime", upgrades)["packaging"] == "26.3"
+    compiler._validate_candidate_delta(
+        surface=registry["runtime"],
+        baseline_text=baselines["runtime"].decode(),
+        candidate_text=candidates["runtime"],
+        upgrades=upgrades,
+        graph_changes=compiler.STABILIZATION_GRAPH,
+        repo_root=tmp_path,
+        graph_admission=runtime,
+    )
+    expected = runtime.project_profile_pins(
+        "runtime", compiler._exact_pin_map(baselines["runtime"].decode(), label="fixture")
+    )
+    assert expected["opentelemetry-exporter-http-transport"] == compiler.ExactPin(
+        "0.66b1", ("requests",), None, None
+    )
+    (tmp_path / "requirements.txt").write_text(candidates["runtime"])
+    dependent = _select_stabilization(tmp_path, upgrades, dependent=True)
+    for profile in compiler.STABILIZATION_PROFILES[1:]:
+        plan = compiler._capture_lock_input_plan(
+            repo_root=tmp_path,
+            surface=registry[profile],
+            upgrades=upgrades,
+            graph_admission=dependent,
+        )
+        if profile in {"dev", "aggregate"}:
+            with pytest.raises(RuntimeError, match="complete exact profile relation"):
+                compiler._validate_candidate_delta(
+                    surface=registry[profile],
+                    baseline_text=baselines[profile].decode(),
+                    candidate_text=candidates[profile].replace(
+                        "pip-tools==7.6.1", "pip-tools==7.6.0"
+                    ),
+                    upgrades=upgrades,
+                    graph_changes=compiler.STABILIZATION_GRAPH,
+                    repo_root=tmp_path,
+                    graph_admission=dependent,
+                )
+        assert plan.output_capture.content == baselines[profile]
+        effective = dependent.effective_upgrades(profile, upgrades)
+        if profile in {"dev", "aggregate"}:
+            assert effective["pip-tools"] == "7.6.1"
+            assert ("pip-tools", "7.6.1") in plan.expected_artifacts
+        else:
+            assert "pip-tools" not in effective
+            assert not any(package == "pip-tools" for package, _ in plan.expected_artifacts)
+        compiler._validate_candidate_delta(
+            surface=registry[profile],
+            baseline_text=baselines[profile].decode(),
+            candidate_text=candidates[profile],
+            upgrades=upgrades,
+            graph_changes=compiler.STABILIZATION_GRAPH,
+            repo_root=tmp_path,
+            graph_admission=dependent,
+        )
+    assert set(dependent.effective_upgrades("rag-vector", upgrades)) == {
+        "certifi",
+        "fastembed",
+        "filelock",
+        "packaging",
+        "pillow",
+    }
+    with pytest.raises(RuntimeError, match="absent from the seeded lock"):
+        compiler._capture_lock_input_plan(
+            repo_root=tmp_path, surface=registry["dev"], upgrades=upgrades
+        )
 
 
 @pytest.mark.parametrize(
     "mutation",
     [
-        "unknown-id",
-        "known-outside-cohort",
-        "unknown-alias",
-        "wrong-alias",
-        "wrong-fix-version",
-        "duplicate-id",
-        "wrong-package",
-        "wrong-version",
-        "missing-row",
-        "extra-row",
-        "duplicate-row",
-        "skipped-row",
-        "extra-field",
-        "bad-fixes",
-        "malformed",
         "missing",
-        "ignored-active",
-        "ignored-inventory",
-        "duplicate-json-field",
+        "extra",
+        "remove",
+        "lost-extra",
+        "extra-extra",
+        "unrelated",
+        "marker",
+        "wrong-target",
+        "toolchain-outside-profile",
     ],
 )
-def test_pillow_native_pair_rejects_report_drift(tmp_path: Path, mutation: str) -> None:
-    raw, ignored, expected = _write_pillow_native_pair(tmp_path)
-    report = json.loads(raw.read_text())
-    row = report["dependencies"][1]
-    if mutation == "unknown-id":
-        row["vulns"][0]["id"] = "GHSA-654x-cwwv-5j9c"
-    elif mutation == "known-outside-cohort":
-        row["vulns"][0]["id"] = "CVE-2026-112403"
-    elif mutation == "unknown-alias":
-        row["vulns"][0]["aliases"].append("GHSA-unknown")
-    elif mutation == "wrong-alias":
-        row["vulns"][0]["aliases"] = ["GHSA-vx6w-vv9f-6gvg"]
-    elif mutation == "wrong-fix-version":
-        row["vulns"][0]["fix_versions"] = ["13.0.1"]
-    elif mutation == "duplicate-id":
-        row["vulns"].append(row["vulns"][0])
-    elif mutation == "wrong-package":
-        report["dependencies"][0]["vulns"] = row["vulns"]
-    elif mutation == "wrong-version":
-        row["version"] = "13.0.0"
-    elif mutation == "missing-row":
-        report["dependencies"].pop()
-    elif mutation == "extra-row":
-        report["dependencies"].append({"name": "other", "version": "1", "vulns": []})
-    elif mutation == "duplicate-row":
-        report["dependencies"].append(row)
-    elif mutation == "skipped-row":
-        row["skip_reason"] = "not audited"
-    elif mutation == "extra-field":
-        report["ignored_vulns"] = []
-    elif mutation == "bad-fixes":
-        report["fixes"] = [{"attempted": True}]
-    elif mutation == "ignored-active":
-        ignored.write_text(json.dumps(report), encoding="utf-8")
-    elif mutation == "ignored-inventory":
-        other = json.loads(ignored.read_text())
-        other["dependencies"].pop()
-        ignored.write_text(json.dumps(other), encoding="utf-8")
-    raw.write_text(json.dumps(report), encoding="utf-8")
-    if mutation == "malformed":
-        raw.write_text("{", encoding="utf-8")
-    if mutation == "duplicate-json-field":
-        raw.write_text(
-            raw.read_text().replace('"fixes": []', '"fixes": [], "fixes": []'), encoding="utf-8"
+def test_stabilization_candidate_rejects_each_unclassified_transition(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mutation: str
+) -> None:
+    registry, baselines, candidates, upgrades = _write_stabilization_repo(tmp_path, monkeypatch)
+    admission = _select_stabilization(tmp_path, upgrades)
+    candidate = candidates["runtime"]
+
+    def validate(text: str) -> None:
+        compiler._validate_candidate_delta(
+            surface=registry["runtime"],
+            baseline_text=baselines["runtime"].decode(),
+            candidate_text=text,
+            upgrades=upgrades,
+            graph_changes=compiler.STABILIZATION_GRAPH,
+            repo_root=tmp_path,
+            graph_admission=admission,
         )
+
+    validate(candidate)
     if mutation == "missing":
-        raw.unlink()
-    with pytest.raises(ValueError):
-        surfaces.validate_pillow_audit_reports(raw, 1, expected, ignored, 0)
-
-
-@pytest.mark.parametrize("raw_status,ignored_status", [(0, 0), (2, 0), (1, 1), (1, 2), (-15, 0)])
-def test_pillow_pair_native_errors_stay_blocking(
-    tmp_path: Path, raw_status: int, ignored_status: int
-) -> None:
-    raw, ignored, expected = _write_pillow_native_pair(tmp_path)
-    with pytest.raises(ValueError):
-        surfaces.validate_pillow_audit_reports(raw, raw_status, expected, ignored, ignored_status)
-
-
-def test_pillow_no_findings_and_declared_empty_inputs_are_scoped(tmp_path: Path) -> None:
-    raw = tmp_path / "raw.json"
-    for expected in ({}, {"example": "1.0.0"}, {"pillow": "12.3.0"}):
-        raw.write_text(json.dumps(_pillow_native_report(expected, False)), encoding="utf-8")
-        assert surfaces.validate_pillow_audit_reports(raw, 0, expected) == 0
-        with pytest.raises(ValueError):
-            surfaces.validate_pillow_audit_reports(raw, 0, expected, raw, 0)
-
-
-@pytest.mark.parametrize("stop_at", [0, 2, 3, 4])
-def test_pillow_actual_invocation_rechecks_expiry_and_promotion(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stop_at: int
-) -> None:
-    _pillow_exception_repo(tmp_path)
-    real_guard, real_run = surfaces.pillow_exception_inputs, subprocess.run
-    valid, expired = datetime(2026, 10, 21, tzinfo=timezone.utc), surfaces.PILLOW_EXCEPTION_EXPIRY
-    calls: list[list[str]] = []
-    auditor = tmp_path / "synthetic-auditor"
-    auditor.write_bytes(b"synthetic auditor; no execution")
-    checks = 0
-
-    def guard(root: Path) -> dict[str, str]:
-        nonlocal checks
-        checks += 1
-        return real_guard(root, expired if stop_at and checks == stop_at else valid)
-
-    def fake_run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
-        if argv[0] != str(auditor):
-            return real_run(argv, **kwargs)
-        calls.append(argv)
-        if argv[1:] == ["--version"]:
-            return subprocess.CompletedProcess(argv, 0, b"pip-audit 2.10.1\n", b"")
-        output = Path(argv[argv.index("-o") + 1])
-        ignored = "--ignore-vuln" in argv
-        output.write_text(
-            json.dumps(
-                _pillow_native_report({"example": "1.0.0", "pillow": "12.3.0"}, not ignored)
-            ),
-            encoding="utf-8",
-        )
-        return subprocess.CompletedProcess(argv, 0 if ignored else 1, b"", b"")
-
-    monkeypatch.setattr(surfaces, "pillow_exception_inputs", guard)
-    monkeypatch.setattr(
-        surfaces.shutil, "which", lambda name: str(auditor) if name == "pip-audit" else None
-    )
-    monkeypatch.setattr(surfaces.subprocess, "run", fake_run)
-    assert surfaces.run_dependency_audit(tmp_path, "requirements.txt") == (0 if stop_at == 0 else 1)
-    ignore_calls = [c for c in calls if "--ignore-vuln" in c]
-    assert len(ignore_calls) == (1 if stop_at in (0, 4) else 0)
-    if ignore_calls:
-        argv = ignore_calls[0]
-        assert [argv[i + 1] for i, x in enumerate(argv) if x == "--ignore-vuln"] == list(
-            surfaces.PILLOW_AUDIT_ALIASES
-        )
-        assert all(x in argv for x in ("--no-deps", "--disable-pip", "--strict"))
-    if stop_at == 4:
-        receipt = json.loads((tmp_path / "pip-audit-requirements-native.json").read_text())
-        assert receipt["policy_accepted"] is False
-        assert receipt["unsuppressed_exit"] == 1 and receipt["ignored_exit"] == 0
-
-
-def test_pillow_no_actual_ignore_after_initial_expiry(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    _pillow_exception_repo(tmp_path)
-
-    def expired(root: Path) -> dict[str, str]:
-        return original(root, surfaces.PILLOW_EXCEPTION_EXPIRY)
-
-    original = surfaces.pillow_exception_inputs
-    monkeypatch.setattr(surfaces, "pillow_exception_inputs", expired)
-
-    def forbidden(*args: object, **kwargs: object) -> None:
-        pytest.fail("no native auditor may run after failed expiry guard")
-
-    monkeypatch.setattr(surfaces.subprocess, "run", forbidden)
-    assert surfaces.run_dependency_audit(tmp_path, "requirements.txt") == 1
+        candidate = candidate.replace("opentelemetry-exporter-otlp-common==0.66b1\n", "")
+    elif mutation == "extra":
+        candidate += "third-addition==1.0.0\n"
+    elif mutation == "remove":
+        candidate = candidate.replace("example==1.0.0\n", "")
+    elif mutation == "lost-extra":
+        candidate = candidate.replace("[requests]", "")
+    elif mutation == "extra-extra":
+        candidate = candidate.replace("[requests]", "[requests,urllib3]")
+    elif mutation == "unrelated":
+        candidate = candidate.replace("example==1.0.0", "example==2.0.0")
+    elif mutation == "marker":
+        candidate = candidate.replace("pillow==13.0.0", 'pillow==13.0.0; python_version >= "3.13"')
+    elif mutation == "toolchain-outside-profile":
+        candidate += "pip-tools==7.6.1\n"
+    else:
+        candidate = candidate.replace("packaging==26.3", "packaging==25.0")
+    with pytest.raises(RuntimeError, match="complete exact profile relation"):
+        validate(candidate)
+    assert (tmp_path / "requirements.txt").read_bytes() == baselines["runtime"]
 
 
 @pytest.mark.parametrize(
-    "argv", [["--ignore-vuln", "CVE-other"], ["--pre-push", "anything"], ["requirements.txt"]]
+    "mutation",
+    [
+        "profiles",
+        "reordered",
+        "missing-test-profile",
+        "missing-target",
+        "missing-filelock",
+        "missing-setuptools",
+        "old-virtualenv",
+        "extra-target",
+        "missing-toolchain",
+        "wrong-toolchain",
+        "graph",
+        "record",
+        "platform",
+    ],
 )
-def test_pillow_audit_cli_rejects_forwarded_arbitrary_args(argv: list[str]) -> None:
-    with pytest.raises(SystemExit):
-        surfaces.parse_args(argv)
+def test_stabilization_request_rejects_before_acquisition(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mutation: str
+) -> None:
+    _, baselines, _, upgrades = _write_stabilization_repo(tmp_path, monkeypatch)
+    _select_stabilization(tmp_path, upgrades)
+    profiles = ("runtime",)
+    graph = compiler.STABILIZATION_GRAPH
+    expected = "exact ordered transaction"
+    if mutation == "profiles":
+        profiles = ("dev",)
+    elif mutation == "reordered":
+        profiles = tuple(reversed(compiler.STABILIZATION_PROFILES[1:]))
+    elif mutation == "missing-test-profile":
+        profiles = tuple(
+            profile for profile in compiler.STABILIZATION_PROFILES[1:] if profile != "test"
+        )
+    elif mutation == "missing-target":
+        upgrades.pop("fastembed")
+        expected = "nine-target request"
+    elif mutation in {"missing-filelock", "missing-setuptools"}:
+        upgrades.pop(mutation.removeprefix("missing-"))
+        expected = "nine-target request"
+    elif mutation == "old-virtualenv":
+        upgrades["virtualenv"] = "21.14.9"
+        expected = "nine-target request"
+    elif mutation == "extra-target":
+        upgrades["other"] = "1.0"
+        expected = "nine-target request"
+    elif mutation == "missing-toolchain":
+        upgrades.pop("pip-tools")
+        expected = "nine-target request"
+    elif mutation == "wrong-toolchain":
+        upgrades["pip-tools"] = "7.6.0"
+        expected = "nine-target request"
+    elif mutation == "graph":
+        graph = frozenset({"unexpected"})
+    elif mutation == "record":
+        path = tmp_path / compiler.GRAPH_CHANGE_ADMISSION_PATH
+        doc = json.loads(path.read_text())
+        doc["python_stabilization_oct23"]["upgrades"]["black"] = "26.5.1"
+        path.write_text(json.dumps(doc, separators=(",", ":")))
+        expected = "exact frozen v1 alternative"
+    else:
+        monkeypatch.setattr(
+            compiler, "_stabilization_runtime", lambda: ("linux", "aarch64", "cpython", "3.13")
+        )
+        expected = "Linux x86_64 CPython 3.13"
+
+    def forbidden(**_: object) -> None:
+        pytest.fail("invalid request reached acquisition")
+
+    monkeypatch.setattr(compiler, "_private_proxy_child_env", forbidden)
+    with pytest.raises(RuntimeError, match=expected):
+        compiler._compile_selected_profiles_locked(
+            repo_root=tmp_path,
+            profiles=profiles,
+            upgrades=upgrades,
+            graph_changes=graph,
+            environment={compiler.GRAPH_CHANGE_ADMISSION_ENV: compiler.STABILIZATION_ADMISSION_ID},
+        )
+    assert (tmp_path / "requirements.txt").read_bytes() == baselines["runtime"]
 
 
 @pytest.mark.parametrize(
-    "damage", ["missing-report", "unknown-finding", "wrong-tool", "native-error", "timeout"]
+    "name",
+    [
+        "requirements.in",
+        "requirements-dev.in",
+        "requirements-test.in",
+        "requirements-rag-vector.in",
+        "constraints.txt",
+        "requirements-all.txt",
+        ".pre-commit-config.yaml",
+        "requirements.txt",
+        "requirements-dev.txt",
+        "requirements-test.txt",
+    ],
 )
-def test_pillow_real_path_rejects_before_ignore_and_never_reuses_old_report(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, damage: str
+def test_stabilization_rejects_semantic_equal_frozen_input_drift(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str
 ) -> None:
-    _pillow_exception_repo(tmp_path)
-    old = tmp_path / "pip-audit-requirements.json"
-    old.write_text(
-        json.dumps(_pillow_native_report({"example": "1.0.0", "pillow": "12.3.0"}, False)),
-        encoding="utf-8",
-    )
-    original_guard, original_run = surfaces.pillow_exception_inputs, subprocess.run
-    auditor = tmp_path / "synthetic-auditor"
-    auditor.write_bytes(b"synthetic auditor")
-    calls: list[list[str]] = []
+    _, _, _, upgrades = _write_stabilization_repo(tmp_path, monkeypatch)
+    admission = _select_stabilization(tmp_path, upgrades)
+    path = tmp_path / name
+    path.write_bytes(path.read_bytes() + b"# byte drift\n")
+    with pytest.raises(RuntimeError, match="Dependency file changed"):
+        compiler._assert_graph_change_admission(admission)
+    with pytest.raises(RuntimeError, match="source bytes differ|seed bytes differ"):
+        _select_stabilization(tmp_path, upgrades)
 
-    def fake_run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
-        if argv[0] != str(auditor):
-            return original_run(argv, **kwargs)
-        calls.append(argv)
-        if argv[1:] == ["--version"]:
+
+@pytest.mark.parametrize("field", ["filename", "size", "hash", "metadata"])
+@pytest.mark.parametrize(
+    "key", [("opentelemetry-exporter-http-transport", "0.66b1"), ("pip-tools", "7.6.1")]
+)
+def test_stabilization_artifact_fields_are_bound(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, field: str, key: tuple[str, str]
+) -> None:
+    _, _, _, upgrades = _write_stabilization_repo(tmp_path, monkeypatch)
+    admission = _select_stabilization(tmp_path, upgrades)
+    expected = frozenset(admission.artifacts)
+    compiler._validate_wheelhouse(
+        wheelhouse=tmp_path / "proposal-wheels",
+        expected_artifacts=expected,
+        graph_admission=admission,
+    )
+    artifacts = dict(admission.artifacts)
+    filename, size, digest, metadata = artifacts[key]
+    artifacts[key] = (
+        "other.whl" if field == "filename" else filename,
+        size + 1 if field == "size" else size,
+        "0" * 64 if field == "hash" else digest,
+        "0" * 64 if field == "metadata" else metadata,
+    )
+    with pytest.raises(RuntimeError, match="exact stabilization proposal"):
+        compiler._validate_wheelhouse(
+            wheelhouse=tmp_path / "proposal-wheels",
+            expected_artifacts=expected,
+            graph_admission=replace(admission, artifacts=artifacts),
+        )
+
+
+@pytest.mark.parametrize("dependent", [False, True])
+def test_stabilization_prepare_uses_profile_upgrades_and_original_seed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, dependent: bool
+) -> None:
+    registry, baselines, candidates, upgrades = _write_stabilization_repo(tmp_path, monkeypatch)
+    if dependent:
+        (tmp_path / "requirements.txt").write_text(candidates["runtime"])
+    admission = _select_stabilization(tmp_path, upgrades, dependent=dependent)
+    for profile in admission.profiles:
+        observed: list[list[str]] = []
+
+        def resolve(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+            observed.append(command)
+            output = _candidate_output_path(command)
+            assert output.read_bytes() == baselines[profile]
+            assert "--no-strip-extras" in command
+            actual = {
+                command[i + 1] for i, token in enumerate(command) if token == "--upgrade-package"
+            }
+            assert actual == {
+                f"{name}=={version}"
+                for name, version in admission.effective_upgrades(profile, upgrades).items()
+            }
+            output.write_text(candidates[profile])
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        monkeypatch.setattr(compiler.subprocess, "run", resolve)
+        prepared = compiler._prepare_lock(
+            repo_root=tmp_path,
+            surface=registry[profile],
+            upgrades=upgrades,
+            graph_changes=compiler.STABILIZATION_GRAPH,
+            graph_admission=admission,
+            child_env={"PIP_NO_INDEX": "1"},
+        )
+        assert len(observed) == 1
+        assert prepared.baseline_bytes == baselines[profile]
+        assert (tmp_path / registry[profile].lockfile).read_bytes() == baselines[profile]
+        prepared.candidate_path.unlink()
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "missing-slot",
+        "unknown-field",
+        "boolean-size",
+        "extra-relation",
+        "nonfinite",
+        "duplicate-key",
+    ],
+)
+def test_stabilization_record_shape_never_reaches_acquisition(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mutation: str
+) -> None:
+    _, _, _, upgrades = _write_stabilization_repo(tmp_path, monkeypatch)
+    _select_stabilization(tmp_path, upgrades)
+    path = tmp_path / compiler.GRAPH_CHANGE_ADMISSION_PATH
+    payload = json.loads(path.read_text())
+    if mutation == "missing-slot":
+        del payload["python_stabilization_oct23"]
+        expected = "requires its fixed v1 slot"
+    else:
+        expected = "exact frozen v1 alternative"
+        record = payload["python_stabilization_oct23"]
+        if mutation == "unknown-field":
+            record["new-authority"] = True
+        elif mutation == "boolean-size":
+            record["source_inputs"]["requirements.in"]["bytes"] = True
+        elif mutation == "extra-relation":
+            record["profile_changes"]["runtime"].append("unexpected")
+        elif mutation == "nonfinite":
+            record["artifacts"]["black"]["bytes"] = float("nan")
+            expected = "Invalid graph-change admission constant"
+    text = json.dumps(payload, separators=(",", ":"))
+    if mutation == "duplicate-key":
+        text = text.replace(
+            '"python_stabilization_oct23":',
+            '"python_stabilization_oct23":{},"python_stabilization_oct23":',
+            1,
+        )
+        expected = "duplicate|Duplicate"
+    path.write_text(text)
+    with pytest.raises(RuntimeError, match=expected):
+        _select_stabilization(tmp_path, upgrades)
+
+
+@pytest.mark.parametrize("failure", [None, "resolver", "replacement"])
+def test_stabilization_two_phase_pipeline_preserves_credentials_and_rollback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str | None
+) -> None:
+    registry, baselines, candidates, upgrades = _write_stabilization_repo(tmp_path, monkeypatch)
+    monkeypatch.setattr(compiler, "_resolver_bootstrap_artifacts", lambda: frozenset())
+    homes: list[Path] = []
+    hashes: dict[str, str] = {}
+    observed: list[str] = []
+
+    def acquire_env(_environment: dict[str, str], *, resolver_home: Path) -> dict[str, str]:
+        homes.append(resolver_home)
+        (resolver_home / ".netrc").write_text("synthetic credentials\n")
+        return {"HOME": str(resolver_home), "PIP_INDEX_URL": APPROVED_INDEX}
+
+    monkeypatch.setattr(compiler, "_private_proxy_child_env", acquire_env)
+    monkeypatch.setattr(compiler, "_collect_private_proxy_artifact_hashes", lambda **_: hashes)
+
+    def download(
+        *, wheelhouse: Path, plans: tuple[compiler.LockInputPlan, ...], **_: object
+    ) -> None:
+        for name, version in set().union(*(plan.expected_artifacts for plan in plans)):
+            source = (
+                tmp_path
+                / "proposal-wheels"
+                / f"{name.replace('-', '_')}-{version}-py3-none-any.whl"
+            )
+            if source.exists():
+                wheel = wheelhouse / source.name
+                wheel.write_bytes(source.read_bytes())
+            else:
+                wheel = _write_test_wheel(wheelhouse, name=name, version=version)
+            _admit_test_wheel(hashes, wheel)
+
+    monkeypatch.setattr(compiler, "_download_profile_wheels", download)
+
+    def resolve(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        output = _candidate_output_path(command)
+        profile = next(
+            name
+            for name, surface in registry.items()
+            if output.name.startswith(f".{surface.lockfile}.")
+        )
+        env = kwargs["env"]
+        assert isinstance(env, dict)
+        assert homes and all(not home.exists() for home in homes)
+        assert "PIP_INDEX_URL" not in env and env["PIP_NO_INDEX"] == "1"
+        assert not (Path(env["HOME"]) / ".netrc").exists()
+        assert Path(env["PIP_FIND_LINKS"]).name == profile
+        assert output.read_bytes() == baselines[profile]
+        observed.append(profile)
+        if failure == "resolver" and profile == "dev":
             return subprocess.CompletedProcess(
-                argv,
-                0,
-                b"pip-audit 2.11.0\n" if damage == "wrong-tool" else b"pip-audit 2.10.1\n",
-                b"",
+                command, 1, "", "synthetic stabilization resolver failure"
             )
-        assert "--ignore-vuln" not in argv
-        if damage == "timeout":
-            raise subprocess.TimeoutExpired(
-                argv, 300, output=b"partial stdout", stderr=b"primary timeout detail"
-            )
-        output = Path(argv[argv.index("-o") + 1])
-        report = _pillow_native_report({"example": "1.0.0", "pillow": "12.3.0"})
-        if damage == "unknown-finding":
-            report["dependencies"][1]["vulns"][0]["id"] = "CVE-unadmitted"
-        if damage != "missing-report":
-            output.write_text(json.dumps(report), encoding="utf-8")
-        return subprocess.CompletedProcess(
-            argv, 2 if damage == "native-error" else 1, b"", b"retained raw failure"
+        output.write_text(candidates[profile])
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(compiler.subprocess, "run", resolve)
+    real_replace = compiler.os.replace
+
+    def replace_candidate(source: Path, destination: Path) -> None:
+        real_replace(source, destination)
+        if (
+            failure == "replacement"
+            and source.suffix == ".candidate"
+            and destination.name == "requirements-ci-lite.txt"
+        ):
+            raise OSError("synthetic stabilization replacement failure")
+
+    monkeypatch.setattr(compiler.os, "replace", replace_candidate)
+
+    def run(profiles: tuple[str, ...]) -> None:
+        compiler._compile_selected_profiles_locked(
+            repo_root=tmp_path,
+            profiles=profiles,
+            upgrades=upgrades,
+            graph_changes=compiler.STABILIZATION_GRAPH,
+            environment={compiler.GRAPH_CHANGE_ADMISSION_ENV: compiler.STABILIZATION_ADMISSION_ID},
         )
 
-    monkeypatch.setattr(
-        surfaces,
-        "pillow_exception_inputs",
-        lambda root: original_guard(root, datetime(2026, 10, 21, tzinfo=timezone.utc)),
-    )
-    monkeypatch.setattr(
-        surfaces.shutil, "which", lambda name: str(auditor) if name == "pip-audit" else None
-    )
-    monkeypatch.setattr(surfaces.subprocess, "run", fake_run)
-    assert surfaces.run_dependency_audit(tmp_path, "requirements.txt") == 1
-    assert not any("--ignore-vuln" in call for call in calls)
-    receipt = json.loads((tmp_path / "pip-audit-requirements-native.json").read_text())
-    assert receipt["policy_accepted"] is False
-    if damage == "timeout":
-        assert receipt["unsuppressed_timed_out"] is True
-        evidence = list((tmp_path / "artifacts/security_lab/pip-audit").iterdir())[0]
-        assert (evidence / "unsuppressed.stdout").read_bytes() == b"partial stdout"
-        assert (evidence / "unsuppressed.stderr").read_bytes() == b"primary timeout detail"
-
-
-def test_pillow_configured_cohort_is_exact_without_retired_pytorch_ids() -> None:
-    assert surfaces.PILLOW_AUDIT_ALIASES == {
-        "CVE-2026-112390": "GHSA-22hg-r758-rrw9",
-        "CVE-2026-112391": "GHSA-254f-3936-288h",
-        "CVE-2026-112392": "GHSA-27h8-gf7j-v5hc",
-        "CVE-2026-112393": "GHSA-332p-7hrc-92wf",
-        "CVE-2026-112395": "GHSA-462x-pgg6-55fp",
-        "CVE-2026-112396": "GHSA-4rr5-89j8-mwwm",
-        "CVE-2026-112397": "GHSA-58r4-6rv3-gfh8",
-        "CVE-2026-112399": "GHSA-5xm2-6676-qcp9",
-        "CVE-2026-112400": "GHSA-65qm-jvmh-6pqg",
-        "CVE-2026-112401": "GHSA-74r2-7ff9-mjj2",
-        "CVE-2026-112402": "GHSA-7mwm-ghpf-9vrm",
-        "CVE-2026-112404": "GHSA-c6hw-5grf-ff96",
-        "CVE-2026-112405": "GHSA-cp9v-662q-vvx9",
-        "CVE-2026-112406": "GHSA-f2g6-542v-9j58",
-        "CVE-2026-112891": "GHSA-fc9g-5qg7-mf45",
-        "CVE-2026-112892": "GHSA-gg2r-wvfm-q9rx",
-        "CVE-2026-112893": "GHSA-j4m9-6w36-pw47",
-        "CVE-2026-112894": "GHSA-jg86-v3jv-hrpm",
-        "CVE-2026-112895": "GHSA-p4wg-p73j-c528",
-        "CVE-2026-112896": "GHSA-pchr-8j38-3x4p",
-        "CVE-2026-112897": "GHSA-q45j-58j2-45rg",
-        "CVE-2026-112899": "GHSA-vx6w-vv9f-6gvg",
-        "CVE-2026-112900": "GHSA-w889-685w-c8fh",
-        "CVE-2026-112901": "GHSA-xgh8-jp6q-p5x8",
-    }
-    assert len(set(surfaces.PILLOW_AUDIT_ALIASES.values())) == 24
-    assert surfaces.PILLOW_EXCEPTION_REVIEW == datetime(2026, 11, 6, tzinfo=timezone.utc)
-    assert surfaces.PILLOW_EXCEPTION_EXPIRY == datetime(2026, 11, 21, tzinfo=timezone.utc)
-    source = ast.parse(Path(surfaces.__file__).read_text(encoding="utf-8"))
-    assignment = next(
-        node
-        for node in source.body
-        if isinstance(node, ast.Assign)
-        and any(
-            isinstance(target, ast.Name) and target.id == "PILLOW_AUDIT_ALIASES"
-            for target in node.targets
-        )
-    )
-    assert isinstance(assignment.value, ast.Dict)
-    assert len(assignment.value.keys) == 24  # A duplicate literal key cannot disappear silently.
-
-
-def test_pillow_audit_preserves_existing_non_pillow_distribution_extras(tmp_path: Path) -> None:
-    _pillow_exception_repo(tmp_path)
-    for declaration in (
-        "psycopg[c]==3.3.4",
-        "coverage[toml]==7.13.4",
-        "cachecontrol[filecache]==0.14.4",
-    ):
-        _append_requirement(tmp_path, "requirements.txt", declaration)
-    surfaces.pillow_exception_inputs(tmp_path, datetime(2026, 10, 21, tzinfo=timezone.utc))
-    expected = surfaces._audit_lock_versions(tmp_path, "requirements.txt")
-    assert expected == {
-        "example": "1.0.0",
-        "pillow": "12.3.0",
-        "psycopg": "3.3.4",
-        "coverage": "7.13.4",
-        "cachecontrol": "0.14.4",
-    }
-    raw = tmp_path / "raw.json"
-    raw.write_text(json.dumps(_pillow_native_report(expected, False)), encoding="utf-8")
-    assert surfaces.validate_pillow_audit_reports(raw, 0, expected) == 0
+    run(("runtime",))
+    runtime_result = (tmp_path / "requirements.txt").read_bytes()
+    if failure is None:
+        run(compiler.STABILIZATION_PROFILES[1:])
+        assert observed == list(compiler.STABILIZATION_PROFILES)
+        for profile, surface in registry.items():
+            assert (
+                tmp_path / surface.lockfile
+            ).read_text() == surfaces.render_governed_lock_header(surface) + candidates[profile]
+    else:
+        with pytest.raises(
+            RuntimeError,
+            match="synthetic stabilization resolver failure|all previously replaced locks were rolled back",
+        ):
+            run(compiler.STABILIZATION_PROFILES[1:])
+        for profile in compiler.STABILIZATION_PROFILES[1:]:
+            assert (tmp_path / registry[profile].lockfile).read_bytes() == baselines[profile]
+    assert (tmp_path / "requirements.txt").read_bytes() == runtime_result
+    assert not tuple(tmp_path.glob(".*.candidate"))
 
 
 @pytest.mark.parametrize(
-    "declaration",
-    [
-        "psycopg[c]==3.3.4; python_version >= '3.13'",
-        "psycopg[c] @ https://example.invalid/wheel.whl",
-        "psycopg[c]==3.3.4\npsycopg==3.3.4",
-    ],
+    "installation,consumer", [("runtime-test", "runtime"), ("ci-test", "ci-lite")]
 )
-def test_pillow_audit_extras_do_not_weaken_exact_distribution_binding(
-    tmp_path: Path, declaration: str
+def test_stabilization_test_closure_preserves_exact_installation_compositions(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    installation: str,
+    consumer: str,
 ) -> None:
-    (tmp_path / "requirements.txt").write_text(declaration + "\n", encoding="utf-8")
-    with pytest.raises(ValueError, match="unique unconditional exact pins"):
-        surfaces._audit_lock_versions(tmp_path, "requirements.txt")
+    """A constrained test lock must agree with both canonical installation compositions."""
+    registry, baselines, candidates, upgrades = _write_stabilization_repo(tmp_path, monkeypatch)
+    (tmp_path / "requirements.txt").write_text(candidates["runtime"])
+    admission = _select_stabilization(tmp_path, upgrades, dependent=True)
+    assert admission.effective_upgrades("test", upgrades) == {"packaging": "26.3"}
+    source = tmp_path / "requirements-test.in"
+    source_bytes = source.read_bytes()
+
+    def resolve(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        assert command[command.index("--upgrade-package") + 1] == "packaging==26.3"
+        _candidate_output_path(command).write_text(candidates["test"])
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(compiler.subprocess, "run", resolve)
+    prepared = compiler._prepare_lock(
+        repo_root=tmp_path,
+        surface=registry["test"],
+        upgrades=upgrades,
+        graph_changes=compiler.STABILIZATION_GRAPH,
+        graph_admission=admission,
+        child_env={"PIP_NO_INDEX": "1"},
+    )
+    assert prepared.baseline_bytes == baselines["test"]
+    assert (tmp_path / "requirements-test.txt").read_bytes() == baselines["test"]
+    if consumer == "ci-lite":
+        (tmp_path / "requirements-ci-lite.txt").write_text(candidates["ci-lite"])
+    selection = installer.resolve_requirement_files(
+        requirements_file=tmp_path / "requirements.txt",
+        dev_requirements_file=tmp_path / "requirements-dev.txt",
+        test_requirements_file=tmp_path / "requirements-test.txt",
+        ci_lite_requirements_file=tmp_path / "requirements-ci-lite.txt",
+        rag_vector_requirements_file=tmp_path / "requirements-rag-vector.txt",
+        install_dev=False,
+        install_test=False,
+        requirements_profile=installation,
+    )
+    with pytest.raises(RuntimeError, match="conflicting exact pins"):
+        installer._exact_locked_artifacts(selection)
+    prepared.candidate_path.replace(tmp_path / "requirements-test.txt")
+    expected = frozenset(
+        (name, pin.version)
+        for profile in (consumer, "test")
+        for name, pin in replace(admission, profiles=(profile,))
+        .project_profile_pins(
+            profile, compiler._exact_pin_map(baselines[profile].decode(), label="fixture")
+        )
+        .items()
+    )
+    assert installer._exact_locked_artifacts(selection) == expected
+    assert dict(expected)["packaging"] == "26.3"
+    assert source.read_bytes() == source_bytes
+    assert not tuple(tmp_path.glob(".*.candidate"))
 
 
 @pytest.mark.parametrize(
-    "body",
-    [
-        "-r requirements-data.txt\n",
-        "-c foreign.txt\n",
-        "--index-url https://example.invalid/\n",
-        "# empty runtime\n",
-    ],
+    "profile,wrong_before",
+    (
+        ("ci-lite", "3.29.1"),
+        ("dev", "3.29.4"),
+        ("aggregate", "3.24.3"),
+        ("rag-vector", "3.29.1"),
+        ("rag-vector-cpu", "3.24.3"),
+    ),
 )
-def test_pillow_audit_does_not_expand_compiled_directives_or_empty_locks(
-    tmp_path: Path, body: str
+def test_stabilization_rejects_filelock_before_borrowed_from_another_profile(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, profile: str, wrong_before: str
 ) -> None:
-    (tmp_path / "requirements.txt").write_text(body, encoding="utf-8")
-    with pytest.raises(ValueError, match="directive|empty"):
-        surfaces._audit_lock_versions(tmp_path, "requirements.txt")
-    (tmp_path / "requirements-evals.txt").write_text("# declared empty\n", encoding="utf-8")
-    assert surfaces._audit_lock_versions(tmp_path, "requirements-evals.txt") == {}
+    """A valid version from a different profile cannot rewrite hash-bound base history."""
+    _, _, _, upgrades = _write_stabilization_repo(tmp_path, monkeypatch)
+    path = tmp_path / compiler.GRAPH_CHANGE_ADMISSION_PATH
+    document = json.loads(path.read_text())
+    record = document["python_stabilization_oct23"]
+    record["changes"]["filelock"]["before"][profile] = f"filelock=={wrong_before}"
+    monkeypatch.setattr(
+        compiler,
+        "STABILIZATION_RECORD_SHA256",
+        hashlib.sha256(
+            json.dumps(record, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest(),
+    )
+    path.write_text(json.dumps(document, separators=(",", ":")))
+    with pytest.raises(RuntimeError, match=f"{profile}: filelock before pin differs"):
+        _select_stabilization(tmp_path, upgrades)
+
+
+@pytest.mark.parametrize(
+    "mutation,expected",
+    (
+        ("missing-before", "filelock before"),
+        ("extra-before", "filelock before"),
+        ("flat-before", "filelock before"),
+        ("missing-profile", "filelock profile membership"),
+        ("extra-profile", "filelock profile membership"),
+        ("wrong-identity", "identity/metadata differs"),
+        ("marker-before", "identity/metadata differs"),
+        ("null-before", "one exact requirement"),
+        ("multiline-before", "one exact requirement"),
+        ("null-after", "one exact requirement"),
+        ("unowned-relation", "unowned packages"),
+    ),
+)
+def test_stabilization_filelock_relation_rejects_incomplete_or_malformed_history(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mutation: str, expected: str
+) -> None:
+    """Exercise semantic relation rejection after independently accepting its synthetic hash."""
+    _, _, _, upgrades = _write_stabilization_repo(tmp_path, monkeypatch)
+    path = tmp_path / compiler.GRAPH_CHANGE_ADMISSION_PATH
+    document = json.loads(path.read_text())
+    record = document["python_stabilization_oct23"]
+    relation = record["changes"]["filelock"]
+    if mutation == "missing-before":
+        relation["before"].pop("dev")
+    elif mutation == "extra-before":
+        relation["before"]["runtime"] = "filelock==3.24.3"
+    elif mutation == "flat-before":
+        relation["before"] = "filelock==3.24.3"
+    elif mutation == "missing-profile":
+        record["profile_changes"]["dev"].remove("filelock")
+    elif mutation == "extra-profile":
+        record["profile_changes"]["runtime"].append("filelock")
+    elif mutation == "wrong-identity":
+        relation["before"]["dev"] = "setuptools==3.24.3"
+    elif mutation == "marker-before":
+        relation["before"]["dev"] = 'filelock==3.24.3; python_version >= "3.13"'
+    elif mutation == "null-before":
+        relation["before"]["dev"] = None
+    elif mutation == "multiline-before":
+        relation["before"]["dev"] = "filelock==3.24.3\nexample==1.0.0"
+    elif mutation == "null-after":
+        relation["after"] = None
+    else:
+        record["changes"]["unused"] = {"before": "unused==1.0.0", "after": "unused==2.0.0"}
+    monkeypatch.setattr(
+        compiler,
+        "STABILIZATION_RECORD_SHA256",
+        hashlib.sha256(
+            json.dumps(record, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest(),
+    )
+    path.write_text(json.dumps(document, separators=(",", ":")))
+    with pytest.raises(RuntimeError, match=expected):
+        _select_stabilization(tmp_path, upgrades)

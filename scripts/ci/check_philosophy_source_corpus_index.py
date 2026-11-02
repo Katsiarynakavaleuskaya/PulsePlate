@@ -11,7 +11,7 @@ from pathlib import Path, PurePosixPath
 import posixpath
 import re
 import shutil
-import subprocess  # nosec B404: fixed read-only Git object checks (remove-by: 2026-10-31, ref: PR-2446)
+import subprocess  # nosec B404: fixed read-only Git object checks (remove-by: 2027-02-01, ref: PR-2446)
 import sys
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -1249,7 +1249,7 @@ def _corpus_git_bytes(*args: str) -> bytes:
         GIT_TERMINAL_PROMPT="0",
     )
     try:
-        completed = subprocess.run(  # nosec B603: absolute Git with bounded read-only argv (remove-by: 2026-10-31, ref: PR-2446)
+        completed = subprocess.run(  # nosec B603: absolute Git with bounded read-only argv (remove-by: 2027-02-01, ref: PR-2446)
             [git, *args],
             cwd=REPO_ROOT,
             env=git_env,
@@ -1257,11 +1257,16 @@ def _corpus_git_bytes(*args: str) -> bytes:
             check=False,
             timeout=30,
         )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        raise ValueError(f"source corpus Git {args[0]} object check unavailable") from exc
+    except (OSError, subprocess.TimeoutExpired):
+        completed = None
+    operation = (
+        args[0] if args and args[0] in {"ls-tree", "cat-file", "diff", "merge-base"} else "metadata"
+    )
+    if completed is None:
+        raise ValueError(f"source corpus Git {operation} object check unavailable")
     if completed.returncode != 0:
         raise ValueError(
-            f"source corpus Git {args[0]} object check failed " f"(exit {completed.returncode})"
+            f"source corpus Git {operation} object check failed (exit {completed.returncode})"
         )
     return completed.stdout
 

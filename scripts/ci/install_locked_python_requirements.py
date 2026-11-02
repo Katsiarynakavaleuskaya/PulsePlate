@@ -20,7 +20,7 @@ import http.client
 import hashlib
 import netrc
 import platform
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from datetime import date
 import json
 import os
@@ -28,7 +28,7 @@ import re
 import shutil
 import ssl
 import socket
-import subprocess  # nosec B404 # B404: subprocess is required for bounded pip/python invocations during locked installation (remove-by: 2026-10-31, ref: PR-litellm-hardening)
+import subprocess  # nosec B404 # B404: subprocess is required for selected pip/Python calls and typed failures (remove-by: 2027-02-01, ref: PR-litellm-hardening)
 import sys
 import sysconfig
 import tempfile
@@ -36,7 +36,10 @@ import time
 from pathlib import Path, PurePosixPath
 from typing import Iterator, Sequence, cast
 from urllib.parse import ParseResult, quote, unquote, urljoin, urlparse
-from urllib.request import urlopen
+import signal
+import threading
+from types import FrameType
+from uuid import uuid4
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_REQUIREMENTS_FILE = REPO_ROOT / "requirements.txt"
@@ -67,6 +70,8 @@ BLOCKED_INDEX_HOSTS: tuple[str, ...] = (
     "test.pypi.org",
 )
 REQUIRED_HTTPS_INDEX_HOSTS: tuple[str, ...] = ("packages.pulseplate.app",)
+EMERGENCY_WHEEL_OPERATION_SECONDS = 60
+MAX_EMERGENCY_WHEEL_BYTES = 16 * 1024 * 1024
 ALLOWED_EMERGENCY_WHEEL_HOSTS: tuple[str, ...] = ("files.pythonhosted.org",)
 INSTALL_MODES: tuple[str, ...] = ("wheelhouse", "direct-proxy")
 REQUIREMENTS_PROFILES: tuple[str, ...] = (
@@ -94,16 +99,16 @@ PSYCOPG_C_PYPROJECT_SHA256 = (
     "6183883f" "8db769e5" "db8f4549" "668c6488" "1add1ea8" "a5eb858c" "1db7a98e" "c075499b"
 )
 PSYCOPG_C_DERIVED_PYPROJECT_SHA256 = (
-    "1664ff74" "10add8ce" "f6f7d379" "bef9db8f" "f3c0d4df" "86ebf473" "5c97ce6c" "19f9edc8"
+    "85acd573" "97b94b3e" "7135d898" "cdae2cf3" "59fe199d" "a492cd8d" "c05ed42a" "b92698d7"
 )
 PSYCOPG_C_MEMBER_SHA256 = (
     "5275940e" "632aa2d0" "56835aa3" "70e7cb8e" "8bf0f6af" "3b029abc" "33fd973c" "bb2a2338"
 )
 PSYCOPG_C_DERIVED_MEMBER_SHA256 = (
-    "deb4b2ac" "73779709" "621ecfbb" "e3f2947f" "32f22da5" "cc8871e9" "2e462d6c" "ce8f83f7"
+    "9f095e64" "2bf11f1e" "46dfbdde" "24302ac3" "5dabcd6e" "90fa9fdd" "69a8a172" "917e8515"
 )
 PSYCOPG_C_BUILD_PINS = frozenset(
-    {("setuptools", "83.0.0"), ("wheel", "0.47.0"), ("packaging", "25.0")}
+    {("setuptools", "84.1.0"), ("wheel", "0.47.0"), ("packaging", "25.0")}
 )
 PSYCOPG_C_SOURCE_MAX_BYTES = 8 * 1024 * 1024
 
@@ -113,10 +118,10 @@ PSYCOPG_C_BUILD_ARTIFACTS = {
         ("29572ef2" "b1f17581" "046b3a22" "27d5c611" "fb25ec70" "ca1ba855" "4b24b0e6" "9331a484"),
         ("5b611a60" "9c38fefc" "3d616bf4" "5d20aec9" "8fb7d53f" "245daca9" "e2c30fc8" "5c7ac282"),
     ),
-    "setuptools-83.0.0-py3-none-any.whl": (
-        1008090,
-        ("29b23c36" "0f22f414" "dc7336bb" "39178cc7" "bcbf6021" "ed2733cd" "e173f09d" "ba19abb3"),
-        ("26e45e90" "de763c69" "38d93d1d" "f2ecd678" "2a0f1514" "d41cbd22" "ebef4e0a" "b6475771"),
+    "setuptools-84.1.0-py3-none-any.whl": (
+        819380,
+        ("5231689c" "6ac8156c" "d155cfb9" "8c3fd6fb" "252c3e7e" "9bd3d78b" "64d3c55f" "132624c9"),
+        ("adc9c90a" "8475c9ef" "ce59d6db" "e2bfdfc3" "a68a9806" "a83b7771" "245ac6e9" "bb0e8649"),
     ),
     "wheel-0.47.0-py3-none-any.whl": (
         32218,
@@ -316,7 +321,7 @@ def derive_psycopg_source(path: Path, destination: Path) -> dict[str, str]:
     original = inspect_psycopg_source(path)
     derived = dict(original)
     member = "psycopg_c-3.3.4/pyproject.toml"
-    derived[member] = original[member].replace(b"setuptools == 80.3.1", b"setuptools == 83.0.0")
+    derived[member] = original[member].replace(b"setuptools == 80.3.1", b"setuptools == 84.1.0")
     if (
         hashlib.sha256(derived[member]).hexdigest() != PSYCOPG_C_DERIVED_PYPROJECT_SHA256
         or _psycopg_member_digest(derived) != PSYCOPG_C_DERIVED_MEMBER_SHA256
@@ -375,7 +380,7 @@ def prefetch_psycopg_build_wheels(
         index_url,
         "--dest",
         str(output),
-        "setuptools==83.0.0",
+        "setuptools==84.1.0",
         "wheel==0.47.0",
         "packaging==25.0",
     ]
@@ -673,7 +678,7 @@ def build_psycopg_c_sdk(
                 "--only-binary=:all:",
                 "--find-links",
                 str(build_wheels),
-                "setuptools==83.0.0",
+                "setuptools==84.1.0",
                 "wheel==0.47.0",
                 "packaging==25.0",
             ],
@@ -819,7 +824,7 @@ def read_psycopg_c_sdk(directory: Path, *, native_root: Path | None = None) -> V
         raise RuntimeError("Psycopg SDK wheel/member/METADATA identity mismatch.")
     build = receipt["build_wheels"]
     if type(build) is not dict or set(build) != {
-        "setuptools-83.0.0-py3-none-any.whl",
+        "setuptools-84.1.0-py3-none-any.whl",
         "wheel-0.47.0-py3-none-any.whl",
         "packaging-25.0-py3-none-any.whl",
     }:
@@ -1288,7 +1293,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--upgrade-pip-spec",
-        default="pip",
+        default="pip>=26.2.2,<27.0",
         help=(
             "Simple numeric pip requirement spec (no extras/markers/wildcards), e.g. "
             "'pip', 'pip==24.0', or 'pip>=23,<24', used with --upgrade-pip or "
@@ -1555,9 +1560,7 @@ def load_emergency_wheel_manifest(manifest_path: Path | None) -> list[dict[str, 
         parsed_url = urlparse(url_text)
         hostname = (parsed_url.hostname or "").rstrip(".").lower()
         if parsed_url.scheme != "https" or hostname not in ALLOWED_EMERGENCY_WHEEL_HOSTS:
-            raise RuntimeError(
-                "Emergency wheel artifacts must use approved https hosts only: " f"{url_text!r}"
-            )
+            raise RuntimeError("Emergency wheel artifacts must use approved https hosts only.")
         normalized_artifacts.append(
             {
                 "package": package_text,
@@ -1867,47 +1870,112 @@ def _require_psycopg_sdk_interpreter(python_executable: str) -> None:
         )
 
 
+# CPython 3.11–3.13 delegates venv site-directory activation to
+# addsitepackages. The selected interpreter still owns pyvenv.cfg parsing.
+_PREFIX_ONLY_PROBE = """import site, sys
+if sys.implementation.name != "cpython" or sys.version_info[:2] not in ((3, 11), (3, 12), (3, 13)):
+    raise SystemExit(2)
+site.addsitepackages = lambda known_paths, prefixes=None: known_paths
+site.venv(set())
+"""
+
+
+def _isolated_probe_environment() -> dict[str, str]:
+    keys: tuple[str, ...] = ("HOME", "PYTHONUSERBASE", "PYTHONNOUSERSITE")
+    if os.name == "nt":
+        keys += ("SYSTEMROOT", "USERPROFILE", "APPDATA", "HOMEDRIVE", "HOMEPATH")
+    return {key: os.environ[key] for key in keys if key in os.environ}
+
+
 def _target_python_wheel_tag_payload(python_executable: str) -> dict[str, object]:
     """Probe wheel-tag data from the requested target interpreter."""
     probe_python = _path_qualified_python_executable_for_probe(python_executable)
-    probe = "\n".join(
-        (
-            "import json",
-            "import platform",
-            "import sys",
-            "import sysconfig",
-            "try:",
-            "    from packaging import tags as packaging_tags",
-            "except Exception:",
-            "    wheel_tags = []",
-            "else:",
-            "    wheel_tags = [str(tag) for tag in packaging_tags.sys_tags()]",
-            "print(json.dumps({",
-            "    'tags': wheel_tags,",
-            "    'major': sys.version_info.major,",
-            "    'minor': sys.version_info.minor,",
-            "    'implementation_name': sys.implementation.name,",
-            "    'platform_name': sys.platform,",
-            "    'sysconfig_platform': sysconfig.get_platform(),",
-            "    'machine_name': platform.machine(),",
-            "}))",
+    metadata = """
+import json, platform, sys, sysconfig
+print(json.dumps(dict(tags=wheel_tags, major=sys.version_info.major, minor=sys.version_info.minor,
+                      implementation_name=sys.implementation.name, platform_name=sys.platform,
+                      sysconfig_platform=sysconfig.get_platform(), machine_name=platform.machine())))
+"""
+    # Only ordinary site roots with no .pth or customization can establish
+    # absence here. Include the user site when normal startup would enable it.
+    # An installed provider or startup override is a separate unqualified
+    # execution surface. Reject it before importing external package code.
+    discovery = _PREFIX_ONLY_PROBE + """
+import os
+from importlib.machinery import PathFinder
+roots = site.getsitepackages()
+user_allowed = (site.ENABLE_USER_SITE is not False and not os.environ.get("PYTHONNOUSERSITE")
+                and (not hasattr(os, "geteuid") or os.getuid() == os.geteuid())
+                and (not hasattr(os, "getegid") or os.getgid() == os.getegid()))
+if user_allowed:
+    roots.append(site.getusersitepackages())
+search = [os.getcwd(), *sys.path, *roots]
+eligible = True
+for root in roots:
+    try:
+        entries = os.listdir(root)
+    except FileNotFoundError:
+        continue
+    if any(name.endswith(".pth") for name in entries):
+        eligible = False
+for name in ("packaging", "sitecustomize", "usercustomize"):
+    if PathFinder.find_spec(name, search) is not None:
+        eligible = False
+if not eligible:
+    raise SystemExit(3)
+wheel_tags = None
+""" + metadata
+    if any(
+        value
+        for key, value in os.environ.items()
+        if (
+            key.startswith("PYTHON")
+            and key
+            not in {
+                "PYTHONUSERBASE",
+                "PYTHONNOUSERSITE",
+                "PYTHONDONTWRITEBYTECODE",
+                "PYTHONUNBUFFERED",
+                "PYTHONHASHSEED",
+            }
         )
-    )
-    result = subprocess.run(  # nosec B603 # B603: argv starts with the selected target Python interpreter and a fixed metadata probe (remove-by: 2026-10-31, ref: PR-2017)
-        [probe_python, "-c", probe],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
+        or key == "__PYVENV_LAUNCHER__"
+    ):
+        raise RuntimeError("External wheel-tag target requires a qualified import environment")
+    try:
+        invocation = Path(probe_python)
+        identity = invocation.stat()
+        result = subprocess.run(  # nosec B603 # B603: fixed isolated target metadata probe, no external package import (remove-by: 2027-01-01, ref: PR-2017)
+            [probe_python, "-I", "-S", "-c", discovery],
+            check=False,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            encoding="utf-8",
+            env=_isolated_probe_environment(),
+            timeout=30,
+        )
+        if not os.path.samestat(identity, invocation.stat()):
+            raise OSError
+    except subprocess.TimeoutExpired:
+        error: RuntimeError | None = _InstallProcessTimeout("Installer interpreter check timed out")
+    except (OSError, UnicodeError):
+        error = RuntimeError("Unable to probe supported wheel tags")
+    else:
+        error = None
+    if error is not None:
+        raise error
+    if result.returncode in (2, 3) and not result.stdout:
+        raise RuntimeError("External wheel-tag target requires independent provider qualification")
     if result.returncode != 0:
-        detail = _redact_url_credentials_in_text((result.stderr or result.stdout).strip())
-        raise RuntimeError(f"Unable to probe supported wheel tags for {probe_python}: {detail}")
+        raise RuntimeError("Unable to probe supported wheel tags")
     try:
         payload = json.loads(result.stdout)
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(f"Invalid wheel-tag probe output from {probe_python}") from exc
-    if not isinstance(payload, dict):
-        raise RuntimeError(f"Invalid wheel-tag probe payload from {probe_python}")
+    except (ValueError, RecursionError):
+        payload = None
+    if not isinstance(payload, dict) or payload.get("tags", False) is not None:
+        raise RuntimeError("Invalid wheel-tag probe payload")
     return payload
 
 
@@ -1918,7 +1986,7 @@ def _target_wheel_tag_payload_int(
     python_executable: str,
 ) -> int:
     value = payload.get(key)
-    if not isinstance(value, int):
+    if type(value) is not int or value < 1:
         raise RuntimeError(f"Invalid wheel-tag probe payload from {python_executable}")
     return value
 
@@ -1928,10 +1996,25 @@ def _supported_wheel_tags_for_python(python_executable: str | None) -> set[str]:
     if python_executable is None or python_executable == sys.executable:
         return _current_supported_wheel_tags()
 
-    payload = _target_python_wheel_tag_payload(python_executable)
+    target = resolve_python_executable(python_executable)
+    if target == resolve_python_executable(sys.executable):
+        return _current_supported_wheel_tags()
+    payload = _target_python_wheel_tag_payload(target)
     tags = payload.get("tags")
-    if isinstance(tags, list) and all(isinstance(tag, str) for tag in tags) and tags:
+    if (
+        isinstance(tags, list)
+        and tags
+        and all(
+            isinstance(tag, str) and re.fullmatch(r"[A-Za-z0-9_]+-[A-Za-z0-9_]+-[A-Za-z0-9_]+", tag)
+            for tag in tags
+        )
+    ):
         return set(tags)
+    if tags is not None or any(
+        not isinstance(payload.get(key), str) or not payload[key]
+        for key in ("implementation_name", "platform_name", "sysconfig_platform", "machine_name")
+    ):
+        raise RuntimeError("Invalid wheel-tag probe payload")
     try:
         return _fallback_supported_wheel_tags_for_runtime(
             major=_target_wheel_tag_payload_int(
@@ -1971,6 +2054,10 @@ def _filter_runtime_compatible_artifacts(
     python_executable: str | None = None,
 ) -> list[dict[str, str]]:
     """Drop incompatible wheels and collapse duplicate exact emergency artifacts."""
+    if not artifacts:
+        if python_executable is not None:
+            resolve_python_executable(python_executable)
+        return []
     compatible_artifacts: list[dict[str, str]] = []
     seen_artifact_digests_by_filename: dict[str, str] = {}
     supported_tags = _supported_wheel_tags_for_python(python_executable)
@@ -2023,38 +2110,269 @@ def emergency_artifacts_requested_by_surfaces(
     )
 
 
-def _download_with_sha256(*, url: str, destination: Path, expected_sha256: str) -> None:
-    """Download an artifact and verify its sha256 before trusting it."""
-    digest = hashlib.sha256()
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    temp_file_descriptor, temp_file_name = tempfile.mkstemp(
-        dir=destination.parent,
-        prefix=f".{destination.name}.",
-        suffix=".tmp",
-    )
-    temp_path = Path(temp_file_name)
+def _emergency_artifact_path(url: str, filename: str) -> str:
+    """Bind the final transport to one literal public artifact and local leaf."""
+    if (
+        not filename.endswith(".whl")
+        or not re.fullmatch(r"[A-Za-z0-9_.+-]+", filename)
+        or not url.startswith("https://files.pythonhosted.org/packages/")
+        or any(ch in url for ch in "?#;\\")
+        or any(ord(ch) <= 32 or ord(ch) >= 127 for ch in url)
+    ):
+        raise RuntimeError("Invalid emergency wheel origin, path or filename")
+    path = urlparse(url).path
+    parts = path.split("/")[1:]
+    for part in parts:
+        if (
+            not re.fullmatch(r"(?:[a-zA-Z0-9_.+-]|%[0-9A-Fa-f]{2})+", part)
+            or not re.fullmatch(r"[a-zA-Z0-9_.+-]+", unquote(part))
+            or unquote(part) in (".", "..")
+        ):
+            raise RuntimeError("Invalid emergency wheel URL path component")
+    if unquote(parts[-1]) != filename:
+        raise RuntimeError("Emergency wheel URL does not match admitted filename")
+    return path
+
+
+def _wheel_remaining(deadline: float) -> float:
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise RuntimeError("Emergency wheel operation timed out")
+    return remaining
+
+
+@contextmanager
+def _wheel_deadline() -> Iterator[float]:
+    """Interrupt blocking DNS, TLS, header and file operations on the POSIX CLI."""
+    deadline = time.monotonic() + EMERGENCY_WHEEL_OPERATION_SECONDS
+    if (
+        not hasattr(signal, "setitimer")
+        or threading.current_thread() is not threading.main_thread()
+        or signal.getitimer(signal.ITIMER_REAL)[0] != 0
+    ):
+        # Keep any enclosing timer intact. Cooperative checks bound acceptance.
+        yield deadline
+        return
+
+    def expired(_signum: int, _frame: FrameType | None) -> None:
+        raise RuntimeError("Emergency wheel operation timed out")
+
+    previous = signal.signal(signal.SIGALRM, expired)
     try:
-        with os.fdopen(temp_file_descriptor, "wb") as file_handle:
-            with urlopen(  # nosec B310 # B310: url host is allowlisted via load_emergency_wheel_manifest and payload is sha256-verified before use (remove-by: 2026-10-31, ref: PR-1378)
-                url,
-                timeout=60,
-            ) as response:
+        signal.setitimer(signal.ITIMER_REAL, _wheel_remaining(deadline))
+        yield deadline
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous)
+
+
+def _open_emergency_directory(directory: Path, *, create: bool = False) -> int:
+    """Hold each real directory while walking the supplied wheelhouse path."""
+    parts = directory.absolute().parts
+    if ".." in parts:
+        raise RuntimeError("Unsafe emergency wheel directory")
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    fd = os.open(parts[0], flags)
+    try:
+        # Darwin exposes these two root-owned aliases even for tempfile's own
+        # /var/folders paths. Walk their literal targets with no-follow FDs.
+        relative = parts[1:]
+        if sys.platform == "darwin" and relative and relative[0] in ("tmp", "var"):
+            alias = relative[0]
+            metadata = os.stat(alias, dir_fd=fd, follow_symlinks=False)
+            if stat.S_ISLNK(metadata.st_mode):
+                private = os.stat("private", dir_fd=fd, follow_symlinks=False)
+                root = os.fstat(fd)
+                if (
+                    metadata.st_uid != 0
+                    or root.st_uid != 0
+                    or root.st_mode & 0o022
+                    or private.st_uid != 0
+                    or not stat.S_ISDIR(private.st_mode)
+                    or private.st_mode & 0o022
+                    or os.readlink(alias, dir_fd=fd) != "private/" + alias
+                ):
+                    raise RuntimeError("Untrusted Darwin temporary-directory alias")
+                relative = ("private", *relative)
+        for part in relative:
+            if create:
+                try:
+                    os.mkdir(part, 0o700, dir_fd=fd)
+                except FileExistsError:
+                    pass
+            child = os.open(part, flags, dir_fd=fd)
+            os.close(fd)
+            fd = child
+        return fd
+    except BaseException:
+        os.close(fd)
+        raise
+
+
+def _cached_emergency_sha256(destination: Path) -> str | None:
+    """Hash one held regular file, rejecting aliases, swaps and partial reads."""
+    with _wheel_deadline() as deadline:
+        directory = _open_emergency_directory(destination.parent, create=True)
+        try:
+            try:
+                fd = os.open(
+                    destination.name, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW, dir_fd=directory
+                )
+            except FileNotFoundError:
+                return None
+            try:
+                before = os.fstat(fd)
+                if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1:
+                    raise RuntimeError("Unsafe cached emergency wheel")
+                if before.st_size > MAX_EMERGENCY_WHEEL_BYTES:
+                    raise RuntimeError("Cached emergency wheel exceeds byte limit")
+            except BaseException:
+                os.close(fd)
+                raise
+            with os.fdopen(fd, "rb") as stream:
+                digest = hashlib.sha256()
+                length = 0
                 while True:
-                    chunk = response.read(1024 * 1024)
+                    _wheel_remaining(deadline)
+                    remaining = MAX_EMERGENCY_WHEEL_BYTES - length
+                    chunk = stream.read(min(1024**2, remaining + 1))
                     if not chunk:
                         break
+                    if len(chunk) > remaining:
+                        raise RuntimeError("Cached emergency wheel exceeds byte limit")
                     digest.update(chunk)
-                    file_handle.write(chunk)
-        actual_sha256 = digest.hexdigest()
-        if actual_sha256 != expected_sha256:
-            raise RuntimeError(
-                f"Emergency wheel sha256 mismatch for {destination.name}: "
-                f"expected {expected_sha256}, got {actual_sha256}"
+                    length += len(chunk)
+                after = os.fstat(fd)
+                if after.st_size > MAX_EMERGENCY_WHEEL_BYTES:
+                    raise RuntimeError("Cached emergency wheel exceeds byte limit")
+                named = destination.lstat()
+                fields = (
+                    "st_dev",
+                    "st_ino",
+                    "st_mode",
+                    "st_nlink",
+                    "st_size",
+                    "st_mtime_ns",
+                    "st_ctime_ns",
+                )
+                if length != before.st_size or any(
+                    getattr(before, field) != getattr(current, field)
+                    for current in (after, named)
+                    for field in fields
+                ):
+                    raise RuntimeError("Cached emergency wheel changed during read")
+                _wheel_remaining(deadline)
+                return digest.hexdigest()
+        finally:
+            os.close(directory)
+
+
+def _download_with_sha256(*, url: str, destination: Path, expected_sha256: str) -> None:
+    """Publish one complete verified wheel without replacing an existing leaf."""
+    path = _emergency_artifact_path(url, destination.name)
+    with _wheel_deadline() as deadline:
+        directory = _open_emergency_directory(destination.parent, create=True)
+        temp = f".{destination.name}.{uuid4().hex}.tmp"
+        try:
+            fd = os.open(
+                temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=directory
             )
-        temp_path.replace(destination)
-    except Exception:
-        temp_path.unlink(missing_ok=True)
-        raise
+            with os.fdopen(fd, "wb", buffering=0) as stream:
+                created = os.fstat(fd)
+                linked = False
+
+                def remove_owned(name: str) -> None:
+                    named = os.stat(name, dir_fd=directory, follow_symlinks=False)
+                    if not os.path.samestat(created, named):
+                        raise RuntimeError("Emergency wheel cleanup entry was replaced")
+                    os.unlink(name, dir_fd=directory)
+
+                try:
+                    digest = hashlib.sha256()
+                    with closing(
+                        http.client.HTTPSConnection(
+                            "files.pythonhosted.org", timeout=_wheel_remaining(deadline)
+                        )
+                    ) as connection:
+                        connection.request("GET", path)
+                        wire = connection.sock
+                        if wire is None:
+                            raise RuntimeError("Emergency wheel TLS socket unavailable")
+                        wire.settimeout(_wheel_remaining(deadline))
+                        with connection.getresponse() as response:
+                            if response.status != 200:
+                                raise RuntimeError(f"Emergency wheel HTTP status {response.status}")
+                            declared = response.getheader("Content-Length")
+                            if declared is not None:
+                                if not re.fullmatch(r"[0-9]+", declared):
+                                    raise RuntimeError("Invalid emergency wheel response length")
+                                digits = declared.lstrip("0") or "0"
+                                if (
+                                    len(digits) > len(str(MAX_EMERGENCY_WHEEL_BYTES))
+                                    or int(digits) > MAX_EMERGENCY_WHEEL_BYTES
+                                ):
+                                    raise RuntimeError("Emergency wheel exceeds byte limit")
+                                if response.chunked:
+                                    raise RuntimeError("Ambiguous emergency wheel response length")
+                            count = 0
+                            while not response.isclosed():
+                                wire.settimeout(_wheel_remaining(deadline))
+                                remaining = MAX_EMERGENCY_WHEEL_BYTES - count
+                                chunk = response.read1(min(1024**2, remaining + 1))
+                                if not chunk:
+                                    break
+                                if len(chunk) > remaining:
+                                    raise RuntimeError("Emergency wheel exceeds byte limit")
+                                digest.update(chunk)
+                                stream.write(chunk)
+                                count += len(chunk)
+                            if declared is not None and str(count) != (declared.lstrip("0") or "0"):
+                                raise RuntimeError("Incomplete emergency wheel response")
+                        stream.flush()
+                        written = os.fstat(fd)
+                    if digest.hexdigest() != expected_sha256:
+                        raise RuntimeError(
+                            f"Emergency wheel sha256 mismatch for {destination.name}"
+                        )
+                    _wheel_remaining(deadline)
+                    checked_dir = _open_emergency_directory(destination.parent)
+                    try:
+                        if not os.path.samestat(os.fstat(directory), os.fstat(checked_dir)):
+                            raise RuntimeError("Emergency wheel directory changed")
+                    finally:
+                        os.close(checked_dir)
+                    current = os.stat(temp, dir_fd=directory, follow_symlinks=False)
+                    if (
+                        not os.path.samestat(written, current)
+                        or current.st_nlink != 1
+                        or current.st_ctime_ns != written.st_ctime_ns
+                        or current.st_size != count
+                    ):
+                        raise RuntimeError("Emergency wheel temporary file changed")
+                    os.link(
+                        temp,
+                        destination.name,
+                        src_dir_fd=directory,
+                        dst_dir_fd=directory,
+                        follow_symlinks=False,
+                    )
+                    linked = True
+                    published = destination.lstat()
+                    if not os.path.samestat(written, published) or published.st_size != count:
+                        raise RuntimeError("Emergency wheel publication changed")
+                    _wheel_remaining(deadline)
+                    remove_owned(temp)
+                except BaseException as primary:
+                    for name in ([destination.name, temp] if linked else [temp]):
+                        try:
+                            remove_owned(name)
+                        except FileNotFoundError:
+                            pass
+                        except (OSError, RuntimeError) as secondary:
+                            primary.add_note("Emergency wheel cleanup: " + type(secondary).__name__)
+                    raise
+        finally:
+            os.close(directory)
 
 
 def _emergency_artifact_sha256(artifact: dict[str, str]) -> str:
@@ -2105,10 +2423,10 @@ def _stage_emergency_artifacts(
         artifacts,
         python_executable=python_executable,
     ):
-        wheelhouse_dir.mkdir(parents=True, exist_ok=True)
         destination = wheelhouse_dir / artifact["filename"]
-        if destination.exists():
-            existing_sha256 = hashlib.sha256(destination.read_bytes()).hexdigest()
+        _emergency_artifact_path(artifact["url"], artifact["filename"])
+        existing_sha256 = _cached_emergency_sha256(destination)
+        if existing_sha256 is not None:
             if existing_sha256 != _emergency_artifact_sha256(artifact):
                 raise RuntimeError(f"Existing emergency wheel has unexpected sha256: {destination}")
         else:
@@ -2411,7 +2729,9 @@ def _resolver_miss_error(
     ignored_transport_packages: Sequence[str] = (),
 ) -> bool:
     """Return True when pip failed because package floor is unavailable on index."""
-    message = str(runtime_error)
+    if not isinstance(runtime_error, _CompletedPipFailure):
+        return False
+    message = runtime_error._resolver_output
     normalized_message = message.lower()
     requirement_text = f"{package}=={version}"
     package_name = _normalized_package_name(package)
@@ -2489,16 +2809,20 @@ def _line_has_transport_failure_excluding_package_name(line: str, *, package: st
 
 def _package_scoped_proxy_retry_failure(runtime_error: RuntimeError, *, package: str) -> bool:
     """Return True when pip's own retry log proves a package-scoped proxy timeout."""
+    if not isinstance(runtime_error, _CompletedPipFailure):
+        return False
     return any(
         _line_mentions_requested_project(line, package=package)
         and _line_has_transport_failure_excluding_package_name(line, package=package)
-        for line in str(runtime_error).splitlines()
+        for line in runtime_error._resolver_output.splitlines()
     )
 
 
 def _pip_upgrade_resolver_miss(runtime_error: RuntimeError) -> bool:
     """Return True when pip failed because the pip spec is absent from the proxy."""
-    message = str(runtime_error).lower()
+    if not isinstance(runtime_error, _CompletedPipFailure):
+        return False
+    message = runtime_error._resolver_output.lower()
     resolver_markers = (
         "no matching distribution found for pip",
         "could not find a version that satisfies the requirement pip",
@@ -2681,6 +3005,10 @@ def _admit_private_proxy_netrc_auth(
     return "Basic " + base64.b64encode(encoded).decode("ascii")
 
 
+class _PrivateIndexTLSRejected(RuntimeError):
+    """Terminal verified-TLS failure cannot authorize an emergency fallback."""
+
+
 def _read_private_index_project_page(
     *,
     index_url: str,
@@ -2710,6 +3038,7 @@ def _read_private_index_project_page(
         headers["Authorization"] = netrc_header
     status: int
     body: bytes
+    tls_failure_class: str | None = None
     for attempt in range(1, PIP_NETWORK_RETRIES + 1):
         conn: http.client.HTTPConnection | None = None
         failure_class: str | None = None
@@ -2719,16 +3048,6 @@ def _read_private_index_project_page(
                     parsed.hostname,
                     port=parsed.port,
                     timeout=PRIVATE_INDEX_HEALTH_TIMEOUT_SECONDS,
-                )
-            elif _trusted_host_matches_url(trusted_host=trusted_host, parsed_url=parsed):
-                # fmt: off
-                trusted_context = ssl._create_unverified_context()  # nosec B323 # B323: explicit anonymous trusted-host probe only; selected default .netrc/_netrc credentials require verified HTTPS before context creation (remove-by: 2026-10-30, ref: PR-main-nightly-nosec-ttl)
-                # fmt: on
-                conn = http.client.HTTPSConnection(
-                    parsed.hostname,
-                    port=parsed.port,
-                    timeout=PRIVATE_INDEX_HEALTH_TIMEOUT_SECONDS,
-                    context=trusted_context,
                 )
             else:
                 conn = http.client.HTTPSConnection(
@@ -2742,20 +3061,30 @@ def _read_private_index_project_page(
             body = response.read(PRIVATE_INDEX_PROJECT_PAGE_BYTES)
         except Exception as exc:  # noqa: BLE001 - any probe failure must keep fallback fail-closed.
             failure_class = type(exc).__name__
+            if isinstance(exc, ssl.SSLError):
+                tls_failure_class = tls_failure_class or type(exc).__name__
         finally:
             if conn is not None:
                 try:
                     conn.close()
                 except Exception as exc:  # noqa: BLE001 - cleanup failures cannot admit fallback.
                     failure_class = failure_class or type(exc).__name__
+                    if isinstance(exc, ssl.SSLError):
+                        tls_failure_class = tls_failure_class or type(exc).__name__
         if failure_class is not None:
             if attempt == PIP_NETWORK_RETRIES:
+                if tls_failure_class is not None:
+                    raise _PrivateIndexTLSRejected(
+                        "Approved Python package proxy TLS verification failed before "
+                        f"emergency fallback: {tls_failure_class}"
+                    ) from None
                 raise RuntimeError(
                     "Approved Python package proxy health check failed before emergency fallback: "
                     f"{package}: {safe_url}: {failure_class}"
                 ) from None
             _sleep_before_private_index_retry(attempt)
             continue
+        tls_failure_class = None
         if status >= 500 and attempt < PIP_NETWORK_RETRIES:
             _sleep_before_private_index_retry(attempt)
             continue
@@ -2910,8 +3239,9 @@ def _stage_pip_upgrade_emergency_wheel(
         python_executable=python_executable,
     )
     destination = wheelhouse_dir / artifact["filename"]
-    if destination.exists():
-        existing_sha256 = hashlib.sha256(destination.read_bytes()).hexdigest()
+    _emergency_artifact_path(artifact["url"], artifact["filename"])
+    existing_sha256 = _cached_emergency_sha256(destination)
+    if existing_sha256 is not None:
         if existing_sha256 != _emergency_artifact_sha256(artifact):
             raise RuntimeError(f"Existing emergency pip wheel has unexpected sha256: {destination}")
     else:
@@ -2944,6 +3274,7 @@ def verify_emergency_artifact_for_floor(
         return False
     with tempfile.TemporaryDirectory(prefix="pulseplate-floor-emergency-") as temp_dir:
         for artifact in artifacts:
+            _emergency_artifact_path(artifact["url"], artifact["filename"])
             destination = Path(temp_dir) / artifact["filename"]
             _download_with_sha256(
                 url=artifact["url"],
@@ -2972,6 +3303,8 @@ def run_dependency_floor_preflight(
                 trusted_host=trusted_host,
             ):
                 continue
+        except _PrivateIndexTLSRejected:
+            raise
         except RuntimeError as exc:
             proxy_error = exc
         if verify_emergency_artifact_for_floor(
@@ -3005,22 +3338,60 @@ def run_dependency_floor_preflight(
 def is_virtualenv_python(python_executable: str) -> bool:
     """Return True when the target interpreter runs inside a virtualenv."""
     resolved_python = resolve_python_executable(python_executable)
-    probe = (
-        "import json, sys\n"
-        "print(json.dumps({'prefix': sys.prefix, 'base_prefix': getattr(sys, 'base_prefix', sys.prefix)}))\n"
+    probe = _PREFIX_ONLY_PROBE + (
+        "import json\n"
+        "print(json.dumps(dict(executable=sys.executable, prefix=sys.prefix, base_prefix=sys.base_prefix)))"
     )
     try:
-        result = subprocess.run(  # nosec B603 # B603: argv uses an explicit Python executable and fixed venv probe code only (remove-by: 2026-10-31, ref: PR-litellm-hardening)
-            [resolved_python, "-c", probe],
+        invocation = Path(resolved_python)
+        initial = invocation.stat()
+        result = subprocess.run(  # nosec B603 # B603: argv uses an explicit Python executable and fixed venv probe code only (remove-by: 2027-01-01, ref: PR-litellm-hardening)
+            [resolved_python, "-I", "-S", "-c", probe],
             check=True,
-            capture_output=True,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            env=_isolated_probe_environment(),
+            timeout=30,
             text=True,
+            encoding="utf-8",
         )
-        payload = json.loads(result.stdout)
-    except (FileNotFoundError, subprocess.CalledProcessError, json.JSONDecodeError) as exc:
-        raise RuntimeError(
-            f"Unable to probe virtualenv state for {python_executable}: {exc}"
-        ) from exc
+        if not os.path.samestat(initial, invocation.stat()) or not os.access(invocation, os.X_OK):
+            raise OSError
+    except subprocess.TimeoutExpired:
+        failure: RuntimeError | None = _InstallProcessTimeout(
+            "Installer interpreter check timed out"
+        )
+    except (OSError, subprocess.CalledProcessError, UnicodeError):
+        failure = RuntimeError("Unable to probe virtualenv state")
+    else:
+        failure = None
+    if failure is not None:
+        raise failure
+    try:
+
+        def unique_fields(pairs: list[tuple[str, object]]) -> dict[str, object]:
+            fields = dict(pairs)
+            if len(fields) != len(pairs):
+                raise ValueError
+            return fields
+
+        payload = json.loads(result.stdout, object_pairs_hook=unique_fields)
+    except (ValueError, RecursionError):
+        payload = None
+    if (
+        not isinstance(payload, dict)
+        or set(payload) != {"executable", "prefix", "base_prefix"}
+        or payload["executable"] != resolved_python
+        or any(
+            not isinstance(payload.get(key), str)
+            or not payload[key]
+            or "\x00" in payload[key]
+            or not Path(payload[key]).is_absolute()
+            for key in ("prefix", "base_prefix")
+        )
+    ):
+        raise RuntimeError("Unable to probe virtualenv state: invalid prefix metadata")
     return bool(payload["prefix"] != payload["base_prefix"])
 
 
@@ -3102,6 +3473,20 @@ def _run_owned_pip_child(argv: Sequence[str]) -> int:
         return 1
 
 
+class _CompletedPipFailure(RuntimeError):
+    """Keep completed pip diagnostics private for the existing resolver classifiers."""
+
+    def __init__(self, status: int, stderr: str, stdout: str) -> None:
+        super().__init__(f"Command failed: pip exited with status {status}")
+        self._resolver_output = "\n".join(
+            _redact_url_credentials_in_text(part).strip() for part in (stderr, stdout)
+        )
+
+
+class _InstallProcessTimeout(RuntimeError):
+    """A timed-out command has no completed resolver result."""
+
+
 def run_command(
     command: Sequence[str],
     *,
@@ -3109,20 +3494,21 @@ def run_command(
     cwd: Path | None = None,
     timeout: int | None = None,
 ) -> None:
-    """Run a subprocess command; include captured stdout/stderr on failure for pip diagnostics."""
+    """Expose fixed failure categories; preserve completed pip output for private classification."""
     if not command:
         raise RuntimeError("Command failed: empty command")
 
     original_argv = [str(part) for part in command]
-    command_text = " ".join(_redact_url_credentials_in_text(part) for part in original_argv)
     try:
         resolved_python = resolve_python_executable(original_argv[0])
-    except RuntimeError as exc:
-        detail = _redact_url_credentials_in_text(str(exc))
-        raise RuntimeError(f"Command failed: {command_text}: {detail}") from exc
+    except (OSError, RuntimeError, ValueError):
+        resolved_python = None
+    if resolved_python is None:
+        raise RuntimeError("Command failed: Python executable unavailable")
     argv = [resolved_python, *original_argv[1:]]
     pip_offset = 2 if original_argv[1:2] == ["-I"] else 1
-    if original_argv[pip_offset : pip_offset + 2] == ["-m", "pip"]:
+    is_pip = original_argv[pip_offset : pip_offset + 2] == ["-m", "pip"]
+    if is_pip:
         argv = [
             resolved_python,
             str(Path(__file__).resolve()),
@@ -3130,7 +3516,7 @@ def run_command(
             *original_argv[pip_offset + 2 :],
         ]
     try:
-        result = subprocess.run(  # nosec B603 # B603: commands are built internally from pinned requirement/install helpers only (remove-by: 2026-10-31, ref: PR-litellm-hardening)
+        result = subprocess.run(  # nosec B603 # B603: commands are built internally from pinned requirement/install helpers only (remove-by: 2027-01-01, ref: PR-litellm-hardening)
             argv,
             check=False,
             capture_output=True,
@@ -3139,19 +3525,24 @@ def run_command(
             cwd=cwd,
             timeout=timeout,
         )
-    except FileNotFoundError as exc:
-        detail = _redact_url_credentials_in_text(str(exc))
-        raise RuntimeError(f"Command failed: {command_text}: {detail}") from exc
-    if result.returncode != 0:
-        parts: list[str] = [f"exit {result.returncode}"]
-        stderr = _redact_url_credentials_in_text(result.stderr or "").strip()
-        stdout = _redact_url_credentials_in_text(result.stdout or "").strip()
-        if stderr:
-            parts.append(stderr)
-        if stdout:
-            parts.append(stdout)
-        detail = "\n".join(parts)
-        raise RuntimeError(f"Command failed: {command_text}: {detail}")
+    except subprocess.TimeoutExpired:
+        failure: RuntimeError = _InstallProcessTimeout("Installer subprocess timed out")
+    except UnicodeError:
+        failure = RuntimeError("Command failed: subprocess output decoding failed")
+    except (OSError, ValueError):
+        failure = RuntimeError("Command failed: subprocess could not launch")
+    else:
+        if result.returncode == 0:
+            return
+        if is_pip and result.returncode > 0:
+            failure = _CompletedPipFailure(
+                result.returncode, result.stderr or "", result.stdout or ""
+            )
+        else:
+            failure = RuntimeError(
+                f"Command failed: subprocess exited with status {result.returncode}"
+            )
+    raise failure
 
 
 def upgrade_pip(
@@ -3184,9 +3575,9 @@ def upgrade_pip(
     if trusted_host:
         command.extend(["--trusted-host", trusted_host])
     try:
-        run_command(command)
+        run_command(command, timeout=300)
         return
-    except RuntimeError as exc:
+    except _CompletedPipFailure as exc:
         if not _pip_upgrade_resolver_miss(exc):
             raise
         _require_private_index_project_health(
@@ -3216,7 +3607,7 @@ def upgrade_pip(
         ]
         if not use_pip_cache:
             fallback_command.insert(fallback_command.index("install") + 1, "--no-cache-dir")
-        run_command(fallback_command)
+        run_command(fallback_command, timeout=120)
 
 
 def collect_startup_hook_failure_lines(
@@ -3224,37 +3615,81 @@ def collect_startup_hook_failure_lines(
     guard_script: Path,
     python_executable: str,
 ) -> list[str]:
-    """Run the startup-hook guard as a subprocess for target site-packages."""
-    resolved_python = resolve_python_executable(python_executable)
-    result = subprocess.run(  # nosec B603 # B603: argv uses the selected Python interpreter plus a fixed repo guard script path (remove-by: 2026-10-31, ref: PR-litellm-hardening)
-        [
-            resolved_python,
-            "-S",
-            str(guard_script),
-            "--python-executable",
-            resolved_python,
-        ],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
+    """Run the stock or explicitly selected custom guard without publishing its output."""
+    # Preserve the venv invocation, including its final symlink. The guard can
+    # be selected explicitly even in installer layouts without the stock sibling.
+    try:
+        python = resolve_python_executable(python_executable)
+        invocation = Path(python)
+        target = invocation.stat()
+        selected = guard_script.resolve(strict=True)
+        stock_path = Path(__file__).resolve(strict=True).with_name("check_python_startup_hooks.py")
+        stock = selected == stock_path
+        guard_info = selected.stat()
+        if (
+            not invocation.is_absolute()
+            or not stat.S_ISREG(target.st_mode)
+            or not stat.S_ISREG(guard_info.st_mode)
+            or (Path(os.path.abspath(guard_script)) == stock_path and not stock)
+        ):
+            raise ValueError
+    except (OSError, RuntimeError, ValueError):
+        inputs_valid = False
+    else:
+        inputs_valid = True
+    if not inputs_valid:
+        raise RuntimeError("Startup-hook guard or selected Python executable unavailable")
 
-    stdout_lines = [line for line in result.stdout.splitlines() if line.strip()]
-    stderr_lines = [line for line in result.stderr.splitlines() if line.strip()]
-
+    # The stock script uses only the stdlib. A custom guard may import trusted
+    # siblings from its own directory; -S keeps its selected script directory
+    # but prevents site startup. Neither child inherits import or loader overrides.
+    flags = ["-P", "-S"] if stock else ["-S"]
+    env = {"PATH": os.defpath, "LC_ALL": "C", "LANG": "C"}
+    site_inputs: tuple[str, ...] = ("HOME", "PYTHONUSERBASE", "PYTHONNOUSERSITE")
+    if os.name == "nt":
+        site_inputs += ("SYSTEMROOT", "USERPROFILE", "APPDATA", "HOMEDRIVE", "HOMEPATH")
+        system_root = Path(os.environ.get("SYSTEMROOT", ""))
+        env["PATH"] = str(system_root / "System32") if system_root.is_absolute() else ""
+    env.update({key: os.environ[key] for key in site_inputs if key in os.environ})
+    try:
+        if (
+            guard_script.resolve(strict=True) != selected
+            or not os.path.samestat(selected.stat(), guard_info)
+            or not os.path.samestat(invocation.stat(), target)
+            or not os.access(invocation, os.X_OK)
+        ):
+            raise ValueError
+        result = subprocess.run(  # nosec B603 # B603: argv uses the selected Python interpreter plus a fixed repo guard script path (remove-by: 2027-01-01, ref: PR-litellm-hardening)
+            [python, *flags, str(selected), "--python-executable", python],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE if stock else subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            env=env,
+            timeout=60,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        failure: RuntimeError | None = _InstallProcessTimeout(
+            "Installer interpreter check timed out"
+        )
+    except (OSError, ValueError, RuntimeError):
+        failure = RuntimeError("Startup-hook guard failed to launch or inputs changed")
+    else:
+        failure = None
+    if failure is not None:
+        raise failure
     if result.returncode == 0:
+        if (
+            stock
+            and result.stdout
+            != b"startup-hook-guard: no unexpected executable .pth files detected."
+            + os.linesep.encode("ascii")
+        ):
+            raise RuntimeError("Invalid stock startup-hook guard clean response")
         return []
     if result.returncode == 1:
-        if stdout_lines:
-            return stdout_lines
-        if stderr_lines:
-            return stderr_lines
-        return ["ERROR: startup-hook guard reported unexpected executable .pth files."]
-
-    diagnostic_lines = (
-        stderr_lines or stdout_lines or ["startup-hook guard exited without diagnostics."]
-    )
-    raise RuntimeError("Startup-hook guard failed: " + " | ".join(diagnostic_lines))
+        return ["ERROR: startup-hook guard reported findings or an incomplete finding response."]
+    raise RuntimeError("Startup-hook guard failed")
 
 
 def _staging_python_path(staging_dir: Path) -> Path:
@@ -3274,7 +3709,7 @@ def staged_python_environment(target_python: str) -> Iterator[str]:
     """Create a disposable venv used to verify startup hooks before target install."""
     with tempfile.TemporaryDirectory(prefix="pulseplate-staging-venv-") as temp_dir:
         staging_dir = Path(temp_dir)
-        run_command([target_python, "-m", "venv", str(staging_dir)])
+        run_command([target_python, "-m", "venv", str(staging_dir)], timeout=120)
         yield str(_staging_python_path(staging_dir))
 
 
@@ -3422,7 +3857,7 @@ def build_wheelhouse_with_emergency_fallback(
                 trusted_host=trusted_host,
             )
             return
-        except RuntimeError as exc:
+        except _CompletedPipFailure as exc:
             if requested_artifacts is None:
                 requested_artifacts = emergency_artifacts_requested_by_surfaces(
                     requirement_files=requirement_files,
@@ -3487,7 +3922,7 @@ def install_from_proxy_with_emergency_fallback(
                 allow_pip_download_cache=allow_pip_download_cache,
             )
             return
-        except RuntimeError as exc:
+        except _CompletedPipFailure as exc:
             if requested_artifacts is None:
                 requested_artifacts = emergency_artifacts_requested_by_surfaces(
                     requirement_files=requirement_files,

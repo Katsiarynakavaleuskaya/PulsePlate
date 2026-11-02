@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import shutil
-import subprocess  # nosec B404 # B404: operator-only docker compose config -q; argv from fixed tokens + docker via shutil.which (remove-by: 2026-10-30, ref: PR-main-nightly-nosec-ttl)
+import subprocess  # nosec B404 # B404: operator-only docker compose config -q; argv from fixed tokens + docker via shutil.which; owned call sites individually reviewed (remove-by: 2027-01-31, ref: PR-main-nightly-nosec-ttl)
 import sys
 from pathlib import Path
 
@@ -14,6 +14,7 @@ METATRON_LAB_ADR_STEM = "ADR_METATRON_OFFENSIVE_LAB_OUT_OF_BAND_2026-04-06"
 METATRON_LAB_ROE_STEM = "METATRON_LAB_RULES_OF_ENGAGEMENT"
 METATRON_LAB_ARTIFACTS_HINT = "artifacts/security_lab/"
 _STDERR_SNIPPET_MAX = 500
+COMPOSE_CONFIG_TIMEOUT_SECONDS = 30
 
 
 def repo_root() -> Path:
@@ -31,7 +32,7 @@ def compose_file_for_repo(root: Path) -> Path:
 
 
 def run_compose_config_q(root: Path, profile: str, docker_bin: str) -> int:
-    """Run `docker compose … config -q` for one profile; return process exit code."""
+    """Return the native config exit code, or 124 when the direct-child wait times out."""
     compose = compose_file_for_repo(root)
     cmd = [
         docker_bin,
@@ -43,13 +44,22 @@ def run_compose_config_q(root: Path, profile: str, docker_bin: str) -> int:
         "config",
         "-q",
     ]
-    completed = subprocess.run(  # nosec B603 # B603: no shell; argv is docker + fixed compose flags + repo compose path (remove-by: 2026-10-30, ref: PR-main-nightly-nosec-ttl)
-        cmd,
-        cwd=str(root),
-        check=False,
-        capture_output=True,
-        text=True,
-    )
+    try:
+        completed = subprocess.run(  # nosec B603 # B603: resolved Docker, fixed repo/profile callers and config -q; no shell, 30s timeout returning124 (remove-by: 2027-01-31, ref: PR-main-nightly-nosec-ttl)
+            cmd,
+            cwd=str(root),
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=COMPOSE_CONFIG_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired:
+        print(
+            "[metatron-lab] docker compose config -q timed out "
+            f"after {COMPOSE_CONFIG_TIMEOUT_SECONDS} seconds",
+            file=sys.stderr,
+        )
+        return 124
     if completed.returncode != 0:
         stderr_snippet = (completed.stderr or "").strip()
         if len(stderr_snippet) > _STDERR_SNIPPET_MAX:

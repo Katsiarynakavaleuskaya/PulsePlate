@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import importlib
 import json
 import os
@@ -1271,10 +1272,10 @@ def test_extract_pr_body_missing_body_without_token_does_not_call_network(
     monkeypatch.delenv("GH_TOKEN", raising=False)
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
 
-    def fail_urlopen(*args: object, **kwargs: object) -> object:  # pragma: no cover
+    def fail_connect(*args: object, **kwargs: object) -> object:  # pragma: no cover
         raise AssertionError("network must not be called without a token")
 
-    monkeypatch.setattr(size_gate.urllib.request, "urlopen", fail_urlopen)
+    monkeypatch.setattr(size_gate.http.client, "HTTPSConnection", fail_connect)
 
     assert size_gate.extract_pr_body(event_path) == ""
 
@@ -1312,6 +1313,69 @@ def test_extract_pr_body_reads_github_event_payload(tmp_path: Path) -> None:
     assert size_gate.extract_pr_body(event_path) == "## Split Justification\nRequired."
 
 
+def _stub_pr_https(
+    monkeypatch: pytest.MonkeyPatch,
+    raw: bytes,
+    *,
+    status: int = 200,
+    location: str | None = None,
+    content_length: str | None = None,
+    chunked: bool = False,
+    fault: str | None = None,
+) -> list[str]:
+    events: list[str] = []
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    monkeypatch.setenv("GH_TOKEN", "synthetic-pr-token")
+
+    class Response(io.BytesIO):
+        status: int
+        headers: dict[str, str]
+        chunked: bool
+
+        def getheader(self, name: str) -> str | None:
+            return self.headers.get(name)
+
+        def read(self, size: int = -1) -> bytes:
+            assert size == 4 * 1024**2 + 1
+            events.append("read")
+            return super().read(size)
+
+        def close(self) -> None:
+            events.append("response-close")
+            super().close()
+            if fault == "response-close":
+                raise OSError("synthetic response close failure")
+
+    class Connection:
+        def __init__(self, host: str, *, timeout: int) -> None:
+            assert host == "api.github.com" and timeout == 10
+            events.append("connect")
+            if fault == "constructor":
+                raise OSError("synthetic construction failure")
+
+        def request(self, method: str, path: str, *, headers: dict[str, str]) -> None:
+            assert method == "GET" and path == "/repos/owner/repo/pulls/123"
+            assert headers["Authorization"] == "Bearer synthetic-pr-token"
+            events.append("request")
+
+        def getresponse(self) -> Response:
+            response = Response(raw)
+            response.status = status
+            response.headers = {"Location": location} if location else {}
+            response.chunked = chunked
+            if content_length is not None:
+                response.headers["Content-Length"] = content_length
+            return response
+
+        def close(self) -> None:
+            events.append("connection-close")
+            if fault == "connection-close":
+                raise size_gate.http.client.HTTPException("synthetic close failure")
+
+    monkeypatch.setattr(size_gate.http.client, "HTTPSConnection", Connection)
+    return events
+
+
 def test_extract_pr_body_falls_back_to_api_for_missing_body(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1327,28 +1391,7 @@ def test_extract_pr_body_falls_back_to_api_for_missing_body(
         encoding="utf-8",
     )
 
-    monkeypatch.delenv("GH_TOKEN", raising=False)
-    monkeypatch.setenv("GITHUB_TOKEN", "test-token")
-
-    class FakeResponse:
-        def __init__(self, payload: str) -> None:
-            self._payload = payload.encode("utf-8")
-
-        def read(self) -> bytes:
-            return self._payload
-
-        def __enter__(self) -> "FakeResponse":
-            return self
-
-        def __exit__(self, exc_type, exc, tb) -> None:  # pragma: no cover
-            return None
-
-    def fake_urlopen(request, timeout=10):  # pragma: no cover
-        assert request.full_url == "https://api.github.com/repos/owner/repo/pulls/123"
-        assert request.headers["Authorization"] == "Bearer test-token"
-        return FakeResponse('{"body": "## Split Justification\\nFrom api."}')
-
-    monkeypatch.setattr(size_gate.urllib.request, "urlopen", fake_urlopen)
+    _stub_pr_https(monkeypatch, b'{"body": "## Split Justification\\nFrom api."}')
 
     assert size_gate.extract_pr_body(event_path) == "## Split Justification\nFrom api."
 
@@ -1368,29 +1411,10 @@ def test_extract_trusted_approvals_falls_back_to_api_for_missing_labels(
         encoding="utf-8",
     )
 
-    monkeypatch.delenv("GH_TOKEN", raising=False)
-    monkeypatch.setenv("GITHUB_TOKEN", "test-token")
-
-    class FakeResponse:
-        def __init__(self, payload: str) -> None:
-            self._payload = payload.encode("utf-8")
-
-        def read(self) -> bytes:
-            return self._payload
-
-        def __enter__(self) -> "FakeResponse":
-            return self
-
-        def __exit__(self, exc_type, exc, tb) -> None:  # pragma: no cover
-            return None
-
-    def fake_urlopen(request, timeout=10):  # pragma: no cover
-        assert request.full_url == "https://api.github.com/repos/owner/repo/pulls/123"
-        return FakeResponse(
-            '{"labels": [{"name": "Operator-Approved"}, ' '{"name": "scope/privileged-approved"}]}'
-        )
-
-    monkeypatch.setattr(size_gate.urllib.request, "urlopen", fake_urlopen)
+    _stub_pr_https(
+        monkeypatch,
+        b'{"labels": [{"name": "Operator-Approved"}, {"name": "scope/privileged-approved"}]}',
+    )
 
     assert size_gate.extract_trusted_approvals(event_path) == {
         "operator-approved",
@@ -1413,30 +1437,10 @@ def test_extract_trusted_approvals_unions_live_labels_when_event_labels_are_stal
         encoding="utf-8",
     )
 
-    monkeypatch.delenv("GH_TOKEN", raising=False)
-    monkeypatch.setenv("GITHUB_TOKEN", "test-token")
-
-    class FakeResponse:
-        def __init__(self, payload: str) -> None:
-            self._payload = payload.encode("utf-8")
-
-        def read(self) -> bytes:
-            return self._payload
-
-        def __enter__(self) -> "FakeResponse":
-            return self
-
-        def __exit__(self, exc_type, exc, tb) -> None:  # pragma: no cover
-            return None
-
-    def fake_urlopen(request, timeout=10):  # pragma: no cover
-        assert request.full_url == "https://api.github.com/repos/owner/repo/pulls/123"
-        return FakeResponse(
-            '{"labels": [{"name": "scope/operator-approved"}, '
-            '{"name": "scope/privileged-approved"}]}'
-        )
-
-    monkeypatch.setattr(size_gate.urllib.request, "urlopen", fake_urlopen)
+    _stub_pr_https(
+        monkeypatch,
+        b'{"labels": [{"name": "scope/operator-approved"}, {"name": "scope/privileged-approved"}]}',
+    )
 
     assert size_gate.extract_trusted_approvals(event_path) == {
         "scope/operator-approved",
@@ -1550,3 +1554,175 @@ def test_main_fails_cleanly_when_flag_value_is_missing(
 ) -> None:
     with pytest.raises(SystemExit, match=message):
         size_gate.main(argv)
+
+
+@pytest.mark.parametrize("timed_out", (None, "numstat", "name-status", "ls-tree"))
+def test_git_query_deadlines_never_become_empty_policy_inputs(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], timed_out: str | None
+) -> None:
+    """Exercise all main-path queries; a timeout cannot reach policy evaluation."""
+    generated = "frontend/src/api/schema.ts"
+    calls: list[str] = []
+    evaluations: list[dict[str, object]] = []
+    monkeypatch.setattr(size_gate, "GIT_BINARY", "/absolute/git")
+
+    def run(
+        argv: list[str], **kwargs: object
+    ) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[bytes]:
+        assert argv[0] == "/absolute/git"
+        assert kwargs["timeout"] == size_gate.GIT_COMMAND_TIMEOUT_SECONDS == 30
+        assert kwargs["cwd"] == size_gate.REPO_ROOT and kwargs["check"] is True
+        kind = (
+            "ls-tree"
+            if argv[1] == "ls-tree"
+            else "numstat" if "--numstat" in argv else "name-status"
+        )
+        calls.append(kind)
+        if kind == timed_out:
+            raise subprocess.TimeoutExpired(
+                argv, 30, output=b"synthetic-secret-output", stderr=b"synthetic-secret-error"
+            )
+        if kind == "numstat":
+            return subprocess.CompletedProcess(argv, 0, f"1\t0\t{generated}\n", "")
+        if kind == "name-status":
+            return subprocess.CompletedProcess(argv, 0, b"M\0" + generated.encode() + b"\0", b"")
+        return subprocess.CompletedProcess(
+            argv, 0, b"100644 blob " + b"a" * 40 + b"\t" + generated.encode() + b"\0", b""
+        )
+
+    def policy(**kwargs: object) -> tuple[int, list[str]]:
+        evaluations.append(kwargs)
+        return 0, ["synthetic policy success"]
+
+    monkeypatch.setattr(size_gate.subprocess, "run", run)
+    monkeypatch.setattr(size_gate, "evaluate_pr_size_policy", policy)
+    argv = ["--base-sha", "b" * 40, "--head-sha", "c" * 40]
+    if timed_out is None:
+        assert size_gate.main(argv) == 0
+        assert calls == ["numstat", "name-status", "ls-tree"]
+        assert len(evaluations) == 1
+        assert evaluations[0]["regular_generated_paths"] == frozenset({generated})
+    else:
+        with pytest.raises(RuntimeError, match="timed out after 30 seconds") as error:
+            size_gate.main(argv)
+        assert error.value.__suppress_context__ is True
+        assert calls[-1] == timed_out
+        assert evaluations == []
+        assert "synthetic-secret" not in str(error.value)
+        output = capsys.readouterr()
+        assert "synthetic policy success" not in output.out
+        assert "synthetic-secret" not in output.out + output.err
+
+
+@pytest.mark.parametrize(
+    "location", ["https://elsewhere.invalid/x", "https://api.github.com/other"]
+)
+def test_live_pr_metadata_rejects_redirect_without_forwarding_credentials(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, location: str
+) -> None:
+    events = _stub_pr_https(
+        monkeypatch,
+        b'{"labels":[{"name":"scope/emergency-approved"}]}',
+        status=302,
+        location=location,
+    )
+    event = tmp_path / "event.json"
+    event.write_text(
+        json.dumps(
+            {
+                "repository": {"full_name": "owner/repo"},
+                "pull_request": {"number": 123, "labels": [{"name": "operator-approved"}]},
+            }
+        )
+    )
+    assert size_gate.extract_trusted_approvals(event) == {"operator-approved"}
+    assert events == ["connect", "request", "response-close", "connection-close"]
+
+
+@pytest.mark.parametrize(
+    "repo,number",
+    [
+        ("owner/repo", True),
+        ("owner/repo", 0),
+        ("owner/repo", -1),
+        ("owner/..", 123),
+        ("./repo", 123),
+        ("owner/", 123),
+        ("/repo", 123),
+        ("owner/x/y", 123),
+        ("owner/a%2Fb", 123),
+        ("owner/a?b", 123),
+        ("owner/a#b", 123),
+        ("owner/a@b", 123),
+        ("owner/a\\b", 123),
+    ],
+)
+def test_live_pr_metadata_rejects_bad_route_before_connect(
+    monkeypatch: pytest.MonkeyPatch, repo: str, number: int
+) -> None:
+    events = _stub_pr_https(monkeypatch, b"{}")
+    assert size_gate._fetch_pr_metadata_from_api(number, repo) == {}
+    assert events == []
+
+
+@pytest.mark.parametrize("case", ["cap", "oversize", "utf8", "syntax", "non-object", "201"])
+def test_live_pr_metadata_accepts_only_bounded_200_json_object(
+    monkeypatch: pytest.MonkeyPatch, case: str
+) -> None:
+    payload = b'{"body":"live"}'
+    cap = 4 * 1024**2
+    if case in {"cap", "oversize"}:
+        payload = payload.ljust(cap + (case == "oversize"), b" ")
+    elif case in {"utf8", "syntax", "non-object"}:
+        payload = {"utf8": b"\xff", "syntax": b"{", "non-object": b"[]"}[case]
+    events = _stub_pr_https(monkeypatch, payload, status=201 if case == "201" else 200)
+    assert size_gate._fetch_pr_metadata_from_api(123, "owner/repo") == (
+        {"body": "live"} if case == "cap" else {}
+    )
+    assert events.count("request") == 1
+    assert events.count("read") == (case != "201")
+    assert events[-2:] == ["response-close", "connection-close"]
+
+
+@pytest.mark.parametrize("fault", ["constructor", "response-close", "connection-close"])
+def test_live_transport_failure_preserves_event_metadata(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str
+) -> None:
+    raw = b'{"body":"live","labels":[{"name":"scope/emergency-approved"}]}'
+    events = _stub_pr_https(monkeypatch, raw, fault=fault)
+    event = tmp_path / "event.json"
+    pr = {"number": 123, "body": "event body", "labels": [{"name": "operator-approved"}]}
+    payload = {"repository": {"full_name": "owner/repo"}, "pull_request": pr}
+    event.write_text(json.dumps(payload))
+    assert size_gate.extract_pr_body(event) == "event body"
+    assert events == []
+    assert size_gate.extract_trusted_approvals(event) == {"operator-approved"}
+    del pr["body"]
+    event.write_text(json.dumps(payload))
+    assert size_gate.extract_pr_body(event) == ""
+    assert events.count("connect") == 2
+    assert events.count("request") == (0 if fault == "constructor" else 2)
+
+
+@pytest.mark.parametrize(
+    "length,chunked,reads,accepted",
+    [
+        ("13", False, 1, True),
+        ("14", False, 1, False),
+        ("12", False, 1, False),
+        ("4194305", False, 0, False),
+        ("1, 2", False, 0, False),
+        ("-1", False, 0, False),
+        ("14", True, 1, True),
+    ],
+)
+def test_live_metadata_checks_declared_nonchunked_length(
+    monkeypatch: pytest.MonkeyPatch, length: str, chunked: bool, reads: int, accepted: bool
+) -> None:
+    payload = b'{"body":"ok"}'
+    events = _stub_pr_https(monkeypatch, payload, content_length=length, chunked=chunked)
+    result = size_gate._fetch_pr_metadata_from_api(123, "owner/repo")
+    assert result == ({"body": "ok"} if accepted else {})
+    assert events.count("read") == reads
+    assert events.count("request") == 1
+    assert events[-2:] == ["response-close", "connection-close"]

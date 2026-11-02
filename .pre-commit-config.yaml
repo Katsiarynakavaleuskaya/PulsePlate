@@ -8,6 +8,7 @@ repos:
         # Automatically fixes missing trailing newlines (POSIX requirement)
         # All text files must end with '\n' character
       - id: trailing-whitespace
+        exclude: '\Afrontend/patches/go-jose-v3\.0\.5-CVE-2026-116587\.patch\Z'
       - id: check-merge-conflict
       - id: check-added-large-files
         exclude: ^deploy/postgres-pgvector/builder-apk-index\.tar\.gz$
@@ -56,7 +57,7 @@ repos:
 
   # --- Code style: Black
   - repo: https://github.com/psf/black
-    rev: 26.5.1
+    rev: 26.10.1
     hooks:
       - id: black
         name: black (format)
@@ -130,9 +131,14 @@ repos:
       - id: pip-audit
         name: pip-audit (pip vulns)
         stages: [pre-push]
-        entry: /bin/bash scripts/ci_pip_audit.sh
-        pass_filenames: false
-        args: [--pre-push]
+        args:
+          - --requirement
+          - requirements.txt
+          - --no-deps
+          - --disable-pip
+          - --strict
+          - --timeout
+          - '60'
 
   # --- Docstrings: pydocstyle (re-enabled on pre-push)
   - repo: https://github.com/PyCQA/pydocstyle

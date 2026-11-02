@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 import subprocess
+import shutil
 import sys
 from pathlib import Path
 
@@ -1293,7 +1294,7 @@ def test_git_commit_messages_passes_end_of_options_separator(
         captured.extend(argv)
         return _Completed()
 
-    monkeypatch.setattr(gates.shutil, "which", lambda _binary: "/usr/bin/git")
+    monkeypatch.setattr(gates.shutil, "which", lambda _binary, *, path: "/usr/bin/git")
     monkeypatch.setattr(gates.subprocess, "run", _fake_run)
 
     assert gates._git_commit_messages("HEAD") == "ok"
@@ -1337,7 +1338,7 @@ def test_commit_range_arg_rejects_git_option_like_input_through_argparse(
 def test_git_commit_messages_returns_none_when_git_unavailable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(gates.shutil, "which", lambda _binary: None)
+    monkeypatch.setattr(gates.shutil, "which", lambda _binary, *, path: None)
 
     assert gates._git_commit_messages() is None
 
@@ -2241,3 +2242,94 @@ def test_phase2_cli_default_mode_allows_unavailable_experiment_runner_artifact()
     assert result.returncode == 0
     assert "WARNING:" in result.stdout
     assert "unavailable locally" in result.stdout
+
+
+def test_attribution_reads_selected_git_checkout_and_native_trailers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "selected"
+    root.mkdir()
+    git = shutil.which("git", path=os.defpath)
+    assert git and Path(git).is_absolute()
+    env = {
+        "PATH": os.defpath,
+        "HOME": str(tmp_path),
+        "LC_ALL": "C",
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_AUTHOR_NAME": "Fixture",
+        "GIT_AUTHOR_EMAIL": "test@example.invalid",
+        "GIT_COMMITTER_NAME": "Fixture",
+        "GIT_COMMITTER_EMAIL": "test@example.invalid",
+    }
+
+    def fixture(*args: str) -> str:
+        return subprocess.check_output(
+            [git, "-c", f"core.hooksPath={os.devnull}", "-c", "init.templateDir=", *args],
+            cwd=root,
+            env=env,
+            timeout=10,
+            text=True,
+        ).strip()
+
+    fixture("init", "-q")
+    fixture("commit", "--allow-empty", "-qm", "initial")
+    original = fixture("rev-parse", "HEAD")
+    fixture("commit", "--allow-empty", "-qm", "attributed", "-m", gates.EXPECTED_CO_AUTHOR_TRAILER)
+    signed = fixture("rev-parse", "HEAD")
+    fixture("replace", signed, original)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("GIT_DIR", str(tmp_path / "foreign"))
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(tmp_path / "bad-config"))
+    (tmp_path / "bad-config").write_text("[malformed")
+    monkeypatch.setenv("GH_TOKEN", "synthetic-attribution-token")
+    messages = gates._git_commit_messages("absent-ref", fallback_range="HEAD", repo_root=root)
+    assert messages and "attributed" in messages
+    assert gates._commit_messages_have_expected_coauthor_trailer(messages, repo_root=root)
+    assert gates._git_commit_messages("HEAD..HEAD", fallback_range="HEAD", repo_root=root) == ""
+    assert not gates._commit_message_has_expected_coauthor_trailer("body only", repo_root=root)
+
+
+@pytest.mark.parametrize("fault", ["relative", "missing", "launch", "timeout", "exit", "decode"])
+def test_attribution_failure_keeps_private_data_and_distinct_attempts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], fault: str
+) -> None:
+    token = "synthetic-private-attribution"
+    for key in ("GH_TOKEN", "GITHUB_TOKEN", "GIT_CONFIG_COUNT", "GIT_DIR", "GIT_PAGER"):
+        monkeypatch.setenv(key, token)
+    actual = shutil.which("git", path=os.defpath)
+    assert actual is not None
+    monkeypatch.setattr(
+        gates.shutil,
+        "which",
+        lambda _name, *, path: {"relative": "bin/git", "missing": None}.get(fault, actual),
+    )
+    calls = []
+
+    def run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        calls.append(argv)
+        assert argv[0] == actual and kwargs["cwd"] == tmp_path
+        assert token not in repr(kwargs["env"]) and token not in repr(argv)
+        assert kwargs["stderr"] == subprocess.DEVNULL
+        if "log" in argv:
+            assert kwargs["timeout"] == 15 and kwargs["stdin"] == subprocess.DEVNULL
+        else:
+            assert kwargs["timeout"] == 5 and kwargs["input"] == token
+        if fault == "launch":
+            raise OSError(token)
+        if fault == "timeout":
+            raise subprocess.TimeoutExpired([token], 15, output=token, stderr=token)
+        if fault == "decode":
+            raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, token)
+        return subprocess.CompletedProcess(argv, 2, stdout=token, stderr=token)
+
+    monkeypatch.setattr(gates.subprocess, "run", run)
+    assert gates._git_commit_messages("first", fallback_range="second", repo_root=tmp_path) is None
+    assert not gates._commit_message_has_expected_coauthor_trailer(token, repo_root=tmp_path)
+    assert len(calls) == (0 if fault in ("relative", "missing") else 3)
+    if calls:
+        assert [argv[-2] for argv in calls[:2]] == ["first", "second"]
+    calls.clear()
+    assert gates._git_commit_messages("first", fallback_range="first", repo_root=tmp_path) is None
+    assert len(calls) == (0 if fault in ("relative", "missing") else 1)
+    assert capsys.readouterr() == ("", "")

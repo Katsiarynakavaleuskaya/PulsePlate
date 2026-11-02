@@ -24,7 +24,10 @@ def _install_subprocess_mocks(
 
     def fake_run(argv: list[str], **kwargs: Any) -> SimpleNamespace:  # noqa: ARG001
         if argv[0] == "/usr/bin/dig":
-            return _completed(dig_outputs[(argv[2], argv[3])])
+            assert len(argv) == 6
+            assert argv[1:3] == ["+short", "-q"]
+            assert argv[4] == "-t"
+            return _completed(dig_outputs[(argv[3], argv[5])])
         if argv[0] == "/usr/bin/curl":
             return _completed(curl_outputs[argv[-1]])
         raise AssertionError(f"Unexpected argv: {argv}")
@@ -261,3 +264,151 @@ def test_main_fails_closed_when_curl_is_missing(
 
     assert exit_code == 1
     assert "Required binary 'curl'" in captured.out
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        ("  PuLsEpLaTe.App  ", "pulseplate.app"),
+        ("Example.COM...", "example.com"),
+        ("localhost", "localhost"),
+        ("A", "a"),
+        ("MX", "mx"),
+        ("IN", "in"),
+        ("CH", "ch"),
+        ("a-b.example", "a-b.example"),
+        ("xn--opaque.example", "xn--opaque.example"),
+        ("123", "123"),
+        ("a", "a"),
+        ("a" * 63, "a" * 63),
+        (".".join(["a" * 63] * 3 + ["b" * 61]), ".".join(["a" * 63] * 3 + ["b" * 61])),
+    ],
+)
+def test_hostname_normalization_preserves_bounded_ascii_compatibility(
+    raw: str, expected: str
+) -> None:
+    assert check_domain_tls._normalize_domain(raw) == expected
+
+
+_INVALID_DOMAINS = (
+    "",
+    "...",
+    "-",
+    "-f",
+    "-k",
+    "-h",
+    "--help",
+    "a.-b",
+    "a.b-",
+    ".example",
+    "a..example",
+    "a_b.example",
+    "+trace",
+    "@server",
+    "https://example.com",
+    "example.com/path",
+    "example.com:443",
+    "user@example.com",
+    "example.com?x",
+    "example.com#x",
+    "a\\b",
+    "a b",
+    "a\tb",
+    "a\nb",
+    "a\x00b",
+    "é.example",
+    "K.example",
+    "a" * 64,
+    ".".join(["a" * 63] * 3 + ["b" * 62]),
+)
+
+
+@pytest.mark.parametrize("domain", _INVALID_DOMAINS)
+def test_invalid_hostname_is_rejected(domain: str) -> None:
+    with pytest.raises(ValueError):
+        check_domain_tls._normalize_domain(domain)
+
+
+@pytest.mark.parametrize("domain", (*_INVALID_DOMAINS, ".".join(["a" * 63] * 3 + ["b" * 61])))
+@pytest.mark.parametrize("entrypoint", ["report", "cli"])
+def test_invalid_apex_or_www_overflow_has_no_diagnostic_effects(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    domain: str,
+    entrypoint: str,
+) -> None:
+    def unexpected(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("Invalid hostname reached diagnostic effects")
+
+    monkeypatch.setattr(check_domain_tls.shutil, "which", unexpected)
+    monkeypatch.setattr(check_domain_tls.subprocess, "run", unexpected)
+    monkeypatch.setattr(check_domain_tls.socket, "getaddrinfo", unexpected)
+    monkeypatch.setattr(check_domain_tls, "_collect_dns_answers", unexpected)
+    monkeypatch.setattr(check_domain_tls, "_probe_https", unexpected)
+    if entrypoint == "report":
+        with pytest.raises(ValueError):
+            check_domain_tls.collect_domain_report(domain)
+    else:
+        assert check_domain_tls.main(["--domain=" + domain]) == 1
+        captured = capsys.readouterr()
+        assert captured.out.startswith("FAIL: ")
+        assert "PASS:" not in captured.out
+
+
+@pytest.mark.parametrize("domain", ["A", "MX", "IN", "CH", "a-b.example", "xn--opaque"])
+def test_legal_query_names_bind_explicitly_through_public_report(
+    monkeypatch: pytest.MonkeyPatch, domain: str
+) -> None:
+    calls: list[list[str]] = []
+    normalized = domain.lower()
+
+    def run(argv: list[str], **kwargs: Any) -> SimpleNamespace:
+        calls.append(argv)
+        assert kwargs["timeout"] == check_domain_tls.HTTP_TIMEOUT_SEC
+        assert kwargs.get("shell", False) is False
+        if argv[0] == "/usr/bin/dig":
+            assert len(argv) == 6
+            assert argv[1:3] == ["+short", "-q"] and argv[4] == "-t"
+            return _completed("")
+        assert argv == ["/usr/bin/curl", "-I", "-sS", "--max-time", "15", argv[-1]]
+        assert argv[-1] in ("https://" + normalized, "https://www." + normalized)
+        return _completed("HTTP/2 200\r\n\r\n")
+
+    monkeypatch.setattr(check_domain_tls.shutil, "which", lambda name: "/usr/bin/" + name)
+    monkeypatch.setattr(check_domain_tls.subprocess, "run", run)
+    report = check_domain_tls.collect_domain_report(domain)
+    assert report.domain == normalized
+    assert [argv for argv in calls if argv[0] == "/usr/bin/dig"] == [
+        ["/usr/bin/dig", "+short", "-q", host, "-t", kind]
+        for host, kind in [
+            (normalized, "A"),
+            (normalized, "AAAA"),
+            ("www." + normalized, "A"),
+            ("www." + normalized, "AAAA"),
+            ("www." + normalized, "CNAME"),
+        ]
+    ]
+    assert report.apex_a == report.apex_aaaa == report.www_cname == ()
+
+
+def test_maximum_two_target_apex_admits_www_without_partial_overflow(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    apex = ".".join(["a" * 63] * 3 + ["b" * 57])
+    assert len(apex) == 249 and len("www." + apex) == 253
+    names: list[str] = []
+
+    def dns(hostname: str, record_type: str) -> tuple[str, ...]:
+        names.append(hostname)
+        return ()
+
+    monkeypatch.setattr(check_domain_tls, "_resolve_binary", lambda name: "/usr/bin/" + name)
+    monkeypatch.setattr(check_domain_tls, "_collect_dns_answers", dns)
+    monkeypatch.setattr(
+        check_domain_tls,
+        "_probe_https",
+        lambda binary, hostname: check_domain_tls.HttpProbe("https://" + hostname, 200, {}),
+    )
+    report = check_domain_tls.collect_domain_report(apex)
+    assert report.domain == apex
+    assert names == [apex, apex, "www." + apex, "www." + apex, "www." + apex]

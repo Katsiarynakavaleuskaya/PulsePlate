@@ -6,6 +6,20 @@
 **When to use:** CI fails, tests hang, import errors, SQLAlchemy mapper issues, or a PR needs a strict merge-readiness pass.
 **Related:** See root `AGENTS.md` for fast triage commands, `tests/test_repo_policy_guards.py` for enforced rules.
 
+## Native source qualification ordering
+
+For the current maintained-source candidate, run canonical `make docker-source-artifacts`
+against the actual date after reviewing the catalog. The candidate has eight default
+inputs plus two explicitly selected AM inputs; all original seventeen obligations
+remain in the existing zlib, ncurses and AM security owners. Seven patch removals are
+candidate recipe changes until each relevant native regression passes. Preserve the
+old October21/30 deadlines and generated_at; the manual October31 review schedules
+November30 inclusive, with immediate reassessment on new findings/source changes.
+Use isolated network-none historical controls only under their explicit qualification
+handoff, distinguishing original zlib from its old seven-patched tree. Never pass a
+fake date to admit historical controls as runtime inputs. Exact native output must be
+observed before acceptance; AM publication remains independently blocked.
+
 ## Canonical Policy Links
 
 - **Coordinator-first rule + definition of "task":** see `AGENTS.md` (Agent Coordination section)
@@ -365,15 +379,103 @@ options, including values equal to installation defaults. Mixed selectors or
 stray build inputs fail before acquisition, preflight or backend execution.
 
 Refresh runtime alone with `make requirements-locks`, collect its complete
-input/output/delta evidence, then refresh the constrained Docker-runtime,
-CI-lite, dev and aggregate profiles in a separate generator invocation. Keep a
-coherent admitted correction in one source/tests/docs commit after focused
-proof; the profile dependency order does not require intermediate commits or
-repeated unchanged full hook runs. A stronger source floor is valid when it
-exceeds the current schema floor and its canonical range contains its own declared minimum. Raise the
+input/output/delta evidence, run the focused host gates and commit runtime.
+Only then refresh the constrained Docker-runtime, CI-lite, dev and aggregate
+profiles. A stronger source floor is valid when it exceeds the current schema
+floor and its canonical range contains its own declared minimum. Raise the
 live schema after all affected locks reach the selected target; never relax a
 guard or restore weaker intent bytes to pass hooks. Full local `make verify`
 retains the root human-authorization rule.
+
+For the exact `python-stabilization-2026-10-23` transaction only, the admitted
+runtime checkpoint may remain in the working tree without an intermediate
+Git commit. Retain the successful runtime Make command, environment/tool versions,
+terminal log, original input/output hashes and complete dependency delta; bind
+the saved runtime hash before and after the dependent Make transaction. Commit
+the complete material only after the full batch and required narrow gates pass.
+Apart from the separately scoped current Mako procedure below, other transactions
+retain the runtime-first commit procedure above. Neither checkpoint grants a
+hook, validation or merge bypass.
+
+The same transaction includes the owner's explicit pip-tools 7.6.1
+compatibility amendment for pip 26.2.2. Only dev and aggregate acquire that
+authored companion. The explicitly approved October 24 amendment covers seven
+security identities and nine authored targets including both companions. Supply an
+absolute qualified Linux x86_64 CPython 3.13 compiler interpreter and retain
+each terminal result plus the runtime checkpoint before the second command:
+
+```bash
+STABILIZATION_UPGRADES='certifi==2026.10.19 opentelemetry-api==1.45.1
+pillow==13.0.0 virtualenv==21.14.10 black==26.10.1
+filelock==4.2.1 setuptools==84.1.0
+fastembed==0.8.0+pulseplate.1 pip-tools==7.6.1'
+STABILIZATION_GRAPH='opentelemetry-exporter-http-transport opentelemetry-exporter-otlp-common'
+export PULSEPLATE_PYTHON_INDEX_URL='https://packages.pulseplate.app/root/pulseplate/+simple/'
+make requirements-locks \
+  VENV_PYTHON="${STABILIZATION_PYTHON:?qualified compiler interpreter required}" \
+  LOCK_PROFILES='runtime' UPGRADE_PACKAGES="$STABILIZATION_UPGRADES" \
+  GRAPH_CHANGE_PACKAGES="$STABILIZATION_GRAPH" \
+  GRAPH_CHANGE_ADMISSION='python-stabilization-2026-10-23'
+# After retaining the successful runtime checkpoint:
+make requirements-locks \
+  VENV_PYTHON="${STABILIZATION_PYTHON:?qualified compiler interpreter required}" \
+  LOCK_PROFILES='docker-runtime ci-lite dev test rag-vector rag-vector-cpu aggregate' \
+  UPGRADE_PACKAGES="$STABILIZATION_UPGRADES" \
+  GRAPH_CHANGE_PACKAGES="$STABILIZATION_GRAPH" \
+  GRAPH_CHANGE_ADMISSION='python-stabilization-2026-10-23'
+```
+
+### Current Mako-only checkpoint — PR #2494, 2026-10-31
+
+This separately authorized procedure applies only to the current Mako
+`1.3.12 -> 1.4.2` correction. It does not reuse the October23 transaction,
+source seeds, graph admission or tool results. Evidence belongs to the existing
+[Mako security owner](docs/security/GHSA-v92g-xgxw-vvmm-mako.md).
+Keep the mixed runtime/dependent transaction guard unchanged. Freeze the exact
+integrated base, all source/constraint/lock bytes, qualified compiler/SDK inputs
+and original complete dependency map before running either command.
+
+```bash
+make requirements-locks \
+  VENV_PYTHON="${MAKO_COMPILER_PYTHON:?absolute qualified compiler interpreter required}" \
+  LOCK_PROFILES='runtime' UPGRADE_PACKAGES='mako==1.4.2' \
+  GRAPH_CHANGE_PACKAGES='' GRAPH_CHANGE_ADMISSION=''
+# Only after native runtime success, immutable checkpoint and independent replay:
+make requirements-locks \
+  VENV_PYTHON="${MAKO_COMPILER_PYTHON:?absolute qualified compiler interpreter required}" \
+  LOCK_PROFILES='docker-runtime ci-lite dev aggregate' \
+  UPGRADE_PACKAGES='mako==1.4.2' \
+  GRAPH_CHANGE_PACKAGES='' GRAPH_CHANGE_ADMISSION=''
+```
+
+Use the approved private proxy and separately qualified matching SDK; keep
+acquisition credentials out of resolver consumption. The current registry and
+complete seed inventory identify these four dependent profiles as containing
+Mako. Test/RAG/data/evals locks have no Mako: inspect them and every installation
+composition, but do not pass a Mako upgrade into an absent-package seed. The
+compiler deliberately rejects that request. If the observed complete delta
+changes a shared constraint affecting another profile, stop and reconcile the
+actual dependent closure before continuing; do not classify a manually added
+upgrade as solver closure.
+
+After the first Make process actually succeeds, retain its raw terminal result,
+command, compiler/configuration and all input/output hashes/modes as an immutable
+runtime checkpoint. Independently replay from the original frozen inputs and
+prove byte equality. Rebind that saved runtime output immediately before and
+after the dependent transaction, then independently replay the complete dependent
+outputs from their original seeds under the same runtime checkpoint. A launched
+process, copied lock or transport success is not resolver proof.
+
+For this Mako correction only, no intermediate runtime Git commit is required.
+Keep the stronger source floors throughout; temporary mixed source/lock state
+is in progress, not validation success. Do not raise the live schema until all
+five target locks agree. Commit only coherent final material after complete
+D/S/F_cutoff/A/R/P reconciliation, applicable native/audit proof and the required
+narrow gates, including fixing/dispositioning existing NoSec failures. This
+removes only the intermediate checkpoint commit; ordinary validated commits,
+required agent-documentation commit, hooks/review/CI and merge rules remain.
+No historical graph admission, hook skip, fallback, new authority carrier or
+exception for future transactions follows.
 
 When a native API probe fails, retain its observed public return value,
 immediate errno and public error code in the same bounded failure report before
@@ -412,8 +514,13 @@ not download sources, scan images, edit dates or supply suppression/merge
 approval. Scheduled runs and notifications are best-effort; no warning does not
 prove the material remains current.
 
-The source manifest review is October 21, 2026 inclusive; October 22 rejects
-stale source review (`scripts/ci/docker_source_artifacts.json:4`). The current
+The source manifest review is October 30, 2026 inclusive; October 31 rejects
+stale source review (`scripts/ci/docker_source_artifacts.json:4`). This manually
+admitted extension preserves `generated_at` and all seventeen source records;
+it is not source requalification. The coordinator/security owner must reassess
+the sources before that boundary under
+[the tracked source-review obligation](docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-python-stabilization-source-review).
+The current
 `trivy/ignore-policy.rego:1` is the complete canonical never-ignore file, with no
 R1 rules or exclusive helpers. Only those exact complete bytes are expiry-free.
 Missing, unreadable, malformed, partial or additional executable policies do
@@ -429,14 +536,11 @@ boundary. A `CURRENT` finding fails its corresponding gate now; fix the bounded
 cause before readiness. Applicable upstream fixes call for remediation and
 proven suppression retirement, not blind date extension. Review source/removal
 triggers weekly. Forecast output does not replace native build/scanner proof,
-current-head CI or human merge authority. Alertmanager's obsolete policy is now
-exactly `vulnerabilities: []` (`deploy/alertmanager/trivy-ignore.yaml:1`). The old
-vulnerable selected or running subject still rejects at October 21 00:00 UTC;
-unknown identity is HOLD. Retained native/scanner evidence is accepted; publication
-and immutable pullback remain pending. Their canonical evidence owner is
-`docs/security/CVE-2026-84445-alertmanager.md`.
-An unsuccessful current scan or missing publication proof is never repaired by
-rebuilding, re-enabling the old exception or automatically stopping monitoring.
+current-head CI or human merge authority. The retained Alertmanager replacement
+candidate has an exact empty policy (`deploy/alertmanager/trivy-ignore.yaml:1`).
+Old selected or running bytes retain their original October 21 UTC cutoff.
+Current receiver/native/security proof and actual publication remain separate
+requirements; an empty candidate policy alone does not establish retirement.
 
 For PR builds, native Trivy policy controls follow the pinned image scan and
 precede report validation (`.github/workflows/build.yml:183`). Byte-bind the
@@ -685,6 +789,28 @@ not a permanent availability claim.
    - When the manifest reports `retired=true` → no emergency wheel is runtime-effective, and mirror lag must be fixed in the private proxy.
    - When the proxy itself is fully unhealthy (true Cloudflare 521 / origin down) → the emergency manifest **cannot keep installs going on its own** for unlisted pins. Do **not** present it as a "521 fallback" to operators. The only correct operator paths in that case are: (a) restore the *packages* origin per the SRE/infra section below, or (b) use an out-of-band complete offline wheelhouse (not part of this PR's scope). This is also the reason `ledger-p1-private-pypi-proxy-mirror-parity` exists — see `docs/roadmap/BACKLOG_LEDGER.md`.
    - Any change to the manifest must pass `tests/test_python_supply_chain_controls.py`, `tests/test_emergency_wheel_mirror_parity.py`, and installer tests; security review applies.
+
+For the exact FastEmbed compatibility package, `bash scripts/ci_pip_audit.sh`
+retains its six selected CI manifests and strict PyPI scanner calls. The narrow
+adapter verifies the current upstream/private wheel bytes through the canonical
+builder before querying upstream 0.8.0 as an explicit comparand, then validates
+the complete report against the preserved original/projection inventory.
+Raw JSON/stderr stay unchanged and a separate evidence sidecar identifies the
+comparison; it is not a direct PyPI audit of the private version. Use fresh
+report paths, preserve failures, and retain the separate final ten-lock audit.
+
+The October 23 bounded Cloudflare tightening removed the managed-rule skip
+from three existing custom rules while preserving the maintenance gate. Package
+GET/HEAD success remained distinct from the failed upload POST: the authenticated
+Ray observation confirms an edge Managed Rules block, but no exact rule is
+available from the sampled event. Do not infer devpi credential failure or grant
+an upload exemption from the separate GET challenge. The response-rule UI also
+changed from implicit to explicit default, so it is not a no-change result.
+A subsequent separately authorized publication through the existing SSH and
+loopback devpi route returned 200; independent public HTTPS readback matched
+the exact internal wheel. This establishes that package's delivery only.
+Retained configuration, benign checks and closed-site results are recorded in
+[the stabilization owner](docs/security/PYTHON_STABILIZATION_2026_10.md#fastembed-compatibility-evidence).
 
 ### SRE / infra (scoped fix for 521)
 
@@ -1566,37 +1692,76 @@ offline Runner consumption/final COPY, Apple Oracle or final native runtime.
 Use those independent owning checks before closeout. No local C++ rebuild or
 new registry package is implied by retaining hosted image bytes.
 
-## Temporary Pillow audit handling (PR #2494)
 
-The current bounded decision is certifi remediation plus retained Pillow 12.3.0
-risk. The superseded Pillow 13 dependent transaction failed on FastEmbed's <13
-constraint; do not retry that unchanged transaction or claim Pillow remediation.
-The single owner is
-[PR #2494 security record](docs/security/PR_2494_CERTIFI_PILLOW_REMEDIATION.md).
+## Retained Alertmanager receiver and P01 publication checks
 
-Use `bash scripts/ci_pip_audit.sh` for the six declared CI manifests, or
-`bash scripts/ci_pip_audit.sh --pre-push` for requirements.txt. Other arguments
-are rejected. The pinned pre-commit hook delegates to this same helper; it
-retains the existing auditor environment and never installs/resolves packages.
-The existing dependency-surface owner checks current registry/discovery, exact
-retained Pillow carriers and hard expiry before each actual invocation and
-again before promotion. Review reminder: 2026-10-23T00:00:00Z; hard expiry:
-2026-10-28T00:00:00Z (equality rejects). There is no clock override.
+### Current 0.34.2 publisher candidate
 
-The helper retains a fresh unsuppressed report before the exact eight-ID native
-ignore operation. Native 2.10.1 ignored JSON removes finding details, so retain
-both reports and their native exits. Raw exit 1 with admitted findings is not
-native PASS; an ignored exit 0 alone is insufficient. Unknown findings/aliases,
-scanner errors/skips, report/input drift and expiry remain blocking. Unique
-raw/native/stdout/stderr evidence stays under `artifacts/security_lab/pip-audit/`;
-CI exposes the existing canonical JSON names plus unsuppressed/native companions.
-Pre-push leaves its evidence in that ignored directory. A no-Pillow/empty input
-is a scoped result and does not require eight reported findings.
+Use the existing manual main publication operation only with actual independent
+accepted C and an actual completed successful same-H producer plus same-H Q/S.
+The current publisher binds PR2494's genuine merge commit to main H; a squash
+merge does not make C an ancestor of H. It never builds inside publication or
+accepts the current in-progress run as its own predecessor.
 
-Retained Pillow risk remains open in the
-[ledger](docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pillow-arrow-residual-2494).
-When a compatible applicable fix is qualified, remove the obsolete literal
-cohort and retained-version branch with the owning dependency update. Do not
-turn this exception into a generic waiver or a permanent 12.3.0 requirement.
-Fresh exact-head gates, review, mapping, wait and conditional merge requirements
-remain independent. The four original AM exceptions are a separate subject.
+Preparation closes its credential session before fresh strict security and full
+H native controls. A separately bounded final session rebinds source/material/
+inputs and reserves copy, post-native and cleanup before registry login; it
+rereads again before the single copy. Immutable pullback and credential cleanup
+precede full post-copy native. Existing-tag reuse still runs the fresh pre-copy
+proof. Preserve any actual copy and later failure; do not roll back a tag or
+renew a deadline to hide it. The workflow owns the 240-minute job and 10440-second
+helper ledger; see the Alertmanager security owner for non-overlapping phases.
+
+Current source implementation is not current qualification. Keep historical
+accepted bytes and failed runs separate. The initial/first-main candidate uses
+the canonical source context and a private configuration-only historical AM11
+BEFORE render. Its authenticated merged-receiver reference proves selection
+bytes, not historical source execution or a fresh historical image. Current
+accepted C remains independently mandatory for consumption and publication;
+actual C/H/native/security/current-head evidence must complete before any
+readiness claim. A prior SDK/development image is only its exact built material,
+although a qualified runtime can execute explicitly mounted changed-source tests.
+
+### Historical receiver and independent P01 procedure
+
+Preserve the original Q/S/C10 producer identity when adopting the explicitly
+approved receiver. The source owner authenticates the original producer graph
+separately from current receiver event/ref/head/base and keeps all original
+content/tool/DB hashes. A matching ZIP is transport evidence, not a fresh native
+or scanner result. The candidate may select the exact retained C10 subject and
+delete only its four obsolete CVE waiver entries; acceptance still requires all
+content/native/security and current receiver/controller checks. Old selected or
+running bytes continue to reject at their original expiry.
+
+Create a real local controller commit C, independently review/designate its
+exact bytes, then author H with the known full C SHA and current helper bindings.
+Keep helper and five-template bytes equal to C. Run the required local bundle
+and normal pre-push checks, then one ordinary push may publish both commits.
+Authenticate actual remote C/live H before protected execution; do not require
+that remote-dependent evidence before the same push. Current native/CI/security,
+review, closeout and wait gates are required before merge readiness.
+
+Retained consumers start no compiler. Initial receiver and genuine first-main
+cases retain their explicit predicates; ordinary readers still require a real
+positive publication predecessor. AM publication remains a separately authorized
+manual main dispatch, with immutable copy/pullback rather than rebuilding.
+Neither merge nor a selected image proves publication, an ordinary working base
+or downstream CD. No automatic deployment/start/stop follows this procedure.
+
+For P01, inspect the same-run backend publish job and complete native package
+page/count/identity evidence. Known pending states use the existing bounded
+wait; terminal failure or malformed/duplicate inventory is a failure, not a retry
+instruction. Preserve original raw logs and cleanup results. Canonical evidence:
+`docs/security/CVE-2026-84445-alertmanager.md` and
+`docs/security/MAIN_RECOVERY_1_CONTAINER_PUBLICATION.md`.
+
+### Vendor CA refresh in the existing source-image lane
+
+After an admitted vendor base change, clear invalidated selected outputs and retain
+all earlier receipts. Prepare the actual source and helper pins first; only a real
+committed controller can supply the later workflow refs. Requalify the existing
+ORAS tool, then current qualification/support inputs, before the bounded native
+Prometheus pair and Alertmanager build. Bind the entire support export to actual
+qualification bytes before accepting its native descriptor. Select only observed
+new outputs and rerun the required current-material gates. Keep spent attempt
+history and the authorized budget; a source change is not a retry reset.

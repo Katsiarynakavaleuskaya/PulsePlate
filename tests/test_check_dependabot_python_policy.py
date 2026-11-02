@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import FrozenInstanceError, asdict
 from itertools import product
 import json
@@ -12,6 +12,7 @@ import re
 import shutil
 import subprocess
 import sys
+from typing import Any
 
 import pytest
 import yaml
@@ -30,9 +31,24 @@ EXTERNAL_CODE_EXECUTION_FORBIDDEN_ERROR_SUFFIX = (
 def _run_fixture_git(repo: Path, *args: str) -> None:
     git_binary = shutil.which("git")
     assert git_binary is not None
-    fixture_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
-    subprocess.run(  # nosec B603: resolved Git binary with test-owned argv (remove-by: 2026-10-31, ref: PR-2181)
-        [git_binary, "-C", str(repo), *args],
+    fixture_env = {
+        "PATH": os.defpath,
+        "LC_ALL": "C",
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_TERMINAL_PROMPT": "0",
+    }
+    subprocess.run(
+        [
+            git_binary,
+            "-c",
+            f"core.hooksPath={os.devnull}",
+            "-c",
+            "init.templateDir=",
+            "-C",
+            str(repo),
+            *args,
+        ],
         check=True,
         capture_output=True,
         env=fixture_env,
@@ -361,7 +377,7 @@ def test_directory_and_directories_cannot_coexist(tmp_path: Path) -> None:
             check=True,
             capture_output=True,
             cwd=REPO_ROOT,
-            env={**os.environ, "PYTHONHASHSEED": hash_seed},
+            env={"PATH": os.defpath, "LC_ALL": "C", "PYTHONHASHSEED": hash_seed},
             text=True,
             timeout=10,
         )
@@ -1060,13 +1076,15 @@ def test_hardened_marker_language_rejects_long_invalid_near_match() -> None:
         "from scripts.ci.dependabot_requirement_carriers import "
         "is_dependabot_requirement_carrier_text\n"
         "content = 'package; ' + '(  and ' * 500 + '!\\n'\n"
-        "assert not is_dependabot_requirement_carrier_text('extra.txt', content)\n"
+        "if is_dependabot_requirement_carrier_text('extra.txt', content):\n"
+        "    raise AssertionError('invalid near-match was admitted')\n"
     )
 
     subprocess.run(
         [sys.executable, "-c", probe],
         check=True,
         cwd=REPO_ROOT,
+        env={"PATH": os.defpath, "LC_ALL": "C"},
         shell=False,
         timeout=5,
     )
@@ -1078,13 +1096,15 @@ def test_frozen_upstream_requirement_grammar_rejects_long_invalid_near_matches()
         "is_dependabot_requirement_carrier_text\n"
         "for suffix in ('!', '@', '='):\n"
         "    content = f\"package{' ' * 1000}{suffix}\\n\"\n"
-        "    assert not is_dependabot_requirement_carrier_text('extra.txt', content)\n"
+        "    if is_dependabot_requirement_carrier_text('extra.txt', content):\n"
+        "        raise AssertionError('invalid near-match was admitted')\n"
     )
 
     subprocess.run(
         [sys.executable, "-c", probe],
         check=True,
         cwd=REPO_ROOT,
+        env={"PATH": os.defpath, "LC_ALL": "C"},
         shell=False,
         timeout=5,
     )
@@ -1097,13 +1117,15 @@ def test_frozen_upstream_requirement_grammar_rejects_long_invalid_version_near_m
         "is_dependabot_requirement_carrier_text\n"
         "digit_count = DEPENDABOT_REQUIREMENT_MAX_LINE_CHARS - len('package==!')\n"
         "content = f\"package=={'1' * digit_count}!\\n\"\n"
-        "assert not is_dependabot_requirement_carrier_text('extra.txt', content)\n"
+        "if is_dependabot_requirement_carrier_text('extra.txt', content):\n"
+        "    raise AssertionError('invalid near-match was admitted')\n"
     )
 
     subprocess.run(
         [sys.executable, "-c", probe],
         check=True,
         cwd=REPO_ROOT,
+        env={"PATH": os.defpath, "LC_ALL": "C"},
         shell=False,
         timeout=5,
     )
@@ -1135,7 +1157,8 @@ def test_marker_near_match_over_line_budget_fails_closed_in_child_process() -> N
         "is_dependabot_requirement_carrier_text\n"
         "space_count = DEPENDABOT_REQUIREMENT_MAX_LINE_CHARS - len('package;!')\n"
         "admitted = f\"package;{' ' * space_count}!\\n\"\n"
-        "assert not is_dependabot_requirement_carrier_text('extra.txt', admitted)\n"
+        "if is_dependabot_requirement_carrier_text('extra.txt', admitted):\n"
+        "    raise AssertionError('invalid near-match was admitted')\n"
         "content = f\"package;{' ' * 20000}!\\n\"\n"
         "try:\n"
         "    is_dependabot_requirement_carrier_text('extra.txt', content)\n"
@@ -1149,6 +1172,7 @@ def test_marker_near_match_over_line_budget_fails_closed_in_child_process() -> N
         [sys.executable, "-c", probe],
         check=True,
         cwd=REPO_ROOT,
+        env={"PATH": os.defpath, "LC_ALL": "C"},
         shell=False,
         timeout=5,
     )
@@ -2509,3 +2533,71 @@ def test_cli_returns_one_and_prints_file_key_path_error(
     assert (
         ".github/dependabot.yml:updates[0].target-branch:key is forbidden by Mode A intake policy"
     ) in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "probe_case",
+    [
+        test_hardened_marker_language_rejects_long_invalid_near_match,
+        test_frozen_upstream_requirement_grammar_rejects_long_invalid_near_matches,
+        test_frozen_upstream_requirement_grammar_rejects_long_invalid_version_near_match,
+        test_marker_near_match_over_line_budget_fails_closed_in_child_process,
+    ],
+)
+def test_optimized_parser_probe_detects_wrong_result_without_inheriting_startup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, probe_case: Callable[[], None]
+) -> None:
+    hook_marker = tmp_path / "startup"
+    call_marker = tmp_path / "called"
+    custom = tmp_path / "sitecustomize.py"
+    custom.write_text(
+        f"from pathlib import Path\nPath({str(hook_marker)!r}).write_text('startup ran')\n"
+    )
+    hostile = {
+        "PATH": os.defpath,
+        "LC_ALL": "C",
+        "PYTHONPATH": str(tmp_path),
+        "PYTHONOPTIMIZE": "1",
+        "GH_TOKEN": "synthetic-probe-token",
+    }
+    for key in ("PYTHONPATH", "PYTHONOPTIMIZE", "GH_TOKEN"):
+        monkeypatch.setenv(key, hostile[key])
+
+    mutation = (
+        "from pathlib import Path\n"
+        "from scripts.ci import dependabot_requirement_carriers as c\n"
+        "def wrong(*args):\n"
+        f"    Path({str(call_marker)!r}).write_text('parser called')\n"
+        "    return True\n"
+        "c.is_dependabot_requirement_carrier_text = wrong\n"
+    )
+    real_run = subprocess.run
+    baseline = real_run(
+        [sys.executable, "-c", mutation + "assert not wrong(); print(__debug__)"],
+        cwd=REPO_ROOT,
+        env=hostile,
+        capture_output=True,
+        text=True,
+        timeout=5,
+        check=True,
+    )
+    assert baseline.stdout.strip() == "False"
+    assert hook_marker.read_text() == "startup ran" and not call_marker.exists()
+    hook_marker.unlink()
+
+    def inject_wrong_result(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        assert argv[:2] == [sys.executable, "-c"]
+        assert kwargs["env"] == {"PATH": os.defpath, "LC_ALL": "C"}
+        return real_run(
+            [sys.executable, "-O", "-c", mutation + argv[2]],
+            **kwargs,
+            capture_output=True,
+            text=True,
+        )
+
+    monkeypatch.setattr(subprocess, "run", inject_wrong_result)
+    with pytest.raises(subprocess.CalledProcessError) as failure:
+        probe_case()
+    assert "AssertionError: invalid near-match was admitted" in failure.value.stderr
+    assert call_marker.read_text() == "parser called"
+    assert not hook_marker.exists()

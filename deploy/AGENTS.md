@@ -49,6 +49,52 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   digest-pinned Compose service. Floating tags and `latest` are forbidden.
 - `STAGING_ATTESTED_DIGEST_READY=true` may be enabled only after the server-local Compose, Caddyfile, deploy script, Postgres backup helper, root-owned contract marker, and current-commit hashes are synchronized. The staging `.env` must be a regular non-symlink file with mode `0600`; it is Compose data and must never be shell-sourced by the deploy path. Merge alone does not update `/srv/pulseplate-staging`.
 
+### Caddy CI retained candidate and temporary risk boundary
+
+- Under the direct owner decision of 2026-10-30, PR #2497 permits one final
+  fourth CI build after the required gates and publication. The three original
+  starts remain spent. Keep exact failed P (`40809053754` / `123234862421`), Q
+  (`40874768112` / `123450755201`) and R (`40971831227` / `123790320307`)
+  permanently charged, each attempt 1, with all three source ancestries checked.
+  Only one fresh first-attempt S on corrected published source,
+  created strictly after R's job completed at `2026-10-29T23:19:41Z`, may fill
+  the fourth slot. Any S start spends it; there is no fifth. Reuse requires the
+  unique successful S and every unchanged source/artifact/runtime/security/date
+  check. Failed predecessors, unknown history and caches never supply a slot.
+- Run the frontend `caddy-contract` producer and consumers on `ubuntu-24.04`.
+  A runner or image-store change requires native requalification under the
+  unchanged compiler/config, archive-import and report identity checks; the
+  runner selection alone does not prove native acceptance.
+- The existing frontend `caddy-contract` job owns one explicitly selected candidate
+  producer after two independent compiler-free metadata derivations. Ordinary PR
+  and accepted exact merge-to-main observations import its authenticated original
+  artifact, independently authenticate its accepted PR lineage and original Git
+  blobs (including the expiry checker), and verify actual image/config/binary identity;
+  absent, expired, failed, ambiguous or changed inputs are HOLD, never a rebuild.
+  A started producer counts even when it fails. Require complete distinct native
+  API identities/relationships and no-follow authenticated transport; ambiguous
+  history is HOLD. Keep image exports private until complete security acceptance,
+  and recheck accepted dates immediately before build. Cache reuse is not a build grant.
+- The explicit CVE-2026-116587 D decision is limited to that isolated loaded CI
+  configuration and exact one v3.0.5 HIGH after actual v4.1.6 proof. Generic report
+  validation, backend/default policy and strict CD remain unchanged. Preserve the
+  unfiltered native report and require successful strict/D native controls; an
+  error is never proof of policy rejection. Native runtime evidence is bounded to
+  its actual immutable config, process and listeners, not deployed reachability.
+- Mocked Caddy observer outputs prove branch behavior, not native compatibility.
+  Bind only the required HOME/TMPDIR properties through the pinned serving
+  process's existing static-response placeholders and exact loopback response.
+  Keep literal placeholders in the immutable config; configured values alone,
+  a separate exec process or startup logs cannot supply actual-process proof.
+  Preserve raw CR/LF, private tmpfs and final same-instance checks. Do not model
+  the complete runtime environment or retain unexpected values in diagnostics;
+  phase/predicate/length/hash notes do not establish native acceptance.
+- Follow the individual owner/review/expiry/removal contract in
+  [the CVE owner](../docs/security/CVE-2026-116587-caddy-go-jose.md).
+  The original suppression-free CD/release outcome remains open; permanent v3/CD
+  remediation belongs to the human-assigned PR #2494. No deployment, new source
+  fork, capability retirement or additional compiler invocation follows from D.
+
 ## Incoming deployment bundle validation
 
 - Validate incoming Compose/config/policy bytes at their original bundle paths,
@@ -159,6 +205,10 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   received email and host activation require separate evidence; see
   `docs/deploy/OPERATIONAL_SIGNALS.md` and
   `docs/security/CVE-2026-84445-alertmanager.md`.
+- Alertmanager module qualification, support inspection, candidate builds and
+  publication use the qualified `ubuntu-24.04` runner. Runner or Docker image-store
+  changes require native requalification while preserving the exact config,
+  manifest and ordered-layer checks.
 - OBS2A deploy admission binds the complete reviewed Prometheus config, alias
   rules and Alertmanager Trivy ignore bytes, plus the exact reviewed
   Alertmanager route. A change to any of these files requires reviewing the
@@ -213,12 +263,22 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   `/usr/libexec/postgresql15/pg_config`, `make -j1`, empty `OPTFLAGS`, and the
   closed artifact inventory. Do not add curl, git, floating APK packages, a
   second source path, or a host build toolchain.
-- Native pre-publication proof must reach each affected image consumer. Trivy
-  0.74 consumes the already verified OCI layout directory; a Docker tar archive
-  and an OCI tar archive are not interchangeable scanner inputs. Retain exact
-  scanner/database and subject identity, and keep newly revealed blocking
-  findings open until remediated. Matching build digests do not prove a current
-  clean scan or the later trusted publication path.
+- Native pre-publication proof must reach each affected image consumer. The
+  existing PG publisher owns a 240-minute job budget and env-defined scan,
+  process, pull and inspect budgets. Collect all four exact subjects against
+  one frozen Trivy 0.74 database, retaining later available observations after
+  a finding or tool failure, then reject any failed aggregate. Full collection
+  exit zero is not acceptance: retain the separate native HIGH/CRITICAL gate.
+  Keep full raw JSON/stdout/stderr private outside every upload root. Publish
+  only byte-identical Docker-image reports admitted by the existing structural
+  image owner and empty/omitted Secrets projection; this is not a universal
+  sanitizer. Final verified OCI layout reports stay private, with only bounded
+  status/hash/size and the existing proven subject digest public. Do not pass
+  OCI paths to the Docker report helper or rewrite native reports. Always-upload
+  includes only the explicit public directory. Private hosted-runner files have
+  no presumed durable retrieval channel; retain complete originals in the OWN
+  qualified environment for owner consumption. Matching build digests, partial
+  public reports or collection success do not prove full security acceptance.
 - Native PostgreSQL directory admission requires successful native `find`
   completion before consuming empty output, a count, sorted paths, or a hash-bound
   inventory. Capture output in a standalone assignment under the existing
@@ -453,6 +513,12 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   deployment, restore, production release, volume deletion, and the Prometheus
   `T₀` remain separate human-authorized actions.
 
+For a vendor trust-store refresh, admission must verify the actual final default
+container CA bytes and the named removed certificate identities through the
+existing source-image owner. Mounted test roots and a successful compiler upgrade
+do not replace this check. Keep the existing real TLS positive/negative controls;
+source preparation alone grants no image activation or deployment authority.
+
 ### Official Prometheus image updates
 
 - The v3 record distinguishes preparation from a real selected candidate.
@@ -467,7 +533,6 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   An incoming archive must never choose executable host code for its own checks.
 - Image selection does not deploy or migrate a host, change volume ownership,
   enable staging attestation flags, or start the production observation clock.
-
 
 ## Production tag gate
 - Semver production tags stay build-only until all three deploy inputs agree: `PROD_DEPLOY_MODE`,

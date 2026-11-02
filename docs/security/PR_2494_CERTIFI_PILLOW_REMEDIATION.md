@@ -3,6 +3,31 @@
 PR: #2494
 Owner: dependency/security; ROOT executes this PR; the human repository owner accepts the bounded temporary risk.
 
+## Integration status — 2026-10-31
+
+PR #2497 merged as `d20922f741f431b6eb3e47386ae944ca441a971e`.
+This PR now adopts that complete Pillow 13.0.0 / FastEmbed
+0.8.0+pulseplate.1 tuple and its strict audit adapter. The literal retained
+Pillow 12.3.0/B24 helper, its selectors and obsolete ignore behavior are removed
+from the integrated source. The ordinary certifi floor and required-carrier
+checks remain. This is implementation retirement, not a fresh scan, publication,
+merge-readiness result or completion of every original criterion.
+
+The [newer stabilization owner](PYTHON_STABILIZATION_2026_10.md#primary-advisory-reconciliation)
+records GHSA-654x-cwwv-5j9c with range `>=11.2.1,<13.0.0` and fixed 13.0.0.
+That later cutoff supersedes the older inclusive-13/no-patch observation below
+for current selection. All 24 B24 aliases appear in its individually reconciled
+fixed-13 table. The older 61-row inventory, failed transactions, deadlines,
+spent exceptions and exact receipts remain dated history; they are not silently
+rewritten or promoted into current validation. The existing
+[ledger](../roadmap/BACKLOG_LEDGER.md#ledger-p1-pillow-arrow-residual-2494)
+remains open for outcome reconciliation and actual current-material proof.
+
+Every section below records the historical PR #2494 decision and its original
+material. Its present-tense operating commands and predicate requirements are
+superseded by the integrated strict audit path; do not execute the removed
+`--audit-manifest` / `--audit-pre-push` / `--pre-push` exception selectors.
+
 ## Authority, scope and current truth
 
 On 2026-10-21 the human repository owner directly authorized the necessary audit and correction processes, conditional merge after fresh readiness, and temporary ignores when a compatible solution cannot be qualified. The owner reaffirmed that instruction after the FastEmbed conflict and requested one coherent source/tests/docs package. These external instructions are the authority; this document, dates, hashes, tests and scanner output cannot create permission.

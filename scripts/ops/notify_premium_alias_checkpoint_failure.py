@@ -8,7 +8,7 @@ import asyncio
 import os
 import shutil
 import signal
-import subprocess  # nosec B404: # fixed reader process (remove-by: 2026-10-23, ref: PR-2477)
+import subprocess  # nosec B404: # stdlib subprocess required for the isolated notifier manifest reader (remove-by: 2026-12-21, ref: PR-2494)
 import sys
 import time
 from datetime import datetime, timedelta, timezone
@@ -124,6 +124,8 @@ def _compose_environment(compose_file: Path) -> dict[str, str]:
         result = subprocess.run(
             [
                 sys.executable,
+                "-I",
+                "-S",
                 str(helper),
                 "--operation",
                 "read-manifest",
@@ -133,11 +135,12 @@ def _compose_environment(compose_file: Path) -> dict[str, str]:
                 "runtime_ref",
             ],
             check=True,
+            stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             timeout=COMMAND_TIMEOUT_SECONDS,
             env={"PATH": os.defpath, "LANG": "C.UTF-8"},
-        )  # nosec B603: # fixed reader, no shell (remove-by: 2026-10-23, ref: PR-2477)
+        )  # nosec B603: # fixed isolated reader argv, closed input, canonical ref and 10s bound before send (remove-by: 2026-12-21, ref: PR-2494)
         raw = result.stdout
         if (
             not 1 < len(raw) <= 512

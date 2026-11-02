@@ -28,6 +28,7 @@ import time
 from typing import TYPE_CHECKING, Any, BinaryIO, cast
 
 if TYPE_CHECKING:
+    from zipfile import ZipFile, ZipInfo
     from scripts.ci.prometheus_source_image import GitHubRead, Native
 from urllib.error import HTTPError
 from urllib.parse import urlparse
@@ -49,6 +50,9 @@ _HEX_RE = re.compile(r"^[0-9a-f]{64}$")
 # One observed successful metadata epoch; these selectors grant no compiler authority.
 _ALERT_Q_SOURCE = "36cd171c4ebe44f63cb58d09a741b3d07098904d"
 _ALERT_Q_BRANCH = "codex/dependency-alertmanager-remediation"
+_ALERT_DONOR_SOURCE = "b82f3868caa305ef8592a30d707ca37d7725905d"
+_ALERT_RECEIVER_PR = 2497
+_ALERT_RECEIVER_BRANCH = "codex/python-setup-security-stabilization"
 _ALERT_Q_RUN = 39018353942
 _ALERT_Q_ARTIFACT = 12095483900
 _ALERT_Q_JOB = 117354986951
@@ -56,7 +60,6 @@ _ALERT_Q_ZIP_SHA256 = "46276592068419330f3f73d71802a15ebff0db28f0e9b67cb63e5d054
 _ALERT_PROBE_SHA256 = "462febe85977f9787d1d4a45fae0c0858fdb65f2312ccb95e034a505cbaaebfe"
 _ALERT_TRIVY_SHA256 = "d89bcc6510a267f11b773398cbf1be5520ce39f9e8b6633178c4487f05b7d791"
 _ALERT_BUILDX_SHA256 = "ae43fa08c796b44efc86d7a63c55f73f7c35f3101188dea7bf93bcd6f99577ba"
-_ALERT_ORAS_SHA256 = "8c88339f9c1da7826734fa67fff5802ec9be6673a5e7db869758be96412fd9bf"
 _ALERT_S_SOURCE = "df5ebd017bda93e31fbf9eccfd7cc7b98973a3c6"
 _ALERT_S_RUN = 39030856891
 _ALERT_S_ARTIFACT = 12100576545
@@ -78,6 +81,11 @@ _ALERT_BUILD_METADATA = (
     "-X github.com/prometheus/common/version.BuildUser=pulseplate@builder "
     "-X github.com/prometheus/common/version.BuildDate=19700101-00:00:00"
 )
+# Upstream source identity is independent of the compiler/CA current flag.
+_ALERT_UPSTREAM_0342_REVISION = "e8349048265ccc0871c3d0d668b05eacc68baf50"
+_ALERT_UPSTREAM_0342_METADATA = _ALERT_BUILD_METADATA.replace(
+    "Version=0.34.1", "Version=0.34.2"
+).replace("73c6bfe7393929211294c1954f30d8ed78e4d0ad", _ALERT_UPSTREAM_0342_REVISION)
 _ALERT_ASSEMBLY_LAUNCH = (
     "-I",
     "-S",
@@ -98,9 +106,12 @@ _ALERT_S_SOURCE_FILES = {
     ".github/workflows/cd.yml": "d7f5942a8394254add0a8de162413345908085edab89014c7bc9295b76729465",
 }
 _ALERT_ASSEMBLY_RECIPE_SHA256 = "8321b8129f819fadd64df26f0607c66fbabcef578bc76fe658e0d6d2cbab7347"
+_ALERT_CURRENT_ASSEMBLY_RECIPE_SHA256 = (
+    "2c70a5f492866c30e2c7db69be001003c674ef0f16b336f94a8a23be2777de13"
+)
 # Filled only by a later reviewed material update after actual full acceptance.
 # Failed build artifacts and caller-supplied ancestors never select a producer.
-_ALERT_ACCEPTED_CANDIDATE: dict[str, Any] | None = {
+_ALERT_HISTORICAL_C10: dict[str, Any] = {
     "run": 39143039135,
     "attempt": 1,
     "artifact": 12142714566,
@@ -532,6 +543,442 @@ _ALERT_ACCEPTED_CANDIDATE: dict[str, Any] | None = {
     "OCI_archive_sha256": "2991bf19f770c296e437aadbe9ca1169e25665797aa233611335de50f3551401",
 }
 
+# Prepared current producer: actual accepted output is populated only after native/security proof.
+_ALERT_HISTORICAL_AM11: dict[str, Any] = {
+    "run": 40387641620,
+    "attempt": 1,
+    "artifact": 12684611600,
+    "source": "a8c9b361dbd57d86e2adf8f01f7880830fc04e53",
+    "job": 121800078082,
+    "zip_sha256": "9d64f8a3814a69e94756c6e4cc9ddfe32f37b712e9091de67a167f3cad8a02cc",
+    "source_files": {
+        "scripts/ci/fetch_docker_source_artifacts.py": "a5ce1d231df3266e3f79c5ca757935ee92450e4d2373e3581e4e16d067f236b0",
+        ".github/workflows/cd.yml": "9793418af04ca3f9330fd0c0600384704082e887dfcd7f2a66616d7057af5ae8",
+        "scripts/ci/docker_source_artifacts.json": "d128fa5f624493cdc51665fd0fbbdf8c404e2a275022e9687f39d85ba275ebf0",
+        "deploy/alertmanager/Containerfile": "2c70a5f492866c30e2c7db69be001003c674ef0f16b336f94a8a23be2777de13",
+        "deploy/alertmanager/alertmanager.yml": "5dc1025c293763618febeb74c17edcb126ad943f9b20c2296c67847e9f977549",
+        "tests/test_notify_premium_alias_checkpoint_failure.py": "bf3aa402c2f388c88a9700eb6a5db71b31cc23caff53a8e8018a03b428d9fd01",
+    },
+    "graph": {
+        "manifest": {
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "digest": "sha256:5a476cb3c572d11f8b5fcb6d42400f4613011a5f592ca574b7015c5231b70781",
+            "size": 4402,
+        },
+        "config": {
+            "mediaType": "application/vnd.oci.image.config.v1+json",
+            "digest": "sha256:542c5e287fc8e0dc4f6c7db21576f4eaa508b28e9733e205ef78d2e3d06be62c",
+            "size": 5393,
+        },
+        "layers": [
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar",
+                "digest": "sha256:9486261b5a13f63ca6904b36721527ac8f19df53d300560138d69ae9b4c203de",
+                "size": 491520,
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar",
+                "digest": "sha256:621c35e751a51a9a9dc3e80aa0b7fe8be2a93402ea6ccd307d30852cd7776cda",
+                "size": 40960,
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar",
+                "digest": "sha256:92a3b02188b326c1b10a0a375d3c0019dff4ee8ff02a4b51a7e640bb9400932f",
+                "size": 1157120,
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar",
+                "digest": "sha256:ef430e4865b6130e131d5777c1d072fdcc89478668d10ab41a18549e0fdc88b5",
+                "size": 1331200,
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar",
+                "digest": "sha256:275a30dd8ce958b21daa9ad962c6fbc09f98306ee2f486b65c9075dc257b1412",
+                "size": 102400,
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar",
+                "digest": "sha256:4d049f83d9cf21d1f5cc0e11deaf36df02790d0e60c1a3829538fb4b61685368",
+                "size": 1536,
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar",
+                "digest": "sha256:af5aa97ebe6ce1604747ec1e21af7136ded391bcabe4acef882e718a87c86bcc",
+                "size": 2560,
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar",
+                "digest": "sha256:6f1cdceb6a3146f0ccb986521156bef8a422cdbb0863396f7f751f575ba308f4",
+                "size": 2560,
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar",
+                "digest": "sha256:bd3cdfae1d3fdd83a2231d608969b38b82349777c2fff9a7c12d54f8ac5c9b38",
+                "size": 2560,
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar",
+                "digest": "sha256:4cde6b0bb6f50a5f255eef7b2a42162c661cf776b803225dcac9a659e396bb6b",
+                "size": 1536,
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar",
+                "digest": "sha256:ad51d0769d16ba578106a177987dfe3d2e02c1668c852b795b2f6b024068242a",
+                "size": 2048,
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar",
+                "digest": "sha256:187cfc6d1e3e8a40a5e64653bcd3239c140807dcf1c09e48021178705a5a6139",
+                "size": 3072,
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar",
+                "digest": "sha256:0762a1f6557d1e88a761ab05aa7f65a10dc0e559913ea13befb873d907e1a396",
+                "size": 276480,
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:59ba35e2b5232c91af81a0d75ea400f0aeca5e6b34f889199746e487e391b3e4",
+                "size": 25457662,
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:1d7e93175a5a327c3b0c65c4684de75d884ebd2c5f341939bc542dfba60e698c",
+                "size": 15782244,
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:4e3c14bca0c0997d0a99d999c7e94acf52e89a38fa9a73ef94f51edd50754dff",
+                "size": 757856,
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:ae18b45f2decac38791db3c3699b506f187b23660b1a209cdccf63e4e860fc08",
+                "size": 757856,
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:e7643c91b99167835dcbf7bea533953e4274bc0eec7ab77832f52cc46c9ae2ab",
+                "size": 627,
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:96e5ede9a46e17833eaef049f706c7782fbabb7cf948be23becf99d0f7030174",
+                "size": 4022,
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:21af9a1d47c28faa66d24403d5bc06746852ea4bc6bde40e99bdcd6e39334954",
+                "size": 305,
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:bc26cacb46c3ccffb76545edbfd6e44f2cbee2db68776e40fbb31f3efdd0dec0",
+                "size": 104,
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:4f4fb700ef54461cfa02571ae0db9a0dc1e0cdb5577484a6d75e68dc38e8acc1",
+                "size": 32,
+            },
+        ],
+        "diff_ids": [
+            "sha256:9486261b5a13f63ca6904b36721527ac8f19df53d300560138d69ae9b4c203de",
+            "sha256:621c35e751a51a9a9dc3e80aa0b7fe8be2a93402ea6ccd307d30852cd7776cda",
+            "sha256:92a3b02188b326c1b10a0a375d3c0019dff4ee8ff02a4b51a7e640bb9400932f",
+            "sha256:ef430e4865b6130e131d5777c1d072fdcc89478668d10ab41a18549e0fdc88b5",
+            "sha256:275a30dd8ce958b21daa9ad962c6fbc09f98306ee2f486b65c9075dc257b1412",
+            "sha256:4d049f83d9cf21d1f5cc0e11deaf36df02790d0e60c1a3829538fb4b61685368",
+            "sha256:af5aa97ebe6ce1604747ec1e21af7136ded391bcabe4acef882e718a87c86bcc",
+            "sha256:6f1cdceb6a3146f0ccb986521156bef8a422cdbb0863396f7f751f575ba308f4",
+            "sha256:bd3cdfae1d3fdd83a2231d608969b38b82349777c2fff9a7c12d54f8ac5c9b38",
+            "sha256:4cde6b0bb6f50a5f255eef7b2a42162c661cf776b803225dcac9a659e396bb6b",
+            "sha256:ad51d0769d16ba578106a177987dfe3d2e02c1668c852b795b2f6b024068242a",
+            "sha256:187cfc6d1e3e8a40a5e64653bcd3239c140807dcf1c09e48021178705a5a6139",
+            "sha256:0762a1f6557d1e88a761ab05aa7f65a10dc0e559913ea13befb873d907e1a396",
+            "sha256:b8db3796f4e87f1a6ce0bf738ddefe7a4fec22094c70dd02dada1b9240fd8641",
+            "sha256:3472ef71ed568a199fa93cac34441ebfcdbfd6864cb328285f90e841b8fcad8a",
+            "sha256:b31a97d984edc094d85a62425ae840c7c8df5f6c7a126b7eae07b06280e033c2",
+            "sha256:f01151e6dd7dbf87c4048a968600eb9182047e0908a7a5b0fe63d30d9f416d1e",
+            "sha256:55fe60a8d959c16dc5753336a6977eb2488b405e32fcaed2eac9f8ab4eea273a",
+            "sha256:49b1190cc45f406436a4bc706dd15a3fc0efb71ccaf50f1b7fcb736512cbdae5",
+            "sha256:ea06a73386e697bcf480be17aea640c768d103e84cf384adc138d4c4ba62e86c",
+            "sha256:81eee2246c1ed9889c5bb3e86905e6c03f3c90716243a80444366983fe5d0362",
+            "sha256:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef",
+        ],
+        "configuration": {
+            "architecture": "amd64",
+            "config": {
+                "User": "65534:65534",
+                "ExposedPorts": {"9093/tcp": {}},
+                "Env": [
+                    "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                    "SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt",
+                ],
+                "Entrypoint": ["/bin/alertmanager"],
+                "Cmd": [
+                    "--config.file=/etc/alertmanager/alertmanager.yml",
+                    "--storage.path=/alertmanager",
+                    "--cluster.listen-address=",
+                ],
+                "Volumes": {"/alertmanager": {}},
+                "WorkingDir": "/alertmanager",
+                "ArgsEscaped": True,
+            },
+            "created": "2026-10-26T19:38:32.167128975Z",
+            "history": [
+                {
+                    "created": "1970-01-01T00:00:00Z",
+                    "created_by": "bazel build " "@trixie//base-files/amd64:data_statusd",
+                },
+                {
+                    "created": "1970-01-01T00:00:00Z",
+                    "created_by": "bazel build " "@trixie//netbase/amd64:data_statusd",
+                },
+                {
+                    "created": "1970-01-01T00:00:00Z",
+                    "created_by": "bazel build " "@trixie//tzdata/amd64:data_statusd",
+                },
+                {
+                    "created": "1970-01-01T00:00:00Z",
+                    "created_by": "bazel build " "@trixie//tzdata-legacy/amd64:data_statusd",
+                },
+                {
+                    "created": "1970-01-01T00:00:00Z",
+                    "created_by": "bazel build " "@trixie//media-types/amd64:data_statusd",
+                },
+                {"created": "1970-01-01T00:00:00Z", "created_by": "bazel build //common:rootfs"},
+                {"created": "1970-01-01T00:00:00Z", "created_by": "bazel build //common:passwd"},
+                {"created": "1970-01-01T00:00:00Z", "created_by": "bazel build //common:home"},
+                {"created": "1970-01-01T00:00:00Z", "created_by": "bazel build //common:group"},
+                {"created": "1970-01-01T00:00:00Z", "created_by": "bazel build //common:tmp"},
+                {"created": "1970-01-01T00:00:00Z", "created_by": "bazel build //static:nsswitch"},
+                {
+                    "created": "1970-01-01T00:00:00Z",
+                    "created_by": "bazel build //common:os_release_debian13",
+                },
+                {
+                    "created": "1970-01-01T00:00:00Z",
+                    "created_by": "bazel build " "//common:cacerts_debian13_amd64_tar",
+                },
+                {
+                    "created": "2026-10-26T19:38:31.957837416Z",
+                    "created_by": "COPY alertmanager /usr/bin/alertmanager # " "buildkit",
+                    "comment": "buildkit.dockerfile.v0",
+                },
+                {
+                    "created": "2026-10-26T19:38:32.115719879Z",
+                    "created_by": "COPY amtool /usr/bin/amtool # buildkit",
+                    "comment": "buildkit.dockerfile.v0",
+                },
+                {
+                    "created": "2026-10-26T19:38:32.127899001Z",
+                    "created_by": "COPY probe-bin-bracket /usr/bin/wget # " "buildkit",
+                    "comment": "buildkit.dockerfile.v0",
+                },
+                {
+                    "created": "2026-10-26T19:38:32.139560719Z",
+                    "created_by": "COPY probe-bin-bracket /usr/bin/httpd # " "buildkit",
+                    "comment": "buildkit.dockerfile.v0",
+                },
+                {
+                    "created": "2026-10-26T19:38:32.145526487Z",
+                    "created_by": "COPY alertmanager.yml "
+                    "/etc/alertmanager/alertmanager.yml # "
+                    "buildkit",
+                    "comment": "buildkit.dockerfile.v0",
+                },
+                {
+                    "created": "2026-10-26T19:38:32.151230068Z",
+                    "created_by": "COPY LICENSE /LICENSE # buildkit",
+                    "comment": "buildkit.dockerfile.v0",
+                },
+                {
+                    "created": "2026-10-26T19:38:32.156995526Z",
+                    "created_by": "COPY NOTICE /NOTICE # buildkit",
+                    "comment": "buildkit.dockerfile.v0",
+                },
+                {
+                    "created": "2026-10-26T19:38:32.162032794Z",
+                    "created_by": "USER 65534:65534",
+                    "comment": "buildkit.dockerfile.v0",
+                    "empty_layer": True,
+                },
+                {
+                    "created": "2026-10-26T19:38:32.162032794Z",
+                    "created_by": "COPY --chown=65534:65534 --chmod=0700 "
+                    "storage-dir /alertmanager # buildkit",
+                    "comment": "buildkit.dockerfile.v0",
+                },
+                {
+                    "created": "2026-10-26T19:38:32.167128975Z",
+                    "created_by": "WORKDIR /alertmanager",
+                    "comment": "buildkit.dockerfile.v0",
+                },
+                {
+                    "created": "2026-10-26T19:38:32.167128975Z",
+                    "created_by": "EXPOSE [9093/tcp]",
+                    "comment": "buildkit.dockerfile.v0",
+                    "empty_layer": True,
+                },
+                {
+                    "created": "2026-10-26T19:38:32.167128975Z",
+                    "created_by": "VOLUME [/alertmanager]",
+                    "comment": "buildkit.dockerfile.v0",
+                    "empty_layer": True,
+                },
+                {
+                    "created": "2026-10-26T19:38:32.167128975Z",
+                    "created_by": 'ENTRYPOINT ["/bin/alertmanager"]',
+                    "comment": "buildkit.dockerfile.v0",
+                    "empty_layer": True,
+                },
+                {
+                    "created": "2026-10-26T19:38:32.167128975Z",
+                    "created_by": "CMD "
+                    '["--config.file=/etc/alertmanager/alertmanager.yml" '
+                    '"--storage.path=/alertmanager" '
+                    '"--cluster.listen-address="]',
+                    "comment": "buildkit.dockerfile.v0",
+                    "empty_layer": True,
+                },
+            ],
+            "os": "linux",
+            "rootfs": {
+                "type": "layers",
+                "diff_ids": [
+                    "sha256:9486261b5a13f63ca6904b36721527ac8f19df53d300560138d69ae9b4c203de",
+                    "sha256:621c35e751a51a9a9dc3e80aa0b7fe8be2a93402ea6ccd307d30852cd7776cda",
+                    "sha256:92a3b02188b326c1b10a0a375d3c0019dff4ee8ff02a4b51a7e640bb9400932f",
+                    "sha256:ef430e4865b6130e131d5777c1d072fdcc89478668d10ab41a18549e0fdc88b5",
+                    "sha256:275a30dd8ce958b21daa9ad962c6fbc09f98306ee2f486b65c9075dc257b1412",
+                    "sha256:4d049f83d9cf21d1f5cc0e11deaf36df02790d0e60c1a3829538fb4b61685368",
+                    "sha256:af5aa97ebe6ce1604747ec1e21af7136ded391bcabe4acef882e718a87c86bcc",
+                    "sha256:6f1cdceb6a3146f0ccb986521156bef8a422cdbb0863396f7f751f575ba308f4",
+                    "sha256:bd3cdfae1d3fdd83a2231d608969b38b82349777c2fff9a7c12d54f8ac5c9b38",
+                    "sha256:4cde6b0bb6f50a5f255eef7b2a42162c661cf776b803225dcac9a659e396bb6b",
+                    "sha256:ad51d0769d16ba578106a177987dfe3d2e02c1668c852b795b2f6b024068242a",
+                    "sha256:187cfc6d1e3e8a40a5e64653bcd3239c140807dcf1c09e48021178705a5a6139",
+                    "sha256:0762a1f6557d1e88a761ab05aa7f65a10dc0e559913ea13befb873d907e1a396",
+                    "sha256:b8db3796f4e87f1a6ce0bf738ddefe7a4fec22094c70dd02dada1b9240fd8641",
+                    "sha256:3472ef71ed568a199fa93cac34441ebfcdbfd6864cb328285f90e841b8fcad8a",
+                    "sha256:b31a97d984edc094d85a62425ae840c7c8df5f6c7a126b7eae07b06280e033c2",
+                    "sha256:f01151e6dd7dbf87c4048a968600eb9182047e0908a7a5b0fe63d30d9f416d1e",
+                    "sha256:55fe60a8d959c16dc5753336a6977eb2488b405e32fcaed2eac9f8ab4eea273a",
+                    "sha256:49b1190cc45f406436a4bc706dd15a3fc0efb71ccaf50f1b7fcb736512cbdae5",
+                    "sha256:ea06a73386e697bcf480be17aea640c768d103e84cf384adc138d4c4ba62e86c",
+                    "sha256:81eee2246c1ed9889c5bb3e86905e6c03f3c90716243a80444366983fe5d0362",
+                    "sha256:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef",
+                ],
+            },
+        },
+        "payload": [
+            {"path": "usr", "mode": 493, "uid": 0, "gid": 0, "size": 0, "type": "directory"},
+            {"path": "usr/bin", "mode": 493, "uid": 0, "gid": 0, "size": 0, "type": "directory"},
+            {
+                "path": "usr/bin/alertmanager",
+                "mode": 365,
+                "uid": 0,
+                "gid": 0,
+                "size": 50298871,
+                "type": "file",
+                "sha256": "c7df6fc46c9f41f83657de5956b0373d1e733b04549c59d9657c44a426334aff",
+            },
+            {"path": "usr", "mode": 493, "uid": 0, "gid": 0, "size": 0, "type": "directory"},
+            {"path": "usr/bin", "mode": 493, "uid": 0, "gid": 0, "size": 0, "type": "directory"},
+            {
+                "path": "usr/bin/amtool",
+                "mode": 365,
+                "uid": 0,
+                "gid": 0,
+                "size": 30655667,
+                "type": "file",
+                "sha256": "47bd3f8d054eb8b6ab1005577508da00b52efba55ba647a83612ec31731da42b",
+            },
+            {"path": "usr", "mode": 493, "uid": 0, "gid": 0, "size": 0, "type": "directory"},
+            {"path": "usr/bin", "mode": 493, "uid": 0, "gid": 0, "size": 0, "type": "directory"},
+            {
+                "path": "usr/bin/wget",
+                "mode": 365,
+                "uid": 0,
+                "gid": 0,
+                "size": 1173752,
+                "type": "file",
+                "sha256": "462febe85977f9787d1d4a45fae0c0858fdb65f2312ccb95e034a505cbaaebfe",
+            },
+            {"path": "usr", "mode": 493, "uid": 0, "gid": 0, "size": 0, "type": "directory"},
+            {"path": "usr/bin", "mode": 493, "uid": 0, "gid": 0, "size": 0, "type": "directory"},
+            {
+                "path": "usr/bin/httpd",
+                "mode": 365,
+                "uid": 0,
+                "gid": 0,
+                "size": 1173752,
+                "type": "file",
+                "sha256": "462febe85977f9787d1d4a45fae0c0858fdb65f2312ccb95e034a505cbaaebfe",
+            },
+            {"path": "etc", "mode": 493, "uid": 0, "gid": 0, "size": 0, "type": "directory"},
+            {
+                "path": "etc/alertmanager",
+                "mode": 493,
+                "uid": 0,
+                "gid": 0,
+                "size": 0,
+                "type": "directory",
+            },
+            {
+                "path": "etc/alertmanager/alertmanager.yml",
+                "mode": 292,
+                "uid": 0,
+                "gid": 0,
+                "size": 1094,
+                "type": "file",
+                "sha256": "5dc1025c293763618febeb74c17edcb126ad943f9b20c2296c67847e9f977549",
+            },
+            {
+                "path": "LICENSE",
+                "mode": 292,
+                "uid": 0,
+                "gid": 0,
+                "size": 11357,
+                "type": "file",
+                "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+            },
+            {
+                "path": "NOTICE",
+                "mode": 292,
+                "uid": 0,
+                "gid": 0,
+                "size": 311,
+                "type": "file",
+                "sha256": "24f7d73529defd2e28b4bb5e0f0396cebb6d3e74b7f66a26b62d0d3251431582",
+            },
+            {
+                "path": "alertmanager",
+                "mode": 448,
+                "uid": 65534,
+                "gid": 65534,
+                "size": 0,
+                "type": "directory",
+            },
+        ],
+        "files": {
+            "usr/bin/alertmanager": "c7df6fc46c9f41f83657de5956b0373d1e733b04549c59d9657c44a426334aff",
+            "usr/bin/amtool": "47bd3f8d054eb8b6ab1005577508da00b52efba55ba647a83612ec31731da42b",
+            "usr/bin/wget": "462febe85977f9787d1d4a45fae0c0858fdb65f2312ccb95e034a505cbaaebfe",
+            "usr/bin/httpd": "462febe85977f9787d1d4a45fae0c0858fdb65f2312ccb95e034a505cbaaebfe",
+            "etc/alertmanager/alertmanager.yml": "5dc1025c293763618febeb74c17edcb126ad943f9b20c2296c67847e9f977549",
+            "LICENSE": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+            "NOTICE": "24f7d73529defd2e28b4bb5e0f0396cebb6d3e74b7f66a26b62d0d3251431582",
+        },
+        "default_CA_sha256": "e9c7b63ee2623386e9b0a3ee32f499d01a8ea23dc83b8383ddff9f8e749543b7",
+    },
+    "OCI_archive_sha256": "fa74ac0777c59c73299c6424239038bfcd9b0a0d7366beaf24fc432b364090c1",
+}
+
+# No accepted producer exists for the new upstream source epoch.
+_ALERT_ACCEPTED_CANDIDATE: dict[str, Any] | None = None
+
 # Only these two reviewed upstream repository/ref records use codeload basenames.
 _PINNED_CODELOAD_SOURCES = {
     "pcre2": (
@@ -552,84 +999,42 @@ _PINNED_CODELOAD_SOURCES = {
 # Finite reviewed release/patch tuples; no generic source-host or patch allowance.
 _PINNED_NATIVE_SOURCES = {
     "zlib": (
-        "1.3.2",
-        "https://www.zlib.net/fossils/zlib-1.3.2.tar.gz",
-        "zlib-1.3.2.tar.gz",
-        ("451bedbd" "cd78dec3" "704df673" "c976fab2" "5beaef6a" "db9433fe" "84665e7b" "f946e325"),
+        "1.3.2.1-motley",
+        "https://codeload.github.com/madler/zlib/tar.gz/71747d1d39168833e0cae8ed84b8ce77cb049699",
+        "zlib-71747d1d39168833e0cae8ed84b8ce77cb049699.tar.gz",
+        "d03279035bd9536a0d4e0396a593acd330c7ed51fc42f7d8aa83450957f30a16",
     ),
     "ncurses": (
-        "6.6",
-        "https://invisible-island.net/archives/ncurses/ncurses-6.6.tar.gz",
-        "ncurses-6.6.tar.gz",
-        ("b755b6ab" "f8bdb9fa" "fa048a0c" "55973212" "ee491051" "a0aaff08" "dfa45339" "34dc53cc"),
+        "6.6-20261024",
+        "https://invisible-island.net/archives/ncurses/current/ncurses-6.6-20261024.tgz",
+        "ncurses-6.6-20261024.tgz",
+        "7a9e4d9c29c764d451564cf93d08b50cd63d3f8dad3535b33a763f829d89a500",
     ),
     "openssl": (
         "3.5.9",
         "https://codeload.github.com/openssl/openssl/legacy.tar.gz/45e844fa2a14ec92d146bd8f5778ac130b6625fb",
         "openssl-3.5.9.tar.gz",
-        ("7392920f" "1897e1e2" "d9dc8483" "68aff6e4" "bdc94213" "44286d60" "ba517b9f" "14b202a0"),
+        "7392920f1897e1e2d9dc848368aff6e4bdc9421344286d60ba517b9f14b202a0",
     ),
     "postgresql": (
         "18.6",
         "https://ftp.postgresql.org/pub/source/v18.6/postgresql-18.6.tar.gz",
         "postgresql-18.6.tar.gz",
-        ("672dab27" "4f12efd4" "9d7d431e" "77b42d23" "5d9583f1" "91608821" "b0e48dc1" "d09fb4c0"),
-    ),
-    "zlib-gzwrite-fix": (
-        ("df84af25" "dc194249" "0e1d1c89" "9a076191" "52a46148"),
-        "https://github.com/madler/zlib/commit/df84af25dc1942490e1d1c899a07619152a46148.patch?full_index=1",
-        "zlib-gzwrite-fix-df84af25dc1942490e1d1c899a07619152a46148.patch",
-        ("73d989d6" "57fc2056" "900feb1a" "83574139" "4b079f94" "3f8659fe" "441299ee" "bf91b310"),
-    ),
-    "zlib-gzwrite-null-fix": (
-        ("e3dc0a85" "b7032e98" "380dec01" "1bc8f2c2" "ee0d8fca"),
-        "https://github.com/madler/zlib/commit/e3dc0a85b7032e98380dec011bc8f2c2ee0d8fca.patch?full_index=1",
-        "zlib-gzwrite-null-fix-e3dc0a85b7032e98380dec011bc8f2c2ee0d8fca.patch",
-        ("2d97c97e" "020dfe05" "9b8b1981" "95a8fe42" "197f88b1" "184bb9ef" "0292a8af" "a535aa26"),
-    ),
-    "zlib-gzvprintf-return-fix": (
-        ("bbc2ccf3" "d0de2675" "76b524b8" "75c769a7" "24a513b0"),
-        "https://github.com/madler/zlib/commit/bbc2ccf3d0de267576b524b875c769a724a513b0.patch?full_index=1",
-        "zlib-gzvprintf-return-fix-bbc2ccf3d0de267576b524b875c769a724a513b0.patch",
-        ("28af72a5" "d4d20648" "1956ab11" "ab164090" "7577bc0c" "021ef3b5" "8344ea64" "f00c764c"),
-    ),
-    "zlib-gzprintf-return-fix": (
-        ("7235b0a5" "81227c56" "a79a43ff" "828f8ef6" "794194c8"),
-        "https://github.com/madler/zlib/commit/7235b0a581227c56a79a43ff828f8ef6794194c8.patch?full_index=1",
-        "zlib-gzprintf-return-fix-7235b0a581227c56a79a43ff828f8ef6794194c8.patch",
-        ("84bd6874" "0f1bf101" "fa85d3dd" "726a9c9b" "ec84c216" "3adf5b7b" "5c004bba" "62db6d5d"),
-    ),
-    "zlib-blocked-errno-fix": (
-        ("813dac5d" "cb5902ed" "241e9b0d" "38abd2d8" "47a335a9"),
-        "https://github.com/madler/zlib/commit/813dac5dcb5902ed241e9b0d38abd2d847a335a9.patch?full_index=1",
-        "zlib-blocked-errno-fix-813dac5dcb5902ed241e9b0d38abd2d847a335a9.patch",
-        ("d4fbd685" "ed4c2ec2" "d5e4962f" "0f6d5a98" "5ab1f542" "0bc1224d" "d262b419" "e7c26ab5"),
-    ),
-    "zlib-gzprintf-contract-fix": (
-        ("d81c2d7e" "b705c622" "94ba0329" "92556720" "78e89115"),
-        "https://github.com/madler/zlib/commit/d81c2d7eb705c62294ba03299255672078e89115.patch?full_index=1",
-        "zlib-gzprintf-contract-fix-d81c2d7eb705c62294ba03299255672078e89115.patch",
-        ("e9216856" "034689c7" "1656fb32" "dd1b25d3" "2304baf4" "42b7e9b8" "d454c732" "187b0bcf"),
-    ),
-    "zlib-errno-order-fix": (
-        ("a82e0db3" "92178a3e" "05fb27bf" "551a6ce7" "57a47898"),
-        "https://github.com/madler/zlib/commit/a82e0db392178a3e05fb27bf551a6ce757a47898.patch?full_index=1",
-        "zlib-errno-order-fix-a82e0db392178a3e05fb27bf551a6ce757a47898.patch",
-        ("33b8bc65" "706a2b85" "2e4b7ede" "ce112f13" "59078b3c" "8e475079" "d7b8d92d" "d4931d47"),
+        "672dab274f12efd49d7d431e77b42d235d9583f191608821b0e48dc1d09fb4c0",
     ),
 }
 _PINNED_ALERT_SOURCES = {
     "alertmanager-source": (
-        "73c6bfe7393929211294c1954f30d8ed78e4d0ad",
-        "https://codeload.github.com/prometheus/alertmanager/tar.gz/73c6bfe7393929211294c1954f30d8ed78e4d0ad",
-        "alertmanager-73c6bfe7393929211294c1954f30d8ed78e4d0ad.tar.gz",
-        "91f2352a99d986ddc734f19f0e082c7dc24f7baf31b22f89d5b61c4b4af32400",
+        "e8349048265ccc0871c3d0d668b05eacc68baf50",
+        "https://codeload.github.com/prometheus/alertmanager/tar.gz/e8349048265ccc0871c3d0d668b05eacc68baf50",
+        "alertmanager-e8349048265ccc0871c3d0d668b05eacc68baf50.tar.gz",
+        "06d88cbef612a0d4ddb991177e5628a3519a192b16505581b4e0c0985797fac7",
     ),
     "alertmanager-ui": (
-        "0.34.1",
-        "https://github.com/prometheus/alertmanager/releases/download/v0.34.1/alertmanager-web-ui-0.34.1.tar.gz",
-        "alertmanager-web-ui-0.34.1.tar.gz",
-        "ba9042c87a601adb24bef90ccc2015fec88524f796eb63edc1d533f92f6ccdd1",
+        "0.34.2",
+        "https://github.com/prometheus/alertmanager/releases/download/v0.34.2/alertmanager-web-ui-0.34.2.tar.gz",
+        "alertmanager-web-ui-0.34.2.tar.gz",
+        "94cca0b0c04577a86deea79a58e337ef8a5854ea026df8f992eb4040c813f743",
     ),
 }
 _PINNED_EXACT_SOURCES = {
@@ -640,62 +1045,24 @@ _PINNED_EXACT_SOURCES = {
 
 # Exact Alertmanager source/UI acquired and reconciled before this source preparation.
 _ALERT_NAMES = frozenset({"alertmanager-source", "alertmanager-ui"})
-_ALERT_SIZES = {"alertmanager-source": 819451, "alertmanager-ui": 931784}
+_ALERT_SIZES = {"alertmanager-source": 820631, "alertmanager-ui": 931818}
 _ALERT_MEMBER_DIGESTS = {
-    "alertmanager-source": "0b3bbdeb5e198cb2341b98491deaea279a8ea4bbae1c4f6b60ece72eadcc634a",
-    "alertmanager-ui": "21b3e50b72b698e0aed7085f7528b5e562b3b26e3eaa219e8158710b5bf59c02",
+    "alertmanager-source": "05072e406e1a25cec5f743d3647243fb40a2d74a83c4971b9d6e8f043cf4215a",
+    "alertmanager-ui": "20649d8f64d2c50f5d707045f4f3b688792e46b3534e239d043564707ec9745c",
 }
 
 _NATIVE_ARCHIVE_INVENTORIES = {
-    "zlib": ("zlib-1.3.2", 291, 3_579_037, "LICENSE"),
-    "ncurses": ("ncurses-6.6", 1298, 18_614_617, "COPYING"),
-    "openssl": ("openssl-openssl-45e844f", 6078, 131_230_833, "LICENSE.txt"),
-    "postgresql": ("postgresql-18.6", 7944, 141_525_674, "COPYRIGHT"),
+    "zlib": ("zlib-71747d1d39168833e0cae8ed84b8ce77cb049699", 310, 3636732, "LICENSE"),
+    "ncurses": ("ncurses-6.6-20261024", 1299, 18736809, "COPYING"),
+    "openssl": ("openssl-openssl-45e844f", 6078, 131230833, "LICENSE.txt"),
+    "postgresql": ("postgresql-18.6", 7944, 141525674, "COPYRIGHT"),
 }
 _NATIVE_ARCHIVE_MAX_BYTES = 64 * 1024 * 1024
 _PINNED_NATIVE_SHA256 = {
-    "zlib": (
-        "bb329a0a" "2cd0274d" "05519d61" "c667c062" "e06990d7" "2e125ee2" "dfa8de64" "f0119d16"
-    ),
-    "ncurses": (
-        "355b4cbb" "ed880b03" "81a04c46" "617b7656" "e362585d" "52e9cf84" "a67e2009" "b749ff11"
-    ),
-    "openssl": (
-        "32662f03" "fc8e90bc" "8b8fc0ac" "b115ed41" "3eec5045" "a127e9af" "9f6c234b" "c3d0a8f2"
-    ),
-    "postgresql": (
-        "983ee554" "ec53dbeb" "9b70797b" "ef9fcf4e" "67e117e7" "e48ca146" "3cc80b3f" "f8e8ff3f"
-    ),
-    "zlib-gzwrite-fix": (
-        "db74db83" "084f8ff5" "cf8d65ea" "5fd1bd63" "331f4c79" "fc809189" "d3735f35" "18ae2527"
-    ),
-    "zlib-gzwrite-null-fix": (
-        "8be18219" "a658f1dd" "fa83d4e8" "f778d2c3" "be1ade11" "3863f166" "3929c399" "02e001cc"
-    ),
-    "zlib-gzvprintf-return-fix": (
-        "96bd1c24" "2f09b244" "430bfe78" "54a9bb57" "a6e24a1e" "38e93bce" "f8ba946d" "22ecaf16"
-    ),
-    "zlib-gzprintf-return-fix": (
-        "c5eff1cc" "8dd1997b" "16e0918e" "bf6074b9" "9bd38b2c" "244fb2bf" "2b697e74" "541a0987"
-    ),
-    "zlib-blocked-errno-fix": (
-        "b1fcf877" "5123d729" "0a11e952" "21632fca" "7406cce1" "73820a09" "392c659e" "adb0ba0a"
-    ),
-    "zlib-gzprintf-contract-fix": (
-        "22adf550" "e344229d" "f577ce66" "fddfce16" "451eb605" "20e8f68e" "5cae2192" "1b9bc0ea"
-    ),
-    "zlib-errno-order-fix": (
-        "c12fbe1d" "d31e27c3" "90d4552c" "3862fe6b" "c50169c7" "3ab97a74" "e81682b6" "a713f1f9"
-    ),
-}
-_PINNED_ZLIB_PATCH_SIZES = {
-    "zlib-gzwrite-fix": 916,
-    "zlib-gzwrite-null-fix": 833,
-    "zlib-gzvprintf-return-fix": 809,
-    "zlib-gzprintf-return-fix": 826,
-    "zlib-blocked-errno-fix": 2629,
-    "zlib-gzprintf-contract-fix": 2110,
-    "zlib-errno-order-fix": 1538,
+    "zlib": "c9db0fa65f2ab5432d7d97097c058c81e0cfff250f9e900ac3dc1d70989d4dd5",
+    "ncurses": "478141b2004fcd12219c3cbe467dc2bb848eb1d0e762eb8d73b9c8ae613168e0",
+    "openssl": "32662f03fc8e90bc8b8fc0acb115ed413eec5045a127e9af9f6c234bc3d0a8f2",
+    "postgresql": "983ee554ec53dbeb9b70797bef9fcf4e67e117e7e48ca1463cc80b3ff8e8ff3f",
 }
 
 
@@ -795,8 +1162,8 @@ def _validate_source_identity(artifact: DockerSourceArtifact) -> None:
         artifact.name in _ALERT_NAMES
         and artifact.sha256
         != {
-            "alertmanager-source": "5c5c72ec6b4c4746d523f2ed1994dfec4b94f7457e530ee6fb16cfec158e545e",
-            "alertmanager-ui": "881fe0f7beb9573f35be47dd233af6220e72c8db72c03bcd1780402eb8dc1307",
+            "alertmanager-source": "81e69f87954aedb557ed67d9ef0218a1c0c9b9e0c3184c9ddffe07bd247239fc",
+            "alertmanager-ui": "3d6b13c5af094724e0bed8f757399e08af44d40d6c6cd87392a1f8ee6ed1e457",
         }[artifact.name]
     ):
         raise RuntimeError("Alertmanager SHA256 identity differs.")
@@ -842,20 +1209,7 @@ def load_manifest(
         name = raw_artifact.get("name")
         version = raw_artifact.get("version")
         if "version_parts" in raw_artifact:
-            parts = raw_artifact["version_parts"]
-            if (
-                not isinstance(name, str)
-                or name not in _PINNED_ZLIB_PATCH_SIZES
-                or version is not None
-                or type(parts) is not list
-                or len(parts) != 5
-                or any(
-                    type(part) is not str or re.fullmatch(r"[0-9a-f]{8}", part) is None
-                    for part in parts
-                )
-            ):
-                raise RuntimeError("Only exact reviewed zlib patches use the version-parts form.")
-            version = "".join(parts)
+            raise RuntimeError("Retired zlib patch version_parts are not current source inputs.")
         filename = raw_artifact.get("filename")
         url = raw_artifact.get("url")
         if not all(
@@ -923,10 +1277,6 @@ def validate_source_payload(
         raise RuntimeError(f"{artifact.name} SHA256 mismatch")
     if artifact.name in _ALERT_NAMES:
         _alertmanager_members(artifact, payload, deadline=deadline, decoded_total=decoded_total)
-        return
-    if artifact.name in _PINNED_ZLIB_PATCH_SIZES:
-        if len(payload) != _PINNED_ZLIB_PATCH_SIZES[artifact.name]:
-            raise RuntimeError("The exact zlib patch size differs from its reviewed identity.")
         return
     if artifact.name not in _NATIVE_ARCHIVE_INVENTORIES:
         return
@@ -1070,6 +1420,92 @@ def _retain_rejected_zlib_response(
         os.close(parent_fd)
 
 
+def _alertmanager_upstream_identity(
+    root_inputs: dict[str, str] | None = None,
+    *,
+    current: bool,
+    accepted: dict[str, Any] | None = None,
+    api: GitHubRead | None = None,
+) -> str:
+    """Select only reviewed source/UI hash pairs; compiler/CA remains independent."""
+    from scripts.ci.prometheus_source_image import one_object, require
+
+    require(type(current) is bool, "AM_upstream_compiler_epoch_type")
+    if accepted is not None:
+        require(
+            root_inputs is None and accepted == _alertmanager_accepted_producer(),
+            "AM_accepted_source_context",
+        )
+        if accepted in (_ALERT_HISTORICAL_C10, _ALERT_HISTORICAL_AM11):
+            return "0.34.1"
+        require(api is not None, "AM_accepted_source_snapshot_required")
+        snapshot = _alertmanager_source_snapshot(
+            cast("GitHubRead", api), accepted["source"], accepted=True
+        )
+        # Git-addressable accepted provenance, not a new acquisition or a date renewal.
+        catalog = one_object(snapshot["scripts/ci/docker_source_artifacts.json"])
+        rows = catalog.get("artifacts")
+        require(type(rows) is list and bool(rows), "AM_lineage_source_catalog")
+        selected: dict[str, dict[str, Any]] = {}
+        seen: set[str] = set()
+        for row in rows:
+            require(
+                type(row) is dict and type(row.get("name")) is str and row["name"] not in seen,
+                "AM_lineage_catalog_distinct_names",
+            )
+            seen.add(row["name"])
+            if row["name"] in _ALERT_NAMES:
+                selected[row["name"]] = row
+        require(set(selected) == set(_ALERT_NAMES), "AM_lineage_exact_source_UI_members")
+        root_inputs = {
+            key: _sha3_from_parts(selected[name].get("sha256_parts"), artifact_name=name)
+            for key, name in (
+                ("source.tar.gz", "alertmanager-source"),
+                ("ui.tar.gz", "alertmanager-ui"),
+            )
+        }
+        upstream = _alertmanager_upstream_identity(root_inputs, current=True)
+        if upstream == "0.34.2":
+            for name, row in selected.items():
+                require(
+                    (
+                        row.get("version"),
+                        row.get("url"),
+                        row.get("filename"),
+                        _sha3_from_parts(row.get("sha3_256_parts"), artifact_name=name),
+                    )
+                    == _PINNED_ALERT_SOURCES[name],
+                    "AM_lineage_exact_current_source_tuple",
+                )
+        return upstream
+    require(api is None and type(root_inputs) is dict, "AM_upstream_compiler_epoch_type")
+    root_inputs = cast(dict[str, str], root_inputs)
+    pair = tuple(root_inputs.get(name) for name in ("source.tar.gz", "ui.tar.gz"))
+    if pair == (
+        "5c5c72ec6b4c4746d523f2ed1994dfec4b94f7457e530ee6fb16cfec158e545e",
+        "881fe0f7beb9573f35be47dd233af6220e72c8db72c03bcd1780402eb8dc1307",
+    ):
+        return "0.34.1"
+    require(
+        current
+        and pair
+        == (
+            "81e69f87954aedb557ed67d9ef0218a1c0c9b9e0c3184c9ddffe07bd247239fc",
+            "3d6b13c5af094724e0bed8f757399e08af44d40d6c6cd87392a1f8ee6ed1e457",
+        ),
+        "AM_exact_upstream_source_UI_compiler_join",
+    )
+    return "0.34.2"
+
+
+def _alertmanager_upstream_version(root_bytes: dict[str, bytes], *, current: bool) -> str:
+    """Cross-bind actual retained bytes through the same finite source tuple owner."""
+    return _alertmanager_upstream_identity(
+        {name: sha256(root_bytes[name]).hexdigest() for name in ("source.tar.gz", "ui.tar.gz")},
+        current=current,
+    )
+
+
 def _alertmanager_members(
     artifact: DockerSourceArtifact,
     payload: bytes,
@@ -1089,7 +1525,7 @@ def _alertmanager_members(
             if counter[0] > 256 * 1024 * 1024:
                 raise RuntimeError("Alertmanager aggregate decoded archive bound exceeded.")
     root = (
-        "alertmanager-73c6bfe7393929211294c1954f30d8ed78e4d0ad"
+        "alertmanager-e8349048265ccc0871c3d0d668b05eacc68baf50"
         if artifact.name == "alertmanager-source"
         else "dist"
     )
@@ -1698,8 +2134,11 @@ def _retain_alertmanager_inputs(
     }
 
 
-def _alertmanager_loaded_base(objects: list[dict[str, Any]]) -> str:
+def _alertmanager_loaded_base(objects: list[dict[str, Any]], *, current: bool = False) -> str:
     """Bind the single native public-base config, platform, digest and thirteen diffIDs."""
+    from scripts.ci.prometheus_source_image import BASE, BASE_CONFIG, BASE_LAYER_CONTRACTS, require
+
+    require(type(current) is bool, "AM_loaded_base_epoch_type")
     if len(objects) != 1:
         raise RuntimeError("Exact public base native observation ambiguous.")
     image = objects[0]
@@ -1719,6 +2158,11 @@ def _alertmanager_loaded_base(objects: list[dict[str, Any]]) -> str:
         "sha256:f2392a9484bf6b18f06beaf705b994e31dbb2716c99cf7d03c9c495cd107f364",
     ]
     reference = "gcr.io/distroless/static-debian13@sha256:2293b36c7c9082bf4115aab724b4d2cddec82c8eba39bf27ac0517e159acf150"
+    identifier_expected = _ALERT_BASE_CONFIG
+    if current:
+        reference = BASE
+        identifier_expected = BASE_CONFIG
+        expected = [row["diff_id"] for row in BASE_LAYER_CONTRACTS]
     digests = image.get("RepoDigests")
     rootfs = image.get("RootFS")
     if (
@@ -1731,7 +2175,7 @@ def _alertmanager_loaded_base(objects: list[dict[str, Any]]) -> str:
     ):
         raise RuntimeError("Exact public base native field shapes differ.")
     if (
-        image.get("Id") != "sha256:55a757dc8ab862a4eb634c434261dcd26f17c186b54f7bce845404a335456110"
+        image.get("Id") != identifier_expected
         or image.get("Os") != "linux"
         or image.get("Architecture") != "amd64"
         or rootfs["Layers"] != expected
@@ -1787,6 +2231,8 @@ def _qualify_alertmanager_modules(output: Path) -> None:
     """ONE fixed825 owner; source child restores its remaining parent timer."""
     import signal
 
+    if output.absolute().is_relative_to(REPO_ROOT):
+        raise RuntimeError("AM qualification output must be outside the source checkout")
     seconds_text = os.environ.get("ALERTMANAGER_QUALIFY_SECONDS")
     if seconds_text != "825":
         raise RuntimeError(
@@ -1862,7 +2308,7 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
     import uuid
     from scripts.ci.prometheus_source_image import (
         Native,
-        GO,
+        CURRENT_GO as GO,
         extract,
         acquire,
         decode_objects,
@@ -1885,7 +2331,7 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
     try:
         artifacts = load_manifest(DEFAULT_MANIFEST, artifact="alertmanager")
         _fetch_alertmanager_pair(artifacts, output, operation_deadline=deadline)
-        go_archive = output / "go1.27.2.linux-amd64.tar.gz"
+        go_archive = output / "go1.27.3.linux-amd64.tar.gz"
         if not go_archive.exists() and not go_archive.is_symlink():
             acquire(GO, go_archive, deadline)
 
@@ -1893,9 +2339,8 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
             go_archive.is_symlink()
             or not go_archive.is_file()
             or go_archive.stat().st_nlink != 1
-            or go_archive.stat().st_size != 70590635
-            or file_hash(go_archive, deadline)
-            != "ecbadb99091a3f46e31f5f934b068b1864eafa7995211b39eaddf76996045fe5"
+            or go_archive.stat().st_size != GO.size
+            or file_hash(go_archive, deadline) != GO.digest
         ):
             raise RuntimeError("Exact Go input changed; no overwrite, replacement or retry.")
         toolchain = output / "alertmanager-go"
@@ -1912,7 +2357,9 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
         if docker is None or not Path(docker).is_absolute():
             raise RuntimeError("Resolved Docker is required for real network-none metadata replay.")
         docker_prefix = [docker, "--config", str(docker_config)]
-        base_ref = "gcr.io/distroless/static-debian13@sha256:2293b36c7c9082bf4115aab724b4d2cddec82c8eba39bf27ac0517e159acf150"
+        from scripts.ci.prometheus_source_image import BASE
+
+        base_ref = BASE
         native.run(
             [*docker_prefix, "pull", "--platform", "linux/amd64", base_ref],
             "public-base-pull",
@@ -1926,7 +2373,7 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
             cwd=output,
         )
         base_objects = decode_objects(base_raw)
-        base_id = _alertmanager_loaded_base(base_objects)
+        base_id = _alertmanager_loaded_base(base_objects, current=True)
         base_retention = evidence / "base-retention"
         base_retention.mkdir(mode=0o700)
         base_archive = base_retention / "base-image.tar"
@@ -1977,6 +2424,8 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
                 "GOMODCACHE": str(cache / "pkg/mod"),
                 "GOCACHE": str(cache / "build"),
                 "GOTOOLCHAIN": "local",
+                "GOENV": "off",
+                "GOWORK": "off",
                 "GOOS": "linux",
                 "GOARCH": "amd64",
                 "CGO_ENABLED": "0",
@@ -1985,6 +2434,13 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
                 "GOFLAGS": "",
             }
             original_locks = {name: (source / name).read_bytes() for name in ("go.mod", "go.sum")}
+            if (
+                sha256(original_locks["go.mod"]).hexdigest()
+                != "55a63e9214662673cdbf865dd859b2d62da89f6d5b32b2165ec80f5af3fc6139"
+                or sha256(original_locks["go.sum"]).hexdigest()
+                != "4ab3b4e64e70b2cca7be33ac1d572e659595e17c98703a26efb5b32790ea1cbf"
+            ):
+                raise RuntimeError("Current upstream module source bytes differ.")
             original_inventory = tree_inventory(source, deadline=deadline)
             for lock, raw in original_locks.items():
                 (evidence / ("replay" + str(number) + "-original-" + lock)).write_bytes(raw)
@@ -2017,7 +2473,7 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
                 return raw
 
             version = command(["version"], "version")
-            if version != b"go version go1.27.2 linux/amd64\n":
+            if version != b"go version go1.27.3 linux/amd64\n":
                 raise RuntimeError("Qualified Go version/platform differs.")
             command(["mod", "download", "-json"], "baseline-download")
             baseline = decode_objects(
@@ -2025,8 +2481,7 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
             )
             command(
                 ["get", "golang.org/x/net@v0.60.0", "google.golang.org/grpc@v1.83.2"],
-                "two-authored-replacements",
-                True,
+                "upstream-target-replay",
             )
             command(["mod", "download", "-json"], "derived-download")
             command(["mod", "verify"], "online-verify")
@@ -2149,10 +2604,11 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
             if (
                 len(before) != len(baseline)
                 or len(after) != len(modules)
-                or before.get("golang.org/x/net") == "v0.60.0"
-                or before.get("google.golang.org/grpc") == "v1.83.2"
+                or before.get("golang.org/x/net") != "v0.60.0"
+                or before.get("google.golang.org/grpc") != "v1.83.2"
+                or before != after
             ):
-                raise RuntimeError("Module duplicates or missing non-empty authored replacement.")
+                raise RuntimeError("Current upstream module replay must preserve the exact graph.")
             if (
                 after.get("golang.org/x/net") != "v0.60.0"
                 or after.get("google.golang.org/grpc") != "v1.83.2"
@@ -2242,6 +2698,8 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
                 "GOCACHE": "/run/alertmanager-metadata/cache",
                 "TMPDIR": "/run/alertmanager-metadata",
                 "GOTOOLCHAIN": "local",
+                "GOENV": "off",
+                "GOWORK": "off",
                 "GOPROXY": "off",
                 "GOSUMDB": "off",
                 "CGO_ENABLED": "0",
@@ -2545,11 +3003,18 @@ def _alertmanager_accepted_producer(
             type(value) is str and _HEX_RE.fullmatch(value) is not None
             for value in selected["source_files"].values()
         )
-        and selected["source_files"]["deploy/alertmanager/Containerfile"]
-        == _ALERT_ASSEMBLY_RECIPE_SHA256
         and type(selected.get("graph")) is dict
         and bool(selected["graph"]),
         "AM_accepted_producer_canonical_binding",
+    )
+    if selected["source"] == _ALERT_HISTORICAL_C10["source"]:
+        require(selected == _ALERT_HISTORICAL_C10, "AM_exact_historical_C10")
+        expected_recipe = _ALERT_ASSEMBLY_RECIPE_SHA256
+    else:
+        expected_recipe = _ALERT_CURRENT_ASSEMBLY_RECIPE_SHA256
+    require(
+        selected["source_files"]["deploy/alertmanager/Containerfile"] == expected_recipe,
+        "AM_accepted_producer_exact_epoch_recipe",
     )
     if any(value is not None for value in (run_id, artifact_id, source)):
         require(
@@ -2571,15 +3036,69 @@ def _alertmanager_authenticated_inputs(
     destination: Path,
     *,
     kind: str = "qualification",
+    current_source_files: dict[str, str] | None = None,
+    current_artifact_digest: str | None = None,
+    upstream_version: str = "0.34.1",
+    source_branch: str | None = None,
 ) -> dict[str, Any]:
     """Authenticate the three finite AM CD artifact cases; coordinates are not approval."""
     import base64
     from datetime import datetime, timezone
     from scripts.ci.prometheus_source_image import require
 
-    require(kind in ("qualification", "support", "candidate"), "AM_closed_artifact_kind")
+    require(
+        kind in ("qualification", "support", "candidate", "publication"), "AM_closed_artifact_kind"
+    )
+    require(upstream_version in ("0.34.1", "0.34.2"), "AM_authenticated_upstream_epoch")
+    current = current_source_files is not None
+    merged_candidate = kind in ("candidate", "publication") and current
+    require(kind != "publication" or current, "AM_publication_artifact_requires_H_binding")
+    require(
+        not merged_candidate or upstream_version == "0.34.2" and source_branch == "main",
+        "AM_current_candidate_is_merged_H_only",
+    )
+    require(
+        upstream_version == "0.34.1" or current or kind == "candidate",
+        "AM_new_upstream_requires_current_inputs",
+    )
+    require(
+        source_branch is None
+        or upstream_version == "0.34.2"
+        and source_branch in (_ALERT_Q_BRANCH, "main"),
+        "AM_closed_source_branch",
+    )
+    require(
+        current == (current_artifact_digest is not None)
+        and (not current or kind in ("qualification", "support") or merged_candidate),
+        "AM_current_input_binding_pair",
+    )
+    if current:
+        require(
+            type(current_source_files) is dict
+            and set(current_source_files)
+            == (
+                set(_ALERT_Q_SOURCE_FILES)
+                | {"tests/test_notify_premium_alias_checkpoint_failure.py"}
+                if merged_candidate
+                else set(_ALERT_Q_SOURCE_FILES)
+            )
+            and all(
+                type(value) is str and _HEX_RE.fullmatch(value) is not None
+                for value in current_source_files.values()
+            )
+            and type(current_artifact_digest) is str
+            and re.fullmatch(r"sha256:[0-9a-f]{64}", current_artifact_digest) is not None,
+            "AM_current_input_binding_fields",
+        )
+
     accepted = (
-        _alertmanager_accepted_producer(run_id, artifact_id, source) if kind == "candidate" else {}
+        (
+            _alertmanager_accepted_producer()
+            if merged_candidate
+            else _alertmanager_accepted_producer(run_id, artifact_id, source)
+        )
+        if kind in ("candidate", "publication")
+        else {}
     )
     selected_run, selected_artifact, selected_source, selected_job = (
         (_ALERT_Q_RUN, _ALERT_Q_ARTIFACT, _ALERT_Q_SOURCE, _ALERT_Q_JOB)
@@ -2590,6 +3109,13 @@ def _alertmanager_authenticated_inputs(
             else (accepted["run"], accepted["artifact"], accepted["source"], accepted["job"])
         )
     )
+    if current:
+        selected_run, selected_artifact, selected_source, selected_job = (
+            run_id,
+            artifact_id,
+            source,
+            None,
+        )
     require(
         type(run_id) is int
         and run_id > 0
@@ -2604,6 +3130,7 @@ def _alertmanager_authenticated_inputs(
         "qualification": ("alertmanager-module-qualification", "alertmanager-module-qualification"),
         "support": ("alertmanager-input-inspection", "alertmanager-input-inspection"),
         "candidate": ("alertmanager-candidate-build", "alertmanager-candidate"),
+        "publication": ("alertmanager-main-publication", "alertmanager-publication"),
     }[kind]
     endpoint = "/repos/Katsiarynakavaleuskaya/PulsePlate"
     repository = api.json(endpoint)
@@ -2624,7 +3151,18 @@ def _alertmanager_authenticated_inputs(
         and type(run.get("id")) is int
         and run["id"] == run_id
         and run.get("head_sha") == source
-        and run.get("head_branch") == _ALERT_Q_BRANCH
+        and run.get("head_branch")
+        == (
+            (
+                (source_branch or _ALERT_Q_BRANCH)
+                if upstream_version == "0.34.2"
+                else _ALERT_RECEIVER_BRANCH
+            )
+            if current
+            or kind == "candidate"
+            and accepted["source"] != _ALERT_HISTORICAL_C10["source"]
+            else _ALERT_Q_BRANCH
+        )
         and run.get("event") == "workflow_dispatch"
         and type(run.get("run_attempt")) is int
         and run["run_attempt"] == 1
@@ -2648,7 +3186,7 @@ def _alertmanager_authenticated_inputs(
     require(
         len(selected) == 1
         and type(selected[0].get("id")) is int
-        and selected[0]["id"] == selected_job
+        and (selected_job is None or selected[0]["id"] == selected_job)
         and type(selected[0].get("run_id")) is int
         and selected[0]["run_id"] == run_id
         and selected[0].get("head_sha") == source
@@ -2660,8 +3198,10 @@ def _alertmanager_authenticated_inputs(
     source_contract = dict(_ALERT_Q_SOURCE_FILES)
     if kind == "support":
         source_contract = dict(_ALERT_S_SOURCE_FILES)
-    elif kind == "candidate":
+    elif kind in ("candidate", "publication"):
         source_contract = dict(accepted["source_files"])
+    if current:
+        source_contract = dict(cast(dict[str, str], current_source_files))
     for path, expected in source_contract.items():
         record = api.json(endpoint + "/contents/" + path + "?ref=" + source)
         require(
@@ -2699,11 +3239,15 @@ def _alertmanager_authenticated_inputs(
         and re.fullmatch(r"sha256:[0-9a-f]{64}", artifact["digest"]) is not None
         and (
             artifact["digest"]
-            == "sha256:"
-            + (
-                accepted["zip_sha256"]
-                if kind == "candidate"
-                else (_ALERT_Q_ZIP_SHA256 if kind == "qualification" else _ALERT_S_ZIP_SHA256)
+            == (
+                current_artifact_digest
+                if current
+                else "sha256:"
+                + (
+                    accepted["zip_sha256"]
+                    if kind == "candidate"
+                    else (_ALERT_Q_ZIP_SHA256 if kind == "qualification" else _ALERT_S_ZIP_SHA256)
+                )
             )
         )
         and type(artifact.get("workflow_run")) is dict
@@ -2732,7 +3276,7 @@ def _alertmanager_authenticated_inputs(
     with destination.open("xb") as stream:
         stream.write(raw)
     destination.chmod(0o600)
-    return {
+    binding: dict[str, Any] = {
         "run": run_id,
         "attempt": 1,
         "artifact": artifact_id,
@@ -2740,6 +3284,145 @@ def _alertmanager_authenticated_inputs(
         "zip_sha256": sha256(raw).hexdigest(),
         "source_files": source_hashes,
     }
+    if merged_candidate:
+        binding["job"] = selected[0]["id"]
+    return binding
+
+
+def _alertmanager_current_inputs(
+    api: GitHubRead,
+    source: str,
+    destination: Path,
+    *,
+    kind: str,
+    source_files: dict[str, str],
+    upstream_version: str = "0.34.1",
+    source_branch: str | None = None,
+) -> dict[str, Any]:
+    """Resolve one actual current Q or S; no latest-success or supplied-ID fallback."""
+    from scripts.ci.prometheus_source_image import require
+
+    require(upstream_version in ("0.34.1", "0.34.2"), "AM_current_input_upstream_epoch")
+    require(
+        source_branch is None
+        or upstream_version == "0.34.2"
+        and source_branch in (_ALERT_Q_BRANCH, "main"),
+        "AM_current_closed_source_branch",
+    )
+    branch = (
+        (source_branch or _ALERT_Q_BRANCH)
+        if upstream_version == "0.34.2"
+        else _ALERT_RECEIVER_BRANCH
+    )
+    require(kind in ("qualification", "support"), "AM_current_input_kind")
+    require(
+        type(source) is str
+        and re.fullmatch(r"[0-9a-f]{40}", source) is not None
+        and set(source_files) == set(_ALERT_Q_SOURCE_FILES)
+        and all(
+            type(value) is str and _HEX_RE.fullmatch(value) is not None
+            for value in source_files.values()
+        ),
+        "AM_current_input_source_binding",
+    )
+    endpoint = "/repos/Katsiarynakavaleuskaya/PulsePlate"
+    runs_endpoint = endpoint + "/actions/workflows/cd.yml/runs?event=workflow_dispatch"
+    first = api.json(runs_endpoint + "&per_page=100&page=1")
+    runs = api.pages(runs_endpoint, "workflow_runs", first["total_count"])
+    job_name, prefix = {
+        "qualification": ("alertmanager-module-qualification", "alertmanager-module-qualification"),
+        "support": ("alertmanager-input-inspection", "alertmanager-input-inspection"),
+    }[kind]
+    matches: list[dict[str, Any]] = []
+    current_run = os.environ.get("GITHUB_RUN_ID")
+    for run in runs:
+        if run.get("head_sha") != source or str(run.get("id")) == current_run:
+            continue
+        jobs_endpoint = endpoint + f'/actions/runs/{run["id"]}/jobs?filter=all'
+        first_jobs = api.json(jobs_endpoint + "&per_page=100&page=1")
+        jobs = api.pages(jobs_endpoint, "jobs", first_jobs["total_count"])
+        selected = [
+            job
+            for job in jobs
+            if job.get("name") == job_name and job.get("conclusion") != "skipped"
+        ]
+        if not selected:
+            continue
+        require(
+            len(selected) == 1
+            and run.get("head_branch") == branch
+            and type(run.get("run_attempt")) is int
+            and run["run_attempt"] == 1
+            and run.get("status") == "completed"
+            and run.get("conclusion") == "success"
+            and selected[0].get("run_id") == run["id"]
+            and selected[0].get("head_sha") == source
+            and selected[0].get("status") == "completed"
+            and selected[0].get("conclusion") == "success",
+            "AM_current_input_terminal",
+        )
+        artifacts_endpoint = endpoint + f'/actions/runs/{run["id"]}/artifacts'
+        first_artifacts = api.json(artifacts_endpoint + "?per_page=100&page=1")
+        artifacts = api.pages(artifacts_endpoint, "artifacts", first_artifacts["total_count"])
+        found = [row for row in artifacts if row.get("name") == f'{prefix}-{run["id"]}-1']
+        require(len(found) == 1, "AM_current_input_artifact_unique")
+        matches.append({"run": run, "artifact": found[0]})
+    require(len(matches) == 1, "AM_current_input_unique")
+    matched_input = matches[0]
+    return _alertmanager_authenticated_inputs(
+        api,
+        matched_input["run"]["id"],
+        matched_input["artifact"]["id"],
+        source,
+        destination,
+        kind=kind,
+        current_source_files=source_files,
+        current_artifact_digest=matched_input["artifact"]["digest"],
+        upstream_version=upstream_version,
+        source_branch=source_branch,
+    )
+
+
+def _alertmanager_selected_inputs(
+    api: GitHubRead,
+    args: argparse.Namespace,
+    output: Path,
+    accepted: dict[str, Any],
+    *,
+    upstream_version: str = "0.34.1",
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Acquire Q/S for the independently selected producer, preserving historical tuples."""
+    from scripts.ci.prometheus_source_image import require
+
+    require(upstream_version in ("0.34.1", "0.34.2"), "AM_selected_upstream_epoch")
+    current = accepted["source"] != _ALERT_HISTORICAL_C10["source"]
+    require(current or upstream_version == "0.34.1", "AM_historical_Q_S_upstream")
+    bindings = []
+    for kind, prefix in (("qualification", "qualification"), ("support", "support")):
+        supplied = tuple(
+            getattr(args, "alertmanager_" + prefix + "_" + key)
+            for key in ("run", "artifact", "source")
+        )
+        if current:
+            binding = _alertmanager_current_inputs(
+                api,
+                accepted["source"],
+                output / (prefix + ".zip"),
+                kind=kind,
+                **({"upstream_version": upstream_version} if upstream_version == "0.34.2" else {}),
+                source_files={key: accepted["source_files"][key] for key in _ALERT_Q_SOURCE_FILES},
+            )
+            require(
+                all(value is None for value in supplied)
+                or supplied == tuple(binding[key] for key in ("run", "artifact", "source")),
+                "AM_selected_Q_S_exact_selectors",
+            )
+        else:
+            binding = _alertmanager_authenticated_inputs(
+                api, supplied[0], supplied[1], supplied[2], output / (prefix + ".zip"), kind=kind
+            )
+        bindings.append(binding)
+    return bindings[0], bindings[1]
 
 
 def _alertmanager_publication_predecessor(
@@ -2752,21 +3435,32 @@ def _alertmanager_publication_predecessor(
     tag alone; a missing native predecessor remains HOLD.
     """
     import shutil
-    from scripts.ci.prometheus_source_image import Native, fresh_directory, require
+    from scripts.ci.prometheus_source_image import Native, fresh_directory, one_object, require
 
+    accepted = _alertmanager_accepted_producer()
+    upstream = _alertmanager_upstream_identity(
+        current=accepted["source"] != _ALERT_HISTORICAL_C10["source"], accepted=accepted, api=api
+    )
+    if accepted not in (_ALERT_HISTORICAL_C10, _ALERT_HISTORICAL_AM11):
+        require(
+            _alertmanager_original_lineage(api) == upstream, "AM_publication_source_context_drift"
+        )
+    require(upstream in ("0.34.1", "0.34.2"), "AM_publication_authenticated_source_epoch_HOLD")
+    selected_pr = 2494 if upstream == "0.34.2" else _ALERT_RECEIVER_PR
+    selected_branch = _ALERT_Q_BRANCH if upstream == "0.34.2" else _ALERT_RECEIVER_BRANCH
     endpoint = "/repos/Katsiarynakavaleuskaya/PulsePlate"
-    pr = api.json(endpoint + "/pulls/2494")
+    pr = api.json(endpoint + "/pulls/" + str(selected_pr))
     merge = pr.get("merge_commit_sha") if type(pr) is dict else None
     require(
         type(pr) is dict
         and type(pr.get("number")) is int
-        and pr["number"] == 2494
+        and pr["number"] == selected_pr
         and pr.get("merged") is True
         and pr.get("state") == "closed"
         and type(merge) is str
         and re.fullmatch(r"[0-9a-f]{40}", merge) is not None
         and pr.get("base", {}).get("ref") == "main"
-        and pr.get("head", {}).get("ref") == _ALERT_Q_BRANCH
+        and pr.get("head", {}).get("ref") == selected_branch
         and all(
             type(pr.get(side, {}).get("repo", {}).get("id")) is int
             and pr[side]["repo"]["id"] == 1043311030
@@ -2796,6 +3490,299 @@ def _alertmanager_publication_predecessor(
         "-C",
         str(root),
     ]
+
+    def current_observation(
+        run: dict[str, Any], job: dict[str, Any], publisher: str
+    ) -> dict[str, Any] | None:
+        source = _alertmanager_source_snapshot(api, publisher)
+        # These are additional executable-contract checks, not a substitute for
+        # the complete H material below. Reuse both existing source owners.
+        source.update(api.source_files(publisher, ("scripts/ci/prometheus_source_image.py",)))
+        require(
+            set(source)
+            == set(_ALERT_Q_SOURCE_FILES)
+            | {
+                "tests/test_notify_premium_alias_checkpoint_failure.py",
+                "scripts/ci/prometheus_source_image.py",
+            },
+            "AM_H_reviewed_source_members",
+        )
+        if any(raw != (root / name).read_bytes() for name, raw in source.items()):
+            return None
+        observed_dir = work / (str(run["id"]) + "-current-observations")
+        fresh_directory(observed_dir)
+        source_hashes = {
+            name: sha256(source[name]).hexdigest()
+            for name in (
+                *_ALERT_Q_SOURCE_FILES,
+                "tests/test_notify_premium_alias_checkpoint_failure.py",
+            )
+        }
+        artifacts_endpoint = endpoint + f'/actions/runs/{run["id"]}/artifacts'
+        first_artifacts = api.json(artifacts_endpoint + "?per_page=100&page=1")
+        artifacts = api.pages(artifacts_endpoint, "artifacts", first_artifacts.get("total_count"))
+        selected = [
+            row for row in artifacts if row.get("name") == f'alertmanager-publication-{run["id"]}-1'
+        ]
+        require(len(selected) == 1, "AM_current_publication_artifact_unique_HOLD")
+        artifact = selected[0]
+        publication = _alertmanager_authenticated_inputs(
+            api,
+            run["id"],
+            artifact["id"],
+            publisher,
+            observed_dir / "publication.zip",
+            kind="publication",
+            current_source_files=source_hashes,
+            current_artifact_digest=artifact.get("digest"),
+            upstream_version="0.34.2",
+            source_branch="main",
+        )
+        require(publication.get("job") == job["id"], "AM_publication_observed_job_binding")
+        files = _alertmanager_candidate_members(observed_dir / "publication.zip")
+        report = one_object(files["candidate-observation.json"])
+        original = report.get("original_producer")
+        require(
+            type(original) is dict
+            and original.get("source") == publisher
+            and type(original.get("run")) is int
+            and original["run"] > 0
+            and original["run"] != run["id"]
+            and type(original.get("artifact")) is int
+            and original["artifact"] > 0,
+            "AM_current_actual_H_producer_coordinates_HOLD",
+        )
+        descriptor = api.json(endpoint + f'/actions/artifacts/{original["artifact"]}')
+        producer = _alertmanager_authenticated_inputs(
+            api,
+            original["run"],
+            original["artifact"],
+            publisher,
+            observed_dir / "producer.zip",
+            kind="candidate",
+            current_source_files=source_hashes,
+            current_artifact_digest=descriptor.get("digest"),
+            upstream_version="0.34.2",
+            source_branch="main",
+        )
+        require(producer == original, "AM_current_selected_H_producer_binding")
+        producer_files = _alertmanager_candidate_members(observed_dir / "producer.zip")
+        built = one_object(producer_files["candidate-observation.json"])
+        require(
+            one_object(files["pullback-native-input.json"]) == built,
+            "AM_publication_actual_selected_H_observation",
+        )
+        admission = built.get("producer_admission", {})
+        material = built.get("material")
+        require(
+            built.get("source") == publisher
+            and built.get("status") == "OBSERVED_MERGED_H_REBUILD_SECURITY_NATIVE"
+            and built.get("failure") is None
+            and built.get("cleanup_failure") is None
+            and type(built.get("compiler_starts")) is int
+            and built["compiler_starts"] == 2
+            and type(built.get("logical_build_starts")) is int
+            and built["logical_build_starts"] == 1
+            and type(built.get("automatic_retries")) is int
+            and built["automatic_retries"] == 0
+            and built.get("owned_absence_observed") is True
+            and admission.get("mode") == "H"
+            and admission.get("source") == publisher
+            and admission.get("run") == producer["run"]
+            and admission.get("job") == producer["job"]
+            and admission.get("merge_commit") == merge
+            and admission.get("expected_C") == accepted
+            and built.get("graph") == accepted["graph"]
+            and type(material) is dict
+            and material.get("source") == publisher
+            and type(built.get("host_inputs")) is dict
+            and bool(built["host_inputs"]),
+            "AM_current_H_observed_material_graph_scope_HOLD",
+        )
+        require(
+            _alertmanager_upstream_identity(built.get("root_inputs", {}), current=True) == upstream
+            and built.get("producer_source_files") == source_hashes
+            and all(
+                producer_files.get("producer-source/" + name) == source[name]
+                for name in source_hashes
+            ),
+            "AM_current_H_raw_source_tuple",
+        )
+        counter = 0
+
+        def query(*arguments: str) -> bytes:
+            nonlocal counter
+            counter += 1
+            raw: bytes = native.run(
+                [*prefix, *arguments],
+                "AM-H-material-" + str(run["id"]) + "-" + str(counter),
+                environment,
+                cwd=root,
+                maximum_seconds=8,
+                output_bound=16 * 1024**2,
+            )
+            return raw
+
+        graft = query("rev-parse", "--git-path", "info/grafts").decode().strip()
+        graft_path = Path(graft) if Path(graft).is_absolute() else root / graft
+        require(
+            bool(graft)
+            and "\n" not in graft
+            and not graft_path.exists()
+            and not graft_path.is_symlink(),
+            "AM_H_material_grafts",
+        )
+        tree, expected = _alertmanager_material_tree(api, publisher, query)
+        require(
+            material.get("tree") == tree and type(material.get("members")) is list,
+            "AM_current_H_complete_material_tree_HOLD",
+        )
+        members: dict[str, dict[str, Any]] = {}
+        for row in material["members"]:
+            require(
+                type(row) is dict and type(row.get("path")) is str and row["path"] not in members,
+                "AM_H_material_distinct_members",
+            )
+            name = row["path"]
+            require(
+                name in expected and (row.get("mode"), row.get("oid")) == expected[name],
+                "AM_H_material_authenticated_member",
+            )
+            if row["mode"] == "160000":
+                require(
+                    name == "tools/cybersecurity_skills"
+                    and row["oid"] == "d04d818b41cc300f8110f17ea167fa494db7fb29"
+                    and row.get("content_scope") == "uninspected_nonexecuted_gitlink_pointer_only"
+                    and row.get("worktree_state") in ("directory", "uninitialized_absent"),
+                    "AM_H_material_gitlink_scope",
+                )
+            else:
+                require(
+                    type(row.get("bytes")) is int
+                    and 0 <= row["bytes"] <= 128 * 1024**2
+                    and type(row.get("sha256")) is str
+                    and _HEX_RE.fullmatch(row["sha256"]) is not None,
+                    "AM_H_material_blob_observation",
+                )
+            members[name] = row
+        require(set(members) == set(expected), "AM_H_material_all_tracked_members")
+        for name, raw in source.items():
+            require(
+                members[name].get("sha256") == sha256(raw).hexdigest()
+                and members[name].get("bytes") == len(raw),
+                "AM_H_reviewed_executable_bytes",
+            )
+        require(
+            report.get("source") == publisher
+            and report.get("publication_source_sha") == publisher
+            and report.get("publication_merge_sha") == merge
+            and report.get("material") == material
+            and report.get("graph") == built["graph"] == accepted["graph"]
+            and report.get("status") == "OBSERVED_IMMUTABLE_PUBLICATION_PULLBACK_NATIVE"
+            and report.get("failure") is None
+            and report.get("cleanup_failure") is None
+            and report.get("retention_failure") is None
+            and report.get("cleanup_failures") == []
+            and report.get("preparation_credentials_removed") is True
+            and report.get("credential_cleanup_observed") is True
+            and type(report.get("host_inputs")) is dict
+            and bool(report["host_inputs"])
+            and type(report.get("compiler_starts")) is int
+            and report["compiler_starts"] == 0
+            and type(report.get("logical_build_starts")) is int
+            and report["logical_build_starts"] == 0
+            and type(report.get("copy_attempts")) is int
+            and type(report.get("copy_invocations")) is int
+            and (report["copy_attempts"], report["copy_invocations"], report.get("package_WRITE"))
+            in (
+                (0, 0, "UNEXERCISED_EXISTING_SAME_SUBJECT"),
+                (1, 1, "OBSERVED_SUCCESSFUL_INTENDED_COPY"),
+            ),
+            "AM_current_publication_full_outcome_HOLD",
+        )
+        for payload, observation, prefix_name in (
+            (producer_files, built.get("native", {}), "native-evidence"),
+            (files, report.get("pre_copy_native", {}), "pre-native-evidence"),
+            (files, report.get("native", {}), "native-evidence"),
+        ):
+            require(
+                observation.get("validation_scope") == "merged_H_selected_image",
+                "AM_current_full_H_native_scope",
+            )
+            _alertmanager_candidate_native_records(
+                payload, observation.get("native_records"), prefix_name, "H-native"
+            )
+            lines = payload[prefix_name + "/full-AM-native.stdout"].splitlines()
+            require(
+                lines.count(b"native_AM_merged_H_full_controls=pass") == 1
+                and b"native_AM_producer_image_controls=pass" not in lines
+                and b"native_AM_full_candidate_controls=pass" not in lines,
+                "AM_current_full_H_native_marker",
+            )
+        security_inventories = []
+        for payload, security in (
+            (producer_files, built.get("security", {})),
+            (files, report.get("pre_copy_security", {})),
+        ):
+            require(
+                type(security) is dict
+                and type(security.get("candidate")) is dict
+                and bool(security["candidate"])
+                and type(security.get("scanner")) is dict
+                and type(security["scanner"].get("DB")) is dict
+                and set(security["scanner"]["DB"]) == set(_ALERT_DB)
+                and all(
+                    type(value) is str and _HEX_RE.fullmatch(value) is not None
+                    for value in security["scanner"]["DB"].values()
+                ),
+                "AM_current_H_complete_security_observation",
+            )
+            _alertmanager_candidate_native_records(
+                payload, security.get("native_records"), "security-evidence", "H-security"
+            )
+            full = one_object(payload["security-evidence/candidate-full-supported.private.json"])
+            require(
+                type(full.get("SchemaVersion")) is int
+                and full["SchemaVersion"] == 2
+                and full.get("ArtifactType") == "container_image"
+                and full.get("Metadata", {}).get("ImageID") == built["graph"]["config"]["digest"]
+                and _alertmanager_support_inventory(full) == security.get("candidate"),
+                "AM_current_H_full_raw_security_report",
+            )
+            security_inventories.append(
+                _alertmanager_candidate_scan_evidence(
+                    payload,
+                    security,
+                    current=True,
+                    comparison_subject=built["graph"]["config"]["digest"],
+                )
+            )
+            require(
+                security.get("scanner", {}).get("sha256") == _ALERT_TRIVY_SHA256
+                and security.get("scanner", {}).get("DB") == built["security"]["scanner"]["DB"],
+                "AM_current_H_security_binding",
+            )
+        require(
+            all(type(value) is dict for value in security_inventories)
+            and security_inventories[0] == security_inventories[1],
+            "AM_current_H_same_subject_inventory_drift",
+        )
+        require(
+            sha256(files["candidate.oci.tar"]).hexdigest()
+            == report.get("pullback_OCI_archive_sha256")
+            and sha256(producer_files["candidate.oci.tar"]).hexdigest()
+            == built.get("OCI_archive_sha256"),
+            "AM_current_H_retained_OCI_bytes",
+        )
+        return {
+            "publication": publication,
+            "producer": producer,
+            "material_tree": tree,
+            "graph": built["graph"],
+            "upstream_version": upstream,
+            "root_inputs": built["root_inputs"],
+        }
+
     proof_failure: BaseException | None = None
     try:
         require(
@@ -2878,15 +3865,38 @@ def _alertmanager_publication_predecessor(
                             cwd=root,
                             maximum_seconds=8,
                         )
-                    historical = _alertmanager_regular_sources(
-                        root, merge, work / (str(run["id"]) + "-merged-sources"), deadline
-                    )
-                    published = _alertmanager_regular_sources(
-                        root, publisher, work / (str(run["id"]) + "-publisher-sources"), deadline
-                    )
-                    require(historical == published, "AM_publication_historical_six_source_drift")
-                    positive.append({"run": run, "job": job, "merge": merge})
+                    if upstream == "0.34.2":
+                        observed = current_observation(run, job, publisher)
+                        if observed is not None:
+                            positive.append(
+                                {
+                                    "run": run,
+                                    "job": job,
+                                    "merge": merge,
+                                    "current_observation": observed,
+                                    "upstream_version": upstream,
+                                }
+                            )
+                    else:
+                        historical = _alertmanager_regular_sources(
+                            root, merge, work / (str(run["id"]) + "-merged-sources"), deadline
+                        )
+                        published = _alertmanager_regular_sources(
+                            root,
+                            publisher,
+                            work / (str(run["id"]) + "-publisher-sources"),
+                            deadline,
+                        )
+                        require(
+                            historical == published, "AM_publication_historical_six_source_drift"
+                        )
+                        positive.append(
+                            {"run": run, "job": job, "merge": merge, "upstream_version": upstream}
+                        )
         require(bool(positive), "AM_positive_publication_predecessor_missing")
+        if upstream == "0.34.2":
+            require(len(positive) == 1, "AM_current_subject_publication_ambiguous_HOLD")
+            return positive[0]
         return max(positive, key=lambda value: value["run"]["id"])
     except BaseException as error:
         proof_failure = error
@@ -2931,7 +3941,11 @@ def _alertmanager_package_read(api: GitHubRead) -> dict[str, Any]:
 
 
 def _alertmanager_qualified_payload(
-    archive: Path, *, material_root: Path | None = None
+    archive: Path,
+    *,
+    material_root: Path | None = None,
+    current: bool = False,
+    producer_recipe: bytes | None = None,
 ) -> dict[str, Any]:
     """Inspect complete retained AM inputs as data; no extraction or executable launch."""
     import zipfile
@@ -2942,6 +3956,7 @@ def _alertmanager_qualified_payload(
         require,
     )
 
+    require(type(current) is bool, "AM_qualification_epoch_type")
     files = _zip_members(archive)
 
     def canonical(path: object) -> str:
@@ -3194,6 +4209,7 @@ def _alertmanager_qualified_payload(
         == "directory",
         "AM_frozen_complete_readback",
     )
+    upstream_version = _alertmanager_upstream_version(root_bytes, current=current)
     replays = []
     for number in (1, 2):
         prefix = "replay" + str(number)
@@ -3310,11 +4326,19 @@ def _alertmanager_qualified_payload(
             }
         )
     _alertmanager_compare_replays(replays)
-    require(replays[0]["version"] == b"go version go1.27.2 linux/amd64\n", "AM_retained_Go_version")
+    require(
+        replays[0]["version"]
+        == (
+            b"go version go1.27.3 linux/amd64\n"
+            if current
+            else b"go version go1.27.2 linux/amd64\n"
+        ),
+        "AM_retained_Go_version",
+    )
     delta = report["delta"]
     require(
         type(delta) is list
-        and bool(delta)
+        and (bool(delta) if upstream_version == "0.34.1" else delta == [])
         and all(
             type(row) is dict
             and set(row) == {"path", "before", "after", "class"}
@@ -3328,9 +4352,35 @@ def _alertmanager_qualified_payload(
     require(
         len({row["path"] for row in delta}) == len(delta)
         and {row["path"]: row["after"] for row in delta if row["class"] == "authored"}
-        == {"golang.org/x/net": "v0.60.0", "google.golang.org/grpc": "v1.83.2"},
-        "AM_two_authored_replacements",
+        == (
+            {"golang.org/x/net": "v0.60.0", "google.golang.org/grpc": "v1.83.2"}
+            if upstream_version == "0.34.1"
+            else {}
+        ),
+        "AM_source_epoch_dependency_action",
     )
+    if upstream_version == "0.34.2":
+        for replay in replays:
+            require(
+                replay["original"] == replay["derived"] and replay["delta"] == delta,
+                "AM_upstream_noop_lock_replay",
+            )
+            modules = replay["modules"]
+            require(type(modules) is list, "AM_upstream_modules_shape")
+            selected_modules = {row["Path"]: row.get("Version") for row in modules}
+            require(
+                len(selected_modules) == len(modules)
+                and selected_modules.get("golang.org/x/net") == "v0.60.0"
+                and selected_modules.get("google.golang.org/grpc") == "v1.83.2",
+                "AM_upstream_existing_module_targets",
+            )
+            require(
+                sha256(replay["original"]["go.mod"]).hexdigest()
+                == "55a63e9214662673cdbf865dd859b2d62da89f6d5b32b2165ec80f5af3fc6139"
+                and sha256(replay["original"]["go.sum"]).hexdigest()
+                == "4ab3b4e64e70b2cca7be33ac1d572e659595e17c98703a26efb5b32790ea1cbf",
+                "AM_upstream_original_lock_identity",
+            )
     go_binding = one_object(files["go-readonly-input-binding.json"])
     require(
         set(go_binding)
@@ -3366,10 +4416,12 @@ def _alertmanager_qualified_payload(
         path = "." if before["path"] == "." else canonical(before["path"])
         require(path not in seen_directories, "AM_Go_duplicate_directory")
         seen_directories.add(path)
-    _alertmanager_qualified_native(files, report)
+    _alertmanager_qualified_native(files, report, upstream_version=upstream_version)
     require(
         report["loaded_base_ID"]
-        == _alertmanager_loaded_base([one_object(files["public-base-inspect.stdout"])]),
+        == _alertmanager_loaded_base(
+            [one_object(files["public-base-inspect.stdout"])], current=current
+        ),
         "AM_loaded_base_binding",
     )
     require(
@@ -3377,12 +4429,19 @@ def _alertmanager_qualified_payload(
         "AM_retained_base_bytes",
     )
     plan = _alertmanager_input_plan(
-        root_bytes, frozen_files, replays[0]["derived"], material_root=material_root
+        root_bytes,
+        frozen_files,
+        replays[0]["derived"],
+        material_root=material_root,
+        current=current,
+        producer_recipe=producer_recipe,
     )
-    from scripts.ci.prometheus_source_image import GO
+    from scripts.ci.prometheus_source_image import GO, CURRENT_GO
 
     require(
-        sha256(root_bytes["go-toolchain.tar.gz"]).hexdigest() == GO.digest, "AM_retained_Go_archive"
+        sha256(root_bytes["go-toolchain.tar.gz"]).hexdigest()
+        == (CURRENT_GO if current else GO).digest,
+        "AM_retained_Go_archive",
     )
     return {
         "frozen_sha256": frozen["sha256"],
@@ -3391,6 +4450,7 @@ def _alertmanager_qualified_payload(
         "delta": report["delta"],
         "source_files": replays[0]["source"],
         "root_inputs": {name: sha256(raw).hexdigest() for name, raw in root_bytes.items()},
+        "loaded_base": one_object(files["public-base-inspect.stdout"]),
         "compiler_starts": 0,
         "build_admission": "HOLD_SEPARATE_HUMAN_DECISION",
         "plan": plan,
@@ -3403,10 +4463,13 @@ def _alertmanager_qualified_payload(
     }
 
 
-def _alertmanager_qualified_native(files: dict[str, bytes], report: dict[str, Any]) -> None:
+def _alertmanager_qualified_native(
+    files: dict[str, bytes], report: dict[str, Any], *, upstream_version: str = "0.34.1"
+) -> None:
     """Cross-bind the existing native protocol and every terminal output; no native call."""
     from scripts.ci.prometheus_source_image import one_object, require
 
+    require(upstream_version in ("0.34.1", "0.34.2"), "AM_native_upstream_epoch")
     records = report["native_records"]
     require(type(records) is list and bool(records), "AM_native_records_missing")
     by_name = {}
@@ -3470,7 +4533,11 @@ def _alertmanager_qualified_native(files: dict[str, bytes], report: dict[str, An
                 "version",
                 "baseline-download",
                 "baseline-modules",
-                "two-authored-replacements",
+                (
+                    "two-authored-replacements"
+                    if upstream_version == "0.34.1"
+                    else "upstream-target-replay"
+                ),
                 "derived-download",
                 "online-verify",
                 "online-modules",
@@ -3525,17 +4592,23 @@ def _alertmanager_input_plan(
     locks: dict[str, bytes],
     *,
     material_root: Path | None = None,
+    current: bool = False,
+    producer_recipe: bytes | None = None,
 ) -> dict[str, Any]:
     """Bound the retained source/UI and declare future argv, never execute a build."""
-    from scripts.ci.prometheus_source_image import require
+    from scripts.ci.prometheus_source_image import BASE, require
 
+    require(type(current) is bool, "AM_plan_epoch_type")
+
+    upstream_version = _alertmanager_upstream_version(root_bytes, current=current)
     source_rows = {}
     source_bytes = {}
     ui_hashes = {}
     for artifact in load_manifest(DEFAULT_MANIFEST, artifact="alertmanager"):
         is_ui = artifact.name == "alertmanager-ui"
         raw = root_bytes["ui.tar.gz" if is_ui else "source.tar.gz"]
-        validate_source_payload(artifact, raw)
+        if upstream_version == "0.34.2":
+            validate_source_payload(artifact, raw)
         with tarfile.open(fileobj=io.BytesIO(raw), mode="r:gz") as upstream:
             for member in upstream:
                 if not member.isfile():
@@ -3586,17 +4659,25 @@ def _alertmanager_input_plan(
         "AM_complete_source_UI_embedding",
     )
     require(
-        source_bytes.get("VERSION") == b"0.34.1\n"
+        source_bytes.get("VERSION") == (upstream_version + "\n").encode("ascii")
         and b"//go:embed app/dist" in source_bytes.get("ui/web.go", b""),
         "AM_source_UI_recipe",
     )
     context = []
     for path in ("deploy/alertmanager/Containerfile", "deploy/alertmanager/alertmanager.yml"):
-        raw = ((material_root if material_root is not None else REPO_ROOT) / path).read_bytes()
+        if path == "deploy/alertmanager/Containerfile" and producer_recipe is not None:
+            require(type(producer_recipe) is bytes, "AM_producer_recipe_bytes")
+            raw = producer_recipe
+        else:
+            raw = ((material_root if material_root is not None else REPO_ROOT) / path).read_bytes()
         require(
             sha256(raw).hexdigest()
             == (
-                _ALERT_ASSEMBLY_RECIPE_SHA256
+                (
+                    _ALERT_CURRENT_ASSEMBLY_RECIPE_SHA256
+                    if current
+                    else _ALERT_ASSEMBLY_RECIPE_SHA256
+                )
                 if path == "deploy/alertmanager/Containerfile"
                 else _ALERT_Q_SOURCE_FILES[path]
             ),
@@ -3613,7 +4694,7 @@ def _alertmanager_input_plan(
         }
         for name in ("LICENSE", "NOTICE")
     ]
-    flags = _ALERT_BUILD_METADATA
+    flags = _ALERT_UPSTREAM_0342_METADATA if upstream_version == "0.34.2" else _ALERT_BUILD_METADATA
     return {
         "state": "DECLARED_ONLY_COMPILER_HOLD",
         "upstream_recipe_sha256": sha256(source_bytes[".promu.yml"]).hexdigest(),
@@ -3626,6 +4707,7 @@ def _alertmanager_input_plan(
             "origin": "HOLD_SEPARATE_RECOVERY_AND_SUPPORT_EVIDENCE",
         },
         "compiler_environment": {
+            **({"GOENV": "off", "GOWORK": "off"} if upstream_version == "0.34.2" else {}),
             "PATH": "/toolchain/bin:/usr/bin:/bin",
             "TMPDIR": "/work/tmp",
             "GOFLAGS": "",
@@ -3678,7 +4760,11 @@ def _alertmanager_input_plan(
             "--network=none",
             "--pull=false",
             "--build-context",
-            "gcr.io/distroless/static-debian13@sha256:2293b36c7c9082bf4115aab724b4d2cddec82c8eba39bf27ac0517e159acf150=oci-layout:///inputs/base-layout@sha256:528f8a8d69ed17bdf99f19ade62e0a0e4c385de2791a94f4fa3c6286d8dad22c",
+            (
+                BASE + "=oci-layout:///inputs/base-layout@<UNOBSERVED_CURRENT_EXPORT>"
+                if current
+                else "gcr.io/distroless/static-debian13@sha256:2293b36c7c9082bf4115aab724b4d2cddec82c8eba39bf27ac0517e159acf150=oci-layout:///inputs/base-layout@sha256:528f8a8d69ed17bdf99f19ade62e0a0e4c385de2791a94f4fa3c6286d8dad22c"
+            ),
             "--file",
             "/context/Containerfile",
             "--output",
@@ -3707,7 +4793,112 @@ def _alertmanager_input_plan(
     }
 
 
-def _alertmanager_support_observation(archive: Path, output: Path) -> dict[str, Any]:
+def _alertmanager_base_export_inventory(
+    base_archive: Path, *, destination: Path | None = None
+) -> tuple[list[dict[str, Any]], set[str]]:
+    """Read the finite Docker save export once; optionally perform its private extraction."""
+    from scripts.ci.prometheus_source_image import require
+
+    metadata = base_archive.lstat()
+    require(
+        stat.S_ISREG(metadata.st_mode)
+        and metadata.st_nlink == 1
+        and 0 < metadata.st_size <= 16 * 1024**2,
+        "AM_base_export_archive",
+    )
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    files: set[str] = set()
+    directories: set[str] = set()
+    total = 0
+    with tarfile.open(base_archive, mode="r:") as saved:
+        for member in saved:
+            parts = member.name.split("/")
+            require(
+                all(part not in ("", ".", "..") for part in parts)
+                and "\\" not in member.name
+                and "\x00" not in member.name
+                and member.name not in seen
+                and len(seen) < 33
+                and (member.isfile() or member.isdir()),
+                "AM_base_export_member",
+            )
+            seen.add(member.name)
+            parents = {"/".join(parts[:number]) for number in range(1, len(parts))}
+            require(not parents.intersection(files), "AM_base_export_file_parent")
+            directories.update(parents)
+            if member.isdir():
+                require(member.name not in files and member.size == 0, "AM_base_export_directory")
+                directories.add(member.name)
+                if destination is not None:
+                    destination.joinpath(*parts).mkdir(mode=0o700, parents=True, exist_ok=True)
+                continue
+            require(member.name not in directories, "AM_base_export_directory_as_file")
+            require(0 <= member.size <= metadata.st_size, "AM_base_export_size")
+            total += member.size
+            require(total <= metadata.st_size, "AM_base_export_total")
+            stream = saved.extractfile(member)
+            require(stream is not None, "AM_base_export_missing_bytes")
+            raw = cast(BinaryIO, stream).read(member.size + 1)
+            require(len(raw) == member.size, "AM_base_export_file")
+            files.add(member.name)
+            if destination is not None:
+                target = destination.joinpath(*parts)
+                target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+                require(not target.exists(), "AM_base_export_file")
+                with target.open("xb") as output:
+                    output.write(raw)
+                target.chmod(0o600)
+            rows.append({"path": member.name, "bytes": len(raw), "sha256": sha256(raw).hexdigest()})
+    return sorted(rows, key=lambda row: row["path"]), directories
+
+
+def _alertmanager_current_base_graph(layout: Path) -> dict[str, Any]:
+    """Bind the current native export representation to the independent vendor thirteen-layer graph."""
+    from scripts.ci.prometheus_source_image import (
+        BASE_CONFIG,
+        BASE_LAYER_CONTRACTS,
+        OCI_CONFIG,
+        OCI_MANIFEST,
+        _blob,
+        _layout_root,
+        exact_data,
+        one_object,
+        require,
+    )
+
+    descriptor = _layout_root(layout)
+    manifest = one_object(_blob(layout, descriptor))
+    exact_data(set(manifest), {"schemaVersion", "mediaType", "config", "layers"})
+    exact_data(manifest["schemaVersion"], 2)
+    exact_data(manifest["mediaType"], OCI_MANIFEST)
+    exact_data(manifest["config"], {"mediaType": OCI_CONFIG, "size": 2938, "digest": BASE_CONFIG})
+    configuration = one_object(_blob(layout, manifest["config"]))
+    exact_data(
+        configuration["rootfs"],
+        {"type": "layers", "diff_ids": [row["diff_id"] for row in BASE_LAYER_CONTRACTS]},
+    )
+    require(
+        configuration["os"] == "linux" and configuration["architecture"] == "amd64",
+        "AM_current_export_platform",
+    )
+    expected_layers = [
+        {
+            "mediaType": "application/vnd.oci.image.layer.v1.tar",
+            "digest": row["diff_id"],
+            "size": row["expanded"],
+        }
+        for row in BASE_LAYER_CONTRACTS
+    ]
+    exact_data(manifest["layers"], expected_layers)
+    for layer in expected_layers:
+        _blob(layout, layer)
+    return cast(dict[str, Any], descriptor)
+
+
+def _alertmanager_support_observation(
+    archive: Path, output: Path, *, qualification_sha256: str | None = None, current: bool = False
+) -> dict[str, Any]:
     """One separately invoked compiler-free native support observation; no Docker start/build."""
     import shutil
     import struct
@@ -3723,7 +4914,12 @@ def _alertmanager_support_observation(archive: Path, output: Path) -> dict[str, 
         require,
     )
 
-    require(file_hash(archive) == _ALERT_Q_ZIP_SHA256, "AM_support_exact_retained_Q")
+    expected_q = _ALERT_Q_ZIP_SHA256 if qualification_sha256 is None else qualification_sha256
+    require(
+        type(expected_q) is str and _HEX_RE.fullmatch(expected_q) is not None,
+        "AM_support_qualified_Q_digest",
+    )
+    require(file_hash(archive) == expected_q, "AM_support_exact_retained_Q")
     seconds = os.environ.get("ALERTMANAGER_SUPPORT_SECONDS", "")
     require(
         re.fullmatch(r"[1-9][0-9]{0,3}", seconds) is not None and int(seconds) <= 1800,
@@ -3791,35 +4987,12 @@ def _alertmanager_support_observation(archive: Path, output: Path) -> dict[str, 
     base_id = original_base["Id"]
     layout = work / "base-layout"
     fresh_directory(layout)
-    layout_rows, seen = [], set()
-    with tarfile.open(base_archive, mode="r:") as saved:
-        for member in saved:
-            parts = member.name.split("/")
-            require(
-                all(part not in ("", ".", "..") for part in parts)
-                and "\\" not in member.name
-                and member.name not in seen
-                and (member.isfile() or member.isdir()),
-                "AM_base_export_member",
-            )
-            seen.add(member.name)
-            target = layout.joinpath(*parts)
-            if member.isdir():
-                target.mkdir(mode=0o700, parents=True, exist_ok=True)
-            else:
-                require(member.size <= base_archive.stat().st_size, "AM_base_export_size")
-                target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-                stream = saved.extractfile(member)
-                require(stream is not None, "AM_base_export_missing_bytes")
-                stream = cast(BinaryIO, stream)
-                raw = stream.read(member.size + 1)
-                require(len(raw) == member.size and not target.exists(), "AM_base_export_file")
-                with target.open("xb") as destination:
-                    destination.write(raw)
-                target.chmod(0o600)
-                layout_rows.append(
-                    {"path": member.name, "bytes": len(raw), "sha256": sha256(raw).hexdigest()}
-                )
+    layout_rows, _ = _alertmanager_base_export_inventory(base_archive, destination=layout)
+    require(type(current) is bool, "AM_support_observation_epoch")
+    if current:
+        require(len(layout_rows) == 31, "AM_current_Q_export_finite_shape")
+        _alertmanager_loaded_base([original_base], current=True)
+        _alertmanager_current_base_graph(layout)
     descriptor = _layout_root(layout)
     manifest = one_object(_blob(layout, descriptor))
     configuration = one_object(_blob(layout, manifest["config"]))
@@ -4131,7 +5304,9 @@ def _alertmanager_support_observation(archive: Path, output: Path) -> dict[str, 
             first, second, str(positive), str(negative)
         )
         vulnerable = scan("image", old_archive, "known-vulnerable-full-control")
-        result["vulnerability_control"] = _alertmanager_vulnerability_control(vulnerable, old_id)
+        result["vulnerability_control"] = _alertmanager_vulnerability_control(
+            vulnerable, old_id, current=qualification_sha256 is not None
+        )
         base_scan = scan("image", base_archive, "base-full-supported-scan")
         require(
             base_scan.get("ArtifactType") == "container_image"
@@ -4311,7 +5486,11 @@ def _alertmanager_secret_controls(
 
 
 def _alertmanager_support_inventory(
-    report: dict[str, Any], *, probe_path: str | None = None
+    report: dict[str, Any],
+    *,
+    probe_path: str | None = None,
+    comparison_subject: str | None = None,
+    comparison_input: str | None = None,
 ) -> dict[str, Any]:
     """Decode retained base/probe inventory without manufacturing scanner members."""
     from scripts.ci.prometheus_source_image import require
@@ -4324,13 +5503,54 @@ def _alertmanager_support_inventory(
         and report.get("ArtifactName") == probe_path,
         "AM_support_results",
     )
+    require(
+        (comparison_subject is None) == (comparison_input is None), "AM_inventory_comparison_pair"
+    )
+    comparison_target = None
+    if comparison_subject is not None:
+        operating_system = report.get("Metadata", {}).get("OS", {})
+        require(
+            probe_path is None
+            and type(comparison_input) is str
+            and Path(comparison_input).is_absolute()
+            and ".." not in Path(comparison_input).parts
+            and report.get("ArtifactName") == comparison_input
+            and report.get("ArtifactID") == comparison_subject
+            and report.get("Metadata", {}).get("ImageID") == comparison_subject
+            and report.get("ArtifactType") == "container_image"
+            and type(report.get("SchemaVersion")) is int
+            and report["SchemaVersion"] == 2
+            and type(operating_system) is dict
+            and all(
+                type(operating_system.get(key)) is str and bool(operating_system[key])
+                for key in ("Family", "Name")
+            ),
+            "AM_inventory_actual_native_input_subject",
+        )
+        suffix = " (" + operating_system["Family"] + " " + operating_system["Name"] + ")"
+        os_rows = [
+            row
+            for row in report.get("Results", [])
+            if type(row) is dict and row.get("Class") == "os-pkgs"
+        ]
+        require(
+            len(os_rows) == 1
+            and os_rows[0].get("Type") == operating_system["Family"]
+            and os_rows[0].get("Target") == comparison_input + suffix,
+            "AM_inventory_exact_native_OS_target",
+        )
+        comparison_target = (comparison_input + suffix, comparison_subject + suffix)
     packages, findings, targets = [], [], []
     for row in report.get("Results", []):
         require(
             type(row) is dict and type(row.get("Target")) is str and row["Target"],
             "AM_support_target",
         )
-        targets.append(row["Target"])
+        targets.append(
+            comparison_target[1]
+            if comparison_target is not None and row["Target"] == comparison_target[0]
+            else row["Target"]
+        )
         require(
             "Secrets" not in row or (type(row["Secrets"]) is list and not row["Secrets"]),
             "AM_support_secret_HOLD_private_report",
@@ -4364,6 +5584,16 @@ def _alertmanager_support_inventory(
                 "AM_new_blocking_support_finding_HOLD",
             )
     require(len(targets) == len(set(targets)), "AM_support_duplicate_target")
+    if comparison_target is not None:
+        from copy import deepcopy
+
+        # Preserve every per-result association and unknown field. Only the
+        # proven native OS input-context Target changes in this comparison view.
+        compared = deepcopy(report["Results"])
+        for row in compared:
+            if row.get("Class") == "os-pkgs":
+                row["Target"] = comparison_target[1]
+        return {"Results": compared, "OS": deepcopy(report["Metadata"]["OS"])}
     return {
         "targets": targets,
         "packages": packages,
@@ -4372,7 +5602,9 @@ def _alertmanager_support_inventory(
     }
 
 
-def _alertmanager_vulnerability_control(report: dict[str, Any], image_id: str) -> dict[str, Any]:
+def _alertmanager_vulnerability_control(
+    report: dict[str, Any], image_id: str, *, current: bool = False
+) -> dict[str, Any]:
     """The already selected OLD vulnerable subject is a control, never an admitted payload."""
     from scripts.ci.prometheus_source_image import require
 
@@ -4394,7 +5626,8 @@ def _alertmanager_vulnerability_control(report: dict[str, Any], image_id: str) -
             ("CVE-2026-97031", "pkg:golang/stdlib@v1.26.8"),
         )
     }
-    found, targets = [], []
+    require(type(current) is bool, "AM_control_epoch_type")
+    found, targets, ca_findings = [], [], []
     for row in report["Results"]:
         require(
             type(row) is dict
@@ -4415,17 +5648,41 @@ def _alertmanager_vulnerability_control(report: dict[str, Any], image_id: str) -
                 and finding.get("Severity") in ("UNKNOWN", "LOW", "MEDIUM", "HIGH", "CRITICAL"),
                 "AM_vulnerable_control_finding",
             )
-            if finding["Severity"] in ("HIGH", "CRITICAL"):
+            is_ca_finding = finding.get("VulnerabilityID") == "CVE-2026-111943"
+            if is_ca_finding or finding["Severity"] in ("HIGH", "CRITICAL"):
                 identifier = finding.get("PkgIdentifier")
                 require(type(identifier) is dict, "AM_vulnerable_control_PURL")
-                found.append(
-                    (
-                        row["Target"],
-                        finding.get("VulnerabilityID"),
-                        identifier.get("PURL"),
-                        finding["Severity"],
-                    )
+                require(
+                    row.get("Class") == "lang-pkgs"
+                    and row.get("Type") == "gobinary"
+                    and row["Target"] in ("bin/alertmanager", "bin/amtool"),
+                    "AM_known_vulnerable_control_inventory_changed_HOLD",
                 )
+                occurrence = (
+                    row["Target"],
+                    finding.get("VulnerabilityID"),
+                    identifier.get("PURL"),
+                    finding["Severity"],
+                )
+                if is_ca_finding:
+                    require(
+                        current
+                        and identifier.get("PURL") == "pkg:golang/stdlib@v1.26.8"
+                        and finding["Severity"] in ("HIGH", "MEDIUM"),
+                        "AM_known_vulnerable_control_inventory_changed_HOLD",
+                    )
+                    ca_findings.append(occurrence)
+                if finding["Severity"] in ("HIGH", "CRITICAL"):
+                    found.append(occurrence)
+    if current:
+        # Retain both observed whole-report scores without losing mandatory CA detection.
+        require(
+            len(ca_findings) == 2
+            and {item[0] for item in ca_findings} == {"bin/alertmanager", "bin/amtool"}
+            and len({item[3] for item in ca_findings}) == 1,
+            "AM_known_vulnerable_control_inventory_changed_HOLD",
+        )
+        expected |= {item for item in ca_findings if item[3] == "HIGH"}
     require(
         sorted(targets) == ["bin/alertmanager", "bin/amtool"]
         and len(found) == len(expected)
@@ -4473,7 +5730,7 @@ def _alertmanager_limits(*, caller: bool = False) -> dict[str, int]:
     if caller:
         kind = os.environ.get("ALERTMANAGER_CALLER_KIND", "")
         maintained = {
-            "ci-lint": (164, 6),
+            "ci-lint": (184, 6),
             "shared-pr": (165, 5),
             "shared-main": (285, 5),
             "standalone": (78, 2),
@@ -4492,7 +5749,7 @@ def _alertmanager_limits(*, caller: bool = False) -> dict[str, int]:
             )
         if kind == "ci-lint":
             require(
-                os.environ.get("ALERTMANAGER_LINT_CHECK_MINUTES") == "40", "AM_lint_step_budget"
+                os.environ.get("ALERTMANAGER_LINT_CHECK_MINUTES") == "60", "AM_lint_step_budget"
             )
         if kind == "shared-main":
             values = [
@@ -4526,6 +5783,7 @@ def _alertmanager_source_snapshot(
     *,
     accepted: bool = False,
     controller_templates: bool = False,
+    upstream_version: str | None = None,
 ) -> dict[str, bytes]:
     """The existing AM finite Contents reader; never call the Prometheus-only source selector."""
     import base64
@@ -4626,37 +5884,29 @@ def _alertmanager_source_snapshot(
                 "AM_accepted_producer_source_bytes",
             )
         result[path] = raw
+    if upstream_version is not None:
+        require(
+            upstream_version == "0.34.2" and not controller_templates, "AM_source_snapshot_upstream"
+        )
+        require(
+            result["scripts/ci/docker_source_artifacts.json"] == DEFAULT_MANIFEST.read_bytes(),
+            "AM_current_upstream_catalog_bytes",
+        )
+        artifacts = load_manifest(DEFAULT_MANIFEST, artifact="alertmanager")
+        require(
+            {row.name: row.version for row in artifacts}
+            == {"alertmanager-source": _ALERT_UPSTREAM_0342_REVISION, "alertmanager-ui": "0.34.2"},
+            "AM_current_upstream_catalog_tuple",
+        )
     return result
 
 
-def _alertmanager_candidate_payload(
-    archive: Path,
-    destination: Path,
-    source_files: dict[str, bytes],
-    inspected: dict[str, Any],
-    support: Path,
-) -> dict[str, Any]:
-    """Validate the retained accepted A against independent source and full graph identity."""
+def _alertmanager_candidate_members(archive: Path) -> dict[str, bytes]:
+    """Reuse the existing complete retained execution footer for candidate/publication reads."""
     import zipfile
-    from scripts.ci.prometheus_source_image import (
-        _zip_members,
-        fresh_directory,
-        one_object,
-        require,
-        unpack_layout,
-    )
+    from scripts.ci.prometheus_source_image import _zip_members, one_object, require
 
-    accepted = _alertmanager_accepted_producer()
-    require(
-        sha256(archive.read_bytes()).hexdigest() == accepted["zip_sha256"],
-        "AM_accepted_producer_archive_bytes",
-    )
-    require(
-        {path: sha256(raw).hexdigest() for path, raw in source_files.items()}
-        == accepted["source_files"],
-        "AM_accepted_producer_source_bytes",
-    )
-    files = _zip_members(archive)
+    files: dict[str, bytes] = _zip_members(archive)
     footer = one_object(files["artifact-payload-members.json"])
     require(
         set(footer) == {"files", "directories", "inventory_carrier_exception"}
@@ -4733,95 +5983,57 @@ def _alertmanager_candidate_payload(
             == 0o600,
             "AM_candidate_retained_native_modes",
         )
-    result: dict[str, Any] = one_object(files["candidate-observation.json"])
-    require(
-        result.get("source") == accepted["source"]
-        and result.get("graph") == accepted["graph"]
-        and result.get("OCI_archive_sha256") == accepted["OCI_archive_sha256"],
-        "AM_accepted_producer_subject_graph",
-    )
-    require(
-        result.get("status") == "OBSERVED_NATIVE_SECURITY_ACCEPTED"
-        and result.get("failure") is None
-        and result.get("cleanup_failure") is None
-        and type(result.get("compiler_starts")) is int
-        and result["compiler_starts"] == 2
-        and type(result.get("logical_build_starts")) is int
-        and result["logical_build_starts"] == 1
-        and type(result.get("automatic_retries")) is int
-        and result["automatic_retries"] == 0
-        and result.get("owned_absence_observed") is True
-        and result.get("plan") == inspected["plan"]
-        and result.get("UI_file_hashes") == inspected["plan"]["UI_file_hashes"],
-        "AM_candidate_positive_predecessors_and_finite_recipe",
-    )
-    require(
-        result.get("producer_source_files")
-        == {path: sha256(raw).hexdigest() for path, raw in source_files.items()},
-        "AM_candidate_actual_raw_producer",
-    )
-    for path, raw in source_files.items():
-        require(files.get("producer-source/" + path) == raw, "AM_candidate_retained_producer_bytes")
-    require(
-        result.get("upstream", {}).get("qualification", {}).get("zip_sha256") == _ALERT_Q_ZIP_SHA256
-        and result["upstream"].get("support", {}).get("zip_sha256") == _ALERT_S_ZIP_SHA256,
-        "AM_candidate_Q_S_predecessors",
-    )
-    for phase, records, prefix in (
-        ("pair", result.get("native_records"), "pair-evidence"),
-        ("security", result.get("security", {}).get("native_records"), "security-evidence"),
-        ("native", result.get("native", {}).get("native_records"), "native-evidence"),
-    ):
-        require(type(records) is list and bool(records), "AM_candidate_missing_" + phase)
-        for row in cast(list[dict[str, Any]], records):
-            require(
-                type(row) is dict
-                and type(row.get("exit")) is int
-                and row["exit"] == 0
-                and row.get("failure") is None,
-                "AM_candidate_native_exit",
-            )
-            for channel in ("stdout", "stderr"):
-                name = prefix + "/" + PurePosixPath(row[channel]).name
-                require(
-                    name in files and sha256(files[name]).hexdigest() == row[channel + "_sha256"],
-                    "AM_candidate_native_report_binding",
-                )
-    require(
-        b"native_AM_full_candidate_controls=pass" in files["native-evidence/full-AM-native.stdout"],
-        "AM_candidate_native_terminal",
-    )
-    require(
-        result["security"].get("scanner", {}).get("sha256") == _ALERT_TRIVY_SHA256
-        and result["security"]["scanner"].get("DB") == _ALERT_DB,
-        "AM_candidate_exact_scanner_DB",
-    )
-    actual_build_information = {}
-    for binary in ("alertmanager", "amtool"):
-        observed_build = _alertmanager_build_information(
-            files["pair-evidence/" + binary + "-buildinfo-attach.stdout"], binary
-        )
+    return files
+
+
+def _alertmanager_candidate_native_records(
+    files: dict[str, bytes], records: Any, prefix: str, phase: str
+) -> None:
+    """Existing raw native-record binding shared by retained execution observations."""
+    from scripts.ci.prometheus_source_image import require
+
+    require(type(records) is list and bool(records), "AM_candidate_missing_" + phase)
+    for row in cast(list[dict[str, Any]], records):
         require(
-            observed_build == result.get("build_information", {}).get(binary)
-            and result.get("output_hashes", {}).get(binary)
-            == result["graph"]["files"].get("usr/bin/" + binary),
-            "AM_candidate_both_buildinfo_and_binary_hashes",
+            type(row) is dict
+            and type(row.get("exit")) is int
+            and row["exit"] == 0
+            and row.get("failure") is None,
+            "AM_candidate_native_exit",
         )
-        actual_build_information[binary] = observed_build
-    full = one_object(files["security-evidence/candidate-full-supported.private.json"])
-    require(
-        _alertmanager_candidate_inventory(
-            full,
-            result["graph"]["config"]["digest"],
-            one_object((support / "evidence/base-full-supported-scan.private.json").read_bytes()),
-            actual_build_information,
-        )
-        == result["security"].get("candidate"),
-        "AM_candidate_full_report_not_summary_only",
-    )
+        for channel in ("stdout", "stderr"):
+            name = prefix + "/" + PurePosixPath(row[channel]).name
+            require(
+                name in files and sha256(files[name]).hexdigest() == row[channel + "_sha256"],
+                "AM_candidate_native_report_binding",
+            )
+
+
+def _alertmanager_candidate_scan_evidence(
+    files: dict[str, bytes] | Path,
+    security: dict[str, Any],
+    *,
+    current: bool,
+    comparison_subject: str | None = None,
+    deadline: float | None = None,
+) -> dict[str, Any] | None:
+    """Reuse the existing full scan/positive-control raw evidence contract."""
+    from scripts.ci.prometheus_source_image import file_hash, one_object, require
+
+    def raw(name: str) -> bytes:
+        if isinstance(files, Path):
+            require(name.startswith("security-evidence/"), "AM_security_evidence_prefix")
+            leaf = files / name.removeprefix("security-evidence/")
+            require(leaf.stat().st_size <= 64 * 1024**2, "AM_security_evidence_bound")
+            expected = file_hash(leaf, deadline)
+            value = leaf.read_bytes()
+            require(sha256(value).hexdigest() == expected, "AM_security_evidence_read_drift")
+            return value
+        return files[name]
+
     scans = {
         PurePosixPath(row["stdout"]).name.removesuffix(".stdout"): row
-        for row in result["security"]["native_records"]
+        for row in security["native_records"]
         if row["argv"][0].endswith("/trivy")
     }
     require(
@@ -4847,17 +6059,255 @@ def _alertmanager_candidate_payload(
             "AM_candidate_unsuppressed_native_scan_recipe",
         )
     controls = _alertmanager_secret_controls(
-        one_object(files["security-evidence/candidate-secret-positive.private.json"]),
-        one_object(files["security-evidence/candidate-secret-negative.private.json"]),
+        one_object(raw("security-evidence/candidate-secret-positive.private.json")),
+        one_object(raw("security-evidence/candidate-secret-negative.private.json")),
         scans["candidate-secret-positive"]["argv"][-1],
         scans["candidate-secret-negative"]["argv"][-1],
     )
-    require(controls == result["security"].get("secrets"), "AM_candidate_actual_secret_controls")
+    require(controls == security.get("secrets"), "AM_candidate_actual_secret_controls")
     old = _alertmanager_vulnerability_control(
-        one_object(files["security-evidence/candidate-known-vulnerable-control.private.json"]),
+        one_object(raw("security-evidence/candidate-known-vulnerable-control.private.json")),
         "sha256:53622b714941158bc20cc92a7571aef515556218eef914b7b8ec5b2a0cb6f607",
+        current=current,
     )
-    require(old == result["security"].get("old_control"), "AM_candidate_actual_vulnerable_control")
+    require(old == security.get("old_control"), "AM_candidate_actual_vulnerable_control")
+    if comparison_subject is not None:
+        report = one_object(raw("security-evidence/candidate-full-supported.private.json"))
+        require(
+            _alertmanager_support_inventory(report) == security.get("candidate"),
+            "AM_security_raw_inventory_observation",
+        )
+        arguments = scans["candidate-full-supported"]["argv"]
+        require(
+            len(arguments) >= 2 and arguments[-2] == "--input", "AM_security_native_layout_input"
+        )
+        return _alertmanager_support_inventory(
+            report, comparison_subject=comparison_subject, comparison_input=arguments[-1]
+        )
+    return None
+
+
+def _alertmanager_candidate_payload(
+    archive: Path,
+    destination: Path,
+    source_files: dict[str, bytes],
+    inspected: dict[str, Any],
+    support: Path,
+    *,
+    qualification: dict[str, Any] | None = None,
+    support_binding: dict[str, Any] | None = None,
+    support_report: dict[str, Any] | None = None,
+    merged_producer: dict[str, Any] | None = None,
+    merged_material: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Validate the retained accepted A against independent source and full graph identity."""
+    from scripts.ci.prometheus_source_image import (
+        fresh_directory,
+        one_object,
+        require,
+        unpack_layout,
+    )
+
+    accepted = _alertmanager_accepted_producer()
+    current = accepted["source"] != _ALERT_HISTORICAL_C10["source"]
+    merged = merged_producer is not None
+    require(merged == (merged_material is not None), "AM_H_payload_material_pair")
+    require(not merged or current, "AM_H_requires_current_C_subject")
+    producer = accepted if merged_producer is None else merged_producer
+    producer_source = producer["source"]
+    require(
+        (
+            all(value is not None for value in (qualification, support_binding, support_report))
+            if current
+            else all(value is None for value in (qualification, support_binding, support_report))
+        ),
+        "AM_candidate_upstream_epoch",
+    )
+    if current:
+        qualification = cast(dict[str, Any], qualification)
+        support_binding = cast(dict[str, Any], support_binding)
+        support_report = cast(dict[str, Any], support_report)
+        require(
+            qualification.get("source") == support_binding.get("source") == producer_source
+            and qualification.get("source_files")
+            == support_binding.get("source_files")
+            == {key: producer["source_files"][key] for key in _ALERT_Q_SOURCE_FILES},
+            "AM_candidate_current_Q_S_source",
+        )
+    require(
+        sha256(archive.read_bytes()).hexdigest() == producer["zip_sha256"],
+        "AM_accepted_producer_archive_bytes",
+    )
+    require(
+        {path: sha256(raw).hexdigest() for path, raw in source_files.items()}
+        == producer["source_files"],
+        "AM_accepted_producer_source_bytes",
+    )
+    files = _alertmanager_candidate_members(archive)
+    result: dict[str, Any] = one_object(files["candidate-observation.json"])
+    require(
+        result.get("source") == producer_source
+        and result.get("graph") == accepted["graph"]
+        and (merged or result.get("OCI_archive_sha256") == accepted["OCI_archive_sha256"]),
+        "AM_accepted_producer_subject_graph",
+    )
+    upstream = _alertmanager_upstream_identity(inspected["root_inputs"], current=current)
+    if merged:
+        admission = result.get("producer_admission", {})
+        require(
+            upstream == "0.34.2"
+            and type(admission) is dict
+            and admission.get("mode") == "H"
+            and admission.get("source") == producer_source
+            and admission.get("branch") == "main"
+            and admission.get("run") == producer["run"]
+            and admission.get("job") == producer["job"]
+            and admission.get("merge_commit") == producer["merge_commit"]
+            and admission.get("expected_C") == accepted
+            and result.get("material") == merged_material
+            and type(result.get("host_inputs")) is dict
+            and bool(result["host_inputs"]),
+            "AM_H_actual_producer_material_subject",
+        )
+        require(
+            cast(dict[str, Any], merged_material).get("source") == producer_source,
+            "AM_H_material_source",
+        )
+    elif upstream == "0.34.2":
+        admission = result.get("producer_admission", {})
+        require(
+            type(admission) is dict
+            and admission.get("mode") == "C"
+            and admission.get("source") == producer_source
+            and admission.get("branch") == _ALERT_Q_BRANCH
+            and admission.get("run") == accepted["run"]
+            and admission.get("job") == accepted["job"]
+            and admission.get("expected_C") is None
+            and admission.get("merge_commit") is None,
+            "AM_current_C_producer_scope",
+        )
+    require(
+        result.get("status")
+        == (
+            "OBSERVED_MERGED_H_REBUILD_SECURITY_NATIVE"
+            if merged
+            else (
+                "OBSERVED_PR2494_C_SECURITY_NATIVE"
+                if upstream == "0.34.2"
+                else (
+                    "OBSERVED_PRODUCER_IMAGE_SECURITY"
+                    if current
+                    else "OBSERVED_NATIVE_SECURITY_ACCEPTED"
+                )
+            )
+        )
+        and result.get("failure") is None
+        and result.get("cleanup_failure") is None
+        and type(result.get("compiler_starts")) is int
+        and result["compiler_starts"] == 2
+        and type(result.get("logical_build_starts")) is int
+        and result["logical_build_starts"] == 1
+        and type(result.get("automatic_retries")) is int
+        and result["automatic_retries"] == 0
+        and result.get("owned_absence_observed") is True
+        and result.get("plan") == inspected["plan"]
+        and result.get("UI_file_hashes") == inspected["plan"]["UI_file_hashes"],
+        "AM_candidate_positive_predecessors_and_finite_recipe",
+    )
+    require(
+        result.get("producer_source_files")
+        == {path: sha256(raw).hexdigest() for path, raw in source_files.items()},
+        "AM_candidate_actual_raw_producer",
+    )
+    for path, raw in source_files.items():
+        require(files.get("producer-source/" + path) == raw, "AM_candidate_retained_producer_bytes")
+    require(
+        (
+            result.get("upstream") == {"qualification": qualification, "support": support_binding}
+            if current
+            else result.get("upstream", {}).get("qualification", {}).get("zip_sha256")
+            == _ALERT_Q_ZIP_SHA256
+            and result["upstream"].get("support", {}).get("zip_sha256") == _ALERT_S_ZIP_SHA256
+        ),
+        "AM_candidate_Q_S_predecessors",
+    )
+    if _alertmanager_upstream_identity(inspected["root_inputs"], current=current) == "0.34.2":
+        require(
+            result.get("root_inputs") == inspected["root_inputs"],
+            "AM_candidate_source_input_binding",
+        )
+    for phase, records, prefix in (
+        ("pair", result.get("native_records"), "pair-evidence"),
+        ("security", result.get("security", {}).get("native_records"), "security-evidence"),
+        ("native", result.get("native", {}).get("native_records"), "native-evidence"),
+    ):
+        _alertmanager_candidate_native_records(files, records, prefix, phase)
+    marker = (
+        b"native_AM_merged_H_full_controls=pass"
+        if merged
+        else (
+            b"native_AM_producer_image_controls=pass"
+            if current
+            else b"native_AM_full_candidate_controls=pass"
+        )
+    )
+    opposite = (
+        b"native_AM_full_candidate_controls=pass"
+        if current
+        else b"native_AM_producer_image_controls=pass"
+    )
+    native_lines = files["native-evidence/full-AM-native.stdout"].splitlines()
+    require(
+        native_lines.count(marker) == 1
+        and opposite not in native_lines
+        and (not merged or b"native_AM_producer_image_controls=pass" not in native_lines)
+        and result["native"].get("validation_scope", "selected_consumer")
+        == (
+            "merged_H_selected_image"
+            if merged
+            else "producer_image" if current else "selected_consumer"
+        ),
+        "AM_candidate_native_terminal",
+    )
+    require(
+        result["security"].get("scanner", {}).get("sha256") == _ALERT_TRIVY_SHA256
+        and result["security"]["scanner"].get("DB")
+        == (cast(dict[str, Any], support_report)["scanner"]["DB"] if current else _ALERT_DB),
+        "AM_candidate_exact_scanner_DB",
+    )
+    actual_build_information = {}
+    for binary in ("alertmanager", "amtool"):
+        observed_build = _alertmanager_build_information(
+            files["pair-evidence/" + binary + "-buildinfo-attach.stdout"],
+            binary,
+            current=current,
+            upstream_version=_alertmanager_upstream_identity(
+                inspected["root_inputs"], current=current
+            ),
+        )
+        require(
+            observed_build == result.get("build_information", {}).get(binary)
+            and result.get("output_hashes", {}).get(binary)
+            == result["graph"]["files"].get("usr/bin/" + binary),
+            "AM_candidate_both_buildinfo_and_binary_hashes",
+        )
+        actual_build_information[binary] = observed_build
+    full = one_object(files["security-evidence/candidate-full-supported.private.json"])
+    require(
+        _alertmanager_candidate_inventory(
+            full,
+            result["graph"]["config"]["digest"],
+            one_object((support / "evidence/base-full-supported-scan.private.json").read_bytes()),
+            actual_build_information,
+            current=current,
+            upstream_version=_alertmanager_upstream_identity(
+                inspected["root_inputs"], current=current
+            ),
+        )
+        == result["security"].get("candidate"),
+        "AM_candidate_full_report_not_summary_only",
+    )
+    _alertmanager_candidate_scan_evidence(files, result["security"], current=current)
     fresh_directory(destination)
     for name, raw in files.items():
         target = destination / name
@@ -4871,23 +6321,160 @@ def _alertmanager_candidate_payload(
         "AM_candidate_original_OCI_bytes",
     )
     require(
-        _alertmanager_candidate_graph(layout, support, result["graph"]["files"]) == result["graph"],
+        _alertmanager_candidate_graph(layout, support, result["graph"]["files"], current=current)
+        == result["graph"],
         "AM_candidate_actual_graph_payload",
     )
     return result
 
 
-def _alertmanager_support_payload(archive: Path, destination: Path) -> dict[str, Any]:
+def _alertmanager_current_support_transport(
+    retained: ZipFile, entries: list[ZipInfo], native_files: set[str], inspected: dict[str, Any]
+) -> None:
+    """Bind every uploaded current API evidence member using the existing inventory owner."""
+    from scripts.ci.prometheus_source_image import require
+
+    names = [info.filename for info in entries]
+    # Reuse the existing native inventory shape for the actual API transport.
+    # The authenticated outer ZIP binds this report; no fixed historical count
+    # can describe a current, completely paginated API observation.
+    api_files = inspected.get("github_read_evidence")
+    require(type(api_files) is list and bool(api_files), "AM_support_API_inventory")
+    declared_api: set[str] = set()
+    for row in cast(list[Any], api_files):
+        require(
+            type(row) is dict
+            and set(row) == {"path", "size", "mode", "sha256"}
+            and type(row.get("path")) is str
+            and re.fullmatch(r"GitHub-[1-9][0-9]*\.(json|stdout|stderr)", row["path"]) is not None
+            and type(row.get("size")) is int
+            and 0 <= row["size"] <= 16 * 1024**2
+            and type(row.get("mode")) is int
+            and row["mode"] in (0o600, 0o644)
+            and type(row.get("sha256")) is str
+            and _HEX_RE.fullmatch(row["sha256"]) is not None,
+            "AM_support_API_member",
+        )
+        name = "github-read-evidence/" + row["path"]
+        require(name not in declared_api, "AM_support_API_duplicate")
+        declared_api.add(name)
+        require(name in names, "AM_support_API_missing")
+        raw = retained.read(name)
+        require(
+            len(raw) == row["size"]
+            and sha256(raw).hexdigest() == row["sha256"]
+            and stat.S_IMODE(retained.getinfo(name).external_attr >> 16) == row["mode"],
+            "AM_support_API_member_bytes",
+        )
+    transport_files = native_files | declared_api | {"input-inspection.json"}
+    require(
+        {info.filename for info in entries if not info.is_dir()} == transport_files,
+        "AM_support_complete_current_transport",
+    )
+    allowed_directories = {
+        str(parent) + "/"
+        for name in transport_files
+        for parent in PurePosixPath(name).parents
+        if str(parent) != "."
+    }
+    require(
+        {info.filename for info in entries if info.is_dir()} <= allowed_directories,
+        "AM_support_current_transport_directories",
+    )
+
+
+def _alertmanager_current_support_base(
+    destination: Path, report: dict[str, Any], qualification_payload: dict[str, Any]
+) -> None:
+    """Bind the complete materialized current S base to actual authenticated Q archive bytes."""
+    from scripts.ci.prometheus_source_image import (
+        BASE_CONFIG,
+        exact_data,
+        tree_inventory,
+        file_hash,
+        require,
+    )
+
+    expected_archive = qualification_payload["root_inputs"]["base-image.tar"]
+    require(
+        file_hash(destination / "base-image.tar")
+        == expected_archive
+        == report["base"]["archive_sha256"],
+        "AM_current_S_exact_Q_export",
+    )
+    q_rows, q_directories = _alertmanager_base_export_inventory(destination / "base-image.tar")
+    require(len(q_rows) == 31, "AM_current_Q_export_finite_shape")
+    layout = destination / "base-layout"
+    inventory = tree_inventory(layout, maximum=16 * 1024**2)
+    for row in inventory:
+        require(
+            (layout / row["path"]).lstat().st_nlink == 1 and row["mode"] == 0o600,
+            "AM_current_export_regular_single_link",
+        )
+    exact_data(
+        [{"path": row["path"], "bytes": row["size"], "sha256": row["sha256"]} for row in inventory],
+        q_rows,
+    )
+    actual_directories = {
+        path.relative_to(layout).as_posix() for path in layout.rglob("*") if path.is_dir()
+    }
+    exact_data(actual_directories, q_directories)
+    require(
+        all(stat.S_IMODE((layout / name).lstat().st_mode) == 0o700 for name in q_directories),
+        "AM_current_export_directory_mode",
+    )
+    exact_data(
+        sorted(report["base"]["complete_export_file_inventory"], key=lambda row: row["path"]),
+        q_rows,
+    )
+    descriptor = _alertmanager_current_base_graph(layout)
+    exact_data(descriptor, report["base"]["actual_local_OCI_descriptor"])
+    exact_data(report["base"]["config"], BASE_CONFIG)
+    exact_data(report["base"]["RootFS"], qualification_payload["loaded_base"]["RootFS"])
+
+
+def _alertmanager_support_payload(
+    archive: Path,
+    destination: Path,
+    *,
+    qualification: dict[str, Any] | None = None,
+    support_binding: dict[str, Any] | None = None,
+    qualification_payload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Read the exact observed S artifact, with the incumbent native payload inventory."""
     import shutil
     import zipfile
     from scripts.ci.prometheus_source_image import file_hash, fresh_directory, one_object, require
 
-    require(file_hash(archive) == _ALERT_S_ZIP_SHA256, "AM_exact_support_archive")
+    require((qualification is None) == (support_binding is None), "AM_support_epoch_pair")
+    current = support_binding is not None
+    require(current == (qualification_payload is not None), "AM_support_Q_payload_pair")
+    expected_zip = _ALERT_S_ZIP_SHA256
+    expected_source = _ALERT_S_SOURCE
+    expected_q = _ALERT_Q_ZIP_SHA256
+    if current:
+        qualification = cast(dict[str, Any], qualification)
+        support_binding = cast(dict[str, Any], support_binding)
+        require(
+            support_binding.get("source") == qualification.get("source")
+            and type(support_binding.get("source")) is str
+            and re.fullmatch(r"[0-9a-f]{40}", support_binding["source"]) is not None
+            and all(
+                type(value) is str and _HEX_RE.fullmatch(value) is not None
+                for value in (support_binding.get("zip_sha256"), qualification.get("zip_sha256"))
+            ),
+            "AM_support_current_upstream_binding",
+        )
+        expected_zip = support_binding["zip_sha256"]
+        expected_source = support_binding["source"]
+        expected_q = qualification["zip_sha256"]
+    require(file_hash(archive) == expected_zip, "AM_exact_support_archive")
     fresh_directory(destination)
     with zipfile.ZipFile(archive) as retained:
         entries = retained.infolist()
-        require(len(entries) == 134, "AM_support_complete_transport")
+        if not current:
+            require(len(entries) == 134, "AM_support_complete_transport")
+        require(len(entries) <= 250000, "AM_support_transport_member_bound")
         names = [info.filename for info in entries]
         require(len(names) == len(set(names)), "AM_support_transport_duplicate")
         total = 0
@@ -4988,25 +6575,51 @@ def _alertmanager_support_payload(archive: Path, destination: Path) -> dict[str,
             "AM_support_footer_native_mode",
         )
         inspected = one_object(retained.read("input-inspection.json"))
+        if current:
+            _alertmanager_current_support_transport(retained, entries, actual, inspected)
     report: dict[str, Any] = one_object((destination / "support-observation.json").read_bytes())
+    database = _ALERT_DB
+    if current:
+        scanner_record = report.get("scanner")
+        require(
+            type(scanner_record) is dict and type(scanner_record.get("DB")) is dict,
+            "AM_support_current_DB_binding",
+        )
+        database = cast(dict[str, Any], scanner_record)["DB"]
+        require(
+            set(database) == set(_ALERT_DB)
+            and all(
+                type(value) is str and _HEX_RE.fullmatch(value) is not None
+                for value in database.values()
+            ),
+            "AM_support_current_DB_fields",
+        )
+    if current:
+        _alertmanager_current_support_base(
+            destination, report, cast(dict[str, Any], qualification_payload)
+        )
+    else:
+        require(
+            report.get("base", {}).get("config") == _ALERT_BASE_CONFIG
+            and report["base"]["actual_local_OCI_descriptor"]["digest"] == _ALERT_BASE_MANIFEST,
+            "AM_historical_export_identity",
+        )
     require(
-        inspected.get("consumer_source") == _ALERT_S_SOURCE
-        and inspected.get("upstream", {}).get("zip_sha256") == _ALERT_Q_ZIP_SHA256
+        inspected.get("consumer_source") == expected_source
+        and inspected.get("upstream", {}).get("zip_sha256") == expected_q
         and inspected.get("package_read", {}).get("metadata_read") is True
         and inspected["inspection"].get("support") == report
         and report.get("support_status") == "OBSERVED_NATIVE_SUPPORTED_DOMAIN"
         and report.get("compiler_starts") == report.get("logical_build_starts") == 0
         and report.get("owned_container_absence_observed") is True
-        and report.get("base", {}).get("config") == _ALERT_BASE_CONFIG
-        and report["base"]["actual_local_OCI_descriptor"]["digest"] == _ALERT_BASE_MANIFEST
         and report.get("probe", {}).get("sha256") == _ALERT_PROBE_SHA256
         and report.get("scanner", {}).get("sha256") == _ALERT_TRIVY_SHA256
-        and report["scanner"]["DB"] == _ALERT_DB
+        and report["scanner"]["DB"] == database
         and file_hash(destination / "probe-bin-bracket") == _ALERT_PROBE_SHA256
         and file_hash(destination / "trivy") == _ALERT_TRIVY_SHA256,
         "AM_support_native_input_binding",
     )
-    for name, digest in _ALERT_DB.items():
+    for name, digest in database.items():
         require(file_hash(destination / "trivy-cache" / name) == digest, "AM_support_frozen_DB")
     records = report.get("native_records")
     require(type(records) is list and len(records) == 20, "AM_support_native_commands")
@@ -5031,7 +6644,7 @@ def _alertmanager_support_payload(archive: Path, destination: Path) -> dict[str,
             )
         require(row["stdout"] not in seen, "AM_support_native_duplicate")
         seen.add(row["stdout"])
-    require(file_hash(archive) == _ALERT_S_ZIP_SHA256, "AM_support_archive_drift")
+    require(file_hash(archive) == expected_zip, "AM_support_archive_drift")
     return report
 
 
@@ -5039,7 +6652,13 @@ def _alertmanager_materialize(archive: Path, destination: Path, deadline: float)
     """Materialize only the already-qualified finite source/cache epoch, without acquisition."""
     import shutil
     import zipfile
-    from scripts.ci.prometheus_source_image import GO, extract, fresh_directory, one_object, require
+    from scripts.ci.prometheus_source_image import (
+        CURRENT_GO as GO,
+        extract,
+        fresh_directory,
+        one_object,
+        require,
+    )
 
     fresh_directory(destination, 0o755)
     with zipfile.ZipFile(archive) as retained:
@@ -5092,13 +6711,21 @@ def _alertmanager_materialize(archive: Path, destination: Path, deadline: float)
     return toolchain
 
 
-def _alertmanager_build_information(raw: bytes, binary: str) -> dict[str, Any]:
+def _alertmanager_build_information(
+    raw: bytes, binary: str, *, current: bool = False, upstream_version: str = "0.34.1"
+) -> dict[str, Any]:
     """Interpret native Go build-info for the required pair, including embedded stdlib."""
     from scripts.ci.prometheus_source_image import require
 
     lines = raw.decode("utf-8").splitlines()
+    require(type(current) is bool, "AM_build_info_epoch_type")
     require(
-        bool(lines) and lines[0] == "/out/" + binary + ": go1.27.2", "AM_actual_Go_build_version"
+        upstream_version in ("0.34.1", "0.34.2") and (upstream_version == "0.34.1" or current),
+        "AM_build_info_upstream_join",
+    )
+    compiler = "go1.27.3" if current else "go1.27.2"
+    require(
+        bool(lines) and lines[0] == "/out/" + binary + ": " + compiler, "AM_actual_Go_build_version"
     )
     dependencies, settings = {}, {}
     main: dict[str, str] = {}
@@ -5132,7 +6759,7 @@ def _alertmanager_build_information(raw: bytes, binary: str) -> dict[str, Any]:
     require(
         path == "github.com/prometheus/alertmanager/cmd/" + binary
         and main.get("Path") == "github.com/prometheus/alertmanager"
-        and main.get("Version") in ("(devel)", "0.34.1", "v0.34.1")
+        and main.get("Version") in ("(devel)", upstream_version, "v" + upstream_version)
         and dependencies.get("golang.org/x/net") == "v0.60.0"
         and dependencies.get("google.golang.org/grpc") == "v1.83.2"
         and all(
@@ -5149,7 +6776,7 @@ def _alertmanager_build_information(raw: bytes, binary: str) -> dict[str, Any]:
         "AM_actual_pair_build_settings",
     )
     return {
-        "Go": "go1.27.2",
+        "Go": compiler,
         "dependencies": dependencies,
         "main": main,
         "path": path,
@@ -5161,11 +6788,11 @@ def _alertmanager_build_information(raw: bytes, binary: str) -> dict[str, Any]:
 # Accepted native build-info and base-package oracle, bound to immutable S.
 _ALERT_CURRENT_SCAN_ORACLE: dict[str, dict[str, Any]] = {
     "subject": {
-        "manifest": "sha256:bc6c847d25e48a8bcddfd8fef0aec25b6ac890346b4bfe6dea3d2d82cd0dc3b9",
-        "config": "sha256:46928bb4d3eac8b7bd9d8516a9427c3ec684244fc5f74260324e0acb6bcea9d4",
+        "manifest": "sha256:5a476cb3c572d11f8b5fcb6d42400f4613011a5f592ca574b7015c5231b70781",
+        "config": "sha256:542c5e287fc8e0dc4f6c7db21576f4eaa508b28e9733e205ef78d2e3d06be62c",
         "binary_sha256": {
-            "alertmanager": "08778bcb751b4ccdf1727701cb5af5cdfaae3f0cc122d697a49792a987c56f6b",
-            "amtool": "5cfcb4a40897f2095339284989b563e144bc8ed2e827493e47cb9083202c89b4",
+            "alertmanager": "c7df6fc46c9f41f83657de5956b0373d1e733b04549c59d9657c44a426334aff",
+            "amtool": "47bd3f8d054eb8b6ab1005577508da00b52efba55ba647a83612ec31731da42b",
         },
     },
     "expected_OS": {
@@ -5185,13 +6812,13 @@ _ALERT_CURRENT_SCAN_ORACLE: dict[str, dict[str, Any]] = {
             [
                 "os-pkgs",
                 "debian",
-                "ca-certificates@20250419",
+                "ca-certificates@20250419+deb13u1",
                 "ca-certificates",
-                "20250419",
+                "20250419+deb13u1",
                 "all",
                 "ca-certificates",
-                "20250419",
-                "pkg:deb/debian/ca-certificates@20250419?arch=all&distro=debian-13.7",
+                "20250419+deb13u1",
+                "pkg:deb/debian/ca-certificates@20250419%2Bdeb13u1?arch=all&distro=debian-13.7",
             ],
             [
                 "os-pkgs",
@@ -5218,24 +6845,24 @@ _ALERT_CURRENT_SCAN_ORACLE: dict[str, dict[str, Any]] = {
             [
                 "os-pkgs",
                 "debian",
-                "tzdata-legacy@2026c-0+deb13u1",
+                "tzdata-legacy@2026e-0+deb13u1",
                 "tzdata-legacy",
-                "2026c",
+                "2026e",
                 "all",
                 "tzdata",
-                "2026c",
-                "pkg:deb/debian/tzdata-legacy@2026c-0%2Bdeb13u1?arch=all&distro=debian-13.7",
+                "2026e",
+                "pkg:deb/debian/tzdata-legacy@2026e-0%2Bdeb13u1?arch=all&distro=debian-13.7",
             ],
             [
                 "os-pkgs",
                 "debian",
-                "tzdata@2026c-0+deb13u1",
+                "tzdata@2026e-0+deb13u1",
                 "tzdata",
-                "2026c",
+                "2026e",
                 "all",
                 "tzdata",
-                "2026c",
-                "pkg:deb/debian/tzdata@2026c-0%2Bdeb13u1?arch=all&distro=debian-13.7",
+                "2026e",
+                "pkg:deb/debian/tzdata@2026e-0%2Bdeb13u1?arch=all&distro=debian-13.7",
             ],
         ],
     },
@@ -5356,7 +6983,7 @@ _ALERT_CURRENT_SCAN_ORACLE: dict[str, dict[str, Any]] = {
             "google.golang.org/protobuf": "v1.36.11",
             "gopkg.in/telebot.v3": "v3.3.8",
             "gopkg.in/yaml.v2": "v2.4.0",
-            "stdlib": "v1.27.2",
+            "stdlib": "v1.27.3",
             "github.com/prometheus/alertmanager": "0.34.1",
         },
         "amtool": {
@@ -5470,7 +7097,7 @@ _ALERT_CURRENT_SCAN_ORACLE: dict[str, dict[str, Any]] = {
             "google.golang.org/protobuf": "v1.36.11",
             "gopkg.in/telebot.v3": "v3.3.8",
             "gopkg.in/yaml.v2": "v2.4.0",
-            "stdlib": "v1.27.2",
+            "stdlib": "v1.27.3",
             "github.com/prometheus/alertmanager": "0.34.1",
         },
     },
@@ -5482,6 +7109,9 @@ def _alertmanager_candidate_inventory(
     image_id: str,
     base_report: dict[str, Any] | None,
     build_information: dict[str, Any] | None,
+    *,
+    current: bool = False,
+    upstream_version: str = "0.34.1",
 ) -> dict[str, Any]:
     """Check retained solver closure or a current complete supported scan of immutable S.
 
@@ -5489,7 +7119,7 @@ def _alertmanager_candidate_inventory(
     inventory and all findings, with the accepted subject and four-CVE postcondition.
     It does not pretend to replay historical base/module resolution.
     """
-    from scripts.ci.prometheus_source_image import require
+    from scripts.ci.prometheus_source_image import BASE_CONFIG, require
 
     require(
         type(report.get("SchemaVersion")) is int
@@ -5498,6 +7128,15 @@ def _alertmanager_candidate_inventory(
         and type(report.get("Metadata")) is dict
         and report["Metadata"].get("ImageID") == image_id,
         "AM_candidate_scan_subject",
+    )
+    require(type(current) is bool, "AM_candidate_epoch_type")
+    require(
+        upstream_version in ("0.34.1", "0.34.2") and (upstream_version == "0.34.1" or current),
+        "AM_scan_upstream_join",
+    )
+    require(
+        upstream_version == "0.34.1" or build_information is not None,
+        "AM_new_upstream_accepted_scan_UNCONFIGURED_HOLD",
     )
     inventory = _alertmanager_support_inventory(report)
     require((base_report is None) == (build_information is None), "AM_scan_proof_modes_mixed")
@@ -5523,11 +7162,12 @@ def _alertmanager_candidate_inventory(
         require(
             base_report.get("ArtifactType") == "container_image"
             and type(base_report.get("Metadata")) is dict
-            and base_report["Metadata"].get("ImageID") == _ALERT_BASE_CONFIG,
+            and base_report["Metadata"].get("ImageID")
+            == (BASE_CONFIG if current else _ALERT_BASE_CONFIG),
             "AM_candidate_authenticated_base_scan_subject",
         )
         _alertmanager_support_inventory(base_report)
-    expected_os = _ALERT_CURRENT_SCAN_ORACLE["expected_OS"]
+    expected_os = _ALERT_CURRENT_SCAN_ORACLE["expected_OS"] if base_report is None else {}
     os_inventories = (
         [
             (
@@ -5596,6 +7236,11 @@ def _alertmanager_candidate_inventory(
                 not in {"CVE-2026-84445", "CVE-2026-78669", "CVE-2026-78667", "CVE-2026-97031"},
                 "AM_accepted_CVE_still_present",
             )
+            if current:
+                require(
+                    finding["VulnerabilityID"] != "CVE-2026-111943",
+                    "AM_current_Go_CVE_still_present",
+                )
         if row.get("Class") == "lang-pkgs" and row.get("Type") == "gobinary":
             require(
                 row["Target"]
@@ -5604,15 +7249,20 @@ def _alertmanager_candidate_inventory(
             )
             targets.append(row["Target"].rsplit("/", 1)[1])
             binary = targets[-1]
-            expected_modules = _ALERT_CURRENT_SCAN_ORACLE["expected_modules"][binary]
+            expected_modules = (
+                _ALERT_CURRENT_SCAN_ORACLE["expected_modules"][binary]
+                if build_information is None
+                else {}
+            )
             if build_information is not None:
                 information = build_information[binary]
                 require(
-                    information.get("Go") == "go1.27.2"
+                    information.get("Go") == ("go1.27.3" if current else "go1.27.2")
                     and type(information.get("dependencies")) is dict
                     and type(information.get("main")) is dict
                     and information["main"].get("Path") == "github.com/prometheus/alertmanager"
-                    and information["main"].get("Version") in ("(devel)", "0.34.1", "v0.34.1"),
+                    and information["main"].get("Version")
+                    in ("(devel)", upstream_version, "v" + upstream_version),
                     "AM_candidate_comparable_native_Go_identity",
                 )
                 expected_modules = dict(information["dependencies"])
@@ -5626,7 +7276,7 @@ def _alertmanager_candidate_inventory(
                     "AM_candidate_comparable_native_dependencies",
                 )
                 expected_modules["stdlib"] = "v" + information["Go"].removeprefix("go")
-                expected_modules[information["main"]["Path"]] = "0.34.1"
+                expected_modules[information["main"]["Path"]] = upstream_version
             actual_modules = {}
             for package in row.get("Packages", []):
                 name, version = package.get("Name"), package.get("Version")
@@ -5650,7 +7300,7 @@ def _alertmanager_candidate_inventory(
 
 
 def _alertmanager_candidate_graph(
-    layout: Path, support: Path, expected_files: dict[str, str]
+    layout: Path, support: Path, expected_files: dict[str, str], *, current: bool = False
 ) -> dict[str, Any]:
     """Observe the finite COPY-only AM graph using the incumbent OCI primitives."""
     from scripts.ci.prometheus_source_image import (
@@ -5662,6 +7312,9 @@ def _alertmanager_candidate_graph(
         require,
     )
 
+    from scripts.ci.prometheus_source_image import BASE_LAYER_CONTRACTS, validate_default_ca
+
+    require(type(current) is bool, "AM_candidate_graph_epoch")
     descriptor = _layout_root(layout)
     manifest = one_object(_blob(layout, descriptor))
     require(
@@ -5704,6 +7357,12 @@ def _alertmanager_candidate_graph(
         and 13 < len(manifest["layers"]) <= 24,
         "AM_candidate_base_and_COPY_layers",
     )
+    if current:
+        require(
+            configuration["rootfs"]["diff_ids"][:13]
+            == [row["diff_id"] for row in BASE_LAYER_CONTRACTS],
+            "AM_candidate_current_base_diffIDs",
+        )
     found, payload, ca_hash = {}, [], None
     parents = {"usr", "usr/bin", "etc", "etc/alertmanager", "alertmanager"}
     storage = False
@@ -5737,7 +7396,13 @@ def _alertmanager_candidate_graph(
                     if member.name == "etc/ssl/certs/ca-certificates.crt" and member.isfile():
                         stream = archive.extractfile(member)
                         require(stream is not None, "AM_default_CA_bytes")
-                        ca_hash = sha256(cast(BinaryIO, stream).read(member.size + 1)).hexdigest()
+                        ca_bytes = cast(BinaryIO, stream).read(member.size + 1)
+                        require(
+                            len(ca_bytes) == member.size and ca_hash is None, "AM_default_CA_unique"
+                        )
+                        if current:
+                            validate_default_ca(ca_bytes)
+                        ca_hash = sha256(ca_bytes).hexdigest()
                     continue
                 require(
                     member.name in expected_files
@@ -5816,12 +7481,17 @@ def _alertmanager_pair(
     prep_deadline: float,
     *,
     retained: Path | None = None,
+    base_descriptor: dict[str, Any],
+    upstream_version: str = "0.34.1",
+    preparation_finished: list[float] | None = None,
 ) -> dict[str, Any]:
     """One direct serial pair plus one COPY-only assembly; no resolver or retry."""
     from datetime import datetime
     import shutil
     import uuid
     from scripts.ci.prometheus_source_image import (
+        BASE,
+        BASE_CONFIG,
         Native,
         file_hash,
         fresh_directory,
@@ -5832,6 +7502,10 @@ def _alertmanager_pair(
         tree_inventory,
     )
 
+    require(
+        base_descriptor == _alertmanager_current_base_graph(support / "base-layout"),
+        "AM_pair_validated_current_base",
+    )
     docker = shutil.which("docker")
     require(docker is not None and Path(docker).is_absolute(), "AM_pair_Docker")
     require(Path(sys.executable).is_absolute(), "AM_pair_interpreter")
@@ -5916,7 +7590,7 @@ def _alertmanager_pair(
             ]
         for key, value in plan["compiler_environment"].items():
             create += ["--env", key + "=" + value]
-        create += ["--entrypoint=/toolchain/bin/go", _ALERT_BASE_CONFIG, *argv]
+        create += ["--entrypoint=/toolchain/bin/go", BASE_CONFIG, *argv]
         identifier = native.run(create, label + "-create", env, cwd=work).decode("ascii").strip()
         require(re.fullmatch(r"[0-9a-f]{64}", identifier) is not None, "AM_pair_owned_ID")
         owned[identifier] = name
@@ -5951,14 +7625,14 @@ def _alertmanager_pair(
         )
         base = one_object(
             prep.run(
-                [*prefix, "image", "inspect", "--format", "{{json .}}", _ALERT_BASE_CONFIG],
+                [*prefix, "image", "inspect", "--format", "{{json .}}", BASE_CONFIG],
                 "pair-base-inspect",
                 env,
                 cwd=work,
             )
         )
         require(
-            base.get("Id") == _ALERT_BASE_CONFIG
+            base.get("Id") == BASE_CONFIG
             and base.get("Os") == "linux"
             and base.get("Architecture") == "amd64",
             "AM_pair_exact_base",
@@ -6029,11 +7703,26 @@ def _alertmanager_pair(
         )
         builder_id = builder_observed["Id"]
         require(re.fullmatch(r"[0-9a-f]{64}", builder_id) is not None, "AM_builder_full_ID")
+        require(time.monotonic() <= prep_deadline, "AM_pair_preparation_deadline")
+        if preparation_finished is not None:
+            require(not preparation_finished, "AM_pair_preparation_clock_duplicate")
+            preparation_finished.append(time.monotonic())
         native = Native(
             evidence, time.monotonic() + limits["PAIR_SECONDS"], limits["CLEANUP_SECONDS"]
         )
         result["logical_build_starts"] = 1
         result["build_information"] = {}
+        require(upstream_version in ("0.34.1", "0.34.2"), "AM_pair_upstream_epoch")
+        expected_metadata = (
+            _ALERT_BUILD_METADATA if upstream_version == "0.34.1" else _ALERT_UPSTREAM_0342_METADATA
+        )
+        for argv in plan["compiler_argv"]:
+            require(
+                argv.count("-ldflags") == 1
+                and argv.index("-ldflags") + 1 < len(argv)
+                and argv[argv.index("-ldflags") + 1] == expected_metadata,
+                "AM_pair_source_bound_metadata",
+            )
         for command, binary in zip(plan["compiler_argv"], ("alertmanager", "amtool"), strict=True):
             result["compiler_attempts"] += 1
             (work / "invocation-start.json").write_text(json.dumps(result, indent=2) + "\n")
@@ -6063,7 +7752,10 @@ def _alertmanager_pair(
                     "AM_pair_output_retained_before_later_phase",
                 )
             result["build_information"][binary] = _alertmanager_build_information(
-                go(["version", "-m", "/out/" + binary], binary + "-buildinfo"), binary
+                go(["version", "-m", "/out/" + binary], binary + "-buildinfo"),
+                binary,
+                current=True,
+                upstream_version=upstream_version,
             )
         require(
             all(tree_inventory(inputs / name) == before for name, before in snapshots.items()),
@@ -6096,7 +7788,7 @@ def _alertmanager_pair(
         context_inventory = tree_inventory(context)
         result["context"] = context_inventory
         require(
-            file_hash(context / "Containerfile") == _ALERT_ASSEMBLY_RECIPE_SHA256
+            file_hash(context / "Containerfile") == _ALERT_CURRENT_ASSEMBLY_RECIPE_SHA256
             and file_hash(context / "alertmanager.yml")
             == _ALERT_Q_SOURCE_FILES["deploy/alertmanager/alertmanager.yml"],
             "AM_context_recipe_drift",
@@ -6139,10 +7831,11 @@ def _alertmanager_pair(
             "--network=none",
             "--pull=false",
             "--build-context",
-            "gcr.io/distroless/static-debian13@sha256:2293b36c7c9082bf4115aab724b4d2cddec82c8eba39bf27ac0517e159acf150=oci-layout://"
+            BASE
+            + "=oci-layout://"
             + str(support / "base-layout")
             + "@"
-            + _ALERT_BASE_MANIFEST,
+            + base_descriptor["digest"],
             "--file",
             str(context / "Containerfile"),
             "--output",
@@ -6308,7 +8001,7 @@ def _alertmanager_pair(
             }
         )
         require(file_hash(plugin) == _ALERT_BUILDX_SHA256, "AM_executed_Buildx_post_drift")
-        graph = _alertmanager_candidate_graph(layout, support, expected)
+        graph = _alertmanager_candidate_graph(layout, support, expected, current=True)
         pack_layout(layout, work / "candidate.oci.tar")
         result.update(
             {
@@ -6641,198 +8334,6 @@ def _alertmanager_docker_load_transport(
     return record
 
 
-def _alertmanager_final_security(
-    archive: Path,
-    graph: dict[str, Any],
-    support: Path,
-    work: Path,
-    limits: dict[str, int],
-    *,
-    build_information: dict[str, Any],
-) -> dict[str, Any]:
-    """Scan the retained candidate and controls with the exact already-observed DB."""
-    import shutil
-    from scripts.ci.prometheus_source_image import (
-        Native,
-        file_hash,
-        fresh_directory,
-        one_object,
-        require,
-    )
-
-    fresh_directory(work)
-    evidence = work / "evidence"
-    fresh_directory(evidence)
-    deadline = time.monotonic() + limits["SECURITY_SECONDS"]
-    native = Native(evidence, deadline, limits["CLEANUP_SECONDS"])
-    scanner = support / "trivy"
-    require(file_hash(scanner) == _ALERT_TRIVY_SHA256, "AM_final_pinned_scanner")
-    scanner.chmod(0o555)
-    config = work / "empty-docker-config"
-    fresh_directory(config)
-    env = {
-        "PATH": "/usr/bin:/bin",
-        "HOME": str(work),
-        "DOCKER_CONFIG": str(config),
-        "LANG": "C.UTF-8",
-    }
-    docker = shutil.which("docker")
-    require(docker is not None and Path(docker).is_absolute(), "AM_final_Docker")
-    prefix = [cast(str, docker), "--config", str(config)]
-    reports: dict[str, Any] = {}
-    primary: BaseException | None = None
-    try:
-        reports["docker_load_transport"] = _alertmanager_docker_load_transport(
-            archive, graph, work, deadline
-        )
-        native.run(
-            [*prefix, "image", "load", "--input", reports["docker_load_transport"]["load_input"]],
-            "candidate-load-same-OCI",
-            env,
-            cwd=work,
-        )
-        observed = one_object(
-            native.run(
-                [*prefix, "image", "inspect", "--format", "{{json .}}", graph["config"]["digest"]],
-                "candidate-loaded-config",
-                env,
-                cwd=work,
-            )
-        )
-        require(
-            observed.get("Id") == graph["config"]["digest"]
-            and observed.get("Os") == "linux"
-            and observed.get("Architecture") == "amd64"
-            and observed.get("RootFS", {}).get("Layers") == graph["diff_ids"],
-            "AM_loaded_candidate_graph",
-        )
-        empty_config, empty_ignore = work / "trivy.yaml", work / "trivy.ignore"
-        empty_config.write_bytes(b"{}\n")
-        empty_ignore.write_bytes(b"")
-
-        def scan(kind: str, subject: Path, label: str) -> dict[str, Any]:
-            require(
-                file_hash(scanner) == _ALERT_TRIVY_SHA256
-                and all(file_hash(support / "trivy-cache" / n) == h for n, h in _ALERT_DB.items()),
-                "AM_final_scanner_DB_drift",
-            )
-            destination = evidence / (label + ".private.json")
-            argv = [
-                str(scanner),
-                kind,
-                "--config",
-                str(empty_config),
-                "--cache-dir",
-                str(support / "trivy-cache"),
-                "--skip-db-update",
-                "--skip-java-db-update",
-                "--skip-vex-repo-update",
-                "--offline-scan",
-                "--skip-version-check",
-                "--disable-telemetry",
-                "--scanners",
-                "vuln,secret",
-                "--pkg-types",
-                "os,library",
-                "--list-all-pkgs",
-                "--severity",
-                "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL",
-                "--format",
-                "json",
-                "--exit-code",
-                "0",
-                "--ignore-unfixed=false",
-                "--ignorefile",
-                str(empty_ignore),
-                "--timeout",
-                str(limits["SCAN_TIMEOUT_SECONDS"]) + "s",
-                "--output",
-                str(destination),
-            ]
-            argv += ["--input", str(subject)] if kind == "image" else [str(subject)]
-            native.run(argv, label, env, cwd=work, maximum_seconds=limits["SCAN_PROCESS_SECONDS"])
-            require(
-                destination.is_file()
-                and not destination.is_symlink()
-                and 0 < destination.stat().st_size <= 64 * 1024**2,
-                "AM_final_native_report_missing",
-            )
-            destination.chmod(0o600)
-            report: dict[str, Any] = one_object(destination.read_bytes())
-            require(
-                report.get("SchemaVersion") == 2 and type(report.get("SchemaVersion")) is int,
-                "AM_final_native_schema",
-            )
-            require(
-                all(file_hash(support / "trivy-cache" / n) == h for n, h in _ALERT_DB.items())
-                and file_hash(scanner) == _ALERT_TRIVY_SHA256,
-                "AM_final_scanner_DB_post_drift",
-            )
-            return report
-
-        positive, negative = work / "positive", work / "negative"
-        fresh_directory(positive)
-        fresh_directory(negative)
-        (positive / "credentials.txt").write_text(
-            "GITHUB_PAT=ghp_" + "012345678901234567890123456789abcdef" + "\n"
-        )
-        (negative / "credentials.txt").write_text("plain harmless operational text\n")
-        reports["secrets"] = _alertmanager_secret_controls(
-            scan("fs", positive, "candidate-secret-positive"),
-            scan("fs", negative, "candidate-secret-negative"),
-            str(positive),
-            str(negative),
-        )
-        reports["old_control"] = _alertmanager_vulnerability_control(
-            scan(
-                "image",
-                support / "known-vulnerable-control.tar",
-                "candidate-known-vulnerable-control",
-            ),
-            "sha256:53622b714941158bc20cc92a7571aef515556218eef914b7b8ec5b2a0cb6f607",
-        )
-        layout = work / "docker-load-layout"
-        require(
-            _alertmanager_candidate_graph(layout, support, graph["files"]) == graph
-            and file_hash(archive, deadline)
-            == reports["docker_load_transport"]["source_OCI_sha256"],
-            "AM_final_candidate_scan_identity",
-        )
-        candidate_report = scan("image", layout, "candidate-full-supported")
-        require(
-            _alertmanager_candidate_graph(layout, support, graph["files"]) == graph
-            and file_hash(archive, deadline)
-            == reports["docker_load_transport"]["source_OCI_sha256"],
-            "AM_final_candidate_scan_post_identity",
-        )
-        reports["candidate"] = _alertmanager_candidate_inventory(
-            candidate_report,
-            graph["config"]["digest"],
-            one_object((support / "evidence/base-full-supported-scan.private.json").read_bytes()),
-            build_information,
-        )
-        reports["scanner"] = {
-            "sha256": _ALERT_TRIVY_SHA256,
-            "DB": _ALERT_DB,
-            "DB_metadata": one_object((support / "trivy-cache/db/metadata.json").read_bytes()),
-        }
-    except BaseException as error:
-        primary = error
-        raise
-    finally:
-        reports["native_records"] = native.records
-        try:
-            (work / "security-observation.json").write_text(json.dumps(reports, indent=2) + "\n")
-        except BaseException as observation_error:
-            if primary is not None:
-                primary.add_note(
-                    "AM security observation write also failed: " + type(observation_error).__name__
-                )
-                raise primary from None
-            raise
-    return reports
-
-
 def _alertmanager_live_security(args: argparse.Namespace) -> None:
     """Run the four current unsuppressed controls against local image IDs and one observed DB."""
     import shutil
@@ -6984,7 +8485,9 @@ def _alertmanager_live_security(args: argparse.Namespace) -> None:
         require(
             result["scanner_version"].get("Version") == "0.74.0", "AM_live_native_scanner_version"
         )
-        graph = _alertmanager_accepted_producer()["graph"]
+        selected = _alertmanager_accepted_producer()
+        current_epoch = selected["source"] != _ALERT_HISTORICAL_C10["source"]
+        graph = selected["graph"]
         image_id = graph["config"]["digest"]
         image = one_object(
             native.run(
@@ -7003,7 +8506,11 @@ def _alertmanager_live_security(args: argparse.Namespace) -> None:
             "AM_live_actual_local_candidate",
         )
         result["candidate"] = _alertmanager_candidate_inventory(
-            scan("image", image_id, "current-candidate-full-supported"), image_id, None, None
+            scan("image", image_id, "current-candidate-full-supported"),
+            image_id,
+            None,
+            None,
+            current=current_epoch,
         )
         native.run(
             [*prefix, "pull", "--platform", "linux/amd64", _ALERT_OLD_RUNTIME_REF],
@@ -7028,6 +8535,7 @@ def _alertmanager_live_security(args: argparse.Namespace) -> None:
         result["old_control"] = _alertmanager_vulnerability_control(
             scan("image", _ALERT_OLD_RUNTIME_CONFIG, "current-known-vulnerable-control"),
             _ALERT_OLD_RUNTIME_CONFIG,
+            current=current_epoch,
         )
         positive, negative = work / "positive", work / "negative"
         fresh_directory(positive)
@@ -7076,6 +8584,270 @@ def _alertmanager_live_security(args: argparse.Namespace) -> None:
                     )
 
 
+def _alertmanager_final_security(
+    archive: Path,
+    graph: dict[str, Any],
+    support: Path,
+    work: Path,
+    limits: dict[str, int],
+    *,
+    build_information: dict[str, Any],
+    support_report: dict[str, Any],
+    upstream_version: str = "0.34.1",
+) -> dict[str, Any]:
+    """Scan the retained candidate and controls with the exact already-observed DB."""
+    import shutil
+    from scripts.ci.prometheus_source_image import (
+        Native,
+        file_hash,
+        fresh_directory,
+        one_object,
+        require,
+    )
+
+    database = support_report.get("scanner", {}).get("DB")
+    require(
+        type(database) is dict
+        and set(database) == set(_ALERT_DB)
+        and all(
+            type(value) is str and _HEX_RE.fullmatch(value) is not None
+            for value in database.values()
+        ),
+        "AM_final_current_DB_binding",
+    )
+    fresh_directory(work)
+    evidence = work / "evidence"
+    fresh_directory(evidence)
+    deadline = time.monotonic() + limits["SECURITY_SECONDS"]
+    native = Native(evidence, deadline, limits["CLEANUP_SECONDS"])
+    scanner = support / "trivy"
+    require(file_hash(scanner) == _ALERT_TRIVY_SHA256, "AM_final_pinned_scanner")
+    scanner.chmod(0o555)
+    config = work / "empty-docker-config"
+    fresh_directory(config)
+    env = {
+        "PATH": "/usr/bin:/bin",
+        "HOME": str(work),
+        "DOCKER_CONFIG": str(config),
+        "LANG": "C.UTF-8",
+    }
+    docker = shutil.which("docker")
+    require(docker is not None and Path(docker).is_absolute(), "AM_final_Docker")
+    prefix = [cast(str, docker), "--config", str(config)]
+    reports: dict[str, Any] = {}
+    cache = work / "trivy-cache"
+    primary: BaseException | None = None
+    try:
+        # Qualified support remains immutable. Trivy's filesystem cache (fanal)
+        # is derived work output and must never be seeded from retained cache state.
+        fresh_directory(cache)
+        for name, expected in database.items():
+            source = support / "trivy-cache" / name
+            destination = cache / name
+            require(file_hash(source, deadline) == expected, "AM_final_source_DB_before_copy")
+            destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+            shutil.copyfile(source, destination)
+            destination.chmod(0o600)
+            require(
+                file_hash(source, deadline) == expected == file_hash(destination, deadline),
+                "AM_final_private_DB_copy",
+            )
+        reports["docker_load_transport"] = _alertmanager_docker_load_transport(
+            archive, graph, work, deadline
+        )
+        native.run(
+            [*prefix, "image", "load", "--input", reports["docker_load_transport"]["load_input"]],
+            "candidate-load-same-OCI",
+            env,
+            cwd=work,
+        )
+        observed = one_object(
+            native.run(
+                [*prefix, "image", "inspect", "--format", "{{json .}}", graph["config"]["digest"]],
+                "candidate-loaded-config",
+                env,
+                cwd=work,
+            )
+        )
+        require(
+            observed.get("Id") == graph["config"]["digest"]
+            and observed.get("Os") == "linux"
+            and observed.get("Architecture") == "amd64"
+            and observed.get("RootFS", {}).get("Layers") == graph["diff_ids"],
+            "AM_loaded_candidate_graph",
+        )
+        empty_config, empty_ignore = work / "trivy.yaml", work / "trivy.ignore"
+        empty_config.write_bytes(b"{}\n")
+        empty_ignore.write_bytes(b"")
+
+        def scan(kind: str, subject: Path, label: str) -> dict[str, Any]:
+            require(
+                file_hash(scanner) == _ALERT_TRIVY_SHA256
+                and all(
+                    file_hash(support / "trivy-cache" / n, deadline)
+                    == h
+                    == file_hash(cache / n, deadline)
+                    for n, h in database.items()
+                ),
+                "AM_final_scanner_DB_drift",
+            )
+            destination = evidence / (label + ".private.json")
+            argv = [
+                str(scanner),
+                kind,
+                "--config",
+                str(empty_config),
+                "--cache-dir",
+                str(cache),
+                "--skip-db-update",
+                "--skip-java-db-update",
+                "--skip-vex-repo-update",
+                "--offline-scan",
+                "--skip-version-check",
+                "--disable-telemetry",
+                "--scanners",
+                "vuln,secret",
+                "--pkg-types",
+                "os,library",
+                "--list-all-pkgs",
+                "--severity",
+                "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL",
+                "--format",
+                "json",
+                "--exit-code",
+                "0",
+                "--ignore-unfixed=false",
+                "--ignorefile",
+                str(empty_ignore),
+                "--timeout",
+                str(limits["SCAN_TIMEOUT_SECONDS"]) + "s",
+                "--output",
+                str(destination),
+            ]
+            argv += ["--input", str(subject)] if kind == "image" else [str(subject)]
+            native.run(argv, label, env, cwd=work, maximum_seconds=limits["SCAN_PROCESS_SECONDS"])
+            require(
+                destination.is_file()
+                and not destination.is_symlink()
+                and 0 < destination.stat().st_size <= 64 * 1024**2,
+                "AM_final_native_report_missing",
+            )
+            destination.chmod(0o600)
+            report: dict[str, Any] = one_object(destination.read_bytes())
+            require(
+                report.get("SchemaVersion") == 2 and type(report.get("SchemaVersion")) is int,
+                "AM_final_native_schema",
+            )
+            require(
+                all(
+                    file_hash(support / "trivy-cache" / n, deadline)
+                    == h
+                    == file_hash(cache / n, deadline)
+                    for n, h in database.items()
+                )
+                and file_hash(scanner) == _ALERT_TRIVY_SHA256,
+                "AM_final_scanner_DB_post_drift",
+            )
+            return report
+
+        positive, negative = work / "positive", work / "negative"
+        fresh_directory(positive)
+        fresh_directory(negative)
+        (positive / "credentials.txt").write_text(
+            "GITHUB_PAT=ghp_" + "012345678901234567890123456789abcdef" + "\n"
+        )
+        (negative / "credentials.txt").write_text("plain harmless operational text\n")
+        reports["secrets"] = _alertmanager_secret_controls(
+            scan("fs", positive, "candidate-secret-positive"),
+            scan("fs", negative, "candidate-secret-negative"),
+            str(positive),
+            str(negative),
+        )
+        reports["old_control"] = _alertmanager_vulnerability_control(
+            scan(
+                "image",
+                support / "known-vulnerable-control.tar",
+                "candidate-known-vulnerable-control",
+            ),
+            "sha256:53622b714941158bc20cc92a7571aef515556218eef914b7b8ec5b2a0cb6f607",
+            current=True,
+        )
+        layout = work / "docker-load-layout"
+        require(
+            _alertmanager_candidate_graph(layout, support, graph["files"], current=True) == graph
+            and file_hash(archive, deadline)
+            == reports["docker_load_transport"]["source_OCI_sha256"],
+            "AM_final_candidate_scan_identity",
+        )
+        candidate_report = scan("image", layout, "candidate-full-supported")
+        require(
+            _alertmanager_candidate_graph(layout, support, graph["files"], current=True) == graph
+            and file_hash(archive, deadline)
+            == reports["docker_load_transport"]["source_OCI_sha256"],
+            "AM_final_candidate_scan_post_identity",
+        )
+        reports["candidate"] = _alertmanager_candidate_inventory(
+            candidate_report,
+            graph["config"]["digest"],
+            one_object((support / "evidence/base-full-supported-scan.private.json").read_bytes()),
+            build_information,
+            current=True,
+            upstream_version=upstream_version,
+        )
+        reports["scanner"] = {
+            "sha256": _ALERT_TRIVY_SHA256,
+            "DB": database,
+            "DB_metadata": one_object((support / "trivy-cache/db/metadata.json").read_bytes()),
+        }
+    except BaseException as error:
+        primary = error
+        raise
+    finally:
+        post_failure: BaseException | None = None
+        poststate: dict[str, Any] = {}
+        operands = [("scanner", scanner, _ALERT_TRIVY_SHA256)]
+        operands += [
+            ("support/" + name, support / "trivy-cache" / name, expected)
+            for name, expected in database.items()
+        ]
+        operands += [
+            ("private/" + name, cache / name, expected) for name, expected in database.items()
+        ]
+        for label, path, expected in operands:
+            try:
+                observed = file_hash(path, deadline)
+                poststate[label] = {"sha256": observed, "matches": observed == expected}
+                require(observed == expected, "AM_final_input_poststate_drift_" + label)
+            except BaseException as post_error:
+                poststate.setdefault(label, {})["failure"] = (
+                    type(post_error).__name__ + ":" + str(post_error)
+                )
+                if primary is not None:
+                    primary.add_note(
+                        "AM input poststate also failed ("
+                        + label
+                        + "): "
+                        + type(post_error).__name__
+                    )
+                else:
+                    post_failure = post_error
+                    primary = post_error
+        reports["input_poststate"] = poststate
+        reports["native_records"] = native.records
+        try:
+            (work / "security-observation.json").write_text(json.dumps(reports, indent=2) + "\n")
+        except BaseException as observation_error:
+            if primary is not None:
+                primary.add_note(
+                    "AM security observation write also failed: " + type(observation_error).__name__
+                )
+                raise primary from None
+            raise
+        if post_failure is not None:
+            raise post_failure
+    return reports
+
+
 def _alertmanager_native_candidate(
     candidate: dict[str, Any],
     observation: Path,
@@ -7084,10 +8856,16 @@ def _alertmanager_native_candidate(
     *,
     prepared: dict[str, Any] | None = None,
     material_root: Path | None = None,
+    producer_image: bool = False,
 ) -> dict[str, Any]:
     """Run retained local OCI bytes through the existing bounded Linux fixture owner."""
     from scripts.ci.prometheus_source_image import Native, fresh_directory, require
 
+    require(type(producer_image) is bool, "AM_native_scope_type")
+    require(
+        not producer_image or prepared is None and material_root is None,
+        "AM_producer_native_not_selected_consumer",
+    )
     require(
         Path(sys.executable).is_absolute() and not observation.is_symlink(),
         "AM_native_host_interpreter_input",
@@ -7109,6 +8887,8 @@ def _alertmanager_native_candidate(
         "HOME": str(work),
         "COMPOSE_PROFILES": "",
         "PYTHONUNBUFFERED": "1",
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONNOUSERSITE": "1",
         "ALERTMANAGER_NATIVE_SECONDS": str(limits["NATIVE_SECONDS"]),
         "ALERTMANAGER_NATIVE_CLEANUP_SECONDS": str(limits["NATIVE_CLEANUP_SECONDS"]),
     }
@@ -7121,7 +8901,18 @@ def _alertmanager_native_candidate(
     fresh_directory(docker_config)
     env["DOCKER_CONFIG"] = str(docker_config)
     prefix = [cast(str, docker), "--config", str(docker_config)]
-    result: dict[str, Any] = {"compiler_starts": 0}
+    result: dict[str, Any] = {
+        "compiler_starts": 0,
+        "validation_scope": (
+            (
+                "merged_H_selected_image"
+                if candidate.get("producer_admission", {}).get("mode") == "H"
+                else "producer_image"
+            )
+            if producer_image
+            else "selected_consumer"
+        ),
+    }
     primary: BaseException | None = None
     try:
         if prepared is None:
@@ -7187,6 +8978,8 @@ def _alertmanager_native_candidate(
             "--alertmanager-observation",
             str(observation),
         ]
+        if producer_image:
+            argv.append("--alertmanager-producer-image")
         raw = native.run(
             argv,
             "full-AM-native",
@@ -7194,7 +8987,25 @@ def _alertmanager_native_candidate(
             cwd=material_root if material_root is not None else REPO_ROOT,
             output_bound=16 * 1024**2,
         )
-        require(b"native_AM_full_candidate_controls=pass" in raw, "AM_native_full_terminal_missing")
+        marker = (
+            b"native_AM_merged_H_full_controls=pass"
+            if producer_image and candidate.get("producer_admission", {}).get("mode") == "H"
+            else (
+                b"native_AM_producer_image_controls=pass"
+                if producer_image
+                else b"native_AM_full_candidate_controls=pass"
+            )
+        )
+        other_markers = {
+            b"native_AM_full_candidate_controls=pass",
+            b"native_AM_producer_image_controls=pass",
+            b"native_AM_merged_H_full_controls=pass",
+        } - {marker}
+        require(
+            raw.splitlines().count(marker) == 1
+            and not other_markers.intersection(raw.splitlines()),
+            "AM_native_full_terminal_missing",
+        )
         result.update({"native_records": native.records, "stdout_sha256": sha256(raw).hexdigest()})
         return result
     except BaseException as error:
@@ -7342,25 +9153,47 @@ def _alertmanager_render_source_contract(
     from scripts.ci.prometheus_source_image import Native, fresh_directory, one_object, require
 
     require(
-        expected_case in ("old", "accepted")
+        expected_case in ("old", "accepted", "historical-AM11-before")
         and set(sources) == set(_ALERT_SELECTION_FILES)
-        and set(controller_templates) == set(_ALERT_SELECTION_FILES[:5]),
+        and set(controller_templates)
+        == set(
+            _ALERT_SELECTION_FILES
+            if expected_case == "historical-AM11-before"
+            else _ALERT_SELECTION_FILES[:5]
+        ),
         "AM_closed_controller_template_inventory",
     )
     accepted_ref = _alertmanager_contract_subject()[0].encode()
-    for path in _ALERT_SELECTION_FILES[:5]:
-        expected = controller_templates[path]
-        if expected_case == "old" and path in _ALERT_SELECTION_FILES[:3]:
-            require(expected.count(accepted_ref) == 1, "AM_controller_template_single_subject")
-            expected = expected.replace(accepted_ref, _ALERT_OLD_RUNTIME_REF.encode(), 1)
-        if expected_case == "old" and path == "deploy/alertmanager/trivy-ignore.yaml":
-            require(
-                expected == b"vulnerabilities: []\n"
-                and sha256(sources[path]).hexdigest() == _ALERT_OLD_POLICY_SHA256,
-                "AM_first_main_original_policy",
-            )
-        else:
-            require(sources[path] == expected, "AM_reviewed_controller_data_closure")
+    historical_before = (
+        _ALERT_HISTORICAL_AM11 if expected_case == "historical-AM11-before" else None
+    )
+    if historical_before is not None:
+        before_ref = _alertmanager_contract_subject(historical_before=historical_before)[0].encode()
+        require(
+            before_ref != accepted_ref and sources == controller_templates,
+            "AM_before_reference_controller_and_disjoint_after",
+        )
+        require(
+            sources["deploy/alertmanager/trivy-ignore.yaml"] == b"vulnerabilities: []\n"
+            and sha256(sources["deploy/alertmanager/alertmanager.yml"]).hexdigest()
+            == historical_before["source_files"]["deploy/alertmanager/alertmanager.yml"]
+            and all(sources[path].count(before_ref) == 1 for path in _ALERT_SELECTION_FILES[:3]),
+            "AM_before_AM11_complete_configuration",
+        )
+    else:
+        for path in _ALERT_SELECTION_FILES[:5]:
+            expected = controller_templates[path]
+            if expected_case == "old" and path in _ALERT_SELECTION_FILES[:3]:
+                require(expected.count(accepted_ref) == 1, "AM_controller_template_single_subject")
+                expected = expected.replace(accepted_ref, _ALERT_OLD_RUNTIME_REF.encode(), 1)
+            if expected_case == "old" and path == "deploy/alertmanager/trivy-ignore.yaml":
+                require(
+                    expected == b"vulnerabilities: []\n"
+                    and sha256(sources[path]).hexdigest() == _ALERT_OLD_POLICY_SHA256,
+                    "AM_first_main_original_policy",
+                )
+            else:
+                require(sources[path] == expected, "AM_reviewed_controller_data_closure")
     fresh_directory(work)
     for path, raw in sources.items():
         target = work / path
@@ -7379,7 +9212,7 @@ def _alertmanager_render_source_contract(
     fresh_directory(evidence)
     native = Native(evidence, deadline, 120)
     synthetic = "ghcr.io/pulseplate/configuration-only@sha256:" + "1" * 64
-    postgres_password = "synthetic"  # nosec B105: # configuration-only selfhosted Compose input, never used to start a service (remove-by: 2026-10-23, ref: PR-2494)
+    postgres_password = "synthetic"  # nosec B105: # public synthetic interpolation for config-only Compose rendering (remove-by: 2026-12-15, ref: PR-2494)
     env = {
         "PATH": "/usr/bin:/bin",
         "HOME": str(home),
@@ -7432,6 +9265,11 @@ def _alertmanager_render_source_contract(
                 deploy / "alertmanager/trivy-ignore.yaml",
                 "staging" if index == 0 else "production",
                 installed_compose=compose,
+                **(
+                    {"historical_before": historical_before}
+                    if historical_before is not None
+                    else {}
+                ),
             )
             require(case == expected_case, "AM_source_transition_selection")
     except BaseException as error:
@@ -7448,6 +9286,96 @@ def _alertmanager_render_source_contract(
             proof_failure.add_note("AM native proof retention failed: " + type(error).__name__)
 
 
+def _alertmanager_original_lineage(
+    api: GitHubRead, *, historical_before: dict[str, Any] | None = None
+) -> str:
+    """Keep original donor ancestry distinct from the actual selected receiver producer."""
+    from scripts.ci.prometheus_source_image import require
+
+    accepted = _alertmanager_accepted_producer()
+    upstream = _alertmanager_upstream_identity(
+        current=accepted["source"] != _ALERT_HISTORICAL_C10["source"], accepted=accepted, api=api
+    )
+    cases = [(2494, _ALERT_Q_BRANCH, _ALERT_HISTORICAL_C10["source"], _ALERT_DONOR_SOURCE)]
+    if accepted["source"] != _ALERT_HISTORICAL_C10["source"]:
+        cases.append(
+            (
+                2494 if upstream == "0.34.2" else _ALERT_RECEIVER_PR,
+                _ALERT_Q_BRANCH if upstream == "0.34.2" else _ALERT_RECEIVER_BRANCH,
+                accepted["source"],
+                accepted["source"],
+            )
+        )
+    if historical_before is not None:
+        require(
+            upstream == "0.34.2" and historical_before == _ALERT_HISTORICAL_AM11,
+            "AM_before_historical_lineage_context",
+        )
+        cases.append(
+            (
+                _ALERT_RECEIVER_PR,
+                _ALERT_RECEIVER_BRANCH,
+                historical_before["source"],
+                historical_before["source"],
+            )
+        )
+    for number, branch, source, donor in cases:
+        endpoint = "/repos/Katsiarynakavaleuskaya/PulsePlate/pulls/" + str(number)
+        pr = api.json(endpoint)
+        head = pr.get("head", {}).get("sha")
+        count = pr.get("commits")
+        require(
+            type(pr.get("number")) is int
+            and pr["number"] == number
+            and all(
+                type(pr.get(side, {}).get("repo", {}).get("id")) is int
+                and pr[side]["repo"]["id"] == 1043311030
+                for side in ("head", "base")
+            )
+            and pr.get("head", {}).get("ref") == branch
+            and pr.get("base", {}).get("ref") == "main"
+            and type(head) is str
+            and re.fullmatch(r"[0-9a-f]{40}", head) is not None
+            and type(count) is int
+            and 0 < count <= 250,
+            "AM_original_PR_identity",
+        )
+        rows = api.pages(endpoint + "/commits", None, count)
+        graph: dict[str, list[str]] = {}
+        for row in rows:
+            revision = row.get("sha") if type(row) is dict else None
+            parents = row.get("parents") if type(row) is dict else None
+            require(
+                type(revision) is str
+                and re.fullmatch(r"[0-9a-f]{40}", revision) is not None
+                and revision not in graph
+                and type(parents) is list
+                and all(
+                    type(parent) is dict
+                    and type(parent.get("sha")) is str
+                    and re.fullmatch(r"[0-9a-f]{40}", parent["sha"]) is not None
+                    for parent in parents
+                ),
+                "AM_original_complete_native_graph",
+            )
+            graph[cast(str, revision)] = [
+                parent["sha"] for parent in cast(list[dict[str, Any]], parents)
+            ]
+        require(
+            len(graph) == count and source in graph and donor in graph and head in graph,
+            "AM_original_source_donor_membership",
+        )
+        for descendant, ancestor in ((head, donor), (donor, source)):
+            pending, visited = [descendant], set()
+            while pending:
+                current = pending.pop()
+                if current not in visited:
+                    visited.add(current)
+                    pending.extend(parent for parent in graph.get(current, []) if parent in graph)
+            require(ancestor in visited, "AM_original_source_donor_ancestry")
+    return upstream
+
+
 def _alertmanager_reader_route(
     api: GitHubRead, args: argparse.Namespace, event: dict[str, Any], output: Path, deadline: float
 ) -> dict[str, Any]:
@@ -7455,11 +9383,16 @@ def _alertmanager_reader_route(
     import shutil
     from scripts.ci.prometheus_source_image import (
         Native,
-        authenticate_pr_source,
         fresh_directory,
         require,
     )
 
+    accepted = _alertmanager_accepted_producer()
+    upstream = _alertmanager_upstream_identity(
+        current=accepted["source"] != _ALERT_HISTORICAL_C10["source"], accepted=accepted, api=api
+    )
+    own_pr = 2494 if upstream == "0.34.2" else _ALERT_RECEIVER_PR
+    own_branch = _ALERT_Q_BRANCH if upstream == "0.34.2" else _ALERT_RECEIVER_BRANCH
     name = os.environ.get("GITHUB_EVENT_NAME")
     repository = event.get("repository")
     require(
@@ -7492,7 +9425,9 @@ def _alertmanager_reader_route(
             "AM_reader_event_PR_repository",
         )
         require(
-            pr.get("state") == "open"
+            type(pr.get("number")) is int
+            and pr["number"] == number
+            and pr.get("state") == "open"
             and pr.get("head", {}).get("sha") == args.source_sha
             and pr.get("base", {}).get("ref") == "main"
             and pr.get("head", {}).get("repo", {}).get("id") == 1043311030
@@ -7502,22 +9437,22 @@ def _alertmanager_reader_route(
             and current_main == pr["base"]["sha"],
             "AM_actual_same_repository_open_PR",
         )
-        if number == 2494 and pr["head"].get("ref") == _ALERT_Q_BRANCH:
-            authenticate_pr_source(
-                api,
-                number,
-                _alertmanager_accepted_producer()["source"],
-                args.source_sha,
-                "refs/heads/" + _ALERT_Q_BRANCH,
-            )
+        require(
+            number != own_pr or pr["head"].get("ref") == own_branch,
+            "AM_receiver_branch",
+        )
+        if number == own_pr:
+            _alertmanager_original_lineage(api)
             return {
                 "mode": "initial_own_PR_retained",
+                "upstream_version": upstream,
                 "pr": number,
                 "head": args.source_sha,
                 "base": pr["base"]["sha"],
             }
         return {
             "mode": "ordinary_published_PR",
+            "upstream_version": upstream,
             "pr": number,
             "head": args.source_sha,
             "base": pr["base"]["sha"],
@@ -7538,7 +9473,7 @@ def _alertmanager_reader_route(
         args.source_sha == os.environ.get("GITHUB_SHA") and args.source_sha == current_main,
         "AM_exact_current_main_reader",
     )
-    pr = api.json("/repos/Katsiarynakavaleuskaya/PulsePlate/pulls/2494")
+    pr = api.json("/repos/Katsiarynakavaleuskaya/PulsePlate/pulls/" + str(own_pr))
     if (
         name == "push"
         and os.environ.get("GITHUB_REF") == "refs/heads/main"
@@ -7547,19 +9482,18 @@ def _alertmanager_reader_route(
         and pr.get("merge_commit_sha") == args.source_sha
     ):
         require(
-            pr.get("base", {}).get("ref") == "main"
-            and pr.get("head", {}).get("ref") == _ALERT_Q_BRANCH
+            type(pr.get("number")) is int
+            and pr["number"] == own_pr
+            and pr.get("state") == "closed"
+            and pr.get("base", {}).get("ref") == "main"
+            and type(pr.get("head", {}).get("sha")) is str
+            and re.fullmatch(r"[0-9a-f]{40}", pr["head"]["sha"]) is not None
+            and pr.get("head", {}).get("ref") == own_branch
             and pr["head"].get("repo", {}).get("id") == 1043311030
             and pr["base"].get("repo", {}).get("id") == 1043311030,
             "AM_genuine_first_main_PR",
         )
-        authenticate_pr_source(
-            api,
-            2494,
-            _alertmanager_accepted_producer()["source"],
-            pr["head"]["sha"],
-            "refs/heads/" + _ALERT_Q_BRANCH,
-        )
+        _alertmanager_original_lineage(api)
         before = event.get("before")
         require(
             type(before) is str and re.fullmatch(r"[0-9a-f]{40}", before) is not None,
@@ -7605,14 +9539,16 @@ def _alertmanager_reader_route(
         )
         return {
             "mode": "genuine_first_main_retained",
-            "pr": 2494,
+            "upstream_version": upstream,
+            "pr": own_pr,
             "head": args.source_sha,
             "pr_head": pr["head"]["sha"],
             "base": before,
         }
     return {
         "mode": "ordinary_published_main",
-        "pr": 2494,
+        "upstream_version": upstream,
+        "pr": own_pr,
         "head": args.source_sha,
         "base": args.source_sha,
     }
@@ -7630,7 +9566,9 @@ def _alertmanager_controller_binding(args: argparse.Namespace) -> None:
         "AM_controller_data_UNCONFIGURED_HOLD",
     )
     require(
-        type(controller) is str and re.fullmatch(r"[0-9a-f]{40}", controller) is not None,
+        type(controller) is str
+        and re.fullmatch(r"[0-9a-f]{40}", controller) is not None
+        and controller == data_controller,
         "AM_controller_UNCONFIGURED_HOLD",
     )
     controller = cast(str, controller)
@@ -7807,9 +9745,12 @@ def _alertmanager_pull_published(
         output / "github-read-evidence/published-predecessor-Git",
         deadline,
     )
-    graph = _alertmanager_accepted_producer()["graph"]
+    accepted = _alertmanager_accepted_producer()
+    upstream = predecessor.get("upstream_version")
+    require(upstream in ("0.34.1", "0.34.2"), "AM_published_authenticated_source_epoch_HOLD")
+    graph = accepted["graph"]
     digest = graph["manifest"]["digest"]
-    tag = "alertmanager-0.34.1-" + digest.removeprefix("sha256:")
+    tag = "alertmanager-" + cast(str, upstream) + "-" + digest.removeprefix("sha256:")
     package, versions = existing_public_package(api)
     require(
         immutable_tag_state(versions, tag, digest) is True, "AM_positive_published_tag_required"
@@ -7953,7 +9894,18 @@ def _alertmanager_prepare_candidate_body(
             prepared = _alertmanager_pull_published(
                 api, args, route, material_sources, output, deadline
             )
-            candidate = {"graph": accepted["graph"]}
+            candidate = {"source": accepted["source"], "graph": accepted["graph"]}
+            if route["upstream_version"] == "0.34.2":
+                # source remains the independent C selection owner; actual H
+                # production stays separately bound in publication_predecessor.
+                candidate["root_inputs"] = prepared["publication_predecessor"][
+                    "current_observation"
+                ]["root_inputs"]
+                require(
+                    _alertmanager_upstream_identity(candidate["root_inputs"], current=True)
+                    == route["upstream_version"],
+                    "AM_published_native_source_tuple",
+                )
             payload = output / "candidate"
             fresh_directory(payload)
             (payload / "candidate-observation.json").write_text(json.dumps(candidate) + "\n")
@@ -7967,6 +9919,7 @@ def _alertmanager_prepare_candidate_body(
             "AM_reviewed_controller_data_closure",
         )
         before_sources = None
+        before_reference = None
         if route["mode"] == "genuine_first_main_retained":
             before_sources = _alertmanager_regular_sources(
                 args.material_root, route["base"], output / "first-main-BASE-native-Git", deadline
@@ -7978,20 +9931,39 @@ def _alertmanager_prepare_candidate_body(
                 deadline,
             )
             require(final_pr == material_sources, "AM_first_main_final_PR_selection_control")
-        _alertmanager_authenticated_inputs(
-            api,
-            args.alertmanager_qualification_run,
-            args.alertmanager_qualification_artifact,
-            args.alertmanager_qualification_source,
-            output / "qualification.zip",
-        )
-        _alertmanager_authenticated_inputs(
-            api,
-            args.alertmanager_support_run,
-            args.alertmanager_support_artifact,
-            args.alertmanager_support_source,
-            output / "support.zip",
-            kind="support",
+            if route["upstream_version"] == "0.34.2":
+                _alertmanager_original_lineage(api, historical_before=_ALERT_HISTORICAL_AM11)
+                receiver = api.json("/repos/Katsiarynakavaleuskaya/PulsePlate/pulls/2497")
+                merged = receiver.get("merge_commit_sha")
+                require(
+                    type(receiver.get("number")) is int
+                    and receiver["number"] == _ALERT_RECEIVER_PR
+                    and receiver.get("merged") is True
+                    and receiver.get("state") == "closed"
+                    and type(merged) is str
+                    and re.fullmatch(r"[0-9a-f]{40}", merged) is not None
+                    and receiver.get("head", {}).get("ref") == _ALERT_RECEIVER_BRANCH
+                    and receiver.get("base", {}).get("ref") == "main"
+                    and all(
+                        type(receiver.get(side, {}).get("repo", {}).get("id")) is int
+                        and receiver[side]["repo"]["id"] == 1043311030
+                        for side in ("head", "base")
+                    ),
+                    "AM_before_actual_historical_receiver_merge",
+                )
+                from scripts.ci.prometheus_source_image import require_native_ancestor
+
+                require_native_ancestor(api, cast(str, merged), route["base"])
+                before_reference = _alertmanager_regular_sources(
+                    args.material_root,
+                    cast(str, merged),
+                    output / "historical-AM11-reference-native-Git",
+                    deadline,
+                )
+                require(before_sources == before_reference, "AM_before_full_six_reference_identity")
+                route["historical_before_reference"] = merged
+        qualification, support_binding = _alertmanager_selected_inputs(
+            api, args, output, accepted, upstream_version=route["upstream_version"]
         )
         authenticated = _alertmanager_authenticated_inputs(
             api,
@@ -8000,6 +9972,8 @@ def _alertmanager_prepare_candidate_body(
             args.alertmanager_candidate_source,
             output / "candidate.zip",
             kind="candidate",
+            upstream_version=route["upstream_version"],
+            source_branch=_ALERT_Q_BRANCH if route["upstream_version"] == "0.34.2" else None,
         )
         source = _alertmanager_source_snapshot(
             api, args.alertmanager_candidate_source, accepted=True
@@ -8015,8 +9989,8 @@ def _alertmanager_prepare_candidate_body(
             before_sources,
             output / "first-main-BASE-contract",
             deadline,
-            expected_case="old",
-            controller_templates=templates,
+            expected_case="historical-AM11-before" if before_reference is not None else "old",
+            controller_templates=before_reference if before_reference is not None else templates,
         )
         _alertmanager_render_source_contract(
             material_sources,
@@ -8026,14 +10000,33 @@ def _alertmanager_prepare_candidate_body(
             controller_templates=templates,
         )
     inspected = _alertmanager_qualified_payload(
-        output / "qualification.zip", material_root=args.material_root
+        output / "qualification.zip",
+        material_root=args.material_root,
+        current=accepted["source"] != _ALERT_HISTORICAL_C10["source"],
+        producer_recipe=source["deploy/alertmanager/Containerfile"],
     )
     support = output / "support"
-    supported = _alertmanager_support_payload(output / "support.zip", support)
+    current = accepted["source"] != _ALERT_HISTORICAL_C10["source"]
+    supported = _alertmanager_support_payload(
+        output / "support.zip",
+        support,
+        qualification=qualification if current else None,
+        support_binding=support_binding if current else None,
+        qualification_payload=inspected if current else None,
+    )
+    if current:
+        _alertmanager_bind_current_plan(inspected["plan"], supported)
     inspected["plan"]["probe"] = supported["probe"]
     payload = output / "candidate"
     candidate = _alertmanager_candidate_payload(
-        output / "candidate.zip", payload, source, inspected, support
+        output / "candidate.zip",
+        payload,
+        source,
+        inspected,
+        support,
+        qualification=qualification if current else None,
+        support_binding=support_binding if current else None,
+        support_report=supported if current else None,
     )
     require(
         candidate.get("source") == authenticated["source"],
@@ -8130,11 +10123,15 @@ def _alertmanager_publish(
     retained: Path,
     result: dict[str, Any],
     limits: dict[str, int],
+    *,
+    qualification: dict[str, Any] | None = None,
+    support_binding: dict[str, Any] | None = None,
+    prepared: dict[str, Any] | None = None,
+    phase: str = "prepare",
 ) -> dict[str, Any]:
-    """One guarded exact-byte main publication; canonical package/tag uncertainty holds."""
+    """One existing publisher: prepare, fresh rebind, then one guarded registry copy."""
     import shutil
     from scripts.ci.prometheus_source_image import (
-        authenticate_pr_source,
         Native,
         fresh_directory,
         require,
@@ -8145,170 +10142,318 @@ def _alertmanager_publish(
         pack_layout,
         file_hash,
         check_deadline,
+        tree_inventory,
     )
 
-    _alertmanager_accepted_producer(
-        args.alertmanager_candidate_run,
-        args.alertmanager_candidate_artifact,
-        args.alertmanager_candidate_source,
-    )
-    current = api.json("/repos/Katsiarynakavaleuskaya/PulsePlate/git/ref/heads/main")
+    accepted = _alertmanager_accepted_producer()
     require(
-        current.get("object", {}).get("sha") == args.source_sha, "AM_exact_current_main_publication"
+        phase in ("prepare", "rebind", "publish") and (prepared is None) == (phase == "prepare"),
+        "AM_closed_publication_phase",
+    )
+    require(qualification is None and support_binding is None, "AM_publication_owns_exact_H_Q_S")
+    require(
+        accepted["source"] != _ALERT_HISTORICAL_C10["source"],
+        "AM_publication_requires_current_accepted_C",
     )
     require(
-        type(args.alertmanager_pr) is int and args.alertmanager_pr == 2494,
-        "AM_publication_actual_merged_PR_required",
+        type(args.alertmanager_pr) is int
+        and args.alertmanager_pr == 2494
+        and type(args.source_sha) is str
+        and re.fullmatch(r"[0-9a-f]{40}", args.source_sha) is not None
+        and args.alertmanager_candidate_source == args.source_sha,
+        "AM_publication_actual_H_selectors",
     )
-    pr = api.json("/repos/Katsiarynakavaleuskaya/PulsePlate/pulls/" + str(args.alertmanager_pr))
-    require(
-        type(pr.get("number")) is int
-        and pr["number"] == 2494
-        and pr.get("merged") is True
-        and pr.get("state") == "closed"
-        and type(pr.get("merge_commit_sha")) is str
-        and re.fullmatch(r"[0-9a-f]{40}", pr["merge_commit_sha"]) is not None
-        and all(
-            type(pr.get(side, {}).get("repo", {}).get("id")) is int
-            and pr[side]["repo"]["id"] == 1043311030
-            for side in ("head", "base")
-        )
-        and pr.get("base", {}).get("ref") == "main"
-        and pr.get("head", {}).get("ref") == _ALERT_Q_BRANCH,
-        "AM_separate_human_merge_observed",
-    )
-    authenticate_pr_source(
-        api,
-        args.alertmanager_pr,
-        args.alertmanager_candidate_source,
-        pr["head"]["sha"],
-        "refs/heads/" + _ALERT_Q_BRANCH,
-    )
-    merged = pr["merge_commit_sha"]
-    work = retained / "publication-source-proof"
-    fresh_directory(work)
-    native = Native(work, api.deadline, limits["CLEANUP_SECONDS"])
-    git = shutil.which("git")
-    require(git is not None and Path(git).is_absolute(), "AM_publication_native_Git")
-    prefix = [
-        git,
-        "--no-replace-objects",
-        "-c",
-        "core.fsmonitor=false",
-        "-c",
-        "core.hooksPath=/dev/null",
-        "-C",
-        str(REPO_ROOT),
-    ]
-    environment = {
-        "PATH": "/usr/bin:/bin",
-        "HOME": str(work),
-        "GIT_CONFIG_NOSYSTEM": "1",
-        "GIT_CONFIG_GLOBAL": "/dev/null",
-        "GIT_NO_REPLACE_OBJECTS": "1",
-    }
-    proof_failure: BaseException | None = None
-    try:
+    endpoint = "/repos/Katsiarynakavaleuskaya/PulsePlate"
+
+    def read_inputs(directory: Path, *, source_proof: bool) -> dict[str, Any]:
+        fresh_directory(directory)
+        main = api.json(endpoint + "/git/ref/heads/main")
         require(
-            native.run(
-                [*prefix, "rev-parse", "--is-shallow-repository"],
-                "publication-complete-Git",
-                environment,
-                cwd=REPO_ROOT,
-                maximum_seconds=8,
-            )
-            == b"false\n",
-            "AM_publication_shallow_history",
+            main.get("object", {}).get("sha") == args.source_sha
+            and main.get("ref") == "refs/heads/main",
+            "AM_exact_current_main_publication",
         )
-        native.run(
-            [*prefix, "merge-base", "--is-ancestor", merged, args.source_sha],
-            "publication-merged-ancestor",
-            environment,
-            cwd=REPO_ROOT,
-            maximum_seconds=8,
+        pr = api.json(endpoint + "/pulls/2494")
+        merge = pr.get("merge_commit_sha")
+        require(
+            type(pr.get("number")) is int
+            and pr["number"] == 2494
+            and pr.get("merged") is True
+            and pr.get("state") == "closed"
+            and type(merge) is str
+            and re.fullmatch(r"[0-9a-f]{40}", merge) is not None
+            and pr.get("head", {}).get("ref") == _ALERT_Q_BRANCH
+            and pr.get("base", {}).get("ref") == "main"
+            and all(
+                type(pr.get(side, {}).get("repo", {}).get("id")) is int
+                and pr[side]["repo"]["id"] == 1043311030
+                for side in ("head", "base")
+            ),
+            "AM_separate_human_merge_observed",
         )
-        published = _alertmanager_bind_material(
-            REPO_ROOT, args.source_sha, work / "publisher-sources", api.deadline
+        count = pr.get("commits")
+        require(type(count) is int and 0 < count <= 250, "AM_publication_PR_commit_inventory")
+        commits = api.pages(endpoint + "/pulls/2494/commits", None, count)
+        require(
+            sum(row.get("sha") == accepted["source"] for row in commits) == 1,
+            "AM_publication_accepted_C_actual_PR_graph",
         )
-        historical = _alertmanager_regular_sources(
-            REPO_ROOT, merged, work / "merged-sources", api.deadline
-        )
-        require(historical == published, "AM_publication_historical_six_source_drift")
-        templates = _alertmanager_source_snapshot(
-            api, os.environ.get("ALERTMANAGER_CONTROLLER_SOURCE", ""), controller_templates=True
-        )
-        _alertmanager_render_source_contract(
-            published,
-            work / "accepted-contract",
-            api.deadline,
-            expected_case="accepted",
-            controller_templates=templates,
-        )
-        result["publication_merge_sha"] = merged
-        result["publication_source_sha"] = args.source_sha
-    except BaseException as error:
-        proof_failure = error
-        raise
-    finally:
-        try:
-            (work / "native-observation.json").write_text(
-                json.dumps({"native_records": native.records}, indent=2) + "\n"
-            )
-        except BaseException as error:
-            if proof_failure is None:
-                raise
-            proof_failure.add_note("AM native proof retention failed: " + type(error).__name__)
-    original = _alertmanager_authenticated_inputs(
-        api,
-        args.alertmanager_candidate_run,
-        args.alertmanager_candidate_artifact,
-        args.alertmanager_candidate_source,
-        output / "candidate.zip",
-        kind="candidate",
-    )
-    source = _alertmanager_source_snapshot(api, args.alertmanager_candidate_source, accepted=True)
-    inspected = _alertmanager_qualified_payload(output / "qualification.zip")
-    support = output / "support"
-    supported = _alertmanager_support_payload(output / "support.zip", support)
-    inspected["plan"]["probe"] = supported["probe"]
-    candidate = _alertmanager_candidate_payload(
-        output / "candidate.zip", output / "candidate", source, inspected, support
-    )
-    tool, qualified = retained_tool(api, REPO_ROOT, output)
-    digest = candidate["graph"]["manifest"]["digest"]
-    tag = "alertmanager-0.34.1-" + digest.removeprefix("sha256:")
-    destination = "ghcr.io/katsiarynakavaleuskaya/pulseplate"
-    result.update(
-        {
-            "original_producer": original,
-            "qualified_tool": qualified["coordinates"],
-            "graph": candidate["graph"],
-            "copy_attempts": 0,
-            "copy_invocations": 0,
-            "package_WRITE": "UNPROVED",
-            "tag": tag,
+        git = shutil.which("git")
+        require(git is not None and Path(git).is_absolute(), "AM_publication_native_Git")
+        command = [
+            cast(str, git),
+            "--no-replace-objects",
+            "-c",
+            "core.fsmonitor=false",
+            "-c",
+            "core.hooksPath=/dev/null",
+            "-C",
+            str(REPO_ROOT),
+            "merge-base",
+            "--is-ancestor",
+            cast(str, merge),
+            args.source_sha,
+        ]
+        environment = {
+            "PATH": "/usr/bin:/bin",
+            "HOME": str(api.private / "home"),
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": "/dev/null",
+            "GIT_NO_REPLACE_OBJECTS": "1",
         }
+        if source_proof:
+            proof = retained / "publication-source-proof"
+            fresh_directory(proof)
+            native = Native(proof, api.deadline, limits["CLEANUP_SECONDS"])
+            primary: BaseException | None = None
+            try:
+                native.run(
+                    command,
+                    "actual-merge-ancestor-H",
+                    environment,
+                    cwd=REPO_ROOT,
+                    maximum_seconds=8,
+                )
+            except BaseException as error:
+                primary = error
+                raise
+            finally:
+                try:
+                    (proof / "native-observation.json").write_text(
+                        json.dumps({"native_records": native.records}, indent=2) + "\n"
+                    )
+                except BaseException as error:
+                    if primary is not None:
+                        primary.add_note(
+                            "AM publication source-proof retention failed: " + type(error).__name__
+                        )
+                        raise primary from None
+                    raise
+        else:
+            api._capture(command, 1024**2, environment=environment)
+        material = _alertmanager_whole_material(api, args.source_sha)
+        host = _alertmanager_host_inputs(api)
+        source = _alertmanager_source_snapshot(api, args.source_sha, upstream_version="0.34.2")
+        source_hashes = {name: sha256(raw).hexdigest() for name, raw in source.items()}
+        bindings: dict[str, Any] = {}
+        for kind, prefix in (
+            ("qualification", "qualification"),
+            ("support", "support"),
+            ("candidate", "candidate"),
+        ):
+            run = getattr(args, "alertmanager_" + prefix + "_run")
+            artifact = getattr(args, "alertmanager_" + prefix + "_artifact")
+            revision = getattr(args, "alertmanager_" + prefix + "_source")
+            require(
+                type(run) is int
+                and run > 0
+                and type(artifact) is int
+                and artifact > 0
+                and revision == args.source_sha
+                and str(run) != os.environ.get("GITHUB_RUN_ID"),
+                "AM_publication_exact_terminal_H_inputs",
+            )
+            descriptor = api.json(endpoint + f"/actions/artifacts/{artifact}")
+            require(type(descriptor) is dict, "AM_publication_artifact_metadata")
+            bindings[kind] = _alertmanager_authenticated_inputs(
+                api,
+                run,
+                artifact,
+                revision,
+                directory / (prefix + ".zip"),
+                kind=kind,
+                current_source_files=(
+                    source_hashes
+                    if kind == "candidate"
+                    else {name: source_hashes[name] for name in _ALERT_Q_SOURCE_FILES}
+                ),
+                current_artifact_digest=descriptor.get("digest"),
+                upstream_version="0.34.2",
+                source_branch="main",
+            )
+        producer = dict(bindings["candidate"], merge_commit=merge)
+        inspected = _alertmanager_qualified_payload(
+            directory / "qualification.zip",
+            current=True,
+            producer_recipe=source["deploy/alertmanager/Containerfile"],
+        )
+        require(
+            _alertmanager_upstream_identity(inspected["root_inputs"], current=True) == "0.34.2",
+            "AM_publication_exact_upstream",
+        )
+        support = directory / "support"
+        supported = _alertmanager_support_payload(
+            directory / "support.zip",
+            support,
+            qualification=bindings["qualification"],
+            support_binding=bindings["support"],
+            qualification_payload=inspected,
+        )
+        _alertmanager_bind_current_plan(inspected["plan"], supported)
+        inspected["plan"]["probe"] = supported["probe"]
+        candidate = _alertmanager_candidate_payload(
+            directory / "candidate.zip",
+            directory / "candidate",
+            source,
+            inspected,
+            support,
+            qualification=bindings["qualification"],
+            support_binding=bindings["support"],
+            support_report=supported,
+            merged_producer=producer,
+            merged_material=material,
+        )
+        tool, qualified = retained_tool(api, REPO_ROOT, directory)
+        (support / "trivy").chmod(0o555)
+        support_inventory = tree_inventory(support, deadline=api.deadline)
+        binding = {
+            "material": material,
+            "host": host,
+            "inputs": bindings,
+            "merge_commit": merge,
+            "accepted_C": accepted,
+            "graph": candidate["graph"],
+            "OCI_archive_sha256": candidate["OCI_archive_sha256"],
+            "tool": qualified["coordinates"],
+            "support_inventory": support_inventory,
+        }
+        return {
+            "binding": binding,
+            "candidate": candidate,
+            "candidate_directory": directory / "candidate",
+            "support": support,
+            "support_report": supported,
+            "tool": tool,
+        }
+
+    observed = read_inputs(output / (phase + "-inputs"), source_proof=phase == "prepare")
+    if phase == "prepare":
+        initial_identity, initial_versions = existing_public_package(api)
+        initial_digest = observed["candidate"]["graph"]["manifest"]["digest"]
+        immutable_tag_state(
+            initial_versions,
+            "alertmanager-0.34.2-" + initial_digest.removeprefix("sha256:"),
+            initial_digest,
+        )
+        result["preparation_public_package"] = initial_identity
+        result.update(
+            original_producer=observed["binding"]["inputs"]["candidate"],
+            publication_merge_sha=observed["binding"]["merge_commit"],
+            publication_source_sha=args.source_sha,
+            material=observed["binding"]["material"],
+            host_inputs=observed["binding"]["host"],
+            graph=observed["candidate"]["graph"],
+            qualified_tool=observed["binding"]["tool"],
+        )
+        return observed
+    require(
+        prepared is not None and observed["binding"] == prepared["binding"],
+        "AM_publication_fresh_binding_drift",
     )
+    prepared = cast(dict[str, Any], prepared)
+    candidate: dict[str, Any] = prepared["candidate"]
+    support, tool = prepared["support"], prepared["tool"]
+
+    def verify_local() -> None:
+        require(
+            tree_inventory(support, deadline=api.deadline)
+            == prepared["binding"]["support_inventory"],
+            "AM_publication_local_support_drift",
+        )
+        require(
+            _alertmanager_candidate_graph(
+                prepared["candidate_directory"] / "layout",
+                support,
+                candidate["graph"]["files"],
+                current=True,
+            )
+            == candidate["graph"]
+            and file_hash(prepared["candidate_directory"] / "candidate.oci.tar", api.deadline)
+            == candidate["OCI_archive_sha256"],
+            "AM_publication_local_subject_drift",
+        )
+        require(
+            tool.is_absolute()
+            and tool.is_file()
+            and not tool.is_symlink()
+            and file_hash(tool, api.deadline) == prepared["binding"]["tool"]["binary_sha256"],
+            "AM_publication_retained_ORAS_bytes",
+        )
+
+    verify_local()
+    digest = candidate["graph"]["manifest"]["digest"]
+    tag = "alertmanager-0.34.2-" + digest.removeprefix("sha256:")
+    destination = "ghcr.io/katsiarynakavaleuskaya/pulseplate"
     identity, versions = existing_public_package(api)
     present = immutable_tag_state(versions, tag, digest)
     result["public_package"] = identity
+    result["tag"] = tag
+    if phase == "rebind":
+        return prepared
+    security = result.get("pre_copy_security", {})
+    native_proof = result.get("pre_copy_native", {})
     require(
-        api.json("/repos/Katsiarynakavaleuskaya/PulsePlate/git/ref/heads/main")
-        .get("object", {})
-        .get("sha")
-        == args.source_sha,
-        "AM_main_before_registry_credentials",
+        result.get("preparation_credentials_removed") is True
+        and type(security) is dict
+        and type(native_proof) is dict
+        and security.get("scanner", {}).get("sha256") == _ALERT_TRIVY_SHA256
+        and security.get("scanner", {}).get("DB") == prepared["support_report"]["scanner"]["DB"]
+        and all(
+            type(proof.get("native_records")) is list
+            and bool(proof["native_records"])
+            and all(
+                type(row) is dict
+                and type(row.get("exit")) is int
+                and row["exit"] == 0
+                and row.get("failure") is None
+                for row in proof["native_records"]
+            )
+            for proof in (security, native_proof)
+        )
+        and native_proof.get("validation_scope") == "merged_H_selected_image",
+        "AM_publication_fresh_security_native_before_credentials",
+    )
+    original_inventory = _alertmanager_candidate_scan_evidence(
+        prepared["candidate_directory"] / "security-evidence",
+        candidate["security"],
+        current=True,
+        comparison_subject=candidate["graph"]["config"]["digest"],
+        deadline=api.deadline,
+    )
+    fresh_inventory = _alertmanager_candidate_scan_evidence(
+        output / "security/evidence",
+        security,
+        current=True,
+        comparison_subject=candidate["graph"]["config"]["digest"],
+        deadline=api.deadline,
     )
     require(
-        tool.is_absolute()
-        and tool.is_file()
-        and not tool.is_symlink()
-        and file_hash(tool) == _ALERT_ORAS_SHA256,
-        "AM_publication_retained_ORAS_bytes",
+        type(original_inventory) is dict
+        and type(fresh_inventory) is dict
+        and original_inventory == fresh_inventory,
+        "AM_publication_same_subject_inventory_drift",
     )
     check_deadline(api.deadline)
-    api.deadline = time.monotonic() + limits["PUBLICATION_SECONDS"]
-    api.cleanup_seconds = limits["NATIVE_CLEANUP_SECONDS"]
     registry = api.private / "config/registry"
     registry.mkdir(mode=0o700)
     credential = registry / "config.json"
@@ -8353,7 +10498,7 @@ def _alertmanager_publish(
         "--registry-config",
         str(credential),
         "--from-oci-layout",
-        str(output / "candidate/layout") + "@" + digest,
+        str(prepared["candidate_directory"] / "layout") + "@" + digest,
         destination + ":" + tag,
     ]
     pullback = [
@@ -8366,6 +10511,14 @@ def _alertmanager_publish(
         str(output / "pullback") + ":pullback",
     ]
     result["publication_commands"] = [copy, pullback]
+    latest = read_inputs(output / "immediate-precopy-inputs", source_proof=False)
+    require(latest["binding"] == prepared["binding"], "AM_immediate_precopy_all_inputs_drift")
+    verify_local()
+    final_identity, final_versions = existing_public_package(api)
+    require(
+        final_identity == identity and immutable_tag_state(final_versions, tag, digest) == present,
+        "AM_immediate_precopy_package_tag_drift",
+    )
     if not present:
         require(
             api.json("/repos/Katsiarynakavaleuskaya/PulsePlate/git/ref/heads/main")
@@ -8375,6 +10528,10 @@ def _alertmanager_publish(
             "AM_main_immediately_before_copy",
         )
         result["copy_attempts"] = 1
+        # Capture can fail before or after process start; neither zero invocations
+        # nor zero registry effects is established by an exceptional return.
+        result["copy_invocations"] = None
+        result["package_WRITE"] = "UNKNOWN_COPY_ATTEMPT_MAY_HAVE_WRITTEN"
         api._capture(copy, 2 * 1024**2, environment=env)
         result["copy_invocations"] = 1
         result["package_WRITE"] = "OBSERVED_SUCCESSFUL_INTENDED_COPY"
@@ -8382,12 +10539,12 @@ def _alertmanager_publish(
         result["package_WRITE"] = "UNEXERCISED_EXISTING_SAME_SUBJECT"
     api._capture(pullback, 2 * 1024**2, environment=env)
     actual = _alertmanager_candidate_graph(
-        output / "pullback", support, candidate["graph"]["files"]
+        output / "pullback", support, candidate["graph"]["files"], current=True
     )
     require(actual == candidate["graph"], "AM_immutable_pullback_graph_payload")
     for descriptor in (actual["manifest"], actual["config"], *actual["layers"]):
         require(
-            _blob(output / "candidate/layout", descriptor)
+            _blob(prepared["candidate_directory"] / "layout", descriptor)
             == _blob(output / "pullback", descriptor),
             "AM_pullback_every_raw_blob",
         )
@@ -8405,7 +10562,7 @@ def _alertmanager_publish(
     )
     pack_layout(output / "pullback", retained / "candidate.oci.tar")
     (retained / "pullback-native-input.json").write_text(json.dumps(candidate, indent=2) + "\n")
-    result["pullback_OCI_archive_sha256"] = file_hash(retained / "candidate.oci.tar")
+    result["pullback_OCI_archive_sha256"] = file_hash(retained / "candidate.oci.tar", api.deadline)
     result["status"] = "OBSERVED_COPY_AND_IMMUTABLE_BLOBS_NATIVE_PENDING"
     result["tag_observation_limit"] = (
         "Canonical finite pre/post observations; no atomic no-clobber or continuous immutability claim."
@@ -8414,13 +10571,14 @@ def _alertmanager_publish(
 
 
 def _alertmanager_retain_execution(output: Path, retained: Path) -> None:
-    """The three finite AM phases retain raw failures as well as accepted results."""
+    """Retain raw failures and both full native publisher phases in the existing carrier."""
     import shutil
     from scripts.ci.prometheus_source_image import file_hash, require, tree_inventory
 
     observations = {
         "pair": ("pair-observation.json", "invocation-start.json"),
         "security": ("security-observation.json",),
+        "pre-native": ("native-observation.json",),
         "native": ("native-observation.json",),
     }
     for phase, filenames in observations.items():
@@ -8481,58 +10639,937 @@ def _alertmanager_retain_execution(output: Path, retained: Path) -> None:
             )
 
 
-def _alertmanager_execution(args: argparse.Namespace) -> None:
-    """Connected manual proposal; only an actual operator dispatch can select build/publish."""
-    import shutil
-    from scripts.ci.prometheus_source_image import GitHubRead, file_hash, fresh_directory, require
+def _alertmanager_material_tree(
+    api: GitHubRead, source: str, query: Any
+) -> tuple[str, dict[str, tuple[str, str]]]:
+    """Existing complete tree recognizer, shared by live and historical material readers."""
+    from scripts.ci.prometheus_source_image import require
 
-    if args.alertmanager_stage == "publish":
-        _alertmanager_accepted_producer(
-            args.alertmanager_candidate_run,
-            args.alertmanager_candidate_artifact,
-            args.alertmanager_candidate_source,
-        )
-    limits = _alertmanager_limits()
+    endpoint = "/repos/Katsiarynakavaleuskaya/PulsePlate"
+    commit = api.json(endpoint + "/git/commits/" + source)
     require(
-        args.artifact == "alertmanager"
-        and not args.alertmanager_module_qualify
-        and args.manifest == DEFAULT_MANIFEST,
-        "AM_effectful_mode_has_no_Q_or_identity_override",
+        type(commit) is dict and commit.get("sha") == source and type(commit.get("tree")) is dict,
+        "AM_material_API_commit",
+    )
+    tree_sha = commit["tree"].get("sha")
+    require(
+        type(tree_sha) is str and re.fullmatch(r"[0-9a-f]{40}", tree_sha) is not None,
+        "AM_material_API_tree",
     )
     require(
+        query("rev-parse", source + "^{tree}") == (tree_sha + "\n").encode(),
+        "AM_material_local_tree",
+    )
+    tree = api.json(endpoint + "/git/trees/" + tree_sha + "?recursive=1")
+    require(
+        type(tree) is dict
+        and tree.get("sha") == tree_sha
+        and tree.get("truncated") is False
+        and type(tree.get("tree")) is list
+        and 0 < len(tree["tree"]) <= 25000,
+        "AM_material_complete_tree",
+    )
+    expected: dict[str, tuple[str, str]] = {}
+    seen: set[str] = set()
+    for row in tree["tree"]:
+        require(type(row) is dict and type(row.get("path")) is str, "AM_material_tree_row")
+        path = row["path"]
+        require(
+            path not in seen
+            and "\\" not in path
+            and "\x00" not in path
+            and all(part not in ("", ".", "..") for part in path.split("/")),
+            "AM_material_tree_path",
+        )
+        seen.add(path)
+        mode, kind, oid = row.get("mode"), row.get("type"), row.get("sha")
+        require(
+            type(oid) is str and re.fullmatch(r"[0-9a-f]{40}", oid) is not None,
+            "AM_material_tree_oid",
+        )
+        if mode == "040000":
+            require(kind == "tree", "AM_material_tree_directory")
+            continue
+        require(
+            (mode, kind)
+            in {("100644", "blob"), ("100755", "blob"), ("120000", "blob"), ("160000", "commit")},
+            "AM_material_tree_type",
+        )
+        expected[path] = (mode, oid)
+    native_tree: dict[str, tuple[str, str]] = {}
+    raw_tree = query("ls-tree", "-r", "-z", source)
+    require(raw_tree.endswith(b"\0"), "AM_material_native_tree_terminator")
+    for record in raw_tree[:-1].split(b"\0"):
+        header, separator, path_bytes = record.partition(b"\t")
+        fields = header.split()
+        require(
+            separator == b"\t" and len(fields) == 3 and fields[1] in (b"blob", b"commit"),
+            "AM_material_native_tree_record",
+        )
+        path = path_bytes.decode("utf-8")
+        require(path not in native_tree, "AM_material_native_tree_duplicate")
+        native_tree[path] = (fields[0].decode("ascii"), fields[2].decode("ascii"))
+    require(native_tree == expected, "AM_material_API_native_tree_equality")
+    return tree_sha, expected
+
+
+def _alertmanager_whole_material(api: GitHubRead, source: str) -> dict[str, Any]:
+    """Bind this AM checkout's typed Git tree, index and bytes to the authenticated source."""
+    import shutil
+    from scripts.ci.prometheus_source_image import check_deadline, require
+
+    require(
+        type(source) is str and re.fullmatch(r"[0-9a-f]{40}", source) is not None,
+        "AM_material_source",
+    )
+    git = shutil.which("git")
+    require(git is not None and Path(git).is_absolute(), "AM_material_absolute_git")
+    environment = {
+        "PATH": "/usr/bin:/bin",
+        "HOME": str(api.private / "home"),
+        "LANG": "C.UTF-8",
+        "GIT_NO_REPLACE_OBJECTS": "1",
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_TERMINAL_PROMPT": "0",
+    }
+
+    def query(*arguments: str) -> bytes:
+        captured = api._capture(
+            [
+                cast(str, git),
+                "-c",
+                "core.fsmonitor=false",
+                "-c",
+                "core.hooksPath=" + os.devnull,
+                "-C",
+                str(REPO_ROOT),
+                *arguments,
+            ],
+            16 * 1024**2,
+            environment=environment,
+        )
+        require(type(captured) is bytes, "AM_material_query_bytes")
+        return cast(bytes, captured)
+
+    require(query("rev-parse", "HEAD") == (source + "\n").encode(), "AM_material_HEAD")
+    graft = query("rev-parse", "--git-path", "info/grafts").decode().strip()
+    require(bool(graft) and "\n" not in graft, "AM_material_graft_path")
+    graft_path = Path(graft) if Path(graft).is_absolute() else REPO_ROOT / graft
+    require(not graft_path.exists() and not graft_path.is_symlink(), "AM_material_grafts")
+    tree_sha, expected = _alertmanager_material_tree(api, source, query)
+    indexed: dict[str, tuple[str, str]] = {}
+    raw_index = query("ls-files", "--stage", "-z")
+    require(raw_index.endswith(b"\0"), "AM_material_index_terminator")
+    for record in raw_index[:-1].split(b"\0"):
+        header, separator, path_bytes = record.partition(b"\t")
+        fields = header.split()
+        require(
+            separator == b"\t" and len(fields) == 3 and fields[2] == b"0", "AM_material_index_stage"
+        )
+        path = path_bytes.decode("utf-8")
+        require(path not in indexed, "AM_material_duplicate_index")
+        indexed[path] = (fields[0].decode("ascii"), fields[1].decode("ascii"))
+    require(indexed == expected, "AM_material_index_tree_equality")
+    # Fresh producer workspaces contain no ignored/untracked executable or build input.
+    for arguments in (
+        ("ls-files", "--others", "--exclude-standard", "-z"),
+        ("ls-files", "--others", "--ignored", "--exclude-standard", "-z"),
+    ):
+        require(query(*arguments) == b"", "AM_material_untracked_or_ignored_input")
+    observed: list[dict[str, str | int]] = []
+    total = 0
+    for path, (mode, oid) in sorted(expected.items()):
+        check_deadline(api.deadline)
+        leaf = REPO_ROOT / path
+        for parent in leaf.parents:
+            if parent == REPO_ROOT:
+                break
+            require(parent.is_dir() and not parent.is_symlink(), "AM_material_parent_type")
+        if mode == "160000":
+            require(
+                path == "tools/cybersecurity_skills"
+                and oid == "d04d818b41cc300f8110f17ea167fa494db7fb29"
+                and not leaf.is_symlink()
+                and (not leaf.exists() or leaf.is_dir()),
+                "AM_material_nonexecuted_gitlink",
+            )
+            observed.append(
+                {
+                    "path": path,
+                    "mode": mode,
+                    "oid": oid,
+                    "content_scope": "uninspected_nonexecuted_gitlink_pointer_only",
+                    "worktree_state": "directory" if leaf.exists() else "uninitialized_absent",
+                }
+            )
+            continue
+        info = leaf.lstat()
+        if mode == "120000":
+            require(
+                not path.startswith(("scripts/", "tests/", ".github/", "deploy/"))
+                and path
+                not in {"requirements-dev.txt", "constraints.txt", "Dockerfile", "Makefile"}
+                and not path.endswith((".py", ".pyc", ".pth", ".so")),
+                "AM_material_consumed_symlink",
+            )
+            require(stat.S_ISLNK(info.st_mode), "AM_material_symlink_type")
+            raw = os.fsencode(os.readlink(leaf))
+        else:
+            require(
+                stat.S_ISREG(info.st_mode)
+                and info.st_nlink == 1
+                and ("100755" if info.st_mode & 0o111 else "100644") == mode
+                and info.st_size <= 128 * 1024**2,
+                "AM_material_regular_mode",
+            )
+            descriptor = os.open(leaf, os.O_RDONLY | os.O_NOFOLLOW)
+            with os.fdopen(descriptor, "rb") as stream:
+                opened = os.fstat(stream.fileno())
+                require(
+                    (opened.st_dev, opened.st_ino, opened.st_size)
+                    == (info.st_dev, info.st_ino, info.st_size),
+                    "AM_material_open_binding",
+                )
+                raw = stream.read(128 * 1024**2 + 1)
+            require(len(raw) == info.st_size, "AM_material_file_length")
+        total += len(raw)
+        require(total <= 1024**3, "AM_material_total_byte_bound")
+        blob = sha1(
+            b"blob " + str(len(raw)).encode() + b"\0" + raw, usedforsecurity=False
+        ).hexdigest()
+        require(blob == oid, "AM_material_worktree_blob")
+        after = leaf.lstat()
+        require(
+            (info.st_dev, info.st_ino, info.st_mode, info.st_size, info.st_mtime_ns)
+            == (after.st_dev, after.st_ino, after.st_mode, after.st_size, after.st_mtime_ns),
+            "AM_material_read_drift",
+        )
+        observed.append(
+            {
+                "path": path,
+                "mode": mode,
+                "oid": oid,
+                "bytes": len(raw),
+                "sha256": sha256(raw).hexdigest(),
+            }
+        )
+    require(
+        query("ls-files", "--stage", "-z") == raw_index
+        and query("rev-parse", "HEAD") == (source + "\n").encode(),
+        "AM_material_final_index_HEAD",
+    )
+    return {
+        "source": source,
+        "tree": tree_sha,
+        "members": observed,
+        "gitlink_scope": "exact nonexecuted pointer/type only; no recursive content claim",
+        "shallow_scope": "whole tree/bytes only; selected merge ancestry separately authenticated",
+    }
+
+
+def _alertmanager_host_inputs(api: GitHubRead) -> dict[str, Any]:
+    """Measure the selected isolated host tools separately from tracked source identity."""
+    import importlib.metadata
+    import shutil
+    import site
+    import sysconfig
+    import pytest
+    import yaml
+    import pip._vendor.certifi
+    from scripts.ci.check_python_startup_hooks import collect_unexpected_executable_pth_files
+    from scripts.ci.install_locked_python_requirements import (
+        _exact_locked_artifacts,
+        _normalized_package_name,
+    )
+    from scripts.ci.prometheus_source_image import check_deadline, file_hash, require
+
+    prefix = Path(sys.prefix)
+    require(
+        sys.platform == "linux"
+        and os.uname().machine == "x86_64"
+        and prefix.is_absolute()
+        and prefix != Path(sys.base_prefix)
+        and not prefix.is_relative_to(REPO_ROOT)
+        and not prefix.is_symlink()
+        and sys.executable == str(prefix / "bin/python")
+        and sys.version_info[:3] == (3, 13, 14)
+        and site.ENABLE_USER_SITE is False
+        and not os.environ.get("PYTHONPATH")
+        and not os.environ.get("PYTHONHOME")
+        and os.environ.get("PYTHONDONTWRITEBYTECODE") == "1"
+        and not ({"sitecustomize", "usercustomize"} & set(sys.modules)),
+        "AM_qualified_host_interpreter",
+    )
+    expected = set(_exact_locked_artifacts((REPO_ROOT / "requirements-dev.txt",)))
+    expected.add(("pip", "26.2.2"))
+    distributions = list(importlib.metadata.distributions())
+    versions = [
+        (_normalized_package_name(dist.metadata["Name"]), dist.version) for dist in distributions
+    ]
+    require(
+        len(versions) == len(set(versions)) and set(versions) == expected,
+        "AM_complete_host_locked_distributions",
+    )
+    require(
+        importlib.metadata.version("pytest") == "9.1.1"
+        and importlib.metadata.version("PyYAML") == "6.0.3"
+        and file_hash(Path(pip._vendor.certifi.where()), api.deadline)
+        == "50f79f98dac192b20dbf73f35c56f0b0c557ab267ff5199d1117cc1180b70785",
+        "AM_host_pytest_yaml_pip_trust",
+    )
+    sites = {Path(value) for value in site.getsitepackages()}
+    require(
+        bool(sites)
+        and all(path.is_relative_to(prefix) and not path.is_symlink() for path in sites),
+        "AM_host_site_roots",
+    )
+    require(not collect_unexpected_executable_pth_files(sites), "AM_host_startup_hooks")
+    declared: set[Path] = set()
+    rows: list[dict[str, Any]] = []
+    for dist in distributions:
+        distribution_files = dist.files
+        require(distribution_files is not None, "AM_host_distribution_files_missing")
+        for item in cast(Sequence[Any], distribution_files):
+            check_deadline(api.deadline)
+            located = dist.locate_file(item)
+            require(isinstance(located, os.PathLike), "AM_host_distribution_filesystem_path")
+            filesystem_path = os.fspath(cast(os.PathLike[str], located))
+            require(type(filesystem_path) is str, "AM_host_distribution_path_text")
+            path = Path(filesystem_path)
+            resolved = path.resolve(strict=True)
+            require(
+                resolved.is_relative_to(prefix) and path.is_file() and not path.is_symlink(),
+                "AM_host_distribution_file_boundary",
+            )
+            if resolved in declared:
+                continue
+            declared.add(resolved)
+            require(len(declared) <= 50000, "AM_host_distribution_file_bound")
+            rows.append(
+                {
+                    "path": str(resolved.relative_to(prefix)),
+                    "sha256": file_hash(resolved, api.deadline),
+                    "bytes": resolved.stat().st_size,
+                }
+            )
+    actual: set[Path] = set()
+    visited = 0
+    for root in sites:
+        for path in root.rglob("*"):
+            check_deadline(api.deadline)
+            visited += 1
+            require(visited <= 100000, "AM_host_site_inventory_bound")
+            require(not path.is_symlink(), "AM_host_site_alias")
+            if path.is_file():
+                require(path.stat().st_nlink == 1, "AM_host_site_hardlink")
+                resolved = path.resolve(strict=True)
+                require(resolved in declared, "AM_host_unregistered_site_input")
+                actual.add(resolved)
+    require(actual <= declared, "AM_host_unregistered_site_input")
+    for module in (pytest, yaml):
+        require(
+            Path(cast(str, module.__file__)).resolve(strict=True) in declared,
+            "AM_host_import_origin",
+        )
+    stdlib = Path(sysconfig.get_path("stdlib")).resolve(strict=True)
+    standard: list[dict[str, Any]] = []
+    visited = 0
+    for path in stdlib.rglob("*"):
+        check_deadline(api.deadline)
+        visited += 1
+        require(visited <= 100000, "AM_host_stdlib_inventory_bound")
+        if "site-packages" in path.relative_to(stdlib).parts or not path.is_file():
+            continue
+        require(not path.is_symlink() and len(standard) < 25000, "AM_host_stdlib_input")
+        standard.append(
+            {
+                "path": str(path.relative_to(stdlib)),
+                "sha256": file_hash(path, api.deadline),
+                "bytes": path.stat().st_size,
+            }
+        )
+    tools = {}
+    for name in (
+        "docker",
+        "git",
+        "gh",
+        "openssl",
+        "env",
+        "sudo",
+        "install",
+        "rm",
+        "systemctl",
+        "busctl",
+        "test",
+    ):
+        selected = shutil.which(name)
+        require(
+            selected is not None and Path(selected).is_absolute(), "AM_host_tool_missing_" + name
+        )
+        path = Path(cast(str, selected)).resolve(strict=True)
+        require(path.is_file(), "AM_host_tool_not_file")
+        if name in {"docker", "openssl", "env", "sudo", "install", "rm", "systemctl"}:
+            for search in ("/usr/bin:/bin", os.defpath):
+                native_path = shutil.which(name, path=search)
+                require(
+                    native_path is not None and Path(native_path).resolve(strict=True) == path,
+                    "AM_host_native_resolver_identity",
+                )
+        tools[name] = {"path": str(path), "sha256": file_hash(path, api.deadline)}
+    require(
+        Path(api.gh).resolve(strict=True) == Path(tools["gh"]["path"]),
+        "AM_host_GitHub_transport_binary",
+    )
+    environment = {
+        "PATH": "/usr/local/bin:/usr/bin:/bin",
+        "HOME": str(api.private / "home"),
+        "LANG": "C.UTF-8",
+    }
+    docker = tools["docker"]["path"]
+    observations = {}
+    for label, arguments in (
+        ("docker_versions", ["version", "--format", "{{json .}}"]),
         (
-            args.alertmanager_qualification_run,
-            args.alertmanager_qualification_artifact,
-            args.alertmanager_qualification_source,
-        )
-        == (_ALERT_Q_RUN, _ALERT_Q_ARTIFACT, _ALERT_Q_SOURCE)
-        and (
-            args.alertmanager_support_run,
-            args.alertmanager_support_artifact,
-            args.alertmanager_support_source,
-        )
-        == (_ALERT_S_RUN, _ALERT_S_ARTIFACT, _ALERT_S_SOURCE),
-        "AM_required_exact_Q_S_before_execution",
+            "docker_storage",
+            [
+                "info",
+                "--format",
+                "driver={{json .Driver}} os={{json .OSType}} arch={{json .Architecture}}",
+            ],
+        ),
+        ("compose_version", ["compose", "version", "--short"]),
+        ("docker_plugins", ["info", "--format", "{{json .ClientInfo.Plugins}}"]),
+    ):
+        raw = api._capture([docker, *arguments], 1024**2, environment=environment)
+        require(bool(raw.strip()), "AM_host_native_observation_empty")
+        observations[label] = raw.decode("utf-8")
+    plugins = json.loads(observations["docker_plugins"])
+    require(
+        type(plugins) is list and all(type(row) is dict for row in plugins),
+        "AM_host_plugin_inventory",
     )
+    compose = [row for row in plugins if row.get("Name") == "compose"]
+    require(
+        len(compose) == 1
+        and type(compose[0].get("Path")) is str
+        and Path(compose[0]["Path"]).is_absolute()
+        and type(compose[0].get("Version")) is str
+        and compose[0]["Version"].removeprefix("v")
+        == observations["compose_version"].strip().removeprefix("v"),
+        "AM_host_compose_plugin_binding",
+    )
+    compose_path = Path(compose[0]["Path"]).resolve(strict=True)
+    require(compose_path.is_file(), "AM_host_compose_plugin_file")
+    tools["compose"] = {
+        "path": str(compose_path),
+        "sha256": file_hash(compose_path, api.deadline),
+        "version": compose[0]["Version"],
+    }
+    trust_inputs = {}
+    for name in (
+        "/etc/ssl/openssl.cnf",
+        "/usr/lib/ssl/openssl.cnf",
+        "/etc/ssl/certs/ca-certificates.crt",
+    ):
+        path = Path(name)
+        require(path.exists() and path.is_file(), "AM_host_default_trust_input")
+        trust_inputs[name] = {
+            "resolved": str(path.resolve(strict=True)),
+            "sha256": file_hash(path.resolve(strict=True), api.deadline),
+        }
+    executable = Path(sys.executable).resolve(strict=True)
+    return {
+        "python": sys.version,
+        "executable": str(executable),
+        "executable_sha256": file_hash(executable, api.deadline),
+        "prefix": str(prefix),
+        "packages": sorted(versions),
+        "distribution_files": sorted(rows, key=lambda row: row["path"]),
+        "stdlib": str(stdlib),
+        "stdlib_files": sorted(standard, key=lambda row: row["path"]),
+        "tools": tools,
+        "native": observations,
+        "default_trust_inputs": trust_inputs,
+        "platform_assumptions": "trusted GitHub runner OS/kernel/daemon and system dynamic libraries; not hostile-host isolation",
+    }
+
+
+_ALERT_HISTORICAL_BUILD_STARTS = (
+    (
+        39048899349,
+        117443160727,
+        "6c9f537e89d38f82f8d685150a32e25aee14c6c7",
+        "failure",
+        _ALERT_Q_BRANCH,
+    ),
+    (
+        39052648330,
+        117454182747,
+        "2e28d62f4311930f1caeabb5378af3e1d3c1e1a1",
+        "failure",
+        _ALERT_Q_BRANCH,
+    ),
+    (
+        39059505765,
+        117474381581,
+        "917854fb7832d7a980c8e6a8ee85940fd2e7724f",
+        "failure",
+        _ALERT_Q_BRANCH,
+    ),
+    (
+        39067589451,
+        117498357173,
+        "45409a39ce06804d4cbb5dce6c7dbb61a85167c8",
+        "failure",
+        _ALERT_Q_BRANCH,
+    ),
+    (
+        39072367157,
+        117512436494,
+        "bf5b6a9053c9b42727834ffd6966f45e4a493062",
+        "failure",
+        _ALERT_Q_BRANCH,
+    ),
+    (
+        39077538191,
+        117527703920,
+        "9d849ab2128aa0a2ff7c065fcc47fdc36a771b1d",
+        "failure",
+        _ALERT_Q_BRANCH,
+    ),
+    (
+        39084669786,
+        117548630619,
+        "557b66bf9287feadc68b9916f41f1f471bee9e49",
+        "failure",
+        _ALERT_Q_BRANCH,
+    ),
+    (
+        39093991413,
+        117576475833,
+        "91bf3744fcc5f5bbdfdd6e08699d703db46a491f",
+        "failure",
+        _ALERT_Q_BRANCH,
+    ),
+    (
+        39099358458,
+        117592265589,
+        "8a00dc7fe7c754c6801dc5c19f1772546ed8696e",
+        "failure",
+        _ALERT_Q_BRANCH,
+    ),
+    (
+        39143039135,
+        117721196331,
+        "63455b8a750ef07a1e525078b4e3ce2089eecdde",
+        "success",
+        _ALERT_Q_BRANCH,
+    ),
+    (
+        40237598500,
+        121302388554,
+        "04b76f42c09854405df00328ead16b30d701a24f",
+        "success",
+        _ALERT_RECEIVER_BRANCH,
+    ),
+)
+
+
+def _alertmanager_new_source_admission(
+    api: GitHubRead, source: str, *, support_only: bool
+) -> dict[str, Any]:
+    """Admit disjoint real PR2494 qualification C and actual merged-main H runs."""
+    from scripts.ci.prometheus_source_image import require, require_native_ancestor
+
+    branch = "main" if os.environ.get("GITHUB_REF") == "refs/heads/main" else _ALERT_Q_BRANCH
+    endpoint = "/repos/Katsiarynakavaleuskaya/PulsePlate"
+    require(
+        type(source) is str
+        and re.fullmatch(r"[0-9a-f]{40}", source) is not None
+        and source == os.environ.get("GITHUB_SHA")
+        and source == os.environ.get("GITHUB_WORKFLOW_SHA")
+        and os.environ.get("GITHUB_WORKFLOW_REF")
+        == "Katsiarynakavaleuskaya/PulsePlate/.github/workflows/cd.yml@refs/heads/" + branch
+        and os.environ.get("GITHUB_REF") == "refs/heads/" + branch
+        and os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
+        and os.environ.get("GITHUB_REPOSITORY") == "Katsiarynakavaleuskaya/PulsePlate"
+        and os.environ.get("GITHUB_REPOSITORY_ID") == "1043311030"
+        and os.environ.get("GITHUB_RUN_ATTEMPT") == "1",
+        "AM_current_C_H_execution_binding",
+    )
+    run_text = os.environ.get("GITHUB_RUN_ID", "")
+    require(re.fullmatch(r"[1-9][0-9]*", run_text) is not None, "AM_current_run_id")
+    run_id = int(run_text)
+    workflow = api.json(endpoint + "/actions/workflows/cd.yml")
+    run = api.json(endpoint + f"/actions/runs/{run_id}")
+    pr = api.json(endpoint + "/pulls/2494")
+    require(
+        type(workflow) is dict
+        and workflow.get("path") == ".github/workflows/cd.yml"
+        and type(workflow.get("id")) is int
+        and workflow["id"] > 0
+        and type(run) is dict
+        and type(run.get("id")) is int
+        and run["id"] == run_id
+        and run.get("workflow_id") == workflow["id"]
+        and run.get("head_sha") == source
+        and run.get("head_branch") == branch
+        and run.get("event") == "workflow_dispatch"
+        and run.get("status") == "in_progress"
+        and run.get("conclusion") is None
+        and type(run.get("run_attempt")) is int
+        and run["run_attempt"] == 1
+        and run.get("repository", {}).get("id") == 1043311030
+        and run.get("head_repository", {}).get("id") == 1043311030
+        and type(pr) is dict
+        and pr.get("number") == 2494
+        and pr.get("head", {}).get("ref") == _ALERT_Q_BRANCH
+        and pr["head"].get("repo", {}).get("id") == 1043311030
+        and pr.get("base", {}).get("ref") == "main"
+        and pr["base"].get("repo", {}).get("id") == 1043311030,
+        "AM_current_C_H_API_binding",
+    )
+    expected_candidate = None
+    merge = None
+    if branch == "main":
+        merge = pr.get("merge_commit_sha")
+        require(
+            pr.get("merged") is True
+            and pr.get("state") == "closed"
+            and type(merge) is str
+            and re.fullmatch(r"[0-9a-f]{40}", merge) is not None,
+            "AM_actual_PR2494_merge",
+        )
+        main = api.json(endpoint + "/git/ref/heads/main")
+        require(
+            main.get("ref") == "refs/heads/main"
+            and main.get("object", {}).get("type") == "commit"
+            and main["object"].get("sha") == source,
+            "AM_actual_current_main_H",
+        )
+        merge = cast(str, merge)
+        # Squash merges need merge_commit -> H, never the false premerge C -> H relation.
+        require_native_ancestor(api, merge, source)
+        if not support_only:
+            expected_candidate = _alertmanager_accepted_producer()
+            count = pr.get("commits")
+            require(type(count) is int and 0 < count <= 250, "AM_complete_PR2494_commit_bound")
+            commits = api.pages(endpoint + "/pulls/2494/commits", None, count)
+            require(
+                sum(row.get("sha") == expected_candidate["source"] for row in commits) == 1,
+                "AM_expected_C_in_actual_PR_graph",
+            )
+            require(
+                expected_candidate["source_files"]["scripts/ci/docker_source_artifacts.json"]
+                == sha256(DEFAULT_MANIFEST.read_bytes()).hexdigest(),
+                "AM_expected_C_current_source_catalog",
+            )
+            expected_directory = api.private.parent / (api.private.name + "-expected-C")
+            expected_directory.mkdir(mode=0o700)
+            expected_binding = _alertmanager_authenticated_inputs(
+                api,
+                expected_candidate["run"],
+                expected_candidate["artifact"],
+                expected_candidate["source"],
+                expected_directory / "candidate.zip",
+                kind="candidate",
+                upstream_version="0.34.2",
+                source_branch=_ALERT_Q_BRANCH,
+            )
+            require(
+                expected_binding["source"] == expected_candidate["source"],
+                "AM_expected_C_terminal_producer",
+            )
+    else:
+        require(
+            pr.get("merged") is False
+            and pr.get("state") == "open"
+            and pr["head"].get("sha") == source,
+            "AM_actual_open_PR2494_C",
+        )
+    jobs_endpoint = endpoint + f"/actions/runs/{run_id}/attempts/1/jobs"
+    first = api.json(jobs_endpoint + "?per_page=100&page=1")
+    jobs = api.pages(jobs_endpoint, "jobs", first["total_count"])
+    name = "alertmanager-input-inspection" if support_only else "alertmanager-candidate-build"
+    selected = [row for row in jobs if row.get("name") == name]
+    require(
+        len(selected) == 1
+        and type(selected[0].get("id")) is int
+        and selected[0]["id"] > 0
+        and selected[0].get("run_id") == run_id
+        and selected[0].get("head_sha") == source
+        and selected[0].get("status") == "in_progress",
+        "AM_current_C_H_job",
+    )
+    starts = []
+    if not support_only:
+        steps = selected[0].get("steps")
+        require(type(steps) is list, "AM_host_install_step_inventory")
+        for step_name in (
+            "Install isolated AM host tools through the locked owner",
+            "Verify isolated AM host import capability before effects",
+        ):
+            completed = [step for step in steps if step.get("name") == step_name]
+            require(
+                len(completed) == 1
+                and completed[0].get("status") == "completed"
+                and completed[0].get("conclusion") == "success",
+                "AM_host_install_predecessor",
+            )
+        history_endpoint = endpoint + "/actions/workflows/cd.yml/runs?event=workflow_dispatch"
+        first = api.json(history_endpoint + "&per_page=100&page=1")
+        history = api.pages(history_endpoint, "workflow_runs", first["total_count"])
+        for prior in history:
+            require(type(prior.get("id")) is int and prior["id"] > 0, "AM_prior_build_run_id")
+            if prior.get("id") == run_id:
+                continue
+            jobs_endpoint = endpoint + f'/actions/runs/{prior["id"]}/jobs?filter=all'
+            first_jobs = api.json(jobs_endpoint + "&per_page=100&page=1")
+            jobs = api.pages(jobs_endpoint, "jobs", first_jobs["total_count"])
+            for job in jobs:
+                if (
+                    job.get("name") != "alertmanager-candidate-build"
+                    or job.get("conclusion") == "skipped"
+                ):
+                    continue
+                require(
+                    type(job.get("id")) is int
+                    and job["id"] > 0
+                    and prior.get("status") == job.get("status") == "completed"
+                    and type(prior.get("run_attempt")) is int
+                    and prior["run_attempt"] == 1
+                    and prior.get("event") == "workflow_dispatch"
+                    and prior.get("workflow_id") == workflow["id"]
+                    and prior.get("repository", {}).get("id") == 1043311030
+                    and prior.get("head_repository", {}).get("id") == 1043311030
+                    and prior.get("head_branch")
+                    in (_ALERT_Q_BRANCH, _ALERT_RECEIVER_BRANCH, "main")
+                    and job.get("run_id") == prior["id"]
+                    and job.get("head_sha") == prior.get("head_sha")
+                    and type(prior.get("conclusion")) is str
+                    and job.get("conclusion") == prior["conclusion"],
+                    "AM_prior_build_identity_or_concurrent_start",
+                )
+                starts.append(
+                    (
+                        prior["id"],
+                        job["id"],
+                        prior["head_sha"],
+                        prior["conclusion"],
+                        prior["head_branch"],
+                    )
+                )
+        historical = set(_ALERT_HISTORICAL_BUILD_STARTS) | {
+            (
+                _ALERT_HISTORICAL_AM11["run"],
+                _ALERT_HISTORICAL_AM11["job"],
+                _ALERT_HISTORICAL_AM11["source"],
+                "success",
+                _ALERT_RECEIVER_BRANCH,
+            )
+        }
+        require(
+            len(starts) == len(set(starts)) and historical <= set(starts),
+            "AM_preserved_complete_historical_starts",
+        )
+    return {
+        "mode": "H" if branch == "main" else "C",
+        "source": source,
+        "branch": branch,
+        "merge_commit": merge,
+        "run": run_id,
+        "job": selected[0]["id"],
+        "prior_builds": sorted(starts),
+        "expected_C": expected_candidate,
+    }
+
+
+def _alertmanager_current_manual_admission(
+    api: GitHubRead, source: str, *, support_only: bool = False, upstream_version: str = "0.34.1"
+) -> dict[str, Any] | None:
+    """One AM07 manual build; retain every previous observable build job."""
+    from scripts.ci.prometheus_source_image import require
+
+    require(type(support_only) is bool, "AM_current_manual_stage_type")
+    require(upstream_version in ("0.34.1", "0.34.2"), "AM_manual_upstream_epoch")
+    if upstream_version == "0.34.2":
+        return _alertmanager_new_source_admission(api, source, support_only=support_only)
+    selected_pr = 2494 if upstream_version == "0.34.2" else 2497
+    selected_branch = _ALERT_Q_BRANCH if upstream_version == "0.34.2" else _ALERT_RECEIVER_BRANCH
+    endpoint = "/repos/Katsiarynakavaleuskaya/PulsePlate"
     require(
         os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
         and os.environ.get("GITHUB_REPOSITORY") == "Katsiarynakavaleuskaya/PulsePlate"
         and os.environ.get("GITHUB_REPOSITORY_ID") == "1043311030"
         and os.environ.get("GITHUB_RUN_ATTEMPT") == "1"
+        and os.environ.get("GITHUB_REF") == "refs/heads/" + selected_branch
+        and type(source) is str
+        and re.fullmatch(r"[0-9a-f]{40}", source) is not None
+        and source == os.environ.get("GITHUB_SHA"),
+        "AM_current_build_manual_source",
+    )
+    run_id = int(os.environ["GITHUB_RUN_ID"])
+    workflow = api.json(endpoint + "/actions/workflows/cd.yml")
+    run = api.json(endpoint + f"/actions/runs/{run_id}")
+    pr = api.json(endpoint + "/pulls/" + str(selected_pr))
+    require(
+        workflow.get("path") == ".github/workflows/cd.yml"
+        and type(workflow.get("id")) is int
+        and run.get("id") == run_id
+        and run.get("head_sha") == source
+        and run.get("head_branch") == selected_branch
+        and run.get("workflow_id") == workflow["id"]
+        and run.get("event") == "workflow_dispatch"
+        and type(run.get("run_attempt")) is int
+        and run["run_attempt"] == 1
+        and run.get("repository", {}).get("id") == 1043311030
+        and run.get("head_repository", {}).get("id") == 1043311030
+        and pr.get("number") == selected_pr
+        and pr.get("state") == "open"
+        and pr.get("head", {}).get("ref") == selected_branch
+        and pr["head"].get("sha") == source
+        and pr["head"].get("repo", {}).get("id") == 1043311030
+        and pr.get("base", {}).get("ref") == "main"
+        and pr["base"].get("repo", {}).get("id") == 1043311030,
+        "AM_current_build_authenticated_source",
+    )
+    if not support_only:
+        history_endpoint = endpoint + "/actions/workflows/cd.yml/runs?event=workflow_dispatch"
+        first = api.json(history_endpoint + "&per_page=100&page=1")
+        history = api.pages(history_endpoint, "workflow_runs", first["total_count"])
+        expected = _ALERT_HISTORICAL_BUILD_STARTS
+        observed = []
+        for prior in history:
+            if prior["id"] == run_id:
+                continue
+            jobs_endpoint = endpoint + f'/actions/runs/{prior["id"]}/jobs?filter=all'
+            first_jobs = api.json(jobs_endpoint + "&per_page=100&page=1")
+            jobs = api.pages(jobs_endpoint, "jobs", first_jobs["total_count"])
+            for job in jobs:
+                if (
+                    job.get("name") != "alertmanager-candidate-build"
+                    or job.get("conclusion") == "skipped"
+                ):
+                    continue
+                require(
+                    type(prior.get("run_attempt")) is int
+                    and prior["run_attempt"] == 1
+                    and prior.get("status") == "completed"
+                    and prior.get("event") == "workflow_dispatch"
+                    and prior.get("workflow_id") == workflow["id"]
+                    and prior.get("repository", {}).get("id") == 1043311030
+                    and prior.get("head_repository", {}).get("id") == 1043311030
+                    and job.get("run_id") == prior["id"]
+                    and job.get("head_sha") == prior.get("head_sha")
+                    and job.get("status") == "completed"
+                    and job.get("conclusion") == prior.get("conclusion"),
+                    "AM_current_build_prior_identity",
+                )
+                observed.append(
+                    (
+                        prior["id"],
+                        job["id"],
+                        prior["head_sha"],
+                        prior["conclusion"],
+                        prior.get("head_branch"),
+                    )
+                )
+        require(sorted(observed) == list(expected), "AM_current_build_complete_spent_history")
+    jobs_endpoint = endpoint + f"/actions/runs/{run_id}/attempts/1/jobs"
+    first_jobs = api.json(jobs_endpoint + "?per_page=100&page=1")
+    jobs = api.pages(jobs_endpoint, "jobs", first_jobs["total_count"])
+    job_name = "alertmanager-input-inspection" if support_only else "alertmanager-candidate-build"
+    selected = [job for job in jobs if job.get("name") == job_name]
+    require(
+        len(selected) == 1
+        and selected[0].get("run_id") == run_id
+        and selected[0].get("head_sha") == source
+        and selected[0].get("status") == "in_progress",
+        "AM_current_build_job",
+    )
+    return None
+
+
+def _alertmanager_bind_current_plan(plan: dict[str, Any], support: dict[str, Any]) -> None:
+    """Resolve the one declared-only context operand from the validated current S descriptor."""
+    from scripts.ci.prometheus_source_image import BASE, require
+
+    argv = plan["assembly_argv"]
+    require(type(argv) is list and argv.count("--build-context") == 1, "AM_current_plan_context")
+    position = argv.index("--build-context") + 1
+    require(
+        position < len(argv)
+        and argv[position]
+        == BASE + "=oci-layout:///inputs/base-layout@<UNOBSERVED_CURRENT_EXPORT>",
+        "AM_current_plan_unobserved_context",
+    )
+    descriptor = support["base"]["actual_local_OCI_descriptor"]
+    require(
+        type(descriptor) is dict
+        and type(descriptor.get("digest")) is str
+        and re.fullmatch(r"sha256:[0-9a-f]{64}", descriptor["digest"]) is not None,
+        "AM_current_plan_verified_descriptor",
+    )
+    argv[position] = BASE + "=oci-layout:///inputs/base-layout@" + descriptor["digest"]
+
+
+def _alertmanager_current_build(args: argparse.Namespace) -> None:
+    """Qualify real C or rebuilt H using one producer clock and incumbent evidence owners."""
+    import signal
+    from scripts.ci.prometheus_source_image import GitHubRead, fresh_directory, require
+
+    require(
+        args.alertmanager_stage == "build"
+        and args.artifact == "alertmanager"
+        and not args.alertmanager_module_qualify
+        and args.manifest == DEFAULT_MANIFEST
         and type(args.source_sha) is str
         and re.fullmatch(r"[0-9a-f]{40}", args.source_sha) is not None
-        and args.source_sha == os.environ.get("GITHUB_SHA")
-        and os.environ.get("GITHUB_REF")
-        == (
-            "refs/heads/main"
-            if args.alertmanager_stage == "publish"
-            else "refs/heads/" + _ALERT_Q_BRANCH
-        ),
-        "AM_exact_manual_execution_source_HOLD",
+        and args.source_sha == os.environ.get("GITHUB_SHA"),
+        "AM_current_build_cli",
+    )
+    limits = _alertmanager_limits()
+    budgets = {}
+    for name, ceiling in (
+        ("PRODUCER_SECONDS", 8160),
+        ("PRODUCER_MATERIAL_SECONDS", 840),
+        ("PRODUCER_OTHER_CLEANUP_SECONDS", 600),
+        ("PRODUCER_RETENTION_SECONDS", 225),
+        ("PRODUCER_FAILURE_SECONDS", 120),
+    ):
+        raw = os.environ.get("ALERTMANAGER_" + name, "")
+        require(
+            re.fullmatch(r"[1-9][0-9]{0,4}", raw) is not None and int(raw) == ceiling,
+            "AM_producer_explicit_budget_" + name,
+        )
+        budgets[name] = int(raw)
+    require(
+        budgets["PRODUCER_SECONDS"]
+        >= limits["PREP_SECONDS"]
+        + limits["PAIR_SECONDS"]
+        + limits["SECURITY_SECONDS"]
+        + limits["NATIVE_SECONDS"]
+        + limits["NATIVE_CLEANUP_SECONDS"]
+        + budgets["PRODUCER_MATERIAL_SECONDS"]
+        + budgets["PRODUCER_OTHER_CLEANUP_SECONDS"],
+        "AM_producer_complete_phase_budget",
+    )
+    job_minutes = os.environ.get("ALERTMANAGER_PRODUCER_JOB_MINUTES", "")
+    step_minutes = os.environ.get("ALERTMANAGER_PRODUCER_STEP_MINUTES", "")
+    require(
+        re.fullmatch(r"[1-9][0-9]{0,2}", job_minutes) is not None
+        and 180 <= int(job_minutes) <= 360
+        and step_minutes == "138"
+        and budgets["PRODUCER_SECONDS"] + 120 <= int(step_minutes) * 60,
+        "AM_producer_workflow_budget",
     )
     output = args.output_dir.absolute()
     require(
-        ".." not in args.output_dir.parts and not output.is_symlink(), "AM_execution_output_path"
+        ".." not in args.output_dir.parts
+        and not output.is_symlink()
+        and not output.is_relative_to(REPO_ROOT),
+        "AM_producer_output_outside_source",
     )
     for parent in (output.parent, *output.parent.parents):
         require(
@@ -8546,8 +11583,32 @@ def _alertmanager_execution(args: argparse.Namespace) -> None:
     evidence = retained / "github-read-evidence"
     fresh_directory(evidence)
     started = time.monotonic()
-    deadline = started + limits["PREP_SECONDS"]
-    api = GitHubRead(output / "private", evidence, deadline, limits["CLEANUP_SECONDS"])
+    saved_timer = signal.getitimer(signal.ITIMER_REAL)
+    saved_handler = signal.getsignal(signal.SIGALRM)
+    overall_deadline = min(
+        started + budgets["PRODUCER_SECONDS"],
+        started + saved_timer[0] if saved_timer[0] > 0 else float("inf"),
+    )
+    work_deadline = (
+        overall_deadline
+        - budgets["PRODUCER_RETENTION_SECONDS"]
+        - budgets["PRODUCER_FAILURE_SECONDS"]
+    )
+    require(work_deadline > started, "AM_producer_parent_cleanup_reservation")
+
+    def timeout(_signum: int, _frame: object) -> None:
+        raise TimeoutError("AM producer shared deadline exhausted")
+
+    charged_seconds = 0.0
+
+    def reserve(seconds: float) -> None:
+        require(
+            time.monotonic() - started - charged_seconds <= 75, "AM_producer_controller_overhead"
+        )
+        require(time.monotonic() + seconds <= overall_deadline, "AM_producer_remaining_reservation")
+
+    signal.signal(signal.SIGALRM, timeout)
+    signal.setitimer(signal.ITIMER_REAL, work_deadline - started)
     result: dict[str, Any] = {
         "source": args.source_sha,
         "compiler_starts": 0,
@@ -8555,79 +11616,148 @@ def _alertmanager_execution(args: argparse.Namespace) -> None:
         "status": "HOLD_NO_EXECUTION_OUTCOME",
         "policy_version": "DEP-AM-SEC-1.acceptance.v1",
     }
-    published: dict[str, Any] | None = None
+    material_remaining = float(budgets["PRODUCER_MATERIAL_SECONDS"])
+    prep_remaining = float(limits["PREP_SECONDS"])
+    # 525 seconds cover concrete cleanup/retention owners; the other75 cover controller overhead.
+    cleanup_remaining = float(budgets["PRODUCER_OTHER_CLEANUP_SECONDS"] - 75)
+    api: GitHubRead | None = None
     try:
+        reserve(
+            prep_remaining
+            + material_remaining
+            + limits["PAIR_SECONDS"]
+            + limits["SECURITY_SECONDS"]
+            + limits["NATIVE_SECONDS"]
+            + limits["NATIVE_CLEANUP_SECONDS"]
+            + cleanup_remaining
+        )
+        phase_started = time.monotonic()
+        api = GitHubRead(
+            output / "private",
+            evidence,
+            min(work_deadline, phase_started + prep_remaining),
+            limits["CLEANUP_SECONDS"],
+        )
         try:
-            git = shutil.which("git")
-            require(git is not None and Path(git).is_absolute(), "AM_execution_absolute_Git")
-            checkout = api._capture(
-                [cast(str, git), "-C", str(REPO_ROOT), "rev-parse", "HEAD"],
-                1024,
-                environment={
-                    "PATH": "/usr/bin:/bin",
-                    "HOME": str(api.private / "home"),
-                    "LANG": "C.UTF-8",
-                },
+            admission = _alertmanager_current_manual_admission(
+                api, args.source_sha, upstream_version="0.34.2"
             )
-            require(
-                checkout == (args.source_sha + "\n").encode(), "AM_execution_actual_checkout_HEAD"
+            require(type(admission) is dict, "AM_producer_admission_observation")
+            admission = cast(dict[str, Any], admission)
+            result["producer_admission"] = admission
+            used = time.monotonic() - phase_started
+            prep_remaining -= used
+            charged_seconds += used
+            require(prep_remaining > 0, "AM_producer_preparation_remaining")
+            phase_started = time.monotonic()
+            api.deadline = min(work_deadline, phase_started + material_remaining)
+            material = _alertmanager_whole_material(api, args.source_sha)
+            result["material"] = material
+            host = _alertmanager_host_inputs(api)
+            result["host_inputs"] = host
+            used = time.monotonic() - phase_started
+            material_remaining -= used
+            charged_seconds += used
+            require(material_remaining > 0, "AM_producer_material_remaining")
+            phase_started = time.monotonic()
+            api.deadline = min(work_deadline, phase_started + prep_remaining)
+            source_bytes = _alertmanager_source_snapshot(
+                api, args.source_sha, upstream_version="0.34.2"
             )
-            commit = api.json("/repos/Katsiarynakavaleuskaya/PulsePlate/commits/" + args.source_sha)
-            require(commit.get("sha") == args.source_sha, "AM_execution_API_source")
-            q = _alertmanager_authenticated_inputs(
-                api,
-                args.alertmanager_qualification_run,
-                args.alertmanager_qualification_artifact,
-                args.alertmanager_qualification_source,
-                output / "qualification.zip",
-            )
-            support_binding = _alertmanager_authenticated_inputs(
-                api,
-                args.alertmanager_support_run,
-                args.alertmanager_support_artifact,
-                args.alertmanager_support_source,
-                output / "support.zip",
-                kind="support",
-            )
+            result["producer_source_files"] = {}
+            for path, source_raw in source_bytes.items():
+                require(
+                    source_raw == (REPO_ROOT / path).read_bytes(),
+                    "AM_execution_current_checkout_source",
+                )
+                target = retained / "producer-source" / path
+                target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+                target.write_bytes(source_raw)
+                result["producer_source_files"][path] = sha256(source_raw).hexdigest()
+            source_contract = {
+                path: result["producer_source_files"][path] for path in _ALERT_Q_SOURCE_FILES
+            }
+            bindings = {}
+            for kind in ("qualification", "support"):
+                bindings[kind] = _alertmanager_current_inputs(
+                    api,
+                    args.source_sha,
+                    output / (kind + ".zip"),
+                    kind=kind,
+                    source_files=source_contract,
+                    upstream_version="0.34.2",
+                    source_branch=admission["branch"],
+                )
+                supplied = tuple(
+                    getattr(args, "alertmanager_" + kind + "_" + key)
+                    for key in ("run", "artifact", "source")
+                )
+                actual = bindings[kind]
+                require(
+                    all(value is None for value in supplied)
+                    or supplied == (actual["run"], actual["artifact"], actual["source"]),
+                    "AM_current_build_no_mixed_selector",
+                )
             _alertmanager_package_read(api)
-            if args.alertmanager_stage == "publish":
-                published = _alertmanager_publish(args, api, output, retained, result, limits)
-            else:
-                result["producer_source_files"] = {}
-                for path, raw in _alertmanager_source_snapshot(api, args.source_sha).items():
-                    require(
-                        raw == (REPO_ROOT / path).read_bytes(),
-                        "AM_execution_current_checkout_source",
-                    )
-                    destination = retained / "producer-source" / path
-                    destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-                    destination.write_bytes(raw)
-                    result["producer_source_files"][path] = file_hash(destination)
+            used = time.monotonic() - phase_started
+            prep_remaining -= used
+            charged_seconds += used
         finally:
-            api.close()
+            cleanup_started = time.monotonic()
+            original = sys.exc_info()[1]
+            try:
+                api.close()
+            except BaseException as cleanup_error:
+                if original is not None:
+                    original.add_note(
+                        "AM preparation credential cleanup failed: " + type(cleanup_error).__name__
+                    )
+                    raise original from None
+                raise
         require(
             not api.private.exists() and not api.private.is_symlink(),
             "AM_credentials_removed_before_native",
         )
-        if published is not None:
-            result["credential_cleanup_observed"] = True
-            result["native"] = _alertmanager_native_candidate(
-                published, retained / "pullback-native-input.json", output / "native", limits
-            )
-            result["status"] = "OBSERVED_IMMUTABLE_PUBLICATION_PULLBACK_NATIVE"
-            return
-        inspected = _alertmanager_qualified_payload(output / "qualification.zip")
+        charged_seconds += time.monotonic() - cleanup_started
+        cleanup_remaining -= limits["CLEANUP_SECONDS"]
+        require(prep_remaining > 0, "AM_producer_preparation_remaining")
+        reserve(
+            prep_remaining
+            + material_remaining
+            + limits["PAIR_SECONDS"]
+            + limits["SECURITY_SECONDS"]
+            + limits["NATIVE_SECONDS"]
+            + limits["NATIVE_CLEANUP_SECONDS"]
+            + cleanup_remaining
+        )
+        prep_started = time.monotonic()
+        deadline = min(work_deadline, prep_started + prep_remaining)
+        q, supported_binding = bindings["qualification"], bindings["support"]
+        inspected = _alertmanager_qualified_payload(output / "qualification.zip", current=True)
+        require(
+            _alertmanager_upstream_identity(inspected["root_inputs"], current=True) == "0.34.2",
+            "AM_current_producer_upstream",
+        )
         support = output / "support"
-        supported = _alertmanager_support_payload(output / "support.zip", support)
+        supported = _alertmanager_support_payload(
+            output / "support.zip",
+            support,
+            qualification=q,
+            support_binding=supported_binding,
+            qualification_payload=inspected,
+        )
+        _alertmanager_bind_current_plan(inspected["plan"], supported)
         inspected["plan"]["probe"] = supported["probe"]
         inputs = output / "inputs"
         _alertmanager_materialize(output / "qualification.zip", inputs, deadline)
-        result["upstream"] = {"qualification": q, "support": support_binding}
+        result["upstream"] = {"qualification": q, "support": supported_binding}
+        result["root_inputs"] = inspected["root_inputs"]
         result["plan"] = inspected["plan"]
         result["UI_file_hashes"] = inspected["plan"]["UI_file_hashes"]
         result["support"] = {
-            k: supported[k] for k in ("probe", "scanner", "base_scan", "probe_scan")
+            key: supported[key] for key in ("probe", "scanner", "base_scan", "probe_scan")
         }
+        prep_finished: list[float] = []
         _alertmanager_pair(
             inputs,
             support,
@@ -8637,10 +11767,34 @@ def _alertmanager_execution(args: argparse.Namespace) -> None:
             limits,
             deadline,
             retained=retained,
+            base_descriptor=supported["base"]["actual_local_OCI_descriptor"],
+            upstream_version="0.34.2",
+            preparation_finished=prep_finished,
         )
+        charged_seconds += time.monotonic() - prep_started
+        require(len(prep_finished) == 1, "AM_pair_preparation_clock")
+        prep_remaining -= prep_finished[0] - prep_started
+        require(prep_remaining >= 0, "AM_pair_preparation_exhausted")
+        cleanup_remaining -= limits["CLEANUP_SECONDS"]
+        import shutil
+
         shutil.copyfile(output / "pair/candidate.oci.tar", retained / "candidate.oci.tar")
         observation = retained / "candidate-observation.json"
         observation.write_text(json.dumps(result, indent=2) + "\n")
+        if admission["mode"] == "H":
+            expected_C = admission["expected_C"]
+            require(
+                type(expected_C) is dict and result["graph"] == expected_C["graph"],
+                "AM_H_rebuild_expected_C_subject_mismatch",
+            )
+        reserve(
+            material_remaining
+            + limits["SECURITY_SECONDS"]
+            + limits["NATIVE_SECONDS"]
+            + limits["NATIVE_CLEANUP_SECONDS"]
+            + cleanup_remaining
+        )
+        security_started = time.monotonic()
         result["security"] = _alertmanager_final_security(
             retained / "candidate.oci.tar",
             result["graph"],
@@ -8648,23 +11802,93 @@ def _alertmanager_execution(args: argparse.Namespace) -> None:
             output / "security",
             limits,
             build_information=result["build_information"],
+            support_report=supported,
+            upstream_version="0.34.2",
         )
+        charged_seconds += time.monotonic() - security_started
+        cleanup_remaining -= limits["CLEANUP_SECONDS"]
         observation.write_text(json.dumps(result, indent=2) + "\n")
-        result["native"] = _alertmanager_native_candidate(
-            result, observation, output / "native", limits
+        reserve(
+            material_remaining
+            + limits["NATIVE_SECONDS"]
+            + limits["NATIVE_CLEANUP_SECONDS"]
+            + cleanup_remaining
         )
-        result["status"] = "OBSERVED_NATIVE_SECURITY_ACCEPTED"
+        native_started = time.monotonic()
+        result["native"] = _alertmanager_native_candidate(
+            result, observation, output / "native", limits, producer_image=True
+        )
+        charged_seconds += time.monotonic() - native_started
+        reserve(material_remaining + cleanup_remaining)
+        rebind_started = time.monotonic()
+        fresh_directory(retained / "rebind-evidence")
+        rebind = GitHubRead(
+            output / "rebind-private",
+            retained / "rebind-evidence",
+            min(work_deadline, rebind_started + material_remaining),
+            limits["CLEANUP_SECONDS"],
+        )
+        try:
+            final_admission = _alertmanager_current_manual_admission(
+                rebind, args.source_sha, upstream_version="0.34.2"
+            )
+            require(final_admission == admission, "AM_producer_final_source_run_drift")
+            require(
+                _alertmanager_whole_material(rebind, args.source_sha) == material,
+                "AM_producer_final_material_drift",
+            )
+            require(_alertmanager_host_inputs(rebind) == host, "AM_producer_final_host_input_drift")
+        finally:
+            rebind_work_finished = time.monotonic()
+            original = sys.exc_info()[1]
+            try:
+                rebind.close()
+            except BaseException as cleanup_error:
+                if original is not None:
+                    original.add_note(
+                        "AM final credential cleanup failed: " + type(cleanup_error).__name__
+                    )
+                    raise original from None
+                raise
+        require(
+            not rebind.private.exists() and not rebind.private.is_symlink(),
+            "AM_final_credentials_removed",
+        )
+        charged_seconds += time.monotonic() - rebind_started
+        material_remaining -= rebind_work_finished - rebind_started
+        cleanup_remaining -= limits["CLEANUP_SECONDS"]
+        require(material_remaining >= 0, "AM_producer_final_material_budget")
+        reserve(cleanup_remaining)
+        result["budget"] = {
+            "controller_seconds": time.monotonic() - started - charged_seconds,
+            "maximum_seconds": budgets["PRODUCER_SECONDS"],
+            "preparation_seconds_used": limits["PREP_SECONDS"] - prep_remaining,
+            "material_seconds_used": budgets["PRODUCER_MATERIAL_SECONDS"] - material_remaining,
+            "elapsed_seconds": time.monotonic() - started,
+        }
+        result["status"] = (
+            "OBSERVED_MERGED_H_REBUILD_SECURITY_NATIVE"
+            if admission["mode"] == "H"
+            else "OBSERVED_PR2494_C_SECURITY_NATIVE"
+        )
     except BaseException as error:
+        result["status"] = "HOLD_NO_EXECUTION_OUTCOME"
         result["failure"] = type(error).__name__ + ":" + str(error)
         raise
     finally:
         original_error = sys.exc_info()[1]
         try:
-            destination = retained / "candidate-observation.json"
-            destination.write_text(json.dumps(result, indent=2) + "\n")
-            destination.chmod(0o600)
+            remaining = min(
+                float(budgets["PRODUCER_RETENTION_SECONDS"]), overall_deadline - time.monotonic()
+            )
+            require(remaining > 0, "AM_producer_retention_reserve_exhausted")
+            retention_deadline = time.monotonic() + remaining
+            signal.setitimer(signal.ITIMER_REAL, remaining)
+            path = retained / "candidate-observation.json"
+            path.write_text(json.dumps(result, indent=2) + "\n")
+            path.chmod(0o600)
             _alertmanager_retain_execution(output, retained)
-            _alertmanager_finalize_payload(retained, time.monotonic() + limits["CLEANUP_SECONDS"])
+            _alertmanager_finalize_payload(retained, min(overall_deadline, retention_deadline))
         except BaseException as retention_error:
             if original_error is not None:
                 original_error.add_note(
@@ -8672,85 +11896,324 @@ def _alertmanager_execution(args: argparse.Namespace) -> None:
                 )
                 raise original_error from None
             raise
+        finally:
+            signal.setitimer(signal.ITIMER_REAL, 0)
+            signal.signal(signal.SIGALRM, saved_handler)
+            if saved_timer[0] > 0:
+                caller_remaining = saved_timer[0] - (time.monotonic() - started)
+                if caller_remaining > 0:
+                    signal.setitimer(signal.ITIMER_REAL, caller_remaining, saved_timer[1])
+                else:
+                    active_error = sys.exc_info()[1]
+                    if active_error is not None:
+                        active_error.add_note("Caller deadline also expired during AM producer")
+                    else:
+                        raise TimeoutError("Caller deadline expired during AM producer")
 
 
-def _inspect_alertmanager_inputs(args: argparse.Namespace) -> None:
-    """Inspect retained Q and optional native support without starting a compiler."""
+def _alertmanager_execution(args: argparse.Namespace) -> None:
+    """Publish only after fresh full H controls, under one original bounded clock."""
+    import signal
     from scripts.ci.prometheus_source_image import GitHubRead, fresh_directory, require
 
+    started = time.monotonic()
+    saved_timer = signal.getitimer(signal.ITIMER_REAL)
+    saved_handler = signal.getsignal(signal.SIGALRM)
+    require(args.alertmanager_stage == "publish", "AM_new_compiler_not_admitted")
+    _alertmanager_accepted_producer()
+    limits = _alertmanager_limits()
+    budgets: dict[str, int] = {}
+    for name, expected in (
+        ("PUBLISHER_SECONDS", 10440),
+        ("PUBLISHER_REBIND_SECONDS", 600),
+        ("PUBLISHER_OTHER_CLEANUP_SECONDS", 600),
+        ("PUBLISHER_API_CLEANUP_SECONDS", 120),
+        ("PUBLISHER_RETENTION_SECONDS", 225),
+        ("PUBLISHER_FAILURE_SECONDS", 120),
+    ):
+        raw = os.environ.get("ALERTMANAGER_" + name, "")
+        require(raw == str(expected), "AM_publisher_explicit_budget_" + name)
+        budgets[name] = int(raw)
+    native_seconds = limits["NATIVE_SECONDS"] + limits["NATIVE_CLEANUP_SECONDS"]
     require(
-        type(args.alertmanager_qualification_run) is int
-        and args.alertmanager_qualification_run == _ALERT_Q_RUN
-        and type(args.alertmanager_qualification_artifact) is int
-        and args.alertmanager_qualification_artifact == _ALERT_Q_ARTIFACT
-        and args.alertmanager_qualification_source == _ALERT_Q_SOURCE,
-        "AM_qualification_exact_selectors",
+        budgets["PUBLISHER_SECONDS"]
+        == limits["PREP_SECONDS"]
+        + limits["SECURITY_SECONDS"]
+        + 2 * native_seconds
+        + budgets["PUBLISHER_REBIND_SECONDS"]
+        + limits["PUBLICATION_SECONDS"]
+        + budgets["PUBLISHER_OTHER_CLEANUP_SECONDS"],
+        "AM_publisher_complete_phase_budget",
     )
-    seconds = os.environ.get("ALERTMANAGER_INPUT_INSPECT_SECONDS", "")
+    job = os.environ.get("ALERTMANAGER_PUBLISHER_JOB_MINUTES", "")
     require(
-        re.fullmatch(r"[1-9][0-9]{0,2}", seconds) is not None and int(seconds) <= 600,
-        "AM_input_inspection_budget",
+        re.fullmatch(r"[1-9][0-9]{0,2}", job) is not None
+        and 240 <= int(job) <= 360
+        and os.environ.get("ALERTMANAGER_PUBLISHER_STEP_MINUTES") == "176",
+        "AM_publisher_workflow_budget",
+    )
+    require(
+        args.artifact == "alertmanager"
+        and not args.alertmanager_module_qualify
+        and args.manifest == DEFAULT_MANIFEST
+        and type(args.alertmanager_pr) is int
+        and args.alertmanager_pr == 2494
+        and os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
+        and os.environ.get("GITHUB_REPOSITORY") == "Katsiarynakavaleuskaya/PulsePlate"
+        and os.environ.get("GITHUB_REPOSITORY_ID") == "1043311030"
+        and os.environ.get("GITHUB_RUN_ATTEMPT") == "1"
+        and type(args.source_sha) is str
+        and re.fullmatch(r"[0-9a-f]{40}", args.source_sha) is not None
+        and args.source_sha == os.environ.get("GITHUB_SHA") == os.environ.get("GITHUB_WORKFLOW_SHA")
+        and os.environ.get("GITHUB_REF") == "refs/heads/main"
+        and os.environ.get("GITHUB_WORKFLOW_REF")
+        == "Katsiarynakavaleuskaya/PulsePlate/.github/workflows/cd.yml@refs/heads/main",
+        "AM_exact_manual_execution_source_HOLD",
     )
     output = args.output_dir.absolute()
-    require(".." not in args.output_dir.parts, "AM_input_output_path")
+    require(
+        ".." not in args.output_dir.parts
+        and not output.is_symlink()
+        and not output.is_relative_to(REPO_ROOT),
+        "AM_execution_output_path",
+    )
     for parent in (output.parent, *output.parent.parents):
         require(
             not parent.is_symlink() and (not parent.exists() or parent.is_dir()),
-            "AM_input_output_parent",
+            "AM_execution_output_parent",
         )
     output.parent.mkdir(parents=True, exist_ok=True)
     fresh_directory(output)
-    evidence = output / "github-read-evidence"
-    fresh_directory(evidence)
-    api = GitHubRead(output / "private", evidence, time.monotonic() + int(seconds), 45)
-    try:
-        authentication = _alertmanager_authenticated_inputs(
-            api,
-            args.alertmanager_qualification_run,
-            args.alertmanager_qualification_artifact,
-            args.alertmanager_qualification_source,
-            output / "qualification.zip",
-        )
-        package = _alertmanager_package_read(api)
-    finally:
-        api.close()
-    inspected = _alertmanager_qualified_payload(output / "qualification.zip")
-    result = {
-        "asset_type": "Alertmanager retained-input inspection",
-        "upstream": authentication,
-        "package_read": package,
-        "inspection": inspected,
+    retained = output / "retained"
+    fresh_directory(retained)
+    overall_deadline = min(
+        started + budgets["PUBLISHER_SECONDS"],
+        started + saved_timer[0] if saved_timer[0] > 0 else float("inf"),
+    )
+    cleanup_remaining = float(budgets["PUBLISHER_OTHER_CLEANUP_SECONDS"])
+    result: dict[str, Any] = {
+        "source": args.source_sha,
+        "compiler_starts": 0,
+        "logical_build_starts": 0,
+        "copy_attempts": 0,
+        "copy_invocations": 0,
+        "package_WRITE": "UNPROVED",
+        "status": "HOLD_NO_EXECUTION_OUTCOME",
         "policy_version": "DEP-AM-SEC-1.acceptance.v1",
-        "authority": "observation_only",
-        "consumer_source": os.environ.get("GITHUB_SHA"),
-        "replay": "fresh_output_required_no_Q_or_build_retry",
-        "idempotency_key": "AM-inputs-" + _ALERT_Q_SOURCE + "-" + str(_ALERT_Q_RUN),
-        "compiler_admission": "HOLD_SEPARATE_HUMAN_DECISION",
+        "phases": [],
+        "cleanup_failures": [],
     }
-    destination = output / "input-inspection.json"
-    with destination.open("x", encoding="utf-8") as stream:
-        stream.write(json.dumps(result, indent=2) + "\n")
-    destination.chmod(0o600)
-    if args.alertmanager_stage == "support-inspect":
+
+    def timeout(_signum: int, _frame: object) -> None:
+        # A phase alarm must not leave exceptional owned cleanup without the
+        # original overall ceiling. This rearms remaining time, never a new clock.
+        remaining = overall_deadline - time.monotonic()
+        if remaining > 0:
+            signal.setitimer(signal.ITIMER_REAL, remaining)
+        raise TimeoutError("AM publisher original phase/overall deadline exhausted")
+
+    def phase(name: str, seconds: float, downstream: float, *, initial: bool = False) -> float:
+        now = time.monotonic()
+        end = (started if initial else now) + seconds
+        require(
+            end > now and end + downstream + cleanup_remaining <= overall_deadline,
+            "AM_publisher_downstream_reserve_" + name,
+        )
+        signal.setitimer(signal.ITIMER_REAL, end - now)
+        result["phases"].append(
+            {"phase": name, "started": now - started, "deadline": end - started}
+        )
+        return end
+
+    def close(api: GitHubRead, name: str, seconds: int) -> None:
+        nonlocal cleanup_remaining
+        original = sys.exc_info()[1]
+        remaining = min(
+            float(seconds),
+            overall_deadline - time.monotonic() - budgets["PUBLISHER_RETENTION_SECONDS"],
+        )
         try:
-            inspected["support"] = _alertmanager_support_observation(
-                output / "qualification.zip", output
+            require(remaining > 0, "AM_publisher_cleanup_remaining")
+            signal.setitimer(signal.ITIMER_REAL, remaining)
+            api.close()
+            require(
+                not api.private.exists() and not api.private.is_symlink(),
+                "AM_publisher_private_cleanup_" + name,
             )
-            inspected["plan"]["probe"] = inspected["support"]["probe"]
-            inspected["outstanding"] = [
-                "complete_primary_advisory_and_build_packet_review",
-                "separate_human_pair_compiler_admission",
-                "actual_final_candidate_build_info_full_scans_and_native_acceptance",
-            ]
         except BaseException as error:
-            inspected["support"] = {
-                "state": "HOLD_NATIVE_FAILURE_OR_UNSUPPORTED",
-                "failure": type(error).__name__,
-                "raw_observation": "native-support/support-observation.json",
-            }
+            result["cleanup_failures"].append(
+                {"phase": name, "error": type(error).__name__ + ":" + str(error)}
+            )
+            if original is not None:
+                original.add_note("AM " + name + " cleanup also failed: " + type(error).__name__)
+                raise original from None
             raise
         finally:
+            cleanup_remaining -= seconds
+
+    signal.signal(signal.SIGALRM, timeout)
+    try:
+        downstream = (
+            limits["SECURITY_SECONDS"]
+            + 2 * native_seconds
+            + budgets["PUBLISHER_REBIND_SECONDS"]
+            + limits["PUBLICATION_SECONDS"]
+        )
+        prep_deadline = phase("preparation", limits["PREP_SECONDS"], downstream, initial=True)
+        evidence = retained / "github-read-evidence"
+        fresh_directory(evidence)
+        api = GitHubRead(output / "private", evidence, prep_deadline, limits["CLEANUP_SECONDS"])
+        try:
+            prepared = _alertmanager_publish(
+                args, api, output, retained, result, limits, phase="prepare"
+            )
+        finally:
+            close(api, "preparation", limits["CLEANUP_SECONDS"])
+        result["preparation_credentials_removed"] = True
+        # Initial source-proof Native owner has a separate45-second exceptional tail.
+        cleanup_remaining -= limits["CLEANUP_SECONDS"]
+        cleanup_remaining -= limits["CLEANUP_SECONDS"]
+        phase(
+            "fresh-security",
+            limits["SECURITY_SECONDS"] + limits["CLEANUP_SECONDS"],
+            2 * native_seconds
+            + budgets["PUBLISHER_REBIND_SECONDS"]
+            + limits["PUBLICATION_SECONDS"],
+        )
+        candidate = prepared["candidate"]
+        result["pre_copy_security"] = _alertmanager_final_security(
+            prepared["candidate_directory"] / "candidate.oci.tar",
+            candidate["graph"],
+            prepared["support"],
+            output / "security",
+            limits,
+            build_information=candidate["build_information"],
+            support_report=prepared["support_report"],
+            upstream_version="0.34.2",
+        )
+        phase(
+            "pre-copy-full-native",
+            native_seconds,
+            budgets["PUBLISHER_REBIND_SECONDS"] + limits["PUBLICATION_SECONDS"] + native_seconds,
+        )
+        require(
+            candidate.get("producer_admission", {}).get("mode") == "H",
+            "AM_prepublication_requires_H_full_scope",
+        )
+        result["pre_copy_native"] = _alertmanager_native_candidate(
+            candidate,
+            prepared["candidate_directory"] / "candidate-observation.json",
+            output / "pre-native",
+            limits,
+            producer_image=True,
+        )
+        require(
+            result["pre_copy_native"].get("validation_scope") == "merged_H_selected_image",
+            "AM_prepublication_full_selected_controls",
+        )
+        phase(
+            "final-authenticated-rebind",
+            budgets["PUBLISHER_REBIND_SECONDS"],
+            limits["PUBLICATION_SECONDS"] + native_seconds,
+        )
+        final_evidence = retained / "final-github-read-evidence"
+        fresh_directory(final_evidence)
+        # One new, fixed credential-session lifetime covers the separately charged
+        # rebind and publication. Neither the old session nor this deadline is renewed.
+        session_deadline = min(
+            time.monotonic() + budgets["PUBLISHER_REBIND_SECONDS"] + limits["PUBLICATION_SECONDS"],
+            overall_deadline - native_seconds - cleanup_remaining,
+        )
+        final_api = GitHubRead(
+            output / "final-private",
+            final_evidence,
+            session_deadline,
+            budgets["PUBLISHER_API_CLEANUP_SECONDS"],
+        )
+        try:
+            _alertmanager_publish(
+                args, final_api, output, retained, result, limits, prepared=prepared, phase="rebind"
+            )
+            phase("publication", limits["PUBLICATION_SECONDS"], native_seconds)
+            published = _alertmanager_publish(
+                args,
+                final_api,
+                output,
+                retained,
+                result,
+                limits,
+                prepared=prepared,
+                phase="publish",
+            )
+        finally:
+            close(final_api, "publication", budgets["PUBLISHER_API_CLEANUP_SECONDS"])
+        result["credential_cleanup_observed"] = True
+        phase("post-copy-full-native", native_seconds, 0)
+        result["native"] = _alertmanager_native_candidate(
+            published,
+            retained / "pullback-native-input.json",
+            output / "native",
+            limits,
+            producer_image=True,
+        )
+        require(
+            result["native"].get("validation_scope") == "merged_H_selected_image",
+            "AM_postpublication_full_selected_controls",
+        )
+        result["status"] = "OBSERVED_IMMUTABLE_PUBLICATION_PULLBACK_NATIVE"
+        result["budget"] = {
+            "maximum_seconds": budgets["PUBLISHER_SECONDS"],
+            "elapsed_seconds": time.monotonic() - started,
+        }
+    except BaseException as error:
+        result["failure"] = type(error).__name__ + ":" + str(error)
+        raise
+    finally:
+        original_error = sys.exc_info()[1]
+        try:
+            remaining = min(
+                float(budgets["PUBLISHER_RETENTION_SECONDS"]), overall_deadline - time.monotonic()
+            )
+            require(remaining > 0, "AM_publisher_retention_remaining")
+            retention_deadline = time.monotonic() + remaining
+            signal.setitimer(signal.ITIMER_REAL, remaining)
+            destination = retained / "candidate-observation.json"
             destination.write_text(json.dumps(result, indent=2) + "\n")
+            destination.chmod(0o600)
+            _alertmanager_retain_execution(output, retained)
+            _alertmanager_finalize_payload(retained, min(overall_deadline, retention_deadline))
+        except BaseException as retention_error:
+            result["retention_failure"] = (
+                type(retention_error).__name__ + ":" + str(retention_error)
+            )
+            try:
+                if "retention_deadline" in locals() and time.monotonic() < retention_deadline:
+                    (retained / "candidate-observation.json").write_text(
+                        json.dumps(result, indent=2) + "\n"
+                    )
+            except BaseException as evidence_error:
+                retention_error.add_note(
+                    "AM retention-failure evidence also failed: " + type(evidence_error).__name__
+                )
+            if original_error is not None:
+                original_error.add_note(
+                    "AM raw evidence retention also failed: " + type(retention_error).__name__
+                )
+                raise original_error from None
+            raise
+        finally:
+            signal.setitimer(signal.ITIMER_REAL, 0)
+            signal.signal(signal.SIGALRM, saved_handler)
+            if saved_timer[0] > 0:
+                caller_remaining = saved_timer[0] - (time.monotonic() - started)
+                if caller_remaining > 0:
+                    signal.setitimer(signal.ITIMER_REAL, caller_remaining, saved_timer[1])
+                elif sys.exc_info()[1] is not None:
+                    cast(BaseException, sys.exc_info()[1]).add_note(
+                        "Caller deadline also expired during AM publisher"
+                    )
+                else:
+                    raise TimeoutError("Caller deadline expired during AM publisher")
 
 
 # One finite AM selection/runtime owner. Original A source bytes remain independent.
@@ -8883,9 +12346,15 @@ def _alertmanager_contract_fd(
     return raw
 
 
-def _alertmanager_contract_subject() -> tuple[str, str]:
+def _alertmanager_contract_subject(
+    *, historical_before: dict[str, Any] | None = None
+) -> tuple[str, str]:
     """Return only ROOT's actually accepted subject, never a caller-selected producer."""
-    selected = _ALERT_ACCEPTED_CANDIDATE
+    if historical_before is not None:
+        _alertmanager_contract_require(
+            historical_before == _ALERT_HISTORICAL_AM11, "AM_before_complete_historical_record"
+        )
+    selected = _ALERT_ACCEPTED_CANDIDATE if historical_before is None else historical_before
     _alertmanager_contract_require(type(selected) is dict, "AM_accepted_producer_UNCONFIGURED_HOLD")
     graph = cast(dict[str, Any], selected)["graph"]
     return (
@@ -8902,6 +12371,7 @@ def _alertmanager_contract_candidate(
     expected_environment: str,
     *,
     installed_compose: Path,
+    historical_before: dict[str, Any] | None = None,
 ) -> str:
     """Validate candidate bytes independently of their intended installed mount paths."""
     _alertmanager_contract_require(
@@ -8916,16 +12386,24 @@ def _alertmanager_contract_candidate(
     raw = _alertmanager_contract_file(compose).decode("utf-8")
     alert_bytes = _alertmanager_contract_file(alert_config)
     policy = _alertmanager_contract_file(ignore)
-    accepted_ref, _ = _alertmanager_contract_subject()
+    accepted_ref, _ = _alertmanager_contract_subject(historical_before=historical_before)
     image = payload.get("services", {}).get("alertmanager", {}).get("image")
     _alertmanager_contract_require(
-        image in (_ALERT_OLD_RUNTIME_REF, accepted_ref),
+        (
+            image == accepted_ref
+            if historical_before is not None
+            else image in (_ALERT_OLD_RUNTIME_REF, accepted_ref)
+        ),
         "Alertmanager image identity differs from the admitted platform digest",
     )
-    kind = "old" if image == _ALERT_OLD_RUNTIME_REF else "accepted"
+    kind = (
+        "historical-AM11-before"
+        if historical_before is not None
+        else "old" if image == _ALERT_OLD_RUNTIME_REF else "accepted"
+    )
     _alertmanager_contract_require(
         (kind == "old" and sha256(policy).hexdigest() == _ALERT_OLD_POLICY_SHA256)
-        or (kind == "accepted" and policy == b"vulnerabilities: []\n"),
+        or (kind in ("accepted", "historical-AM11-before") and policy == b"vulnerabilities: []\n"),
         "Alertmanager Trivy policy differs from the admitted complete file",
     )
     services = payload.get("services", {})
@@ -9404,7 +12882,7 @@ def _alertmanager_contract_collect(argv: Sequence[str]) -> int:
     import contextlib
     import selectors
     import signal
-    import subprocess  # nosec B404: # stdlib-only held-FD collector uses fixed read-only Docker calls (remove-by: 2026-10-23, ref: PR-2494)
+    import subprocess  # nosec B404: # stdlib subprocess required by held-FD read-only Docker collector (remove-by: 2026-12-15, ref: PR-2494)
 
     started = time.monotonic()
     saved_timer = signal.getitimer(signal.ITIMER_REAL)
@@ -9466,7 +12944,7 @@ def _alertmanager_contract_collect(argv: Sequence[str]) -> int:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 start_new_session=True,
-            )  # nosec B603: # fixed absolute Docker argv, no shell, bounded private capture and owned-group cleanup (remove-by: 2026-10-23, ref: PR-2494)
+            )  # nosec B603: # trusted installed Docker, validated argv, no shell, bounded capture and owned-group cleanup (remove-by: 2026-12-15, ref: PR-2494)
             _alertmanager_contract_require(
                 process.stdout is not None and process.stderr is not None,
                 "AM_contract_native_capture_streams",
@@ -9808,6 +13286,136 @@ def _alertmanager_contract_collect(argv: Sequence[str]) -> int:
     return 0
 
 
+def _inspect_alertmanager_inputs(args: argparse.Namespace) -> None:
+    """Compiler-free current Q/support observation on the exact admitted source."""
+    import shutil
+    from scripts.ci.prometheus_source_image import (
+        GitHubRead,
+        fresh_directory,
+        require,
+        tree_inventory,
+    )
+
+    require(args.alertmanager_stage == "support-inspect", "AM_current_support_stage")
+    require(
+        type(args.source_sha) is str
+        and re.fullmatch(r"[0-9a-f]{40}", args.source_sha) is not None
+        and args.source_sha == os.environ.get("GITHUB_SHA"),
+        "AM_current_support_source",
+    )
+    seconds = os.environ.get("ALERTMANAGER_INPUT_INSPECT_SECONDS", "")
+    require(
+        re.fullmatch(r"[1-9][0-9]{0,2}", seconds) is not None and int(seconds) <= 600,
+        "AM_input_inspection_budget",
+    )
+    output = args.output_dir.absolute()
+    require(
+        ".." not in args.output_dir.parts and not output.is_relative_to(REPO_ROOT),
+        "AM_input_output_path",
+    )
+    for parent in (output.parent, *output.parent.parents):
+        require(
+            not parent.is_symlink() and (not parent.exists() or parent.is_dir()),
+            "AM_input_output_parent",
+        )
+    output.parent.mkdir(parents=True, exist_ok=True)
+    fresh_directory(output)
+    evidence = output / "github-read-evidence"
+    fresh_directory(evidence)
+    api = GitHubRead(output / "private", evidence, time.monotonic() + int(seconds), 45)
+    try:
+        admission = _alertmanager_current_manual_admission(
+            api, args.source_sha, support_only=True, upstream_version="0.34.2"
+        )
+        require(type(admission) is dict, "AM_support_source_admission")
+        admission = cast(dict[str, Any], admission)
+        git = shutil.which("git")
+        require(git is not None and Path(git).is_absolute(), "AM_execution_absolute_Git")
+        checkout = api._capture(
+            [cast(str, git), "-C", str(REPO_ROOT), "rev-parse", "HEAD"],
+            1024,
+            environment={
+                "PATH": "/usr/bin:/bin",
+                "HOME": str(api.private / "home"),
+                "LANG": "C.UTF-8",
+            },
+        )
+        require(checkout == (args.source_sha + "\n").encode(), "AM_execution_actual_checkout_HEAD")
+        sources = _alertmanager_source_snapshot(api, args.source_sha, upstream_version="0.34.2")
+        require(
+            all(raw == (REPO_ROOT / path).read_bytes() for path, raw in sources.items()),
+            "AM_execution_current_checkout_source",
+        )
+        contract = {path: sha256(sources[path]).hexdigest() for path in _ALERT_Q_SOURCE_FILES}
+        qualification = _alertmanager_current_inputs(
+            api,
+            args.source_sha,
+            output / "qualification.zip",
+            kind="qualification",
+            upstream_version="0.34.2",
+            source_branch=admission["branch"],
+            source_files=contract,
+        )
+        supplied = (
+            args.alertmanager_qualification_run,
+            args.alertmanager_qualification_artifact,
+            args.alertmanager_qualification_source,
+        )
+        require(
+            all(value is None for value in supplied)
+            or supplied
+            == (qualification["run"], qualification["artifact"], qualification["source"]),
+            "AM_current_support_no_mixed_selector",
+        )
+        package = _alertmanager_package_read(api)
+    finally:
+        api.close()
+    require(
+        not api.private.exists() and not api.private.is_symlink(),
+        "AM_credentials_removed_before_native",
+    )
+    inspected = _alertmanager_qualified_payload(output / "qualification.zip", current=True)
+    result = {
+        "asset_type": "Alertmanager retained-input inspection",
+        "upstream": qualification,
+        "github_read_evidence": tree_inventory(evidence, deadline=time.monotonic() + 45),
+        "package_read": package,
+        "inspection": inspected,
+        "policy_version": "DEP-AM-SEC-1.acceptance.v1",
+        "authority": "observation_only",
+        "consumer_source": args.source_sha,
+        "replay": "fresh_output_required_no_Q_or_build_retry",
+        "idempotency_key": "AM-inputs-" + args.source_sha + "-" + str(qualification["run"]),
+        "compiler_admission": "HOLD_SEPARATE_HUMAN_DECISION",
+    }
+    destination = output / "input-inspection.json"
+    with destination.open("x", encoding="utf-8") as stream:
+        stream.write(json.dumps(result, indent=2) + "\n")
+    destination.chmod(0o600)
+    try:
+        inspected["support"] = _alertmanager_support_observation(
+            output / "qualification.zip",
+            output,
+            qualification_sha256=qualification["zip_sha256"],
+            current=True,
+        )
+        inspected["plan"]["probe"] = inspected["support"]["probe"]
+        inspected["outstanding"] = [
+            "complete_primary_advisory_and_build_packet_review",
+            "separate_human_pair_compiler_admission",
+            "actual_final_candidate_build_info_full_scans_and_native_acceptance",
+        ]
+    except BaseException as error:
+        inspected["support"] = {
+            "state": "HOLD_NATIVE_FAILURE_OR_UNSUPPORTED",
+            "failure": type(error).__name__,
+            "raw_observation": "native-support/support-observation.json",
+        }
+        raise
+    finally:
+        destination.write_text(json.dumps(result, indent=2) + "\n")
+
+
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -9819,7 +13427,6 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--alertmanager-stage",
         choices=(
             "disabled",
-            "input-inspect",
             "support-inspect",
             "build",
             "candidate-check",
@@ -9915,8 +13522,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             or args.manifest != DEFAULT_MANIFEST
         ):
             raise RuntimeError("Alertmanager inspection has no Q/manifest/identity override.")
-        if args.alertmanager_stage in ("input-inspect", "support-inspect"):
+        if args.alertmanager_stage == "support-inspect":
             _inspect_alertmanager_inputs(args)
+        elif args.alertmanager_stage == "build":
+            _alertmanager_current_build(args)
         elif args.alertmanager_stage == "candidate-check":
             _alertmanager_consume(args)
         elif args.alertmanager_stage == "security-check":

@@ -100,10 +100,16 @@ def test_devcontainer_json_configuration() -> None:
 
 
 def test_devcontainer_json_does_not_auto_execute_workspace_bootstrap() -> None:
-    """Opening the devcontainer must not auto-run repository-controlled code."""
+    """Only the fixed host source prerequisite may run before container creation."""
     data = json.loads((DEVCONTAINER_DIR / "devcontainer.json").read_text(encoding="utf-8"))
 
-    assert "initializeCommand" not in data
+    assert data["initializeCommand"] == [
+        "make",
+        "--directory",
+        "${localWorkspaceFolder}",
+        "docker-source-artifacts",
+        "DEV_PYTHON=python3",
+    ]
     assert "postCreateCommand" not in data
     assert "onCreateCommand" not in data
     assert "updateContentCommand" not in data
@@ -497,6 +503,82 @@ def test_host_native_sources_prerequisite_hands_off_only_to_canonical_fetcher(
     assert not (fixture / "docker-called").exists()
     # The synthetic interpreter records delegation only; it does not author source-verification truth.
     assert not (fixture / "build").exists()
+
+
+@pytest.mark.parametrize("failure", (None, "missing-manifest", "fetch-error", "missing-python"))
+def test_devcontainer_initialize_argv_preserves_workspace_and_source_failure(
+    tmp_path: Path, failure: str | None
+) -> None:
+    """Run the configured argv through real Make, with synthetic source transport only."""
+    fixture, environment, log = _standalone_bootstrap_fixture(tmp_path)
+    workspace = tmp_path / "trusted checkout with spaces"
+    fixture.rename(workspace)
+    control = Path(environment["PATH"].split(os.pathsep)[0])
+    # Keep only the actual Make parse-time host tools and the synthetic interpreter.
+    # A missing python3 cannot fall through to another host interpreter on PATH.
+    for name in ("cksum", "cut"):
+        binary = shutil.which(name)
+        assert binary is not None
+        (control / name).symlink_to(binary)
+    environment["PATH"] = str(control)
+    for key in ("PULSEPLATE_PSYCOPG_C_SDK", "PULSEPLATE_BOOTSTRAP_WHEELHOUSE"):
+        environment.pop(key)
+
+    fetcher = "scripts/ci/fetch_docker_source_artifacts.py"
+    manifest = "scripts/ci/docker_source_artifacts.json"
+    (workspace / fetcher).write_bytes((REPO_ROOT / fetcher).read_bytes())
+    if failure != "missing-manifest":
+        (workspace / manifest).write_bytes((REPO_ROOT / manifest).read_bytes())
+    venv_python = workspace / ".venv/bin/python"
+    venv_python.parent.mkdir()
+    venv_python.write_text("#!/bin/sh\necho unexpected-venv > venv-selected\nexit 88\n")
+    venv_python.chmod(0o755)
+    python = control / "python3"
+    if failure == "missing-python":
+        python.unlink()
+    elif failure == "fetch-error":
+        transport = python.read_text()
+        branch = "elif args == ['scripts/ci/fetch_docker_source_artifacts.py']:\n"
+        assert transport.count(branch) == 1
+        python.write_text(transport.replace(branch, branch + "    raise SystemExit(7)\n", 1))
+
+    config = json.loads((DEVCONTAINER_DIR / "devcontainer.json").read_text())
+    configured = config["initializeCommand"]
+    assert isinstance(configured, list) and all(isinstance(arg, str) for arg in configured)
+    make = shutil.which(configured[0])
+    assert make is not None
+    argv = [
+        make,
+        *(arg.replace("${localWorkspaceFolder}", str(workspace)) for arg in configured[1:]),
+    ]
+    assert argv[2] == str(workspace)
+    for _ in range(2 if failure is None else 1):
+        result = subprocess.run(
+            argv,
+            cwd=tmp_path,
+            env=environment,
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+        if failure is None:
+            assert result.returncode == 0, result.stdout + result.stderr
+        else:
+            assert result.returncode != 0
+            if failure == "missing-python":
+                assert "python3" in result.stderr and "not found" in result.stderr
+            else:
+                expected_exit = 6 if failure == "missing-manifest" else 7
+                assert f"docker-source-artifacts] Error {expected_exit}" in result.stderr
+    calls = [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
+    expected_calls = 0 if failure == "missing-python" else 2 if failure is None else 1
+    assert calls == [[fetcher]] * expected_calls
+    assert not (workspace / "venv-selected").exists()
+    assert not (workspace / ".venv/pyvenv.cfg").exists()
+    assert not (workspace / "build").exists()
+    # This proves argv/delegation and failure propagation, not verified sources,
+    # Codespaces host availability, repeated cache verification or a native build.
 
 
 @pytest.mark.parametrize("target", ("venv", "devcontainer-bootstrap"))

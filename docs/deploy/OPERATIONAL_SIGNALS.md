@@ -108,8 +108,8 @@ consumer/publisher repair; publication still copies saved bytes without rebuildi
 ### Optional Alertmanager email routing (OBS2A PR2)
 
 The three Compose contours declare the `alerting` profile, which remains off
-for ordinary app and metrics startup. The accepted Alertmanager v0.34.1 source
-build uses Go 1.27.2, x/net 0.60.0 and gRPC 1.83.2; its linux/amd64 manifest
+for ordinary app and metrics startup. The retained producer record for the selected Alertmanager v0.34.1 source
+build uses Go 1.27.3, x/net 0.60.0 and gRPC 1.83.2; its linux/amd64 manifest
 is pinned in all three Compose files. Publication and deployment are separate
 observations from accepted retained candidate bytes. The
 service has no host port or Caddy route, runs as UID 65534 with a read-only
@@ -159,9 +159,9 @@ UID 65534 read the key without granting the app or Prometheus the mount.
 Create a Resend Free account, verify only `alerts.pulseplate.app`, and place
 the separate SMTP key directly on the host; never place its value in Git,
 logs, chat or Drive. Repository merge does not create the key or select the
-profile. The obsolete four-CVE policy is removed; its exact file contains only
-`vulnerabilities: []`. The original cohort, accepted native candidate and pending
-publication evidence are recorded in `docs/security/CVE-2026-84445-alertmanager.md`.
+profile. The replacement candidate deletes only the obsolete four-CVE policy; its file contains
+`vulnerabilities: []`. The original cohort and historical producer evidence, with separate current
+receiver/publication requirements, are recorded in `docs/security/CVE-2026-84445-alertmanager.md`.
 Both deploy readers inspect the installed project's actual running image even
 when alerting is off. Selected or proven-running old vulnerable bytes reject at
 2026-10-21 00:00 UTC, including selected-new/running-old transitions; missing or
@@ -1062,3 +1062,18 @@ Existing OPS coverage measures all four tools in the same producer/XML/artifact
 and existing 97% changed-line consumer. Missing or empty source inventory fails;
 application total coverage and actual operational/lifecycle outcomes remain
 separate. Keep parent OPS-04 open until its original outcome is proven.
+
+Actual AM11 CA-qualified producer outputs are now selected as receiver data.
+Final C/H consumer admission, current-head gates and merged-main outcomes remain. See [AM11 vendor CA source preparation](../security/CVE-2026-111943-go-trust-store.md#am11-vendor-ca-source-preparation)
+for the exact vendor delta, Q/S byte binding and remaining native proof.
+
+### Adopted controller context — 2026-10-31
+
+PR #2494 integrates merged main `d20922f741f431b6eb3e47386ae944ca441a971e`
+and its actual designated controller
+`dab47fc6153f87e35233e20aa255d97e68a5ed93`. Earlier instructions to create a
+future C/H pair describe the original preparation; they do not require another
+controller for these unchanged protected blobs. Current source, selected AM11
+and old-running cutoff checks remain independent of ordinary publication,
+current-material validation and operational deployment evidence. No deployment
+or new native acceptance is claimed by this synchronization.
