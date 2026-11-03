@@ -97,6 +97,18 @@ and 3.13 job. Propagate those exact display names to the existing finite
 current-head consumer. Keep all 32 shards, max-parallel 4, the 5400-second
 shard watchdog, lint/check budgets and every unrelated job timeout unchanged.
 
+For main-test shard cleanup, distinguish a census that never started because its
+whole signal-phase deadline elapsed from an attempted observation that failed.
+Only the group-census caller may take its existing phase transition for that
+exact pre-start expiry; never clear an earlier observation failure or treat expiry
+as a positive census. Missing tools, started query timeouts, short point probes
+and watchdog observations retain their failure semantics. Preserve the existing
+TERM/KILL limits, custody checks and final positive observation/direct wait.
+After a TERM census observes a live member, start a repeat group query only
+when a full polling interval remains after resolving the tool. Wait out any
+fractional slot before escalation. A query that starts receives the remaining
+phase budget, and its failure still blocks a successful cleanup result.
+
 ## Premium alias checkpoint adapter
 
 - Deliver the OBS2A checkpoint units disabled; supported manual invocation uses
@@ -383,6 +395,32 @@ shard watchdog, lint/check budgets and every unrelated job timeout unchanged.
   publication wait and the `staging` Environment's `GHCR_READ_TOKEN`; it does not
   dereference PR-only control or reinterpret main recovery as a local candidate.
 
+### PR evidence selection and controller staging
+
+The source owner keeps its existing 16-case classifier separate from evidence
+selection. Only a same-repository open PR with all four raw source blobs equal
+may use the shared authenticated publisher observation to choose historical
+candidate evidence for a classified nonpositive state. A real positive publisher
+takes the published path without candidate acquisition, even after retained
+artifact expiry. API, identity, malformed-state, ambiguity and drift failures
+remain errors; never catch them to select a candidate. Main and explicit published
+claims retain the strict positive-publisher wrapper.
+
+Before changing CI/CD callers, create and independently designate the real source
+controller commit, then author its exact commit/mode/blob/length/hash pins. Source
+tests read current material; fixed-controller workflow tests derive their oracle
+from the actual pinned regular Git blob. Keep old caller expectations until the
+pin successor exists. One ordinary push may publish both real commits; authenticate
+remote controller/live head before protected execution. The new library selector
+alone does not establish that a still-old fixed caller executes the correction.
+
+The PR-only evidence-selection caller uses GitHub read credentials, no registry
+credential, one bounded observation and owned cleanup. Consume independently
+rederives the route and rejects disagreement; candidate acquisition rechecks live
+PR coordinates after the payload before credential cleanup and native loading.
+Image admission remains distinct from current native/security and actual main
+publication/pullback obligations.
+
 ## Deploy-tool Python selection
 
 The three deploy callers (`deploy_production.sh`, `deploy.sh` and
@@ -550,6 +588,19 @@ or claim that passing this probe validates the application on Python 3.14.
   hosted workflow switches to this interface only after the base contains it.
 - For `check_philosophy_source_corpus_index.py`, put `--files` last. Tokens after
   it are file paths, including `--help`; parser configuration belongs before it.
+
+Corpus-checker maintenance does not itself select the historical PR5 episode.
+With an exact base, compare the four canonical corpus artifacts and bind their
+regular current head bytes before narrowing that episode scope. Their full
+schema, closed-runtime and privacy validation always runs. A real canonical
+delta keeps the full historical scope; alternate artifact inputs retain the
+strict path. Maintenance retains structural checks for every passed path and
+all existing credential patterns. The direct full validators and no-base CLI
+keep the complete local-path grammar. Supply the complete changed inventory,
+including both move endpoints; no caller filter or path/string allowlist may
+hide a finding. This corpus result is not repository-wide privacy clearance,
+and independently observed public-document hygiene still requires a correction.
+
 - A failed private Python proxy health probe blocks emergency wheel fallback.
   Only the installer's existing package-scoped pip retry evidence may avoid a
   new probe. Git-index discovery must neutralize executable repository Git
@@ -1195,6 +1246,10 @@ isolated documentation branches. Root and one-level `.txt`/`.in` carrier
 candidates select the dependency security guard alongside ownership validation;
 these guards must remain reachable without a companion Python-file change.
 The owning selection tests are `tests/test_pre_commit_hook_python_resolver.py`.
+CD-only changes also select the exact pure pgvector compatibility node and the
+existing parameterized scan-loop node in `test_pgvector_attestations.py`; the
+latter executes the actual workflow argv and four-subject scanner dataflow.
+Keep database integration in its separately required hosted native lane.
 
 Verify this hook on the supported shells from
 [the Bash portability lesson](../docs/ENGINEERING_LESSONS.md#3-bash-scripts-must-be-portable-bash-32),
