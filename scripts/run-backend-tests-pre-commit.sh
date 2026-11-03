@@ -359,6 +359,10 @@ add_extra_tests_for_changed_files() {
                 EXTRA_TEST_FILES+=("tests/test_ci_workflow_pr_size_governance_contract.py")
                 EXTRA_TEST_FILES+=("tests/test_pr_merge_readiness_gate.py")
                 ;;
+            .github/workflows/cd.yml)
+                EXTRA_TEST_FILES+=("tests/test_pgvector_compat.py::test_cd_exact_pgvector_image_proves_fresh_and_legacy_volume_contracts")
+                EXTRA_TEST_FILES+=("tests/test_pgvector_attestations.py::test_pg_scan_loop_retains_later_available_subjects_and_rejects_aggregate")
+                ;;
             scripts/run-backend-tests-pre-commit.sh)
                 EXTRA_TEST_FILES+=("tests/test_pre_commit_hook_python_resolver.py")
                 ;;

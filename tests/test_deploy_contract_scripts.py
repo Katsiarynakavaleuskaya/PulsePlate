@@ -25,6 +25,7 @@ from scripts.orchestration.creative_code_patch_workspace import (
     git_env_without_parent_state,
     safe_git_config_args,
 )
+from tests.helpers.prometheus_control import pinned_prometheus_control_bytes
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CD_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "cd.yml"
@@ -4195,7 +4196,7 @@ def test_prometheus_cd_uses_authenticated_finite_consumer_and_retains_strict_sca
     assert [names.index(name) for name in ordered_names] == sorted(
         names.index(name) for name in ordered_names
     )
-    control_bytes = (REPO_ROOT / "scripts/ci/prometheus_source_image.py").read_bytes()
+    control_bytes = pinned_prometheus_control_bytes(REPO_ROOT, fixed["with"]["ref"])
     control_blob = hashlib.sha1(
         b"blob " + str(len(control_bytes)).encode("ascii") + b"\0" + control_bytes,
         usedforsecurity=False,
@@ -4251,20 +4252,21 @@ def _prometheus_cd_python(step: dict[str, object]) -> str:
 
 
 def _synthetic_fixed_prometheus_control(
-    repository: Path, environment: dict[str, str], programs: tuple[str, ...]
+    repository: Path, environment: dict[str, str], programs: tuple[str, ...], *, revision: str
 ) -> tuple[str, ...]:
     """Run the real canonical classifier; substitute only image/API work and fixed coordinates.
 
     Actual workflow Git/control checks still run. This synthetic consumer grants
     no native image, original-producer, publisher or authenticated API proof.
     """
-    production_bytes = (REPO_ROOT / "scripts/ci/prometheus_source_image.py").read_bytes()
+    production_bytes = pinned_prometheus_control_bytes(REPO_ROOT, revision)
     production_blob = hashlib.sha1(
         b"blob " + str(len(production_bytes)).encode("ascii") + b"\0" + production_bytes,
         usedforsecurity=False,
     ).hexdigest()
     production_object = f"100644 blob {production_blob}\\tscripts/ci/prometheus_source_image.py\\0"
     for program in programs:
+        assert program.count(revision) == 1
         assert program.count(production_object) == 1
         assert str(len(production_bytes)) in program
         assert hashlib.sha256(production_bytes).hexdigest() in program
@@ -4348,15 +4350,11 @@ def _synthetic_fixed_prometheus_control(
     git("config", "--local", "gc.auto", "0")
     git("add", "scripts/ci/prometheus_source_image.py")
     git("commit", "-qm", "synthetic fixed control")
-    revision = git("rev-parse", "HEAD")
+    fixture_revision = git("rev-parse", "HEAD")
     blob = git("rev-parse", "HEAD:scripts/ci/prometheus_source_image.py")
     raw = helper.read_bytes()
     rebound = tuple(
-        program.replace(
-            # pragma: allowlist nextline secret - public trusted control commit
-            "dab47fc6153f87e35233e20aa255d97e68a5ed93",
-            revision,
-        )
+        program.replace(revision, fixture_revision)
         .replace(production_blob, blob)
         .replace(str(len(production_bytes)), str(len(raw)))
         .replace(
@@ -4677,7 +4675,10 @@ def test_prometheus_cd_classifies_before_pr_code_and_binds_trusted_handoff(
         classification = steps["Classify the fixed regular Prometheus source blobs"]
         consumer = steps["Admit retained PR candidate or published immutable subject"]
         classification["run"], consumer["run"] = _synthetic_fixed_prometheus_control(
-            repository, environment, (classification["run"], consumer["run"])
+            repository,
+            environment,
+            (classification["run"], consumer["run"]),
+            revision=steps["Checkout fixed trusted Prometheus control"]["with"]["ref"],
         )
         control_created = True
         if variant == "classification-token":
@@ -4838,7 +4839,10 @@ def test_prometheus_ci_trusted_control_precedes_first_pr_import(
     classification = steps["Classify the fixed regular Prometheus source blobs"]
     consumer = steps["Consume exact Prometheus subject before PR startup"]
     classification["run"], consumer["run"] = _synthetic_fixed_prometheus_control(
-        repository, environment, (classification["run"], consumer["run"])
+        repository,
+        environment,
+        (classification["run"], consumer["run"]),
+        revision=steps["Checkout fixed trusted Prometheus control"]["with"]["ref"],
     )
     output.write_text("")
     if variant == "classification-token":

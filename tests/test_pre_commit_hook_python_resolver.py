@@ -3100,3 +3100,57 @@ def test_backend_hook_reaches_actual_guard_on_isolated_surface(
     else:
         assert "1 passed" in result.stdout
         assert "Backend tests passed" in result.stdout
+
+
+@pytest.mark.parametrize("mode", ("branch", "staged", "prepush", "make"))
+@pytest.mark.parametrize("changed", ("cd", "unrelated"))
+@pytest.mark.parametrize("pytest_exit", (0, 7))
+def test_backend_hook_cd_only_selects_exact_pure_pgvector_contracts(
+    tmp_path: Path, backend_shell: str, mode: str, changed: str, pytest_exit: int
+) -> None:
+    """Keep native DB integration separate while exercising actual selected pytest argv."""
+    repo = _prepare_dependabot_policy_hook_repo(tmp_path)
+    shutil.copy2(REPO_ROOT / "Makefile", repo / "Makefile")
+    base = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    _git(repo, "switch", "--quiet", "-c", "cd-selection")
+    _git(repo, "update-ref", "refs/remotes/origin/cd-selection", base)
+    _git(repo, "config", "branch.cd-selection.remote", "origin")
+    _git(repo, "config", "branch.cd-selection.merge", "refs/heads/cd-selection")
+    name = ".github/workflows/" + ("cd.yml" if changed == "cd" else "unrelated.yml")
+    path = repo / name
+    path.parent.mkdir(parents=True)
+    path.write_text("# committed workflow change\n", encoding="utf-8")
+    _git(repo, "add", name)
+    _git(repo, "commit", "--quiet", "-m", "change workflow only")
+    if mode == "staged":
+        # The same CD path occurs in both staged and branch inventories.
+        path.write_text("# staged workflow change\n", encoding="utf-8")
+        _git(repo, "add", name)
+    env, calls = _backend_selection_env(tmp_path, backend_shell, pytest_exit=pytest_exit)
+    if mode == "staged":
+        env["PRE_COMMIT"] = "1"
+    elif mode in ("branch", "make"):
+        env["BRANCH_DIFF_MODE"] = "1"
+    command = [backend_shell, "scripts/run-backend-tests-pre-commit.sh"]
+    if mode == "make":
+        make = shutil.which("make")
+        assert make is not None
+        command = [make, "--no-print-directory", "validate-changed"]
+    result = subprocess.run(command, cwd=repo, env=env, capture_output=True, text=True, check=False)
+    if changed == "unrelated":
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert not calls.exists()
+    else:
+        expected = [
+            "tests/test_pgvector_compat.py"
+            "::test_cd_exact_pgvector_image_proves_fresh_and_legacy_volume_contracts",
+            "tests/test_pgvector_attestations.py"
+            "::test_pg_scan_loop_retains_later_available_subjects_and_rejects_aggregate",
+        ]
+        flags = ["-q", "--tb=short"] + (["-x"] if mode == "staged" else [])
+        assert _recorded_pytest_arguments(calls) == flags + expected
+        assert result.returncode == (0 if pytest_exit == 0 else 2 if mode == "make" else 1)
+        if pytest_exit:
+            assert "Backend tests passed" not in result.stdout
+            assert "Diff-based validation completed" not in result.stdout
+    assert list(Path(env["TMPDIR"]).iterdir()) == []

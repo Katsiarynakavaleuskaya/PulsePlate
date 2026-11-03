@@ -24,6 +24,7 @@ DEFAULT_SHARD_COUNT = 2
 DEFAULT_MAX_PARALLEL = 2
 DEFAULT_FAULTHANDLER_TIMEOUT_SECONDS = 300
 DEFAULT_SHARD_TIMEOUT_SECONDS = 1800
+_CLEANUP_POLL_INTERVAL = 0.1
 DEFAULT_COVERAGE_TIMEOUT_SECONDS = 1200
 DEFAULT_ARTIFACT_LABEL = "pymain"
 JUNIT_FAMILY = "legacy"
@@ -556,12 +557,26 @@ def _install_shard_handlers(pending: list[int]) -> dict[signal.Signals, Any]:
     return previous
 
 
-def _shard_ps(pid: int, selector: str, deadline: float) -> list[tuple[int, int, int, str]]:
+class _ShardCensusNotStarted(RuntimeError):
+    """The census deadline elapsed before any native query was started."""
+
+
+class _TermPollDeferred(Exception):
+    """Only a fraction of an optional repeat poll remains before escalation."""
+
+
+def _shard_ps(
+    pid: int, selector: str, deadline: float, *, repeat_term_poll: bool = False
+) -> list[tuple[int, int, int, str]]:
     """Query only the reserved leader or its group/session; require its direct-child witness."""
     ps = shutil.which("ps", path=os.defpath)
-    remaining = deadline - time.monotonic()
-    if not ps or not os.path.isabs(ps) or remaining <= 0:
+    if not ps or not os.path.isabs(ps):
         raise RuntimeError("Shard group census unavailable")
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise _ShardCensusNotStarted("Shard group census unavailable")
+    if repeat_term_poll and remaining < _CLEANUP_POLL_INTERVAL:
+        raise _TermPollDeferred
     observed = subprocess.run(  # nosec B603: system ps inspects the owned shard group with fixed fields and remaining deadline (remove-by: 2027-01-25, ref: PR-2494)
         [ps, selector, str(pid), "-o", "pid=,ppid=,pgid=,stat="],
         stdin=subprocess.DEVNULL,
@@ -700,23 +715,28 @@ def _terminate_process_group(process: subprocess.Popen[bytes]) -> None:
         return
     if process.returncode is not None:
         return
-    observation_failed = False
+    first_failure: RuntimeError | None = None
 
-    def readiness(deadline: float) -> bool | None:
-        nonlocal observation_failed
+    def record_failure(operation: str, error: Exception) -> None:
+        nonlocal first_failure
+        if first_failure is None:
+            first_failure = RuntimeError(f"Shard {sig.name} {operation}: {type(error).__name__}")
+
+    def readiness(deadline: float, operation: str) -> bool | None:
         try:
             return _terminal_ready(process, deadline)
         except ChildProcessError:
             raise  # ECHILD or a conflicting wait identity prohibits every later signal.
-        except (OSError, RuntimeError, subprocess.SubprocessError, ValueError):
-            observation_failed = True
+        except (OSError, RuntimeError, subprocess.SubprocessError, ValueError) as error:
+            record_failure(operation, error)
             return None
 
     for sig in (signal.SIGTERM, signal.SIGKILL):
+        repeat_term_poll = False
         started = time.monotonic()
         deadline = started + 10
         # Reserve room for the signal even when the optional ps probe stalls.
-        ready = readiness(min(deadline, started + 0.25))
+        ready = readiness(min(deadline, started + 0.25), "initial readiness")
         try:
             if os.getpgid(process.pid) != process.pid or os.getsid(process.pid) != process.pid:
                 raise RuntimeError("Shard session identity mismatch")
@@ -735,29 +755,39 @@ def _terminate_process_group(process: subprocess.Popen[bytes]) -> None:
             raise RuntimeError("Shard group custody unconfirmed") from None
         try:
             os.killpg(process.pid, sig)
-        except (ProcessLookupError, PermissionError):
+        except (ProcessLookupError, PermissionError) as error:
             if not ready:
-                observation_failed = True
+                record_failure("signal", error)
         while time.monotonic() < deadline:
-            ready = readiness(deadline)
+            ready = readiness(deadline, "readiness")
             if ready is not False:
                 if time.monotonic() >= deadline:
                     break
                 try:
-                    rows = _shard_ps(process.pid, "-g", deadline)
+                    rows = _shard_ps(process.pid, "-g", deadline, repeat_term_poll=repeat_term_poll)
                 except ChildProcessError:
                     raise
-                except (OSError, RuntimeError, subprocess.SubprocessError, ValueError):
-                    observation_failed = True
+                except _TermPollDeferred:
+                    time.sleep(max(0, deadline - time.monotonic()))
+                    continue
+                except _ShardCensusNotStarted as error:
+                    if time.monotonic() >= deadline:
+                        break  # Same whole-phase transition as the pre-query deadline check.
+                    record_failure("group census", error)
+                except (OSError, RuntimeError, subprocess.SubprocessError, ValueError) as error:
+                    record_failure("group census", error)
                 else:
                     if all(
                         state.startswith("Z") for _, _, group, state in rows if group == process.pid
                     ):
                         process.wait(timeout=max(0, deadline - time.monotonic()))
-                        if observation_failed:
-                            raise RuntimeError("Shard cleanup observation was incomplete")
+                        if first_failure is not None:
+                            raise RuntimeError(
+                                "Shard cleanup observation was incomplete"
+                            ) from first_failure
                         return
-            time.sleep(min(0.1, max(0, deadline - time.monotonic())))
+                    repeat_term_poll = sig == signal.SIGTERM
+            time.sleep(min(_CLEANUP_POLL_INTERVAL, max(0, deadline - time.monotonic())))
     process.wait(timeout=0)
     raise RuntimeError("Shard group cleanup not verified within TERM/KILL limits")
 

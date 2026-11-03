@@ -301,10 +301,13 @@ def _commit_metadata(commit_sha: str, field: str) -> bytes:
 def _git_commit_time_iso(commit_sha: str) -> str:
     raw = _commit_metadata(commit_sha, "time")
     if re.fullmatch(
-        rb"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}[+-](?:[01][0-9]|2[0-3]):[0-5][0-9]\n",
+        rb"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}"
+        rb"(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])\n",
         raw,
     ):
         value = raw[:-1].decode("ascii")
+        if value.endswith("Z"):
+            value = value[:-1] + "+00:00"
         try:
             datetime.fromisoformat(value)
         except ValueError:

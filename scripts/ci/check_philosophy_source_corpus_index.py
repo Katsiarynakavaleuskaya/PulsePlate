@@ -11,6 +11,7 @@ from pathlib import Path, PurePosixPath
 import posixpath
 import re
 import shutil
+import stat
 import subprocess  # nosec B404: fixed read-only Git object checks (remove-by: 2027-02-01, ref: PR-2446)
 import sys
 
@@ -414,7 +415,7 @@ _AWS_CREDENTIAL_NAMES = (
     "secret" + "access" + "key",
     "secret" + "_access" + "_key",
 )
-SECRET_OR_LOCAL_PATTERNS = (
+LOCAL_PATH_PATTERNS = (
     *(re.compile(re.escape(prefix), re.IGNORECASE) for prefix in _LOCAL_PATH_PREFIXES),
     re.compile(
         r"(?<![A-Za-z0-9.:/])"
@@ -432,6 +433,8 @@ SECRET_OR_LOCAL_PATTERNS = (
         + re.escape("\\")
         + r"[^\s]+)*"
     ),
+)
+CREDENTIAL_PATTERNS = (
     re.compile(
         r"(?i)"
         + re.escape(_AWS_PARAMETER_PREFIX)
@@ -445,6 +448,7 @@ SECRET_OR_LOCAL_PATTERNS = (
     re.compile(r"(?i)(?:token|signature|credential)=[A-Za-z0-9_%./+=-]{12,}"),
     re.compile(r"(?i)(?<![A-Za-z0-9])" + "sk" + r"-[A-Za-z0-9_-]{16,}"),
 )
+SECRET_OR_LOCAL_PATTERNS = LOCAL_PATH_PATTERNS + CREDENTIAL_PATTERNS
 ALLOWED_ABSOLUTE_POSIX_PATH_MATCHES = frozenset({"/dev/null", "/dev/stdout", "/usr/bin/env"})
 ALLOWED_ABSOLUTE_POSIX_PATH_PREFIXES = (
     "/Applications/Xcode",
@@ -1324,16 +1328,18 @@ def _corpus_text(data: bytes, *, path: str) -> str:
     return text
 
 
-def _forbidden_content_multiset(text: str) -> Counter[tuple[int, str]]:
+def _forbidden_content_multiset(
+    text: str, *, patterns: tuple[re.Pattern[str], ...] = SECRET_OR_LOCAL_PATTERNS
+) -> Counter[tuple[int, str]]:
     occurrences: Counter[tuple[int, str]] = Counter()
-    for index, pattern in enumerate(SECRET_OR_LOCAL_PATTERNS):
+    for index, pattern in enumerate(patterns):
         for match in pattern.finditer(text):
             if not _is_allowed_secret_or_local_match(text, match):
                 occurrences[(index, match.group(0))] += 1
     return occurrences
 
 
-def _has_source_corpus_rename_or_copy(base_ref: str) -> bool:
+def _has_source_corpus_rename_or_copy(base_ref: str, *, head_ref: str = "HEAD") -> bool:
     """Reject ambiguous Git moves only when a canonical corpus path participates."""
 
     raw = _corpus_git_bytes(
@@ -1345,7 +1351,7 @@ def _has_source_corpus_rename_or_copy(base_ref: str) -> bool:
         "--find-renames",
         "--find-copies-harder",
         "--diff-filter=RC",
-        f"{base_ref}...HEAD",
+        f"{base_ref}...{head_ref}",
     )
     if not raw:
         return False
@@ -1361,16 +1367,30 @@ def _has_source_corpus_rename_or_copy(base_ref: str) -> bool:
     return False
 
 
-def validate_new_file_contents(paths: list[str], *, base_ref: str) -> list[str]:
-    """Reject newly introduced forbidden matches against one exact trusted base tree."""
+def _validate_corpus_base(base_ref: str, *, head_ref: str = "HEAD") -> None:
+    if not re.fullmatch(r"[0-9a-f]{40}", base_ref):
+        raise ValueError("source corpus base ref must be a full lowercase commit SHA")
+    _corpus_git_bytes("cat-file", "-e", f"{base_ref}^{{commit}}")
+    _corpus_git_bytes("merge-base", "--is-ancestor", base_ref, head_ref)
+    if _has_source_corpus_rename_or_copy(base_ref, head_ref=head_ref):
+        raise ValueError("source corpus differential rejects rename/copy ambiguity")
 
+
+def validate_new_file_contents(paths: list[str], *, base_ref: str) -> list[str]:
+    """Keep the direct caller's complete path and credential grammar."""
+    return _validate_new_file_contents(paths, base_ref=base_ref, patterns=SECRET_OR_LOCAL_PATTERNS)
+
+
+def _validate_new_file_contents(
+    paths: list[str],
+    *,
+    base_ref: str,
+    patterns: tuple[re.Pattern[str], ...],
+    head_ref: str = "HEAD",
+) -> list[str]:
+    """Share exact structural reads and differential counting for both corpus scopes."""
     try:
-        if not re.fullmatch(r"[0-9a-f]{40}", base_ref):
-            raise ValueError("source corpus base ref must be a full lowercase commit SHA")
-        _corpus_git_bytes("cat-file", "-e", f"{base_ref}^{{commit}}")
-        _corpus_git_bytes("merge-base", "--is-ancestor", base_ref, "HEAD")
-        if _has_source_corpus_rename_or_copy(base_ref):
-            raise ValueError("source corpus differential rejects rename/copy ambiguity")
+        _validate_corpus_base(base_ref, head_ref=head_ref)
 
         errors: list[str] = []
         for raw_path in paths:
@@ -1379,7 +1399,7 @@ def validate_new_file_contents(paths: list[str], *, base_ref: str) -> list[str]:
                 errors.append(error or f"changed path could not be normalized: {raw_path}")
                 continue
             base_entry = _corpus_tree_blob(base_ref, path)
-            head_entry = _corpus_tree_blob("HEAD", path)
+            head_entry = _corpus_tree_blob(head_ref, path)
             if base_entry is None and head_entry is None:
                 errors.append(f"{path}: touched path is absent from both exact Git trees")
                 continue
@@ -1403,11 +1423,15 @@ def validate_new_file_contents(paths: list[str], *, base_ref: str) -> list[str]:
             ):
                 errors.append(f"{path}: working file differs from the exact head tree")
                 continue
-            head_matches = _forbidden_content_multiset(_corpus_text(head_data, path=path))
+            head_matches = _forbidden_content_multiset(
+                _corpus_text(head_data, path=path), patterns=patterns
+            )
             base_matches = (
                 Counter()
                 if base_entry is None
-                else _forbidden_content_multiset(_corpus_text(base_entry[1], path=path))
+                else _forbidden_content_multiset(
+                    _corpus_text(base_entry[1], path=path), patterns=patterns
+                )
             )
             if any(count > base_matches[key] for key, count in head_matches.items()):
                 errors.append(
@@ -1776,6 +1800,45 @@ def validate_philosophy_source_corpus_index(
     return errors
 
 
+def _canonical_corpus_changed(
+    base_ref: str, supplied: tuple[Path, ...], validated: tuple[str, ...], *, head_ref: str
+) -> bool:
+    """Only exact unchanged canonical artifacts admit maintenance scope."""
+    _validate_corpus_base(base_ref, head_ref=head_ref)
+    names = tuple(sorted(path.decode("utf-8") for path in SOURCE_CORPUS_PATHS))
+    expected = {REPO_ROOT / name for name in names}
+    # Alternate artifact inputs retain the old strict contract; they cannot select maintenance.
+    if len(supplied) != len(expected) or set(supplied) != expected:
+        return True
+    validated_bytes = {path: text.encode("utf-8") for path, text in zip(supplied, validated)}
+    changed = False
+    for name in names:
+        previous = _corpus_tree_blob(base_ref, name)
+        current = _corpus_tree_blob(head_ref, name)
+        if current is None or current[0] != "100644":
+            raise ValueError(f"{name}: canonical corpus requires a regular head artifact")
+        parent = REPO_ROOT
+        for part in PurePosixPath(name).parts[:-1]:
+            parent /= part
+            if parent.is_symlink() or not parent.is_dir():
+                raise ValueError(f"{name}: canonical corpus directory is aliased or unavailable")
+        candidate = REPO_ROOT / name
+        if validated_bytes.get(candidate) != current[1]:
+            raise ValueError(f"{name}: validated corpus bytes differ from exact head")
+        info = candidate.lstat()
+        if (
+            not stat.S_ISREG(info.st_mode)
+            or info.st_nlink != 1
+            or info.st_mode & 0o111
+            or candidate.read_bytes() != current[1]
+        ):
+            raise ValueError(f"{name}: canonical corpus file differs from exact regular head")
+        if previous is not None and previous[0] == "120000":
+            raise ValueError(f"{name}: canonical corpus base alias is ambiguous")
+        changed = changed or previous != current
+    return changed
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="Validate the source corpus index.")
@@ -1803,21 +1866,48 @@ def main(argv: list[str] | None = None) -> int:
     if not args.check:
         parser.error("--check is required")
 
+    artifact_paths = (args.index, args.schema, args.roadmap, args.gate_report)
+    artifact_texts = tuple(path.read_text(encoding="utf-8") for path in artifact_paths)
     errors = validate_philosophy_source_corpus_index(
-        index_text=args.index.read_text(encoding="utf-8"),
-        schema_text=args.schema.read_text(encoding="utf-8"),
-        roadmap_text=args.roadmap.read_text(encoding="utf-8"),
-        gate_report_text=args.gate_report.read_text(encoding="utf-8"),
+        index_text=artifact_texts[0],
+        schema_text=artifact_texts[1],
+        roadmap_text=artifact_texts[2],
+        gate_report_text=artifact_texts[3],
     )
-    errors.extend(validate_touched_paths(list(args.files)))
     if args.base_ref is None:
+        errors.extend(validate_touched_paths(list(args.files)))
         errors.extend(validate_file_contents(list(args.files)))
     else:
-        errors.extend(validate_new_file_contents(list(args.files), base_ref=args.base_ref))
+        try:
+            raw_head = _corpus_git_bytes("rev-parse", "--verify", "HEAD^{commit}")
+            if re.fullmatch(rb"[0-9a-f]{40}\n", raw_head) is None:
+                raise ValueError("source corpus head identity is unavailable")
+            head_ref = raw_head[:-1].decode("ascii")
+            corpus_changed = _canonical_corpus_changed(
+                args.base_ref, artifact_paths, artifact_texts, head_ref=head_ref
+            )
+            if corpus_changed:
+                errors.extend(validate_touched_paths(list(args.files)))
+            errors.extend(
+                _validate_new_file_contents(
+                    list(args.files),
+                    base_ref=args.base_ref,
+                    head_ref=head_ref,
+                    patterns=SECRET_OR_LOCAL_PATTERNS if corpus_changed else CREDENTIAL_PATTERNS,
+                )
+            )
+            if _corpus_git_bytes("rev-parse", "--verify", "HEAD^{commit}") != raw_head:
+                raise ValueError("source corpus head changed during inspection")
+        except (ValueError, OSError) as error:
+            errors.append(
+                str(error)
+                if isinstance(error, ValueError)
+                else "source corpus file inspection unavailable: " + type(error).__name__
+            )
     if errors:
         print("ERROR: philosophy source corpus index check failed:")
-        for error in errors:
-            print(f"- {error}")
+        for diagnostic in errors:
+            print(f"- {diagnostic}")
         return 1
     print("philosophy-source-corpus-index: passed.")
     return 0

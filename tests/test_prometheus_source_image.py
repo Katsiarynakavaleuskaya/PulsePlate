@@ -1124,7 +1124,9 @@ def _publication_wait_observations(
         ("completed", "future-conclusion", None, None, "publication_predecessor_state"),
     ],
 )
+@pytest.mark.parametrize("observer", [False, True])
 def test_publication_predecessor_recognizes_bound_native_state(
+    observer: bool,
     run_status: str,
     run_conclusion: str | None,
     job_status: str | None,
@@ -1138,6 +1140,25 @@ def test_publication_predecessor_recognizes_bound_native_state(
         else [_publication_job(status=job_status, conclusion=job_conclusion)]
     )
     api = _PublicationPredecessorAPI([run], {12: jobs})
+    known = {
+        "positive_publication_predecessor_active",
+        "publication_predecessor_failed",
+        "publication_predecessor_cancelled",
+        "publication_predecessor_timed_out",
+        "publication_predecessor_not_published",
+    }
+    if observer:
+        if diagnostic is None:
+            assert source.observe_publication_predecessor(api, "1" * 40) == (
+                {"run": run, "job": jobs[0]},
+                None,
+            )
+        elif diagnostic in known:
+            assert source.observe_publication_predecessor(api, "1" * 40) == (None, diagnostic)
+        else:
+            with pytest.raises(source.QualificationError, match="^" + diagnostic + "$"):
+                source.observe_publication_predecessor(api, "1" * 40)
+        return
     if diagnostic is None:
         assert source.require_publication_predecessor(api, "1" * 40) == {"run": run, "job": jobs[0]}
     else:
@@ -1278,7 +1299,9 @@ def test_publication_predecessor_does_not_rescue_latest_failure_with_older_activ
         ("api-error", "GitHub_native_failed"),
     ],
 )
+@pytest.mark.parametrize("observer", [False, True])
 def test_publication_predecessor_uncertainty_never_becomes_pending(
+    observer: bool,
     fault: str,
     diagnostic: str,
 ) -> None:
@@ -1337,7 +1360,10 @@ def test_publication_predecessor_uncertainty_never_becomes_pending(
         ]
         api.overrides[f"/repos/{source.GHCR_REPOSITORY}/actions/runs/12"] = changed
     with pytest.raises(source.QualificationError, match="^" + diagnostic + "$"):
-        source.require_publication_predecessor(api, "1" * 40)
+        if observer:
+            source.observe_publication_predecessor(api, "1" * 40)
+        else:
+            source.require_publication_predecessor(api, "1" * 40)
 
 
 def test_publication_predecessor_uses_terminal_detail_observed_during_active_run() -> None:
@@ -4926,7 +4952,7 @@ def _consumer_fixture(
             return {
                 "state": "open",
                 "head": {"sha": "a" * 40, "repo": {"id": 1043311030}},
-                "base": {"sha": "b" * 40, "repo": {"id": 1043311030}},
+                "base": {"ref": "main", "sha": "b" * 40, "repo": {"id": 1043311030}},
             }
 
         def _capture(self, argv: list[str], maximum: int, **kwargs: Any) -> bytes:
@@ -6760,6 +6786,9 @@ class _HistoricalAPI:
         self.private = private
         self.deadline = time.monotonic() + 30
         self.calls: list[str] = []
+        run, job = _publication_run(), _publication_job()
+        run["head_sha"] = job["head_sha"] = "4" * 40
+        self.publication = _PublicationPredecessorAPI([run], {12: [job]})
         self.current: dict[str, Any] = {
             "number": 2493,
             "state": "open",
@@ -6792,6 +6821,8 @@ class _HistoricalAPI:
         """Return one declared synthetic native response, never make an HTTP request."""
         self.calls.append(endpoint)
         prefix = "/repos/" + source.GHCR_REPOSITORY
+        if endpoint.startswith(prefix + "/actions/"):
+            return cast(dict[str, Any], self.publication.json(endpoint))
         if endpoint == prefix + "/pulls/2493":
             return self.current
         if endpoint == prefix + "/pulls/2477":
@@ -6807,8 +6838,10 @@ class _HistoricalAPI:
             return self.comparisons[(pair[0], pair[1])]
         raise AssertionError("Unexpected synthetic native endpoint: " + endpoint)
 
-    def pages(self, endpoint: str, key: None, count: int) -> list[dict[str, Any]]:
-        """Return the complete original producer PR graph fixture."""
+    def pages(self, endpoint: str, key: str | None, count: int) -> list[dict[str, Any]]:
+        """Use real bounded publication pages or the declared original PR graph."""
+        if key is not None:
+            return self.publication.pages(endpoint, key, count)
         assert endpoint == "/repos/" + source.GHCR_REPOSITORY + "/pulls/2477/commits"
         assert key is None and count == 2
         self.calls.append(endpoint)
@@ -7502,3 +7535,282 @@ def test_current_default_CA_recognizer_binds_bytes_and_closed_DER_inventory(
             source.validate_default_ca(candidate)
         if fault in ("bytes", "length"):
             assert calls == []
+
+
+def _unchanged_pr_fixture(tmp_path: Path) -> tuple[Path, _HistoricalAPI, dict[str, Any]]:
+    """Make all four B/H blobs equal while retaining real historical-source checks."""
+    root, api, event = _historical_fixture(tmp_path)
+    same = api.files["4" * 40][_HISTORICAL_SOURCE_PATHS[0]]
+    api.files["5" * 40][_HISTORICAL_SOURCE_PATHS[0]] = same
+    (root / _HISTORICAL_SOURCE_PATHS[0]).write_bytes(same)
+    return root, api, event
+
+
+@pytest.mark.parametrize(
+    "state,diagnostic",
+    [
+        ("missing", "positive_publication_predecessor_missing"),
+        ("active", "positive_publication_predecessor_active"),
+        ("failure", "publication_predecessor_failed"),
+        ("cancelled", "publication_predecessor_cancelled"),
+        ("timed_out", "publication_predecessor_timed_out"),
+        ("neutral", "publication_predecessor_not_published"),
+        ("success", None),
+    ],
+)
+def test_unchanged_pr_evidence_uses_complete_publication_observation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, state: str, diagnostic: str | None
+) -> None:
+    """Known nonpositive publication selects independent candidate proof, never success."""
+    root, api, event = _unchanged_pr_fixture(tmp_path)
+    for name in ("GHCR_READ_TOKEN", "GHCR_TOKEN", "DOCKER_CONFIG", "DOCKER_AUTH_CONFIG"):
+        monkeypatch.delenv(name, raising=False)
+    run = _publication_run(
+        status="in_progress" if state == "active" else "completed",
+        conclusion=None if state == "active" else state,
+    )
+    job = _publication_job(
+        status="in_progress" if state == "active" else "completed",
+        conclusion=None if state == "active" else state,
+    )
+    run["head_sha"] = job["head_sha"] = "4" * 40
+    api.publication = _PublicationPredecessorAPI(
+        [] if state == "missing" else [run], {} if state == "missing" else {12: [job]}
+    )
+    predecessor, observed = source.observe_publication_predecessor(api, "4" * 40)
+    assert observed == diagnostic
+    assert (predecessor is None) == (diagnostic is not None)
+    expected = "unchanged_pr_published" if state == "success" else "historical_pr_candidate"
+    assert source.select_pr_evidence_route(api, root, event, "5" * 40) == expected
+    admission = source.event_admission(api, root, event, "pull_request", "5" * 40)
+    assert admission["mode"] == (
+        "unchanged_published" if state == "success" else "historical_pr_candidate"
+    )
+    if diagnostic is not None:
+        with pytest.raises(source.QualificationError, match="^" + diagnostic + "$"):
+            source.require_publication_predecessor(api, "4" * 40)
+        assert admission["publisher_head"] is None
+        assert admission["historical_source_head"] == "3" * 40
+    else:
+        assert admission["publisher_head"] == "4" * 40
+        assert not any("/compare/" in call for call in api.calls)
+
+
+@pytest.mark.parametrize("path", _HISTORICAL_SOURCE_PATHS[1:3])
+def test_unchanged_label_with_recipe_delta_keeps_strict_published_mode(
+    tmp_path: Path, path: str
+) -> None:
+    """Legacy source classification is not four-blob equality or candidate permission."""
+    root, api, event = _unchanged_pr_fixture(tmp_path)
+    api.publication = _PublicationPredecessorAPI([], {})
+    api.files["5" * 40][path] += b"changed recipe"
+    (root / path).write_bytes(api.files["5" * 40][path])
+    assert source.classify_source_change(api.files["4" * 40], api.files["5" * 40]) == (
+        "unchanged_published"
+    )
+    admission = source.event_admission(api, root, event, "pull_request", "5" * 40)
+    assert admission["mode"] == "unchanged_published"
+    assert api.publication.requests == []
+
+
+@pytest.mark.parametrize(
+    "failure", ["transport", "malformed", "drift", "ambiguous", "contradiction"]
+)
+def test_unchanged_pr_publication_uncertainty_cannot_select_candidate(
+    tmp_path: Path, failure: str
+) -> None:
+    """The same complete success baseline reaches each independent evidence failure."""
+    root, api, event = _unchanged_pr_fixture(tmp_path)
+    assert source.event_admission(api, root, event, "pull_request", "5" * 40)["mode"] == (
+        "unchanged_published"
+    )
+    run = {**_publication_run(), "head_sha": "4" * 40}
+    job = {**_publication_job(), "head_sha": "4" * 40}
+    api.publication = _PublicationPredecessorAPI([run], {12: [job]})
+    prefix = "/repos/" + source.GHCR_REPOSITORY + "/actions/"
+    endpoint = prefix + "workflows/build.yml/runs?event=push&head_sha=" + "4" * 40
+    if failure == "transport":
+        api.publication.overrides[endpoint + "&per_page=100&page=1"] = source.QualificationError(
+            "GitHub_native_failed"
+        )
+        diagnostic = "GitHub_native_failed"
+    elif failure == "malformed":
+        api.publication.overrides[endpoint + "&per_page=100&page=1"] = {}
+        diagnostic = "publication_predecessor_run_inventory"
+    elif failure == "drift":
+        api.publication.overrides[prefix + "runs/12"] = {**run, "run_attempt": 2}
+        diagnostic = "publication_predecessor_run_drift"
+    elif failure == "ambiguous":
+        api.publication = _PublicationPredecessorAPI([run], {12: [job, {**job, "id": 121}]})
+        diagnostic = "publication_predecessor_publisher_ambiguous"
+    else:
+        api.publication = _PublicationPredecessorAPI(
+            [run], {12: [{**job, "conclusion": "failure"}]}
+        )
+        diagnostic = "publication_predecessor_run_job_contradiction"
+    api.calls.clear()
+    with pytest.raises(source.QualificationError, match="^" + diagnostic + "$"):
+        source.event_admission(api, root, event, "pull_request", "5" * 40)
+    assert not any("/pulls/2477" in call or "/compare/" in call for call in api.calls)
+
+
+def test_unchanged_pr_healthy_publication_ignores_expired_candidate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An expired retained artifact cannot block an independently published subject."""
+    root, api, event = _unchanged_pr_fixture(tmp_path)
+    manifest = source.read_image_manifest(root / source.MANIFEST_PATH)
+    manifest["candidate"]["artifact"]["expires_at"] = "2000-01-01T00:00:00Z"
+    raw = source.canonical_data(manifest)
+    (root / source.MANIFEST_PATH).write_bytes(raw)
+    for files in api.files.values():
+        files[source.MANIFEST_PATH] = raw
+    admission = source.event_admission(api, root, event, "pull_request", "5" * 40)
+    assert admission["mode"] == "unchanged_published"
+    assert not any("/artifacts/" in call or "/pulls/2477" in call for call in api.calls)
+    # The actual consumer likewise must not acquire a candidate in published mode.
+    material, work, _reader, trace = _consumer_fixture(
+        monkeypatch, tmp_path / "consume", published=True
+    )
+    assert source.consume_image(work, material, 30, 2)["component_consumption"] == "published"
+    assert "candidate" not in trace and "load" not in trace
+
+
+@pytest.mark.parametrize(
+    "credential", ["GHCR_READ_TOKEN", "GHCR_TOKEN", "DOCKER_CONFIG", "DOCKER_AUTH_CONFIG"]
+)
+def test_pr_evidence_selection_rejects_registry_environment_before_api(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, credential: str
+) -> None:
+    root, api, event = _unchanged_pr_fixture(tmp_path)
+    for name in ("GHCR_READ_TOKEN", "GHCR_TOKEN", "DOCKER_CONFIG", "DOCKER_AUTH_CONFIG"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv(credential, "synthetic-forbidden")
+    with pytest.raises(
+        source.QualificationError, match="^consumer_selection_registry_credentials$"
+    ):
+        source.select_pr_evidence_route(api, root, event, "5" * 40)
+    assert api.calls == [] and api.publication.requests == []
+
+
+@pytest.mark.parametrize("fault", ["head", "base", "state"])
+def test_candidate_acquisition_rechecks_current_pr_before_native_load(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str
+) -> None:
+    root, work, reader, trace = _consumer_fixture(
+        monkeypatch, tmp_path, published=False, mode="historical_pr_candidate"
+    )
+    original = source.candidate_payload
+
+    def acquire(api: Any, selected: Path, destination: Path) -> dict[str, Any]:
+        result = original(api, selected, destination)
+        native_json = api.json
+
+        def changed(endpoint: str) -> dict[str, Any]:
+            value = native_json(endpoint)
+            if fault == "state":
+                value["state"] = "closed"
+            else:
+                value[fault]["sha"] = "f" * 40
+            return value
+
+        api.json = changed
+        return result
+
+    monkeypatch.setattr(source, "candidate_payload", acquire)
+    with pytest.raises(source.QualificationError, match="^consumer_route_binding$"):
+        source.consume_image(work, root, 30, 2)
+    assert trace == ["event", "source-root", "candidate", "cleanup"]
+    assert not reader.exists() and not (work / "evidence/consumer.json").exists()
+
+
+@pytest.mark.parametrize("published", [False, True])
+@pytest.mark.parametrize("retarget", [False, True])
+def test_consumer_rechecks_main_base_ref_after_acquisition_before_effect(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, published: bool, retarget: bool
+) -> None:
+    root, work, reader, trace = _consumer_fixture(
+        monkeypatch,
+        tmp_path,
+        published=published,
+        mode="unchanged_published" if published else "historical_pr_candidate",
+    )
+    original_json = source.GitHubRead.json
+    boundary = "public-package" if published else "candidate"
+    observed: list[str] = []
+
+    def live_pr(api: Any, endpoint: str) -> dict[str, Any]:
+        value = original_json(api, endpoint)
+        assert endpoint.endswith("/pulls/2493")
+        if boundary in trace:
+            assert value["base"]["sha"] == "b" * 40 and value["base"]["ref"] == "main"
+            if retarget:
+                value["base"]["ref"] = "release"
+            observed.append(value["base"]["ref"])
+        return value
+
+    monkeypatch.setattr(source.GitHubRead, "json", live_pr)
+    before_effect = (
+        ["event", "predecessor", "public-package"]
+        if published
+        else ["event", "source-root", "candidate"]
+    )
+    if retarget:
+        with pytest.raises(source.QualificationError, match="^consumer_route_binding$"):
+            source.consume_image(work, root, 30, 2)
+        assert observed == ["release"] and trace == [*before_effect, "cleanup"]
+        assert not (work / "evidence/consumer.json").exists()
+    else:
+        source.consume_image(work, root, 30, 2)
+        effects = (
+            ["login", "pull", "raw", "cleanup", "inspect"]
+            if published
+            else ["cleanup", "load", "inspect"]
+        )
+        assert observed == ["main"] and trace == [*before_effect, *effects]
+    assert not reader.exists() and not (work / "GitHub-private").exists()
+
+
+def test_pr_selection_change_before_consumption_rejects_expected_route(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A positive publisher arriving between observations cannot silently change classes."""
+    root, api, event = _unchanged_pr_fixture(tmp_path)
+    for name in ("GHCR_READ_TOKEN", "GHCR_TOKEN", "DOCKER_CONFIG", "DOCKER_AUTH_CONFIG"):
+        monkeypatch.delenv(name, raising=False)
+    success = api.publication
+    api.publication = _PublicationPredecessorAPI([], {})
+    selected = source.select_pr_evidence_route(api, root, event, "5" * 40)
+    assert selected == "historical_pr_candidate"
+    api.publication = success
+    fresh = source.event_admission(api, root, event, "pull_request", "5" * 40)
+    assert fresh["mode"] == "unchanged_published"
+    monkeypatch.setenv("PROMETHEUS_CREDENTIAL_ROUTE", selected)
+    with pytest.raises(source.QualificationError, match="^consumer_route_binding$"):
+        source._bind_consumer_route(event, "pull_request", "5" * 40, fresh)
+
+
+@pytest.mark.parametrize(
+    "fault,diagnostic",
+    [
+        ("original-unmerged", "historical_original_merged_PR"),
+        ("selected-manifest", "historical_selected_manifest"),
+        ("selected-recipe", "historical_recipe_drift"),
+    ],
+)
+def test_unchanged_nonpositive_publication_still_requires_original_source(
+    tmp_path: Path, fault: str, diagnostic: str
+) -> None:
+    root, api, event = _unchanged_pr_fixture(tmp_path)
+    api.publication = _PublicationPredecessorAPI([], {})
+    assert source.event_admission(api, root, event, "pull_request", "5" * 40)["mode"] == (
+        "historical_pr_candidate"
+    )
+    if fault == "original-unmerged":
+        api.original["merged"] = False
+    elif fault == "selected-manifest":
+        api.files["3" * 40][source.MANIFEST_PATH] += b" "
+    else:
+        api.files["3" * 40][_HISTORICAL_SOURCE_PATHS[2]] += b"drift"
+    with pytest.raises(source.QualificationError, match="^" + diagnostic + "$"):
+        source.event_admission(api, root, event, "pull_request", "5" * 40)

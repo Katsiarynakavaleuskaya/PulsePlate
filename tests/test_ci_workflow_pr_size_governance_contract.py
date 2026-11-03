@@ -2775,6 +2775,9 @@ def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
     [
         ("copy", "docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.json", "1"),
         ("copy", "docs/evidence/unrelated.json", "0"),
+        ("rename", "docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.json", "1"),
+        ("rename", "docs/evidence/unrelated.json", "0"),
+        ("modify", "scripts/ci/check_philosophy_source_corpus_index.py", "1"),
         ("modify", "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md", "1"),
         (
             "modify",
@@ -2851,12 +2854,15 @@ def test_docs_phase1_corpus_input_discovery_executes_workflow_path_loop(
     )
     base_ref = run_git("rev-parse", "HEAD")
     destination_path: str | None = None
-    if operation == "copy":
+    if operation in {"copy", "rename"}:
         destination_path = "docs/evidence/copied.json"
         destination = repo / destination_path
         destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_bytes(source.read_bytes())
-        run_git("add", destination_path)
+        if operation == "copy":
+            destination.write_bytes(source.read_bytes())
+            run_git("add", destination_path)
+        else:
+            run_git("mv", source_path, destination_path)
     else:
         source.write_text("safe updated corpus evidence\n", encoding="utf-8")
         run_git("add", source_path)
@@ -2878,6 +2884,11 @@ def test_docs_phase1_corpus_input_discovery_executes_workflow_path_loop(
     end = run_script.index("\n", run_script.index("done < <(git diff --name-status", start))
     path_loop = run_script[start:end]
     assert "--find-copies-harder" in path_loop
+    call_start = run_script.index('if [ "${PR5_SOURCE_CORPUS_CHANGED}" -eq 1 ]; then')
+    # YAML dedents the complete run body; locate the first standalone closing fi.
+    call_lines = run_script[call_start:].splitlines()
+    end_line = next(index for index, line in enumerate(call_lines) if line.strip() == "fi")
+    corpus_call = "\n".join(call_lines[: end_line + 1])
 
     def run_shell(script: str, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
@@ -2899,12 +2910,29 @@ def test_docs_phase1_corpus_input_discovery_executes_workflow_path_loop(
         'test -z "${GH_TOKEN+x}" && test -z "${BASH_ENV+x}" || exit 71\n'
         + "set -euo pipefail\n"
         + path_loop
+        + "\npython() { printf 'ARG=%s\\n' \"$@\"; }\n"
+        + corpus_call
         + "\nprintf 'FLAG=%s\\n' \"$PR5_SOURCE_CORPUS_CHANGED\"\n"
         + "printf 'PATH=%s\\n' \"${ALL_CHANGED_FILES[@]}\"\n",
         {**fixture_env, "BASE_REF": base_ref},
     )
     assert not marker.exists()
 
+    output_lines = result.stdout.splitlines()
+    paths = [line.removeprefix("PATH=") for line in output_lines if line.startswith("PATH=")]
+    arguments = [line.removeprefix("ARG=") for line in output_lines if line.startswith("ARG=")]
+    assert arguments == (
+        [
+            "scripts/ci/check_philosophy_source_corpus_index.py",
+            "--check",
+            "--base-ref",
+            base_ref,
+            "--files",
+            *paths,
+        ]
+        if expected_trigger == "1"
+        else []
+    )
     assert f"FLAG={expected_trigger}" in result.stdout.splitlines()
     assert f"PATH={source_path}" in result.stdout.splitlines()
     if destination_path is not None:

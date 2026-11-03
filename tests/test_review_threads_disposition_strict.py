@@ -2193,3 +2193,43 @@ def test_review_thread_page_limit_accepts_only_terminal_hundredth_page(
     else:
         assert _disposition_mod._collect_resolved_threads(1) == []
     assert len(calls) == 100
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        (b"2026-01-02T03:04:05Z\n", "2026-01-02T03:04:05+00:00"),
+        (b"2026-01-02T03:04:05+00:00\n", "2026-01-02T03:04:05+00:00"),
+        (b"2026-01-02T03:04:05-03:30\n", "2026-01-02T03:04:05-03:30"),
+        (b"2024-02-29T23:59:59+23:59\n", "2024-02-29T23:59:59+23:59"),
+        (b"2026-02-29T03:04:05Z\n", None),
+        (b"2026-01-02T24:04:05Z\n", None),
+        (b"2026-01-02T03:04:60Z\n", None),
+        (b"2026-01-02T03:04:05+24:00\n", None),
+        (b"2026-01-02T03:04:05+00:60\n", None),
+        (b"2026-01-02T03:04:05\n", None),
+        (b"2026-01-02T03:04:05z\n", None),
+        (b"2026-01-02T03:04:05.0Z\n", None),
+        (b"2026-01-02T03:04:05Z", None),
+        (b"2026-01-02T03:04:05Z\r\n", None),
+        (b"2026-01-02T03:04:05Z\n\n", None),
+        (b" 2026-01-02T03:04:05Z\n", None),
+        (b"2026-01-02T03:04:05Z\x00\n", None),
+        (b"2026-01-02T03:04:05\xff\n", None),
+    ],
+)
+def test_local_git_timestamp_accepts_only_native_z_or_offset(
+    monkeypatch: MonkeyPatch, raw: bytes, expected: str | None
+) -> None:
+    """Only the time spelling changes; the real metadata identity test stays independent."""
+
+    def metadata(commit_sha: str, operation: str) -> bytes:
+        assert commit_sha == "a" * 40 and operation == "time"
+        return raw
+
+    monkeypatch.setattr(_disposition_mod, "_commit_metadata", metadata)
+    if expected is None:
+        with pytest.raises(RuntimeError, match="^Invalid local commit timestamp$"):
+            _disposition_mod._git_commit_time_iso("a" * 40)
+    else:
+        assert _disposition_mod._git_commit_time_iso("a" * 40) == expected

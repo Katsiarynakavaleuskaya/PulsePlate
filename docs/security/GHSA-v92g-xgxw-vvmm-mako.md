@@ -156,8 +156,9 @@ this is staged material identity, not a published commit. Qualified compiler:
 pip26.2.2 / pip-tools7.6.1 / packaging26.3, approved private proxy, retained matching
 psycopg SDK input; container image
 `sha256:4dacf887f001d20d6cbd453037201df331f2e7719b6077e68cda027712f1ed31`.
-The exact qualified interpreter argument was
-`VENV_PYTHON=/owned/main2497-integration-20261031/mako-compiler-qualification-01/venv/bin/python`.
+The exact qualified interpreter argument remains in the private transaction receipt.
+This public record redacts only its task-local location:
+`VENV_PYTHON=<redacted-qualified-interpreter>`.
 Each command used canonical `make requirements-locks`, `UPGRADE_PACKAGES=mako==1.4.2`,
 empty `GRAPH_CHANGE_PACKAGES=` and `GRAPH_CHANGE_ADMISSION=`, under a900-second
 outer timeout with30-second termination grace. Runtime selected `LOCK_PROFILES=runtime`;

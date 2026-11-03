@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 import signal
 import shutil
@@ -11,6 +12,7 @@ import tempfile
 import time
 from concurrent.futures import Future
 from pathlib import Path
+from types import SimpleNamespace
 from typing import cast
 
 import pytest
@@ -650,7 +652,9 @@ def test_terminate_process_group_sends_sigterm_on_posix(
         runner.time, "sleep", lambda seconds: clock.__setitem__(0, clock[0] + seconds)
     )
 
-    def census(pid: int, selector: str, deadline: float) -> list[tuple[int, int, int, str]]:
+    def census(
+        pid: int, selector: str, deadline: float, *, repeat_term_poll: bool = False
+    ) -> list[tuple[int, int, int, str]]:
         rows = [(pid, os.getpid(), pid, "Z")]
         return rows
 
@@ -692,7 +696,9 @@ def test_terminate_process_group_escalates_to_sigkill_on_timeout(
         runner.time, "sleep", lambda seconds: clock.__setitem__(0, clock[0] + seconds)
     )
 
-    def census(pid: int, selector: str, deadline: float) -> list[tuple[int, int, int, str]]:
+    def census(
+        pid: int, selector: str, deadline: float, *, repeat_term_poll: bool = False
+    ) -> list[tuple[int, int, int, str]]:
         rows = [(pid, os.getpid(), pid, "Z")]
         if len(signals_sent) == 1:
             rows.append((pid + 1, 1, pid, "S"))
@@ -1551,9 +1557,18 @@ def test_shard_group_cleanup_observes_live_resistant_child_before_escalating(
         "Path(role + '-ready').write_text(str(os.getpid()))\n"
         "while not Path('stop').exists():\n"
         "    challenge = Path(role + '-challenge')\n"
-        "    if challenge.exists(): Path(role + '-ack').write_bytes(challenge.read_bytes())\n"
+        "    if challenge.exists():\n"
+        "        pending = Path(role + '-ack.tmp')\n"
+        "        pending.write_bytes(challenge.read_bytes())\n"
+        "        pending.replace(Path(role + '-ack'))\n"
         "    time.sleep(.02)\n"
     )
+
+    def publish_challenge(role: str, value: bytes) -> None:
+        # Each challenge/ack has one writer and is published on the same filesystem.
+        pending = tmp_path / f"{role}-challenge.tmp"
+        pending.write_bytes(value)
+        pending.replace(tmp_path / f"{role}-challenge")
 
     def start(role: str) -> subprocess.Popen[bytes]:
         return subprocess.Popen(
@@ -1587,12 +1602,14 @@ def test_shard_group_cleanup_observes_live_resistant_child_before_escalating(
         census = runner._shard_ps
         challenge = b"after-leader-exit"
 
-        def observe(pid: int, select: str, deadline: float) -> list[tuple[int, int, int, str]]:
-            rows = census(pid, select, deadline)
+        def observe(
+            pid: int, select: str, deadline: float, *, repeat_term_poll: bool = False
+        ) -> list[tuple[int, int, int, str]]:
+            rows = census(pid, select, deadline, repeat_term_poll=repeat_term_poll)
             if select == "-g":
                 samples.append(rows)
                 if (tmp_path / "term-seen").is_file():
-                    (tmp_path / "resistant-challenge").write_bytes(challenge)
+                    publish_challenge("resistant", challenge)
             return rows
 
         monkeypatch.setattr(runner, "_shard_ps", observe)
@@ -1606,7 +1623,7 @@ def test_shard_group_cleanup_observes_live_resistant_child_before_escalating(
         assert samples and all(
             state.startswith("Z") for _, _, pgid, state in samples[-1] if pgid == leader.pid
         )
-        (tmp_path / "outside-challenge").write_bytes(b"after-owned-cleanup")
+        publish_challenge("outside", b"after-owned-cleanup")
         wait_file(tmp_path / "outside-ack", b"after-owned-cleanup")
     finally:
         (tmp_path / "stop").touch()
@@ -1749,7 +1766,9 @@ def test_failed_shard_instrument_preserves_lease_escalation_and_reap(
 
     monkeypatch.setattr(runner.os, "killpg", send)
 
-    def census(pid: int, selector: str, deadline: float) -> list[tuple[int, int, int, str]]:
+    def census(
+        pid: int, selector: str, deadline: float, *, repeat_term_poll: bool = False
+    ) -> list[tuple[int, int, int, str]]:
         assert pid == Child.pid and deadline > clock[0]
         if (
             fault == "point-before-term"
@@ -1831,3 +1850,254 @@ def test_watchdog_echild_cannot_reacquire_pid_in_finally(
         else:
             runner.run_all_shards(tmp_path, [shard], 1, {})
     assert running.custody_lost and calls == ["observe"]
+
+
+@pytest.mark.parametrize(
+    "fault",
+    (
+        "baseline",
+        "prestart",
+        "partial_slot",
+        "started_timeout",
+        "prior_failure",
+        "prior_failure_then_defer",
+        "missing_ps",
+        "relative_ps",
+        "kill_expiry",
+        "short_probe",
+        "watchdog",
+    ),
+)
+def test_shard_census_prestart_expiry_preserves_phase_and_failure_boundaries(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], fault: str
+) -> None:
+    """Exercise the actual cleanup, readiness and census bodies at native/clock seams."""
+    now = 0.0
+    group_attempts = 0
+    lookups = 0
+    sleeps = 0
+    expiry_observed = False
+    signals: list[int] = []
+    native: list[tuple[str, float]] = []
+    waits: list[float] = []
+    pid, parent = 4567, 1234
+
+    def which(name: str, *, path: str) -> str | None:
+        nonlocal now, lookups, expiry_observed
+        assert name == "ps" and path == "/synthetic-system-path"
+        lookups += 1
+        assert lookups < 12
+        if fault in {"partial_slot", "prior_failure_then_defer"} and lookups == (
+            3 if fault == "prior_failure_then_defer" else 2
+        ):
+            # The caller had a full slot. Tool lookup consumed part of it.
+            assert now == 9.875 and signals == [signal.SIGTERM]
+            now = 9.999
+            expiry_observed = True
+        elif fault in {"short_probe", "watchdog"} and lookups == 1:
+            assert now == 0.0
+            now = 0.251
+            expiry_observed = True
+        elif (
+            fault in {"prestart", "prior_failure", "missing_ps", "relative_ps", "kill_expiry"}
+            and signals == [signal.SIGTERM]
+            and group_attempts == (2 if fault == "prior_failure" else 1)
+            and not expiry_observed
+        ):
+            assert now == 9.999
+            now = 10.001
+            expiry_observed = True
+            if fault == "missing_ps":
+                return None
+            if fault == "relative_ps":
+                return "relative-ps"
+        elif fault == "kill_expiry" and signals == [signal.SIGTERM, signal.SIGKILL]:
+            assert now == 10.001
+            now = 20.002
+        return "/synthetic-system-bin/ps"
+
+    def sleep(delay: float) -> None:
+        nonlocal now, sleeps
+        assert 0 <= delay <= 0.1
+        sleeps += 1
+        assert sleeps <= 3
+        if sleeps == 1 and fault == "prior_failure_then_defer":
+            now = 9.75
+        elif sleeps == 1:
+            now = (
+                9.875
+                if fault
+                in {
+                    "baseline",
+                    "partial_slot",
+                    "started_timeout",
+                    "prior_failure",
+                    "short_probe",
+                }
+                else 9.999
+            )
+        elif fault == "prior_failure" and sleeps == 2:
+            now = 9.999
+        elif fault == "prior_failure_then_defer" and sleeps == 2:
+            now = 9.875
+        else:
+            now += delay
+
+    def ps_run(
+        argv: list[str],
+        *,
+        stdin: int,
+        capture_output: bool,
+        timeout: float,
+        check: bool,
+        env: dict[str, str],
+    ) -> subprocess.CompletedProcess[bytes]:
+        nonlocal now, group_attempts
+        assert argv[0] == "/synthetic-system-bin/ps"
+        assert argv[1] in {"-p", "-g"}
+        assert argv[2:] == [str(pid), "-o", "pid=,ppid=,pgid=,stat="]
+        assert stdin == subprocess.DEVNULL and capture_output and not check
+        assert env == {"PATH": "/synthetic-system-path", "LC_ALL": "C"}
+        assert 0 < timeout <= 10
+        native.append((argv[1], timeout))
+        rows = f"{pid} {parent} {pid} Zs\n"
+        if argv[1] == "-g":
+            group_attempts += 1
+            if group_attempts == 1:
+                rows += f"{pid + 1} 1 {pid} S\n"
+            elif fault == "started_timeout" and group_attempts == 2:
+                assert timeout == 0.125 and now < 10
+                now = 10.001
+                raise subprocess.TimeoutExpired(argv, timeout)
+            elif fault in {"prior_failure", "prior_failure_then_defer"} and group_attempts == 2:
+                return subprocess.CompletedProcess(argv, 1, stdout=b"", stderr=b"")
+            else:
+                rows += f"{pid + 1} 1 {pid} Z\n"
+        return subprocess.CompletedProcess(argv, 0, stdout=rows.encode(), stderr=b"")
+
+    def send(target: int, sig: int) -> None:
+        assert target == pid
+        signals.append(sig)
+        assert signals in ([signal.SIGTERM], [signal.SIGTERM, signal.SIGKILL])
+
+    class Child:
+        returncode: int | None = None
+
+        def __init__(self) -> None:
+            self.pid = pid
+
+        def wait(self, *, timeout: float) -> int:
+            assert not waits and 0 <= timeout <= 10
+            waits.append(timeout)
+            self.returncode = -signal.SIGTERM
+            return self.returncode
+
+    child = cast(subprocess.Popen[bytes], Child())
+    synthetic_os = SimpleNamespace(
+        name="posix",
+        defpath="/synthetic-system-path",
+        path=SimpleNamespace(isabs=lambda value: value.startswith("/")),
+        getpid=lambda: parent,
+        getpgid=lambda target: target,
+        getsid=lambda target: target,
+        killpg=send,
+    )
+    if fault not in {"short_probe", "watchdog"}:
+        synthetic_os.waitid = lambda *_: SimpleNamespace(si_pid=pid)
+        synthetic_os.P_PID = 1
+        synthetic_os.WEXITED = 2
+        synthetic_os.WNOHANG = 4
+        synthetic_os.WNOWAIT = 8
+    monkeypatch.setattr(runner, "os", synthetic_os)
+    monkeypatch.setattr(runner, "time", SimpleNamespace(monotonic=lambda: now, sleep=sleep))
+    monkeypatch.setattr(runner, "shutil", SimpleNamespace(which=which))
+    monkeypatch.setattr(
+        runner,
+        "signal",
+        SimpleNamespace(
+            SIGTERM=signal.SIGTERM,
+            SIGKILL=signal.SIGKILL,
+            SIGCHLD=signal.SIGCHLD,
+            SIG_DFL=signal.SIG_DFL,
+            getsignal=lambda _: signal.SIG_DFL,
+        ),
+    )
+    monkeypatch.setattr(
+        runner,
+        "subprocess",
+        SimpleNamespace(
+            run=ps_run,
+            DEVNULL=subprocess.DEVNULL,
+            SubprocessError=subprocess.SubprocessError,
+            TimeoutExpired=subprocess.TimeoutExpired,
+        ),
+    )
+
+    if fault == "watchdog":
+        running = runner.RunningShard(runner.TestShard(index=1), child, 0.0, 1)
+        assert runner._ready_at_watchdog(running, 0.25) is False
+        assert expiry_observed and now == 0.251
+        assert not native and not waits and not signals
+        assert "MAIN_TEST_SHARD_OBSERVATION_FAILED" in capsys.readouterr().err
+        return
+    if fault in {"baseline", "prestart", "partial_slot"}:
+        runner._terminate_process_group(child)
+    else:
+        message = (
+            "Shard group cleanup not verified within TERM/KILL limits"
+            if fault == "kill_expiry"
+            else "Shard cleanup observation was incomplete"
+        )
+        with pytest.raises(RuntimeError, match=f"^{message}$") as raised:
+            runner._terminate_process_group(child)
+        if fault == "started_timeout":
+            assert str(raised.value.__cause__) == "Shard SIGTERM group census: TimeoutExpired"
+        elif fault in {"prior_failure", "prior_failure_then_defer"}:
+            assert str(raised.value.__cause__) == "Shard SIGTERM group census: RuntimeError"
+    assert len(waits) == 1 and child.returncode == -signal.SIGTERM
+    assert signals == (
+        [signal.SIGTERM]
+        if fault in {"baseline", "short_probe"}
+        else [signal.SIGTERM, signal.SIGKILL]
+    )
+    assert group_attempts == (
+        1
+        if fault == "kill_expiry"
+        else 3 if fault in {"started_timeout", "prior_failure", "prior_failure_then_defer"} else 2
+    )
+    if fault == "kill_expiry":
+        assert waits == [0] and now == 20.002
+    elif fault == "partial_slot":
+        assert now == 10.0 and lookups == 3
+        assert [timeout for selector, timeout in native if selector == "-g"] == [10.0, 10.0]
+    elif fault == "prior_failure_then_defer":
+        assert now == 10.0 and lookups == 4
+    elif fault in {"baseline", "short_probe"}:
+        assert now == 9.875
+    else:
+        assert now == 10.001
+    if fault not in {"baseline", "started_timeout"}:
+        assert expiry_observed
+
+
+def test_only_repeated_term_census_requires_a_full_polling_interval(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    timeouts: list[float] = []
+
+    def ps(
+        argv: list[str], *, timeout: float, **kwargs: object
+    ) -> subprocess.CompletedProcess[bytes]:
+        timeouts.append(timeout)
+        return subprocess.CompletedProcess(argv, 0, f"42 {os.getpid()} 42 Z\n".encode(), b"")
+
+    monkeypatch.setattr(runner, "time", SimpleNamespace(monotonic=lambda: 0.0))
+    monkeypatch.setattr(runner, "shutil", SimpleNamespace(which=lambda *a, **kw: "/bin/ps"))
+    monkeypatch.setattr(runner, "subprocess", SimpleNamespace(run=ps, DEVNULL=subprocess.DEVNULL))
+    slot = runner._CLEANUP_POLL_INTERVAL
+    below = math.nextafter(slot, 0.0)
+    assert runner._shard_ps(42, "-g", slot, repeat_term_poll=True) == [(42, os.getpid(), 42, "Z")]
+    with pytest.raises(runner._TermPollDeferred):
+        runner._shard_ps(42, "-g", below, repeat_term_poll=True)
+    assert runner._shard_ps(42, "-g", below) == [(42, os.getpid(), 42, "Z")]
+    assert timeouts == [slot, below]

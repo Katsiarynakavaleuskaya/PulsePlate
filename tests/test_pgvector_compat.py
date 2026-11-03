@@ -1962,8 +1962,9 @@ def test_cd_exact_pgvector_image_proves_fresh_and_legacy_volume_contracts() -> N
         '"${prefix}-prior-data"',
     ):
         assert required in publish_job
-    assert '--input "$PGVECTOR_OCI_OUTPUT_DIR/oci-1"' in publish_job
-    assert '--input "$PGVECTOR_OCI_OUTPUT_DIR/image-1.oci.tar"' not in publish_job
+    # Executed OCI argv and all four scan subjects remain in the existing
+    # test_pg_scan_loop_retains_later_available_subjects_and_rejects_aggregate owner.
+    # The CD-only backend-hook mapping selects both pure contracts.
 
 
 def _ci_authority_environment(database_url: URL | None = None) -> dict[str, str]:

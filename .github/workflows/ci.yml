@@ -386,7 +386,7 @@ jobs:
           fi
 
           if [ "${PR5_SOURCE_CORPUS_CHANGED}" -eq 1 ]; then
-            echo "PR-5 source corpus guard changed; checking source index and all touched paths."
+            echo "Checking canonical corpus integrity and applicable scope/credentials for all touched paths."
             python scripts/ci/check_philosophy_source_corpus_index.py --check \
               --base-ref "$BASE_REF" --files "${ALL_CHANGED_FILES[@]}"
           fi
