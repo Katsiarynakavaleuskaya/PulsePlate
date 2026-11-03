@@ -4155,7 +4155,7 @@ def test_prometheus_cd_uses_authenticated_finite_consumer_and_retains_strict_sca
     assert "python3 -I -S" in consumer["run"]
     fixed = steps["Checkout fixed trusted Prometheus control"]
     assert fixed["with"] == {
-        "ref": "dab47fc6153f87e35233e20aa255d97e68a5ed93",  # pragma: allowlist secret - public trusted control commit
+        "ref": "cf3488793e25dacc3aa7684696746a4a639c113c",  # pragma: allowlist secret - public trusted control commit
         "persist-credentials": False,
         "path": "artifacts/orchestration/prometheus-control",
         "sparse-checkout": "scripts/ci/prometheus_source_image.py",
@@ -4177,6 +4177,17 @@ def test_prometheus_cd_uses_authenticated_finite_consumer_and_retains_strict_sca
         "PROMETHEUS_EVENT_BASE": "${{ steps.prometheus-event.outputs.base }}",
     }
     assert 'trusted["classify_source_change"](previous, current)' in classifier["run"]
+    selector = steps["Select authenticated Prometheus PR evidence"]
+    assert selector["if"] == fixed["if"]
+    assert selector["id"] == "prometheus-evidence"
+    assert selector["env"] == {
+        "GH_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
+        "GITHUB_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
+        "PROMETHEUS_SELECT_SECONDS": "60",
+        "PROMETHEUS_ROUTE_HEAD": "${{ steps.prometheus-route.outputs.head }}",
+        "PROMETHEUS_ROUTE_BASE": "${{ steps.prometheus-route.outputs.base }}",
+        "PROMETHEUS_CLASSIFIED_MODE": "${{ steps.prometheus-route.outputs.mode }}",
+    }
     assert "secrets." not in str(classifier)
     assert "Require the trusted base published consumer capability" not in names
     assert "Bind the unchanged PR admission after trusted cleanup" not in names
@@ -4189,6 +4200,7 @@ def test_prometheus_cd_uses_authenticated_finite_consumer_and_retains_strict_sca
         initial["name"],
         fixed["name"],
         classifier["name"],
+        "Select authenticated Prometheus PR evidence",
         consumer["name"],
         cleanup["name"],
         "Check canonical Prometheus config with exact-image promtool",
@@ -4202,7 +4214,11 @@ def test_prometheus_cd_uses_authenticated_finite_consumer_and_retains_strict_sca
         usedforsecurity=False,
     ).hexdigest()
     control_object = f"100644 blob {control_blob}\\tscripts/ci/prometheus_source_image.py\\0"
-    for program in (classifier["run"], consumer["run"]):
+    for program in (
+        classifier["run"],
+        steps["Select authenticated Prometheus PR evidence"]["run"],
+        consumer["run"],
+    ):
         assert str(len(control_bytes)) in program
         assert control_object in program
         assert hashlib.sha256(control_bytes).hexdigest() in program
@@ -4220,8 +4236,10 @@ def test_prometheus_cd_uses_authenticated_finite_consumer_and_retains_strict_sca
     assert consumer["env"] == {
         "GH_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
         "GITHUB_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
-        "GHCR_READ_TOKEN": "${{ github.event_name == 'pull_request' && steps.prometheus-route.outputs.mode == 'unchanged_pr_published' && secrets.GITHUB_TOKEN || github.event_name != 'pull_request' && steps.prometheus-route.outputs.mode == 'trusted_published' && secrets.GHCR_READ_TOKEN || '' }}",
-        "PROMETHEUS_CREDENTIAL_ROUTE": "${{ steps.prometheus-route.outputs.mode }}",
+        "GHCR_READ_TOKEN": "${{ github.event_name == 'pull_request' && steps.prometheus-evidence.outcome == 'success' && steps.prometheus-evidence.outputs.mode == 'unchanged_pr_published' && secrets.GITHUB_TOKEN || github.event_name != 'pull_request' && steps.prometheus-route.outputs.mode == 'trusted_published' && secrets.GHCR_READ_TOKEN || '' }}",
+        "PROMETHEUS_CREDENTIAL_ROUTE": "${{ github.event_name == 'pull_request' && steps.prometheus-evidence.outputs.mode || github.event_name != 'pull_request' && steps.prometheus-route.outputs.mode || '' }}",
+        "PROMETHEUS_ROUTE_HEAD": "${{ steps.prometheus-evidence.outputs.head }}",
+        "PROMETHEUS_ROUTE_BASE": "${{ steps.prometheus-evidence.outputs.base }}",
     }
     assert not any(
         step.get("uses", "").startswith("docker/login-action@")
@@ -4251,6 +4269,64 @@ def _prometheus_cd_python(step: dict[str, object]) -> str:
     return run.split("<<'PY'\n", 1)[1].split("\nPY", 1)[0]
 
 
+# Synthetic transport and historical producer inputs for the separately pinned control.
+# The real classification, publication observer, selector and fresh consume binding execute.
+_PROMETHEUS_SELECTOR_API_FIXTURE = """
+def read_image_manifest(path):
+    return {"candidate": {"producer": {"pr_number": 2477, "source_head": "1"*40, "source_ref": "synthetic"}}}
+def authenticate_pr_source(*args):
+    return {}
+def authenticate_producer_inputs(*args):
+    pass
+def _historical_selected_files(api, manifest, base, head, current):
+    return "3"*40, current
+class GitHubRead(GitHubRead):
+    def __init__(self, private, evidence, deadline, cleanup):
+        self.private, self.deadline = private, deadline
+        self.selecting = private.name == "GitHub-private"
+        self.outcome = os.environ["SYNTHETIC_OUTCOME"]
+        self.event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_bytes())
+        if self.selecting:
+            assert os.environ["GH_TOKEN"] == os.environ["GITHUB_TOKEN"] == "synthetic.ephemeral.reader"
+            assert not os.environ.get("GHCR_READ_TOKEN")
+            assert cleanup == 120 and 0 < deadline-time.monotonic() <= 60
+            private.mkdir()
+            with Path(os.environ["SYNTHETIC_TRACE"]).open("a") as stream: print(json.dumps("CONTROL-select"), file=stream)
+    def source_files(self, ref, names):
+        env = {"PATH": "/usr/bin:/bin", "GIT_NO_REPLACE_OBJECTS": "1"}
+        return {name: subprocess.check_output(["/usr/bin/git", "show", ref+":"+name], env=env) for name in names}
+    def json(self, endpoint):
+        pr = self.event["pull_request"]
+        if endpoint.endswith("/pulls/2477"):
+            if self.outcome in {"selector-api-error", "selector-api-and-cleanup-error"}: raise QualificationError("synthetic_selector_api")
+            live = {"state": "open", **pr}
+            if self.outcome == "selector-base-retarget": live["base"] = {**pr["base"], "ref": "release"}
+            if self.outcome == "selector-head-drift": live["head"] = {**pr["head"], "sha": "e"*40}
+            return live
+        base = pr["base"]["sha"]
+        state = {"status": "completed", "conclusion": "success"}
+        run = {"id": 12, "run_attempt": 1, "workflow_id": 42, "head_sha": base,
+               "head_branch": "main", "event": "push", "path": ".github/workflows/build.yml",
+               "repository": {"id": 1043311030}, "head_repository": {"id": 1043311030}, **state}
+        empty = self.outcome == "unchanged-candidate" or self.outcome == "selector-consumer-drift" and self.selecting
+        if "/workflows/build.yml/runs?" in endpoint:
+            if self.outcome == "selector-malformed": return {"total_count": "1"}
+            return {"total_count": 0 if empty else 1, "workflow_runs": [] if empty else [run]}
+        if "/jobs?" in endpoint:
+            job = {"id": 121, "run_id": 12, "run_attempt": 1, "head_sha": base,
+                   "name": "prometheus-publish", **state}
+            jobs = [job, {**job, "id": 122}] if self.outcome == "selector-ambiguous" else [job]
+            return {"total_count": len(jobs), "jobs": jobs}
+        assert endpoint.endswith("/runs/12")
+        return run
+    def close(self):
+        if self.selecting:
+            with Path(os.environ["SYNTHETIC_TRACE"]).open("a") as stream: print(json.dumps("CONTROL-selector-close"), file=stream)
+            if self.outcome in {"selector-cleanup-error", "selector-api-and-cleanup-error"}: raise QualificationError("synthetic_selector_cleanup")
+            if self.outcome != "selector-private-remains": self.private.rmdir()
+"""
+
+
 def _synthetic_fixed_prometheus_control(
     repository: Path, environment: dict[str, str], programs: tuple[str, ...], *, revision: str
 ) -> tuple[str, ...]:
@@ -4273,6 +4349,7 @@ def _synthetic_fixed_prometheus_control(
     object_failure = environment["SYNTHETIC_OUTCOME"] in {
         "changed-control-object",
         "changed-consumer-control-object",
+        "changed-selector-control-object",
     }
     import_marker = (
         "with Path(os.environ['SYNTHETIC_TRACE']).with_name('control-imports').open('a') as stream: stream.write('import\\n')\n"
@@ -4285,9 +4362,11 @@ def _synthetic_fixed_prometheus_control(
     helper.write_bytes(
         production_bytes
         + b"\n"
+        + _PROMETHEUS_SELECTOR_API_FIXTURE.encode()
         + (
             import_marker + "_fixture_real_classifier=classify_source_change\n"
             "def classify_source_change(base, head):\n"
+            " if os.environ.get('GH_TOKEN'): return _fixture_real_classifier(base, head)\n"
             " assert not any(os.environ.get(key) for key in ('GH_TOKEN','GITHUB_TOKEN','GHCR_READ_TOKEN','GHCR_TOKEN','GH_ENTERPRISE_TOKEN','GITHUB_ENTERPRISE_TOKEN','DOCKER_CONFIG','DOCKER_AUTH_CONFIG'))\n"
             " with Path(os.environ['SYNTHETIC_TRACE']).open('a') as stream: stream.write(json.dumps('CONTROL-classify')+'\\n')\n"
             " return _fixture_real_classifier(base, head)\n"
@@ -4301,6 +4380,13 @@ def _synthetic_fixed_prometheus_control(
             " trace=Path(os.environ['SYNTHETIC_TRACE'])\n"
             " def record(value):\n"
             "  with trace.open('a') as stream: stream.write(json.dumps(value)+'\\n')\n"
+            " event=json.loads(Path(os.environ['GITHUB_EVENT_PATH']).read_bytes())\n"
+            " api=GitHubRead(work/'private',work/'evidence',time.monotonic()+60,cleanup)\n"
+            " try:\n"
+            "  fresh=event_admission(api,material,event,'pull_request',event['pull_request']['head']['sha'])\n"
+            "  _bind_consumer_route(event,'pull_request',event['pull_request']['head']['sha'],fresh)\n"
+            "  _require_consumer_current(api,event,'pull_request',event['pull_request']['head']['sha'])\n"
+            " finally: api.close()\n"
             " record('CONTROL-consume')\n"
             " outcome=os.environ['SYNTHETIC_OUTCOME']\n"
             " if outcome in ('changed-api-failure','historical-api-failure'): raise QualificationError('synthetic_API_failed')\n"
@@ -4365,7 +4451,11 @@ def _synthetic_fixed_prometheus_control(
     )
     variant = environment["SYNTHETIC_OUTCOME"]
     if object_failure:
-        target = 1 if variant == "changed-consumer-control-object" else 0
+        target = {
+            "changed-control-object": 0,
+            "changed-selector-control-object": 1,
+            "changed-consumer-control-object": 2,
+        }[variant]
         native_object = f"100644 blob {blob}\\tscripts/ci/prometheus_source_image.py\\0"
         assert rebound[target].count(native_object) == 1
         rebound = tuple(
@@ -4576,6 +4666,62 @@ def _prometheus_cd_route_fixture(tmp_path: Path, variant: str) -> tuple[Path, di
     return repository, environment
 
 
+def _run_prometheus_pr_selector(
+    repository: Path,
+    environment: dict[str, str],
+    step: dict[str, Any],
+    output: Path,
+    *,
+    budget: int,
+) -> subprocess.CompletedProcess[str]:
+    classified = dict(line.split("=", 1) for line in output.read_text().splitlines())
+    environment.update(
+        PROMETHEUS_ROUTE_HEAD=classified["head"],
+        PROMETHEUS_ROUTE_BASE=classified["base"],
+        PROMETHEUS_CLASSIFIED_MODE=classified["mode"],
+        PROMETHEUS_SELECT_SECONDS="60",
+        ALERTMANAGER_JOB_TIMEOUT_MINUTES=str(budget),
+        ALERTMANAGER_GENERIC_NATIVE_MINUTES="40",
+        ALERTMANAGER_LINT_CHECK_MINUTES="60",
+    )
+    env = {
+        **environment,
+        "GH_TOKEN": "synthetic.ephemeral.reader",
+        "GITHUB_TOKEN": "synthetic.ephemeral.reader",
+    }
+    outcome = env["SYNTHETIC_OUTCOME"]
+    if outcome == "selector-registry-env":
+        env["GHCR_READ_TOKEN"] = "synthetic.registry.reader"
+    elif outcome == "selector-missing-api":
+        env.pop("GH_TOKEN")
+    elif outcome == "selector-small-budget":
+        env["ALERTMANAGER_JOB_TIMEOUT_MINUTES"] = "166"
+    elif outcome == "selector-coordinate-drift":
+        env["PROMETHEUS_ROUTE_BASE"] = "e" * 40
+    output.write_text("")
+    result = subprocess.run(
+        [sys.executable, "-I", "-S", "-c", _prometheus_cd_python(step)],
+        cwd=repository,
+        env=env,
+        text=True,
+        capture_output=True,
+        timeout=20,
+        check=False,
+    )
+    if result.returncode:
+        assert not output.read_bytes()
+    else:
+        admitted = dict(line.split("=", 1) for line in output.read_text().splitlines())
+        assert admitted["head"] == classified["head"] and admitted["base"] == classified["base"]
+        assert not (
+            Path(env["RUNNER_TEMP"]) / "prometheus-pr-selection-123-1/GitHub-private"
+        ).exists()
+        environment.update(
+            PROMETHEUS_ROUTE_HEAD=admitted["head"], PROMETHEUS_ROUTE_BASE=admitted["base"]
+        )
+    return result
+
+
 @pytest.mark.parametrize(
     "variant,diagnostic",
     [
@@ -4584,6 +4730,21 @@ def _prometheus_cd_route_fixture(tmp_path: Path, variant: str) -> tuple[Path, di
         ("historical", None),
         ("manifest-and-helper", None),
         ("recipe-only", None),
+        ("unchanged-candidate", None),
+        ("selector-consumer-drift", "consumer_route_binding"),
+        ("selector-base-retarget", "consumer_actual_open_PR"),
+        ("selector-head-drift", "consumer_actual_open_PR"),
+        ("selector-malformed", "GitHub_finite_page_count"),
+        ("selector-ambiguous", "publication_predecessor_publisher_ambiguous"),
+        ("selector-registry-env", "Prometheus_selection_credentials_HOLD"),
+        ("selector-coordinate-drift", "Prometheus_material_revision_HOLD"),
+        ("selector-api-error", "synthetic_selector_api"),
+        ("selector-api-and-cleanup-error", "synthetic_selector_api,synthetic_selector_cleanup"),
+        ("selector-missing-api", "Prometheus_selection_API_credential_HOLD"),
+        ("selector-cleanup-error", "synthetic_selector_cleanup"),
+        ("selector-private-remains", "Prometheus_selection_cleanup_HOLD"),
+        ("selector-small-budget", "Prometheus_selection_enclosing_budget_HOLD"),
+        ("changed-selector-control-object", "Prometheus_control_object_HOLD"),
         ("metadata-failure", "synthetic_docker_metadata_failed"),
         ("changed-control-bytes", "Prometheus_control_bytes_HOLD"),
         ("changed-control-mode", "Prometheus_control_mode_HOLD"),
@@ -4674,11 +4835,14 @@ def test_prometheus_cd_classifies_before_pr_code_and_binds_trusted_handoff(
         )
         classification = steps["Classify the fixed regular Prometheus source blobs"]
         consumer = steps["Admit retained PR candidate or published immutable subject"]
-        classification["run"], consumer["run"] = _synthetic_fixed_prometheus_control(
-            repository,
-            environment,
-            (classification["run"], consumer["run"]),
-            revision=steps["Checkout fixed trusted Prometheus control"]["with"]["ref"],
+        selector = steps["Select authenticated Prometheus PR evidence"]
+        classification["run"], selector["run"], consumer["run"] = (
+            _synthetic_fixed_prometheus_control(
+                repository,
+                environment,
+                (classification["run"], selector["run"], consumer["run"]),
+                revision=steps["Checkout fixed trusted Prometheus control"]["with"]["ref"],
+            )
         )
         control_created = True
         if variant == "classification-token":
@@ -4686,11 +4850,15 @@ def test_prometheus_cd_classifies_before_pr_code_and_binds_trusted_handoff(
         result = python_step("Classify the fixed regular Prometheus source blobs")
         environment.pop("GH_TOKEN", None)
     if result.returncode == 0:
+        result = _run_prometheus_pr_selector(
+            repository, environment, selector, output_file, budget=170
+        )
+    if result.returncode == 0:
         route = dict(line.split("=", 1) for line in output_file.read_text().splitlines())
         mode = "unknown" if variant == "unknown-mode" else route["mode"]
         if variant in {"changed", "manifest-and-helper"}:
             assert mode == "changed_pr_candidate"
-        elif variant == "historical":
+        elif variant in {"historical", "unchanged-candidate", "selector-consumer-drift"}:
             assert mode == "historical_pr_candidate"
         elif variant == "unchanged":
             assert mode == "unchanged_pr_published"
@@ -4735,12 +4903,28 @@ def test_prometheus_cd_classifies_before_pr_code_and_binds_trusted_handoff(
     )
     assert "PR-import" not in observed and "PR-helper-import" not in observed
     assert "synthetic.registry.reader" not in result.stdout + result.stderr
-    if variant in {"changed-control-object", "changed-consumer-control-object"}:
+    if variant in {
+        "changed-control-object",
+        "changed-selector-control-object",
+        "changed-consumer-control-object",
+    }:
         marker = tmp_path / "control-imports"
         imports = marker.read_text() if marker.exists() else ""
-        assert imports == ("import\n" if variant == "changed-consumer-control-object" else "")
+        assert imports == (
+            "import\n"
+            * {
+                "changed-control-object": 0,
+                "changed-selector-control-object": 1,
+                "changed-consumer-control-object": 2,
+            }[variant]
+        )
     if variant == "metadata-failure":
-        assert observed == ["CONTROL-classify", "DOCKER-version"]
+        assert observed == [
+            "CONTROL-classify",
+            "CONTROL-select",
+            "CONTROL-selector-close",
+            "DOCKER-version",
+        ]
         assert not (tmp_path / "synthetic-registry-state").exists()
     if diagnostic is not None:
         assert result.returncode != 0 and diagnostic in result.stderr
@@ -4748,6 +4932,8 @@ def test_prometheus_cd_classifies_before_pr_code_and_binds_trusted_handoff(
     assert result.returncode == 0, result.stderr
     assert observed == [
         "CONTROL-classify",
+        "CONTROL-select",
+        "CONTROL-selector-close",
         "DOCKER-version",
         "DOCKER-info",
         "CONTROL-consume",
@@ -4777,6 +4963,21 @@ def test_prometheus_cd_classifies_before_pr_code_and_binds_trusted_handoff(
         ("historical", None),
         ("manifest-and-helper", None),
         ("recipe-only", None),
+        ("unchanged-candidate", None),
+        ("selector-consumer-drift", "consumer_route_binding"),
+        ("selector-base-retarget", "consumer_actual_open_PR"),
+        ("selector-head-drift", "consumer_actual_open_PR"),
+        ("selector-malformed", "GitHub_finite_page_count"),
+        ("selector-ambiguous", "publication_predecessor_publisher_ambiguous"),
+        ("selector-registry-env", "Prometheus_selection_credentials_HOLD"),
+        ("selector-coordinate-drift", "Prometheus_material_revision_HOLD"),
+        ("selector-api-error", "synthetic_selector_api"),
+        ("selector-api-and-cleanup-error", "synthetic_selector_api,synthetic_selector_cleanup"),
+        ("selector-missing-api", "Prometheus_selection_API_credential_HOLD"),
+        ("selector-cleanup-error", "synthetic_selector_cleanup"),
+        ("selector-private-remains", "Prometheus_selection_cleanup_HOLD"),
+        ("selector-small-budget", "Prometheus_selection_enclosing_budget_HOLD"),
+        ("changed-selector-control-object", "Prometheus_control_object_HOLD"),
         ("unselected", None),
         ("changed-control-bytes", "Prometheus_control_bytes_HOLD"),
         ("changed-control-mode", "Prometheus_control_mode_HOLD"),
@@ -4838,10 +5039,11 @@ def test_prometheus_ci_trusted_control_precedes_first_pr_import(
         return
     classification = steps["Classify the fixed regular Prometheus source blobs"]
     consumer = steps["Consume exact Prometheus subject before PR startup"]
-    classification["run"], consumer["run"] = _synthetic_fixed_prometheus_control(
+    selector = steps["Select authenticated Prometheus PR evidence"]
+    classification["run"], selector["run"], consumer["run"] = _synthetic_fixed_prometheus_control(
         repository,
         environment,
-        (classification["run"], consumer["run"]),
+        (classification["run"], selector["run"], consumer["run"]),
         revision=steps["Checkout fixed trusted Prometheus control"]["with"]["ref"],
     )
     output.write_text("")
@@ -4859,10 +5061,13 @@ def test_prometheus_ci_trusted_control_precedes_first_pr_import(
     )
     environment.pop("GH_TOKEN", None)
     if result.returncode == 0:
+        result = _run_prometheus_pr_selector(repository, environment, selector, output, budget=190)
+    if result.returncode == 0:
         route = dict(line.split("=", 1) for line in output.read_text().splitlines())["mode"]
         expected = (
             "historical_pr_candidate"
             if variant.startswith("historical")
+            or variant in {"unchanged-candidate", "selector-consumer-drift"}
             else (
                 "changed_pr_candidate"
                 if variant in {"changed", "manifest-and-helper"} or variant.startswith("changed-")
@@ -4925,15 +5130,32 @@ def test_prometheus_ci_trusted_control_precedes_first_pr_import(
     )
     assert "PR-import" not in observed and "PR-helper-import" not in observed
     assert "synthetic.ephemeral.reader" not in result.stdout + result.stderr
-    if variant in {"changed-control-object", "changed-consumer-control-object"}:
+    if variant in {
+        "changed-control-object",
+        "changed-selector-control-object",
+        "changed-consumer-control-object",
+    }:
         marker = tmp_path / "control-imports"
         imports = marker.read_text() if marker.exists() else ""
-        assert imports == ("import\n" if variant == "changed-consumer-control-object" else "")
+        assert imports == (
+            "import\n"
+            * {
+                "changed-control-object": 0,
+                "changed-selector-control-object": 1,
+                "changed-consumer-control-object": 2,
+            }[variant]
+        )
     if diagnostic is not None:
         assert result.returncode != 0 and diagnostic in result.stderr
         return
     assert result.returncode == 0, result.stderr
-    assert observed == ["CONTROL-classify", "CONTROL-consume", "CONTROL-cleanup"]
+    assert observed == [
+        "CONTROL-classify",
+        "CONTROL-select",
+        "CONTROL-selector-close",
+        "CONTROL-consume",
+        "CONTROL-cleanup",
+    ]
     names = list(steps)
     assert (
         names.index("Remove fixed trusted Prometheus control checkout")
@@ -15937,7 +16159,7 @@ def test_prometheus_cd_separates_pr_and_staging_without_duplicating_steps() -> N
     consumer = next(step for step in pr["steps"] if step.get("id") == "prometheus-image")
     assert consumer["env"]["GHCR_READ_TOKEN"] == (
         "${{ github.event_name == 'pull_request' && "
-        "steps.prometheus-route.outputs.mode == 'unchanged_pr_published' && "
+        "steps.prometheus-evidence.outcome == 'success' && steps.prometheus-evidence.outputs.mode == 'unchanged_pr_published' && "
         "secrets.GITHUB_TOKEN || github.event_name != 'pull_request' && "
         "steps.prometheus-route.outputs.mode == 'trusted_published' && "
         "secrets.GHCR_READ_TOKEN || '' }}"

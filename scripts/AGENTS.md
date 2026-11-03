@@ -378,22 +378,15 @@ phase budget, and its failure still blocks a successful cleanup result.
   volume changes and observation clocks retain their existing authority gates.
 - CI/CD PR image consumption must finish before PR-local actions, imports or
   native programs start. Acquire exact event-H material as data, then verify the
-  sparse fixed control checkout at `dab47fc6153f87e35233e20aa255d97e68a5ed93`, with
-  helper SHA-256 `d812e79fce6138426131f266e4f5fd8de03b72c9a56acea19bedb43a22f172f6`,
-  before credential-free canonical four-blob classification. Native regular Git
-  blobs supply B/H helper, build workflow, recipe and manifest bytes; the canonical
-  helper alone selects manifest-change, historical-helper-change or published use.
-  Both local PR modes execute that control through isolated stdlib `runpy`, receive
-  no registry credential and retain full original producer/candidate admission;
-  historical source is data only. Unchanged PRs use the same fixed control at H
-  and require a positive immutable publication predecessor. API credentials belong
-  only to the consumer step; same-repository published reads use the limited
-  ephemeral `GITHUB_TOKEN`. Fresh canonical consume cross-binds route, event,
-  current H and publisher independently of classification. Preserve bounded
-  consumer evidence/result binding and remove the owned control checkout before
-  PR startup. The closed non-PR CD branch retains `trusted_published`, its separate
-  publication wait and the `staging` Environment's `GHCR_READ_TOKEN`; it does not
-  dereference PR-only control or reinterpret main recovery as a local candidate.
+  pinned regular controller in the two workflows before each isolated execution.
+  The first step reads the four regular Git blobs without credentials. The next
+  uses the designated controller and GitHub read credentials to select a PR
+  evidence route within 60 seconds. Publish only the route and event coordinates
+  after owned private-state cleanup. Only the selected published PR route receives
+  the ephemeral registry reader. Consume independently authenticates the same
+  event, route and immutable subject before any registry login or native load.
+  Remove the owned checkout before PR startup. Trusted non-PR CD keeps its
+  positive publication wait and staging Environment registry reader.
 
 ### PR evidence selection and controller staging
 

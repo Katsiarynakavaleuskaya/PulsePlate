@@ -2305,6 +2305,22 @@ def _assert_checkpoint_pr_native_job(workflow: dict[str, object]) -> None:
     cleanup = _named_step(steps, "Remove fixed trusted Prometheus control checkout")
     selection = _named_step(steps, "Select native OBS2A material before PR startup")
     classifier = _named_step(steps, "Classify the fixed regular Prometheus source blobs")
+    evidence = _named_step(steps, "Select authenticated Prometheus PR evidence")
+    assert evidence["if"] == native["if"] and evidence["id"] == "checkpoint-evidence"
+    assert evidence["env"] == {
+        "GH_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
+        "GITHUB_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
+        "PROMETHEUS_ROUTE_HEAD": "${{ steps.checkpoint-route.outputs.head }}",
+        "PROMETHEUS_ROUTE_BASE": "${{ steps.checkpoint-route.outputs.base }}",
+        "PROMETHEUS_CLASSIFIED_MODE": "${{ steps.checkpoint-route.outputs.mode }}",
+        "PROMETHEUS_SELECT_SECONDS": "60",
+    }
+    for variable, field in (
+        ("PROMETHEUS_ROUTE_HEAD", "head"),
+        ("PROMETHEUS_ROUTE_BASE", "base"),
+        ("PROMETHEUS_CREDENTIAL_ROUTE", "mode"),
+    ):
+        assert consumer["env"][variable] == "${{ steps.checkpoint-evidence.outputs." + field + " }}"
     assert classifier["id"] == "checkpoint-route"
     assert classifier["if"] == control["if"] == consumer["if"] == native["if"]
     assert set(classifier["env"]) == {"PROMETHEUS_EVENT_HEAD", "PROMETHEUS_EVENT_BASE"}
@@ -2312,19 +2328,20 @@ def _assert_checkpoint_pr_native_job(workflow: dict[str, object]) -> None:
     assert classifier["run"].count('trusted["classify_source_change"](previous, current)') == 1
     assert "mode=" not in selection["run"]
     # pragma: allowlist nextline secret - public trusted control commit
-    assert control["with"]["ref"] == "dab47fc6153f87e35233e20aa255d97e68a5ed93"
+    assert control["with"]["ref"] == "cf3488793e25dacc3aa7684696746a4a639c113c"
     assert control["with"]["persist-credentials"] is False
     assert "python3 -I -S" in consumer["run"] and "runpy.run_path(str(helper))" in consumer["run"]
     assert consumer["env"]["GH_TOKEN"] == "${{ secrets.GITHUB_TOKEN }}"
     assert (
         consumer["env"]["GHCR_READ_TOKEN"]
-        == "${{ steps.checkpoint-route.outputs.mode == 'unchanged_pr_published' && secrets.GITHUB_TOKEN || '' }}"
+        == "${{ steps.checkpoint-evidence.outcome == 'success' && steps.checkpoint-evidence.outputs.mode == 'unchanged_pr_published' && secrets.GITHUB_TOKEN || '' }}"
     )
     assert (
         steps.index(checkout)
         < steps.index(selection)
         < steps.index(control)
         < steps.index(classifier)
+        < steps.index(_named_step(steps, "Select authenticated Prometheus PR evidence"))
         < steps.index(consumer)
         < steps.index(cleanup)
         < steps.index(setup)
@@ -4454,6 +4471,7 @@ def test_alertmanager_actual_caller_steps_fit_distinct_enclosing_budgets_and_ret
     shared = _steps(_job(workflow, "prometheus-image-security-pr"))
     pr_only = {
         "Checkout immutable PR head Prometheus contracts",
+        "Select authenticated Prometheus PR evidence",
         "Require fresh fixed Prometheus control checkout",
         "Checkout fixed trusted Prometheus control",
         "Remove fixed trusted Prometheus control checkout",
@@ -4473,7 +4491,31 @@ def test_alertmanager_actual_caller_steps_fit_distinct_enclosing_budgets_and_ret
         "Checkout immutable published Prometheus contracts",
         "Wait for the exact trusted Prometheus publisher",
     }
-    assert sum(minutes(step) for step in shared if step["name"] not in excluded) <= 165
+    pr = _job(workflow, "prometheus-image-security-pr")
+    pr_total = sum(minutes(step) for step in shared if step["name"] not in excluded)
+    assert pr_total == 167 and "|| '170'" in pr["timeout-minutes"]
+    selector = _named_step(shared, "Select authenticated Prometheus PR evidence")
+    assert selector["timeout-minutes"] == 4 and "reserved_minutes = 167" in selector["run"]
+    ci = _workflow(REPO_ROOT / ".github/workflows/ci.yml")
+    lint = _job(ci, "lint")
+    all_lint = _steps(lint)
+    dynamic = {
+        "${{ fromJSON(env.ALERTMANAGER_LINT_CHECK_MINUTES) }}": 60,
+        "${{ fromJSON(env.ALERTMANAGER_GENERIC_NATIVE_MINUTES) }}": 40,
+        "${{ fromJSON(env.ALERTMANAGER_PREPARATION_MINUTES) }}": int(
+            ci["env"]["ALERTMANAGER_PREPARATION_MINUTES"]
+        ),
+    }
+    lint_total = sum(
+        value if type(value) is int else dynamic[value]
+        for step in all_lint
+        for value in (step["timeout-minutes"],)
+    )
+    assert lint_total == 187 and "|| '190'" in lint["timeout-minutes"]
+    lint_selector = _named_step(all_lint, "Select authenticated Prometheus PR evidence")
+    assert (
+        lint_selector["timeout-minutes"] == 4 and "reserved_minutes = 87 +" in lint_selector["run"]
+    )
     assert sum(map(minutes, _steps(_job(workflow, "alertmanager-retained-candidate")))) <= 78
     assert sum(map(minutes, _steps(_job(workflow, "obs2a-checkpoint-native")))) <= 102
     assert (

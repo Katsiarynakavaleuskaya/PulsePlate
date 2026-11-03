@@ -1516,7 +1516,7 @@ jobs:
         if: ${{ success() && github.event_name == 'pull_request' }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: dab47fc6153f87e35233e20aa255d97e68a5ed93 # pragma: allowlist secret - public trusted control commit
+          ref: cf3488793e25dacc3aa7684696746a4a639c113c # pragma: allowlist secret - public trusted control commit
           persist-credentials: false
           path: artifacts/orchestration/prometheus-control
           sparse-checkout: scripts/ci/prometheus_source_image.py
@@ -1593,21 +1593,21 @@ jobs:
                       raise SystemExit("Prometheus_control_path_HOLD")
                   if path != helper and not stat.S_ISDIR(info.st_mode):
                       raise SystemExit("Prometheus_control_path_HOLD")
-              if not helper.is_file() or stat.S_IMODE(helper.stat().st_mode) != 0o644:
+              if not helper.is_file() or helper.stat().st_nlink != 1 or stat.S_IMODE(helper.stat().st_mode) != 0o644:
                   raise SystemExit("Prometheus_control_mode_HOLD")
               raw = helper.read_bytes()
-              if len(raw) != 352899 or hashlib.sha256(raw).hexdigest() != "d812e79fce6138426131f266e4f5fd8de03b72c9a56acea19bedb43a22f172f6":  # pragma: allowlist secret - public trusted control digest
+              if len(raw) != 354838 or hashlib.sha256(raw).hexdigest() != "4455d791a25a01e03a7f779c7590d673b98664006268f72d111bf7e9b6d1ecf8":  # pragma: allowlist secret - public trusted control digest
                   raise SystemExit("Prometheus_control_bytes_HOLD")
               environment = {"PATH": "/usr/bin:/bin", "LANG": "C", "GIT_NO_REPLACE_OBJECTS": "1",
                              "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_COUNT": "0"}
               revision = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
                                          "rev-parse", "HEAD"], env=environment, capture_output=True, check=True)
-              if revision.stdout.strip() != b"dab47fc6153f87e35233e20aa255d97e68a5ed93":  # pragma: allowlist secret - public trusted control commit
+              if revision.stderr or revision.stdout != b"cf3488793e25dacc3aa7684696746a4a639c113c" + b"\n":  # pragma: allowlist secret - public trusted control commit
                   raise SystemExit("Prometheus_control_revision_HOLD")
               object_row = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
                                           "ls-tree", "-z", "HEAD", "--", "scripts/ci/prometheus_source_image.py"],
                                          env=environment, capture_output=True, check=True)
-              if object_row.stdout != b"100644 blob b57db038ec82126429333ce3a3e8609151cceb1d\tscripts/ci/prometheus_source_image.py\0":  # pragma: allowlist secret - public trusted control blob
+              if object_row.stderr or object_row.stdout != b"100644 blob d9235ff53d6dc742af6b18d3b47a577a5734ea9b\tscripts/ci/prometheus_source_image.py\0":  # pragma: allowlist secret - public trusted control blob
                   raise SystemExit("Prometheus_control_object_HOLD")
               trusted = runpy.run_path(str(helper))
               if not all(callable(trusted.get(name)) for name in
@@ -1625,6 +1625,118 @@ jobs:
               mode = "trusted_published"
           else:
               raise SystemExit("Prometheus_event_identity_HOLD")
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
+              output.write("mode=" + mode + "\nhead=" + head + "\nbase=" + base + "\n")
+          PY
+
+      - name: Select authenticated Prometheus PR evidence
+        timeout-minutes: 4
+        id: prometheus-evidence
+        if: ${{ success() && github.event_name == 'pull_request' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROMETHEUS_ROUTE_HEAD: ${{ steps.prometheus-route.outputs.head }}
+          PROMETHEUS_ROUTE_BASE: ${{ steps.prometheus-route.outputs.base }}
+          PROMETHEUS_CLASSIFIED_MODE: ${{ steps.prometheus-route.outputs.mode }}
+          PROMETHEUS_SELECT_SECONDS: "60"
+        run: |
+          set -euo pipefail
+          python3 -I -S - <<'PY'
+          import hashlib, os, re, runpy, signal, stat, subprocess, time
+          from pathlib import Path
+
+          if not os.environ.get("GH_TOKEN") or not os.environ.get("GITHUB_TOKEN"):
+              raise SystemExit("Prometheus_selection_API_credential_HOLD")
+          if any(os.environ.get(key) for key in ("GHCR_READ_TOKEN", "GHCR_TOKEN", "DOCKER_CONFIG", "DOCKER_AUTH_CONFIG",
+                                                 "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN")):
+              raise SystemExit("Prometheus_selection_credentials_HOLD")
+          material = Path(os.environ["GITHUB_WORKSPACE"])
+          control = material / "artifacts/orchestration/prometheus-control"
+          helper = control / "scripts/ci/prometheus_source_image.py"
+          for path in (material / "artifacts", material / "artifacts/orchestration", control,
+                       control / "scripts", control / "scripts/ci", helper):
+              info = path.lstat()
+              if info.st_uid != os.getuid() or stat.S_ISLNK(info.st_mode):
+                  raise SystemExit("Prometheus_control_path_HOLD")
+              if path != helper and not stat.S_ISDIR(info.st_mode):
+                  raise SystemExit("Prometheus_control_path_HOLD")
+          if not helper.is_file() or helper.stat().st_nlink != 1 or stat.S_IMODE(helper.stat().st_mode) != 0o644:
+              raise SystemExit("Prometheus_control_mode_HOLD")
+          raw = helper.read_bytes()
+          if len(raw) != 354838 or hashlib.sha256(raw).hexdigest() != "4455d791a25a01e03a7f779c7590d673b98664006268f72d111bf7e9b6d1ecf8":  # pragma: allowlist secret - public trusted control digest
+              raise SystemExit("Prometheus_control_bytes_HOLD")
+          environment = {"PATH": "/usr/bin:/bin", "LANG": "C", "GIT_NO_REPLACE_OBJECTS": "1",
+                         "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_COUNT": "0"}
+          revision = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
+                                     "rev-parse", "HEAD"], env=environment, capture_output=True, check=True)
+          if revision.stderr or revision.stdout != b"cf3488793e25dacc3aa7684696746a4a639c113c" + b"\n":  # pragma: allowlist secret - public trusted control commit
+              raise SystemExit("Prometheus_control_revision_HOLD")
+          object_row = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
+                                      "ls-tree", "-z", "HEAD", "--", "scripts/ci/prometheus_source_image.py"],
+                                     env=environment, capture_output=True, check=True)
+          if object_row.stderr or object_row.stdout != b"100644 blob d9235ff53d6dc742af6b18d3b47a577a5734ea9b\tscripts/ci/prometheus_source_image.py\0":  # pragma: allowlist secret - public trusted control blob
+              raise SystemExit("Prometheus_control_object_HOLD")
+          trusted = runpy.run_path(str(helper))
+          if not all(callable(trusted.get(name)) for name in
+                     ("select_pr_evidence_route", "GitHubRead", "fresh_directory", "one_object", "interrupt", "diagnostic_code", "require", "check_deadline")):
+              raise SystemExit("Prometheus_control_interface_HOLD")
+          event_head = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(material),
+                                      "rev-parse", "HEAD"], env=environment, capture_output=True, check=True)
+          event = trusted["one_object"](Path(os.environ["GITHUB_EVENT_PATH"]).read_bytes())
+          head, base = os.environ["PROMETHEUS_ROUTE_HEAD"], os.environ["PROMETHEUS_ROUTE_BASE"]
+          pr = event.get("pull_request", {})
+          if not (os.environ["GITHUB_EVENT_NAME"] == "pull_request"
+                  and os.environ["GITHUB_REPOSITORY"].lower() == "katsiarynakavaleuskaya/pulseplate"
+                  and type(event.get("number")) is int and event["number"] > 0
+                  and os.environ["GITHUB_REF"] == "refs/pull/" + str(event["number"]) + "/merge"
+                  and event.get("repository", {}).get("id") == 1043311030
+                  and pr.get("head", {}).get("repo", {}).get("id") == 1043311030
+                  and pr.get("base", {}).get("repo", {}).get("id") == 1043311030
+                  and pr.get("base", {}).get("ref") == "main"
+                  and re.fullmatch("[0-9a-f]{40}", head) and re.fullmatch("[0-9a-f]{40}", base)
+                  and not event_head.stderr and event_head.stdout == (head + "\n").encode("ascii")
+                  and pr["head"].get("sha") == head and pr["base"].get("sha") == base):
+              raise SystemExit("Prometheus_material_revision_HOLD")
+          seconds, cleanup = int(os.environ["PROMETHEUS_SELECT_SECONDS"]), int(os.environ["PROMETHEUS_CLEANUP_SECONDS"])
+          reserved_minutes = 167
+          if int(os.environ["ALERTMANAGER_JOB_TIMEOUT_MINUTES"]) < reserved_minutes:
+              raise SystemExit("Prometheus_selection_enclosing_budget_HOLD")
+          if seconds != 60 or cleanup != 120:
+              raise SystemExit("Prometheus_selection_budget_HOLD")
+          deadline = time.monotonic() + seconds
+          work = Path(os.environ["RUNNER_TEMP"]) / ("prometheus-pr-selection-" + os.environ["GITHUB_RUN_ID"] + "-" + os.environ["GITHUB_RUN_ATTEMPT"])
+          trusted["fresh_directory"](work)
+          evidence = work / "evidence"
+          trusted["fresh_directory"](evidence)
+          private = work / "GitHub-private"
+          signal.signal(signal.SIGTERM, trusted["interrupt"])
+          signal.signal(signal.SIGINT, trusted["interrupt"])
+          primary = cleanup_error = None
+          api = None
+          try:
+              api = trusted["GitHubRead"](private, evidence, deadline, cleanup)
+              mode = trusted["select_pr_evidence_route"](api, material, event, head)
+              classified = os.environ["PROMETHEUS_CLASSIFIED_MODE"]
+              compatible = {"changed_pr_candidate": ("changed_pr_candidate",),
+                            "historical_pr_candidate": ("historical_pr_candidate",),
+                            "unchanged_pr_published": ("unchanged_pr_published", "historical_pr_candidate")}
+              trusted["require"](mode in compatible.get(classified, ()), "consumer_route_binding")
+              trusted["check_deadline"](deadline)
+          except (Exception, KeyboardInterrupt) as error:
+              primary = trusted["diagnostic_code"](error) or type(error).__name__
+          finally:
+              if api is not None:
+                  try:
+                      api.close()
+                  except (Exception, KeyboardInterrupt) as error:
+                      cleanup_error = trusted["diagnostic_code"](error) or type(error).__name__
+          if private.exists() or private.is_symlink():
+              cleanup_error = cleanup_error or "Prometheus_selection_cleanup_HOLD"
+          if primary or cleanup_error:
+              raise SystemExit("Prometheus_selection_HOLD:" + ",".join(filter(None, (primary, cleanup_error))))
+          trusted["require"](not trusted["INTERRUPTIONS"], "selection_interrupted")
+          trusted["check_deadline"](deadline + cleanup)
           with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
               output.write("mode=" + mode + "\nhead=" + head + "\nbase=" + base + "\n")
           PY
@@ -1696,8 +1808,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GHCR_READ_TOKEN: ${{ github.event_name == 'pull_request' && steps.prometheus-route.outputs.mode == 'unchanged_pr_published' && secrets.GITHUB_TOKEN || github.event_name != 'pull_request' && steps.prometheus-route.outputs.mode == 'trusted_published' && secrets.GHCR_READ_TOKEN || '' }}
-          PROMETHEUS_CREDENTIAL_ROUTE: ${{ steps.prometheus-route.outputs.mode }}
+          GHCR_READ_TOKEN: ${{ github.event_name == 'pull_request' && steps.prometheus-evidence.outcome == 'success' && steps.prometheus-evidence.outputs.mode == 'unchanged_pr_published' && secrets.GITHUB_TOKEN || github.event_name != 'pull_request' && steps.prometheus-route.outputs.mode == 'trusted_published' && secrets.GHCR_READ_TOKEN || '' }}
+          PROMETHEUS_CREDENTIAL_ROUTE: ${{ github.event_name == 'pull_request' && steps.prometheus-evidence.outputs.mode || github.event_name != 'pull_request' && steps.prometheus-route.outputs.mode || '' }}
+          PROMETHEUS_ROUTE_HEAD: ${{ steps.prometheus-evidence.outputs.head }}
+          PROMETHEUS_ROUTE_BASE: ${{ steps.prometheus-evidence.outputs.base }}
         run: |
           set -euo pipefail
           case "$PROMETHEUS_CREDENTIAL_ROUTE" in
@@ -1712,7 +1826,7 @@ jobs:
           docker info --format 'driver={{json .Driver}} driver_status={{json .DriverStatus}} os={{json .OSType}} arch={{json .Architecture}}'
           if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
           python3 -I -S - <<'PY'
-          import hashlib, os, runpy, signal, stat, subprocess
+          import hashlib, os, re, runpy, signal, stat, subprocess
           from pathlib import Path
 
           material = Path(os.environ["GITHUB_WORKSPACE"])
@@ -1725,21 +1839,21 @@ jobs:
                   raise SystemExit("Prometheus_control_path_HOLD")
               if path != helper and not stat.S_ISDIR(info.st_mode):
                   raise SystemExit("Prometheus_control_path_HOLD")
-          if not helper.is_file() or stat.S_IMODE(helper.stat().st_mode) != 0o644:
+          if not helper.is_file() or helper.stat().st_nlink != 1 or stat.S_IMODE(helper.stat().st_mode) != 0o644:
               raise SystemExit("Prometheus_control_mode_HOLD")
           raw = helper.read_bytes()
-          if len(raw) != 352899 or hashlib.sha256(raw).hexdigest() != "d812e79fce6138426131f266e4f5fd8de03b72c9a56acea19bedb43a22f172f6":  # pragma: allowlist secret - public trusted control digest
+          if len(raw) != 354838 or hashlib.sha256(raw).hexdigest() != "4455d791a25a01e03a7f779c7590d673b98664006268f72d111bf7e9b6d1ecf8":  # pragma: allowlist secret - public trusted control digest
               raise SystemExit("Prometheus_control_bytes_HOLD")
           environment = {"PATH": "/usr/bin:/bin", "LANG": "C", "GIT_NO_REPLACE_OBJECTS": "1",
                          "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_COUNT": "0"}
           revision = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
                                      "rev-parse", "HEAD"], env=environment, capture_output=True, check=True)
-          if revision.stdout.strip() != b"dab47fc6153f87e35233e20aa255d97e68a5ed93":  # pragma: allowlist secret - public trusted control commit
+          if revision.stderr or revision.stdout != b"cf3488793e25dacc3aa7684696746a4a639c113c" + b"\n":  # pragma: allowlist secret - public trusted control commit
               raise SystemExit("Prometheus_control_revision_HOLD")
           object_row = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
                                       "ls-tree", "-z", "HEAD", "--", "scripts/ci/prometheus_source_image.py"],
                                      env=environment, capture_output=True, check=True)
-          if object_row.stdout != b"100644 blob b57db038ec82126429333ce3a3e8609151cceb1d\tscripts/ci/prometheus_source_image.py\0":  # pragma: allowlist secret - public trusted control blob
+          if object_row.stderr or object_row.stdout != b"100644 blob d9235ff53d6dc742af6b18d3b47a577a5734ea9b\tscripts/ci/prometheus_source_image.py\0":  # pragma: allowlist secret - public trusted control blob
               raise SystemExit("Prometheus_control_object_HOLD")
           trusted = runpy.run_path(str(helper))
           if not all(callable(trusted.get(name)) for name in
@@ -1748,7 +1862,19 @@ jobs:
           event_head = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(material),
                                       "rev-parse", "HEAD"], env=environment, capture_output=True, check=True)
           event = trusted["one_object"](Path(os.environ["GITHUB_EVENT_PATH"]).read_bytes())
-          if os.environ["GITHUB_EVENT_NAME"] != "pull_request" or event_head.stdout.strip().decode() != event["pull_request"]["head"]["sha"]:
+          head, base = os.environ["PROMETHEUS_ROUTE_HEAD"], os.environ["PROMETHEUS_ROUTE_BASE"]
+          pr = event.get("pull_request", {})
+          if not (os.environ["GITHUB_EVENT_NAME"] == "pull_request"
+                  and os.environ["GITHUB_REPOSITORY"].lower() == "katsiarynakavaleuskaya/pulseplate"
+                  and type(event.get("number")) is int and event["number"] > 0
+                  and os.environ["GITHUB_REF"] == "refs/pull/" + str(event["number"]) + "/merge"
+                  and event.get("repository", {}).get("id") == 1043311030
+                  and pr.get("head", {}).get("repo", {}).get("id") == 1043311030
+                  and pr.get("base", {}).get("repo", {}).get("id") == 1043311030
+                  and pr.get("base", {}).get("ref") == "main"
+                  and re.fullmatch("[0-9a-f]{40}", head) and re.fullmatch("[0-9a-f]{40}", base)
+                  and not event_head.stderr and event_head.stdout == (head + "\n").encode("ascii")
+                  and pr["head"].get("sha") == head and pr["base"].get("sha") == base):
               raise SystemExit("Prometheus_material_revision_HOLD")
           route = os.environ["PROMETHEUS_CREDENTIAL_ROUTE"]
           if route not in ("changed_pr_candidate", "historical_pr_candidate", "unchanged_pr_published"):

@@ -612,7 +612,7 @@ def test_prometheus_cd_registry_credential_route_preserves_base_execution_bounda
     consumer = steps["Admit retained PR candidate or published immutable subject"]
     assert consumer["id"] == "prometheus-image"
     assert consumer["env"]["GHCR_READ_TOKEN"] == (
-        "${{ github.event_name == 'pull_request' && steps.prometheus-route.outputs.mode == 'unchanged_pr_published' && secrets.GITHUB_TOKEN || github.event_name != 'pull_request' && steps.prometheus-route.outputs.mode == 'trusted_published' && secrets.GHCR_READ_TOKEN || '' }}"
+        "${{ github.event_name == 'pull_request' && steps.prometheus-evidence.outcome == 'success' && steps.prometheus-evidence.outputs.mode == 'unchanged_pr_published' && secrets.GITHUB_TOKEN || github.event_name != 'pull_request' && steps.prometheus-route.outputs.mode == 'trusted_published' && secrets.GHCR_READ_TOKEN || '' }}"
     )
     assert "changed_pr_candidate | historical_pr_candidate)" in consumer["run"]
     assert "Prometheus_candidate_registry_HOLD" in consumer["run"]
@@ -625,7 +625,7 @@ def test_prometheus_cd_registry_credential_route_preserves_base_execution_bounda
     assert (
         control["with"]["ref"]
         # pragma: allowlist nextline secret - public trusted control commit
-        == "dab47fc6153f87e35233e20aa255d97e68a5ed93"
+        == "cf3488793e25dacc3aa7684696746a4a639c113c"
     )
     assert control["with"]["persist-credentials"] is False
     assert control["with"]["sparse-checkout"] == "scripts/ci/prometheus_source_image.py"
@@ -636,7 +636,11 @@ def test_prometheus_cd_registry_credential_route_preserves_base_execution_bounda
         "steps.prometheus-control-checkout.outcome == 'failure') }}"
     )
     control_bytes = pinned_prometheus_control_bytes(REPO_ROOT, control["with"]["ref"])
-    for script in (route["run"], consumer["run"]):
+    for script in (
+        route["run"],
+        steps["Select authenticated Prometheus PR evidence"]["run"],
+        consumer["run"],
+    ):
         assert "Prometheus_control_interface_HOLD" in script
         _assert_prometheus_control_tuple(script, control["with"]["ref"], control_bytes)
     assert 'trusted["consume_image"](work, material' in consumer["run"]
@@ -652,6 +656,7 @@ def test_prometheus_cd_registry_credential_route_preserves_base_execution_bounda
         initial_published["name"],
         control["name"],
         route["name"],
+        "Select authenticated Prometheus PR evidence",
         "Wait for the exact trusted Prometheus publisher",
         consumer["name"],
         cleanup["name"],
@@ -760,7 +765,7 @@ def test_checkpoint_native_consumer_precedes_secret_free_child(
         consumer = next(s for s in selected["steps"] if s.get("id") == "checkpoint-image")
         assert consumer["env"]["GH_TOKEN"] == consumer["env"]["GITHUB_TOKEN"] == credential
         assert consumer["env"]["GHCR_READ_TOKEN"] == (
-            "${{ steps.checkpoint-route.outputs.mode == 'unchanged_pr_published' && secrets.GITHUB_TOKEN || '' }}"
+            "${{ steps.checkpoint-evidence.outcome == 'success' && steps.checkpoint-evidence.outputs.mode == 'unchanged_pr_published' && secrets.GITHUB_TOKEN || '' }}"
         )
         assert 'trusted["consume_image"](work, material' in consumer["run"]
         setup = next(
@@ -1077,17 +1082,32 @@ def _assert_prometheus_control_tuple(script: str, revision: str, raw: bytes) -> 
 @pytest.mark.parametrize(
     "filename,job_name", [("cd.yml", "prometheus-image-security-pr"), ("ci.yml", "lint")]
 )
+@pytest.mark.parametrize("phase", ("classify", "select", "consume"))
 @pytest.mark.parametrize("field", ("length", "digest", "blob", "revision", "mode"))
 def test_fixed_prometheus_controller_tuple_rejects_one_stale_identity(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, filename: str, job_name: str, field: str
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    filename: str,
+    job_name: str,
+    field: str,
+    phase: str,
 ) -> None:
-    """Execute each old caller's real checks; correct text elsewhere cannot rescue a stale pin."""
+    """Execute each fixed caller's real checks; correct text elsewhere cannot rescue a stale pin."""
     workflow = yaml.safe_load((REPO_ROOT / ".github/workflows" / filename).read_text())
     steps = {step["name"]: step for step in workflow["jobs"][job_name]["steps"] if "name" in step}
     revision = steps["Checkout fixed trusted Prometheus control"]["with"]["ref"]
     raw = pinned_prometheus_control_bytes(REPO_ROOT, revision)
-    run_script = steps["Classify the fixed regular Prometheus source blobs"]["run"]
-    program = run_script.split("python3 -I -S - <<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
+    step_name = {
+        "classify": "Classify the fixed regular Prometheus source blobs",
+        "select": "Select authenticated Prometheus PR evidence",
+        "consume": (
+            "Consume exact Prometheus subject before PR startup"
+            if filename == "ci.yml"
+            else "Admit retained PR candidate or published immutable subject"
+        ),
+    }[phase]
+    run_script = steps[step_name]["run"]
+    program = run_script.split("python3 -I -S - <<'PY'\n", 1)[1].split("\nPY", 1)[0]
     material = tmp_path / "material"
     control = material / "artifacts/orchestration/prometheus-control"
     helper = control / "scripts/ci/prometheus_source_image.py"
@@ -1153,6 +1173,8 @@ def test_fixed_prometheus_controller_tuple_rejects_one_stale_identity(
     def namespace(path: str) -> dict[str, Any]:
         assert path == str(helper)
         trace.append("namespace")
+        if phase != "classify":
+            raise SystemExit("valid_tuple_before_import")
         loaded = actual_run_path(path)
         classify = loaded["classify_source_change"]
 
@@ -1184,15 +1206,23 @@ def test_fixed_prometheus_controller_tuple_rejects_one_stale_identity(
         "GITHUB_OUTPUT": str(output),
     }.items():
         monkeypatch.setenv(name, value)
+    if phase == "select":
+        monkeypatch.setenv("GH_TOKEN", "synthetic.selector.reader")
+        monkeypatch.setenv("GITHUB_TOKEN", "synthetic.selector.reader")
     monkeypatch.setattr(subprocess, "run", git)
     monkeypatch.setattr(runpy, "run_path", namespace)
     label = "<fixed-prometheus-classification>"
-    exec(compile(program, label, "exec"), {})
-    assert trace == ["namespace", "classification"]
-    assert output.read_text() == (
-        "mode=unchanged_pr_published\nhead=" + head + "\nbase=" + base + "\n"
-    )
-    output.unlink()
+    if phase != "classify":
+        with pytest.raises(SystemExit, match="^valid_tuple_before_import$"):
+            exec(compile(program, label, "exec"), {})
+        assert trace == ["namespace"] and not output.exists()
+    else:
+        exec(compile(program, label, "exec"), {})
+        assert trace == ["namespace", "classification"]
+        assert output.read_text() == (
+            "mode=unchanged_pr_published\nhead=" + head + "\nbase=" + base + "\n"
+        )
+        output.unlink()
     trace.clear()
 
     values: dict[str, str | bytes | int] = {
