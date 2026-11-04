@@ -1006,7 +1006,7 @@ _PINNED_NATIVE_SOURCES = {
     ),
     "ncurses": (
         "6.6-20261024",
-        "https://invisible-island.net/archives/ncurses/current/ncurses-6.6-20261024.tgz",
+        "https://invisible-mirror.net/archives/ncurses/current/ncurses-6.6-20261024.tgz",
         "ncurses-6.6-20261024.tgz",
         "7a9e4d9c29c764d451564cf93d08b50cd63d3f8dad3535b33a763f829d89a500",
     ),

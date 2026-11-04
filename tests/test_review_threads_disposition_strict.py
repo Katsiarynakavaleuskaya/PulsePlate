@@ -1950,20 +1950,24 @@ def test_local_git_metadata_resolves_exact_commit_and_preserves_native_show(
         "GIT_COMMITTER_DATE": "2026-01-02T03:04:05+00:00",
     }
 
-    def git(*args: str) -> bytes:
+    def git(*args: str, input_bytes: bytes | None = None) -> bytes:
         return subprocess.check_output(
             [binary, "-c", "core.hooksPath=" + os.devnull, "-c", "init.templateDir=", *args],
+            input=input_bytes,
             env=env,
             cwd=repo,
             timeout=15,
         )
 
     git("init", "-q", "-b", "main")
-    odd = os.fsdecode(b" odd\nfile\xff ")
-    (repo / odd).write_text("first")
-    git("add", "--", odd)
+    raw_path = b" odd\nfile\xff "
+    odd = os.fsdecode(raw_path)
+    # Git trees can store byte names that APFS cannot materialize.
+    blob = git("hash-object", "-w", "--stdin", input_bytes=b"first").decode().strip()
+    git("update-index", "--add", "--cacheinfo", "100644", blob, odd)
     git("commit", "-qm", "real change")
     first = git("rev-parse", "HEAD").decode().strip()
+    assert git("ls-tree", "-rz", "--name-only", first) == raw_path + b"\0"
     git("commit", "--allow-empty", "--allow-empty-message", "-qm", "")
     empty = git("rev-parse", "HEAD").decode().strip()
     git("tag", "-a", "-m", "tag object", "annotated", empty)
@@ -1984,7 +1988,9 @@ def test_local_git_metadata_resolves_exact_commit_and_preserves_native_show(
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(tmp_path / "hostile-config"))
     (tmp_path / "hostile-config").write_text("[invalid global config")
     git("replace", first, empty)
-    assert _disposition_mod._git_changed_files(first[:12].upper()) == [odd]
+    changed = _disposition_mod._git_changed_files(first[:12].upper())
+    assert changed == [odd]
+    assert os.fsencode(changed[0]) == raw_path
     assert _disposition_mod._git_commit_subject(" " + first + " ") == "real change"
     assert _disposition_mod._git_commit_time_iso(first) == "2026-01-02T03:04:05+00:00"
     assert _disposition_mod._git_commit_subject(empty) == ""

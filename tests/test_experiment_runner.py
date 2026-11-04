@@ -2929,9 +2929,10 @@ def test_checkout_creator_owns_partial_reservation_until_transfer(
     assert sibling.read_text() == "preserve" and list(repo.iterdir()) == []
 
 
+@pytest.mark.parametrize("during_cleanup", [False, True])
 @pytest.mark.parametrize("cancel", [False, True])
 def test_replaced_checkout_reservation_preserves_sibling_and_primary(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, cancel: bool
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, cancel: bool, during_cleanup: bool
 ) -> None:
     source = tmp_path / "source"
     scratch = tmp_path / "scratch"
@@ -2940,9 +2941,23 @@ def test_replaced_checkout_reservation_preserves_sibling_and_primary(
     monkeypatch.setattr(tempfile, "gettempdir", lambda: str(scratch))
     owner = experiment_runner._CheckoutReservation(source)
     original = Path(owner.name)
-    original.rename(scratch / "retained")
-    original.mkdir()
-    (original / "foreign").write_text("untouched")
+
+    def replace_reservation() -> None:
+        original.rename(scratch / "retained")
+        original.mkdir()
+        (original / "foreign").write_text("untouched")
+
+    if during_cleanup:
+        (original / "checkout").mkdir()
+        remove_tree = shutil.rmtree
+
+        def remove_and_replace(path: str, *, dir_fd: int) -> None:
+            remove_tree(path, dir_fd=dir_fd)
+            replace_reservation()
+
+        monkeypatch.setattr(shutil, "rmtree", remove_and_replace)
+    else:
+        replace_reservation()
     if cancel:
         with pytest.raises(KeyboardInterrupt) as caught:
             try:
@@ -2957,6 +2972,95 @@ def test_replaced_checkout_reservation_preserves_sibling_and_primary(
             experiment_runner._finish_checkout(owner, None)
         assert failed.value._checkout_uncertain
     assert (original / "foreign").read_text() == "untouched" and source.is_dir()
+
+
+@pytest.mark.parametrize("overlap", [True, False])
+def test_checkout_reservation_rejects_unsafe_parent_or_unidentified_entry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, overlap: bool
+) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    parent = source if overlap else tmp_path / "scratch"
+    parent.mkdir(exist_ok=True)
+    monkeypatch.setattr(tempfile, "gettempdir", lambda: str(parent))
+
+    def denied(*args: object) -> int:
+        raise PermissionError("private path")
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(os, "open", denied)
+        with pytest.raises(experiment_runner.InfraFlakeError) as failure:
+            experiment_runner._CheckoutReservation(source)
+    if overlap:
+        assert "overlaps the source" in str(failure.value)
+        assert not list(source.iterdir())
+    else:
+        retained = Path(getattr(failure.value, "_retained_checkout"))
+        assert failure.value._checkout_uncertain
+        assert list(parent.iterdir()) == [retained] and retained.is_dir()
+        assert "private path" not in str(failure.value)
+
+
+@pytest.mark.parametrize("fault", ["retain", "unobserved", "unreadable", "removed", "cancel"])
+def test_checkout_cleanup_faults_preserve_primary_and_report_removal_certainty(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str
+) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    monkeypatch.setattr(tempfile, "gettempdir", lambda: str(tmp_path))
+    owner = experiment_runner._CheckoutReservation(source)
+    primary = experiment_runner.InfraFlakeError("original")
+    if fault == "retain":
+        primary._checkout_uncertain = True
+        retain = owner.retain
+
+        def close_then_fail() -> None:
+            retain()
+            raise OSError("private descriptor detail")
+
+        monkeypatch.setattr(owner, "retain", close_then_fail)
+        experiment_runner._finish_checkout(owner, primary)
+
+        assert "Checkout descriptor cleanup failed: OSError" in primary.__notes__
+        assert Path(owner.name).is_dir()
+        return
+
+    cleanup = owner.cleanup
+
+    def incomplete_cleanup() -> None:
+        if fault == "removed":
+            cleanup()
+            raise OSError("late failure")
+        owner.retain()
+        if fault == "cancel":
+            raise KeyboardInterrupt()
+        if fault == "unreadable":
+            raise PermissionError()
+
+    def unreadable(_path: Path) -> os.stat_result:
+        raise PermissionError()
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(owner, "cleanup", incomplete_cleanup)
+        if fault == "unreadable":
+            scoped.setattr(Path, "lstat", unreadable)
+        if fault == "cancel":
+            with pytest.raises(KeyboardInterrupt):
+                experiment_runner._finish_checkout(owner, None)
+            return
+        experiment_runner._finish_checkout(owner, primary)
+
+    assert getattr(primary, "_checkout_cleanup_failed")
+    if fault == "removed":
+        assert not Path(owner.name).exists()
+        assert experiment_runner._checkout_failure_message(primary) == (
+            "Experiment failed; secondary checkout cleanup also failed."
+        )
+    else:
+        assert primary._checkout_uncertain and primary._retained_checkout == owner.name
+        assert experiment_runner._checkout_failure_message(primary) == (
+            "Experiment failed; secondary checkout cleanup failed and removal is unconfirmed."
+        )
 
 
 @pytest.mark.parametrize("mode", ["candidate_patch", "oracle_only_governance_reviewer"])
@@ -3009,8 +3113,9 @@ def test_unknown_cleanup_blocks_reuse_in_both_runner_modes(
 
 
 @pytest.mark.parametrize("mode", ["candidate_patch", "oracle_only_governance_reviewer"])
+@pytest.mark.parametrize("timed_out", [False, True])
 def test_checkout_retained_when_entered_sandbox_call_is_interrupted(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: str
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: str, timed_out: bool
 ) -> None:
     repo = _init_repo(tmp_path)
     _configure_runner_repo(monkeypatch, repo)
@@ -3032,17 +3137,29 @@ def test_checkout_retained_when_entered_sandbox_call_is_interrupted(
         checkout = Path(os.environ[experiment_runner.sandbox.SANDBOX_ROOT_ENV])
         calls.append(checkout)
         (checkout / "partial-control").write_text("interrupted fixture")
+        if timed_out:
+            raise subprocess.TimeoutExpired("synthetic", 1)
         raise KeyboardInterrupt()
 
     monkeypatch.setattr(experiment_runner.sandbox, "run_local_sandbox", synthetic_interruption)
-    with pytest.raises(KeyboardInterrupt) as failure:
+
+    def evaluate() -> dict[str, Any]:
         if mode == "candidate_patch":
-            experiment_runner.evaluate_candidate(packet, patch_path)
-        else:
-            experiment_runner.evaluate_oracle_only_governance_reviewer(packet)
+            return experiment_runner.evaluate_candidate(packet, patch_path)
+        return experiment_runner.evaluate_oracle_only_governance_reviewer(packet)
+
+    if timed_out:
+        result = evaluate()
+        assert result["failure_class"] == "infra_flake"
+        assert result["budget_observations"]["runner_error"] == (
+            "Isolated checkout state is uncertain; retry is blocked."
+        )
+    else:
+        with pytest.raises(KeyboardInterrupt) as failure:
+            evaluate()
+        assert getattr(failure.value, "_retained_checkout") == str(calls[0].parent)
     assert len(calls) == 1
     assert list(scratch.iterdir()) == [calls[0].parent]
-    assert getattr(failure.value, "_retained_checkout") == str(calls[0].parent)
     assert (calls[0] / "partial-control").read_text() == "interrupted fixture"
     assert not (repo / "partial-control").exists()
 
@@ -3065,8 +3182,9 @@ def test_native_signalled_git_writer_is_uncertain_even_without_check(
     assert readonly.returncode < 0
 
 
+@pytest.mark.parametrize("interrupted", [False, True])
 def test_checkout_identification_failure_releases_fd_and_preserves_private_locator(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, interrupted: bool
 ) -> None:
     root = tmp_path / "source"
     scratch = tmp_path / "scratch"
@@ -3078,15 +3196,30 @@ def test_checkout_identification_failure_releases_fd_and_preserves_private_locat
 
     def fail(fd: int) -> os.stat_result:
         descriptors.append(fd)
+        if interrupted:
+            raise KeyboardInterrupt()
         raise OSError("private-identification-detail")
+
+    close_fd = os.close
+
+    def close_then_fail(fd: int) -> None:
+        close_fd(fd)
+        raise OSError("private-close-detail")
 
     with monkeypatch.context() as scoped:
         scoped.setattr(experiment_runner.os, "fstat", fail)
-        with pytest.raises(experiment_runner.InfraFlakeError) as caught:
+        if interrupted:
+            scoped.setattr(experiment_runner.os, "close", close_then_fail)
+        with pytest.raises(
+            KeyboardInterrupt if interrupted else experiment_runner.InfraFlakeError
+        ) as caught:
             experiment_runner._CheckoutReservation(root)
-    assert caught.value._checkout_uncertain and caught.value._retained_checkout is not None
-    assert Path(caught.value._retained_checkout).parent == scratch
-    assert list(scratch.iterdir()) == [Path(caught.value._retained_checkout)]
+    if interrupted:
+        assert caught.value.__notes__ == ["Checkout descriptor cleanup failed: OSError"]
+    assert getattr(caught.value, "_checkout_uncertain")
+    retained = Path(getattr(caught.value, "_retained_checkout"))
+    assert retained.parent == scratch
+    assert list(scratch.iterdir()) == [retained]
     assert str(scratch) not in str(caught.value) and "private-identification-detail" not in str(
         caught.value
     )

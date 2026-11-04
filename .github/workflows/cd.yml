@@ -286,7 +286,7 @@ jobs:
           test "$ALERTMANAGER_STAGE" = support-inspect
           python3 -m scripts.ci.fetch_docker_source_artifacts --artifact alertmanager \
             --alertmanager-stage "$ALERTMANAGER_STAGE" --source-sha "$INSPECTION_SOURCE" \
-            "${qualification_args[@]}" \
+            ${qualification_args[@]+"${qualification_args[@]}"} \
             --output-dir "$RUNNER_TEMP/alertmanager-input-inspection-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
       - name: Retain Alertmanager input observations without compiler authority
         timeout-minutes: 5
@@ -532,7 +532,7 @@ jobs:
           test "$checkout_sha" = "$SOURCE_SHA"
           "$AM_HOST_PYTHON" -m scripts.ci.fetch_docker_source_artifacts --artifact alertmanager --alertmanager-stage build \
             --source-sha "$SOURCE_SHA" \
-            "${qualification_args[@]}" "${support_args[@]}" \
+            ${qualification_args[@]+"${qualification_args[@]}"} ${support_args[@]+"${support_args[@]}"} \
             --output-dir "$RUNNER_TEMP/alertmanager-candidate-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
       - name: Retain the actual AM candidate and raw execution observations
         if: always()

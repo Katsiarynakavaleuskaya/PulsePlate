@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
 import os
 import re
@@ -11,9 +12,11 @@ import shutil
 import stat
 import subprocess
 import sys
+from collections.abc import Callable
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 import pytest
 import yaml
@@ -2885,6 +2888,18 @@ smPi9WIsgtRqAEFQ8TmDn5XpNpaYbg==
 }
 
 
+def _caddy_fixture_reader(boot_id: str) -> Callable[..., str]:
+    """Provide one synthetic Linux kernel file for a Darwin fixture session."""
+    native_read = Path.read_text
+
+    def read_text(path: Path, *args: Any, **kwargs: Any) -> str:
+        if path == Path("/proc/sys/kernel/random/boot_id"):
+            return boot_id + "\n"
+        return native_read(path, *args, **kwargs)
+
+    return read_text
+
+
 def _run_caddy_full_observation_fixture(
     tmp_path: Path, scenario: str, HC: str
 ) -> tuple[subprocess.CompletedProcess[str], bool, dict[str, object], dict[str, object]]:
@@ -3106,13 +3121,30 @@ def _run_caddy_full_observation_fixture(
         for key, value in environment.items()
         if key.startswith("CADDY_PHASE_")
     }
+    boot_id_path = Path("/proc/sys/kernel/random/boot_id")
+    if sys.platform == "darwin":
+        boot_id = str(uuid4())
+        # Each extracted workflow step runs in a fresh interpreter. Install the same
+        # narrow reader there without changing the workflow source or child environment.
+        bootstrap = (
+            "from __future__ import annotations\n"
+            "from pathlib import Path\n"
+            + inspect.getsource(_caddy_fixture_reader)
+            + f"\nPath.read_text = _caddy_fixture_reader({boot_id!r})\n"
+            + "import sys\nexec(compile(sys.argv.pop(), '<workflow-step>', 'exec'), "
+            + "{'__name__': '__main__'})"
+        )
+        command = [sys.executable, "-c", bootstrap]
+    else:
+        boot_id = boot_id_path.read_text().strip()
+        command = [sys.executable, "-c"]
     (runner / "caddy-admission/admission.json").write_text(
         json.dumps(
             {
                 "budget": {
                     "started": time.monotonic(),
                     "seconds": sum(caps.values()),
-                    "boot_id": Path("/proc/sys/kernel/random/boot_id").read_text().strip(),
+                    "boot_id": boot_id,
                     "charged": dict.fromkeys(caps, 0),
                     "action_deadlines": {},
                 }
@@ -3153,7 +3185,7 @@ def _run_caddy_full_observation_fixture(
             script = script.replace("len(ca) != 178791", f"len(ca) != {len(expected_ca)}")
             script = script.replace("len(certificates) != 118", "len(certificates) != 1")
         last = subprocess.run(
-            [sys.executable, "-c", script],
+            [*command, script],
             env=environment,
             cwd=workspace,
             capture_output=True,
@@ -5032,15 +5064,32 @@ def test_alertmanager_inspection_shell_rejects_bad_selectors_before_reader(
     )
     assert (result.returncode == 0) is (fault in (None, "empty")), result.stderr
     assert marker.exists() is (fault in (None, "empty"))
-    if fault == "empty":
-        assert "--alertmanager-qualification-source" not in marker.read_text()
-    if fault is None:
-        args = marker.read_text().splitlines()
-        assert (
-            args[args.index("--alertmanager-qualification-source") + 1]
-            == env["QUALIFICATION_SOURCE"]
+    if fault in (None, "empty"):
+        selectors = (
+            [
+                "--alertmanager-qualification-run",
+                env["QUALIFICATION_RUN"],
+                "--alertmanager-qualification-artifact",
+                env["QUALIFICATION_ARTIFACT"],
+                "--alertmanager-qualification-source",
+                env["QUALIFICATION_SOURCE"],
+            ]
+            if fault is None
+            else []
         )
-        assert args[args.index("--alertmanager-stage") + 1] == "support-inspect"
+        assert marker.read_text().splitlines() == [
+            "-m",
+            "scripts.ci.fetch_docker_source_artifacts",
+            "--artifact",
+            "alertmanager",
+            "--alertmanager-stage",
+            "support-inspect",
+            "--source-sha",
+            env["INSPECTION_SOURCE"],
+            *selectors,
+            "--output-dir",
+            str(tmp_path / "alertmanager-input-inspection-456-1"),
+        ]
 
 
 @pytest.fixture
@@ -5638,6 +5687,8 @@ def _caddy_inline(name: str) -> str:
 
 
 def _caddy_budget_fixture(runner: Path, monkeypatch: pytest.MonkeyPatch) -> dict:
+    if sys.platform == "darwin":
+        monkeypatch.setattr(Path, "read_text", _caddy_fixture_reader(str(uuid4())))
     runner.mkdir(parents=True, exist_ok=True)
     for key, value in _job(_workflow(FRONTEND_WORKFLOW), "caddy-contract")["env"].items():
         if key != "CADDY_CONFIGURED_JOB_MINUTES":

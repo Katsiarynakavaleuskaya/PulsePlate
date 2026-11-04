@@ -1620,7 +1620,7 @@ jobs:
           set -euo pipefail
           python -m coverage erase
           python -m coverage run -m pytest -q \
-            tests/edges tests/test_remaining_modules.py tests/test_web_session_security.py \
+            tests/edges tests/test_remaining_modules.py tests/test_web_session_security.py tests/test_execution_sandbox.py \
             tests/core/evidence \
             tests/test_frontend_dependency_guards.py \
             tests/test_root_npm_dependency_guards.py \

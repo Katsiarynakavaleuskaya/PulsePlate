@@ -673,6 +673,8 @@ def test_run_local_sandbox_cli_emits_json_on_unexpected_exception(
         "native-nonzero",
         "timeout-settled",
         "failed-reap",
+        "termination-error",
+        "join-error",
         "stdout-stalled",
         "stderr-stalled",
         "both-stalled",
@@ -721,6 +723,7 @@ def test_sandbox_result_requires_direct_reap_and_both_drains(
                 if case in {
                     "timeout-settled",
                     "failed-reap",
+                    "termination-error",
                     "timeout-drain-stalled",
                     "cancel-reap",
                 }:
@@ -752,6 +755,8 @@ def test_sandbox_result_requires_direct_reap_and_both_drains(
             if case == "cancel-drain":
                 raise KeyboardInterrupt
             clock[0] += timeout if case == "expired" else 1
+            if case == "join-error" and self.name == "stdout":
+                raise RuntimeError(marker)
 
         def is_alive(self) -> bool:
             return (
@@ -772,6 +777,8 @@ def test_sandbox_result_requires_direct_reap_and_both_drains(
         assert process is child and child.returncode is None
         events.append(("kill", 0))
         clock[0] += 2
+        if case == "termination-error":
+            raise PermissionError(marker)
 
     monkeypatch.setattr(sandbox, "_terminate_sandbox_process", terminate)
     collector = sandbox._StreamingOutputBuffer
@@ -816,7 +823,12 @@ def test_sandbox_result_requires_direct_reap_and_both_drains(
         )
         assert marker not in repr(error.args) + "".join(traceback.format_exception(error))
         assert not checked_output
-    initial_timeout = case in {"timeout-settled", "failed-reap", "timeout-drain-stalled"}
+    initial_timeout = case in {
+        "timeout-settled",
+        "failed-reap",
+        "timeout-drain-stalled",
+        "termination-error",
+    }
     expected_calls = ["wait", "kill", "wait"] if initial_timeout else ["wait"]
     if case == "timeout-already-reaped":
         expected_calls = ["wait", "wait"]

@@ -1233,8 +1233,10 @@ def test_docker_context_excludes_python_bytecode_after_allowlists() -> None:
 
 
 @pytest.fixture
-def disposable_revision_template(tmp_path: Path) -> Iterator[Path]:
+def disposable_revision_template(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     """Copy the actual template; never execute env.py or mutate repository revisions."""
+    # Mako resolves synthetic module filenames relative to the working directory.
+    monkeypatch.chdir(tmp_path.resolve(strict=True))
     versions = REPO_ROOT / "alembic/versions"
     before = {path.name: sha256(path.read_bytes()).hexdigest() for path in versions.glob("*.py")}
     root = tmp_path / "script-directory"

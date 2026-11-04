@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -567,7 +568,11 @@ def test_devcontainer_initialize_argv_preserves_workspace_and_source_failure(
         else:
             assert result.returncode != 0
             if failure == "missing-python":
-                assert "python3" in result.stderr and "not found" in result.stderr
+                assert any(
+                    line == "make: python3: No such file or directory"
+                    or re.search(r"(?:^|: )python3: (?:[Cc]ommand )?not found$", line)
+                    for line in result.stderr.splitlines()
+                ), result.stderr
             else:
                 expected_exit = 6 if failure == "missing-manifest" else 7
                 assert f"docker-source-artifacts] Error {expected_exit}" in result.stderr

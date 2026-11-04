@@ -4998,6 +4998,47 @@ def test_contract_risk_suite_ignores_commented_db_target(job_id: str) -> None:
     assert target not in route_targets
 
 
+def _owned_darwin_zombie_leader(
+    row: dict[str, object], leader_pid: int, leader_start: str | None
+) -> bool:
+    return (
+        row["pid"] == leader_pid
+        and row["ppid"] == os.getpid()
+        and row["pgid"] == leader_pid
+        and row["uid"] == os.getuid()
+        and bool(leader_start)
+        and row["start"] == leader_start
+        and row["state"] == "Z"
+    )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        {},
+        {"pid": 19},
+        {"ppid": -1},
+        {"pgid": 19},
+        {"uid": -1},
+        {"start": "later"},
+        {"state": "S"},
+        {"state": "Z+"},
+    ],
+)
+def test_owned_darwin_zombie_leader_requires_complete_witness(mutation: dict[str, object]) -> None:
+    row: dict[str, object] = {
+        "pid": 17,
+        "ppid": os.getpid(),
+        "pgid": 17,
+        "uid": os.getuid(),
+        "start": "birth",
+        "state": "Z",
+    }
+    row.update(mutation)
+    assert _owned_darwin_zombie_leader(row, 17, "birth") is (not mutation)
+    assert not _owned_darwin_zombie_leader(row, 17, None)
+
+
 @pytest.mark.parametrize("job_id", ["test-pr", "test-feature"])
 @pytest.mark.parametrize(
     "failed_batch,missing_data,terminate_run,stale_data,residual_child,cleanup_failure",
@@ -5216,7 +5257,9 @@ raise SystemExit(status)
 
     inject_readback_error = terminate_run == "forced-readback"
 
-    def session_sample(session: int, until: float) -> dict[int, tuple[object, ...]]:
+    leader_start: str | None = None
+
+    def session_sample(session: int, until: float) -> dict[int, tuple[object, ...]] | None:
         nonlocal inject_readback_error
         if inject_readback_error and cancel.exists():
             inject_readback_error = False
@@ -5231,6 +5274,14 @@ raise SystemExit(status)
             try:
                 sid = os.getsid(pid)
             except ProcessLookupError:
+                if sys.platform == "darwin" and pid == session:
+                    # Darwin cannot report the SID of our unreaped zombie child.
+                    if not _owned_darwin_zombie_leader(row, session, leader_start):
+                        return None
+                    members[pid] = (*process_identity(row), True)
+                elif sys.platform == "darwin" and row["state"] != "Z":
+                    # A disappearing live row needs a fresh census before quiescence.
+                    return None
                 continue
             if sid == session:
                 members[pid] = (*process_identity(row), row["state"] == "Z")
@@ -5260,6 +5311,11 @@ raise SystemExit(status)
         primary: BaseException | None = None
         forced_deadline: float | None = None
         try:
+            if sys.platform == "darwin":
+                leader = process_census(deadline, ())[process.pid]
+                assert leader["pid"] == leader["pgid"] == process.pid
+                assert leader["ppid"] == os.getpid() and leader["uid"] == os.getuid()
+                leader_start = leader["start"]
             while time.monotonic() < deadline:
                 if forced_deadline is not None and time.monotonic() >= forced_deadline:
                     raise subprocess.TimeoutExpired(command, 0.35)
@@ -5272,8 +5328,10 @@ raise SystemExit(status)
                 ):
                     record = json.loads(ready.read_text())
                     assert record["sid"] == process.pid and record["ignores_term"] is True
-                    first = session_sample(process.pid, deadline).get(record["pid"])
-                    second = session_sample(process.pid, deadline).get(record["pid"])
+                    first_sample = session_sample(process.pid, deadline)
+                    first = first_sample and first_sample.get(record["pid"])
+                    second_sample = session_sample(process.pid, deadline)
+                    second = second_sample and second_sample.get(record["pid"])
                     if (
                         first
                         and second == first
@@ -5316,7 +5374,8 @@ raise SystemExit(status)
                         time.sleep(0.12)
                         continue
                     if (
-                        members.get(process.pid)
+                        members is not None
+                        and members.get(process.pid)
                         and members == previous
                         and all(row[-1] is True for row in members.values())
                     ):
@@ -5525,6 +5584,10 @@ def test_contract_batch_driver_timeout_retains_primary_and_checks_owned_session(
     assert (events / "fixture-cancel").exists()
     members = json.loads((events / "terminal-session").read_text())
     assert members and all(row[-1] is True for row in members.values())
+    leader = json.loads((events / "forced-timeout-witness").read_text())["sid"]
+    assert str(leader) in members
+    with pytest.raises(ChildProcessError):
+        os.waitpid(leader, os.WNOHANG)
     notes = getattr(failure.value, "__notes__", [])
     assert notes == (
         ["fixture cleanup: OSError: synthetic terminal readback failure"]

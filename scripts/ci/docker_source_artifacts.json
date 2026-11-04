@@ -108,7 +108,7 @@
       "name": "ncurses",
       "version": "6.6-20261024",
       "filename": "ncurses-6.6-20261024.tgz",
-      "url": "https://invisible-island.net/archives/ncurses/current/ncurses-6.6-20261024.tgz",
+      "url": "https://invisible-mirror.net/archives/ncurses/current/ncurses-6.6-20261024.tgz",
       "sha3_256_parts": [
         "7a9e4d9c",
         "29c764d4",
