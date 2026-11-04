@@ -37,6 +37,8 @@ Before doing any work:
 - When adapting an earlier observer or launcher, separate immutable source/profile
   inputs from the new run's names, output paths and collision checks. Verify that
   every absence assertion targets the currently admitted run before dispatch.
+  Verify required evidence inputs in the host or container namespace that reads
+  them; a host path needs an admitted mount before a container can read it.
 - Retained historical results are expected to exist. Preserve them; a stale path
   assertion is a caller failure, not failure or absence of the target runtime.
   Correct only the bounded caller input and keep the original diagnostic.

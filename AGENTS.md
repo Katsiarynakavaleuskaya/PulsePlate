@@ -55,8 +55,9 @@ dead interpreter. Missing scripts are OK; see
 - `scripts/quick_check.sh` delegates to `make validate-min`, then adds staged-file format/import/syntax checks.
 - Use `. .venv/bin/activate` before direct local `pytest` runs outside Make targets.
 
-**Execution placement:** PulsePlate agents run Docker Engine/Compose workloads
-and Linux-compatible builds only on `pulseplate-rdev01` as `dev`, using explicit
+**Execution placement:** For the currently resource-constrained Mac, PulsePlate
+agents run Docker Engine/Compose workloads and Linux-compatible builds only on
+`pulseplate-rdev01` as `dev`, using explicit
 SSH or the explicit `pulseplate-rdev01` Docker context per operation. Tests
 prefer VPS according to observed available RAM and active work; when capacity
 is unavailable, bounded non-Docker tests may run on the Mac when its memory/load
@@ -65,13 +66,29 @@ Simulator and Apple-only builds stay on macOS, together with the primary Codex
 chat, Computer Use, browser and Mac applications. Before remote work, complete
 current coordinator/preflight/role admission, identify exact lane material and
 owned resources, inspect capacity and active workload, and default to one heavy
-VPS run. Preserve foreign work; a VPS outage or busy host grants no local
-Docker/Linux-build fallback. Follow the
+VPS run. Preserve foreign work; a VPS outage or busy host grants no automatic
+local Docker/Linux-build fallback. Compatible local Docker/devcontainer development
+remains a future option only after applicable explicit owner approval and per-task
+coordinator admission, qualified host/guest platform, SDK, locks and ABI, available
+capacity, existing budgets and normal gates. This does not admit local execution
+now; a Linux guest does not establish native Darwin SDK support. Follow the
 [remote-development runbook](docs/dev/REMOTE_DEVELOPMENT.md) for explicit routing,
 integrity, evidence return and owned cleanup. A Docker context routes Docker API
 calls only; it does not move shell commands, Apple Container, running chats or
 remote Codex account selection. Full local `make verify` retains its existing
 one-invocation human-override rule.
+
+Admitted VPS results for Linux-compatible narrow-bundle gates count as local
+validation only for their declared exact HEAD/index/worktree input view.
+`make validate-changed` does not filter Docker-dependent tests. Under the current
+VPS placement, run its whole unchanged invocation in the qualified VPS container
+when the selected scope requires Docker. Use the
+[existing explicit SSH and selected-container invocation](docs/dev/REMOTE_DEVELOPMENT.md#explicit-ssh-and-feature-enabled-container-startup)
+with the observed owned workspace/container and `make validate-changed` as its
+remote command. For every gate, return command/cwd, source view, host/container/PID,
+actual selected targets, stdout/stderr, native terminal exit, source comparison
+and hash-verified artifacts. Required native Apple checks remain on the Mac;
+Linux platform skips are not Apple proof, and current-head CI stays separate.
 
 **Command results and failure scope:**
 
