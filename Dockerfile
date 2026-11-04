@@ -28,7 +28,7 @@ RUN python -I -c 'import os, sys; sys.path.insert(0, "/tooling/scripts/ci"); fro
     && apt-get install -y --no-install-recommends build-essential bison flex ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 COPY scripts/ci/docker_source_artifacts.json scripts/ci/fetch_docker_source_artifacts.py /tooling/scripts/ci/
-COPY build/docker-sources/zlib-71747d1d39168833e0cae8ed84b8ce77cb049699.tar.gz build/docker-sources/ncurses-6.6-20261024.tgz build/docker-sources/openssl-3.5.9.tar.gz build/docker-sources/postgresql-18.6.tar.gz /input/native/
+COPY build/docker-sources/zlib-71747d1d39168833e0cae8ed84b8ce77cb049699.tar.gz build/docker-sources/ncurses-snapshots-dc909d77781ef5c2a0684e9ad9eb9f0c0baf5ecc.tar.gz build/docker-sources/openssl-3.5.9.tar.gz build/docker-sources/postgresql-18.6.tar.gz /input/native/
 RUN --network=none python - <<'PY'
 import sys
 sys.path.insert(0, "/tooling/scripts/ci")
@@ -55,7 +55,7 @@ cd /build/source/zlib-71747d1d39168833e0cae8ed84b8ce77cb049699
 make -j2
 make DESTDIR=/native install
 cp -a /native/usr/local/. /usr/local/
-cd /build/source/ncurses-6.6-20261024
+cd /build/source/ncurses-snapshots-dc909d77781ef5c2a0684e9ad9eb9f0c0baf5ecc
 ./configure --prefix=/usr/local --with-shared --without-debug --without-ada \
     --enable-widec --with-abi-version=6 --with-termlib=tinfo --with-versioned-syms --enable-pc-files \
     --with-pkg-config-libdir=/usr/local/lib/pkgconfig
@@ -104,7 +104,7 @@ cp -a /native/usr/local/. /usr/local/
 ldconfig
 install -d /native/usr/local/share/doc/pulseplate-native
 install -m 644 /build/source/zlib-71747d1d39168833e0cae8ed84b8ce77cb049699/LICENSE /native/usr/local/share/doc/pulseplate-native/ZLIB-LICENSE
-install -m 644 /build/source/ncurses-6.6-20261024/COPYING /native/usr/local/share/doc/pulseplate-native/NCURSES-COPYING
+install -m 644 /build/source/ncurses-snapshots-dc909d77781ef5c2a0684e9ad9eb9f0c0baf5ecc/COPYING /native/usr/local/share/doc/pulseplate-native/NCURSES-COPYING
 install -m 644 /build/source/openssl-openssl-45e844f/LICENSE.txt /native/usr/local/share/doc/pulseplate-native/OPENSSL-LICENSE
 install -m 644 /build/source/openssl-openssl-45e844f/apps/openssl.cnf /native/usr/local/share/doc/pulseplate-native/openssl.cnf
 install -m 644 /build/source/postgresql-18.6/COPYRIGHT /native/usr/local/share/doc/pulseplate-native/LIBPQ-COPYRIGHT

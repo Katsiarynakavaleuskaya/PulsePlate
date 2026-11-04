@@ -1267,9 +1267,43 @@ def test_native_helper_stage_layout_executes_real_cli(
 def test_ncurses_replacement_preserves_debian_versioned_consumers() -> None:
     """ABI6 keeps its symbol namespaces and checks actual consumers after pruning."""
     dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
-    configuration = dockerfile.split("cd /build/source/ncurses-6.6-20261024", 1)[1].split(
-        "make -j2", 1
-    )[0]
+    commit = "dc909d77781ef5c2a0684e9ad9eb9f0c0baf5ecc"
+    source_root = f"ncurses-snapshots-{commit}"
+    cached = f"build/docker-sources/{source_root}.tar.gz"
+    artifact = next(
+        row
+        for row in docker_sources.load_manifest(
+            docker_sources.DEFAULT_MANIFEST, today=date(2026, 11, 4)
+        )
+        if row.name == "ncurses"
+    )
+    assert artifact.version == "6.6-20261024"
+    assert (
+        artifact.url
+        == f"https://codeload.github.com/ThomasDickey/ncurses-snapshots/tar.gz/{commit}"
+    )
+    assert artifact.filename == f"{source_root}.tar.gz"
+    assert artifact.sha256 == "4c1a95b8f05f0f8665988fa407693d33224776f46e4728c15db910a2f653fe29"
+    assert artifact.sha3_256 == "3c75e58a86e20f380f2e245e75c8ac48b2b0fa61881f0a81394f565682c9532e"
+    assert docker_sources._NATIVE_ARCHIVE_INVENTORIES["ncurses"] == (
+        source_root,
+        1299,
+        18736809,
+        "COPYING",
+    )
+    copy = next(line for line in dockerfile.splitlines() if line.endswith(" /input/native/"))
+    assert [word for word in shlex.split(copy) if "/ncurses" in word] == [cached]
+    assert [
+        line
+        for line in (REPO_ROOT / ".dockerignore").read_text().splitlines()
+        if line.startswith("!build/docker-sources/ncurses")
+    ] == ["!" + cached]
+    assert (
+        f"install -m 644 /build/source/{source_root}/COPYING /native/usr/local/share/doc/pulseplate-native/NCURSES-COPYING"
+        in dockerfile
+    )
+    _, build = dockerfile.split(f"cd /build/source/{source_root}", 1)
+    configuration = build.split("make -j2", 1)[0]
     for option in ("--with-versioned-syms", "--with-abi-version=6", "--enable-widec"):
         assert option in configuration
     assert "--with-termlib=tinfo" in configuration
@@ -2310,6 +2344,82 @@ def test_docker_source_artifact_fetcher_verifies_sha3_and_reuses_existing_file(
     assert calls == [(artifact.url, 60)]
 
 
+@pytest.mark.parametrize("fault", [None, "old-url", "wrong-bytes", "wrong-root"])
+def test_ncurses_source_migration_preserves_signed_original_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str | None
+) -> None:
+    import tarfile
+
+    artifact = next(
+        row
+        for row in docker_sources.load_manifest(
+            docker_sources.DEFAULT_MANIFEST, today=date(2026, 11, 4)
+        )
+        if row.name == "ncurses"
+    )
+    original = tmp_path / "ncurses-6.6-20261024.tgz"
+    original.write_bytes(b"previous signed archive stand-in")
+    source_root, _, _, license_name = docker_sources._NATIVE_ARCHIVE_INVENTORIES["ncurses"]
+    # Bind a tiny independent archive to the same reader and cache path.
+    buffer = BytesIO()
+    with tarfile.open(fileobj=buffer, mode="w:gz") as archive:
+        member = tarfile.TarInfo(
+            f"{'unexpected' if fault == 'wrong-root' else source_root}/{license_name}"
+        )
+        member.size = 1
+        archive.addfile(member, BytesIO(b"x"))
+    payload = buffer.getvalue()
+    artifact = replace(
+        artifact, sha256=sha256(payload).hexdigest(), sha3_256=sha3_256(payload).hexdigest()
+    )
+    monkeypatch.setitem(
+        docker_sources._PINNED_EXACT_SOURCES,
+        "ncurses",
+        (artifact.version, artifact.url, artifact.filename, artifact.sha3_256),
+    )
+    monkeypatch.setitem(docker_sources._PINNED_NATIVE_SHA256, "ncurses", artifact.sha256)
+    monkeypatch.setitem(
+        docker_sources._NATIVE_ARCHIVE_INVENTORIES, "ncurses", (source_root, 1, 1, license_name)
+    )
+    calls = _stub_source_transport(
+        monkeypatch, payload=original.read_bytes() if fault == "wrong-bytes" else payload
+    )
+    if fault == "old-url":
+        artifact = replace(
+            artifact, url="https://invisible-mirror.net/archives/ncurses/current/" + original.name
+        )
+    # Run the normal CLI against the single governed record under test.
+    monkeypatch.setattr(docker_sources, "load_manifest", lambda *args, **kwargs: (artifact,))
+
+    def acquire() -> int:
+        return docker_sources.main(["--output-dir", str(tmp_path)])
+
+    selected = tmp_path / artifact.filename
+    if fault:
+        diagnostic = {
+            "old-url": "exact reviewed identity",
+            "wrong-bytes": "SHA3 mismatch",
+            "wrong-root": "member layout",
+        }[fault]
+        with pytest.raises(RuntimeError, match=diagnostic):
+            acquire()
+        assert not selected.exists()
+    else:
+        assert acquire() == 0
+        assert selected.read_bytes() == payload
+        assert acquire() == 0
+        # Digest-only reuse must still reject a cache entry outside the reviewed inventory.
+        monkeypatch.setitem(
+            docker_sources._NATIVE_ARCHIVE_INVENTORIES,
+            "ncurses",
+            ("unexpected", 1, 1, license_name),
+        )
+        with pytest.raises(RuntimeError, match="member layout"):
+            acquire()
+    assert calls == ([] if fault == "old-url" else [(artifact.url, 60)])
+    assert original.read_bytes() == b"previous signed archive stand-in"
+
+
 def test_docker_source_artifact_fetcher_rejects_digest_mismatches(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -2646,6 +2756,7 @@ def test_makefile_docker_build_targets_prefetch_source_artifacts() -> None:
     """Local Docker Make targets prepare source artifacts before Docker builds."""
     makefile = (REPO_ROOT / "Makefile").read_text(encoding="utf-8")
 
+    assert "dc-up: ensure-python-proxy docker-source-artifacts " in makefile
     assert "docker-source-artifacts: ## Prepare verified Docker source artifacts" in makefile
     assert "$(DEV_PYTHON) scripts/ci/fetch_docker_source_artifacts.py" in makefile
     assert (

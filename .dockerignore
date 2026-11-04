@@ -63,6 +63,6 @@
 
 !scripts/ci/check_private_python_proxy_health.py
 !build/docker-sources/zlib-71747d1d39168833e0cae8ed84b8ce77cb049699.tar.gz
-!build/docker-sources/ncurses-6.6-20261024.tgz
+!build/docker-sources/ncurses-snapshots-dc909d77781ef5c2a0684e9ad9eb9f0c0baf5ecc.tar.gz
 !build/docker-sources/openssl-3.5.9.tar.gz
 !build/docker-sources/postgresql-18.6.tar.gz

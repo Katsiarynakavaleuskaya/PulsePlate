@@ -3504,6 +3504,14 @@ def test_alertmanager_PR_retained_candidate_has_no_registry_or_compiler_authorit
         "template-drift",
         "main-before-login",
         "main-before-copy",
+        "clock-no-parent",
+        "clock-full-parent",
+        "clock-short-parent",
+        "clock-nextafter-parent",
+        "clock-prep-exhausted",
+        "clock-prep-advanced",
+        "clock-later-exact",
+        "clock-later-excess",
         "main-after-copy",
         "inventory",
         "conflict",
@@ -3523,6 +3531,41 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
     from scripts.ci import fetch_docker_source_artifacts as fetcher
     from scripts.ci import prometheus_source_image as transport
     from tests.test_docker_workflow_build_path_contract import _alertmanager_proposal_arguments
+
+    # Clock profiles use the same full publisher path as the main-before-copy control.
+    import math
+    import signal
+    from types import SimpleNamespace
+
+    clock_profile = case if case.startswith("clock-") else None
+    start = 800.125 if clock_profile == "clock-later-exact" else 800.000000027
+    if clock_profile == "clock-prep-advanced":
+        start = 0.125
+    now = start
+    timers: list[float] = []
+    if clock_profile:
+        case = "main-before-copy"
+        parent = {
+            "clock-full-parent": 10440.0,
+            "clock-short-parent": 10440.0 - 0.000001,
+            "clock-nextafter-parent": math.nextafter(10440.0, 0.0),
+        }.get(clock_profile, 0.0)
+        initial_samples = iter([start])
+
+        def monotonic() -> float:
+            return next(initial_samples, now)
+
+        if clock_profile == "clock-prep-exhausted":
+            now = start + 601
+        if clock_profile == "clock-prep-advanced":
+            now = math.nextafter(start, math.inf)
+        fixture_time = SimpleNamespace(monotonic=monotonic)
+        monkeypatch.setattr(fetcher, "time", fixture_time)
+        monkeypatch.setattr(transport, "time", fixture_time)
+        monkeypatch.setattr(signal, "getitimer", lambda timer: (parent, 0.0))
+        monkeypatch.setattr(
+            signal, "setitimer", lambda _timer, seconds, *args: timers.append(seconds)
+        )
 
     original_which = shutil.which
     synthetic_docker = "/synthetic/alertmanager-publication/docker"
@@ -4010,6 +4053,11 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
         limits: dict[str, int],
         **kwargs: Any,
     ) -> dict[str, Any]:
+        nonlocal now
+        if clock_profile in ("clock-later-exact", "clock-later-excess"):
+            # The latter pair exceeds 2535s in exact arithmetic, yet float subtraction
+            # rounds the elapsed duration down to exactly 2535s.
+            now = start + 2535
         assert sessions[0].closed and not sessions[0].private.exists() and len(sessions) == 1
         assert archive.is_file() and selected_graph == graph and support.is_dir()
         assert (
@@ -4086,6 +4134,27 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
         "--alertmanager-candidate-source",
         h,
     ]
+    denied_clock_phase = {
+        "clock-short-parent": "preparation",
+        "clock-nextafter-parent": "preparation",
+        "clock-prep-exhausted": "preparation",
+        "clock-later-excess": "pre-copy-full-native",
+    }.get(clock_profile or "")
+    if denied_clock_phase:
+        with pytest.raises(
+            RuntimeError, match="^AM_publisher_downstream_reserve_" + denied_clock_phase + "$"
+        ):
+            fetcher.main(argv)
+        result = json.loads((output / "retained/candidate-observation.json").read_text())
+        assert result["copy_attempts"] == result["copy_invocations"] == 0
+        assert not logged_in and not copied and not native_calls
+        assert "login" not in events and "copy" not in events
+        if denied_clock_phase == "preparation":
+            assert not sessions and "security" not in events
+        else:
+            assert len(sessions) == 1 and sessions[0].closed and "security" in events
+        return
+
     expected = {
         "proof-retention": "synthetic publication proof retention failed",
         "primary-proof-retention": "synthetic native Git exit1",
@@ -4117,6 +4186,8 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
     else:
         assert case in ("absent", "same", "descendant")
         assert fetcher.main(argv) == 0
+    if clock_profile == "clock-prep-advanced":
+        assert timers[0] == math.nextafter(600.0, 0.0)
     result = json.loads((output / "retained/candidate-observation.json").read_text())
     assert result["compiler_starts"] == result["logical_build_starts"] == 0
     assert "synthetic-publish-credential" not in json.dumps(result)

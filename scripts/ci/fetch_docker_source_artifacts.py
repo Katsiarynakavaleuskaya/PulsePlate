@@ -1006,9 +1006,9 @@ _PINNED_NATIVE_SOURCES = {
     ),
     "ncurses": (
         "6.6-20261024",
-        "https://invisible-mirror.net/archives/ncurses/current/ncurses-6.6-20261024.tgz",
-        "ncurses-6.6-20261024.tgz",
-        "7a9e4d9c29c764d451564cf93d08b50cd63d3f8dad3535b33a763f829d89a500",
+        "https://codeload.github.com/ThomasDickey/ncurses-snapshots/tar.gz/dc909d77781ef5c2a0684e9ad9eb9f0c0baf5ecc",
+        "ncurses-snapshots-dc909d77781ef5c2a0684e9ad9eb9f0c0baf5ecc.tar.gz",
+        "3c75e58a86e20f380f2e245e75c8ac48b2b0fa61881f0a81394f565682c9532e",
     ),
     "openssl": (
         "3.5.9",
@@ -1053,14 +1053,19 @@ _ALERT_MEMBER_DIGESTS = {
 
 _NATIVE_ARCHIVE_INVENTORIES = {
     "zlib": ("zlib-71747d1d39168833e0cae8ed84b8ce77cb049699", 310, 3636732, "LICENSE"),
-    "ncurses": ("ncurses-6.6-20261024", 1299, 18736809, "COPYING"),
+    "ncurses": (
+        "ncurses-snapshots-dc909d77781ef5c2a0684e9ad9eb9f0c0baf5ecc",
+        1299,
+        18736809,
+        "COPYING",
+    ),
     "openssl": ("openssl-openssl-45e844f", 6078, 131230833, "LICENSE.txt"),
     "postgresql": ("postgresql-18.6", 7944, 141525674, "COPYRIGHT"),
 }
 _NATIVE_ARCHIVE_MAX_BYTES = 64 * 1024 * 1024
 _PINNED_NATIVE_SHA256 = {
     "zlib": "c9db0fa65f2ab5432d7d97097c058c81e0cfff250f9e900ac3dc1d70989d4dd5",
-    "ncurses": "478141b2004fcd12219c3cbe467dc2bb848eb1d0e762eb8d73b9c8ae613168e0",
+    "ncurses": "4c1a95b8f05f0f8665988fa407693d33224776f46e4728c15db910a2f653fe29",
     "openssl": "32662f03fc8e90bc8b8fc0acb115ed413eec5045a127e9af9f6c234bc3d0a8f2",
     "postgresql": "983ee554ec53dbeb9b70797bef9fcf4e67e117e7e48ca1463cc80b3ff8e8ff3f",
 }
@@ -11914,6 +11919,8 @@ def _alertmanager_current_build(args: argparse.Namespace) -> None:
 def _alertmanager_execution(args: argparse.Namespace) -> None:
     """Publish only after fresh full H controls, under one original bounded clock."""
     import signal
+    from fractions import Fraction
+    from math import nextafter
     from scripts.ci.prometheus_source_image import GitHubRead, fresh_directory, require
 
     started = time.monotonic()
@@ -11986,11 +11993,10 @@ def _alertmanager_execution(args: argparse.Namespace) -> None:
     fresh_directory(output)
     retained = output / "retained"
     fresh_directory(retained)
-    overall_deadline = min(
-        started + budgets["PUBLISHER_SECONDS"],
-        started + saved_timer[0] if saved_timer[0] > 0 else float("inf"),
-    )
-    cleanup_remaining = float(budgets["PUBLISHER_OTHER_CLEANUP_SECONDS"])
+    duration = budgets["PUBLISHER_SECONDS"]
+    capacity = min(duration, saved_timer[0]) if saved_timer[0] > 0 else duration
+    overall_deadline = started + capacity
+    cleanup_remaining = budgets["PUBLISHER_OTHER_CLEANUP_SECONDS"]
     result: dict[str, Any] = {
         "source": args.source_sha,
         "compiler_starts": 0,
@@ -12012,14 +12018,21 @@ def _alertmanager_execution(args: argparse.Namespace) -> None:
             signal.setitimer(signal.ITIMER_REAL, remaining)
         raise TimeoutError("AM publisher original phase/overall deadline exhausted")
 
-    def phase(name: str, seconds: float, downstream: float, *, initial: bool = False) -> float:
+    def phase(name: str, seconds: int, downstream: int, *, initial: bool = False) -> float:
         now = time.monotonic()
-        end = (started if initial else now) + seconds
+        origin = started if initial else now
+        # Compare exact sampled operands before any rounding of absolute deadlines.
+        elapsed = Fraction(origin) - Fraction(started)
+        remaining = Fraction(origin) + seconds - Fraction(now)
         require(
-            end > now and end + downstream + cleanup_remaining <= overall_deadline,
+            remaining > 0 and elapsed + seconds + downstream + cleanup_remaining <= capacity,
             "AM_publisher_downstream_reserve_" + name,
         )
-        signal.setitimer(signal.ITIMER_REAL, end - now)
+        end = origin + seconds
+        alarm_seconds = float(remaining)
+        if alarm_seconds > remaining:
+            alarm_seconds = nextafter(alarm_seconds, 0.0)
+        signal.setitimer(signal.ITIMER_REAL, alarm_seconds)
         result["phases"].append(
             {"phase": name, "started": now - started, "deadline": end - started}
         )

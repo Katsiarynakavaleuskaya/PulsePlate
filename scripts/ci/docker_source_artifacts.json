@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generated_at": "2026-10-04",
   "review_by": "2026-11-30",
-  "reason": "Manual source review 2026-10-31: retain bounded SQLite, util-linux libuuid, PCRE2, SLJIT, OpenSSL and PostgreSQL client dispositions; qualify exact maintained zlib 1.3.2.1-motley, signed ncurses 6.6-20261024 and official Alertmanager 0.34.2 source/UI. Original17 obligations and missed deadlines remain in existing security owners. Seven contained zlib patch inputs are removed from this qualification candidate; achieved retirement and native/image acceptance remain pending. Reassess immediately on new findings or source/recipe/toolchain/provenance changes.",
+  "reason": "Manual source review 2026-10-31: retain bounded SQLite, util-linux libuuid, PCRE2, SLJIT, OpenSSL and PostgreSQL client dispositions; qualify exact maintained zlib 1.3.2.1-motley, signed ncurses 6.6-20261024 and official Alertmanager 0.34.2 source/UI. Original17 obligations and missed deadlines remain in existing security owners. Seven contained zlib patch inputs are removed from this qualification candidate; achieved retirement and native/image acceptance remain pending. Reassess immediately on new findings or source/recipe/toolchain/provenance changes. On 2026-11-04 the selected ncurses build input became the codeload archive of commit dc909d77781ef5c2a0684e9ad9eb9f0c0baf5ecc. The verified upstream signature on Git tag v6_6_20261024 authenticates that commit, and the ncurses row pins the downloaded archive bytes by SHA-256 and SHA3-256. The separately signed release ncurses-6.6-20261024.tgz remains the historical October 31 input.",
   "artifacts": [
     {
       "name": "sqlite-autoconf",
@@ -107,27 +107,27 @@
     {
       "name": "ncurses",
       "version": "6.6-20261024",
-      "filename": "ncurses-6.6-20261024.tgz",
-      "url": "https://invisible-mirror.net/archives/ncurses/current/ncurses-6.6-20261024.tgz",
+      "filename": "ncurses-snapshots-dc909d77781ef5c2a0684e9ad9eb9f0c0baf5ecc.tar.gz",
+      "url": "https://codeload.github.com/ThomasDickey/ncurses-snapshots/tar.gz/dc909d77781ef5c2a0684e9ad9eb9f0c0baf5ecc",
       "sha3_256_parts": [
-        "7a9e4d9c",
-        "29c764d4",
-        "51564cf9",
-        "3d08b50c",
-        "d63d3f8d",
-        "ad3535b3",
-        "3a763f82",
-        "9d89a500"
+        "3c75e58a",
+        "86e20f38",
+        "0f2e245e",
+        "75c8ac48",
+        "b2b0fa61",
+        "881f0a81",
+        "394f5656",
+        "82c9532e"
       ],
       "sha256_parts": [
-        "478141b2",
-        "004fcd12",
-        "219c3cbe",
-        "467dc2bb",
-        "848eb1d0",
-        "e762eb8d",
-        "73b9c8ae",
-        "613168e0"
+        "4c1a95b8",
+        "f05f0f86",
+        "65988fa4",
+        "07693d33",
+        "224776f4",
+        "6e4728c1",
+        "5db910a2",
+        "f653fe29"
       ]
     },
     {
