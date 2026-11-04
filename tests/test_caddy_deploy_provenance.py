@@ -6221,6 +6221,39 @@ def test_caddy_candidate_release_requires_current_source_control_and_cleanup_con
         "source-alias",
         "expired-artifact",
         "failed-producer",
+        "refresh-both",
+        "refresh-mixed",
+        "refresh-second",
+        "refresh-ordinary",
+        "refresh-persistent",
+        "refresh-run-regressed",
+        "refresh-job-regressed",
+        "refresh-step-disappeared",
+        "refresh-step-renumbered",
+        "refresh-missing-step",
+        "refresh-duplicate-step",
+        "refresh-step-started",
+        "refresh-terminal",
+        "refresh-cancelled",
+        "refresh-unknown",
+        "refresh-conclusion",
+        "refresh-run-id",
+        "refresh-job-id",
+        "refresh-attempt",
+        "refresh-branch",
+        "refresh-event",
+        "refresh-repo",
+        "refresh-workflow",
+        "refresh-head",
+        "refresh-job-run",
+        "refresh-job-head",
+        "refresh-job-branch",
+        "refresh-budget",
+        "refresh-job-budget",
+        "refresh-malformed-steps",
+        "refresh-initial-terminal",
+        "refresh-initial-started",
+        "refresh-job-complete-time",
     ],
 )
 def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
@@ -6278,8 +6311,13 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
     }
     if case == "foreign-repo":
         pr["head"]["repo"]["id"] = 999
+    refresh = case.removeprefix("refresh-") if case.startswith("refresh-") else None
     reuse = case in {"reuse", "expired-artifact", "failed-producer"}
-    event_name = "pull_request" if reuse or case == "ordinary-no-producer" else "workflow_dispatch"
+    event_name = (
+        "pull_request"
+        if reuse or refresh == "ordinary" or case == "ordinary-no-producer"
+        else "workflow_dispatch"
+    )
     action = (
         ""
         if event_name == "pull_request"
@@ -6329,6 +6367,7 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
         "status": "in_progress",
         "conclusion": None,
         "head_branch": branch,
+        "completed_at": None,
         "steps": [
             {
                 "number": 12,
@@ -6340,6 +6379,23 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
             }
         ],
     }
+    active_run, active_job = deepcopy(current_run), deepcopy(current_job)
+    if refresh:
+        current_run["status"] = "in_progress" if refresh == "run-regressed" else "queued"
+        if refresh not in {"mixed", "job-regressed"}:
+            current_job.update(status="queued", started_at="2026-10-31T01:00:01Z", steps=[])
+        if refresh in {"step-disappeared", "step-renumbered"}:
+            current_job["steps"] = deepcopy(active_job["steps"])
+        if refresh == "initial-terminal":
+            current_run["status"] = "completed"
+        if refresh == "initial-started":
+            current_job["steps"] = deepcopy(active_job["steps"])
+            current_job["steps"][0].update(status="in_progress", started_at="2026-10-31T01:00:02Z")
+        if refresh in {"budget", "job-budget"}:
+            path = runner / "caddy-admission/admission.json"
+            ledger = json.loads(path.read_text())
+            ledger["budget"]["charged"]["ADMISSION"] = 541 if refresh == "budget" else 538
+            path.write_text(json.dumps(ledger))
     runs = [current_run]
     jobs = {11: [] if case == "missing-job" else [current_job]}
     if reuse or case == "active-producer":
@@ -6426,6 +6482,51 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
             elif "/jobs?filter=all" in url:
                 run_id = int(url.split("/runs/", 1)[1].split("/", 1)[0])
                 value = {"total_count": len(jobs[run_id]), "jobs": jobs[run_id]}
+            elif url.endswith("/actions/runs/11/attempts/1"):
+                value = deepcopy(active_run)
+                if refresh in {"persistent", "run-regressed"} or (
+                    refresh == "second" and calls.count(url) == 1
+                ):
+                    value["status"] = "queued"
+                for fault, field, invalid in (
+                    ("run-id", "id", 12),
+                    ("attempt", "run_attempt", True),
+                    ("branch", "head_branch", "other"),
+                    ("event", "event", "push"),
+                    ("repo", "repository", {"id": 99, "full_name": repo}),
+                    ("workflow", "workflow_id", 7),
+                    ("head", "head_sha", old_head),
+                    ("terminal", "status", "completed"),
+                    ("cancelled", "status", "cancelled"),
+                    ("unknown", "status", "unknown"),
+                    ("conclusion", "conclusion", "success"),
+                ):
+                    if refresh == fault:
+                        value[field] = invalid
+            elif url.endswith("/actions/jobs/21"):
+                value = deepcopy(active_job)
+                if refresh in {"persistent", "job-regressed", "step-disappeared"}:
+                    value.update(status="queued", steps=[])
+                elif refresh == "step-renumbered":
+                    value["steps"][0]["number"] += 1
+                elif refresh == "missing-step":
+                    value["steps"] = []
+                elif refresh == "malformed-steps":
+                    value["steps"] = {}
+                elif refresh == "duplicate-step":
+                    value["steps"].append({**value["steps"][0], "number": 13})
+                elif refresh == "step-started":
+                    value["steps"][0]["started_at"] = "2026-10-31T01:00:02Z"
+                elif refresh == "job-complete-time":
+                    value["completed_at"] = "2026-10-31T01:00:02Z"
+                elif refresh == "job-id":
+                    value["id"] = 22
+                elif refresh == "job-head":
+                    value["head_sha"] = old_head
+                elif refresh == "job-run":
+                    value["run_id"] = 12
+                elif refresh == "job-branch":
+                    value["head_branch"] = "other"
             elif "/artifacts?" in url:
                 value = {
                     "total_count": 1,
@@ -6474,16 +6575,26 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
     from scripts.ci import check_docker_runtime_dependency_surface as owner
     from urllib.request import Request
 
+    if refresh == "job-budget":
+        from types import SimpleNamespace
+
+        now = ledger["budget"]["started"]
+        monkeypatch.setattr(owner, "time", SimpleNamespace(monotonic=lambda: now))
+
     def api_call(
         selected_root: Path, directory: Path, endpoint: str, remaining: Any, expected: str
     ) -> Any:
+        nonlocal now
         assert selected_root == root
         assert expected == hashlib.sha256(source_bytes).hexdigest()
         request = Request(
             "https://api.github.com/repos/" + repo + endpoint,
             headers={"Authorization": "Bearer " + os.environ["GH_TOKEN"]},
         )
-        return json.loads(API().open(request, remaining(30)).read(8388609))
+        response = json.loads(API().open(request, remaining(30)).read(8388609))
+        if refresh == "job-budget" and endpoint == "/actions/runs/11/attempts/1":
+            now += 33
+        return response
 
     monkeypatch.setattr(owner, "caddy_ci_api", api_call)
     monkeypatch.setattr(transport, "authenticate_pr_source", lambda *args: lineage.append(args[1:]))
@@ -6491,11 +6602,12 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
     monkeypatch.setattr(subprocess, "check_output", git_output)
     monkeypatch.setattr(subprocess, "run", git_run)
     code = _caddy_inline("Admit existing Caddy producer or exact retained subject")
-    if case in {"build", "reuse", "metadata"}:
+    if case in {"build", "reuse", "metadata"} or refresh in {"both", "mixed", "second"}:
         exec(compile(code, "<actual-Caddy-current-admission>", "exec"), {})
         result = json.loads((runner / "caddy-admission/admission.json").read_text())
-        assert result["mode"] == case
-        assert output.read_text().startswith("mode=" + case)
+        mode = "build" if refresh else case
+        assert result["mode"] == mode
+        assert output.read_text().startswith("mode=" + mode)
         if case == "reuse":
             assert result["producer"]["git_inputs"] == result["inputs"]
             assert result["producer"]["artifact"]["id"] == 31
@@ -6514,10 +6626,43 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
             "source-alias": "relevant source path alias",
             "expired-artifact": "original producer artifact unavailable",
             "failed-producer": "real successful same-source PR2494 producer",
-        }[case]
+        }.get(case, "Caddy current")
+        if refresh == "attempt":
+            expected_error = "native positive ID required"
+        if refresh == "ordinary":
+            expected_error = "real successful same-source PR2494 producer"
+        if refresh in {"budget", "persistent"}:
+            expected_error = "current state unresolved: run=11 job=21 attempt=1 statuses="
         with pytest.raises(ValueError, match=expected_error):
             exec(compile(code, "<actual-Caddy-current-admission>", "exec"), {})
         assert output.read_text() == ""
+    if refresh:
+        expected_pairs = (
+            0
+            if refresh in {"budget", "initial-terminal", "initial-started"}
+            else 2 if refresh in {"second", "persistent"} else 1
+        )
+        assert sum(url.endswith("/actions/runs/11/attempts/1") for url in calls) == expected_pairs
+        invalid_run = refresh in {
+            "run-regressed",
+            "run-id",
+            "attempt",
+            "branch",
+            "event",
+            "repo",
+            "workflow",
+            "head",
+            "terminal",
+            "cancelled",
+            "unknown",
+            "conclusion",
+            "job-budget",
+        }
+        expected_job_reads = 0 if invalid_run else expected_pairs
+        assert sum(url.endswith("/actions/jobs/21") for url in calls) == expected_job_reads
+        assert sum("/actions/workflows/frontend-ci.yml/runs?" in url for url in calls) == 2
+        assert sum("/jobs?filter=all" in url for url in calls) == 2
+        assert not any("/artifacts?" in url for url in calls)
     assert not (runner / "caddy-contract/candidate.docker.tar").exists()
 
 

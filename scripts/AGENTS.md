@@ -483,18 +483,14 @@ or claim that passing this probe validates the application on Python 3.14.
   their existing behavior; binary-only installs retain target-Python selection.
   Dedicated SDK builds reject an explicit target-Python option because the
   unchanged four-input build uses its loader interpreter.
-- In a trusted checkout, devcontainer host initialization may execute only
-  `["make", "--directory", "${localWorkspaceFolder}", "docker-source-artifacts", "DEV_PYTHON=python3"]`.
-  Keep the workspace one argv element and qualify the existing host make,
-  python3, bash, pwd, cksum and cut; install nothing automatically. This exact
-  source-only prerequisite may run again on startup and must retain the existing
-  fetcher's hash/path/expiry checks and fail before the dependent Compose build.
-  The argv array does not sandbox Make, a hostile checkout or ambient host tools.
-  CLI `dc-up`, `docker-run` and `docker-run-dev` retain their existing prerequisite.
-  No other automatic repository lifecycle operation, pip/backend venv/native SDK
-  installation, profile sourcing or `.env`/credentials/HOME transfer follows.
-  Container bootstrap remains manual after trust; actual Codespaces host and full
-  SDK/prebuild evidence are independent of synthetic argv/delegation tests.
+- Review and trust the checkout before explicitly running `make docker-source-artifacts`
+  on the host, then choose **Dev Containers: Reopen in Container**. For the CLI,
+  `make dc-up` already includes this prerequisite. Source acquisition must retain
+  the fetcher's hash, path and expiry checks and propagate failures before the build.
+  Keep host-side preparation out of automatic devcontainer lifecycle commands.
+  Run `make devcontainer-bootstrap` manually inside the trusted container.
+  Keep the project `.env`, host credentials and general host HOME out of automatic
+  bootstrap. See the Dev Container section in `CONTRIBUTING.md`.
 - `make dc-up` credential forwarding is explicit opt-in through
   `PULSEPLATE_NATIVE_SDK_NETRC_FILE`, defaulting to `/dev/null`. Use only a temporary
   read-only file scoped to the approved package host after reviewing/trusting the

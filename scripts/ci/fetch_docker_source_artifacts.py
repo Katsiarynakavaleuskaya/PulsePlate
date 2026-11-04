@@ -13,9 +13,11 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
 from email.message import Message
+from fractions import Fraction
 from hashlib import sha1, sha256, sha3_256
 import io
 import json
+from math import nextafter
 import os
 from pathlib import Path, PurePosixPath
 import posixpath
@@ -11519,6 +11521,16 @@ def _alertmanager_bind_current_plan(plan: dict[str, Any], support: dict[str, Any
     argv[position] = BASE + "=oci-layout:///inputs/base-layout@" + descriptor["digest"]
 
 
+def _alertmanager_clock_float(value: Fraction) -> float:
+    """Round an exact clock span or deadline toward the earlier representable time."""
+    projected = float(value)
+    if projected > value:
+        projected = nextafter(projected, float("-inf"))
+    if value > 0 and projected <= 0:
+        raise TimeoutError("AM positive clock interval cannot be represented")
+    return projected
+
+
 def _alertmanager_current_build(args: argparse.Namespace) -> None:
     """Qualify real C or rebuilt H using one producer clock and incumbent evidence owners."""
     import signal
@@ -11587,13 +11599,13 @@ def _alertmanager_current_build(args: argparse.Namespace) -> None:
     fresh_directory(retained)
     evidence = retained / "github-read-evidence"
     fresh_directory(evidence)
-    started = time.monotonic()
+    started = Fraction(time.monotonic())
     saved_timer = signal.getitimer(signal.ITIMER_REAL)
     saved_handler = signal.getsignal(signal.SIGALRM)
-    overall_deadline = min(
-        started + budgets["PRODUCER_SECONDS"],
-        started + saved_timer[0] if saved_timer[0] > 0 else float("inf"),
-    )
+    capacity = Fraction(budgets["PRODUCER_SECONDS"])
+    if saved_timer[0] > 0:
+        capacity = min(capacity, Fraction(saved_timer[0]))
+    overall_deadline = started + capacity
     work_deadline = (
         overall_deadline
         - budgets["PRODUCER_RETENTION_SECONDS"]
@@ -11604,16 +11616,18 @@ def _alertmanager_current_build(args: argparse.Namespace) -> None:
     def timeout(_signum: int, _frame: object) -> None:
         raise TimeoutError("AM producer shared deadline exhausted")
 
-    charged_seconds = 0.0
+    charged_seconds = Fraction(0)
 
-    def reserve(seconds: float) -> None:
-        require(
-            time.monotonic() - started - charged_seconds <= 75, "AM_producer_controller_overhead"
-        )
-        require(time.monotonic() + seconds <= overall_deadline, "AM_producer_remaining_reservation")
+    def reserve(seconds: Fraction) -> None:
+        now = Fraction(time.monotonic())
+        require(now - started - charged_seconds <= 75, "AM_producer_controller_overhead")
+        require(now + seconds <= overall_deadline, "AM_producer_remaining_reservation")
 
+    work_remaining = work_deadline - Fraction(time.monotonic())
+    require(work_remaining > 0, "AM_producer_parent_cleanup_reservation")
+    first_alarm = _alertmanager_clock_float(work_remaining)
     signal.signal(signal.SIGALRM, timeout)
-    signal.setitimer(signal.ITIMER_REAL, work_deadline - started)
+    signal.setitimer(signal.ITIMER_REAL, first_alarm)
     result: dict[str, Any] = {
         "source": args.source_sha,
         "compiler_starts": 0,
@@ -11621,10 +11635,10 @@ def _alertmanager_current_build(args: argparse.Namespace) -> None:
         "status": "HOLD_NO_EXECUTION_OUTCOME",
         "policy_version": "DEP-AM-SEC-1.acceptance.v1",
     }
-    material_remaining = float(budgets["PRODUCER_MATERIAL_SECONDS"])
-    prep_remaining = float(limits["PREP_SECONDS"])
+    material_remaining = Fraction(budgets["PRODUCER_MATERIAL_SECONDS"])
+    prep_remaining = Fraction(limits["PREP_SECONDS"])
     # 525 seconds cover concrete cleanup/retention owners; the other75 cover controller overhead.
-    cleanup_remaining = float(budgets["PRODUCER_OTHER_CLEANUP_SECONDS"] - 75)
+    cleanup_remaining = Fraction(budgets["PRODUCER_OTHER_CLEANUP_SECONDS"] - 75)
     api: GitHubRead | None = None
     try:
         reserve(
@@ -11636,11 +11650,11 @@ def _alertmanager_current_build(args: argparse.Namespace) -> None:
             + limits["NATIVE_CLEANUP_SECONDS"]
             + cleanup_remaining
         )
-        phase_started = time.monotonic()
+        phase_started = Fraction(time.monotonic())
         api = GitHubRead(
             output / "private",
             evidence,
-            min(work_deadline, phase_started + prep_remaining),
+            _alertmanager_clock_float(min(work_deadline, phase_started + prep_remaining)),
             limits["CLEANUP_SECONDS"],
         )
         try:
@@ -11650,22 +11664,26 @@ def _alertmanager_current_build(args: argparse.Namespace) -> None:
             require(type(admission) is dict, "AM_producer_admission_observation")
             admission = cast(dict[str, Any], admission)
             result["producer_admission"] = admission
-            used = time.monotonic() - phase_started
+            used = Fraction(time.monotonic()) - phase_started
             prep_remaining -= used
             charged_seconds += used
             require(prep_remaining > 0, "AM_producer_preparation_remaining")
-            phase_started = time.monotonic()
-            api.deadline = min(work_deadline, phase_started + material_remaining)
+            phase_started = Fraction(time.monotonic())
+            api.deadline = _alertmanager_clock_float(
+                min(work_deadline, phase_started + material_remaining)
+            )
             material = _alertmanager_whole_material(api, args.source_sha)
             result["material"] = material
             host = _alertmanager_host_inputs(api)
             result["host_inputs"] = host
-            used = time.monotonic() - phase_started
+            used = Fraction(time.monotonic()) - phase_started
             material_remaining -= used
             charged_seconds += used
             require(material_remaining > 0, "AM_producer_material_remaining")
-            phase_started = time.monotonic()
-            api.deadline = min(work_deadline, phase_started + prep_remaining)
+            phase_started = Fraction(time.monotonic())
+            api.deadline = _alertmanager_clock_float(
+                min(work_deadline, phase_started + prep_remaining)
+            )
             source_bytes = _alertmanager_source_snapshot(
                 api, args.source_sha, upstream_version="0.34.2"
             )
@@ -11704,11 +11722,11 @@ def _alertmanager_current_build(args: argparse.Namespace) -> None:
                     "AM_current_build_no_mixed_selector",
                 )
             _alertmanager_package_read(api)
-            used = time.monotonic() - phase_started
+            used = Fraction(time.monotonic()) - phase_started
             prep_remaining -= used
             charged_seconds += used
         finally:
-            cleanup_started = time.monotonic()
+            cleanup_started = Fraction(time.monotonic())
             original = sys.exc_info()[1]
             try:
                 api.close()
@@ -11723,7 +11741,7 @@ def _alertmanager_current_build(args: argparse.Namespace) -> None:
             not api.private.exists() and not api.private.is_symlink(),
             "AM_credentials_removed_before_native",
         )
-        charged_seconds += time.monotonic() - cleanup_started
+        charged_seconds += Fraction(time.monotonic()) - cleanup_started
         cleanup_remaining -= limits["CLEANUP_SECONDS"]
         require(prep_remaining > 0, "AM_producer_preparation_remaining")
         reserve(
@@ -11735,8 +11753,8 @@ def _alertmanager_current_build(args: argparse.Namespace) -> None:
             + limits["NATIVE_CLEANUP_SECONDS"]
             + cleanup_remaining
         )
-        prep_started = time.monotonic()
-        deadline = min(work_deadline, prep_started + prep_remaining)
+        prep_started = Fraction(time.monotonic())
+        deadline = _alertmanager_clock_float(min(work_deadline, prep_started + prep_remaining))
         q, supported_binding = bindings["qualification"], bindings["support"]
         inspected = _alertmanager_qualified_payload(output / "qualification.zip", current=True)
         require(
@@ -11776,9 +11794,9 @@ def _alertmanager_current_build(args: argparse.Namespace) -> None:
             upstream_version="0.34.2",
             preparation_finished=prep_finished,
         )
-        charged_seconds += time.monotonic() - prep_started
+        charged_seconds += Fraction(time.monotonic()) - prep_started
         require(len(prep_finished) == 1, "AM_pair_preparation_clock")
-        prep_remaining -= prep_finished[0] - prep_started
+        prep_remaining -= Fraction(prep_finished[0]) - prep_started
         require(prep_remaining >= 0, "AM_pair_preparation_exhausted")
         cleanup_remaining -= limits["CLEANUP_SECONDS"]
         import shutil
@@ -11799,7 +11817,7 @@ def _alertmanager_current_build(args: argparse.Namespace) -> None:
             + limits["NATIVE_CLEANUP_SECONDS"]
             + cleanup_remaining
         )
-        security_started = time.monotonic()
+        security_started = Fraction(time.monotonic())
         result["security"] = _alertmanager_final_security(
             retained / "candidate.oci.tar",
             result["graph"],
@@ -11810,7 +11828,7 @@ def _alertmanager_current_build(args: argparse.Namespace) -> None:
             support_report=supported,
             upstream_version="0.34.2",
         )
-        charged_seconds += time.monotonic() - security_started
+        charged_seconds += Fraction(time.monotonic()) - security_started
         cleanup_remaining -= limits["CLEANUP_SECONDS"]
         observation.write_text(json.dumps(result, indent=2) + "\n")
         reserve(
@@ -11819,18 +11837,18 @@ def _alertmanager_current_build(args: argparse.Namespace) -> None:
             + limits["NATIVE_CLEANUP_SECONDS"]
             + cleanup_remaining
         )
-        native_started = time.monotonic()
+        native_started = Fraction(time.monotonic())
         result["native"] = _alertmanager_native_candidate(
             result, observation, output / "native", limits, producer_image=True
         )
-        charged_seconds += time.monotonic() - native_started
+        charged_seconds += Fraction(time.monotonic()) - native_started
         reserve(material_remaining + cleanup_remaining)
-        rebind_started = time.monotonic()
+        rebind_started = Fraction(time.monotonic())
         fresh_directory(retained / "rebind-evidence")
         rebind = GitHubRead(
             output / "rebind-private",
             retained / "rebind-evidence",
-            min(work_deadline, rebind_started + material_remaining),
+            _alertmanager_clock_float(min(work_deadline, rebind_started + material_remaining)),
             limits["CLEANUP_SECONDS"],
         )
         try:
@@ -11844,7 +11862,7 @@ def _alertmanager_current_build(args: argparse.Namespace) -> None:
             )
             require(_alertmanager_host_inputs(rebind) == host, "AM_producer_final_host_input_drift")
         finally:
-            rebind_work_finished = time.monotonic()
+            rebind_work_finished = Fraction(time.monotonic())
             original = sys.exc_info()[1]
             try:
                 rebind.close()
@@ -11859,17 +11877,19 @@ def _alertmanager_current_build(args: argparse.Namespace) -> None:
             not rebind.private.exists() and not rebind.private.is_symlink(),
             "AM_final_credentials_removed",
         )
-        charged_seconds += time.monotonic() - rebind_started
+        charged_seconds += Fraction(time.monotonic()) - rebind_started
         material_remaining -= rebind_work_finished - rebind_started
         cleanup_remaining -= limits["CLEANUP_SECONDS"]
         require(material_remaining >= 0, "AM_producer_final_material_budget")
         reserve(cleanup_remaining)
         result["budget"] = {
-            "controller_seconds": time.monotonic() - started - charged_seconds,
+            "controller_seconds": float(Fraction(time.monotonic()) - started - charged_seconds),
             "maximum_seconds": budgets["PRODUCER_SECONDS"],
-            "preparation_seconds_used": limits["PREP_SECONDS"] - prep_remaining,
-            "material_seconds_used": budgets["PRODUCER_MATERIAL_SECONDS"] - material_remaining,
-            "elapsed_seconds": time.monotonic() - started,
+            "preparation_seconds_used": float(limits["PREP_SECONDS"] - prep_remaining),
+            "material_seconds_used": float(
+                budgets["PRODUCER_MATERIAL_SECONDS"] - material_remaining
+            ),
+            "elapsed_seconds": float(Fraction(time.monotonic()) - started),
         }
         result["status"] = (
             "OBSERVED_MERGED_H_REBUILD_SECURITY_NATIVE"
@@ -11883,17 +11903,16 @@ def _alertmanager_current_build(args: argparse.Namespace) -> None:
     finally:
         original_error = sys.exc_info()[1]
         try:
-            remaining = min(
-                float(budgets["PRODUCER_RETENTION_SECONDS"]), overall_deadline - time.monotonic()
-            )
+            now = Fraction(time.monotonic())
+            remaining = min(Fraction(budgets["PRODUCER_RETENTION_SECONDS"]), overall_deadline - now)
             require(remaining > 0, "AM_producer_retention_reserve_exhausted")
-            retention_deadline = time.monotonic() + remaining
-            signal.setitimer(signal.ITIMER_REAL, remaining)
+            retention_deadline = _alertmanager_clock_float(now + remaining)
+            signal.setitimer(signal.ITIMER_REAL, _alertmanager_clock_float(remaining))
             path = retained / "candidate-observation.json"
             path.write_text(json.dumps(result, indent=2) + "\n")
             path.chmod(0o600)
             _alertmanager_retain_execution(output, retained)
-            _alertmanager_finalize_payload(retained, min(overall_deadline, retention_deadline))
+            _alertmanager_finalize_payload(retained, retention_deadline)
         except BaseException as retention_error:
             if original_error is not None:
                 original_error.add_note(
@@ -11905,9 +11924,13 @@ def _alertmanager_current_build(args: argparse.Namespace) -> None:
             signal.setitimer(signal.ITIMER_REAL, 0)
             signal.signal(signal.SIGALRM, saved_handler)
             if saved_timer[0] > 0:
-                caller_remaining = saved_timer[0] - (time.monotonic() - started)
+                caller_remaining = Fraction(saved_timer[0]) - (Fraction(time.monotonic()) - started)
                 if caller_remaining > 0:
-                    signal.setitimer(signal.ITIMER_REAL, caller_remaining, saved_timer[1])
+                    signal.setitimer(
+                        signal.ITIMER_REAL,
+                        _alertmanager_clock_float(caller_remaining),
+                        saved_timer[1],
+                    )
                 else:
                     active_error = sys.exc_info()[1]
                     if active_error is not None:
@@ -11919,11 +11942,9 @@ def _alertmanager_current_build(args: argparse.Namespace) -> None:
 def _alertmanager_execution(args: argparse.Namespace) -> None:
     """Publish only after fresh full H controls, under one original bounded clock."""
     import signal
-    from fractions import Fraction
-    from math import nextafter
     from scripts.ci.prometheus_source_image import GitHubRead, fresh_directory, require
 
-    started = time.monotonic()
+    started = Fraction(time.monotonic())
     saved_timer = signal.getitimer(signal.ITIMER_REAL)
     saved_handler = signal.getsignal(signal.SIGALRM)
     require(args.alertmanager_stage == "publish", "AM_new_compiler_not_admitted")
@@ -11993,8 +12014,9 @@ def _alertmanager_execution(args: argparse.Namespace) -> None:
     fresh_directory(output)
     retained = output / "retained"
     fresh_directory(retained)
-    duration = budgets["PUBLISHER_SECONDS"]
-    capacity = min(duration, saved_timer[0]) if saved_timer[0] > 0 else duration
+    capacity = Fraction(budgets["PUBLISHER_SECONDS"])
+    if saved_timer[0] > 0:
+        capacity = min(capacity, Fraction(saved_timer[0]))
     overall_deadline = started + capacity
     cleanup_remaining = budgets["PUBLISHER_OTHER_CLEANUP_SECONDS"]
     result: dict[str, Any] = {
@@ -12013,41 +12035,38 @@ def _alertmanager_execution(args: argparse.Namespace) -> None:
     def timeout(_signum: int, _frame: object) -> None:
         # A phase alarm must not leave exceptional owned cleanup without the
         # original overall ceiling. This rearms remaining time, never a new clock.
-        remaining = overall_deadline - time.monotonic()
+        remaining = overall_deadline - Fraction(time.monotonic())
         if remaining > 0:
-            signal.setitimer(signal.ITIMER_REAL, remaining)
+            signal.setitimer(signal.ITIMER_REAL, _alertmanager_clock_float(remaining))
         raise TimeoutError("AM publisher original phase/overall deadline exhausted")
 
     def phase(name: str, seconds: int, downstream: int, *, initial: bool = False) -> float:
-        now = time.monotonic()
+        now = Fraction(time.monotonic())
         origin = started if initial else now
         # Compare exact sampled operands before any rounding of absolute deadlines.
-        elapsed = Fraction(origin) - Fraction(started)
-        remaining = Fraction(origin) + seconds - Fraction(now)
+        elapsed = origin - started
+        remaining = origin + seconds - now
         require(
             remaining > 0 and elapsed + seconds + downstream + cleanup_remaining <= capacity,
             "AM_publisher_downstream_reserve_" + name,
         )
         end = origin + seconds
-        alarm_seconds = float(remaining)
-        if alarm_seconds > remaining:
-            alarm_seconds = nextafter(alarm_seconds, 0.0)
-        signal.setitimer(signal.ITIMER_REAL, alarm_seconds)
+        signal.setitimer(signal.ITIMER_REAL, _alertmanager_clock_float(remaining))
         result["phases"].append(
-            {"phase": name, "started": now - started, "deadline": end - started}
+            {"phase": name, "started": float(now - started), "deadline": float(end - started)}
         )
-        return end
+        return _alertmanager_clock_float(end)
 
     def close(api: GitHubRead, name: str, seconds: int) -> None:
         nonlocal cleanup_remaining
         original = sys.exc_info()[1]
         remaining = min(
-            float(seconds),
-            overall_deadline - time.monotonic() - budgets["PUBLISHER_RETENTION_SECONDS"],
+            Fraction(seconds),
+            overall_deadline - Fraction(time.monotonic()) - budgets["PUBLISHER_RETENTION_SECONDS"],
         )
         try:
             require(remaining > 0, "AM_publisher_cleanup_remaining")
-            signal.setitimer(signal.ITIMER_REAL, remaining)
+            signal.setitimer(signal.ITIMER_REAL, _alertmanager_clock_float(remaining))
             api.close()
             require(
                 not api.private.exists() and not api.private.is_symlink(),
@@ -12134,13 +12153,15 @@ def _alertmanager_execution(args: argparse.Namespace) -> None:
         # One new, fixed credential-session lifetime covers the separately charged
         # rebind and publication. Neither the old session nor this deadline is renewed.
         session_deadline = min(
-            time.monotonic() + budgets["PUBLISHER_REBIND_SECONDS"] + limits["PUBLICATION_SECONDS"],
+            Fraction(time.monotonic())
+            + budgets["PUBLISHER_REBIND_SECONDS"]
+            + limits["PUBLICATION_SECONDS"],
             overall_deadline - native_seconds - cleanup_remaining,
         )
         final_api = GitHubRead(
             output / "final-private",
             final_evidence,
-            session_deadline,
+            _alertmanager_clock_float(session_deadline),
             budgets["PUBLISHER_API_CLEANUP_SECONDS"],
         )
         try:
@@ -12176,7 +12197,7 @@ def _alertmanager_execution(args: argparse.Namespace) -> None:
         result["status"] = "OBSERVED_IMMUTABLE_PUBLICATION_PULLBACK_NATIVE"
         result["budget"] = {
             "maximum_seconds": budgets["PUBLISHER_SECONDS"],
-            "elapsed_seconds": time.monotonic() - started,
+            "elapsed_seconds": float(Fraction(time.monotonic()) - started),
         }
     except BaseException as error:
         result["failure"] = type(error).__name__ + ":" + str(error)
@@ -12184,23 +12205,27 @@ def _alertmanager_execution(args: argparse.Namespace) -> None:
     finally:
         original_error = sys.exc_info()[1]
         try:
+            now = Fraction(time.monotonic())
             remaining = min(
-                float(budgets["PUBLISHER_RETENTION_SECONDS"]), overall_deadline - time.monotonic()
+                Fraction(budgets["PUBLISHER_RETENTION_SECONDS"]), overall_deadline - now
             )
             require(remaining > 0, "AM_publisher_retention_remaining")
-            retention_deadline = time.monotonic() + remaining
-            signal.setitimer(signal.ITIMER_REAL, remaining)
+            retention_deadline = _alertmanager_clock_float(now + remaining)
+            signal.setitimer(signal.ITIMER_REAL, _alertmanager_clock_float(remaining))
             destination = retained / "candidate-observation.json"
             destination.write_text(json.dumps(result, indent=2) + "\n")
             destination.chmod(0o600)
             _alertmanager_retain_execution(output, retained)
-            _alertmanager_finalize_payload(retained, min(overall_deadline, retention_deadline))
+            _alertmanager_finalize_payload(retained, retention_deadline)
         except BaseException as retention_error:
             result["retention_failure"] = (
                 type(retention_error).__name__ + ":" + str(retention_error)
             )
             try:
-                if "retention_deadline" in locals() and time.monotonic() < retention_deadline:
+                if (
+                    "retention_deadline" in locals()
+                    and Fraction(time.monotonic()) < retention_deadline
+                ):
                     (retained / "candidate-observation.json").write_text(
                         json.dumps(result, indent=2) + "\n"
                     )
@@ -12218,9 +12243,13 @@ def _alertmanager_execution(args: argparse.Namespace) -> None:
             signal.setitimer(signal.ITIMER_REAL, 0)
             signal.signal(signal.SIGALRM, saved_handler)
             if saved_timer[0] > 0:
-                caller_remaining = saved_timer[0] - (time.monotonic() - started)
+                caller_remaining = Fraction(saved_timer[0]) - (Fraction(time.monotonic()) - started)
                 if caller_remaining > 0:
-                    signal.setitimer(signal.ITIMER_REAL, caller_remaining, saved_timer[1])
+                    signal.setitimer(
+                        signal.ITIMER_REAL,
+                        _alertmanager_clock_float(caller_remaining),
+                        saved_timer[1],
+                    )
                 elif sys.exc_info()[1] is not None:
                     cast(BaseException, sys.exc_info()[1]).add_note(
                         "Caller deadline also expired during AM publisher"

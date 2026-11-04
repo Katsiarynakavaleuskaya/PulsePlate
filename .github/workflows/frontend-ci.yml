@@ -770,18 +770,64 @@ jobs:
               if len(current_runs) != 1 or len(current_jobs) != 1:
                   raise ValueError("Caddy current native run/job missing or ambiguous")
               current_run, current_job = current_runs[0], current_jobs[0]
-              if (current_run["head_sha"] != selected or current_run["event"] != event_name
-                      or current_run["head_branch"] != ("main" if event_name == "push" else branch)
-                      or positive_id(current_run["head_repository"]["id"]) != 1043311030
-                      or current_run["run_attempt"] != state["current_run_attempt"]
-                      or current_run["status"] != "in_progress" or current_run["conclusion"] is not None
-                      or current_job["status"] != "in_progress" or current_job["conclusion"] is not None):
-                  raise ValueError("Caddy current native run/job differs")
-              current_builds = [row for row in current_job["steps"] if row["name"] == build_name]
-              if (len(current_builds) != 1 or current_builds[0]["status"] not in ("pending", "queued")
-                      or current_builds[0]["conclusion"] is not None or current_builds[0]["started_at"] is not None
-                      or current_builds[0]["completed_at"] is not None):
-                  raise ValueError("Caddy current prebuild observation differs")
+              current_id = state["current_run_id"]
+              attempt = state["current_run_attempt"]
+              job_id = positive_id(current_job["id"])
+              expected_branch = "main" if event_name == "push" else branch
+              active = "in_progress"
+              def current_run_status(run):
+                  if (positive_id(run["id"]) != current_id or positive_id(run["run_attempt"]) != attempt
+                          or run["head_sha"] != selected or run["head_branch"] != expected_branch
+                          or run["event"] != event_name or positive_id(run["workflow_id"]) != workflow_id
+                          or run["path"] != ".github/workflows/frontend-ci.yml"
+                          or any(positive_id(run[key]["id"]) != 1043311030 or run[key]["full_name"] != repo
+                                 for key in ("repository", "head_repository"))):
+                      raise ValueError("Caddy current native run identity differs")
+                  if run["status"] not in ("queued", active) or run["conclusion"] is not None:
+                      raise ValueError("Caddy current native run state invalid")
+                  return run["status"]
+
+              run_status = current_run_status(current_run)
+              prior_job_status = "queued"
+              prior_step = None
+              call_seconds = int(os.environ["CADDY_API_CALL_SECONDS"])
+              for sample in range(3):
+                  if (positive_id(current_job["id"]) != job_id or positive_id(current_job["run_attempt"]) != attempt
+                          or positive_id(current_job["run_id"]) != current_id or current_job["name"] != "caddy-contract"
+                          or current_job["head_sha"] != selected or current_job["head_branch"] != expected_branch):
+                      raise ValueError("Caddy current native job identity differs")
+                  job_status = current_job["status"]
+                  if (job_status not in ("queued", active) or current_job["conclusion"] is not None
+                          or current_job["completed_at"] is not None or (prior_job_status == active and job_status != active)):
+                      raise ValueError("Caddy current native job state invalid or regressed")
+                  steps = current_job["steps"]
+                  if (not isinstance(steps, list)
+                          or any(not isinstance(step, dict) or not isinstance(step.get("name"), str) or not step["name"] for step in steps)
+                          or len({positive_id(step["number"]) for step in steps}) != len(steps)):
+                      raise ValueError("Caddy current native step inventory differs")
+                  targets = [step for step in steps if step["name"] in (build_name, "Build accepted D Caddy candidate once")]
+                  if steps:
+                      if (len(targets) != 1 or targets[0]["name"] != build_name
+                              or targets[0]["status"] not in ("pending", "queued")
+                              or targets[0]["conclusion"] is not None or targets[0]["started_at"] is not None
+                              or targets[0]["completed_at"] is not None
+                              or (prior_step is not None and targets[0]["number"] != prior_step)):
+                          raise ValueError("Caddy current prebuild observation differs")
+                      prior_step = targets[0]["number"]
+                      if run_status == job_status == active:
+                          break
+                  elif job_status != "queued" or prior_step is not None:
+                      raise ValueError("Caddy current prebuild observation missing")
+                  if sample == 2 or remaining(float("inf")) < 2 * call_seconds:
+                      raise ValueError(f"Caddy current state unresolved: run={current_id} job={job_id} attempt={attempt} statuses={run_status}/{job_status}")
+                  prior_job_status = job_status
+                  refreshed_status = current_run_status(api(f"/actions/runs/{current_id}/attempts/{attempt}"))
+                  if run_status == active and refreshed_status != active:
+                      raise ValueError("Caddy current native run state regressed")
+                  run_status = refreshed_status
+                  if remaining(float("inf")) < call_seconds:
+                      raise ValueError(f"Caddy current job read budget exhausted: job={job_id} attempt={attempt}")
+                  current_job = api(f"/actions/jobs/{job_id}")
               from scripts.ci.prometheus_source_image import authenticate_pr_source, GitHubRead
               prefix = "/repos/" + repo
               proof_api = SimpleNamespace(json=lambda endpoint: api(endpoint.removeprefix(prefix)))

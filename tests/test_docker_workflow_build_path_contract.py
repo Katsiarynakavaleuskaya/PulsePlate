@@ -12713,17 +12713,51 @@ def test_am_whole_material_rejects_unqualified_consumed_alias_or_gitlink(
         docker_sources._alertmanager_whole_material(data["api"], data["head"])
 
 
+@pytest.mark.parametrize(
+    "clock_case", ["native", "fractional", "below", "large", "spent", "expired"]
+)
 def test_am_producer_short_parent_clock_rejects_before_API_and_restores_remaining_time(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, alertmanager_proposal_environment: None
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    alertmanager_proposal_environment: None,
+    clock_case: str,
 ) -> None:
     import signal
     from scripts.ci import prometheus_source_image as transport
 
+    from fractions import Fraction
+    from math import nextafter
+    from types import SimpleNamespace
+
     timers: list[float] = []
-    monkeypatch.setattr(signal, "getitimer", lambda *_: (600.0, 0.0))
+    restored_intervals: list[float] = []
+    start = float(2**45) + 0.125 if clock_case == "large" else 1600.000000027
+    now = start
+    parent = nextafter(600.0, 0.0) if clock_case == "below" else 600.0
+    if clock_case == "expired":
+        parent = 345.0
+    if clock_case != "native":
+        clock = SimpleNamespace(monotonic=lambda: now)
+        monkeypatch.setattr(docker_sources, "time", clock)
+        monkeypatch.setattr(transport, "time", clock)
+
+    def inherited(_timer: int) -> tuple[float, float]:
+        nonlocal now
+        if clock_case == "spent":
+            now += 255
+        return parent, 7.0
+
+    def arm(_timer: int, seconds: float, *interval: float) -> None:
+        nonlocal now
+        timers.append(seconds)
+        restored_intervals.extend(interval)
+        if clock_case != "native":
+            now += 0.125
+
+    monkeypatch.setattr(signal, "getitimer", inherited)
     monkeypatch.setattr(signal, "getsignal", lambda *_: signal.SIG_DFL)
     monkeypatch.setattr(signal, "signal", lambda *_: signal.SIG_DFL)
-    monkeypatch.setattr(signal, "setitimer", lambda _kind, seconds, *args: timers.append(seconds))
+    monkeypatch.setattr(signal, "setitimer", arm)
     monkeypatch.setattr(
         transport,
         "GitHubRead",
@@ -12742,13 +12776,25 @@ def test_am_producer_short_parent_clock_rejects_before_API_and_restores_remainin
             str(output),
         ]
     )
+    if clock_case in {"spent", "expired"}:
+        with pytest.raises(RuntimeError, match="^AM_producer_parent_cleanup_reservation$"):
+            docker_sources._alertmanager_current_build(args)
+        assert not timers and not (output / "private").exists()
+        return
     with pytest.raises(RuntimeError, match="^AM_producer_remaining_reservation$"):
         docker_sources._alertmanager_current_build(args)
     observed = json.loads((output / "retained/candidate-observation.json").read_text())
     assert observed["compiler_starts"] == observed["logical_build_starts"] == 0
     assert "failure" in observed and observed["status"] == "HOLD_NO_EXECUTION_OUTCOME"
     assert 0 < timers[0] <= 255
-    assert 0 < timers[-1] < 600
+    assert 0 < timers[-1] < parent
+    assert restored_intervals == [7.0]
+    if clock_case != "native":
+        assert timers[0] == parent - 345
+        # The test advances one exact eighth-second after each recorded arm.
+        assert Fraction(timers[-1]) <= Fraction(parent) - (
+            Fraction(now) - Fraction(start) - Fraction(1, 8)
+        )
 
 
 @pytest.mark.parametrize("kind", ["qualification", "support"])

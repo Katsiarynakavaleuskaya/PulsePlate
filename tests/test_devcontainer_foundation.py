@@ -101,16 +101,10 @@ def test_devcontainer_json_configuration() -> None:
 
 
 def test_devcontainer_json_does_not_auto_execute_workspace_bootstrap() -> None:
-    """Only the fixed host source prerequisite may run before container creation."""
+    """Host preparation and workspace bootstrap require an explicit user action."""
     data = json.loads((DEVCONTAINER_DIR / "devcontainer.json").read_text(encoding="utf-8"))
 
-    assert data["initializeCommand"] == [
-        "make",
-        "--directory",
-        "${localWorkspaceFolder}",
-        "docker-source-artifacts",
-        "DEV_PYTHON=python3",
-    ]
+    assert "initializeCommand" not in data
     assert "postCreateCommand" not in data
     assert "onCreateCommand" not in data
     assert "updateContentCommand" not in data
@@ -465,8 +459,10 @@ def test_host_native_sources_prerequisite_hands_off_only_to_canonical_fetcher(
         .split("### Dev Container (recommended)", 1)[1]
         .split("### Backend SDK bootstrap", 1)[0]
     )
-    assert guide.index("make docker-source-artifacts") < guide.index(
-        "Dev Containers: Reopen in Container"
+    assert (
+        guide.index("from a reviewed/trusted checkout")
+        < guide.index("make docker-source-artifacts")
+        < guide.index("Dev Containers: Reopen in Container")
     )
     fixture, environment, log = _standalone_bootstrap_fixture(tmp_path)
     control = Path(environment["PATH"].split(os.pathsep)[0])
@@ -507,16 +503,16 @@ def test_host_native_sources_prerequisite_hands_off_only_to_canonical_fetcher(
 
 
 @pytest.mark.parametrize("failure", (None, "missing-manifest", "fetch-error", "missing-python"))
-def test_devcontainer_initialize_argv_preserves_workspace_and_source_failure(
+def test_explicit_host_make_preparation_preserves_workspace_and_source_failure(
     tmp_path: Path, failure: str | None
 ) -> None:
-    """Run the configured argv through real Make, with synthetic source transport only."""
+    """Run the explicit host prerequisite with real Make and synthetic source transport."""
     fixture, environment, log = _standalone_bootstrap_fixture(tmp_path)
     workspace = tmp_path / "trusted checkout with spaces"
     fixture.rename(workspace)
     control = Path(environment["PATH"].split(os.pathsep)[0])
     # Keep only the actual Make parse-time host tools and the synthetic interpreter.
-    # A missing python3 cannot fall through to another host interpreter on PATH.
+    # An explicit DEV_PYTHON=python3 must fail if that interpreter is missing.
     for name in ("cksum", "cut"):
         binary = shutil.which(name)
         assert binary is not None
@@ -543,16 +539,9 @@ def test_devcontainer_initialize_argv_preserves_workspace_and_source_failure(
         assert transport.count(branch) == 1
         python.write_text(transport.replace(branch, branch + "    raise SystemExit(7)\n", 1))
 
-    config = json.loads((DEVCONTAINER_DIR / "devcontainer.json").read_text())
-    configured = config["initializeCommand"]
-    assert isinstance(configured, list) and all(isinstance(arg, str) for arg in configured)
-    make = shutil.which(configured[0])
+    make = shutil.which("make")
     assert make is not None
-    argv = [
-        make,
-        *(arg.replace("${localWorkspaceFolder}", str(workspace)) for arg in configured[1:]),
-    ]
-    assert argv[2] == str(workspace)
+    argv = [make, "-C", str(workspace), "docker-source-artifacts", "DEV_PYTHON=python3"]
     for _ in range(2 if failure is None else 1):
         result = subprocess.run(
             argv,
