@@ -24,6 +24,148 @@ Root [AGENTS.md](../../AGENTS.md) owns policy and validation budgets. Follow
 coordinator/packet/role sequence. Host and container execution are explicit;
 this runbook introduces no command router or product authority.
 
+## Agent/operator quick path
+
+Apply the execution-placement rule in root [AGENTS.md](../../AGENTS.md#-hard-gates-non-negotiable)
+after current coordinator/preflight/role admission. Select tests from observed
+available RAM, active jobs and the bounded command cost under the existing local
+budget; do not invent a fixed RAM threshold. Instructions apply to sessions that
+actually load them. They do not prove that running chats reloaded, reroute local
+Make/Python or Apple Container commands, select remote Codex accounts, or permit
+contact with another chat. Keep the global Docker context unchanged.
+
+The dated checkpoints and initial-host/startup recipes below are historical or
+initial-provisioning context. For a continuation, use its newly admitted owned
+source/receiver, current manifests and observed container IDs. Do not replay
+user/package/daemon setup, clone over an existing destination, spend another CLI
+`up` attempt, overlay `rdev01-current99`, or reuse an old run ID from those
+examples. Creation/startup follows the current coordinator's exact command,
+resource and budget admission. The tooling image/SDK/wheelhouse/Node qualification
+is separate from application `production`/`development` image qualification;
+preserve official devcontainer feature processing rather than treating raw
+Compose as equivalent startup.
+
+Before either SSH or Docker-context access, verify that the context endpoint is
+exactly `ssh://dev@pulseplate-rdev01` and the alias's effective SSH configuration
+selects the intended `dev` identity and independently trusted known-hosts record,
+`IdentitiesOnly yes`, `ForwardAgent no` and `StrictHostKeyChecking yes`. Docker
+starts a separate SSH transport: strict command-line options on one probe do not
+configure that later invocation. A missing/mismatching setting, unexpected
+destination or changed host key stops dependent work. Do not blindly accept a
+fingerprint, rewrite trust records, switch the global context or change accounts
+to recover. If context trust cannot be demonstrated, retain the admitted explicit
+strict SSH route with selected-container execution; do not repair host config
+silently.
+
+These examples are future commands, not observed results. Use the absolute
+installed Docker client path verified for this Mac; the recorded example is
+`/usr/local/bin/docker`. Retain only the selected nonsecret effective-config and
+endpoint fields in private run notes. Local configuration output alone does not
+authenticate a host; the selected host record still needs independent trust.
+
+```bash
+set -euo pipefail
+RDEV_DOCKER=/usr/local/bin/docker
+test -x "$RDEV_DOCKER"
+/usr/bin/ssh -G pulseplate-rdev01 |
+  /usr/bin/awk '$1 ~ /^(user|hostname|port|identityfile|userknownhostsfile|identitiesonly|forwardagent|stricthostkeychecking)$/ {print}'
+"$RDEV_DOCKER" context inspect --format '{{.Endpoints.docker.Host}}' pulseplate-rdev01
+# Compare the selected fields and endpoint with the admitted trust record first.
+/usr/bin/ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ForwardAgent=no -o ConnectTimeout=10 pulseplate-rdev01 'set -eu; id -u; uname -s; uname -m'
+"$RDEV_DOCKER" --context pulseplate-rdev01 version --format '{{json .Server}}'
+```
+
+Freeze the actual base/head/index/worktree, selected new/deleted paths, modes and
+bytes through [exact material transfer](#exact-material-transfer-from-one-authoritative-source),
+then compare the complete receiver before commands. Every material change invalidates
+earlier captures. Regenerate the actual complete base-relative membership, modes,
+bytes and digest; never reuse a previous snapshot without comparison. Preserve
+the original Mac Git/index/merge coordinates separately from the fresh execution
+projection; equal material does not prove equal graph or hook/test selection.
+Keep the old receiver and unknown local volumes intact. Transfer no `.env`,
+credentials, private keys/data, HOME/auth caches, venvs or bulk build caches.
+Recreate per-lane dependencies/caches under the owned destination. Remote bind
+sources must exist on the VPS daemon host: a Mac pathname is not transferred by
+Docker context selection. `make dc-up`/`dc-shell` use ambient Docker and must run
+only in the admitted VPS workspace with its verified routing and current inputs.
+
+Set the guest workdir to the actual verified receiver, which may differ from the
+tooling primary mount. The following diagnostic follows the complete material
+comparison; matching HEAD or `git diff --name-only` cannot replace it. Replace
+both placeholders from the current run receipt before execution:
+
+```bash
+RDEV_CONTAINER_ID=REPLACE-OBSERVED-OWNED-CONTAINER-ID
+RDEV_GUEST_WORKDIR=/workspaces/PulsePlate/worktrees/REPLACE-OWNED-RECEIVER
+"$RDEV_DOCKER" --context pulseplate-rdev01 exec --workdir "$RDEV_GUEST_WORKDIR" "$RDEV_CONTAINER_ID" /bin/bash -lc '
+  set -euo pipefail
+  pwd
+  uname -s
+  uname -m
+  git rev-parse HEAD
+  git diff --name-only
+'
+```
+
+Use the existing [bootstrap](#explicit-ssh-and-feature-enabled-container-startup),
+[focused checks and terminal-result capture](#dirty-checks-persistent-runs-and-reconnect),
+[private preview](#explicit-private-ssh-preview-and-local-ios-simulator) and
+[resource observation](#bounded-resource-observation-and-validation) procedures
+with the current admitted identities. Preserve local loopback 18001/15173 to the
+unambiguous current container bridge 8001/5173, with no host-published ports,
+public ingress, host networking or Docker socket mount. Do not stop protected
+local 8000/8001 listeners. Refresh bridge identity after recreation; browser
+success does not prove the original Simulator integration requirement.
+
+SQLite is only the first synthetic backend/proxy smoke; it does not replace
+required PostgreSQL/pgvector or selected Redis service capabilities. Use the
+Dependency 24 owner's designated published, qualified immutable PostgreSQL/pgvector
+subject with matching admitted source/manifest, not an older or stock PostgreSQL
+substitute. Do not inspect its foreign mutable worktree or duplicate its build.
+Reuse `scripts/ci/check_staging_postgres_runtime.py` with its existing
+`--repo-root`, `--configure-only` and `--json-out` interface; there is no `--image`
+argument. Its qualified controller and temporary PKI bind paths must be on the
+VPS daemon host with the matching source and owned Docker environment. A Mac
+controller using remote context, or a container-only temporary path, is
+insufficient. Configure-only and actual native qualification need separate
+terminal evidence. Registry/Docker credentials remain in the trusted host
+acquisition boundary and never enter test-container env, HOME, mounts or sockets;
+the trusted host process is not secret isolation.
+
+Support an isolated Redis service capability on VPS where the selected existing
+contract requires it. Record immutable image identity and synthetic native
+operations separately from application integration. Do not launch the unchanged
+root `cache` profile: it publishes `6379:6379`. Use separately admitted owned
+synthetic network/data with no host publish. For the selected SQLite/backend/proxy
+smoke, Redis application integration is N/A because that selected path has no
+identified Redis consumer; broader application parity remains unknown until an
+existing canonical applicable consumer/test is identified. Do not add a Redis
+application integration or enable semantic cache to manufacture acceptance.
+Health/PING proves only its named service operation.
+
+Before creating resources, record exact task-owned names/IDs/paths and the cleanup
+plan; ownership labels do not isolate a Docker administrator from the shared
+host. Inspect capacity and active workload through selected safe metadata only.
+Record nonsecret command/material/input view, host/container/workdir, process
+start identity, run ID, UTC start/end, separate guest/launcher exits and bounded
+RAM/disk/OOM/restart counters outside disposable resources. Missing counters or
+exits stay unknown. Never dump Config.Env, live process argv/environ, full
+interpolated Compose, homes or auth data. Reconnect to the same run before any
+retry; SSH/tmux completion proves neither guest completion nor child termination.
+
+Follow the existing [off-VPS checkpoint and recovery procedure](#off-vps-checkpoint-before-a-long-run-and-recovery-after-reboot).
+Verify returned logs/results and recovery checkpoints outside the VPS before the
+next long phase or removal. Then use supported runtime commands only for
+positively task-owned disposable resources, preserving the original command
+result if cleanup fails. Remove images/volumes only when unneeded by other
+runs/recovery and containing no unique data; record disk free before/after and
+retained resources with reasons. No global prune, `down -v`, VM disk/snapshot
+erasure, broad permission edits, foreign process stop/contact or unknown-volume
+deletion. Preserve all 1,255 old Drive parts, their folder/key/journals and retained
+encrypted VPS entries as historical partial archive, with no resume/delete/overwrite
+or full-restorable-backup claim. Every original acceptance criterion below and
+current-head PR/CI/review/human-merge requirement remains separate.
+
 ## Current truth and commercial decision
 
 Accepted reference: `RDEV01.acceptance.v1` plus the explicit owner revision
@@ -192,11 +334,15 @@ RDEV_SOURCE="$PWD"
 RDEV_CAPTURE=<new-private-owned-capture-directory>
 RDEV_BRANCH="$(git branch --show-current)"
 RDEV_HEAD="$(git rev-parse HEAD)"
-RDEV_BASE=<coordinator-admitted-base-sha>
+RDEV_BASE=<coordinator-admitted-current-main-sha>
+# This is a real source ref, not an alias manufactured to steer test selection.
+test "$(git rev-parse --verify 'refs/remotes/origin/main^{commit}')" = "$RDEV_BASE"
 umask 077
 mkdir "$RDEV_CAPTURE"   # Collision stops; never reuse an old capture.
+# EXAMPLE ONLY: replace with this run's complete coordinator-admitted source paths,
+# including inherited pending-merge I/W changes needed for the selected source.
 RDEV_SELECTED=(CONTRIBUTING.md docs/dev/CODEX_SKILLS.md docs/dev/REMOTE_DEVELOPMENT.md docs/roadmap/BACKLOG_LEDGER.md frontend/AGENTS.md frontend/vite.config.ts frontend/src/config/__tests__/remoteDevelopmentProxy.test.ts)
-git bundle create "$RDEV_CAPTURE/source.bundle" "$RDEV_BRANCH"
+git bundle create "$RDEV_CAPTURE/source.bundle" "$RDEV_BRANCH" refs/remotes/origin/main
 git bundle verify "$RDEV_CAPTURE/source.bundle"
 git diff --cached --binary --full-index --no-renames --no-ext-diff --no-textconv HEAD -- "${RDEV_SELECTED[@]}" > "$RDEV_CAPTURE/index.patch"
 git diff --binary --full-index --no-renames --no-ext-diff --no-textconv -- "${RDEV_SELECTED[@]}" > "$RDEV_CAPTURE/working.patch"
@@ -207,9 +353,13 @@ git ls-files --others --exclude-standard -z -- "${RDEV_SELECTED[@]}" > "$RDEV_CA
 shasum -a 256 "$RDEV_CAPTURE/source.bundle" "$RDEV_CAPTURE/index.patch" "$RDEV_CAPTURE/working.patch" "$RDEV_CAPTURE/newfiles.z"
 ```
 
-Record branch/base/HEAD and complete selected I/W/new/deleted inventories in
-private task notes. Ipatch is HEAD->I; Wpatch is I->W. Staged additions belong to
-Ipatch already. A staged deletion plus untracked same-path re-add is two states:
+Record branch/base/HEAD, the real captured main ref, and complete selected
+I/W/new/deleted inventories in private task notes. A selected-path example is not
+a complete pending-merge snapshot: include the entire admitted inherited index
+baseline and unpublished work required for the current code/dependency view.
+Missing coverage stops transfer; a hash of an incomplete selection does not fix
+it. Ipatch is HEAD->I; Wpatch is I->W. Staged additions belong to Ipatch already.
+A staged deletion plus untracked same-path re-add is two states:
 I absent, W present. Do not collapse patches into HEAD->W and claim original
 staging was reproduced. No synthetic commit is required.
 
@@ -257,8 +407,19 @@ else
   RDEV_REF_STATUS=$?
   test "$RDEV_REF_STATUS" -eq 1   # Only native confirmed absence permits fetch.
 fi
-git fetch --no-tags --no-write-fetch-head "$RDEV_BUNDLE" "refs/heads/$RDEV_SOURCE_BRANCH:$RDEV_IMPORT_REF"
+# Refuse a different existing selector in the owned common repository. Use a new
+# owned primary clone for a different captured main; never rewrite another view.
+if git show-ref --verify --quiet refs/remotes/origin/main; then
+  test "$(git rev-parse --verify 'refs/remotes/origin/main^{commit}')" = "$RDEV_BASE"
+else
+  RDEV_MAIN_REF_STATUS=$?
+  test "$RDEV_MAIN_REF_STATUS" -eq 1
+fi
+# The second refspec imports the genuine captured source ref under its real name.
+git fetch --no-tags --no-write-fetch-head "$RDEV_BUNDLE" "refs/heads/$RDEV_SOURCE_BRANCH:$RDEV_IMPORT_REF" refs/remotes/origin/main:refs/remotes/origin/main
 test "$(git rev-parse --verify "$RDEV_IMPORT_REF^{commit}")" = "$RDEV_HEAD"
+test "$(git rev-parse --verify 'refs/remotes/origin/main^{commit}')" = "$RDEV_BASE"
+git merge-base "$RDEV_HEAD" "$RDEV_BASE"
 git cat-file -e "$RDEV_BASE^{commit}"
 git worktree add --detach /workspaces/PulsePlate/worktrees/REPLACE-OWNED-RECEIVER "$RDEV_IMPORT_REF"
 ```
@@ -274,7 +435,11 @@ source checkout mutation or hostile-concurrency/atomicity guarantee follows.
 Create an owned CLEAN receiver at exact source HEAD; never overlay a foreign dirty checkout.
 After native bundle verification/fetch of the selected branch, use the existing
 visible common Git directory for a detached nested worktree. Record that intended
-base and HEAD are available and match, without foreign #2477 source/base adoption.
+base, HEAD and the real main selector are available and match, without foreign
+#2477 source/base adoption. Branch-scoped checks resolve committed merge-base to
+HEAD through main/master names; a detached base projection or an object-only
+import is not the original branch input. Capture the actual selected test set and
+keep index I, working W and any separately admitted disposable W-index view distinct.
 The source branch name is recorded provenance. The receiver is deliberately a
 DETACHED worktree: match its HEAD/base and actual I/W material, not the output
 of `git branch --show-current` to the source branch name. An empty receiver branch
