@@ -156,3 +156,47 @@ Rollback is an ordinary reviewed revert, never history rewriting or an
 automatic host operation. Reverting the image selection would restore the
 previous vulnerable subject and cannot be called security recovery. Reassess
 the exact image and current findings before any later operational rollback.
+
+## DEP-SEC-OCT-2 v3 producer preparation
+
+This continuation supersedes the v2 selector instructions for new material;
+prior receipts above remain historical observations. The canonical record at
+`deploy/prometheus/image-manifest.json:1` now records `candidate_selected`, with
+exact retained candidate coordinates and selection data. The finite producer in
+`scripts/ci/prometheus_source_image.py:1` prepares authentic Prometheus 3.15.0,
+Go 1.27.2, the matching official UI and the preserved distroless vendor graph.
+The retained candidate is not yet registry-published or runtime/security accepted.
+
+The source route uses one separately qualified PulsePlate rebuild of ORAS 1.3.4
+from its exact upstream commit and unchanged locks. Complete command-graph
+absence of affected SSH/OpenPGP imports, native buildinfo, all finding inventory,
+secret-scanner execution and synthetic OCI/Docker conformance remain prerequisites.
+The affected upstream prebuilt tool is not admitted. Exactly two later serial
+logical Prometheus builds retain independent caches, outputs and native equality;
+changing inputs cannot renew that budget.
+
+The [successful first-attempt tool run](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/38269614712)
+retained [artifact 11755354665](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/38269614712/artifacts/11755354665).
+Its exact source-head, artifact, input and binary coordinates are recorded at
+`deploy/prometheus/image-manifest.json:325`. Native source/lock/buildinfo and the
+complete 325-package command graph bind the PulsePlate ORAS rebuild; synthetic
+OCI/Docker conformance is observed. The four retained findings are individually
+nonapplicable only to that compiled command, as detailed in the
+[container-runtime evidence owner](PR_2356_CVE_2026_56854_CONTAINER_RUNTIME_REMEDIATION.md#retained-oras-tool-qualification).
+The [successful source-pair run](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/38291450453)
+retained [candidate artifact 11767273029](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/38291450453/artifacts/11767273029).
+Its two serial logical builds compiled both named binaries independently and
+produced equal OCI/Docker archives, config/layers, command graphs and input
+projections, with no automatic retry. Real native import was observed; this is
+retained candidate data, not a published registry image. The existing PR consumer
+must still prove actual both-binary/OS/full-finding scans, service/runtime behavior
+and signature/bundle verification. P011 and main-only publication/pullback remain
+pending; no security PASS or finding-absence claim follows from pair equality.
+
+Caddy remains 2.11.4. Its existing workflow now prepares two counterfactual
+baseline/xnet-0.60 derivations and a distinct signed Alpine zlib 1.3.2-r1 input.
+The final compiler/get/floor assertions remain unchanged until actual replay and
+source/security admission. All 29 retained baseline findings, including cel-go,
+OpenTelemetry and zlib, still need individual final evidence or bounded rescope.
+No additional authored Go action, ignore, empty Secrets list or zero-secret
+claim follows from metadata preparation or native JSON omission.

@@ -10,9 +10,7 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
-from dataclasses import dataclass, field
-from email import policy
-from email.parser import BytesParser
+from dataclasses import dataclass, field, replace as dataclass_replace
 import fcntl
 import hashlib
 import hmac
@@ -21,19 +19,17 @@ import json
 import netrc
 import os
 from pathlib import Path
-from pathlib import PurePosixPath
+import platform
 import re
 import stat
-import struct
 import subprocess  # nosec B404: argv-only governed pip-tools invocation (remove-by: 2027-01-31, ref: PR-2142)
 import sys
 import tempfile
 from typing import Iterator, Mapping, Sequence
 from urllib.parse import urlparse
-import zipfile
 
 from packaging.requirements import InvalidRequirement, Requirement
-from packaging.utils import InvalidWheelFilename, canonicalize_name, parse_wheel_filename
+from packaging.utils import canonicalize_name
 from packaging.version import InvalidVersion, Version
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -59,6 +55,11 @@ from scripts.ci.check_python_dependency_surfaces import (  # noqa: E402
 )
 from scripts.ci.install_locked_python_requirements import (  # noqa: E402
     APPROVED_INDEX_ENV_VAR,
+    PSYCOPG_SDK_ENV,
+    read_psycopg_c_sdk,
+    FileSnapshot,
+    ValidatedWheel,
+    inspect_locked_wheel,
     resolve_private_proxy_settings,
 )
 
@@ -71,6 +72,94 @@ GRAPH_CHANGE_ADMISSION_PATH = Path("scripts/ci/python_dependency_graph_change_ad
 GRAPH_CHANGE_ADMISSION_SCHEMA = "pulseplate-python-dependency-graph-change-admission.v1"
 GRAPH_CHANGE_ADMISSION_ID = "observability-refresh-2026-08-15"
 VIRTUALENV_2455_ADMISSION_ID = "virtualenv-2455-21.14.5"
+PSYCOPG_C_ADMISSION_ID = "dep-sec-oct2-psycopg-c-3.3.4"
+STABILIZATION_ADMISSION_ID = "python-stabilization-2026-10-23"
+STABILIZATION_PROFILES = (
+    "runtime",
+    "docker-runtime",
+    "ci-lite",
+    "dev",
+    "test",
+    "rag-vector",
+    "rag-vector-cpu",
+    "aggregate",
+)
+STABILIZATION_GRAPH = frozenset(
+    {"opentelemetry-exporter-http-transport", "opentelemetry-exporter-otlp-common"}
+)
+# Frozen technical material, not operator authority or native C_R proof.
+STABILIZATION_RECORD_SHA256 = bytes(
+    (
+        88,
+        195,
+        162,
+        5,
+        101,
+        128,
+        21,
+        246,
+        238,
+        175,
+        46,
+        77,
+        90,
+        43,
+        122,
+        245,
+        125,
+        111,
+        20,
+        232,
+        162,
+        253,
+        125,
+        182,
+        196,
+        20,
+        178,
+        127,
+        58,
+        242,
+        187,
+        83,
+    )
+).hex()
+PSYCOPG_C_RECORD_SHA256 = bytes(
+    (
+        211,
+        67,
+        234,
+        17,
+        34,
+        129,
+        56,
+        206,
+        208,
+        52,
+        253,
+        238,
+        169,
+        147,
+        254,
+        158,
+        206,
+        54,
+        122,
+        27,
+        18,
+        27,
+        205,
+        16,
+        24,
+        167,
+        117,
+        32,
+        7,
+        125,
+        98,
+        202,
+    )
+).hex()
 # This one fixed alternative describes a technical proposal, never native C_R.
 VIRTUALENV_2455_RECORD_SHA256 = bytes(
     (
@@ -115,12 +204,6 @@ ARTIFACT_ADMISSION_TIMEOUT_SECONDS = 60.0
 ARTIFACT_ADMISSION_MAX_BYTES = 16 * 1024 * 1024
 ARTIFACT_ADMISSION_MAX_WORKERS = 4
 ARTIFACT_ADMISSION_ATTEMPTS = 2
-MAX_WHEEL_METADATA_BYTES = 2 * 1024 * 1024
-MAX_WHEEL_MEMBERS = 100_000
-MAX_WHEEL_CENTRAL_DIRECTORY_BYTES = 32 * 1024 * 1024
-ZIP_END_OF_CENTRAL_DIRECTORY_SIZE = 22
-ZIP_MAX_COMMENT_BYTES = 65_535
-ZIP_END_OF_CENTRAL_DIRECTORY_SIGNATURE = b"PK\x05\x06"
 PROFILE_NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 EXACT_UPGRADE_RE = re.compile(
     r"^(?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)==" r"(?P<version>[A-Za-z0-9][A-Za-z0-9._+!~-]*)$"
@@ -183,18 +266,6 @@ class ExactPin:
 
 
 @dataclass(frozen=True)
-class FileSnapshot:
-    """Content and filesystem identity captured before resolver work."""
-
-    digest: str
-    mode: int
-    device: int
-    inode: int
-    owner_uid: int
-    size: int
-
-
-@dataclass(frozen=True)
 class FileCapture:
     """Bytes paired with the exact filesystem identity used to read them."""
 
@@ -211,16 +282,6 @@ class LockInputPlan:
     output_capture: FileCapture
     source_captures: tuple[tuple[Path, FileCapture], ...]
     expected_artifacts: frozenset[tuple[str, str]]
-
-
-@dataclass(frozen=True)
-class ValidatedWheel:
-    """One statically validated wheel bound to immutable filesystem identity."""
-
-    path: Path
-    artifact_key: tuple[str, str]
-    snapshot: FileSnapshot
-    metadata_digest: str = ""
 
 
 @dataclass(frozen=True)
@@ -265,11 +326,20 @@ class GraphChangeAdmission:
     source_sizes: Mapping[str, int] = field(default_factory=dict)
     artifacts: Mapping[tuple[str, str], tuple[str, int, str, str]] = field(default_factory=dict)
     profile_deltas: Mapping[str, Mapping[str, tuple[str | None, str]]] = field(default_factory=dict)
+    runtime_baseline_text: str = ""
+    exact_profile_deltas: Mapping[str, Mapping[str, tuple[ExactPin | None, ExactPin]]] = field(
+        default_factory=dict
+    )
+    frozen_inputs: tuple[tuple[Path, FileSnapshot], ...] = ()
 
     @property
     def graph_changes(self) -> frozenset[str]:
+        if self.admission_id == STABILIZATION_ADMISSION_ID:
+            return STABILIZATION_GRAPH
         if self.admission_id == VIRTUALENV_2455_ADMISSION_ID:
             return frozenset({"python-discovery"})
+        if self.admission_id == PSYCOPG_C_ADMISSION_ID:
+            return frozenset({"psycopg-binary", "psycopg-c"})
         return self.removals
 
     def project_profile_pins(
@@ -277,6 +347,34 @@ class GraphChangeAdmission:
     ) -> dict[str, ExactPin]:
         """Apply only this selected profile's exact proposed before/after relation."""
         projected = dict(baseline)
+        if self.admission_id == STABILIZATION_ADMISSION_ID:
+            if (
+                profile is None
+                or profile not in self.profiles
+                or profile not in self.exact_profile_deltas
+            ):
+                raise RuntimeError("Stabilization relation does not own the selected profile.")
+            for package, (before_pin, after_pin) in self.exact_profile_deltas[profile].items():
+                if baseline.get(package) != before_pin:
+                    raise RuntimeError(f"Stabilization {profile}: {package} before pin differs.")
+                projected[package] = after_pin
+            return projected
+        if self.admission_id == PSYCOPG_C_ADMISSION_ID:
+            if profile is None or profile not in self.profiles:
+                raise RuntimeError("Psycopg relation does not own the selected profile.")
+            if profile == "dev":
+                if any(name in projected for name in ("psycopg", "psycopg-binary", "psycopg-c")):
+                    raise RuntimeError("Dev has no Psycopg owner or leaf.")
+                return projected
+            if projected.get("psycopg") != ExactPin("3.3.4", ("binary",), None, None):
+                raise RuntimeError("Psycopg parent does not match the exact binary-extra baseline.")
+            if projected.pop("psycopg-binary", None) != ExactPin("3.3.4", (), None, None):
+                raise RuntimeError("Psycopg binary leaf does not match the exact baseline.")
+            if "psycopg-c" in projected:
+                raise RuntimeError("Psycopg C leaf is already present in the baseline.")
+            projected["psycopg"] = ExactPin("3.3.4", ("c",), None, None)
+            projected["psycopg-c"] = ExactPin("3.3.4", (), None, None)
+            return projected
         if self.admission_id != VIRTUALENV_2455_ADMISSION_ID:
             return projected
         if profile is None or profile not in self.profiles or profile not in self.profile_deltas:
@@ -289,6 +387,20 @@ class GraphChangeAdmission:
                 )
             projected[package] = ExactPin(after, (), None, None)
         return projected
+
+    def effective_upgrades(
+        self, profile: str | None, requested: Mapping[str, str]
+    ) -> dict[str, str]:
+        """Project only the frozen stabilization request; retain legacy behavior."""
+        if self.admission_id != STABILIZATION_ADMISSION_ID:
+            return dict(requested)
+        if dict(requested) != self.upgrades or profile is None or profile not in self.profiles:
+            raise RuntimeError("Stabilization requires the complete selected upgrade request.")
+        return {
+            package: after.version
+            for package, (before, after) in self.exact_profile_deltas[profile].items()
+            if before is not None
+        }
 
 
 def _profile_registry() -> dict[str, DependencySurface]:
@@ -429,6 +541,8 @@ def _assert_graph_change_admission(admission: GraphChangeAdmission) -> None:
     if metadata.st_nlink != 1:
         raise RuntimeError("Graph-change admission must remain singly linked.")
     _assert_snapshot(admission.path, admission.capture.snapshot)
+    for path, snapshot in admission.frozen_inputs:
+        _assert_snapshot(path, snapshot)
 
 
 def _authorize_graph_changes(
@@ -446,7 +560,12 @@ def _authorize_graph_changes(
                 "GRAPH_CHANGE_ADMISSION is forbidden when no graph change is requested."
             )
         return None
-    if selector not in {GRAPH_CHANGE_ADMISSION_ID, VIRTUALENV_2455_ADMISSION_ID}:
+    if selector not in {
+        GRAPH_CHANGE_ADMISSION_ID,
+        VIRTUALENV_2455_ADMISSION_ID,
+        PSYCOPG_C_ADMISSION_ID,
+        STABILIZATION_ADMISSION_ID,
+    }:
         raise RuntimeError(
             "Dependency graph changes require the exact repository-owned closed v1 admission."
         )
@@ -470,6 +589,10 @@ def _authorize_graph_changes(
     root_keys = frozenset({"schema", "record"})
     if type(document) is dict and "virtualenv_2455" in document:
         root_keys |= {"virtualenv_2455"}
+    if type(document) is dict and "psycopg_c_oct2" in document:
+        root_keys |= {"psycopg_c_oct2"}
+    if type(document) is dict and "python_stabilization_oct23" in document:
+        root_keys |= {"python_stabilization_oct23"}
     root = _require_exact_keys(document, keys=root_keys, label="Graph-change admission")
     if root["schema"] != GRAPH_CHANGE_ADMISSION_SCHEMA:
         raise RuntimeError("Graph-change admission schema is not the exact supported v1 schema.")
@@ -723,6 +846,45 @@ def _authorize_graph_changes(
         if not hmac.compare_digest(record_digest, VIRTUALENV_2455_RECORD_SHA256):
             raise RuntimeError("Virtualenv record is not the exact frozen whole v1 alternative.")
 
+    psycopg_record = root.get("psycopg_c_oct2")
+    if psycopg_record is not None:
+        digest = hashlib.sha256(
+            json.dumps(psycopg_record, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        if not hmac.compare_digest(digest, PSYCOPG_C_RECORD_SHA256):
+            raise RuntimeError("Psycopg record is not the exact fixed v1 migration alternative.")
+    stabilization = root.get("python_stabilization_oct23")
+    if stabilization is not None:
+        digest = hashlib.sha256(
+            json.dumps(stabilization, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        if not hmac.compare_digest(digest, STABILIZATION_RECORD_SHA256):
+            raise RuntimeError("Stabilization record is not the exact frozen v1 alternative.")
+    if selector == STABILIZATION_ADMISSION_ID:
+        if not isinstance(stabilization, dict):
+            raise RuntimeError("Stabilization selector requires its fixed v1 slot.")
+        return _authorize_stabilization(
+            repo_root=repo_root,
+            path=path,
+            capture=capture,
+            record=stabilization,
+            profiles=profiles,
+            upgrades=upgrades,
+            graph_changes=graph_changes,
+        )
+    if selector == PSYCOPG_C_ADMISSION_ID:
+        if not isinstance(psycopg_record, dict):
+            raise RuntimeError("Psycopg selector requires the fixed psycopg_c_oct2 slot.")
+        return _authorize_psycopg_migration(
+            repo_root=repo_root,
+            path=path,
+            capture=capture,
+            record=psycopg_record,
+            profiles=profiles,
+            upgrades=upgrades,
+            graph_changes=graph_changes,
+        )
+
     if selector == VIRTUALENV_2455_ADMISSION_ID:
         if virtualenv_record is None:
             raise RuntimeError("Virtualenv selector requires the fixed virtualenv_2455 slot.")
@@ -810,6 +972,397 @@ def _authorize_graph_changes(
     return admission
 
 
+def _authorize_psycopg_migration(
+    *,
+    repo_root: Path,
+    path: Path,
+    capture: FileCapture,
+    record: dict[str, object],
+    profiles: Sequence[str],
+    upgrades: Mapping[str, str],
+    graph_changes: frozenset[str],
+) -> GraphChangeAdmission:
+    """Admit the two frozen source variants of this one exact Psycopg migration."""
+    selected = tuple(profiles)
+    transactions = (("runtime",), ("docker-runtime", "ci-lite", "dev", "aggregate"))
+    if selected not in transactions or graph_changes != frozenset({"psycopg-binary", "psycopg-c"}):
+        raise RuntimeError("Psycopg requires its exact ordered transaction and two leaf names.")
+    if dict(upgrades) == {"cryptography": "50.0.2"}:
+        variant = "combined"
+    elif not upgrades:
+        variant = "psycopg_only"
+    else:
+        raise RuntimeError("Psycopg migration admits only its unchanged or exact Crypto target.")
+    baselines = _require_exact_keys(
+        record["baselines"],
+        keys=frozenset({"runtime", "docker-runtime", "ci-lite", "dev", "aggregate"}),
+        label="Psycopg baselines",
+    )
+    digests: dict[str, str] = {}
+    sizes: dict[str, int] = {}
+    for profile, value in baselines.items():
+        baseline = _require_exact_keys(
+            value,
+            keys=frozenset({"lockfile", "bytes", "sha256_bytes"}),
+            label=f"Psycopg {profile} baseline",
+        )
+        if type(baseline["bytes"]) is not int or type(baseline["lockfile"]) is not str:
+            raise RuntimeError("Psycopg baseline fields have invalid types.")
+        sizes[profile] = baseline["bytes"]
+        digests[profile] = _require_sha256_bytes(
+            baseline["sha256_bytes"], label="Psycopg baseline hash"
+        )
+        if selected == transactions[0] or profile in selected:
+            observed = _capture_file(_validated_repo_file(repo_root, baseline["lockfile"]))
+            if (observed.snapshot.digest, observed.snapshot.size) != (
+                digests[profile],
+                sizes[profile],
+            ):
+                raise RuntimeError(f"Psycopg {profile} baseline is stale or has unexpected bytes.")
+    variants = _require_exact_keys(
+        record["source_variants"],
+        keys=frozenset({"combined", "psycopg_only"}),
+        label="Psycopg source variants",
+    )
+    sources = _require_exact_keys(
+        variants[variant],
+        keys=frozenset(
+            {
+                "requirements.in",
+                "requirements-docker-runtime.in",
+                "requirements-ci-lite.in",
+                "requirements-dev.in",
+            }
+        ),
+        label="Psycopg exact sources",
+    )
+    source_digests: dict[str, str] = {}
+    source_sizes: dict[str, int] = {}
+    for name, value in sources.items():
+        source = _require_exact_keys(
+            value, keys=frozenset({"bytes", "sha256_bytes"}), label="Psycopg source"
+        )
+        if type(source["bytes"]) is not int:
+            raise RuntimeError("Psycopg source size has invalid type.")
+        source_sizes[name] = source["bytes"]
+        source_digests[name] = _require_sha256_bytes(
+            source["sha256_bytes"], label="Psycopg source hash"
+        )
+        observed = _capture_file(_validated_repo_file(repo_root, name))
+        if (observed.snapshot.digest, observed.snapshot.size) != (
+            source_digests[name],
+            source_sizes[name],
+        ):
+            raise RuntimeError(f"Psycopg source {name} does not match the exact selected intent.")
+    runtime_seed = record["runtime_baseline_utf8"]
+    if (
+        not isinstance(runtime_seed, str)
+        or hashlib.sha256(runtime_seed.encode()).hexdigest() != digests["runtime"]
+    ):
+        raise RuntimeError("Psycopg runtime seed does not match its exact base lock.")
+    runtime = _capture_file(_validated_repo_file(repo_root, "requirements.txt"))
+    admission = GraphChangeAdmission(
+        path=path,
+        capture=capture,
+        profiles=selected,
+        upgrades=dict(upgrades),
+        removals=frozenset({"psycopg-binary"}),
+        baseline_digests=digests,
+        runtime_target_sha256=runtime.snapshot.digest,
+        admission_id=PSYCOPG_C_ADMISSION_ID,
+        baseline_sizes=sizes,
+        source_digests=source_digests,
+        source_sizes=source_sizes,
+        runtime_baseline_text=runtime_seed,
+    )
+    if selected == transactions[1]:
+        baseline_pins = _exact_pin_map(runtime_seed, label="Psycopg runtime base")
+        runtime_admission = GraphChangeAdmission(
+            path=path,
+            capture=capture,
+            profiles=("runtime",),
+            upgrades=dict(upgrades),
+            removals=admission.removals,
+            baseline_digests=digests,
+            runtime_target_sha256=runtime.snapshot.digest,
+            admission_id=PSYCOPG_C_ADMISSION_ID,
+        )
+        expected = runtime_admission.project_profile_pins("runtime", baseline_pins)
+        for package, version in upgrades.items():
+            expected[package] = ExactPin(version, (), None, None)
+        if (
+            _exact_pin_map(runtime.content.decode("utf-8"), label="Psycopg runtime target")
+            != expected
+        ):
+            raise RuntimeError(
+                "Dependent Psycopg transaction requires the complete exact runtime result."
+            )
+    _assert_graph_change_admission(admission)
+    return admission
+
+
+def _stabilization_runtime() -> tuple[str, str, str, str]:
+    return (
+        sys.platform,
+        platform.machine(),
+        sys.implementation.name,
+        f"{sys.version_info.major}.{sys.version_info.minor}",
+    )
+
+
+def _authorize_stabilization(
+    *,
+    repo_root: Path,
+    path: Path,
+    capture: FileCapture,
+    record: dict[str, object],
+    profiles: Sequence[str],
+    upgrades: Mapping[str, str],
+    graph_changes: frozenset[str],
+) -> GraphChangeAdmission:
+    """Admit one frozen technical proposal, not a native resolver-closure claim."""
+    record = _require_exact_keys(
+        record,
+        keys=frozenset(
+            {
+                "admission_id",
+                "runtime",
+                "profile_universe",
+                "allowed_transactions",
+                "upgrades",
+                "baselines",
+                "source_inputs",
+                "runtime_baseline_utf8",
+                "changes",
+                "profile_changes",
+                "artifacts",
+            }
+        ),
+        label="Stabilization record",
+    )
+    transactions = (("runtime",), STABILIZATION_PROFILES[1:])
+    selected = tuple(profiles)
+    if (
+        record["admission_id"] != STABILIZATION_ADMISSION_ID
+        or record["profile_universe"] != list(STABILIZATION_PROFILES)
+        or record["allowed_transactions"] != [list(item) for item in transactions]
+        or selected not in transactions
+        or graph_changes != STABILIZATION_GRAPH
+    ):
+        raise RuntimeError("Stabilization requires its exact ordered transaction and graph.")
+    expected_upgrades = {
+        "certifi": "2026.10.19",
+        "opentelemetry-api": "1.45.1",
+        "pillow": "13.0.0",
+        "virtualenv": "21.14.10",
+        "black": "26.10.1",
+        "filelock": "4.2.1",
+        "setuptools": "84.1.0",
+        "fastembed": "0.8.0+pulseplate.1",
+        "pip-tools": "7.6.1",
+    }
+    if record["upgrades"] != expected_upgrades or dict(upgrades) != expected_upgrades:
+        raise RuntimeError("Stabilization requires the complete nine-target request.")
+    runtime = ("linux", "x86_64", "cpython", "3.13")
+    if record["runtime"] != list(runtime) or _stabilization_runtime() != runtime:
+        raise RuntimeError("Stabilization artifacts require Linux x86_64 CPython 3.13.")
+
+    baselines = _require_exact_keys(
+        record["baselines"], keys=frozenset(STABILIZATION_PROFILES), label="Stabilization baselines"
+    )
+    registry = _profile_registry()
+    digests: dict[str, str] = {}
+    sizes: dict[str, int] = {}
+    frozen: list[tuple[Path, FileSnapshot]] = []
+    original_pins: dict[str, dict[str, ExactPin]] = {}
+    for profile, value in baselines.items():
+        baseline = _require_exact_keys(
+            value, keys=frozenset({"lockfile", "bytes", "sha256_bytes"}), label="Stabilization seed"
+        )
+        size = baseline["bytes"]
+        if baseline["lockfile"] != registry[profile].lockfile or type(size) is not int or size <= 0:
+            raise RuntimeError("Stabilization seed identity/size differs.")
+        sizes[profile] = size
+        digests[profile] = _require_sha256_bytes(
+            baseline["sha256_bytes"], label="Stabilization seed"
+        )
+        if selected == transactions[0] or profile in selected:
+            seed_path = _validated_repo_file(repo_root, registry[profile].lockfile)
+            observed = _capture_file(seed_path)
+            if (observed.snapshot.digest, observed.snapshot.size) != (digests[profile], size):
+                raise RuntimeError(f"Stabilization {profile} seed bytes differ from original base.")
+            frozen.append((seed_path, observed.snapshot))
+            original_pins[profile] = _exact_pin_map(
+                observed.content.decode("utf-8"), label=f"Stabilization {profile} original seed"
+            )
+    source_names = frozenset(
+        {
+            source
+            for profile in STABILIZATION_PROFILES
+            for source in registry[profile].compile_sources
+        }
+        | {"constraints.txt", "requirements-all.txt", ".pre-commit-config.yaml"}
+    )
+    sources = _require_exact_keys(
+        record["source_inputs"], keys=source_names, label="Stabilization sources"
+    )
+    source_digests: dict[str, str] = {}
+    source_sizes: dict[str, int] = {}
+    for name, value in sources.items():
+        source = _require_exact_keys(
+            value, keys=frozenset({"bytes", "sha256_bytes"}), label="Stabilization source"
+        )
+        size = source["bytes"]
+        if type(size) is not int or size <= 0:
+            raise RuntimeError("Stabilization source size must be a positive integer.")
+        source_sizes[name] = size
+        source_digests[name] = _require_sha256_bytes(
+            source["sha256_bytes"], label="Stabilization source"
+        )
+        source_path = _validated_repo_file(repo_root, name)
+        observed = _capture_file(source_path)
+        if (observed.snapshot.digest, observed.snapshot.size) != (source_digests[name], size):
+            raise RuntimeError(f"Stabilization source bytes differ: {name}.")
+        frozen.append((source_path, observed.snapshot))
+
+    if type(record["changes"]) is not dict:
+        raise RuntimeError("Stabilization changes must be an object.")
+    profile_values = _require_exact_keys(
+        record["profile_changes"],
+        keys=frozenset(STABILIZATION_PROFILES),
+        label="Stabilization profile changes",
+    )
+    profile_changes: dict[str, tuple[str, ...]] = {}
+    for profile, value in profile_values.items():
+        names = _require_string_list(value, label="Stabilization profile relation")
+        if not names or len(set(names)) != len(names) or not set(names) <= set(record["changes"]):
+            raise RuntimeError(
+                "Stabilization profile relation contains missing/duplicate packages."
+            )
+        profile_changes[profile] = names
+    if set(record["changes"]) != {name for names in profile_changes.values() for name in names}:
+        raise RuntimeError("Stabilization relation contains unowned packages.")
+
+    def relation_pin(value: object, *, package: str) -> ExactPin:
+        if type(value) is not str or "\n" in value or "\r" in value:
+            raise RuntimeError("Stabilization relation must contain one exact requirement.")
+        parsed = _exact_pin_map(value, label="Stabilization relation")
+        if (
+            set(parsed) != {package}
+            or parsed[package].marker is not None
+            or parsed[package].url is not None
+        ):
+            raise RuntimeError("Stabilization relation identity/metadata differs.")
+        return parsed[package]
+
+    after_pins: dict[str, ExactPin] = {}
+    before_pins: dict[str, dict[str, ExactPin | None]] = {}
+    for name, value in record["changes"].items():
+        relation = _require_exact_keys(
+            value, keys=frozenset({"before", "after"}), label="Stabilization relation"
+        )
+        owned_profiles = frozenset(
+            profile for profile, names in profile_changes.items() if name in names
+        )
+        if name == "filelock":
+            if owned_profiles != frozenset(
+                {"ci-lite", "dev", "aggregate", "rag-vector", "rag-vector-cpu"}
+            ):
+                raise RuntimeError("Stabilization filelock profile membership differs.")
+            profile_before = _require_exact_keys(
+                relation["before"], keys=owned_profiles, label="Stabilization filelock before"
+            )
+            before_pins[name] = {
+                profile: relation_pin(text, package=name)
+                for profile, text in profile_before.items()
+            }
+        else:
+            before = (
+                None
+                if relation["before"] is None
+                else relation_pin(relation["before"], package=name)
+            )
+            before_pins[name] = {profile: before for profile in owned_profiles}
+        after = relation_pin(relation["after"], package=name)
+        after_pins[name] = after
+    deltas = {
+        profile: {name: (before_pins[name][profile], after_pins[name]) for name in names}
+        for profile, names in profile_changes.items()
+    }
+    for profile, seed_pins in original_pins.items():
+        for name, (before, _after) in deltas[profile].items():
+            if seed_pins.get(name) != before:
+                raise RuntimeError(f"Stabilization {profile}: {name} before pin differs.")
+
+    artifacts = _require_exact_keys(
+        record["artifacts"], keys=frozenset(after_pins), label="Stabilization artifacts"
+    )
+    bound_artifacts: dict[tuple[str, str], tuple[str, int, str, str]] = {}
+    for name, value in artifacts.items():
+        artifact = _require_exact_keys(
+            value,
+            keys=frozenset({"filename", "bytes", "sha256_bytes", "metadata_sha256_bytes"}),
+            label="Stabilization artifact",
+        )
+        filename, size = artifact["filename"], artifact["bytes"]
+        if (
+            type(filename) is not str
+            or type(size) is not int
+            or not 0 < size <= ARTIFACT_ADMISSION_MAX_BYTES
+        ):
+            raise RuntimeError("Stabilization artifact filename/size differs.")
+        bound_artifacts[(name, after_pins[name].version)] = (
+            filename,
+            size,
+            _require_sha256_bytes(artifact["sha256_bytes"], label="Stabilization wheel"),
+            _require_sha256_bytes(
+                artifact["metadata_sha256_bytes"], label="Stabilization metadata"
+            ),
+        )
+    runtime_seed = record["runtime_baseline_utf8"]
+    if type(runtime_seed) is not str or (
+        len(runtime_seed.encode()),
+        hashlib.sha256(runtime_seed.encode()).hexdigest(),
+    ) != (sizes["runtime"], digests["runtime"]):
+        raise RuntimeError("Stabilization runtime seed is not the original bound bytes.")
+    runtime_path = _validated_repo_file(repo_root, "requirements.txt")
+    current_runtime = _capture_file(runtime_path)
+    frozen.append((runtime_path, current_runtime.snapshot))
+    admission = GraphChangeAdmission(
+        path=path,
+        capture=capture,
+        profiles=selected,
+        upgrades=dict(upgrades),
+        removals=frozenset(),
+        baseline_digests=digests,
+        baseline_sizes=sizes,
+        source_digests=source_digests,
+        source_sizes=source_sizes,
+        runtime_target_sha256=current_runtime.snapshot.digest,
+        admission_id=STABILIZATION_ADMISSION_ID,
+        artifacts=bound_artifacts,
+        runtime_baseline_text=runtime_seed,
+        exact_profile_deltas=deltas,
+        frozen_inputs=tuple(frozen),
+    )
+    if selected == transactions[1]:
+        runtime_admission = dataclass_replace(admission, profiles=("runtime",))
+        expected = runtime_admission.project_profile_pins(
+            "runtime", _exact_pin_map(runtime_seed, label="Stabilization runtime base")
+        )
+        if (
+            _exact_pin_map(
+                current_runtime.content.decode("utf-8"), label="Stabilization runtime target"
+            )
+            != expected
+        ):
+            raise RuntimeError(
+                "Stabilization dependents require the complete exact runtime result."
+            )
+    _assert_graph_change_admission(admission)
+    return admission
+
+
 def _assert_plans_match_graph_change_admission(
     plans: Sequence[LockInputPlan],
     admission: GraphChangeAdmission,
@@ -822,7 +1375,45 @@ def _assert_plans_match_graph_change_admission(
             raise RuntimeError(
                 "Captured lock input does not match the exact graph-change admission baseline."
             )
-        if admission.admission_id == VIRTUALENV_2455_ADMISSION_ID:
+        if admission.admission_id == STABILIZATION_ADMISSION_ID:
+            registry = _profile_registry()
+            expected_sources = set(registry[profile].compile_sources)
+            if profile != "runtime":
+                expected_sources.add("requirements.txt")
+            captures = {
+                source.relative_to(plan.output_path.parent).as_posix(): capture
+                for source, capture in plan.source_captures
+            }
+            if (
+                plan.output_path.name != registry[profile].lockfile
+                or plan.output_capture.snapshot.size != admission.baseline_sizes[profile]
+                or set(captures) != expected_sources
+                or len(captures) != len(plan.source_captures)
+            ):
+                raise RuntimeError("Captured stabilization profile/source set differs.")
+            for name, capture in captures.items():
+                expected_digest = (
+                    admission.runtime_target_sha256
+                    if name == "requirements.txt"
+                    else admission.source_digests[name]
+                )
+                if capture.snapshot.digest != expected_digest or (
+                    name != "requirements.txt"
+                    and capture.snapshot.size != admission.source_sizes[name]
+                ):
+                    raise RuntimeError("Captured stabilization source bytes differ.")
+        elif admission.admission_id == PSYCOPG_C_ADMISSION_ID:
+            for source_path, capture in plan.source_captures:
+                name = source_path.name
+                if name == "requirements.txt":
+                    if capture.snapshot.digest != admission.runtime_target_sha256:
+                        raise RuntimeError("Captured Psycopg runtime constraint changed.")
+                elif (capture.snapshot.digest, capture.snapshot.size) != (
+                    admission.source_digests.get(name),
+                    admission.source_sizes.get(name),
+                ):
+                    raise RuntimeError("Captured Psycopg source does not match its frozen intent.")
+        elif admission.admission_id == VIRTUALENV_2455_ADMISSION_ID:
             if plan.output_path.name != {
                 "ci-lite": "requirements-ci-lite.txt",
                 "dev": "requirements-dev.txt",
@@ -1208,6 +1799,12 @@ def _capture_lock_input_plan(
 ) -> LockInputPlan:
     """Capture one seeded lock transaction before any credentialed network work."""
 
+    effective_upgrades = (
+        graph_admission.effective_upgrades(surface.compile_profile, upgrades)
+        if graph_admission is not None
+        else dict(upgrades)
+    )
+
     output_path = _validated_repo_file(repo_root, surface.lockfile)
     source_paths = tuple(
         _validated_repo_file(repo_root, source) for source in surface.compile_sources
@@ -1229,7 +1826,7 @@ def _capture_lock_input_plan(
     baseline_pins = _exact_pin_map(baseline_text, label=f"{surface.lockfile} baseline")
     if "pip" in baseline_pins:
         raise RuntimeError(f"{surface.lockfile}: seeded locks must not pin pip")
-    for package in upgrades:
+    for package in effective_upgrades:
         if package not in baseline_pins:
             raise RuntimeError(
                 f"{surface.lockfile}: requested upgrade package is absent from the seeded lock: "
@@ -1247,7 +1844,7 @@ def _capture_lock_input_plan(
             raise RuntimeError(
                 f"{surface.lockfile}: seeded lock contains forbidden direct URL for {package}"
             )
-        desired_version = upgrades.get(package, pin.version)
+        desired_version = effective_upgrades.get(package, pin.version)
         expected_artifacts.add(
             (
                 package,
@@ -1316,7 +1913,35 @@ def _validate_candidate_delta(
     candidate = _exact_pin_map(candidate_text, label=f"{surface.lockfile} candidate")
     if "pip" in candidate:
         raise RuntimeError(f"{surface.lockfile}: generated locks must not pin pip")
-    if graph_admission is not None and graph_admission.admission_id == VIRTUALENV_2455_ADMISSION_ID:
+    if graph_admission is not None and graph_admission.admission_id == STABILIZATION_ADMISSION_ID:
+        _assert_graph_change_admission(graph_admission)
+        graph_admission.effective_upgrades(surface.compile_profile, upgrades)
+        if graph_changes != graph_admission.graph_changes:
+            raise RuntimeError("Stabilization candidate graph request differs.")
+        expected = graph_admission.project_profile_pins(surface.compile_profile, baseline)
+        if candidate != expected:
+            raise RuntimeError(
+                "Stabilization candidate differs from the complete exact profile relation."
+            )
+    elif graph_admission is not None and graph_admission.admission_id == PSYCOPG_C_ADMISSION_ID:
+        _assert_graph_change_admission(graph_admission)
+        if (
+            graph_changes != graph_admission.graph_changes
+            or dict(upgrades) != graph_admission.upgrades
+        ):
+            raise RuntimeError("Psycopg candidate does not use the complete selected transaction.")
+        expected = graph_admission.project_profile_pins(surface.compile_profile, baseline)
+        for package, version in upgrades.items():
+            if package not in expected:
+                raise RuntimeError("Psycopg transaction lost its selected Crypto carrier.")
+            expected[package] = ExactPin(version, (), None, None)
+        if candidate != expected:
+            raise RuntimeError(
+                "Psycopg candidate has an unrelated package/version/metadata transition."
+            )
+    elif (
+        graph_admission is not None and graph_admission.admission_id == VIRTUALENV_2455_ADMISSION_ID
+    ):
         _assert_graph_change_admission(graph_admission)
         if (
             graph_changes != graph_admission.graph_changes
@@ -1648,6 +2273,19 @@ def _collect_private_proxy_artifact_hashes(
     return admitted
 
 
+def _emit_timeout_output(exc: subprocess.TimeoutExpired, *, label: str) -> None:
+    """Report bounded, redacted captured streams without changing timeout failure."""
+    for stream, captured in (("stdout", exc.stdout), ("stderr", exc.stderr)):
+        if captured is None:
+            continue
+        decoded = (
+            captured.decode("utf-8", errors="replace") if isinstance(captured, bytes) else captured
+        )
+        detail = redact_text(decoded.strip())[-2000:]
+        if detail:
+            print(f"{label}: timed out; partial {stream}:\n{detail}", file=sys.stderr)
+
+
 def _download_profile_wheels(
     *,
     wheelhouse: Path,
@@ -1664,22 +2302,28 @@ def _download_profile_wheels(
     if tuple(wheelhouse.iterdir()):
         raise RuntimeError("Wheelhouse must be empty before credentialed artifact download.")
     for plan in plans:
-        resolver_artifacts = plan.expected_artifacts | bootstrap_artifacts
+        resolver_artifacts = (plan.expected_artifacts | bootstrap_artifacts) - {
+            ("psycopg-c", "3.3.4")
+        }
         if not resolver_artifacts:
             continue
         command = _build_download_command(
             wheelhouse=wheelhouse,
             expected_artifacts=resolver_artifacts,
         )
-        result = subprocess.run(  # nosec B603: fixed pip download argv and exact governed pins (remove-by: 2027-01-31, ref: PR-2142)
-            command,
-            cwd=wheelhouse,
-            env=dict(child_env),
-            text=True,
-            capture_output=True,
-            check=False,
-            timeout=DOWNLOAD_TIMEOUT_SECONDS,
-        )
+        try:
+            result = subprocess.run(  # nosec B603: fixed pip download argv and exact governed pins (remove-by: 2027-01-31, ref: PR-2142)
+                command,
+                cwd=wheelhouse,
+                env=dict(child_env),
+                text=True,
+                capture_output=True,
+                check=False,
+                timeout=DOWNLOAD_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired as exc:
+            _emit_timeout_output(exc, label=f"{plan.surface.lockfile}: exact artifact download")
+            raise
         if result.returncode != 0:
             detail = redact_text((result.stderr or result.stdout).strip())[-2000:]
             raise RuntimeError(
@@ -1688,270 +2332,11 @@ def _download_profile_wheels(
             )
 
 
-def _validate_wheel_member_name(wheel_path: Path, member_name: str) -> PurePosixPath:
-    if "\\" in member_name:
-        raise RuntimeError(f"{wheel_path.name}: wheel member contains a backslash")
-    member_path = PurePosixPath(member_name)
-    if member_path.is_absolute() or ".." in member_path.parts:
-        raise RuntimeError(f"{wheel_path.name}: wheel member escapes the archive root")
-    return member_path
-
-
-def _validate_zip_central_directory_bounds(
-    *,
-    descriptor: int,
-    wheel_path: Path,
-    file_size: int,
-) -> None:
-    """Bound parser work before ``ZipFile`` materializes the central directory."""
-
-    if file_size < ZIP_END_OF_CENTRAL_DIRECTORY_SIZE:
-        raise RuntimeError(f"{wheel_path.name}: malformed wheel archive")
-    tail_size = min(
-        file_size,
-        ZIP_END_OF_CENTRAL_DIRECTORY_SIZE + ZIP_MAX_COMMENT_BYTES,
-    )
-    pread = getattr(os, "pread", None)
-    if not callable(pread):
-        raise RuntimeError("Wheel validation requires POSIX descriptor-bound reads.")
-    tail = pread(descriptor, tail_size, file_size - tail_size)
-    search_end = len(tail)
-    while True:
-        offset = tail.rfind(
-            ZIP_END_OF_CENTRAL_DIRECTORY_SIGNATURE,
-            0,
-            search_end,
-        )
-        if offset < 0:
-            raise RuntimeError(f"{wheel_path.name}: malformed wheel archive")
-        if offset + ZIP_END_OF_CENTRAL_DIRECTORY_SIZE <= len(tail):
-            (
-                signature,
-                disk_number,
-                central_directory_disk,
-                entries_on_disk,
-                total_entries,
-                central_directory_size,
-                central_directory_offset,
-                comment_size,
-            ) = struct.unpack_from("<4s4H2LH", tail, offset)
-            if (
-                signature == ZIP_END_OF_CENTRAL_DIRECTORY_SIGNATURE
-                and offset + ZIP_END_OF_CENTRAL_DIRECTORY_SIZE + comment_size == len(tail)
-            ):
-                break
-        search_end = offset
-
-    if disk_number or central_directory_disk or entries_on_disk != total_entries:
-        raise RuntimeError(f"{wheel_path.name}: multi-disk wheel archives are forbidden")
-    if (
-        total_entries == 0xFFFF
-        or central_directory_size == 0xFFFFFFFF
-        or central_directory_offset == 0xFFFFFFFF
-    ):
-        raise RuntimeError(f"{wheel_path.name}: ZIP64 wheel archives are forbidden")
-    if total_entries > MAX_WHEEL_MEMBERS:
-        raise RuntimeError(f"{wheel_path.name}: wheel contains too many archive members")
-    if central_directory_size > MAX_WHEEL_CENTRAL_DIRECTORY_BYTES:
-        raise RuntimeError(f"{wheel_path.name}: wheel central directory exceeds the size limit")
-    end_of_central_directory = file_size - tail_size + offset
-    if central_directory_offset + central_directory_size != end_of_central_directory:
-        raise RuntimeError(f"{wheel_path.name}: malformed wheel central directory bounds")
-
-
-def _single_metadata_header(
-    *,
-    wheel_path: Path,
-    metadata: object,
-    header_name: str,
-) -> str:
-    get_all = getattr(metadata, "get_all", None)
-    values = get_all(header_name, []) if callable(get_all) else []
-    if len(values) != 1 or not isinstance(values[0], str) or not values[0].strip():
-        raise RuntimeError(
-            f"{wheel_path.name}: METADATA must contain exactly one {header_name} header"
-        )
-    return values[0].strip()
-
-
 def _validate_one_wheel(
-    *,
-    wheel_path: Path,
-    expected_artifacts: frozenset[tuple[str, str]],
+    *, wheel_path: Path, expected_artifacts: frozenset[tuple[str, str]]
 ) -> ValidatedWheel:
-    try:
-        filename_name, filename_version, _, _ = parse_wheel_filename(wheel_path.name)
-    except (InvalidWheelFilename, ValueError) as exc:
-        raise RuntimeError(f"{wheel_path.name}: malformed wheel filename") from exc
-    filename_key = (
-        str(canonicalize_name(filename_name)),
-        str(filename_version),
-    )
-    if filename_key not in expected_artifacts:
-        raise RuntimeError(
-            f"{wheel_path.name}: unexpected wheel artifact " f"{filename_key[0]}=={filename_key[1]}"
-        )
-
-    no_follow = getattr(os, "O_NOFOLLOW", None)
-    nonblocking = getattr(os, "O_NONBLOCK", None)
-    if no_follow is None or nonblocking is None:
-        raise RuntimeError("Wheel validation requires POSIX no-follow nonblocking reads.")
-    try:
-        descriptor = os.open(wheel_path, os.O_RDONLY | no_follow | nonblocking)
-    except OSError as exc:
-        raise RuntimeError(
-            f"{wheel_path.name}: wheel must remain a regular non-symlink file"
-        ) from exc
-    try:
-        wheel_stat = os.fstat(descriptor)
-        if not stat.S_ISREG(wheel_stat.st_mode):
-            raise RuntimeError(f"{wheel_path.name}: wheel artifact is not a regular file")
-        digest = hashlib.sha256()
-        while chunk := os.read(descriptor, 1024 * 1024):
-            digest.update(chunk)
-        _validate_zip_central_directory_bounds(
-            descriptor=descriptor,
-            wheel_path=wheel_path,
-            file_size=wheel_stat.st_size,
-        )
-        os.lseek(descriptor, 0, os.SEEK_SET)
-        with os.fdopen(descriptor, "rb") as wheel_stream:
-            descriptor = -1
-            try:
-                with zipfile.ZipFile(wheel_stream, "r") as wheel:
-                    metadata_members: list[zipfile.ZipInfo] = []
-                    members = wheel.infolist()
-                    if len(members) > MAX_WHEEL_MEMBERS:
-                        raise RuntimeError(
-                            f"{wheel_path.name}: wheel member count changed during parsing"
-                        )
-                    member_names: set[str] = set()
-                    for member in members:
-                        if member.filename in member_names:
-                            raise RuntimeError(
-                                f"{wheel_path.name}: wheel contains duplicate archive members"
-                            )
-                        member_names.add(member.filename)
-                        member_path = _validate_wheel_member_name(wheel_path, member.filename)
-                        member_mode = member.external_attr >> 16
-                        if member_mode and stat.S_ISLNK(member_mode):
-                            raise RuntimeError(
-                                f"{wheel_path.name}: wheel contains a symlink member"
-                            )
-                        if (
-                            len(member_path.parts) == 2
-                            and member_path.parts[0].endswith(".dist-info")
-                            and member_path.parts[1] == "METADATA"
-                        ):
-                            metadata_members.append(member)
-                    if len(metadata_members) != 1:
-                        raise RuntimeError(
-                            f"{wheel_path.name}: wheel must contain exactly one "
-                            "*.dist-info/METADATA"
-                        )
-                    metadata_member = metadata_members[0]
-                    if metadata_member.file_size > MAX_WHEEL_METADATA_BYTES:
-                        raise RuntimeError(
-                            f"{wheel_path.name}: METADATA exceeds the static size limit"
-                        )
-                    metadata_bytes = wheel.read(metadata_member)
-                final_metadata = os.fstat(wheel_stream.fileno())
-            except zipfile.BadZipFile as exc:
-                raise RuntimeError(f"{wheel_path.name}: malformed wheel archive") from exc
-    finally:
-        if descriptor >= 0:
-            os.close(descriptor)
-    path_metadata = wheel_path.lstat()
-    identity = (
-        wheel_stat.st_dev,
-        wheel_stat.st_ino,
-        wheel_stat.st_size,
-        wheel_stat.st_mode,
-        wheel_stat.st_uid,
-    )
-    if (
-        stat.S_ISLNK(path_metadata.st_mode)
-        or identity
-        != (
-            final_metadata.st_dev,
-            final_metadata.st_ino,
-            final_metadata.st_size,
-            final_metadata.st_mode,
-            final_metadata.st_uid,
-        )
-        or identity
-        != (
-            path_metadata.st_dev,
-            path_metadata.st_ino,
-            path_metadata.st_size,
-            path_metadata.st_mode,
-            path_metadata.st_uid,
-        )
-    ):
-        raise RuntimeError(f"{wheel_path.name}: wheel identity changed during validation")
-    artifact_snapshot = FileSnapshot(
-        digest=digest.hexdigest(),
-        mode=stat.S_IMODE(wheel_stat.st_mode),
-        device=wheel_stat.st_dev,
-        inode=wheel_stat.st_ino,
-        owner_uid=wheel_stat.st_uid,
-        size=wheel_stat.st_size,
-    )
-
-    metadata_message = BytesParser(policy=policy.default).parsebytes(metadata_bytes)
-    if metadata_message.defects:
-        raise RuntimeError(f"{wheel_path.name}: malformed wheel METADATA headers")
-    metadata_name = _single_metadata_header(
-        wheel_path=wheel_path,
-        metadata=metadata_message,
-        header_name="Name",
-    )
-    metadata_version = _single_metadata_header(
-        wheel_path=wheel_path,
-        metadata=metadata_message,
-        header_name="Version",
-    )
-    metadata_key = (
-        str(canonicalize_name(metadata_name)),
-        _canonical_version(metadata_version, label=f"{wheel_path.name} METADATA"),
-    )
-    if metadata_key != filename_key:
-        raise RuntimeError(f"{wheel_path.name}: filename and METADATA Name/Version do not match")
-
-    metadata_path = PurePosixPath(metadata_member.filename)
-    dist_info_stem = metadata_path.parts[0][: -len(".dist-info")]
-    if "-" not in dist_info_stem:
-        raise RuntimeError(f"{wheel_path.name}: malformed dist-info directory")
-    dist_info_name, dist_info_version = dist_info_stem.rsplit("-", 1)
-    dist_info_key = (
-        str(canonicalize_name(dist_info_name)),
-        _canonical_version(dist_info_version, label=f"{wheel_path.name} dist-info"),
-    )
-    if dist_info_key != filename_key:
-        raise RuntimeError(f"{wheel_path.name}: dist-info and filename Name/Version do not match")
-
-    dependency_links = metadata_message.get_all("Dependency-Link", [])
-    if dependency_links:
-        raise RuntimeError(f"{wheel_path.name}: Dependency-Link metadata is forbidden")
-    for raw_requirement in metadata_message.get_all("Requires-Dist", []):
-        if not isinstance(raw_requirement, str):
-            raise RuntimeError(f"{wheel_path.name}: malformed Requires-Dist metadata")
-        try:
-            requirement = Requirement(raw_requirement)
-        except InvalidRequirement as exc:
-            raise RuntimeError(
-                f"{wheel_path.name}: malformed Requires-Dist metadata: {raw_requirement!r}"
-            ) from exc
-        if requirement.url is not None:
-            raise RuntimeError(
-                f"{wheel_path.name}: direct-reference Requires-Dist metadata is forbidden"
-            )
-    return ValidatedWheel(
-        path=wheel_path,
-        artifact_key=filename_key,
-        snapshot=artifact_snapshot,
-        metadata_digest=hashlib.sha256(metadata_bytes).hexdigest(),
-    )
+    """Delegate artifact admission to the standalone installer owner."""
+    return inspect_locked_wheel(wheel_path=wheel_path, expected_artifacts=expected_artifacts)
 
 
 def _validate_wheelhouse(
@@ -1960,6 +2345,7 @@ def _validate_wheelhouse(
     expected_artifacts: frozenset[tuple[str, str]],
     admitted_hashes: Mapping[str, str] | None = None,
     graph_admission: GraphChangeAdmission | None = None,
+    source_artifact: ValidatedWheel | None = None,
 ) -> dict[tuple[str, str], ValidatedWheel]:
     """Statically validate exact wheel identity and metadata without importing code."""
 
@@ -1992,7 +2378,17 @@ def _validate_wheelhouse(
             )
         actual[artifact_key] = artifact
         if admitted_hashes is not None:
-            expected_digest = admitted_hashes.get(wheel_path.name.lower())
+            if artifact_key == ("psycopg-c", "3.3.4"):
+                if (
+                    source_artifact is None
+                    or artifact.metadata_digest != source_artifact.metadata_digest
+                ):
+                    raise RuntimeError(
+                        "Psycopg resolver wheel lacks the matching genuine SDK admission."
+                    )
+                expected_digest = source_artifact.snapshot.digest
+            else:
+                expected_digest = admitted_hashes.get(wheel_path.name.lower())
             if expected_digest is None:
                 raise RuntimeError(
                     f"{wheel_path.name}: wheel filename is absent from the "
@@ -2027,6 +2423,19 @@ def _validate_wheelhouse(
             ):
                 raise RuntimeError(
                     f"{key[0]}: artifact does not match the exact virtualenv proposal."
+                )
+    if graph_admission is not None and graph_admission.admission_id == STABILIZATION_ADMISSION_ID:
+        _assert_graph_change_admission(graph_admission)
+        for key in expected_artifacts & graph_admission.artifacts.keys():
+            artifact = actual[key]
+            if (
+                artifact.path.name,
+                artifact.snapshot.size,
+                artifact.snapshot.digest,
+                artifact.metadata_digest,
+            ) != graph_admission.artifacts[key]:
+                raise RuntimeError(
+                    f"{key[0]}: artifact differs from the exact stabilization proposal."
                 )
     return actual
 
@@ -2169,6 +2578,11 @@ def _prepare_lock(
         )
     if graph_admission is not None:
         _assert_graph_change_admission(graph_admission)
+    effective_upgrades = (
+        graph_admission.effective_upgrades(surface.compile_profile, upgrades)
+        if graph_admission is not None
+        else dict(upgrades)
+    )
     plan = input_plan or _capture_lock_input_plan(
         repo_root=repo_root,
         surface=surface,
@@ -2200,7 +2614,7 @@ def _prepare_lock(
         (
             package,
             _canonical_version(
-                upgrades.get(package, pin.version),
+                effective_upgrades.get(package, pin.version),
                 label=f"{surface.lockfile} expected artifact {package}",
             ),
         )
@@ -2237,7 +2651,7 @@ def _prepare_lock(
             command = _build_compile_command(
                 surface=surface,
                 output_path=resolver_candidate_path,
-                upgrades=upgrades,
+                upgrades=effective_upgrades,
             )
             process_env = dict(child_env)
             process_env["CUSTOM_COMPILE_COMMAND"] = (
@@ -2245,15 +2659,19 @@ def _prepare_lock(
             )
             for artifact in wheel_artifacts:
                 _assert_validated_wheel(artifact)
-            result = subprocess.run(  # nosec B603: fixed module argv and registry-owned paths (remove-by: 2027-01-31, ref: PR-2142)
-                command,
-                cwd=resolver_input_root,
-                env=process_env,
-                text=True,
-                capture_output=True,
-                check=False,
-                timeout=COMPILE_TIMEOUT_SECONDS,
-            )
+            try:
+                result = subprocess.run(  # nosec B603: fixed module argv and registry-owned paths (remove-by: 2027-01-31, ref: PR-2142)
+                    command,
+                    cwd=resolver_input_root,
+                    env=process_env,
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                    timeout=COMPILE_TIMEOUT_SECONDS,
+                )
+            except subprocess.TimeoutExpired as exc:
+                _emit_timeout_output(exc, label=f"{surface.lockfile}: governed resolver")
+                raise
             if result.returncode != 0:
                 detail = redact_text((result.stderr or result.stdout).strip())[-2000:]
                 raise RuntimeError(
@@ -2494,6 +2912,12 @@ def _compile_selected_profiles_locked(
     if graph_admission is not None:
         _assert_plans_match_graph_change_admission(plans, graph_admission)
     bootstrap_artifacts = _resolver_bootstrap_artifacts()
+    source_artifact: ValidatedWheel | None = None
+    if ("psycopg-c", "3.3.4") in _expected_artifacts(plans):
+        sdk_path = environment.get(PSYCOPG_SDK_ENV)
+        if not sdk_path:
+            raise RuntimeError("Governed Psycopg C compilation requires its genuine matching SDK.")
+        source_artifact = read_psycopg_c_sdk(Path(sdk_path))
     if graph_admission is not None:
         _assert_graph_change_admission(graph_admission)
     with tempfile.TemporaryDirectory(prefix="pulseplate-lock-transaction-") as transaction_dir:
@@ -2512,7 +2936,8 @@ def _compile_selected_profiles_locked(
                 resolver_home=credentialed_home,
             )
             artifact_admissions = _collect_private_proxy_artifact_hashes(
-                expected_artifacts=_expected_artifacts(plans) | bootstrap_artifacts,
+                expected_artifacts=(_expected_artifacts(plans) | bootstrap_artifacts)
+                - {("psycopg-c", "3.3.4")},
                 child_env=download_env,
             )
             _download_profile_wheels(
@@ -2528,11 +2953,18 @@ def _compile_selected_profiles_locked(
             _remove_credential_material(credentialed_home)
         if Path(credentialed_home_dir).exists():
             raise RuntimeError("Credentialed download HOME was not removed before compilation.")
+        if source_artifact is not None:
+            _assert_validated_wheel(source_artifact)
+            copied = _capture_file(source_artifact.path)
+            if copied.snapshot.digest != source_artifact.snapshot.digest:
+                raise RuntimeError("Psycopg SDK wheel changed before resolver admission.")
+            _write_private_bytes(wheelhouse / source_artifact.path.name, copied.content)
         artifacts = _validate_wheelhouse(
             wheelhouse=wheelhouse,
             expected_artifacts=_expected_artifacts(plans) | bootstrap_artifacts,
             admitted_hashes=artifact_admissions,
             graph_admission=graph_admission,
+            source_artifact=source_artifact,
         )
 
         views_root = transaction_root / "profile-wheelhouses"

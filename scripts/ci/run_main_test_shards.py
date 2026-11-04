@@ -808,6 +808,14 @@ def run_all_shards(
             for shard_index, running_shard in list(running_shards.items()):
                 exit_code = running_shard.process.poll()
                 if exit_code is not None:
+                    print(
+                        f"MAIN_TEST_SHARD_PROCESS_EXIT label={running_shard.shard.artifact_label} "
+                        f"index={shard_index} pid={running_shard.process.pid} "
+                        f"return_code={exit_code} "
+                        f"elapsed_seconds={now - running_shard.started_at:.3f}",
+                        file=sys.stderr,
+                        flush=True,
+                    )
                     results[shard_index] = int(exit_code)
                     del running_shards[shard_index]
                     if exit_code != 0:

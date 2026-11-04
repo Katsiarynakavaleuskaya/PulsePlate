@@ -43,6 +43,7 @@ from scripts.orchestration.pr_review_evidence import (  # noqa: E402
     SEAL_SCHEMA_VERSION,
     UNAVAILABLE_REVIEW_REF_CAUSE,
     ReviewEvidenceError,
+    _load_json_bytes,
     build_provider_no_claim_pair,
     build_review_credit_outage_receipt,
     build_review_source_positive_response_receipt,
@@ -98,7 +99,8 @@ def _token() -> str:
 
 
 def _state_dir(pr_number: int) -> Path:
-    if pr_number <= 0:
+    """Return the private draft directory for a positive integer PR number."""
+    if not isinstance(pr_number, int) or isinstance(pr_number, bool) or pr_number <= 0:
         raise CloseoutError("pr_number must be positive")
     return STATE_ROOT / f"PR_{pr_number}"
 
@@ -142,13 +144,13 @@ def _write_state(state: Mapping[str, Any]) -> None:
 
 
 def _load_state(pr_number: int) -> dict[str, Any]:
+    """Decode strict JSON and require the requested draft identity and disposition shape."""
     path = _state_path(pr_number)
     try:
-        raw = path.read_text(encoding="utf-8")
-        state = json.loads(raw)
+        state = _load_json_bytes(path.read_bytes(), label="local draft")
     except FileNotFoundError as exc:
         raise CloseoutError(f"missing local draft; run init first: {path}") from exc
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+    except ReviewEvidenceError as exc:
         raise CloseoutError(f"local draft is malformed: {path}") from exc
     if not isinstance(state, dict):
         raise CloseoutError("local draft must be a JSON object")
@@ -163,7 +165,10 @@ def _load_state(pr_number: int) -> dict[str, Any]:
     }
     if set(state) != expected:
         raise CloseoutError("local draft has unknown or missing fields")
-    if state["schema_version"] != DRAFT_SCHEMA_VERSION or state["pr_number"] != pr_number:
+    stored_pr_number = state["pr_number"]
+    if type(stored_pr_number) is not int or stored_pr_number <= 0:
+        raise CloseoutError("local draft pr_number must be a positive integer")
+    if state["schema_version"] != DRAFT_SCHEMA_VERSION or stored_pr_number != pr_number:
         raise CloseoutError("local draft identity does not match the requested PR")
     if not _REPOSITORY_RE.fullmatch(str(state["repository"])):
         raise CloseoutError("local draft repository is malformed")
@@ -994,6 +999,7 @@ def _cmd_validate(args: argparse.Namespace) -> None:
 
 
 def _parser() -> argparse.ArgumentParser:
+    """Build the canonical closeout CLI with its bounded current subcommand inventory."""
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
 

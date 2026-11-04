@@ -33,6 +33,17 @@ if [ -L "$BACKUP_DIR" ]; then
   echo "Backup destination must not be a symlink" >&2
   exit 1
 fi
+PYTHON_BIN="${PYTHON_BIN:-/usr/bin/python3}"
+if [[ "$PYTHON_BIN" != /* ]] || [ ! -x "$PYTHON_BIN" ]; then
+  echo "An absolute Python executable is required" >&2
+  exit 1
+fi
+SCRIPTS_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
+PROMETHEUS_RUNTIME_REF="$("$PYTHON_BIN" "$SCRIPTS_DIR/ci/prometheus_source_image.py" \
+  --operation read-manifest \
+  --manifest "${PROMETHEUS_IMAGE_MANIFEST:-$PROJECT_DIR/prometheus/image-manifest.json}" \
+  --field runtime_ref)"
+export PROMETHEUS_RUNTIME_REF
 mkdir -p "$BACKUP_DIR"
 compose_exec() {
   local compose_cmd=("$DOCKER_BIN" compose)

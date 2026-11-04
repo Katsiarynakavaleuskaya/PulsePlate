@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check exact retained exceptions and util-linux retirement with native Trivy 0.74.0."""
+"""Check retired native findings and strict decoding with native Trivy 0.74.0."""
 
 from __future__ import annotations
 
@@ -132,7 +132,10 @@ def _validate_output(raw: bytes, finding: dict[str, object], expected_count: int
     vulnerabilities = row.get("Vulnerabilities", [])
     if not isinstance(vulnerabilities, list) or len(vulnerabilities) != expected_count:
         raise ValueError("Native Trivy returned an unexpected finding count")
-    if expected_count == 1 and vulnerabilities != [finding]:
+    expected_finding = dict(finding)
+    if expected_finding.get("FixedVersion") in (None, ""):
+        expected_finding.pop("FixedVersion", None)
+    if expected_count == 1 and vulnerabilities != [expected_finding]:
         raise ValueError("Native Trivy returned a different finding identity")
 
 
@@ -150,9 +153,9 @@ def _cases() -> list[tuple[str, dict[str, object], int | None]]:
         prefix = f"{cve}/{package}"
         cases.extend(
             (
-                (f"{prefix}/missing", exact, 0),
-                (f"{prefix}/empty", {**exact, "FixedVersion": ""}, 0),
-                (f"{prefix}/null", {**exact, "FixedVersion": None}, 0),
+                (f"{prefix}/missing", exact, 1),
+                (f"{prefix}/empty", {**exact, "FixedVersion": ""}, 1),
+                (f"{prefix}/null", {**exact, "FixedVersion": None}, 1),
                 (f"{prefix}/nonempty", {**exact, "FixedVersion": fixed}, 1),
                 (f"{prefix}/wrong-cve", {**exact, "VulnerabilityID": "CVE-0000-0000"}, 1),
                 (f"{prefix}/wrong-package", {**exact, "PkgName": "other"}, 1),
@@ -180,9 +183,9 @@ def _openssl_cases() -> list[tuple[str, dict[str, object], int | None]]:
         prefix = f"CVE-2026-84782/{package}"
         cases.extend(
             (
-                (f"{prefix}/missing", exact, 0),
-                (f"{prefix}/empty", {**exact, "FixedVersion": ""}, 0),
-                (f"{prefix}/null", {**exact, "FixedVersion": None}, 0),
+                (f"{prefix}/missing", exact, 1),
+                (f"{prefix}/empty", {**exact, "FixedVersion": ""}, 1),
+                (f"{prefix}/null", {**exact, "FixedVersion": None}, 1),
                 (f"{prefix}/wrong-cve", {**exact, "VulnerabilityID": "CVE-0000-0000"}, 1),
                 (f"{prefix}/wrong-package", {**exact, "PkgName": "other"}, 1),
                 (f"{prefix}/wrong-version", {**exact, "InstalledVersion": "other"}, 1),
@@ -274,6 +277,24 @@ def _retired_util_linux_cases() -> list[tuple[str, dict[str, object], int | None
     return cases
 
 
+def _visible_source_cases() -> list[tuple[str, dict[str, object], int | None]]:
+    """Retain the independently assessed 85091 base finding as visible."""
+    return [
+        (
+            "CVE-2026-85091/zlib1g/visible",
+            {
+                "VulnerabilityID": "CVE-2026-85091",
+                "PkgName": "zlib1g",
+                "PkgID": "zlib1g@1:1.2.13.dfsg-1",
+                "InstalledVersion": "1:1.2.13.dfsg-1",
+                "Severity": "MEDIUM",
+                "Title": "synthetic retained base finding",
+            },
+            1,
+        )
+    ]
+
+
 def _run_contract(binary: str, scan_copy: Path) -> int:
     argv = [
         binary,
@@ -287,7 +308,13 @@ def _run_contract(binary: str, scan_copy: Path) -> int:
         "/dev/null",
         "/dev/stdin",
     ]
-    cases = _cases() + _openssl_cases() + _identity_cases() + _retired_util_linux_cases()
+    cases = (
+        _cases()
+        + _openssl_cases()
+        + _identity_cases()
+        + _retired_util_linux_cases()
+        + _visible_source_cases()
+    )
     for case_id, finding, expected in cases:
         result = _invoke(argv, payload=_report_bytes(finding))
         if expected is None:
@@ -316,7 +343,7 @@ def main() -> int:
     except ValueError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
-    print(f"Native Trivy suppression contract passed: {case_count} cases")
+    print(f"Native Trivy retirement contract passed: {case_count} cases")
     return 0
 
 

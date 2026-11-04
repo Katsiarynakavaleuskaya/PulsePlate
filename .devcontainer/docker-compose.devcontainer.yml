@@ -1,18 +1,38 @@
 # ---------------------------------------------------------------------------
 # PulsePlate Dev Container — Compose service
 # ---------------------------------------------------------------------------
-# SECURITY: No secrets in this file. Do not import ../.env or add build args.
-#           Devcontainer bootstrap is manual. Package-proxy env vars
-#           (PULSEPLATE_PYTHON_*) are forwarded for dependency install;
+# SECURITY: Existing proxy secret mounts belong only to artifact acquisition.
+#           Do not import ../.env or pass secrets to the tooling consumer.
+#           Devcontainer bootstrap is manual and consumes verified artifacts offline;
 #           WATCHFILES_FORCE_POLLING is a safe optional dev-tool override.
 #           Tests enforce the explicit environment allowlist.
 # ---------------------------------------------------------------------------
 
 services:
+  # Zero replicas: this is a build-only artifact composition, not a process.
+  native-sdk-artifacts:
+    platform: linux/amd64
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: dev-bootstrap-sdk
+      platforms:
+        - linux/amd64
+      secrets:
+        - pp_py_index
+        - pp_netrc
+    deploy:
+      replicas: 0
+
   devcontainer:
+    platform: linux/amd64
     build:
       context: ..
       dockerfile: .devcontainer/Dockerfile
+      platforms:
+        - linux/amd64
+      additional_contexts:
+        native_sdk: service:native-sdk-artifacts
     environment:
       PYTHONPATH: /workspaces/PulsePlate
       PULSEPLATE_IN_CONTAINER: "1"
@@ -23,11 +43,19 @@ services:
       WATCHFILES_FORCE_POLLING: "${WATCHFILES_FORCE_POLLING:-false}"
     volumes:
       - ..:/workspaces/PulsePlate:cached
+      - pulseplate-dev-venv:/workspaces/PulsePlate/.venv
       - pulseplate-pip-cache:/home/vscode/.cache/pip
       - pulseplate-npm-cache:/home/vscode/.npm
     command: sleep infinity
     working_dir: /workspaces/PulsePlate
 
+secrets:
+  pp_py_index:
+    environment: PULSEPLATE_PYTHON_INDEX_URL
+  pp_netrc:
+    file: ${PULSEPLATE_NATIVE_SDK_NETRC_FILE:-/dev/null}
+
 volumes:
+  pulseplate-dev-venv:
   pulseplate-pip-cache:
   pulseplate-npm-cache:

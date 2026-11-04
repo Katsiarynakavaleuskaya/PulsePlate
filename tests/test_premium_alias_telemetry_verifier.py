@@ -1607,10 +1607,12 @@ def test_async_docker_cancellation_cleans_readers_and_process(
             *argv: str,
             stdout: object,
             stderr: object,
+            env: dict[str, str] | None,
         ) -> _FakeProcess:
             assert argv == ("/absolute/docker", "version")
             assert stdout is asyncio.subprocess.PIPE
             assert stderr is asyncio.subprocess.PIPE
+            assert env is None
             spawned.set()
             return process
 
@@ -1676,6 +1678,11 @@ def test_sync_docker_runner_rejects_active_event_loop_before_spawn(
 def test_docker_promtool_uses_absolute_argv_without_shell(
     tmp_path: Path,
 ) -> None:
+    from tests.test_deploy_contract_scripts import _synthetic_prometheus_manifest
+
+    manifest = tmp_path / "prometheus/image-manifest.json"
+    manifest.parent.mkdir()
+    manifest.write_text(json.dumps(_synthetic_prometheus_manifest()))
     config_file = tmp_path / "prometheus.yml"
     host_config_bytes = b"global:\n  scrape_interval: 99s\n"
     container_config_bytes = b"global:\n  scrape_interval: 30s\n"
@@ -1735,9 +1742,13 @@ def test_docker_promtool_uses_absolute_argv_without_shell(
     fake_docker.write_text(
         f"""#!{sys.executable}
 import json
+import os
 import sys
 
 args = sys.argv[1:]
+if args[:1] == ["compose"]:
+    with open({os.fspath(tmp_path / "compose-env.jsonl")!r}, "a", encoding="utf-8") as stream:
+        stream.write(json.dumps(os.environ.get("PROMETHEUS_RUNTIME_REF")) + "\\n")
 with open({os.fspath(call_log)!r}, "a", encoding="utf-8") as stream:
     stream.write(json.dumps(args, separators=(",", ":")) + "\\n")
 if args[-3:] == ["ps", "-q", "app"]:
@@ -1802,7 +1813,7 @@ else:
     fake_docker.chmod(0o700)
     client = verifier.DockerPromtoolClient(
         docker=os.fspath(fake_docker),
-        compose_file=Path("deploy/compose.yaml"),
+        compose_file=tmp_path / "compose.yaml",
     )
 
     snapshot = client.collect_live_snapshot()
@@ -1859,6 +1870,10 @@ else:
 
     calls = [json.loads(line) for line in call_log.read_text(encoding="utf-8").splitlines()]
     assert len(calls) == 11
+    child_refs = [
+        json.loads(line) for line in (tmp_path / "compose-env.jsonl").read_text().splitlines()
+    ]
+    assert child_refs == [_synthetic_prometheus_manifest()["selection"]["runtime_ref"]] * 2
     assert [call[-3:] for call in calls[:2]] == [
         ["ps", "-q", "app"],
         ["ps", "-q", "prometheus"],
@@ -2675,3 +2690,85 @@ _fixture_http.HTTPConnection = _fixture_connection
             server_socket.close()
             server.server_close()
         assert not thread.is_alive()
+
+
+@pytest.mark.parametrize("factory", [False, True])
+@pytest.mark.parametrize("fault", ["valid", "missing", "malformed", "unselected", "wrong-contour"])
+@pytest.mark.parametrize("ambient", [None, "hostile.invalid/incorrect:latest"])
+def test_verifier_compose_binds_its_selected_manifest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, factory: bool, fault: str, ambient: str | None
+) -> None:
+    from tests.test_deploy_contract_scripts import _synthetic_prometheus_manifest
+
+    compose = tmp_path / "selected/compose.yaml"
+    selected = compose.parent / "prometheus/image-manifest.json"
+    data = _synthetic_prometheus_manifest()
+    if fault == "unselected":
+        data.update(phase="source_prepared", selection=None, candidate=None)
+    target = tmp_path / "prometheus/image-manifest.json" if fault == "wrong-contour" else selected
+    target.parent.mkdir(parents=True)
+    if fault != "missing":
+        target.write_text("{" if fault == "malformed" else json.dumps(data))
+    monkeypatch.chdir(tmp_path)
+    if ambient is None:
+        monkeypatch.delenv("PROMETHEUS_RUNTIME_REF", raising=False)
+    else:
+        monkeypatch.setenv("PROMETHEUS_RUNTIME_REF", ambient)
+    monkeypatch.setenv("COMPOSE_PROFILES", "observability,alerting")
+    monkeypatch.setattr(verifier.shutil, "which", lambda name: sys.executable)
+    client = (
+        verifier.DockerPromtoolClient.create(compose_file=Path("selected/compose.yaml"))
+        if factory
+        else verifier.DockerPromtoolClient(
+            docker=sys.executable, compose_file=Path("selected/compose.yaml")
+        )
+    )
+    calls: list[list[str]] = []
+
+    def docker(arguments: list[str], *, error_code: str) -> verifier._CommandResult:
+        del error_code
+        calls.append(arguments)
+        assert client._compose_env is not None
+        assert client._compose_env["PROMETHEUS_RUNTIME_REF"] == data["selection"]["runtime_ref"]
+        assert client._compose_env["COMPOSE_PROFILES"] == "observability,alerting"
+        return verifier._CommandResult(0, b"selected", b"")
+
+    monkeypatch.setattr(client, "_run_docker", docker)
+    if fault == "valid":
+        assert client._run_compose(["ps", "-q", "app"], error_code="failed") == b"selected"
+        assert calls == [["compose", "-f", str(compose), "ps", "-q", "app"]]
+    else:
+        with pytest.raises(verifier.VerificationError, match="^prometheus_manifest_reader_failed$"):
+            client._run_compose(["ps", "-q", "app"], error_code="failed")
+        assert calls == []
+    assert os.environ.get("PROMETHEUS_RUNTIME_REF") == ambient
+
+
+@pytest.mark.parametrize("fault", ["exit", "timeout", "empty", "extra-line", "oversized"])
+def test_verifier_reader_failure_precedes_compose(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str
+) -> None:
+    def reader(argv: list[str], **kwargs: object) -> verifier.subprocess.CompletedProcess[bytes]:
+        assert argv[0] == sys.executable
+        assert kwargs["timeout"] == verifier.COMMAND_TIMEOUT_SECONDS
+        assert kwargs["env"] == {"PATH": os.defpath, "LANG": "C.UTF-8"}
+        assert kwargs["stderr"] == verifier.subprocess.DEVNULL
+        if fault == "exit":
+            raise verifier.subprocess.CalledProcessError(1, argv)
+        if fault == "timeout":
+            raise verifier.subprocess.TimeoutExpired(argv, 30)
+        return verifier.subprocess.CompletedProcess(
+            argv,
+            0,
+            {"empty": b"", "extra-line": b"a\nb\n", "oversized": b"x" * 513 + b"\n"}[fault],
+        )
+
+    client = verifier.DockerPromtoolClient(
+        docker="/absolute/docker", compose_file=tmp_path / "compose.yaml"
+    )
+    monkeypatch.setattr(verifier.subprocess, "run", reader)
+    monkeypatch.setattr(
+        client, "_run_docker", lambda *args, **kwargs: pytest.fail("Compose after reader failure")
+    )
+    with pytest.raises(verifier.VerificationError, match="^prometheus_manifest_reader_failed$"):
+        client._run_compose(["ps", "-q", "app"], error_code="failed")

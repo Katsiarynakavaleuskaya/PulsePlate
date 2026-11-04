@@ -144,6 +144,21 @@ RETIRED_LEGACY_PYTHON_BINDINGS = {
     "_api_description",
     "lifespan",
     "get_update_scheduler",
+    "limiter",
+    "limit_if_available",
+    "RATE_LIMIT_EXPORTS",
+    "RATE_LIMIT_INSIGHT",
+    "RATE_LIMIT_429_RESPONSES",
+    "_RATE_LIMIT_429_RESPONSES",
+    "_TypeVar",
+    "_F",
+    "_LimitValue",
+    "LimiterType",
+    "_Limiter",
+    "Limiter",
+    "slowapi_available",
+    "get_api_key",
+    "_get_api_key_dynamic",
 }
 
 RETIRED_PLATE_HELPER_BINDINGS = (
@@ -213,6 +228,22 @@ RETIRED_BMI_COMPAT_BINDINGS = (
     "_BMI_SCHEMA_COMPAT_REEXPORTS",
 )
 
+RETIRED_RATE_LIMIT_BINDINGS = (
+    "limiter",
+    "limit_if_available",
+    "RATE_LIMIT_EXPORTS",
+    "RATE_LIMIT_INSIGHT",
+    "RATE_LIMIT_429_RESPONSES",
+    "_RATE_LIMIT_429_RESPONSES",
+    "_TypeVar",
+    "_F",
+    "_LimitValue",
+    "LimiterType",
+    "_Limiter",
+    "Limiter",
+    "slowapi_available",
+)
+
 _NETWORK_DISABLED_PREAMBLE = textwrap.dedent("""
     import socket
 
@@ -231,7 +262,12 @@ _NETWORK_DISABLED_PREAMBLE = textwrap.dedent("""
     """)
 
 
-def _run_legacy_retirement_probe(scenario: str) -> dict[str, object]:
+def _run_legacy_retirement_probe(
+    scenario: str,
+    *,
+    rate_limiting_enabled: bool = False,
+) -> dict[str, object]:
+    """Run a fresh finite-env child with named connection controls and fixed enabled settings."""
     passthrough_names = (
         "LANG",
         "LC_ALL",
@@ -250,6 +286,18 @@ def _run_legacy_retirement_probe(scenario: str) -> dict[str, object]:
             "PRIVATE_EXPORTS_ENABLED": "false",
         }
     )
+    if rate_limiting_enabled:
+        env.update(
+            {
+                "RATE_LIMITING_IN_TESTS": "true",
+                "RATE_LIMIT_INSIGHT": "2/minute",
+                "SERVER_SALT": "StrongServerSaltForTests123456789!",
+                "BUSINESS_MODULE_ENABLED": "true",
+                "VIP_MODULE_ENABLED": "true",
+                "FEATURE_FITCHEF_MASCOT": "true",
+                "FITCHEF_MASCOT_EXECUTION_MODE": "auto-safe",
+            }
+        )
     completed = subprocess.run(
         [sys.executable, "-c", _NETWORK_DISABLED_PREAMBLE + scenario],
         cwd=REPO_ROOT,
@@ -293,6 +341,226 @@ def test_legacy_retirement_probe_excludes_ambient_credentials(
         """)
 
     assert _run_legacy_retirement_probe(scenario) == {"ambient_credentials_present": False}
+
+
+@pytest.mark.parametrize("import_order", ("legacy-first", "api-key-first"))
+def test_api_key_retirement_preserves_canonical_identity_in_fresh_orders(
+    import_order: str,
+) -> None:
+    """Prove Legacy absence and canonical identity through two distinct fresh import orders."""
+    imports = (
+        "assert 'app.routers.api_key' not in sys.modules\n"
+        "assert 'legacy_app' not in sys.modules\n"
+        "import legacy_app\n"
+        "assert sys.modules['legacy_app'] is legacy_app\n"
+        "from app.routers import api_key\n"
+        if import_order == "legacy-first"
+        else "assert 'legacy_app' not in sys.modules\n"
+        "from app.routers import api_key\n"
+        "assert 'legacy_app' not in sys.modules\n"
+        "import legacy_app\n"
+    )
+    scenario = "import sys\n" + imports + textwrap.dedent("""
+        import inspect
+        import json
+        import app as app_package
+        import app.main as app_main
+        from app.bootstrap.application import app as canonical_app
+
+        retired = ("get_api_key", "_get_api_key_dynamic")
+        assert set(retired).isdisjoint(vars(legacy_app))
+        assert set(retired).isdisjoint(vars(legacy_app).get("__annotations__", {}))
+        for name in retired:
+            try:
+                getattr(legacy_app, name)
+            except AttributeError:
+                pass
+            else:
+                raise AssertionError("legacy API-key attribute remains: " + name)
+        try:
+            from legacy_app import get_api_key
+        except ImportError:
+            pass
+        else:
+            raise AssertionError("legacy get_api_key import remains")
+        try:
+            from legacy_app import _get_api_key_dynamic
+        except ImportError:
+            pass
+        else:
+            raise AssertionError("legacy _get_api_key_dynamic import remains")
+        assert app_package.api_key_header is api_key.api_key_header
+        assert app_package.get_api_key is api_key.get_api_key
+        assert app_package._get_api_key_dynamic is api_key._get_api_key_dynamic
+        for name in (*retired, "validate_app_api_key", "require_app_api_key"):
+            value = getattr(api_key, name)
+            assert callable(value)
+            assert value.__module__ == "app.routers.api_key"
+        for guard in (api_key.get_api_key, api_key._get_api_key_dynamic):
+            dependency = inspect.signature(guard).parameters["api_key"].default
+            assert dependency.dependency is api_key.api_key_header
+        assert app_package.app is app_main.app is canonical_app is legacy_app.app
+        assert all(
+            getattr(call, "__module__", None) != "legacy_app"
+            for route in app_main.app.routes
+            for dependant in getattr(route, "dependencies", ())
+            for call in (getattr(dependant, "dependency", None),)
+            if callable(call)
+        )
+        print("LEGACY_RETIREMENT_RESULT=" + json.dumps({
+            "absent": list(retired), "canonical_identity_preserved": True,
+        }))
+        """)
+    assert _run_legacy_retirement_probe(scenario) == {
+        "absent": ["get_api_key", "_get_api_key_dynamic"],
+        "canonical_identity_preserved": True,
+    }
+
+
+def test_retired_rate_limit_bindings_are_absent() -> None:
+    """Require whole-cohort namespace, annotation, attribute and direct-import absence."""
+    import_checks = "\n".join(textwrap.dedent(f"""
+        try:
+            from legacy_app import {binding_name}
+        except ImportError:
+            pass
+        else:
+            raise AssertionError("legacy from-import remains: {binding_name}")
+        """) for binding_name in RETIRED_RATE_LIMIT_BINDINGS)
+    scenario = (
+        textwrap.dedent(f"""
+        import json
+        import legacy_app
+        retired = {RETIRED_RATE_LIMIT_BINDINGS!r}
+        assert set(retired).isdisjoint(vars(legacy_app)), "legacy rate-limit bindings remain"
+        assert set(retired).isdisjoint(vars(legacy_app).get("__annotations__", {{}}))
+        for name in retired:
+            try:
+                getattr(legacy_app, name)
+            except AttributeError:
+                pass
+            else:
+                raise AssertionError(f"legacy attribute remains: {{name}}")
+        """)
+        + import_checks
+        + textwrap.dedent("""
+        print("LEGACY_RETIREMENT_RESULT=" + json.dumps({"absent": list(retired)}))
+        """)
+    )
+    assert _run_legacy_retirement_probe(scenario) == {"absent": list(RETIRED_RATE_LIMIT_BINDINGS)}
+
+
+@pytest.mark.parametrize("import_order", ("legacy-first", "rate-limit-first", "main-first"))
+def test_rate_limit_canonical_wiring_survives_retirement_import_orders(import_order: str) -> None:
+    """Preserve real canonical wiring, route/model and handler across three fresh import orders."""
+    sequences = {
+        "legacy-first": "import legacy_app\nimport app.security.rate_limit as rate_limit\n"
+        "import app.main as main\nbefore_legacy = None\n",
+        "rate-limit-first": "import app.security.rate_limit as rate_limit\n"
+        "assert 'legacy_app' not in sys.modules\nimport legacy_app\n"
+        "import app.main as main\nbefore_legacy = None\n",
+        "main-first": "import app.main as main\nimport app.security.rate_limit as rate_limit\n"
+        "assert 'legacy_app' not in sys.modules\nbefore_legacy = snapshot(main.app)\n"
+        "import legacy_app\n",
+    }
+    import_checks = "\n".join(textwrap.dedent(f"""
+        try:
+            from legacy_app import {binding_name}
+        except ImportError:
+            pass
+        else:
+            raise AssertionError("legacy from-import remains: {binding_name}")
+        """) for binding_name in RETIRED_RATE_LIMIT_BINDINGS)
+    scenario = (
+        textwrap.dedent("""
+        import importlib
+        import json
+        import sys
+        from fastapi import FastAPI
+        from app.effective_routes import (
+            iter_effective_route_candidates, route_endpoint, route_matches_path_method,
+            route_methods, route_path, route_responses,
+        )
+
+        def snapshot(application: FastAPI) -> tuple[object, ...]:
+            return (
+                application, application.state.limiter, tuple(application.user_middleware),
+                dict(application.exception_handlers),
+                tuple((route_path(route), route_methods(route), route_endpoint(route))
+                      for route in iter_effective_route_candidates(application.routes)),
+            )
+
+        assert 'legacy_app' not in sys.modules
+        assert 'app.main' not in sys.modules
+        assert 'app.security.rate_limit' not in sys.modules
+        """)
+        + sequences[import_order]
+        + textwrap.dedent(f"""
+        from fastapi import Request
+        import app as app_facade
+        import app.bootstrap.application as application_bootstrap
+        from app.routers import fitchef_insight
+        from core.i18n import t
+
+        retired = {RETIRED_RATE_LIMIT_BINDINGS!r}
+        assert set(retired).isdisjoint(vars(legacy_app))
+        assert set(retired).isdisjoint(vars(legacy_app).get("__annotations__", {{}}))
+        for name in retired:
+            try:
+                getattr(legacy_app, name)
+            except AttributeError:
+                pass
+            else:
+                raise AssertionError(f"legacy attribute remains: {{name}}")
+        assert all(name in vars(rate_limit) for name in retired[:5])
+        assert rate_limit.limiter is not None
+        assert isinstance(rate_limit.limiter, rate_limit.Limiter)
+        assert main.app is application_bootstrap.app is app_facade.app is legacy_app.app
+        assert main.app.state.limiter is rate_limit.limiter
+        assert rate_limit.limiter.enabled is True
+        assert sum(item.cls is rate_limit.SlowAPIMiddleware
+                   for item in main.app.user_middleware) == 1
+        handler = main.app.exception_handlers[rate_limit.RateLimitExceeded]
+        assert handler is rate_limit._rate_limit_exceeded_json_handler
+        assert rate_limit.RATE_LIMIT_429_RESPONSES[429]['model'] is rate_limit.RateLimitErrorResponse
+        routes = [route for route in iter_effective_route_candidates(main.app.routes)
+                  if route_matches_path_method(
+                      route, '/api/v1/insight/fitchef/weekly-reflection', 'POST')]
+        assert len(routes) == 1
+        assert route_endpoint(routes[0]) is fitchef_insight.fitchef_weekly_reflection
+        assert route_responses(routes[0])[429]['model'] is rate_limit.RateLimitErrorResponse
+        before_repeat = snapshot(main.app)
+        if before_legacy is not None:
+            assert before_legacy == before_repeat
+        assert importlib.import_module('legacy_app') is legacy_app
+        rate_limit.wire_rate_limiting(main.app)
+        assert snapshot(main.app) == before_repeat
+        request = Request({{
+            'type': 'http', 'method': 'POST', 'scheme': 'http',
+            'path': '/api/v1/insight/fitchef/weekly-reflection',
+            'headers': [(b'accept-language', b'en')],
+            'server': ('testserver', 80), 'client': ('127.0.0.1', 12345),
+        }})
+        response = handler(request, Exception('synthetic rate-limit error'))
+        assert response.status_code == 429
+        assert response.headers['content-type'].split(';', 1)[0].strip().lower() == 'application/json', 'canonical handler media type must be application/json'
+        payload = json.loads(response.body)
+        assert payload == {{'detail': t('en', 'rate_limit.exceeded')}}
+        assert rate_limit.RateLimitErrorResponse.model_validate(payload).model_dump() == payload
+        """)
+        + import_checks
+        + textwrap.dedent("""
+        print("LEGACY_RETIREMENT_RESULT=" + json.dumps({
+            'absent': list(retired), 'canonical_wiring_preserved': True,
+            'canonical_handler_contract_preserved': True,
+        }))
+        """)
+    )
+    assert _run_legacy_retirement_probe(scenario, rate_limiting_enabled=True) == {
+        "absent": list(RETIRED_RATE_LIMIT_BINDINGS),
+        "canonical_wiring_preserved": True,
+        "canonical_handler_contract_preserved": True,
+    }
 
 
 @pytest.mark.parametrize("binding_name", ("lifespan", "get_update_scheduler"))
@@ -403,6 +671,7 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
     import app.services.insight_compat as insight_compat
     import app.services.pro_nutrition_plate as plate_service
     import app.services.pro_nutrition_targets as targets_service
+    import app.routers.api_key as canonical_api_key
     import app.routers.health as health
     import app.utils.feature_flags as feature_flags
     import app.utils.helpers as helpers
@@ -423,6 +692,7 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
     import app.http_error_details as http_error_details
     from app.bootstrap.lifespan import application_lifespan
     from app.services import scheduler_access
+    import app.security.rate_limit as rate_limit
 
     canonical_migrations = {
         "admin_status": admin_operations.admin_status,
@@ -544,6 +814,21 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
         "_api_description": application_bootstrap.app.description,
         "lifespan": application_lifespan,
         "get_update_scheduler": scheduler_access.get_update_scheduler,
+        "limiter": rate_limit.limiter,
+        "limit_if_available": rate_limit.limit_if_available,
+        "RATE_LIMIT_EXPORTS": rate_limit.RATE_LIMIT_EXPORTS,
+        "RATE_LIMIT_INSIGHT": rate_limit.RATE_LIMIT_INSIGHT,
+        "RATE_LIMIT_429_RESPONSES": rate_limit.RATE_LIMIT_429_RESPONSES,
+        "_RATE_LIMIT_429_RESPONSES": None,
+        "_TypeVar": None,
+        "_F": None,
+        "_LimitValue": None,
+        "LimiterType": None,
+        "_Limiter": None,
+        "Limiter": None,
+        "slowapi_available": None,
+        "get_api_key": canonical_api_key.get_api_key,
+        "_get_api_key_dynamic": canonical_api_key._get_api_key_dynamic,
     }
     assert (
         canonical_migrations["APPLICATION_METADATA"]
@@ -588,6 +873,9 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
         "Sex": premium_contracts.Sex,
         "Language": core_i18n.Language,
         "FIBER_MIN_G": core_targets.FIBER_MIN_G,
+        "RATE_LIMIT_EXPORTS": rate_limit.RATE_LIMIT_EXPORTS,
+        "RATE_LIMIT_INSIGHT": rate_limit.RATE_LIMIT_INSIGHT,
+        "RATE_LIMIT_429_RESPONSES": rate_limit.RATE_LIMIT_429_RESPONSES,
     }
 
     assert isinstance(
@@ -608,8 +896,13 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
     assert type(http_error_details.INVALID_PREMIUM_PLATE_INPUT_DETAIL) is str
     assert http_error_details.INVALID_PREMIUM_PLATE_INPUT_DETAIL == "Invalid premium plate input"
     assert canonical_migrations.keys() == RETIRED_LEGACY_PYTHON_BINDINGS
+    assert all(name in vars(rate_limit) for name in RETIRED_RATE_LIMIT_BINDINGS[:5])
+    assert type(rate_limit.RATE_LIMIT_EXPORTS) is str
+    assert type(rate_limit.RATE_LIMIT_INSIGHT) is str
+    assert rate_limit.RATE_LIMIT_429_RESPONSES[429]["model"] is rate_limit.RateLimitErrorResponse
+    assert rate_limit.limit_if_available.__module__ == rate_limit.__name__
     assert RETIRED_LEGACY_PYTHON_BINDINGS == legacy_guard.RETIRED_LEGACY_PYTHON_BINDINGS
-    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 117
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 132
     assert canonical_migrations["TargetsIn"] is canonical_migrations["CanonicalTargetsIn"]
     assert (
         len(
@@ -688,7 +981,7 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
     assert {
         binding_name
         for binding_name, canonical_migration in canonical_migrations.items()
-        if canonical_migration is None
+        if canonical_migration is None and binding_name != "limiter"
     } == {
         "_resolve_build_targets_callable",
         "WeeklyPlanFlexibleRequest",
@@ -696,12 +989,24 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
         "_LEGACY_IMPORT_COMPAT_REEXPORTS",
         "_BMI_COMPAT_REEXPORTS",
         "_BMI_SCHEMA_COMPAT_REEXPORTS",
+        "_RATE_LIMIT_429_RESPONSES",
+        "_TypeVar",
+        "_F",
+        "_LimitValue",
+        "LimiterType",
+        "_Limiter",
+        "Limiter",
+        "slowapi_available",
     }
     assert log_retention.DataClass.__module__ == log_retention.__name__
     assert log_retention.LogRetentionManager.__module__ == log_retention.__name__
     assert log_retention.get_retention_manager.__module__ == log_retention.__name__
     for binding_name, canonical_migration in canonical_migrations.items():
-        if binding_name in canonical_constants:
+        if binding_name == "limiter":
+            assert canonical_migration is rate_limit.limiter
+            if canonical_migration is not None:
+                assert isinstance(canonical_migration, rate_limit.Limiter)
+        elif binding_name in canonical_constants:
             assert canonical_migration == canonical_constants[binding_name]
             if binding_name not in {"Activity", "DietFlag", "Goal", "Sex", "Language"}:
                 assert not callable(canonical_migration)
@@ -861,6 +1166,7 @@ def test_canonical_nutrition_contracts_remain_importable_in_fresh_process() -> N
         "import core.targets as core_targets\n"
         "import app.utils.helpers as helpers\n"
         "import app.utils.feature_flags as feature_flags\n",
+        "import app.security.rate_limit as rate_limit\n"
         "import app.schemas.nutrition_targets as planning_targets\n"
         "import app.schemas.legacy_premium_weekly_plan as planning_schemas\n"
         "import core.db as core_db\n"
@@ -902,7 +1208,15 @@ def test_retired_legacy_python_bindings_fail_closed_in_a_fresh_process(
         import core.nutrition_utils as nutrition_utils
 
         import app.routers.health as health
+        import app.security.rate_limit as rate_limit
         from typing import Literal, get_args, get_origin
+
+        assert all(name in vars(rate_limit) for name in {RETIRED_RATE_LIMIT_BINDINGS[:5]!r})
+        assert not rate_limit.rate_limiting_should_be_wired()
+        assert rate_limit.RATE_LIMIT_429_RESPONSES[429]["model"] is rate_limit.RateLimitErrorResponse
+        def undecorated() -> None:
+            pass
+        assert rate_limit.limit_if_available("2/minute")(undecorated) is undecorated
 
         assert "app.main" not in sys.modules
         startup_metadata = application_bootstrap.APPLICATION_METADATA

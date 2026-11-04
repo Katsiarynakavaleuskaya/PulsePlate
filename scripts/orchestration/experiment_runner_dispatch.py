@@ -1487,8 +1487,13 @@ def _git(
     return result
 
 
-def _material_file(root: Path, relative: str) -> bytes:
+def _material_file(root: Path, relative: str, *, maximum_bytes: int | None = None) -> bytes:
     """Read an explicitly admitted regular file under the cooperative boundary."""
+
+    if maximum_bytes is None:
+        maximum_bytes = MAX_RESULT_BYTES
+    if type(maximum_bytes) is not int or not 0 < maximum_bytes <= 16 * 1024**2:
+        raise ValueError("Admitted material has an invalid byte bound.")
 
     path = root / relative
     _reject_symlink_components(path)
@@ -1497,10 +1502,10 @@ def _material_file(root: Path, relative: str) -> bytes:
         before = os.fstat(descriptor)
         if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1:
             raise ValueError("Admitted material must be a regular, single-link file.")
-        if before.st_size > MAX_RESULT_BYTES:
+        if before.st_size > maximum_bytes:
             raise ValueError("Admitted material exceeds the bounded file size.")
         with os.fdopen(descriptor, "rb", closefd=False) as handle:
-            data = handle.read(MAX_RESULT_BYTES + 1)
+            data = handle.read(maximum_bytes + 1)
         after = os.fstat(descriptor)
         if (
             before.st_dev,
@@ -1518,6 +1523,22 @@ def _material_file(root: Path, relative: str) -> bytes:
             data
         ) != before.st_size:
             raise ValueError("Admitted material changed during acquisition.")
+        namespace = path.lstat()
+        if any(
+            getattr(before, field) != getattr(namespace, field)
+            or getattr(before, field) != getattr(after, field)
+            for field in (
+                "st_dev",
+                "st_ino",
+                "st_mode",
+                "st_nlink",
+                "st_uid",
+                "st_size",
+                "st_mtime_ns",
+                "st_ctime_ns",
+            )
+        ):
+            raise ValueError("Admitted material namespace or metadata changed during acquisition.")
         return data
     finally:
         os.close(descriptor)
@@ -2435,88 +2456,307 @@ def _invoke_container_runner(
         return sanitized
 
 
-def _build_image(backend: str, tag: str) -> dict[str, str]:
+# These are filesystem transport members of the one curated native export, not
+# a second SDK/source/ABI recognizer. Root qualifies the producer/export first;
+# the canonical installer inside UBI owns the wheel and receipt semantics.
+_RUNNER_BUILD_FILES = (
+    "deploy/experiment-runner/Containerfile",
+    "requirements-lock.txt",
+    "constraints.txt",
+    "scripts/ci/install_locked_python_requirements.py",
+    "scripts/ci/check_python_startup_hooks.py",
+    "scripts/ci/emergency_python_wheels.json",
+    "scripts/ci/check_private_python_proxy_health.py",
+    "tests/fixtures/dependency_security_schema.json",
+)
+_RUNNER_SDK_FILES = frozenset(
+    {
+        "psycopg-sdk/psycopg-c-sdk.json",
+        "usr/local/lib/libpq.so.5.18",
+        "usr/local/lib/libssl.so.3",
+        "usr/local/lib/libcrypto.so.3",
+        "usr/local/share/doc/pulseplate-native/OPENSSL-LICENSE",
+        "usr/local/share/doc/pulseplate-native/LIBPQ-COPYRIGHT",
+        "usr/local/share/doc/pulseplate-native/openssl.cnf",
+    }
+)
+_RUNNER_SDK_ALIASES = {"usr/local/lib/libpq.so.5": "libpq.so.5.18"}
+_RUNNER_OPTIONAL_PROVIDER = "usr/local/lib/ossl-modules/legacy.so"
+_RUNNER_STAGE_FILE_BYTES = 16 * 1024**2
+_RUNNER_STAGE_TOTAL_BYTES = 64 * 1024**2
+
+
+def _runner_stage_census(
+    root: Path, *, admitted_members: frozenset[str], opaque_sdk_wheel: bool = False
+) -> dict[str, tuple[str, int, bytes | str | None]]:
+    """Bound transport reads under a private cooperative root, without origin claims."""
+    rows: dict[str, tuple[str, int, bytes | str | None]] = {}
+    pending = [root]
+    total = 0
+    while pending:
+        directory = pending.pop()
+        _reject_symlink_components(directory)
+        with os.scandir(directory) as entries:
+            for entry in entries:
+                if len(rows) >= 64:
+                    raise ValueError("Runner build transport has too many members.")
+                path = directory / entry.name
+                relative = path.relative_to(root).as_posix()
+                if relative not in admitted_members and not (
+                    opaque_sdk_wheel and re.fullmatch(r"psycopg-sdk/[A-Za-z0-9_.-]+\.whl", relative)
+                ):
+                    raise ValueError("Runner build transport contains an unadmitted member.")
+                before = path.lstat()
+                mode = stat.S_IMODE(before.st_mode)
+                if before.st_uid != os.getuid():
+                    raise ValueError("Runner build transport is not owned by this operator.")
+                if stat.S_ISLNK(before.st_mode):
+                    alias_target = os.readlink(path)
+                    after = path.lstat()
+                    if any(
+                        getattr(before, key) != getattr(after, key)
+                        for key in (
+                            "st_dev",
+                            "st_ino",
+                            "st_mode",
+                            "st_uid",
+                            "st_mtime_ns",
+                            "st_ctime_ns",
+                        )
+                    ):
+                        raise ValueError("Runner build transport alias changed during inspection.")
+                    rows[relative] = ("symlink", mode, alias_target)
+                elif stat.S_ISDIR(before.st_mode):
+                    if mode & 0o7022:
+                        raise ValueError("Runner build transport directory has unsafe permissions.")
+                    rows[relative] = ("directory", mode, None)
+                    pending.append(path)
+                elif stat.S_ISREG(before.st_mode):
+                    if mode & 0o7022 or before.st_nlink != 1:
+                        raise ValueError(
+                            "Runner build transport file has unsafe permissions or links."
+                        )
+                    payload = _material_file(root, relative, maximum_bytes=_RUNNER_STAGE_FILE_BYTES)
+                    total += len(payload)
+                    if total > _RUNNER_STAGE_TOTAL_BYTES:
+                        raise ValueError("Runner build transport exceeds its total byte bound.")
+                    rows[relative] = ("file", mode, payload)
+                else:
+                    raise ValueError("Runner build transport contains a special node.")
+    return rows
+
+
+@contextmanager
+def _runner_build_context(raw_sdk_root: str | None) -> Iterator[Path]:
+    """Stage exact bytes; native producer/export admission remains a prior Root act."""
+    if (
+        not isinstance(raw_sdk_root, str)
+        or not raw_sdk_root.startswith("/")
+        or raw_sdk_root.startswith("//")
+        or "\\" in raw_sdk_root
+        or any(part in ("", ".", "..") for part in raw_sdk_root.split("/")[1:])
+        or any(ord(char) < 32 for char in raw_sdk_root)
+        or len(raw_sdk_root) > 4096
+    ):
+        raise ValueError("--psycopg-sdk-root must be one absolute canonical owned export root.")
+    sdk = Path(raw_sdk_root)
+    _reject_symlink_components(sdk)
+    info = sdk.lstat()
+    if (
+        not stat.S_ISDIR(info.st_mode)
+        or info.st_uid != os.getuid()
+        or stat.S_IMODE(info.st_mode) != 0o700
+        or sdk.resolve(strict=True) != sdk
+    ):
+        raise ValueError("Runner SDK export root must be private, owned and unlinked.")
+    sdk_members = set(_RUNNER_SDK_FILES) | set(_RUNNER_SDK_ALIASES) | {_RUNNER_OPTIONAL_PROVIDER}
+    sdk_members.update(
+        str(parent)
+        for name in tuple(sdk_members)
+        for parent in PurePosixPath(name).parents
+        if str(parent) != "."
+    )
+    admitted_sdk = frozenset(sdk_members)
+    source = _runner_stage_census(sdk, admitted_members=admitted_sdk, opaque_sdk_wheel=True)
+    wheels = [
+        name
+        for name, row in source.items()
+        if row[0] == "file"
+        and name.startswith("psycopg-sdk/")
+        and name.count("/") == 1
+        and re.fullmatch(r"psycopg-sdk/[A-Za-z0-9_.-]+\.whl", name)
+    ]
+    if len(wheels) != 1:
+        raise ValueError("Runner SDK transport requires exactly one opaque wheel file.")
+    regular = set(_RUNNER_SDK_FILES) | set(wheels)
+    if _RUNNER_OPTIONAL_PROVIDER in source:
+        regular.add(_RUNNER_OPTIONAL_PROVIDER)
+    expected = regular | set(_RUNNER_SDK_ALIASES)
+    directories = {
+        str(parent)
+        for name in expected
+        for parent in PurePosixPath(name).parents
+        if str(parent) != "."
+    }
+    if set(source) != expected | directories or any(source[name][0] != "file" for name in regular):
+        raise ValueError("Runner SDK transport differs from the finite curated export.")
+    if any(source[name][0] != "directory" for name in directories):
+        raise ValueError("Runner SDK transport parent is not a directory.")
+    for name, target in _RUNNER_SDK_ALIASES.items():
+        if source[name][0] != "symlink" or source[name][2] != target:
+            raise ValueError("Runner SDK SONAME alias differs from its declared internal target.")
+        if (PurePosixPath(name).parent / target).as_posix() not in regular:
+            raise ValueError("Runner SDK SONAME alias has no declared regular target.")
+    staged: dict[str, tuple[str, int, bytes | str | None]] = {
+        "sdk-inputs": ("directory", 0o700, None)
+    }
+    staged.update({"sdk-inputs/" + name: row for name, row in source.items()})
+    repo_rows: dict[str, tuple[str, int, bytes | str | None]] = {}
+    for relative in _RUNNER_BUILD_FILES:
+        before = (REPO_ROOT / relative).lstat()
+        data = _material_file(REPO_ROOT, relative)
+        if before.st_uid != os.getuid() or stat.S_IMODE(before.st_mode) & 0o7022:
+            raise ValueError("Runner build source has unsafe owner or permissions.")
+        repo_rows[relative] = ("file", stat.S_IMODE(before.st_mode), data)
+        for parent in PurePosixPath(relative).parents:
+            if str(parent) != ".":
+                repo_rows.setdefault(str(parent), ("directory", 0o755, None))
+    staged.update(repo_rows)
+    # The fresh system temp directory is canonicalized after creation; an
+    # untrusted SDK input is never admitted by resolving its aliases first.
+    with tempfile.TemporaryDirectory(prefix="pulseplate-runner-build-") as temporary:
+        context = Path(temporary).resolve(strict=True)
+        context.chmod(0o700)
+        for relative, (kind, mode, _directory_payload) in sorted(
+            staged.items(), key=lambda item: item[0].count("/")
+        ):
+            if kind == "directory":
+                (context / relative).mkdir(mode=mode)
+                (context / relative).chmod(mode)
+        for relative, (kind, mode, file_payload) in staged.items():
+            if kind == "file":
+                if not isinstance(file_payload, bytes):
+                    raise ValueError("Runner staged file payload is not bytes.")
+                with (context / relative).open("xb") as output:
+                    output.write(file_payload)
+                (context / relative).chmod(mode)
+        for relative, (kind, _alias_mode, link_value) in staged.items():
+            if kind == "symlink":
+                if not isinstance(link_value, str):
+                    raise ValueError("Runner staged alias payload is not text.")
+                alias = context / relative
+                alias.symlink_to(link_value)
+                # macOS records symlink modes; Linux creates them as 0777.
+                # Preserve the admitted host mode without following the alias.
+                if stat.S_IMODE(alias.lstat().st_mode) != _alias_mode:
+                    alias.chmod(_alias_mode, follow_symlinks=False)
+        if (
+            _runner_stage_census(context, admitted_members=frozenset(staged)) != staged
+            or _runner_stage_census(sdk, admitted_members=admitted_sdk, opaque_sdk_wheel=True)
+            != source
+        ):
+            raise ValueError("Runner source or actual staged transport changed before build.")
+        for relative in _RUNNER_BUILD_FILES:
+            current = (REPO_ROOT / relative).lstat()
+            if (
+                _material_file(REPO_ROOT, relative) != repo_rows[relative][2]
+                or stat.S_IMODE(current.st_mode) != repo_rows[relative][1]
+                or current.st_uid != os.getuid()
+            ):
+                raise ValueError("Runner source changed before the secret-bearing build.")
+        yield context
+
+
+def _build_image(backend: str, tag: str, *, psycopg_sdk_root: str | None = None) -> dict[str, str]:
     if not TAG_RE.fullmatch(tag) or "@" in tag:
         raise ValueError("--tag must be a bounded mutable local image tag without a digest.")
-    cli_name = "container" if backend == "apple-container" else "docker"
-    cli = _resolve_cli(cli_name)
-    if cli is None:
-        raise DispatchError("runtime_cli_missing")
-    readiness_reason = _runtime_readiness_reason(cli, backend)
-    if readiness_reason is not None:
-        raise DispatchError(readiness_reason)
-    argv = [cli, "build", "--file", str(CONTAINERFILE), "--tag", tag]
-    for env_name, secret_id in (
-        ("PULSEPLATE_PYTHON_INDEX_URL", "pp_py_index"),
-        ("PULSEPLATE_PYTHON_TRUSTED_HOST", "pp_py_host"),
-        ("PULSEPLATE_PYTHON_NETRC", "pp_netrc"),
-    ):
-        if os.environ.get(env_name):
-            argv.extend(["--secret", f"id={secret_id},env={env_name}"])
-    argv.append(str(REPO_ROOT))
-    secret_env_keys = tuple(
-        env_name
-        for env_name in (
-            "PULSEPLATE_PYTHON_INDEX_URL",
-            "PULSEPLATE_PYTHON_TRUSTED_HOST",
-            "PULSEPLATE_PYTHON_NETRC",
+    with _runner_build_context(psycopg_sdk_root) as context:
+        cli_name = "container" if backend == "apple-container" else "docker"
+        cli = _resolve_cli(cli_name)
+        if cli is None:
+            raise DispatchError("runtime_cli_missing")
+        readiness_reason = _runtime_readiness_reason(cli, backend)
+        if readiness_reason is not None:
+            raise DispatchError(readiness_reason)
+        argv = [
+            cli,
+            "build",
+            "--file",
+            str(context / "deploy/experiment-runner/Containerfile"),
+            "--tag",
+            tag,
+        ]
+        for env_name, secret_id in (
+            ("PULSEPLATE_PYTHON_INDEX_URL", "pp_py_index"),
+            ("PULSEPLATE_PYTHON_TRUSTED_HOST", "pp_py_host"),
+            ("PULSEPLATE_PYTHON_NETRC", "pp_netrc"),
+        ):
+            if os.environ.get(env_name):
+                argv.extend(["--secret", f"id={secret_id},env={env_name}"])
+        argv.append(str(context))
+        secret_env_keys = tuple(
+            env_name
+            for env_name in (
+                "PULSEPLATE_PYTHON_INDEX_URL",
+                "PULSEPLATE_PYTHON_TRUSTED_HOST",
+                "PULSEPLATE_PYTHON_NETRC",
+            )
+            if os.environ.get(env_name)
         )
-        if os.environ.get(env_name)
-    )
-    completed = _run(
-        argv,
-        cwd=REPO_ROOT,
-        timeout=1800,
-        secret_env_keys=secret_env_keys,
-    )
-    if completed.returncode != 0:
-        raise DispatchError("probe_execution_failed")
-    inspect = _run([cli, "image", "inspect", tag], cwd=REPO_ROOT)
-    if inspect.returncode != 0:
-        raise DispatchError("image_missing")
-    try:
-        digest = _primary_image_digest(json.loads(inspect.stdout))
-    except json.JSONDecodeError as exc:
-        raise DispatchError("image_missing") from exc
-    history = ""
-    if backend == "docker":
-        history_result = _run(
-            [cli, "history", "--no-trunc", "--format", "{{json .CreatedBy}}", tag],
+        completed = _run(
+            argv,
             cwd=REPO_ROOT,
+            timeout=1800,
+            secret_env_keys=secret_env_keys,
         )
-        if history_result.returncode != 0:
-            raise DispatchError("image_hygiene_failed")
-        history = history_result.stdout
-    immutable_ref = f"{tag}@{digest}"
-    if backend == "apple-container":
-        registered = _run(
-            [cli, "image", "tag", tag, immutable_ref],
-            cwd=REPO_ROOT,
-        )
-        if registered.returncode != 0:
-            raise DispatchError("image_digest_drift")
-        immutable_inspect = _run(
-            [cli, "image", "inspect", immutable_ref],
-            cwd=REPO_ROOT,
-        )
-        if immutable_inspect.returncode != 0:
-            raise DispatchError("image_digest_drift")
+        if completed.returncode != 0:
+            raise DispatchError("probe_execution_failed")
+        inspect = _run([cli, "image", "inspect", tag], cwd=REPO_ROOT)
+        if inspect.returncode != 0:
+            raise DispatchError("image_missing")
         try:
-            if _primary_image_digest(json.loads(immutable_inspect.stdout)) != digest:
-                raise DispatchError("image_digest_drift")
+            digest = _primary_image_digest(json.loads(inspect.stdout))
         except json.JSONDecodeError as exc:
-            raise DispatchError("image_digest_drift") from exc
-        inspect = immutable_inspect
-    image_metadata = f"{inspect.stdout}\n{history}"
-    forbidden_names = secret_env_keys
-    forbidden_values = tuple(
-        os.environ[key] for key in secret_env_keys if len(os.environ.get(key, "")) >= 6
-    )
-    if any(name in image_metadata for name in forbidden_names) or any(
-        value in image_metadata for value in forbidden_values
-    ):
-        raise DispatchError("image_hygiene_failed")
-    return {"backend": backend, "image": immutable_ref, "sanitized": "true"}
+            raise DispatchError("image_missing") from exc
+        history = ""
+        if backend == "docker":
+            history_result = _run(
+                [cli, "history", "--no-trunc", "--format", "{{json .CreatedBy}}", tag],
+                cwd=REPO_ROOT,
+            )
+            if history_result.returncode != 0:
+                raise DispatchError("image_hygiene_failed")
+            history = history_result.stdout
+        immutable_ref = f"{tag}@{digest}"
+        if backend == "apple-container":
+            registered = _run(
+                [cli, "image", "tag", tag, immutable_ref],
+                cwd=REPO_ROOT,
+            )
+            if registered.returncode != 0:
+                raise DispatchError("image_digest_drift")
+            immutable_inspect = _run(
+                [cli, "image", "inspect", immutable_ref],
+                cwd=REPO_ROOT,
+            )
+            if immutable_inspect.returncode != 0:
+                raise DispatchError("image_digest_drift")
+            try:
+                if _primary_image_digest(json.loads(immutable_inspect.stdout)) != digest:
+                    raise DispatchError("image_digest_drift")
+            except json.JSONDecodeError as exc:
+                raise DispatchError("image_digest_drift") from exc
+            inspect = immutable_inspect
+        image_metadata = f"{inspect.stdout}\n{history}"
+        forbidden_names = secret_env_keys
+        forbidden_values = tuple(
+            os.environ[key] for key in secret_env_keys if len(os.environ.get(key, "")) >= 6
+        )
+        if any(name in image_metadata for name in forbidden_names) or any(
+            value in image_metadata for value in forbidden_values
+        ):
+            raise DispatchError("image_hygiene_failed")
+        return {"backend": backend, "image": immutable_ref, "sanitized": "true"}
 
 
 def _read_packet(path: Path) -> dict[str, Any]:
@@ -2542,6 +2782,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     build = subparsers.add_parser("build-image")
     build.add_argument("--backend", choices=CONTAINER_BACKENDS, required=True)
     build.add_argument("--tag", required=True)
+    build.add_argument("--psycopg-sdk-root", required=True)
     run = subparsers.add_parser("run")
     run.add_argument("--backend", choices=BACKENDS, default="auto")
     run.add_argument("--material-root", type=Path, default=None)
@@ -2598,7 +2839,12 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0 if probe.strict else 2
         if args.command == "build-image":
-            print(json.dumps(_build_image(args.backend, args.tag), sort_keys=True))
+            print(
+                json.dumps(
+                    _build_image(args.backend, args.tag, psycopg_sdk_root=args.psycopg_sdk_root),
+                    sort_keys=True,
+                )
+            )
             return 0
 
         image = parse_image_reference(args.image)

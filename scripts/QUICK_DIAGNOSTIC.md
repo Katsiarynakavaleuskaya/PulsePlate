@@ -79,6 +79,11 @@ temporary public reopen allowlist после launch gate.
 
 ### Вариант 1: Использовать server-side скрипт (рекомендуется)
 
+Выбранный проект (`/srv/pulseplate-production`, иначе `/opt/pulseplate`) должен
+уже содержать синхронизированные `scripts/ci/prometheus_source_image.py` и
+`prometheus/image-manifest.json` из той же принятой ревизии. Копия диагностического
+скрипта в `/tmp` использует эти установленные файлы и не заменяет развёртывание.
+
 ```bash
 # Скопировать скрипт на сервер
 scp scripts/diagnose_production.sh user@your-droplet:/tmp/

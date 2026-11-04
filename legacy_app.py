@@ -1,72 +1,12 @@
 from __future__ import annotations
 
 import logging
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Callable,
-    Optional,
-    cast,
-)
+from typing import Any, cast
 
 from app.bootstrap.application import app as _canonical_app
-from app.routers.api_key import (  # noqa: F401 - identity-preserving compatibility re-exports
-    _get_api_key_dynamic as _get_api_key_dynamic,
-    get_api_key as get_api_key,
-)
 
 # Preserve the declared lexical legacy surface while re-exporting the exact canonical object.
 app = cast(Any, _canonical_app)
-
-# Rate limiting imports (PR-628)
-# RU: Импорты для rate-limiting (медленные imports только если slowapi доступен).
-# EN: Rate limiting imports (lazy imports only if slowapi is available).
-RATE_LIMIT_429_RESPONSES: dict[int | str, dict[str, Any]]
-try:
-    from app.security.rate_limit import (
-        limiter,
-        limit_if_available,
-        RATE_LIMIT_EXPORTS,
-        RATE_LIMIT_INSIGHT,
-        RATE_LIMIT_429_RESPONSES as _RATE_LIMIT_429_RESPONSES,
-    )
-
-    RATE_LIMIT_429_RESPONSES = _RATE_LIMIT_429_RESPONSES
-except ImportError:  # pragma: no cover - optional dependency in runtime
-    limiter = None  # type: ignore[assignment]  # pragma: no cover
-
-    # No-op decorator if rate limiting is unavailable
-    from typing import TypeVar as _TypeVar  # pragma: no cover
-
-    _F = _TypeVar("_F", bound=Callable[..., Any])  # pragma: no cover
-
-    _LimitValue = str | Callable[[], str]  # pragma: no cover
-
-    def limit_if_available(rate: _LimitValue) -> Callable[[_F], _F]:  # pragma: no cover
-        def decorator(func: _F) -> _F:  # pragma: no cover
-            return func  # pragma: no cover
-
-        return decorator  # pragma: no cover
-
-    RATE_LIMIT_INSIGHT = "10/minute"  # pragma: no cover
-    RATE_LIMIT_EXPORTS = "20/minute"  # pragma: no cover
-    RATE_LIMIT_429_RESPONSES = {429: {"description": "Rate limit exceeded"}}  # pragma: no cover
-
-
-if TYPE_CHECKING:
-    from slowapi import Limiter as LimiterType
-else:
-    LimiterType = Any
-
-Limiter: Optional[type[LimiterType]]
-try:
-    from slowapi import Limiter as _Limiter
-
-    Limiter = _Limiter  # Assign the class itself
-except ImportError:
-    Limiter = None
-
-slowapi_available = Limiter is not None
 
 # Canonical application bootstrap owns environment resolution, dotenv loading,
 # root logging configuration, metadata construction, and the FastAPI instance.
@@ -86,11 +26,6 @@ bmi_logger = logging.getLogger("app.bmi")
 # Legacy event handlers - replaced with lifespan
 # @app.on_event("startup")
 # @app.on_event("shutdown")
-
-
-# Rate limiting setup (PR-628)
-# Wiring is centralized in app.security.rate_limit; import after app creation
-# to avoid import-order issues with FastAPI instance
 
 
 # ---------- Core logic ----------

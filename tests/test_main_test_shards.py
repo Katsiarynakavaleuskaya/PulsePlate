@@ -744,10 +744,12 @@ def test_run_all_shards_rejects_invalid_parallelism(tmp_path: Path) -> None:
         runner.run_all_shards(tmp_path, [], 1, {})
 
 
+@pytest.mark.parametrize("return_code", [-9, -11, 1, 124])
 def test_run_all_shards_stops_refilling_after_first_failure(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
+    return_code: int,
 ) -> None:
     """Fail-closed shards should surface promptly instead of scheduling all pending work."""
 
@@ -767,7 +769,7 @@ def test_run_all_shards_stops_refilling_after_first_failure(
 
         def poll(self) -> int | None:
             if self.shard_index == 1:
-                return 124
+                return return_code
             return None
 
     def fake_start_shard_process(
@@ -782,7 +784,7 @@ def test_run_all_shards_stops_refilling_after_first_failure(
         return runner.RunningShard(
             shard=shard,
             process=cast(subprocess.Popen[bytes], process),
-            started_at=runner.time.monotonic(),
+            started_at=10.0,
             timeout_seconds=999_999,
         )
 
@@ -791,6 +793,7 @@ def test_run_all_shards_stops_refilling_after_first_failure(
 
     monkeypatch.setattr(runner, "start_shard_process", fake_start_shard_process)
     monkeypatch.setattr(runner, "_terminate_process_group", fake_terminate_process_group)
+    monkeypatch.setattr(runner.time, "monotonic", lambda: 12.5)
     monkeypatch.setattr(
         runner,
         "run_coverage_command",
@@ -801,6 +804,13 @@ def test_run_all_shards_stops_refilling_after_first_failure(
     assert submitted == [1, 2]
     assert terminated == [2]
     stderr = capsys.readouterr().err
+    diagnostic = (
+        f"MAIN_TEST_SHARD_PROCESS_EXIT label={shards[0].artifact_label} "
+        f"index=1 pid=1 return_code={return_code} elapsed_seconds=2.500"
+    )
+    assert stderr.count(diagnostic) == 1
+    assert stderr.index(diagnostic) < stderr.index("MAIN_TEST_SHARD_CANCELLED")
+    assert "MAIN_TEST_SHARD_PROCESS_EXIT label=" not in stderr.replace(diagnostic, "")
     assert "MAIN_TEST_SHARD_CANCELLED index=2 reason=fail_fast" in stderr
     assert "MAIN_TEST_SHARDS_FAILED shards=[1]" in stderr
 
@@ -940,6 +950,7 @@ def test_run_all_shards_max_parallel_one_uses_child_process_isolation(
 
 
 def test_run_all_shards_combines_serial_coverage_before_parallel_shards(
+    capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -983,6 +994,7 @@ def test_run_all_shards_combines_serial_coverage_before_parallel_shards(
 
     monkeypatch.setattr(runner, "start_shard_process", fake_start_shard_process)
     monkeypatch.setattr(runner, "run_coverage_command", fake_coverage)
+    monkeypatch.setattr(runner.time, "monotonic", lambda: 13.75)
 
     assert (
         runner.run_all_shards(
@@ -995,6 +1007,13 @@ def test_run_all_shards_combines_serial_coverage_before_parallel_shards(
         == 0
     )
     assert submitted == [1]
+    assert (
+        capsys.readouterr().err.count(
+            "MAIN_TEST_SHARD_PROCESS_EXIT label=py311 index=1 pid=1 "
+            "return_code=0 elapsed_seconds=13.750"
+        )
+        == 1
+    )
     assert coverage_calls == [
         ["combine", ".coverage.py311-main-shard-0", ".coverage.py311-main-shard-1"],
         ["xml"],

@@ -128,6 +128,21 @@ RETIRED_LEGACY_PYTHON_BINDINGS = (
     "_api_description",
     "lifespan",
     "get_update_scheduler",
+    "limiter",
+    "limit_if_available",
+    "RATE_LIMIT_EXPORTS",
+    "RATE_LIMIT_INSIGHT",
+    "RATE_LIMIT_429_RESPONSES",
+    "_RATE_LIMIT_429_RESPONSES",
+    "_TypeVar",
+    "_F",
+    "_LimitValue",
+    "LimiterType",
+    "_Limiter",
+    "Limiter",
+    "slowapi_available",
+    "get_api_key",
+    "_get_api_key_dynamic",
 )
 
 RETIRED_PRO_NUTRITION_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[10:20]
@@ -145,14 +160,243 @@ RETIRED_BMI_COMPAT_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[99:106]
 RETIRED_METADATA_ERROR_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[106:109]
 RETIRED_METADATA_PROJECTION_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[109:115]
 RETIRED_LIFECYCLE_ACCESS_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[115:117]
+RETIRED_RATE_LIMIT_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[117:130]
+
+
+@pytest.fixture(scope="module")
+def valid_repo_baseline() -> None:
+    """Require a real complete baseline before aggregate source mutations."""
+    assert legacy_guard.validate_repo(REPO_ROOT) == []
+
+
+def test_retired_api_key_tail_is_exact_and_disjoint() -> None:
+    """Append only the selected API-key pair while preserving the prior 130 names."""
+    prior = RETIRED_LEGACY_PYTHON_BINDINGS[:130]
+    selected = RETIRED_LEGACY_PYTHON_BINDINGS[130:132]
+    assert len(prior) == len(set(prior)) == 130
+    assert selected == ("get_api_key", "_get_api_key_dynamic")
+    assert set(prior).isdisjoint(selected)
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 132
+    assert legacy_guard.RETIRED_LEGACY_PYTHON_BINDINGS == frozenset(prior) | set(selected)
+
+
+@pytest.mark.parametrize("binding_name", ("get_api_key", "_get_api_key_dynamic"))
+@pytest.mark.parametrize(
+    "source_template",
+    (
+        "{name} = canonical\n",
+        "{name}: object = canonical\n",
+        "{name}: object\n",
+        "from canonical_owner import canonical as {name}\n",
+        "def {name}():\n    return None\n",
+        "class {name}:\n    pass\n",
+        "del {name}\n",
+        "def mutate():\n    global {name}\n",
+        "if TYPE_CHECKING:\n    {name}: object\nelse:\n    {name} = canonical\n",
+        "try:\n    from canonical_owner import canonical as {name}\n"
+        "except ImportError:\n    {name} = None\n",
+    ),
+)
+def test_retired_api_key_binding_carriers(binding_name: str, source_template: str) -> None:
+    """Reject each selected Legacy name through the existing binding carriers."""
+    assert legacy_guard.validate_retired_legacy_python_bindings(
+        source_template.format(name=binding_name)
+    ) == [f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"]
+
+
+@pytest.mark.parametrize("binding_name", ("get_api_key", "_get_api_key_dynamic"))
+def test_retired_api_key_guard_allows_canonical_and_local_mentions(binding_name: str) -> None:
+    """Keep canonical definitions and harmless nonbinding Legacy mentions permitted."""
+    assert (
+        legacy_guard.validate_retired_legacy_python_bindings(
+            f"{binding_name} = canonical\n",
+            filename="app/routers/api_key.py",
+        )
+        == []
+    )
+    assert (
+        legacy_guard.validate_retired_legacy_python_bindings(
+            f'"{binding_name}"\n# {binding_name}\nholder.{binding_name} = canonical\n'
+            f"def local():\n    {binding_name} = canonical\n"
+        )
+        == []
+    )
+
+
+@pytest.mark.parametrize("binding_name", ("get_api_key", "_get_api_key_dynamic"))
+@pytest.mark.parametrize("same_name_alias", (False, True))
+def test_retired_api_key_guard_rejects_canonical_reimport(
+    binding_name: str,
+    same_name_alias: bool,
+) -> None:
+    """Reject plain and same-name canonical imports through retirement and growth checks."""
+    suffix = f" as {binding_name}" if same_name_alias else ""
+    source = f"from app.routers.api_key import {binding_name}{suffix}\n"
+    assert legacy_guard.validate_retired_legacy_python_bindings(source) == [
+        f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"
+    ]
+    owner = f" -> {binding_name}" if same_name_alias else ""
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected app.routers import growth: "
+        f"router_import:app.routers.api_key:{binding_name}{owner}"
+    ]
+
+
+@pytest.mark.parametrize("binding_name", ("get_api_key", "_get_api_key_dynamic"))
+@pytest.mark.parametrize("same_name_alias", (False, True))
+def test_retired_api_key_reimport_fails_aggregate_guard(
+    binding_name: str,
+    same_name_alias: bool,
+    valid_repo_baseline: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Require both intended aggregate diagnostics after restoring one retired import."""
+    original_read = legacy_guard._read
+    suffix = f" as {binding_name}" if same_name_alias else ""
+
+    def read_with_restoration(path: Path, repo_root: Path, errors: list[str]) -> str | None:
+        """Restore only the selected import in the existing guard's Legacy source read."""
+        source = original_read(path, repo_root, errors)
+        if path == REPO_ROOT / "legacy_app.py" and source is not None:
+            return source + f"\nfrom app.routers.api_key import {binding_name}{suffix}\n"
+        return source
+
+    with monkeypatch.context() as isolated_patch:
+        isolated_patch.setattr(legacy_guard, "_read", read_with_restoration)
+        owner = f" -> {binding_name}" if same_name_alias else ""
+        assert legacy_guard.validate_repo(REPO_ROOT) == [
+            "legacy_app.py: unexpected app.routers import growth: "
+            f"router_import:app.routers.api_key:{binding_name}{owner}",
+            f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}",
+        ]
+
+
+def test_retired_rate_limit_tail_is_exact_and_disjoint() -> None:
+    """Preserve prior 117/lifecycle membership and append the exact independent 13 cohort."""
+    assert RETIRED_RATE_LIMIT_BINDINGS == (
+        "limiter",
+        "limit_if_available",
+        "RATE_LIMIT_EXPORTS",
+        "RATE_LIMIT_INSIGHT",
+        "RATE_LIMIT_429_RESPONSES",
+        "_RATE_LIMIT_429_RESPONSES",
+        "_TypeVar",
+        "_F",
+        "_LimitValue",
+        "LimiterType",
+        "_Limiter",
+        "Limiter",
+        "slowapi_available",
+    )
+    prior = RETIRED_LEGACY_PYTHON_BINDINGS[:117]
+    assert len(prior) == len(set(prior)) == 117
+    assert set(prior).isdisjoint(RETIRED_RATE_LIMIT_BINDINGS)
+    assert RETIRED_LIFECYCLE_ACCESS_BINDINGS == ("lifespan", "get_update_scheduler")
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 132
+    assert legacy_guard.RETIRED_LEGACY_PYTHON_BINDINGS == frozenset(RETIRED_LEGACY_PYTHON_BINDINGS)
+    shim_tree = ast.parse((REPO_ROOT / "tests/test_legacy_bmi_shims.py").read_text())
+    shim_inventory = next(
+        node.value
+        for node in shim_tree.body
+        if isinstance(node, ast.Assign)
+        and any(
+            isinstance(target, ast.Name) and target.id == "RETIRED_LEGACY_PYTHON_BINDINGS"
+            for target in node.targets
+        )
+    )
+    assert set(ast.literal_eval(shim_inventory)) == set(RETIRED_LEGACY_PYTHON_BINDINGS)
+
+
+@pytest.mark.parametrize("binding_name", RETIRED_RATE_LIMIT_BINDINGS)
+@pytest.mark.parametrize(
+    "source_template",
+    (
+        "{name} = canonical\n",
+        "{name}: object = canonical\n",
+        "{name}: object\n",
+        "from canonical_owner import canonical as {name}\n",
+        "def {name}():\n    return None\n",
+        "class {name}:\n    pass\n",
+        "del {name}\n",
+        "def mutate():\n    global {name}\n",
+        "if TYPE_CHECKING:\n    {name}: object\nelse:\n    {name} = canonical\n",
+        "try:\n    from canonical_owner import canonical as {name}\n"
+        "except ImportError:\n    {name} = None\n",
+    ),
+)
+def test_retired_rate_limit_binding_carriers(binding_name: str, source_template: str) -> None:
+    """Reject each retired name through the admitted ordinary and conditional carriers."""
+    assert legacy_guard.validate_retired_legacy_python_bindings(
+        source_template.format(name=binding_name)
+    ) == [f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"]
+
+
+@pytest.mark.parametrize("binding_name", RETIRED_RATE_LIMIT_BINDINGS[:5])
+@pytest.mark.parametrize("same_name_alias", (False, True))
+def test_retired_rate_limit_guard_rejects_canonical_reimport(
+    binding_name: str,
+    same_name_alias: bool,
+) -> None:
+    """Reject canonical-looking imports that would restore a legacy rate-limit binding."""
+    suffix = f" as {binding_name}" if same_name_alias else ""
+    assert legacy_guard.validate_retired_legacy_python_bindings(
+        f"from app.security.rate_limit import {binding_name}{suffix}\n"
+    ) == [f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"]
+
+
+@pytest.mark.parametrize("binding_name", RETIRED_RATE_LIMIT_BINDINGS)
+def test_retired_rate_limit_guard_allows_canonical_and_local_mentions(binding_name: str) -> None:
+    """Allow canonical owners and mentions that do not bind the legacy module namespace."""
+    assert (
+        legacy_guard.validate_retired_legacy_python_bindings(
+            f"{binding_name} = canonical\n",
+            filename="app/security/rate_limit.py",
+        )
+        == []
+    )
+    assert (
+        legacy_guard.validate_retired_legacy_python_bindings(
+            f'"{binding_name}"\n# {binding_name}\nholder.{binding_name} = canonical\n'
+            f"def local():\n    {binding_name} = canonical\n"
+        )
+        == []
+    )
+
+
+def test_retired_rate_limit_restoration_fails_aggregate_guard(
+    valid_repo_baseline: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reject whole-cohort restoration through the existing repository guard consumer."""
+    original_read = legacy_guard._read
+
+    def read_with_restoration(path: Path, repo_root: Path, errors: list[str]) -> str | None:
+        """Inject synthetic bare annotations only into the legacy source read seam."""
+        source = original_read(path, repo_root, errors)
+        if path == REPO_ROOT / "legacy_app.py" and source is not None:
+            return (
+                source
+                + "\n"
+                + "\n".join(f"{name}: object" for name in RETIRED_RATE_LIMIT_BINDINGS)
+                + "\n"
+            )
+        return source
+
+    with monkeypatch.context() as isolated_patch:
+        isolated_patch.setattr(legacy_guard, "_read", read_with_restoration)
+        assert legacy_guard.validate_repo(REPO_ROOT) == [
+            f"legacy_app.py: retired Python compatibility binding is forbidden: {name}"
+            for name in sorted(RETIRED_RATE_LIMIT_BINDINGS)
+        ]
 
 
 def test_retired_lifecycle_access_tail_is_exact_and_disjoint() -> None:
+    """Keep the prior two lifecycle bindings in their unchanged historical tuple slice."""
     assert RETIRED_LIFECYCLE_ACCESS_BINDINGS == ("lifespan", "get_update_scheduler")
     prior = RETIRED_LEGACY_PYTHON_BINDINGS[:115]
     assert len(prior) == len(set(prior)) == 115
     assert set(prior).isdisjoint(RETIRED_LIFECYCLE_ACCESS_BINDINGS)
-    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 117
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 132
     assert legacy_guard.RETIRED_LEGACY_PYTHON_BINDINGS == frozenset(RETIRED_LEGACY_PYTHON_BINDINGS)
 
 
@@ -215,12 +459,14 @@ def test_retired_lifecycle_access_guard_allows_canonical_and_local_mentions(
 
 
 def test_retired_lifecycle_access_restoration_fails_aggregate_guard(
+    valid_repo_baseline: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    assert legacy_guard.validate_repo(REPO_ROOT) == []
+    """Reject a restored scheduler getter after the shared complete baseline."""
     original_read = legacy_guard._read
 
     def read_with_getter(path: Path, repo_root: Path, errors: list[str]) -> str | None:
+        """Restore the scheduler getter import only in the guard's legacy source read."""
         source = original_read(path, repo_root, errors)
         if path == REPO_ROOT / "legacy_app.py" and source is not None:
             return source + "\nfrom app.services.scheduler_access import get_update_scheduler\n"
@@ -247,8 +493,8 @@ def test_retired_bmi_compat_tail_is_exact_and_disjoint() -> None:
     assert len(RETIRED_LEGACY_PYTHON_BINDINGS[:99]) == 99
     assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS[:99])) == 99
     assert set(RETIRED_LEGACY_PYTHON_BINDINGS[:99]).isdisjoint(RETIRED_BMI_COMPAT_BINDINGS)
-    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 117
-    assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 117
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 132
+    assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 132
 
 
 @pytest.mark.parametrize("binding_name", RETIRED_BMI_COMPAT_BINDINGS)
@@ -323,8 +569,8 @@ def test_retired_metadata_error_tail_is_exact_and_disjoint() -> None:
     assert len(RETIRED_LEGACY_PYTHON_BINDINGS[:106]) == 106
     assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS[:106])) == 106
     assert set(RETIRED_LEGACY_PYTHON_BINDINGS[:106]).isdisjoint(RETIRED_METADATA_ERROR_BINDINGS)
-    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 117
-    assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 117
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 132
+    assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 132
     assert legacy_guard.RETIRED_LEGACY_PYTHON_BINDINGS == frozenset(RETIRED_LEGACY_PYTHON_BINDINGS)
 
 
@@ -402,13 +648,13 @@ def test_retired_metadata_error_guard_allows_canonical_and_harmless_mentions(
 
 
 def test_retired_metadata_error_reimport_fails_aggregate_guard(
+    valid_repo_baseline: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Scan one baseline and one isolated restoration for each selected binding."""
+    """Independently validate each restoration after the shared complete baseline."""
     sources = _openapi_ownership_sources()
     assert legacy_guard.validate_application_metadata_openapi_ownership(*sources) == []
     assert legacy_guard.validate_retired_legacy_python_bindings(sources[0]) == []
-    assert legacy_guard.validate_repo(REPO_ROOT) == []
     original_read = legacy_guard._read
     for binding_name in RETIRED_METADATA_ERROR_BINDINGS:
         canonical_module = (
@@ -769,11 +1015,14 @@ def test_retired_openapi_guard_rejects_exact_canonical_reimport(
 
 
 def test_retired_openapi_reimport_fails_aggregate_guard(
+    valid_repo_baseline: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Reject a retired OpenAPI import with both intended aggregate diagnostics."""
     original_read = legacy_guard._read
 
     def read_with_reintroduced_import(path: Path, repo_root: Path, errors: list[str]) -> str | None:
+        """Restore the OpenAPI builder import only in the guard's legacy source read."""
         source = original_read(path, repo_root, errors)
         if path == REPO_ROOT / "legacy_app.py" and source is not None:
             return source + "\nfrom app.bootstrap.openapi import _install_openapi_builder\n"
@@ -3232,6 +3481,7 @@ def test_api_key_ownership_guard_resolves_nonlocal_alias_before_reassignment() -
 
 
 def test_api_key_ownership_guard_accepts_direct_identity_preserving_reexports() -> None:
+    """Ownership-only acceptance; retirement and growth reject these Legacy imports."""
     legacy_source = (
         "from app.routers.api_key import (\n    _get_api_key_dynamic,\n    get_api_key,\n)\n"
     )
@@ -3239,19 +3489,20 @@ def test_api_key_ownership_guard_accepts_direct_identity_preserving_reexports() 
     assert legacy_guard.validate_api_key_dependency_ownership(legacy_source, {}) == []
 
 
-def test_api_key_ownership_guard_requires_module_level_reexports() -> None:
-    legacy_source = textwrap.dedent("""
-        def compatibility_imports():
-            from app.routers.api_key import _get_api_key_dynamic, get_api_key
-            return _get_api_key_dynamic, get_api_key
-        """)
-
-    assert legacy_guard.validate_api_key_dependency_ownership(legacy_source, {}) == [
-        "legacy_app.py: canonical API-key compatibility re-export must preserve identity: "
-        "_get_api_key_dynamic",
-        "legacy_app.py: canonical API-key compatibility re-export must preserve identity: "
-        "get_api_key",
-    ]
+def test_api_key_ownership_guard_accepts_retired_legacy_surface() -> None:
+    """Accept absent Legacy aliases when application consumers import the canonical owner."""
+    assert (
+        legacy_guard.validate_api_key_dependency_ownership(
+            "",
+            {
+                "app/main.py": (
+                    "from app.routers.api_key import get_api_key, _get_api_key_dynamic\n"
+                    "dependency = _get_api_key_dynamic\n"
+                )
+            },
+        )
+        == []
+    )
 
 
 @pytest.mark.parametrize(
@@ -12786,7 +13037,7 @@ def test_retired_metadata_projection_tail_is_exact_and_disjoint() -> None:
     prior = RETIRED_LEGACY_PYTHON_BINDINGS[:109]
     assert len(prior) == len(set(prior)) == 109
     assert set(prior).isdisjoint(RETIRED_METADATA_PROJECTION_BINDINGS)
-    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 117
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 132
     assert legacy_guard.RETIRED_LEGACY_PYTHON_BINDINGS == frozenset(RETIRED_LEGACY_PYTHON_BINDINGS)
 
 
@@ -12850,15 +13101,17 @@ def test_retired_metadata_projection_guard_allows_canonical_and_harmless_mention
 
 
 def test_retired_metadata_projection_restoration_fails_aggregate_guard(
+    valid_repo_baseline: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Reject restored application metadata after the shared complete baseline."""
     sources = _openapi_ownership_sources()
     assert legacy_guard.validate_application_metadata_openapi_ownership(*sources) == []
     assert legacy_guard.validate_retired_legacy_python_bindings(sources[0]) == []
-    assert legacy_guard.validate_repo(REPO_ROOT) == []
     original_read = legacy_guard._read
 
     def read_with_projection(path: Path, repo_root: Path, errors: list[str]) -> str | None:
+        """Restore application metadata only in the guard's legacy source read."""
         source = original_read(path, repo_root, errors)
         if path == REPO_ROOT / "legacy_app.py" and source is not None:
             return source + "\nfrom app.bootstrap.application import APPLICATION_METADATA\n"

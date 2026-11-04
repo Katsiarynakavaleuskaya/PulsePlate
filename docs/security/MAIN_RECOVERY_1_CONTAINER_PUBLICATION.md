@@ -179,7 +179,7 @@ linux/amd64 production/staging builds, final-user SQLite/UUID/PCRE2 consumers
 and native inventory/raw/effective report bindings passed. Exact-head CI and
 post-merge published/main proof remain separate requirements. No latest-release, patched-all-CVEs, raw-clean, publication or deployment
 claim follows. Evidence: `scripts/ci/docker_source_artifacts.json:3`,
-`scripts/ci/fetch_docker_source_artifacts.py:141`,
+`scripts/ci/fetch_docker_source_artifacts.py:144`,
 `tests/test_docker_workflow_build_path_contract.py:346`, `Dockerfile:528`.
 
 ### Observed candidate checkpoint — 2026-10-04
@@ -421,6 +421,141 @@ activation and overall MAIN-RECOVERY-1 completion remain unproved and require
 their separate current-main operational receipts.
 
 ## Native command security dispositions
+
+### Accepted source-preserving seven-line allowlist instance — October 28, 2026
+
+On **2026-10-28**, @katsiaryna_kavaleuskaya directly accepted exactly seven
+dated entries in the existing `tests/guards/fixtures/nosec_policy_allowlist.txt`
+for PR #2497: “Принять эти 7 до 11 ноября, пересмотр до 4-го”. The entries are
+applied locally. This separate prospective acceptance retains the original
+inline dates and introduction references unchanged; it borrows no authority
+from the earlier eight-site, AM05 nine or Caddy D decisions.
+
+The accepted manual review is **2026-11-04** and inclusive hard remove-by is
+**2026-11-11**, with reference **PR-2497**. The decision accepts the stated
+residual risk prospectively from October 28; it does not satisfy any historical
+obligation retroactively or prove a native outcome.
+
+Introduction owner/carrier: PR #2497. The human assigned retirement to the
+existing dependency24 chat («депенденси24») / **PR #2494**, after actual
+PR #2497 merge and integration through `main`. That receiver retains its
+original criteria and ownership; this assignment transfers no build budget,
+automatic renewal or merge/deployment authority. The ledger remains OPEN until
+the actual retirement outcome is completed. Manual review remains the owner
+and security-auditor's separate obligation.
+
+The existing guard loads unexpired path/line entries before checking inline
+annotation metadata. It therefore skips inline validation for exactly the
+listed coordinates, including their old dates; it does not modify Bandit's
+rules or severities, and the existing inline nosec markers remain unchanged.
+The loader rejects this allowlist after November 11 in its executing host
+calendar. The November 4 review is a manual obligation, not a loader-enforced
+stale-review date. Source hashes and rule identities are also not predicates
+of this legacy loader: they remain explicit reviewed-material obligations.
+This is temporary tracked technical debt, not complete risk removal.
+
+| Source coordinate | Rule |
+| --- | --- |
+| `scripts/ci/check_trivy_ignore_policy_native.py:11` | B404 |
+| `scripts/ci/check_trivy_ignore_policy_native.py:63` | B603 |
+| `scripts/ci/prometheus_source_image.py:30` | B404 |
+| `scripts/ci/prometheus_source_image.py:1060` | B603 |
+| `scripts/ci/prometheus_source_image.py:2175` | B603 |
+| `scripts/ci/prometheus_source_image.py:2404` | B603 |
+| `scripts/ci/prometheus_source_image.py:3759` | B603 |
+
+The exact reviewed Prometheus helper is 352899 bytes, SHA-256
+`d812e79fce6138426131f266e4f5fd8de03b72c9a56acea19bedb43a22f172f6`.
+The native Trivy helper is 13788 bytes, SHA-256
+`529a1a110db2d6abde904d078a4fde34edf07b959f5af172a1ee4f10af5cc9bf`.
+Neither helper, its inline annotations, deployment-reader pins, the fixed
+`dab47` control nor the original `a8c9` producer records change. This preserves
+raw-producer equality and D's relevant-input equality; it does not establish
+any native result or confer an additional build allowance.
+
+The existing exact-seven source/caller assessment found no bounded safer
+replacement for required native metadata, ownership census, credential-aware
+gh operations and pinned Trivy conversion. Absolute argv, bounded execution,
+output/redaction and owned cleanup controls remain. Tool/PATH/OS/Docker trust,
+native command semantics, caller/environment discipline and process snapshots
+remain risks. No new scanner run or candidate gate PASS is claimed here.
+
+Both complete source hashes and all seven current line/rule coordinates were
+verified against the reviewed material before this local application. Recheck
+them before publication; this separate verification is not loader enforcement. Source, caller, argv/environment, line or rule drift requires
+reassessment; do not carry these entries onto different code by line number.
+Preserve the original histories. Remove the entries when a safe equivalent
+or a supported source-lineage transition permits reviewed inline conversion,
+on failed controls or changed scope, or by the hard removal date. No automatic
+renewal follows. The existing ledger tracks the owner and removal obligation.
+
+Only the allowlist fixture, this owner and the existing ledger change. No
+parser/guard/comparator, runtime, source pin, registry, image policy, native
+build, provider, deployment or clock change is included. Other expiry sets,
+including the source window, Caddy D and the accepted eight/nine, retain their
+own decisions. Ordinary required local/current-head checks and final closeout
+remain mandatory. A reviewed revert removes the entries and restores inline
+date enforcement, including any then-expired-date HOLD.
+
+### Current accepted decision — October 28, 2026
+
+On **2026-10-28**, @katsiaryna_kavaleuskaya explicitly accepted the exact eight-site
+prospective decision for PR #2497: review by **2026-11-04**, hard remove-by
+**2026-11-11 inclusive**, with inline reference **PR-2497**. The direct reply was:
+“Да, принимаю эти восемь до 11 ноября; пересмотр до 4 ноября”. This covers only
+the four B404 imports and four B603 native calls in the four scripts enumerated
+in the historical eight-site record below. The eight accepted date/ref values
+are applied locally; their rule codes and justifications remain unchanged.
+
+The current PR #2497 Python 3.12 gate rejected these eight PR-2486 annotations
+on October 28 after the inclusive October 27 deadline. The original October 12
+obligation remains missed, the October 20 review has no current completion
+proof here, and the October 27 removal obligation was not met. PR #2486 is
+merged; neither that merge nor this new decision satisfies a missed obligation
+retroactively. The new acceptance is prospective from October 28 only.
+
+The completed bounded reassessment examined the four current scripts and their
+tracked callers. Native Git, Docker/Compose, PostgreSQL, OpenSSL, mount and
+systemd operations remain necessary; no behavior-preserving safer replacement
+that removes the subprocess boundary was demonstrated within that review.
+Absolute executables, explicit argv, shell avoidance, finite timeouts and
+existing redaction/streaming controls remain. Tool/PATH trust, inherited host
+environment and Docker context, native options and selected script/image
+semantics remain residual risks. Three adapters still buffer output; the
+scheduler alone bounds it during collection. The review does not establish
+safety for arbitrary external, computed or future callers.
+
+The accepted instance changes only eight existing date/ref comment values,
+this owner record and the existing ledger anchor. The four Python ASTs are
+identical before and after the edit. Scanner configuration, severity, hooks,
+guards, allowlists and runtime behavior are unchanged. The retained read-only
+Bandit diagnostic exposed exactly eight LOW B404/B603 findings with HIGH
+confidence, positive metrics for all four files and no scanner errors when
+nosec was ignored. Ordinary JSON reported zero findings and positive file
+metrics, but its process exit was not retained after a collector assertion;
+that report is not an ordinary-command PASS or a no-risk result.
+
+The owner and security-auditor must review these eight current sites, callers
+and alternatives by November 4. Remove earlier when a safer equivalent or
+retirement of the native requirement is demonstrated; reassess immediately on
+source, caller, argv, environment, tool/context drift, a new finding or a failed
+gate. No automatic renewal follows November 11. The other seven annotations
+due October 28, the source window ending October 30 and the separately accepted
+AM05 nine remain outside this decision.
+
+Fresh applicable local gates, actual current-source bindings, current-head
+CI/security/coverage and normal closeout remain required. AST equality does
+not establish source-byte identity or gate success; current admission outputs
+must derive the changed source bytes, while historical producer receipts keep
+their original epochs. Do not publish if required gates or source-byte
+consumers fail. A normal revert of this dated instance restores the expired
+guard HOLD; it supplies no further exception. This acceptance grants no merge,
+production, deployment, host-operation, native-build or provider authority.
+
+### Historical October 12 and October 13–27 decisions
+
+The following record preserves the earlier review and acceptance history.
+Its October 20/27 dates describe the prior decision, not the current horizon.
 
 The complete pre-commit hook checks low-severity findings as well as higher
 severities. It reported six generic B404/B603 import/call alerts at
@@ -754,7 +889,7 @@ symlinked output directories before cache reads or mutation. Its claim is the
 bounded cooperative build cache, not hostile same-user race exclusion.
 
 Evidence anchors: `Dockerfile:205`,
-`scripts/ci/fetch_docker_source_artifacts.py:132`,
+`scripts/ci/fetch_docker_source_artifacts.py:135`,
 `scripts/ci/check_docker_runtime_dependency_surface.py:184`.
 
 ## Caddy: one Go identity
@@ -855,3 +990,113 @@ input/report hashes, image identity, native evidence and exact command receipts.
 Before completion it also retains the merge receipt, clean main `0 0`, sanity,
 review evidence, verified Git bundle and same-ID readback of the four approved
 Drive records. No standalone bookkeeping PR or automatic prevention PR is opened.
+
+
+## Receiving P01 repair in PR #2497
+
+The operator authorized the bounded package-inventory and same-run publication
+ordering repair from PR #2494 source
+`b82f3868caa305ef8592a30d707ca37d7725905d`. This Carryover preserves the full
+`.github/workflows/build.yml`, Prometheus Containerfile and image manifest bytes.
+The existing `historical_helper_change` route independently authenticates the
+original retained source and the current receiver; it does not rebuild or
+weaken the ordinary positive-publication requirement.
+
+The existing package reader requires all count-derived pages, including the
+terminal short/empty page, distinct native IDs and exact package/repository
+identity and count readback. Limits are 20,000 versions, 1 MiB native capture per
+page and 64 MiB aggregate versions stdout. It does not deduplicate or stop after
+a matching tag. Main promotion waits for the actual same-run/attempt/head backend
+publish job to complete successfully before package inventory; malformed,
+regressing or terminal unsuccessful states reject. Pending waits share the
+existing work deadline and preserve separate cleanup and raw failures.
+
+Source anchors: `scripts/ci/prometheus_source_image.py:4343` (predecessor),
+`scripts/ci/prometheus_source_image.py:7822` (inventory),
+`scripts/ci/prometheus_source_image.py:7911` (promotion).
+Focused results, current-head gates and actual publication/pullback/downstream
+outcomes are separate evidence. Code adoption or merge does not prove those
+outcomes. This change does not adopt the donor's source-catalog requalification;
+our original seventeen source records and `generated_at` remain unchanged.
+
+
+## PR #2497 AM07 source-preparation checkpoint
+
+The owner admitted the current image-security blockers and the required CI lint
+budget repair in this substantive PR. The finite fixes are tracked individually:
+[Brotli](CVE-2026-111497-brotli.md), [compress](CVE-2026-63209-klauspost-compress.md)
+and [Go trust store](CVE-2026-111943-go-trust-store.md). ORAS now selects the actual
+qualified tool documented there. The subsequently observed AM07 and Prometheus
+outputs were intermediate because of the shared vendor CA defect. The actual
+[AM11 replacements](CVE-2026-111943-go-trust-store.md#observed-am11-image-outputs-and-receiver-selection)
+now populate the existing data fields with their original producer identities.
+Current receiver admission, publication/pullback and downstream outcomes remain
+separate requirements; no registry success is inferred from selection.
+Historical C10 and prior failed/spent compiler records retain their identities.
+No suppression, deployment or automatic retry follows from source preparation.
+
+Current-head lint exhausted its 40-minute hook step; the same-material local
+all-files run took 2389.068104 seconds and hosted cold setup consumed about ten
+minutes before backend execution. The existing hook budget is 60 minutes and
+lint job 190 minutes, with maintained steps184 plus unchanged margin6. Native,
+compiler, scan and cleanup limits do not change. Budget availability is not a
+passing result. Evidence: `.github/workflows/ci.yml:734`,
+`scripts/ci/fetch_docker_source_artifacts.py:5206`.
+
+
+## PR #2497 bounded CodeQL source-flow analysis
+
+CodeQL check `121154462244` reported alerts
+[698](https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/698)
+and [699](https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/699)
+on material head `c22d641bc0d4dce56925114c827be6d712db7070`.
+Native SARIF analysis `2021988016` executed at PR merge
+`f0e64aa4100903c18dd16407502b30ca591ececd`. Authenticated Git evidence binds its
+parents to base `48d36c220ff58dec82450da66ef0599c6da71787` and that material head;
+both trees are `5d33c717172e1487bc4ebf502866104277321952`.
+The synthetic execution merge is source-binding evidence, not a FIXED commit or
+PR-ancestry proof. The original SARIF and source binding remain retained.
+
+The native fixture module is executable tooling. Its filename does not justify
+a test-file exclusion. Source-flow analysis supports NOT-A-BUG for these exact
+reported flows:
+
+- Alert 698, `py/clear-text-storage-sensitive-data`, follows `cert` and
+  `trusted_ca` Path values and the `directory / "synthetic-smtp"` Path into
+  the Compose mount-source strings. The sink formats paths; it does not read
+  certificate, private-key or SMTP-file contents. The SMTP file is explicitly
+  written with the fixed public fixture value `synthetic-smtp`.
+  Evidence: `tests/test_notify_premium_alias_checkpoint_failure.py:1830`,
+  `tests/test_notify_premium_alias_checkpoint_failure.py:1914`,
+  `tests/test_notify_premium_alias_checkpoint_failure.py:1942`.
+- Alert 699, `py/clear-text-logging-sensitive-data`, follows the public fixture
+  CA pathname through `str(trusted_ca)`, the OpenSSL argv list and
+  `AM_native_argv`. Its emitted flow does not follow timeout stdout/stderr or
+  private-key bytes. The actual argv begins with the literal `openssl`; the
+  unrelated CA path is an output-path operand. The existing raw native
+  diagnostics remain unchanged.
+  Evidence: `tests/test_notify_premium_alias_checkpoint_failure.py:1832`,
+  `tests/test_notify_premium_alias_checkpoint_failure.py:1844`,
+  `tests/test_notify_premium_alias_checkpoint_failure.py:544`,
+  `tests/test_notify_premium_alias_checkpoint_failure.py:572`.
+
+The fixture's generated private key remains separate from its public certificate
+and has mode 0600. Its native owner creates a fresh temporary directory and an
+empty private Docker configuration. These are the observed source boundaries,
+not a universal no-secrets claim about every possible native-tool invocation.
+Evidence: `tests/test_notify_premium_alias_checkpoint_failure.py:1826`,
+`tests/test_notify_premium_alias_checkpoint_failure.py:3017`.
+
+On 2026-10-25 at 12:54:35Z and 12:54:36Z, the authenticated GitHub disposition
+responses for alerts 698 and 699 respectively returned `dismissed`, reason
+`false positive`, for both the alert and current PR instance. The responses
+identify the repository owner's account and retain the precise source-flow
+explanations. Authenticated readback at 13:03:46Z confirmed the same false-positive
+dispositions for both alerts and their current PR instances. Current-head check
+completion and merge readiness require their own fresh observations.
+No query configuration, scanner exclusion, ignore, runtime logging rule or
+security predicate was changed for this analysis.
+
+Actual AM11 CA-qualified producer outputs are now selected as receiver data.
+Final C/H consumer admission, current-head gates and merged-main outcomes remain. See [AM11 vendor CA source preparation](CVE-2026-111943-go-trust-store.md#am11-vendor-ca-source-preparation)
+for the exact vendor delta, Q/S byte binding and remaining native proof.

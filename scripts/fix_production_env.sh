@@ -56,6 +56,16 @@ else
     echo "✅ Production compose uses external managed PostgreSQL only"
 fi
 
+PYTHON_BIN="${PYTHON_BIN:-/usr/bin/python3}"
+if [[ "$PYTHON_BIN" != /* ]] || [ ! -x "$PYTHON_BIN" ]; then
+    echo "An absolute Python executable is required" >&2
+    exit 1
+fi
+PROMETHEUS_RUNTIME_REF="$("$PYTHON_BIN" "$DEPLOY_DIR/scripts/ci/prometheus_source_image.py" \
+    --operation read-manifest \
+    --manifest "$DEPLOY_DIR/prometheus/image-manifest.json" --field runtime_ref)"
+export PROMETHEUS_RUNTIME_REF
+
 # Check if .env exists
 if [ ! -f ".env" ]; then
     echo "⚠️  .env file not found, creating..."

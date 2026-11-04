@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import hashlib
 import json
 import os
 import re
@@ -10,19 +11,28 @@ from pathlib import Path
 import runpy
 import shutil
 import subprocess
+import sys
+import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, cast
 
 from packaging.requirements import InvalidRequirement
 from packaging.requirements import Requirement
 from packaging.utils import canonicalize_name
+from packaging.version import InvalidVersion, Version
 import pytest
 import yaml
 
 import scripts.ci.install_locked_python_requirements as locked_installer
+from scripts.ci import audit_fastembed_compat as compat_audit
 from scripts.ci import dependabot_requirement_carriers as carriers
 from scripts.ci import check_python_dependency_surfaces as dependency_surfaces
 from scripts.ci.check_docker_provenance_attestation import SBOM_PREDICATE_TYPE
 from tests.runtime_toolchain_versions import CANONICAL_PYTHON
+from scripts.orchestration.creative_code_patch_workspace import (
+    git_env_without_parent_state,
+    safe_git_config_args,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 LOCKED_INSTALL_WORKFLOW_PATHS: tuple[str, ...] = (
@@ -163,12 +173,7 @@ DS3_HOOK_LOCK_PARITY = {
         "hook_id": "black",
         "hook_count": 1,
         "package": "black",
-        "revision": "26.5.1",
-        "inputs": {
-            "requirements-dev.in": {("~=", "26.5.1")},
-            "constraints.txt": {(">=", "26.5.1")},
-            "requirements-all.txt": {(">=", "26.5.1")},
-        },
+        "inputs": ("requirements-dev.in", "constraints.txt", "requirements-all.txt"),
         "locks": ("requirements-dev.txt", "requirements-lock.txt"),
     },
     "https://github.com/astral-sh/ruff-pre-commit": {
@@ -586,6 +591,277 @@ def test_python_setup_action_uses_locked_installer_not_floating_tools() -> None:
     )
 
 
+def test_python_setup_pip_upgrade_precedes_sdk_and_preserves_skip_and_cleanup() -> None:
+    action = _load_workflow(".github/actions/python-setup/action.yml")
+    steps = action["runs"]["steps"]
+    names = [step.get("name") for step in steps]
+    upgrade = next(step for step in steps if step.get("name") == "Upgrade and observe parent pip")
+    assert names.index("Configure private Python index authentication") < names.index(
+        upgrade["name"]
+    )
+    assert names.index(upgrade["name"]) < names.index("Build exact Psycopg C client SDK")
+    assert upgrade["if"] == "${{ inputs.skip-base-install != 'true' }}"
+    assert upgrade["working-directory"] == "${{ inputs.working-directory }}"
+    script = upgrade["run"]
+    assert "--upgrade-pip-only --upgrade-pip-spec 'pip==26.2.2'" in script
+    assert '--index-url "$PULSEPLATE_PYTHON_INDEX_URL"' in script
+    assert '--trusted-host "$PULSEPLATE_PYTHON_TRUSTED_HOST"' in script
+    assert (
+        '--emergency-wheel-manifest "$GITHUB_WORKSPACE/scripts/ci/emergency_python_wheels.json"'
+        in script
+    )
+    assert script.index("--upgrade-pip-only") < script.index("import pip._vendor.certifi")
+    assert "--requirements-profile" not in script and "--prefetch-only" not in script
+    cleanup = next(
+        step for step in steps if step.get("name") == "Remove private Python index authentication"
+    )
+    assert cleanup["if"] == "${{ always() }}"
+    assert 'rm -f "$HOME/.netrc" "$marker"' in cleanup["run"]
+
+
+@pytest.mark.parametrize("trusted_host", [None, "packages.pulseplate.app"])
+def test_python_setup_failed_pip_upgrade_stops_and_keeps_owned_auth_cleanup(
+    tmp_path: Path, trusted_host: str | None
+) -> None:
+    env = _private_index_auth_env(tmp_path, user="synthetic", password="synthetic")
+    commands = tmp_path / "commands"
+    commands.mkdir()
+    args_path = tmp_path / "upgrade-args.json"
+    stub = commands / "python"
+    stub.write_text(
+        f"#!{sys.executable}\nimport json, os, sys\nfrom pathlib import Path\n"
+        "assert sys.argv[1].endswith('/install_locked_python_requirements.py')\n"
+        "Path(os.environ['CONTROL_UPGRADE_ARGS']).write_text(json.dumps(sys.argv[1:]))\n"
+        "raise SystemExit(7)\n"
+    )
+    stub.chmod(0o755)
+    env.update(
+        PATH=str(commands) + os.pathsep + os.defpath,
+        GITHUB_WORKSPACE=str(tmp_path),
+        CONTROL_UPGRADE_ARGS=str(args_path),
+    )
+    if trusted_host is not None:
+        env["PULSEPLATE_PYTHON_TRUSTED_HOST"] = trusted_host
+    configured = _run_bash_script(
+        _python_setup_action_script("Configure private Python index authentication"), env=env
+    )
+    assert configured.returncode == 0, configured.stderr
+    failed = _run_bash_script(
+        _python_setup_action_script("Upgrade and observe parent pip"), env=env
+    )
+    assert failed.returncode == 7, failed.stdout + failed.stderr
+    argv = json.loads(args_path.read_text())
+    assert argv[argv.index("--upgrade-pip-spec") + 1] == "pip==26.2.2"
+    assert "--upgrade-pip-only" in argv
+    assert ("--trusted-host" in argv) == (trusted_host is not None)
+    cleaned = _run_bash_script(
+        _python_setup_action_script("Remove private Python index authentication"), env=env
+    )
+    assert cleaned.returncode == 0, cleaned.stderr
+    assert not (Path(env["HOME"]) / ".netrc").exists()
+    assert not (Path(env["RUNNER_TEMP"]) / "pulseplate-python-setup-netrc-created").exists()
+
+
+@pytest.mark.parametrize(
+    "name,size,digest,exit_code",
+    [
+        (
+            "pip-26.2.2-py3-none-any.whl",
+            1819850,
+            "fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70",
+            0,
+        ),
+        (
+            "pip-26.2.1-py3-none-any.whl",
+            1819850,
+            "fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70",
+            1,
+        ),
+        (
+            "pip-26.2.2-py3-none-any.whl",
+            1,
+            "fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70",
+            1,
+        ),
+        ("pip-26.2.2-py3-none-any.whl", 1819850, "0" * 64, 1),
+    ],
+)
+def test_ci_hook_seed_binds_exact_verified_wheel(
+    tmp_path: Path, name: str, size: int, digest: str, exit_code: int
+) -> None:
+    step = _workflow_step_by_name(
+        ".github/workflows/ci.yml", "lint", "Pre-commit (lint/format/security quick checks)"
+    )
+    script = step["run"]
+    assert isinstance(script, str)
+    source = script.split("<<'PY'\n", 1)[1].split("\nPY", 1)[0]
+    statements = [
+        node
+        for node in ast.parse(source).body
+        if isinstance(node, ast.If)
+        and "Missing or incorrect reviewed pip seed" in ast.unparse(node)
+    ]
+    assert len(statements) == 1
+    program = (
+        "from pathlib import Path\nfrom types import SimpleNamespace\n"
+        f"seed=SimpleNamespace(path=Path({name!r}),snapshot=SimpleNamespace(size={size},digest={digest!r}))\n"
+        + ast.unparse(statements[0])
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", program],
+        cwd=tmp_path,
+        env={"PATH": os.defpath, "HOME": str(tmp_path)},
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == exit_code, result.stdout + result.stderr
+    assert "acquire_locked_wheelhouse(" in source and "_validate_exact_wheelhouse(" in source
+    assert "constraints_file=None" in source and "sdk=None" in source
+    assert 'expected=frozenset({("pip", "26.2.2")})' in source
+    assert source.index("_validate_exact_wheelhouse(\n") < source.index("seed = artifacts[0]")
+    empty = tmp_path / "empty-wheelhouse"
+    empty.mkdir()
+    with pytest.raises(RuntimeError, match="exactly the selected compiled artifacts"):
+        locked_installer._validate_exact_wheelhouse(
+            wheelhouse=empty, expected=frozenset({("pip", "26.2.2")})
+        )
+
+
+@pytest.mark.parametrize(
+    "version,trust,exit_code",
+    [
+        ("26.2.2", "50f79f98dac192b20dbf73f35c56f0b0c557ab267ff5199d1117cc1180b70785", 0),
+        ("26.2.1", "50f79f98dac192b20dbf73f35c56f0b0c557ab267ff5199d1117cc1180b70785", 1),
+        ("26.2.2", "0" * 64, 1),
+    ],
+)
+def test_parent_pip_observation_rejects_unfixed_version_or_trust_payload(
+    tmp_path: Path, version: str, trust: str, exit_code: int
+) -> None:
+    source = (
+        _python_setup_action_script("Upgrade and observe parent pip")
+        .split("<<'PY'\n", 1)[1]
+        .split("\nPY", 1)[0]
+    )
+    guards = [node for node in ast.parse(source).body if isinstance(node, ast.If)]
+    assert len(guards) == 1
+    program = f"version={version!r}\ntrust={trust!r}\n" + ast.unparse(guards[0])
+    result = subprocess.run(
+        [sys.executable, "-c", program],
+        cwd=tmp_path,
+        env={"PATH": os.defpath, "HOME": str(tmp_path)},
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == exit_code, result.stdout + result.stderr
+
+
+@pytest.mark.parametrize(
+    "mode,pre_commit_exit,hook_exit,expected",
+    [
+        ("normal", 0, 0, 0),
+        ("normal", 7, 0, 7),
+        ("normal", 0, 3, 1),
+        ("normal", 7, 3, 7),
+        ("no-hooks", 0, 0, 1),
+        ("seed-failure", 0, 0, 9),
+        ("probe-failure", 0, 0, 8),
+    ],
+)
+def test_ci_pre_commit_seed_lifecycle_preserves_failures_and_observes_created_hooks(
+    tmp_path: Path, mode: str, pre_commit_exit: int, hook_exit: int, expected: int
+) -> None:
+    """Exercise shell wiring with synthetic executables; native payload proof is separate."""
+    step = _workflow_step_by_name(
+        ".github/workflows/ci.yml", "lint", "Pre-commit (lint/format/security quick checks)"
+    )
+    assert step["timeout-minutes"] == "${{ fromJSON(env.ALERTMANAGER_LINT_CHECK_MINUTES) }}"
+    lint = _load_workflow(".github/workflows/ci.yml")["jobs"]["lint"]
+    assert lint["env"]["ALERTMANAGER_LINT_CHECK_MINUTES"] == (
+        "${{ vars.CI_LINT_CHECKS_TIMEOUT_MINUTES || '60' }}"
+    )
+    assert step["env"] == {"SKIP": "no-commit-to-branch"}
+    assert "if" not in step and "continue-on-error" not in step
+    script = step["run"]
+    assert isinstance(script, str)
+    assert script.count("pre-commit run --all-files --show-diff-on-failure") == 1
+    env = _private_index_auth_env(tmp_path)
+    commands = tmp_path / "commands"
+    commands.mkdir()
+    trace = tmp_path / "lifecycle.jsonl"
+    python_stub = commands / "python"
+    python_stub.write_text(
+        f"#!{sys.executable}\n"
+        "import json,os,shutil,sys\nfrom pathlib import Path\n"
+        "assert 'GH_TOKEN' not in os.environ and 'DEVPI_CI_PASSWORD' not in os.environ\n"
+        "event={'argv':sys.argv[1:]}\n"
+        "if sys.argv[1] == '-':\n"
+        "    assert 'PULSEPLATE_PSYCOPG_C_SDK' not in os.environ\n"
+        "    root=Path(sys.argv[2]); (root/'wheels').mkdir()\n"
+        "    event['kind']='acquire'; code=9 if os.environ['CONTROL_MODE']=='seed-failure' else 0\n"
+        "elif sys.argv[1:3] == ['-m','virtualenv']:\n"
+        "    assert os.environ['PULSEPLATE_PSYCOPG_C_SDK']=='synthetic-sdk'\n"
+        "    assert os.environ['VIRTUALENV_PIP']=='26.2.2'\n"
+        "    assert os.environ['VIRTUALENV_DOWNLOAD']=='false'\n"
+        "    assert os.environ['VIRTUALENV_NO_PERIODIC_UPDATE']=='true'\n"
+        "    assert Path(os.environ['VIRTUALENV_EXTRA_SEARCH_DIR']).name=='wheels'\n"
+        "    assert sys.argv[sys.argv.index('--app-data')+1]==os.environ['VIRTUALENV_APP_DATA']\n"
+        "    assert not list(Path(os.environ['PRE_COMMIT_HOME']).iterdir())\n"
+        "    target=Path(sys.argv[-1])/'bin/python'; target.parent.mkdir(parents=True)\n"
+        "    shutil.copy2(Path(__file__),target)\n"
+        "    event['kind']='virtualenv'; code=0\n"
+        "else:\n"
+        "    assert sys.argv[1:3]==['-I','-c']\n"
+        "    assert '26.2.2' in sys.argv[3] and 'sys.prefix != sys.base_prefix' in sys.argv[3]\n"
+        "    assert '50f79f98dac192b20dbf73f35c56f0b0c557ab267ff5199d1117cc1180b70785' in sys.argv[3]\n"
+        "    event['kind']='probe' if Path(__file__).parent.parent.name=='probe' else 'hook'\n"
+        "    code=(8 if os.environ['CONTROL_MODE']=='probe-failure' else 0) if event['kind']=='probe' else int(os.environ['CONTROL_HOOK_EXIT'])\n"
+        "with Path(os.environ['CONTROL_TRACE']).open('a') as stream: stream.write(json.dumps(event)+'\\n')\n"
+        "raise SystemExit(code)\n"
+    )
+    pre_commit = commands / "pre-commit"
+    pre_commit.write_text(
+        f"#!{sys.executable}\n"
+        "import json,os,shutil,sys\nfrom pathlib import Path\n"
+        "assert sys.argv[1:]==['run','--all-files','--show-diff-on-failure']\n"
+        "assert os.environ['SKIP']=='no-commit-to-branch'\n"
+        "assert os.environ['PULSEPLATE_PSYCOPG_C_SDK']=='synthetic-sdk'\n"
+        "if os.environ['CONTROL_MODE']!='no-hooks':\n"
+        "    target=Path(os.environ['PRE_COMMIT_HOME'])/'repo-synthetic/py_env-python3.13/bin/python'\n"
+        "    target.parent.mkdir(parents=True); shutil.copy2(Path(os.environ['CONTROL_PYTHON']),target)\n"
+        "with Path(os.environ['CONTROL_TRACE']).open('a') as stream: stream.write(json.dumps({'kind':'pre-commit','argv':sys.argv[1:]})+'\\n')\n"
+        "raise SystemExit(int(os.environ['CONTROL_PRE_COMMIT_EXIT']))\n"
+    )
+    python_stub.chmod(0o755)
+    pre_commit.chmod(0o755)
+    env.update(
+        PATH=str(commands) + os.pathsep + os.defpath,
+        CONTROL_TRACE=str(trace),
+        CONTROL_MODE=mode,
+        CONTROL_PYTHON=str(python_stub),
+        CONTROL_PRE_COMMIT_EXIT=str(pre_commit_exit),
+        CONTROL_HOOK_EXIT=str(hook_exit),
+        PULSEPLATE_PSYCOPG_C_SDK="synthetic-sdk",
+        SKIP="no-commit-to-branch",
+    )
+    result = _run_bash_script(script, env=env)
+    assert result.returncode == expected, result.stdout + result.stderr
+    observed = [json.loads(line)["kind"] for line in trace.read_text().splitlines()]
+    if mode == "seed-failure":
+        assert observed == ["acquire"]
+    elif mode == "probe-failure":
+        assert observed == ["acquire", "virtualenv", "probe"]
+    else:
+        assert observed == ["acquire", "virtualenv", "probe", "pre-commit"] + (
+            [] if mode == "no-hooks" else ["hook"]
+        )
+    assert not list(Path(env["RUNNER_TEMP"]).glob("pulseplate-hook-seed.*"))
+
+
 def _private_index_auth_env(
     tmp_path: Path,
     *,
@@ -609,6 +885,103 @@ def _private_index_auth_env(
     if password is not None:
         env["DEVPI_CI_PASSWORD"] = password
     return env
+
+
+def test_python_setup_rejected_zlib_artifact_is_exact_and_failure_scoped() -> None:
+    action = _load_workflow(".github/actions/python-setup/action.yml")
+    steps = action["runs"]["steps"]
+    sdk = next(step for step in steps if step.get("name") == "Build exact Psycopg C client SDK")
+    upload = next(
+        step for step in steps if step.get("name") == "Retain untrusted rejected zlib response"
+    )
+    cleanup = next(
+        step for step in steps if step.get("name") == "Remove private Python index authentication"
+    )
+    assert sdk["id"] == "psycopg_sdk" and "set -euo pipefail" in sdk["run"]
+    assert 'mktemp -d "$RUNNER_TEMP/pulseplate-zlib-integrity.XXXXXXXX"' in sdk["run"]
+    assert '--integrity-rejection-dir "$rejection_parent/quarantine"' in sdk["run"]
+    assert "printf 'rejection_dir=%s/quarantine\\n'" in sdk["run"]
+    assert sdk["run"].index("fetch_docker_source_artifacts.py") < sdk["run"].index(
+        "docker buildx build"
+    )
+    assert (
+        upload["if"]
+        == "${{ failure() && steps.psycopg_sdk.outcome == 'failure' && steps.psycopg_sdk.outputs.rejection_dir != '' }}"
+    )
+    assert upload["uses"] == "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+    assert upload["with"] == {
+        "name": "untrusted-zlib-rejected-response-${{ github.job }}-${{ inputs.python-version }}-${{ github.run_id }}-${{ github.run_attempt }}",
+        "path": "${{ steps.psycopg_sdk.outputs.rejection_dir }}/response.bin\n${{ steps.psycopg_sdk.outputs.rejection_dir }}/metadata.json\n",
+        "if-no-files-found": "ignore",
+        "retention-days": 3,
+    }
+    assert "continue-on-error" not in sdk and "continue-on-error" not in upload
+    assert steps.index(sdk) < steps.index(upload) < steps.index(cleanup)
+    assert cleanup["if"] == "${{ always() }}" and 'rm -f "$HOME/.netrc" "$marker"' in cleanup["run"]
+
+
+def test_python_setup_source_rejection_stops_sdk_build_and_preserves_auth_cleanup(
+    tmp_path: Path,
+) -> None:
+    env = _private_index_auth_env(tmp_path, user="synthetic", password="synthetic")
+    workspace, commands = tmp_path / "repo", tmp_path / "commands"
+    workspace.mkdir()
+    commands.mkdir()
+    fetch_args, docker_called = tmp_path / "fetch-args.json", tmp_path / "docker-called"
+    (commands / "python").write_text(
+        f"#!{sys.executable}\nimport json, os, sys\nfrom pathlib import Path\n"
+        "if sys.argv[1] == '-c':\n    print('3.13')\n    raise SystemExit(0)\n"
+        "if sys.argv[1].endswith('/fetch_docker_source_artifacts.py'):\n"
+        "    Path(os.environ['CONTROL_FETCH_ARGS']).write_text(json.dumps(sys.argv[1:]))\n"
+        "    sys.stderr.write('synthetic-integrity-rejection\\n')\n    raise SystemExit(9)\n"
+        "raise SystemExit(2)\n"
+    )
+    (commands / "uname").write_text(
+        '#!/bin/sh\ncase "$1" in -s) printf "Linux\\n";; -m) printf "x86_64\\n";; *) exit 1;; esac\n'
+    )
+    (commands / "docker").write_text(
+        f"#!{sys.executable}\nimport os\nfrom pathlib import Path\n"
+        "Path(os.environ['CONTROL_DOCKER_CALLED']).touch()\n"
+    )
+    for executable in commands.iterdir():
+        executable.chmod(0o755)
+    env.update(
+        {
+            "PATH": str(commands) + os.pathsep + env["PATH"],
+            "GITHUB_WORKSPACE": str(workspace),
+            "GITHUB_ENV": str(tmp_path / "github-env"),
+            "GITHUB_OUTPUT": str(tmp_path / "github-output"),
+            "CONTROL_FETCH_ARGS": str(fetch_args),
+            "CONTROL_DOCKER_CALLED": str(docker_called),
+        }
+    )
+    configure = _run_bash_script(
+        _python_setup_action_script("Configure private Python index authentication"), env=env
+    )
+    assert configure.returncode == 0, configure.stderr
+    failed = _run_bash_script(
+        _python_setup_action_script("Build exact Psycopg C client SDK"), env=env
+    )
+    assert failed.returncode == 9 and failed.stderr == "synthetic-integrity-rejection\n"
+    assert not docker_called.exists()
+    quarantine = Path(Path(env["GITHUB_OUTPUT"]).read_text().removeprefix("rejection_dir=").strip())
+    assert quarantine.parent.parent == Path(env["RUNNER_TEMP"])
+    assert quarantine.parent.stat().st_mode & 0o777 == 0o700
+    assert not quarantine.exists()
+    assert json.loads(fetch_args.read_bytes()) == [
+        str(workspace / "scripts/ci/fetch_docker_source_artifacts.py"),
+        "--manifest",
+        str(workspace / "scripts/ci/docker_source_artifacts.json"),
+        "--output-dir",
+        str(workspace / "build/docker-sources"),
+        "--integrity-rejection-dir",
+        str(quarantine),
+    ]
+    cleanup = _run_bash_script(
+        _python_setup_action_script("Remove private Python index authentication"), env=env
+    )
+    assert cleanup.returncode == 0 and not (Path(env["HOME"]) / ".netrc").exists()
+    assert not (Path(env["RUNNER_TEMP"]) / "pulseplate-python-setup-netrc-created").exists()
 
 
 def test_python_setup_action_netrc_lifecycle_accepts_valid_non_root_creds(
@@ -779,11 +1152,17 @@ def test_local_bootstrap_surfaces_use_locked_installer_and_virtualenv_guard() ->
     assert "Export PULSEPLATE_PYTHON_INDEX_URL" in makefile_text
     assert "PIP_REQUIRE_VIRTUALENV=1" in dev_shell_text
     assert "install_locked_python_requirements.py" in dev_shell_text
-    assert "Export PULSEPLATE_PYTHON_INDEX_URL" in dev_shell_text
+    for text in (makefile_text, dev_shell_text):
+        assert "--consume-only" in text
+        assert "--psycopg-sdk" in text and "--wheelhouse-dir" in text
+        assert "PULSEPLATE_PSYCOPG_C_SDK" in text
+        assert "PULSEPLATE_BOOTSTRAP_WHEELHOUSE" in text
+    assert "venv: ensure-native-sdk" in makefile_text
+    assert "venv-sync: ensure-native-sdk-inputs ensure-python-proxy" in makefile_text
     assert "PULSEPLATE_PYTHON_INDEX_URL" in installer_text
 
 
-def test_local_bootstrap_docs_bind_cryptography_50_binary_wheel_boundary() -> None:
+def test_local_bootstrap_docs_bind_source_sdk_and_historical_crypto_proof() -> None:
     contributing = (REPO_ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
     dependency_docs = (REPO_ROOT / "docs" / "DEPENDENCY_MANAGEMENT.md").read_text(encoding="utf-8")
     runbook = (REPO_ROOT / "RUNBOOK_AGENT.md").read_text(encoding="utf-8")
@@ -794,13 +1173,10 @@ def test_local_bootstrap_docs_bind_cryptography_50_binary_wheel_boundary() -> No
     approved_proxy_export = 'export PULSEPLATE_PYTHON_INDEX_URL="https://packages.pulseplate.app/root/pulseplate/+simple/"'
     assert approved_proxy_export in contributing
     assert approved_proxy_export in dependency_docs
-    assert (
-        f"{approved_proxy_export}\nmake venv\nsource .venv/bin/activate\nmake dev"
-    ) in contributing
     assert "make venv-sync" in dependency_docs
     assert "Local Development Bootstrap" in dependency_docs
 
-    for document in (contributing, dependency_docs, advisory):
+    for document in (contributing, advisory):
         normalized = " ".join(document.casefold().split())
         assert "2026-08-04" in normalized
         assert "50.0.0" in normalized
@@ -818,6 +1194,21 @@ def test_local_bootstrap_docs_bind_cryptography_50_binary_wheel_boundary() -> No
     assert "x86_64" in normalized_advisory
     assert "universal2" in normalized_advisory
     assert "133 consumer tests" in normalized_advisory
+
+    normalized_dependency = " ".join(dependency_docs.casefold().split())
+    for boundary in (
+        "linux amd64 container sdk",
+        "verified runtime/dev wheelhouse",
+        "offline",
+        "native macos",
+        "does not supply a darwin sdk",
+        "ios/xcode",
+        "host-native",
+        "make dc-up",
+        "make dc-shell",
+        "make devcontainer-bootstrap",
+    ):
+        assert boundary in normalized_dependency
 
     normalized_runbook = " ".join(runbook.casefold().split())
     for recovery_boundary in (
@@ -1339,29 +1730,26 @@ def test_frontend_ci_workflow_uses_ci_lite_python_setup() -> None:
             assert expected_path in event_paths
 
 
-@pytest.mark.parametrize(
-    "job_name, step_name",
-    (
-        ("rag-release-gates-smoke", "Install CI-lite dependencies for smoke lane"),
-        ("rag-release-gates-weekly", "Install CI-lite dependencies for strict import path"),
-    ),
-)
-def test_rag_release_gates_use_locked_ci_lite_installer(job_name: str, step_name: str) -> None:
-    install_step = _workflow_step_by_name(
-        ".github/workflows/rag-release-gates.yml",
-        job_name,
-        step_name,
-    )
-    install_script = install_step["run"]
+@pytest.mark.parametrize("job_name", ("rag-release-gates-smoke", "rag-release-gates-weekly"))
+def test_rag_release_gates_use_locked_ci_lite_installer(job_name: str) -> None:
+    setup_step = _python_setup_step(".github/workflows/rag-release-gates.yml", job_name)
+    settings = setup_step["with"]
 
     assert APPROVED_PROXY_ENV_EXPRESSION in (
         REPO_ROOT / ".github" / "workflows" / "rag-release-gates.yml"
     ).read_text(encoding="utf-8")
-    assert "scripts/ci/install_locked_python_requirements.py" in install_script
-    assert "--requirements-profile ci-lite" in install_script
-    assert "--install-mode direct-proxy" in install_script
-    assert "--emergency-wheel-manifest scripts/ci/emergency_python_wheels.json" in install_script
-    assert "python3 -m pip install" not in install_script
+    assert settings["python-version"] == "3.13.14"
+    assert settings["requirements-profile"] == "ci-lite"
+    assert settings["ci-lite-requirements-file"] == "requirements-ci-lite.txt"
+    assert settings["constraints-file"] == "constraints.txt"
+    assert settings["install-mode"] == "direct-proxy"
+    assert settings["skip-base-install"] == "false"
+    run_blocks = "\n".join(
+        str(step.get("run", ""))
+        for step in _workflow_steps(".github/workflows/rag-release-gates.yml", job_name)
+    )
+    assert "scripts/ci/install_locked_python_requirements.py" not in run_blocks
+    assert "python3 -m pip install" not in run_blocks
 
 
 def test_frontend_build_keeps_codecov_token_out_of_branch_controlled_build() -> None:
@@ -1489,6 +1877,37 @@ def test_httpx2_testclient_backend_stays_dev_and_test_only() -> None:
         assert canonicalize_name("httpx2") not in package_names
 
 
+def _assert_black_hook_lock_parity(repo_root: Path) -> None:
+    """Compare live Black configuration; security floors remain with their canonical guard."""
+    url = "https://github.com/psf/black"
+    relation = DS3_HOOK_LOCK_PARITY[url]
+    config = yaml.safe_load((repo_root / ".pre-commit-config.yaml").read_text(encoding="utf-8"))
+    repositories = [item for item in config["repos"] if item.get("repo") == url]
+    assert len(repositories) == 1, "Black requires one hook repository"
+    repository = repositories[0]
+    assert len([hook for hook in repository["hooks"] if hook.get("id") == "black"]) == 1
+    revision = repository["rev"]
+    assert isinstance(revision, str)
+    selected_version = Version(revision.removeprefix("v"))
+    for filename in (*relation["inputs"], *relation["locks"]):
+        requirements = [
+            item
+            for item in _requirement_entries(repo_root / filename)
+            if canonicalize_name(item.name) == "black"
+        ]
+        assert len(requirements) == 1, f"{filename}: expected one Black owner"
+        requirement = requirements[0]
+        assert requirement.marker is None and requirement.url is None and not requirement.extras
+        assert requirement.specifier, f"{filename}: missing Black constraint"
+        if filename in relation["locks"]:
+            specifiers = tuple(requirement.specifier)
+            assert len(specifiers) == 1 and specifiers[0].operator == "=="
+            assert "*" not in specifiers[0].version
+            assert Version(specifiers[0].version) == selected_version, "Black hook/lock mismatch"
+        else:
+            assert requirement.specifier.contains(selected_version), "Black is outside source range"
+
+
 def test_ds3_hook_revisions_match_finite_dev_lock_owners() -> None:
     config = yaml.safe_load((REPO_ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8"))
     repositories = config["repos"]
@@ -1497,6 +1916,9 @@ def test_ds3_hook_revisions_match_finite_dev_lock_owners() -> None:
         hook_id = relation["hook_id"]
         hook_count = relation["hook_count"]
         package_name = relation["package"]
+        if package_name == "black":
+            _assert_black_hook_lock_parity(REPO_ROOT)
+            continue
         exact_revision = relation["revision"]
         assert isinstance(hook_id, str)
         assert isinstance(hook_count, int)
@@ -1610,7 +2032,6 @@ def test_runtime_dependency_profiles_pin_fastapi_pydantic_refresh() -> None:
     ("package_name", "expected_specifiers"),
     [
         ("click", {(">=", "8.3.3"), ("<", "9.0.0")}),
-        ("pillow", {(">=", "12.3.0"), ("<", "13.0.0")}),
     ],
 )
 def test_runtime_source_profiles_keep_single_security_floor(
@@ -1635,8 +2056,8 @@ def test_runtime_source_profiles_keep_single_security_floor(
         } == expected_specifiers
 
 
-def test_click_and_pillow_security_pins_cover_every_existing_lock_surface() -> None:
-    expected_pins = {"click": "8.3.3", "pillow": "12.3.0"}
+def test_click_security_pin_covers_existing_lock_surfaces() -> None:
+    expected_pins = {"click": "8.3.3"}
     lockfiles = (
         "requirements.txt",
         "requirements-ci-lite.txt",
@@ -1650,41 +2071,12 @@ def test_click_and_pillow_security_pins_cover_every_existing_lock_surface() -> N
     for lockfile in lockfiles:
         lock_path = REPO_ROOT / lockfile
         package_names = _requirement_package_names(lock_path)
-        assert canonicalize_name("pillow") in package_names
         for package_name, expected_version in expected_pins.items():
             if canonicalize_name(package_name) not in package_names:
                 continue
             assert _requirement_package_specifiers(lock_path, package_name) == {
                 ("==", expected_version)
             }
-
-
-def test_setuptools_security_floor_covers_governed_dependency_surfaces() -> None:
-    for source_file in (
-        "requirements.in",
-        "requirements-ci-lite.in",
-        "requirements-docker-runtime.in",
-        "requirements-dev.in",
-    ):
-        assert _requirement_package_specifiers(REPO_ROOT / source_file, "setuptools") == {
-            (">=", "83.0.0"),
-            ("<", "84.0.0"),
-        }
-
-    assert _requirement_package_specifiers(REPO_ROOT / "constraints.txt", "setuptools") == {
-        (">=", "83.0.0")
-    }
-
-    for lockfile in (
-        "requirements.txt",
-        "requirements-ci-lite.txt",
-        "requirements-docker-runtime.txt",
-        "requirements-dev.txt",
-        "requirements-lock.txt",
-    ):
-        assert _requirement_package_specifiers(REPO_ROOT / lockfile, "setuptools") == {
-            ("==", "83.0.0")
-        }
 
 
 def test_base_runtime_dependency_profile_excludes_vector_ml_stack() -> None:
@@ -2161,37 +2553,18 @@ def test_pre_push_pip_audit_does_not_create_or_upgrade_an_installer_environment(
     assert "--disable-pip" in pip_audit_hook["args"]
 
 
-def test_pip_audit_helper_invokes_cpu_rag_vector_manifest(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def _fake_strict_auditor(
+    tmp_path: Path,
+    *,
+    fail_first: bool = False,
+    malformed: bool = False,
+    barrier: Path | None = None,
+) -> tuple[Path, Path]:
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
-    log_path = tmp_path / "pip-audit-args.log"
-    fake_pip_audit = fake_bin / "pip-audit"
-    fake_pip_audit.write_text(
-        """#!/usr/bin/env bash
-set -euo pipefail
-printf '%s\n' "$*" >> "${PIP_AUDIT_LOG}"
-output=""
-while [[ "$#" -gt 0 ]]; do
-  case "$1" in
-    -o)
-      output="$2"
-      shift 2
-      ;;
-    *)
-      shift
-      ;;
-  esac
-done
-if [[ -n "${output}" ]]; then
-  printf '{}\n' > "${output}"
-fi
-""",
-        encoding="utf-8",
-    )
-    fake_pip_audit.chmod(0o755)
-    for manifest in (
+    (tmp_path / "controller-home").mkdir(mode=0o700)
+    (tmp_path / "temporary").mkdir(mode=0o700)
+    for name in (
         "requirements.txt",
         "requirements-docker-runtime.txt",
         "requirements-data.txt",
@@ -2199,108 +2572,96 @@ fi
         "requirements-rag-vector.txt",
         "requirements-rag-vector-cpu.txt",
     ):
-        (tmp_path / manifest).write_text("example==1.0.0\n", encoding="utf-8")
+        (tmp_path / name).write_text(f"# {name}\nexample==1.0.0\n", encoding="utf-8")
+    log = tmp_path / "audit-argv.jsonl"
+    script = fake_bin / "pip-audit"
+    program = r"""
+import json, os, sys, time
+from pathlib import Path
+if sys.argv[1:] == ['--version']:
+    print('pip-audit 2.10.1')
+    raise SystemExit(0)
+assert 'GH_TOKEN' not in os.environ and 'PULSEPLATE_PYTHON_INDEX_URL' not in os.environ
+assert 'DEVPI_CI_PASSWORD' not in os.environ and 'PYTHONPATH' not in os.environ
+assert 'synthetic-not-forwarded' not in os.environ.values()
+args = sys.argv[1:]
+with Path(__LOG__).open('a') as stream:
+    stream.write(json.dumps(args) + '\n')
+output = Path(args[args.index('-o') + 1])
+barrier = __BARRIER__
+if barrier is not None:
+    rendezvous = Path(barrier)
+    (rendezvous / output.name).write_text('ready')
+    deadline = time.monotonic() + 30
+    while not (rendezvous / 'release').exists():
+        if time.monotonic() >= deadline:
+            raise RuntimeError('synthetic scanner rendezvous timed out')
+        time.sleep(0.01)
+if __FAIL__ and len(Path(__LOG__).read_text().splitlines()) == 1:
+    print('synthetic scanner failure', file=sys.stderr)
+    raise SystemExit(7)
+manifest = Path(args[args.index('-r') + 1])
+pins = [line.strip().split('==') for line in manifest.read_text().splitlines() if line.strip() and not line.startswith('#')]
+report = {'dependencies': [{'name': name, 'version': version, 'vulns': []} for name, version in pins], 'fixes': []}
+output.write_text('{}\n' if __MALFORMED__ else json.dumps(report) + '\n')
+print('synthetic scanner stderr', file=sys.stderr)
+"""
+    script.write_text(
+        "#!"
+        + sys.executable
+        + "\n"
+        + program.replace("__LOG__", repr(str(log)))
+        .replace("__FAIL__", repr(fail_first))
+        .replace("__MALFORMED__", repr(malformed))
+        .replace("__BARRIER__", repr(str(barrier) if barrier is not None else None))
+    )
+    script.chmod(0o755)
+    return fake_bin, log
 
-    env = os.environ.copy()
-    env["CI"] = "1"
-    env["PATH"] = os.pathsep.join((str(fake_bin), "/usr/bin", "/bin", "/usr/sbin", "/sbin"))
-    env["PIP_AUDIT_LOG"] = str(log_path)
 
-    result = subprocess.run(
-        ["/bin/bash", str(REPO_ROOT / "scripts" / "ci_pip_audit.sh")],
+def _run_strict_audit_shell(tmp_path: Path, fake_bin: Path) -> subprocess.CompletedProcess[str]:
+    env = {
+        "CI": "1",
+        "HOME": str(tmp_path / "controller-home"),
+        "TMPDIR": str(tmp_path / "temporary"),
+        "LANG": "C.UTF-8",
+        "PIP_CONFIG_FILE": "/dev/null",
+        "PYTHONNOUSERSITE": "1",
+        "VENV_PYTHON": sys.executable,
+        "GH_TOKEN": "synthetic-not-forwarded",
+        "GITHUB_TOKEN": "synthetic-not-forwarded",
+        "PYPI_TOKEN": "synthetic-not-forwarded",
+        "TWINE_PASSWORD": "synthetic-not-forwarded",
+        "NETRC": "synthetic-not-forwarded",
+        "DEVPI_CI_PASSWORD": "synthetic-not-forwarded",
+        "PYTHONPATH": "synthetic-not-forwarded",
+        "HTTPS_PROXY": "synthetic-not-forwarded",
+        "PULSEPLATE_PYTHON_INDEX_URL": "https://packages.example.invalid/simple/",
+        "PATH": os.pathsep.join((str(fake_bin), "/usr/bin", "/bin", "/usr/sbin", "/sbin")),
+    }
+    return subprocess.run(
+        ["/bin/bash", str(REPO_ROOT / "scripts/ci_pip_audit.sh")],
         cwd=tmp_path,
         env=env,
         text=True,
         capture_output=True,
         check=False,
+        timeout=60,
     )
 
-    assert result.returncode == 0
-    assert (
-        "-r requirements-rag-vector-cpu.txt --no-deps --disable-pip -f json "
-        "-o pip-audit-requirements-rag-vector-cpu.json" in log_path.read_text(encoding="utf-8")
-    )
-    assert "--ignore-vuln" not in log_path.read_text(encoding="utf-8")
-    assert "CVE-2025-3000" not in log_path.read_text(encoding="utf-8")
-    assert (
-        "-r requirements-data.txt --no-deps --disable-pip -f json "
-        "-o pip-audit-requirements-data.json" in log_path.read_text(encoding="utf-8")
-    )
-    assert (
-        "-r requirements-evals.txt --no-deps --disable-pip -f json "
-        "-o pip-audit-requirements-evals.json" in log_path.read_text(encoding="utf-8")
-    )
-    assert (tmp_path / "pip-audit-requirements-rag-vector-cpu.json").exists()
-    assert (tmp_path / "pip-audit-requirements-data.json").exists()
-    assert (tmp_path / "pip-audit-requirements-evals.json").exists()
+
+def _strict_audit_outputs(log: Path) -> list[str]:
+    commands = [json.loads(line) for line in log.read_text().splitlines()]
+    return [command[command.index("-o") + 1] for command in commands]
 
 
-def test_pip_audit_helper_scans_all_manifests_before_returning_failure(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    fake_bin = tmp_path / "bin"
-    fake_bin.mkdir()
-    log_path = tmp_path / "pip-audit-args.log"
-    fake_pip_audit = fake_bin / "pip-audit"
-    fake_pip_audit.write_text(
-        """#!/usr/bin/env bash
-set -euo pipefail
-manifest=""
-output=""
-while [[ "$#" -gt 0 ]]; do
-  case "$1" in
-    -r)
-      manifest="$2"
-      shift 2
-      ;;
-    -o)
-      output="$2"
-      shift 2
-      ;;
-    *)
-      shift
-      ;;
-  esac
-done
-printf '%s\n' "${manifest}" >> "${PIP_AUDIT_LOG}"
-if [[ "${manifest}" == "requirements.txt" ]]; then
-  exit 7
-fi
-if [[ -n "${output}" ]]; then
-  printf '{}\n' > "${output}"
-fi
-""",
-        encoding="utf-8",
-    )
-    fake_pip_audit.chmod(0o755)
-    for manifest in (
-        "requirements.txt",
-        "requirements-docker-runtime.txt",
-        "requirements-data.txt",
-        "requirements-evals.txt",
-        "requirements-rag-vector.txt",
-        "requirements-rag-vector-cpu.txt",
-    ):
-        (tmp_path / manifest).write_text("example==1.0.0\n", encoding="utf-8")
-
-    env = os.environ.copy()
-    env["CI"] = "1"
-    env["PATH"] = os.pathsep.join((str(fake_bin), "/usr/bin", "/bin", "/usr/sbin", "/sbin"))
-    env["PIP_AUDIT_LOG"] = str(log_path)
-
-    result = subprocess.run(
-        ["/bin/bash", str(REPO_ROOT / "scripts" / "ci_pip_audit.sh")],
-        cwd=tmp_path,
-        env=env,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-
-    assert result.returncode == 7
-    assert "requirements.txt" in result.stderr
-    assert "one or more dependency manifests failed audit" in result.stderr
-    assert log_path.read_text(encoding="utf-8").splitlines() == [
+def test_pip_audit_helper_invokes_cpu_rag_vector_manifest(tmp_path: Path) -> None:
+    fake_bin, log = _fake_strict_auditor(tmp_path)
+    result = _run_strict_audit_shell(tmp_path, fake_bin)
+    assert result.returncode == 0, result.stderr
+    commands = [json.loads(line) for line in log.read_text().splitlines()]
+    outputs = _strict_audit_outputs(log)
+    manifests = [
         "requirements.txt",
         "requirements-docker-runtime.txt",
         "requirements-data.txt",
@@ -2308,11 +2669,58 @@ fi
         "requirements-rag-vector.txt",
         "requirements-rag-vector-cpu.txt",
     ]
-    assert (tmp_path / "pip-audit-requirements-docker-runtime.json").exists()
-    assert (tmp_path / "pip-audit-requirements-data.json").exists()
-    assert (tmp_path / "pip-audit-requirements-evals.json").exists()
-    assert (tmp_path / "pip-audit-requirements-rag-vector.json").exists()
-    assert (tmp_path / "pip-audit-requirements-rag-vector-cpu.json").exists()
+    assert len(outputs) == len(set(outputs)) == 6
+    for command, output, manifest in zip(commands, outputs, manifests, strict=True):
+        assert Path(output).parent == Path(".")
+        assert output.startswith(f"pip-audit-{manifest.removesuffix('.txt')}-")
+        assert output.endswith(".json")
+        assert command[2:] == ["--no-deps", "--disable-pip", "--strict", "-f", "json", "-o", output]
+        assert "--ignore-vuln" not in command and "--timeout" not in command
+        evidence = json.loads((tmp_path / output.replace(".json", ".evidence.json")).read_text())
+        assert evidence["passed"] is True and evidence["upstream_comparison"] is False
+        assert (
+            evidence["original_input_sha256"]
+            == hashlib.sha256((tmp_path / manifest).read_bytes()).hexdigest()
+        )
+        assert (
+            evidence["original_coordinates"]
+            == evidence["query_coordinates"]
+            == {"example": "1.0.0"}
+        )
+        assert (
+            tmp_path / output.replace(".json", ".stderr.log")
+        ).read_text() == "synthetic scanner stderr\n"
+
+
+def test_pip_audit_helper_scans_all_manifests_before_returning_failure(tmp_path: Path) -> None:
+    fake_bin, log = _fake_strict_auditor(tmp_path, fail_first=True)
+    result = _run_strict_audit_shell(tmp_path, fake_bin)
+    assert result.returncode == 7
+    assert "one or more dependency manifests failed audit" in result.stderr
+    commands = [json.loads(line) for line in log.read_text().splitlines()]
+    assert len(commands) == 6
+    outputs = _strict_audit_outputs(log)
+    output = tmp_path / outputs[0]
+    assert output.read_bytes() == b""
+    assert output.with_suffix(".stderr.log").read_text() == "synthetic scanner failure\n"
+    evidence = json.loads(output.with_suffix(".evidence.json").read_text())
+    assert evidence["scanner_exit"] == 7 and evidence["passed"] is False
+    assert evidence["inventory_validation_error"] == "invalid_scanner_json"
+    assert (tmp_path / outputs[-1]).exists()
+
+
+def test_pip_audit_helper_rejects_empty_object_reports_without_rewriting_raw_bytes(
+    tmp_path: Path,
+) -> None:
+    fake_bin, log = _fake_strict_auditor(tmp_path, malformed=True)
+    result = _run_strict_audit_shell(tmp_path, fake_bin)
+    assert result.returncode == 1
+    assert len(log.read_text().splitlines()) == 6
+    output = tmp_path / _strict_audit_outputs(log)[0]
+    assert output.read_bytes() == b"{}\n"
+    evidence = json.loads(output.with_suffix(".evidence.json").read_text())
+    assert evidence["inventory_validation_error"] == "invalid_scanner_report_shape"
+    assert evidence["passed"] is False
 
 
 def test_dependency_audit_uses_strict_pip_audit_helper_without_safety_legacy() -> None:
@@ -2864,3 +3272,896 @@ def test_dependabot_git_discovery_isolated_from_executable_config(
         assert environment["GIT_CONFIG_GLOBAL"] == os.devnull
         assert environment["GIT_CONFIG_NOSYSTEM"] == "1"
         assert environment["GIT_TERMINAL_PROMPT"] == "0"
+
+
+def _bandit_gate_test_repo(tmp_path: Path) -> tuple[Path, str, dict[str, str], Path]:
+    """Real Make/Git; synthetic scanner bytes are explicit transport fixtures."""
+    root = tmp_path / "repo"
+    root.mkdir()
+    (root / "Makefile").write_bytes((REPO_ROOT / "Makefile").read_bytes())
+    (root / ".bandit").write_bytes((REPO_ROOT / ".bandit").read_bytes())
+    helper = Path("scripts/orchestration/creative_code_patch_workspace.py")
+    (root / helper).parent.mkdir(parents=True, exist_ok=True)
+    (root / helper).write_bytes((REPO_ROOT / helper).read_bytes())
+    git, make = shutil.which("git"), shutil.which("make")
+    assert git is not None and make is not None
+    fixture_env = git_env_without_parent_state()
+    fixture_env["HOME"] = str(tmp_path)
+    subprocess.run(
+        [git, *safe_git_config_args(), "-c", "init.templateDir=", "init", "--quiet", str(root)],
+        env=fixture_env,
+        check=True,
+    )
+    tracked = [
+        "src/regular.py",
+        "src/with spaces.py",
+        "scripts/ci/fetch_docker_source_artifacts.py",
+        "-leading.py",
+        "src/with\nnewline.py",
+    ]
+    for relative in tracked + ["untracked.py", "artifacts/private.py", "worktrees/foreign.py"]:
+        path = root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("pass\n")
+    subprocess.run(
+        [git, *safe_git_config_args(), "add", "--", *tracked],
+        cwd=root,
+        env=fixture_env,
+        check=True,
+    )
+    control = tmp_path / "control"
+    control.mkdir()
+    log = tmp_path / "scanner-argv.json"
+    # This test-owned startup shim intercepts exactly [approved Python, -m, bandit].
+    # Native Git/config/discovery remain real; synthetic reports are not native proof.
+    scanner = control / "sitecustomize.py"
+    scanner.write_text(
+        "import json, os, pathlib, subprocess, sys\n"
+        "native_run = subprocess.run\n"
+        "\n"
+        "def fixture_bandit(argv, *args, **kwargs):\n"
+        '    if argv[:3] != [sys.executable, "-m", "bandit"]:\n'
+        "        return native_run(argv, *args, **kwargs)\n"
+        "    arguments = argv[3:]\n"
+        '    pathlib.Path(os.environ["SCANNER_LOG"]).write_text(json.dumps(arguments))\n'
+        '    output = pathlib.Path(arguments[arguments.index("-o") + 1])\n'
+        '    paths = arguments[arguments.index("--") + 1:]\n'
+        "    from bandit.core.config import BanditConfig\n"
+        "    from bandit.core.manager import BanditManager\n"
+        "    from bandit.core.metrics import Metrics\n"
+        '    manager = BanditManager(BanditConfig(".bandit"), "file")\n'
+        "    manager.discover_files(paths)\n"
+        "    eligible_paths = manager.files_list\n"
+        "    metrics = Metrics()\n"
+        "    for path in eligible_paths:\n"
+        '        metrics.data[path] = dict(metrics.data["_totals"])\n'
+        '        metrics.data[path]["loc"] = 1\n'
+        "    metrics.aggregate()\n"
+        '    report = {"errors": [], "results": [], "generated_at": "2000-01-01T00:00:00Z", "metrics": metrics.data}\n'
+        '    mode = os.environ.get("REPORT_MODE", "complete")\n'
+        '    if mode == "errors": report["errors"] = [{"filename": eligible_paths[0], "reason": "syntax error"}]\n'
+        '    if mode == "findings": report["results"] = [{"issue_severity": "MEDIUM"}]\n'
+        '    if mode == "partial": report["metrics"].pop(eligible_paths[0])\n'
+        '    if mode == "extra": report["metrics"]["./untracked.py"] = {}\n'
+        '    if mode in ("missing-errors", "missing-results", "missing-metrics", "missing-generated_at"): report.pop(mode.removeprefix("missing-"))\n'
+        '    if mode == "wrong-metrics-type": report["metrics"] = list(report["metrics"])\n'
+        '    if mode == "wrong-row-type": report["metrics"][eligible_paths[0]] = []\n'
+        '    if mode == "missing-counter": report["metrics"][eligible_paths[0]].pop("loc")\n'
+        '    if mode == "missing-issue-counter": report["metrics"][eligible_paths[0]].pop("SEVERITY.LOW")\n'
+        '    if mode == "empty-row": report["metrics"][eligible_paths[0]] = {}\n'
+        '    if mode == "float-counter": report["metrics"][eligible_paths[0]]["loc"] = 1.0\n'
+        '    if mode == "bool-counter": report["metrics"][eligible_paths[0]]["loc"] = True\n'
+        '    if mode == "negative-counter": report["metrics"][eligible_paths[0]]["loc"] = -1\n'
+        '    if mode == "inconsistent-total": report["metrics"]["_totals"]["loc"] += 1\n'
+        '    if mode == "hidden-medium":\n'
+        '        report["metrics"][eligible_paths[0]]["SEVERITY.MEDIUM"] = 1\n'
+        '        report["metrics"]["_totals"]["SEVERITY.MEDIUM"] = 1\n'
+        '    if mode == "drift-source": pathlib.Path(eligible_paths[0]).write_text("changed = 1\\n")\n'
+        '    if mode == "drift-config": pathlib.Path(".bandit").write_text(pathlib.Path(".bandit").read_text() + "\\n")\n'
+        '    if mode == "drift-index":\n'
+        "        import shutil\n"
+        "        from scripts.orchestration.creative_code_patch_workspace import git_env_without_parent_state, safe_git_config_args\n"
+        '        native_run([shutil.which("git"), *safe_git_config_args(), "add", "--", "untracked.py"], env=git_env_without_parent_state(), check=True)\n'
+        '    if mode == "symlink": output.symlink_to(os.environ["SCANNER_LOG"])\n'
+        '    elif mode == "duplicate": output.write_text(\'{"errors":[],"errors":[],"results":[]}\')\n'
+        '    elif mode == "invalid": output.write_text("{")\n'
+        '    elif mode != "absent": output.write_text(json.dumps(report))\n'
+        '    return subprocess.CompletedProcess(argv, int(os.environ.get("SCANNER_EXIT", "0")))\n'
+        "\n"
+        "subprocess.run = fixture_bandit\n"
+    )
+    environment = {
+        "PATH": str(control) + os.pathsep + os.defpath,
+        "HOME": str(tmp_path),
+        "SCANNER_LOG": str(log),
+        "PYTHONPATH": str(control),
+    }
+    return root, make, environment, log
+
+
+@pytest.mark.parametrize("ci", (None, "true", "false"))
+@pytest.mark.parametrize("scanner_exit", (0, 1, 2))
+def test_full_bandit_make_gate_uses_complete_tracked_paths_and_preserves_failures(
+    tmp_path: Path, ci: str | None, scanner_exit: int
+) -> None:
+    """Synthetic scanner status proves propagation, never a security verdict."""
+    root, make, environment, log = _bandit_gate_test_repo(tmp_path)
+    environment["SCANNER_EXIT"] = str(scanner_exit)
+    if ci is not None:
+        environment["CI"] = ci
+    result = subprocess.run(
+        [make, "bandit-full", "DEV_PYTHON=" + sys.executable],
+        cwd=root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+    assert (result.returncode == 0) is (scanner_exit == 0), result.stdout + result.stderr
+    argv = json.loads(log.read_text())
+    report_argument = argv[argv.index("-o") + 1]
+    assert Path(report_argument).name == "bandit-report.json"
+    assert Path(report_argument).parent.name.startswith(".bandit-full-")
+    assert not Path(report_argument).parent.exists()
+    assert argv[: argv.index("--")] == [
+        "-c",
+        ".bandit",
+        "--severity-level",
+        "medium",
+        "-f",
+        "json",
+        "-o",
+        report_argument,
+    ]
+    assert argv[argv.index("--") + 1 :] == [
+        "./-leading.py",
+        "./scripts/ci/fetch_docker_source_artifacts.py",
+        "./src/regular.py",
+        "./src/with\nnewline.py",
+        "./src/with spaces.py",
+    ]
+    if scanner_exit:
+        assert "✅ Bandit отчет" not in result.stdout
+
+
+@pytest.mark.parametrize(
+    "mode",
+    (
+        "absent",
+        "invalid",
+        "errors",
+        "findings",
+        "partial",
+        "extra",
+        "missing-errors",
+        "missing-results",
+        "missing-metrics",
+        "symlink",
+        "duplicate",
+        "wrong-metrics-type",
+        "wrong-row-type",
+        "drift-source",
+        "drift-config",
+        "drift-index",
+        "missing-generated_at",
+        "missing-counter",
+        "missing-issue-counter",
+        "empty-row",
+        "float-counter",
+        "bool-counter",
+        "negative-counter",
+        "inconsistent-total",
+        "hidden-medium",
+    ),
+)
+def test_full_bandit_zero_exit_cannot_accept_missing_partial_or_erroneous_report(
+    tmp_path: Path,
+    mode: str,
+) -> None:
+    root, make, environment, log = _bandit_gate_test_repo(tmp_path)
+    report = root / "bandit-report.json"
+    report.write_text('{"errors": [], "results": [], "metrics": {"stale": {}}}')
+    environment["REPORT_MODE"] = mode
+    result = subprocess.run(
+        [make, "bandit-full", "DEV_PYTHON=" + sys.executable],
+        cwd=root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+    assert log.is_file(), result.stdout + result.stderr
+    assert result.returncode != 0 and "✅ Bandit отчет" not in result.stdout
+    expected_diagnostic = {
+        "absent": "Bandit report is missing, unsafe",
+        "invalid": "JSONDecodeError",
+        "errors": "scanner errors/findings",
+        "findings": "scanner errors/findings",
+        "partial": "exact configured tracked inventory",
+        "extra": "exact configured tracked inventory",
+        "missing-errors": "scanner errors/findings",
+        "missing-results": "scanner errors/findings",
+        "missing-metrics": "exact configured tracked inventory",
+        "symlink": "Bandit report is missing, unsafe",
+        "duplicate": "duplicate JSON keys",
+        "wrong-metrics-type": "exact configured tracked inventory",
+        "wrong-row-type": "exact configured tracked inventory",
+        "drift-source": "changed during the scan",
+        "drift-config": "changed during the scan",
+        "drift-index": "changed during the scan",
+        "missing-generated_at": "missing its native generation metadata",
+        "missing-counter": "incomplete or malformed native metrics",
+        "missing-issue-counter": "incomplete or malformed native metrics",
+        "empty-row": "incomplete or malformed native metrics",
+        "float-counter": "incomplete or malformed native metrics",
+        "bool-counter": "incomplete or malformed native metrics",
+        "negative-counter": "incomplete or malformed native metrics",
+        "inconsistent-total": "totals are inconsistent",
+        "hidden-medium": "totals are inconsistent",
+    }[mode]
+    assert expected_diagnostic in result.stderr, result.stdout + result.stderr
+    if mode == "absent":
+        assert not report.exists()  # Old bytes cannot supply the missing new result.
+
+
+def test_full_bandit_rejects_missing_tracked_file_before_scanner(tmp_path: Path) -> None:
+    root, make, environment, log = _bandit_gate_test_repo(tmp_path)
+    (root / "src/regular.py").unlink()
+    result = subprocess.run(
+        [make, "bandit-full", "DEV_PYTHON=" + sys.executable],
+        cwd=root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+    assert result.returncode != 0 and not log.exists()
+    assert "src/regular.py" in result.stderr
+
+
+@pytest.mark.parametrize(
+    ("raw", "git_exit"),
+    (
+        (b"", 0),
+        (b"src/regular.py", 0),
+        (b"src/regular.py\0\0", 0),
+        (b"src/regular.py\0src/regular.py\0", 0),
+        (b"src/regular.py\0", 2),
+    ),
+)
+def test_full_bandit_rejects_invalid_native_inventory_before_scanner(
+    tmp_path: Path,
+    raw: bytes,
+    git_exit: int,
+) -> None:
+    root, make, environment, log = _bandit_gate_test_repo(tmp_path)
+    git = tmp_path / "control/git"
+    actual_git = shutil.which("git")
+    assert actual_git is not None
+    git.write_text(
+        f"#!{sys.executable}\n"
+        "import os, sys\n"
+        "if sys.argv[-4:] == ['ls-files', '-z', '--', '*.py']:\n"
+        f"    sys.stdout.buffer.write({raw!r})\n"
+        f"    raise SystemExit({git_exit})\n"
+        "else:\n"
+        f"    os.execv({actual_git!r}, [{actual_git!r}, *sys.argv[1:]])\n"
+    )
+    git.chmod(0o755)
+    result = subprocess.run(
+        [make, "bandit-full", "DEV_PYTHON=" + sys.executable],
+        cwd=root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+    assert result.returncode != 0 and not log.exists()
+    if git_exit:
+        assert "CalledProcessError" in result.stderr, result.stdout + result.stderr
+    else:
+        assert "Tracked Python security inventory" in result.stderr
+
+
+def test_full_bandit_quotes_developer_interpreter_path(tmp_path: Path) -> None:
+    root, make, environment, log = _bandit_gate_test_repo(tmp_path)
+    wrapper = tmp_path / "python directory/interpreter"
+    wrapper.parent.mkdir()
+    wrapper.write_text(f'#!/bin/sh\nexec "{sys.executable}" "$@"\n')
+    wrapper.chmod(0o755)
+    result = subprocess.run(
+        [make, "bandit-full", "DEV_PYTHON=" + str(wrapper)],
+        cwd=root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+    assert result.returncode == 0 and log.is_file(), result.stdout + result.stderr
+
+
+@pytest.mark.parametrize(
+    "bad", ("import pickle\npickle.loads(b'never-executed fixture')\n", "def invalid(:\n")
+)
+def test_full_bandit_native_report_rejects_findings_and_scanner_errors(
+    tmp_path: Path,
+    bad: str,
+) -> None:
+    """Actual Bandit scans fixtures but never executes their Python code."""
+    root = tmp_path / "repo"
+    root.mkdir()
+    (root / "Makefile").write_bytes((REPO_ROOT / "Makefile").read_bytes())
+    (root / ".bandit").write_bytes((REPO_ROOT / ".bandit").read_bytes())
+    helper = Path("scripts/orchestration/creative_code_patch_workspace.py")
+    (root / helper).parent.mkdir(parents=True, exist_ok=True)
+    (root / helper).write_bytes((REPO_ROOT / helper).read_bytes())
+    git, make = shutil.which("git"), shutil.which("make")
+    assert git is not None and make is not None
+    fixture_env = git_env_without_parent_state()
+    fixture_env["HOME"] = str(tmp_path)
+    subprocess.run(
+        [git, *safe_git_config_args(), "-c", "init.templateDir=", "init", "--quiet", str(root)],
+        env=fixture_env,
+        check=True,
+    )
+    source = root / "fetch_docker_source_artifacts.py"
+    source.write_text(bad)
+    excluded = root / "tests/excluded.py"
+    excluded.parent.mkdir()
+    excluded.write_text(bad)
+    (root / "artifacts").mkdir()
+    (root / "artifacts/untracked.py").write_text(bad)
+    subprocess.run(
+        [git, *safe_git_config_args(), "add", "--", source.name, "tests/excluded.py"],
+        cwd=root,
+        env=fixture_env,
+        check=True,
+    )
+    environment = {
+        "PATH": str(Path(sys.executable).parent) + os.pathsep + os.defpath,
+        "HOME": str(tmp_path),
+        "CI": "true",
+    }
+    argv = [make, "bandit-full", "DEV_PYTHON=" + sys.executable]
+    rejected = subprocess.run(
+        argv,
+        cwd=root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert rejected.returncode != 0, rejected.stdout + rejected.stderr
+    report = json.loads((root / "bandit-report.json").read_text())
+    if bad.startswith("import"):
+        assert report["errors"] == [] and report["results"]
+        assert all(Path(row["filename"]).name == source.name for row in report["results"])
+        assert any(
+            row["test_id"] == "B301" and row["issue_severity"] == "MEDIUM"
+            for row in report["results"]
+        )
+    else:
+        assert report["errors"] and report["results"] == []
+        assert "scanner errors" in rejected.stderr
+    source.write_text("pass\n")
+    accepted = subprocess.run(
+        argv,
+        cwd=root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert accepted.returncode == 0, accepted.stdout + accepted.stderr
+    report = json.loads((root / "bandit-report.json").read_text())
+    assert report["errors"] == report["results"] == []
+    assert (root / "artifacts/untracked.py").read_text() == bad
+
+
+def _comparison_fixture(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, private: bool = True
+) -> tuple[Path, Path, Path, dict[str, str], list[str]]:
+    manifest = tmp_path / "requirements.txt"
+    content = b"numpy==2.4.6\npillow==13.0.0\n"
+    if private:
+        content += b"fastembed==0.8.0+pulseplate.1\n"
+    manifest.write_bytes(content)
+    output = tmp_path / "pip-audit-requirements.json"
+    work = tmp_path / "work"
+    work.mkdir(mode=0o700)
+    calls: list[str] = []
+
+    def acquire(_work: Path) -> None:
+        calls.append("acquire")
+
+    def prove(_work: Path) -> dict[str, str]:
+        calls.append("prove")
+        return {
+            "source_wheel_sha256": compat_audit.SOURCE_SHA256,
+            "private_wheel_sha256": compat_audit.PRIVATE_SHA256,
+            "recipe_sha256": compat_audit.RECIPE_SHA256,
+        }
+
+    monkeypatch.setattr(compat_audit, "_acquire_pair", acquire)
+    monkeypatch.setattr(compat_audit, "_prove_pair", prove)
+    compat_audit.prepare(manifest, output, work)
+    _, _, query, _ = compat_audit._projection(content)
+    return manifest, output, work, query, calls
+
+
+def _write_audit_report(output: Path, coordinates: dict[str, str]) -> bytes:
+    raw = json.dumps(
+        {
+            "dependencies": [
+                {"name": name, "version": version, "vulns": []}
+                for name, version in coordinates.items()
+            ],
+            "fixes": [],
+        }
+    ).encode()
+    output.write_bytes(raw)
+    output.with_suffix(".stderr.log").write_bytes(b"raw scanner diagnostic\n")
+    return raw
+
+
+def test_private_comparison_changes_only_fastembed_query_and_rechecks_provenance(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest, output, work, query, calls = _comparison_fixture(tmp_path, monkeypatch)
+    original = manifest.read_bytes()
+    raw = _write_audit_report(output, query)
+    assert query == {"numpy": "2.4.6", "pillow": "13.0.0", "fastembed": "0.8.0"}
+    assert compat_audit.validate(
+        manifest,
+        output,
+        work,
+        scanner_exit=0,
+        scanner_version="pip-audit 2.10.1",
+        auditor="/synthetic/pip-audit",
+    )
+    evidence = json.loads(output.with_suffix(".evidence.json").read_text())
+    assert (
+        evidence["upstream_comparison"] is True
+        and evidence["private_version_directly_audited"] is False
+    )
+    assert evidence["original_coordinates"]["fastembed"] == "0.8.0+pulseplate.1"
+    assert evidence["query_coordinates"] == query
+    assert calls == ["acquire", "prove", "prove"]
+    assert manifest.read_bytes() == original and output.read_bytes() == raw
+    assert output.with_suffix(".stderr.log").read_bytes() == b"raw scanner diagnostic\n"
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        b"fastembed==0.8.0+pulseplate.2\n",
+        b"other==0.8.0+pulseplate.1\n",
+        b"fast-embed==0.8.0+pulseplate.1\n",
+        b"FastEmbed==0.8.0+pulseplate.1\n",
+        b"fastembed == 0.8.0+pulseplate.1\n",
+        b"fastembed[extra]==0.8.0+pulseplate.1\n",
+        b"fastembed==0.8.0+pulseplate.1\nfastembed==0.8.0+pulseplate.1\n",
+        b"fastembed>=0.8.0\n",
+        b"-r other.txt\n",
+        b'fastembed==0.8.0; python_version>="3.10"\n',
+    ],
+)
+def test_unsupported_comparison_input_fails_before_acquisition(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, content: bytes
+) -> None:
+    manifest = tmp_path / "requirements.txt"
+    manifest.write_bytes(content)
+    work = tmp_path / "work"
+    work.mkdir(mode=0o700)
+
+    def forbidden(_: Path) -> None:
+        pytest.fail("unsupported carrier reached acquisition")
+
+    monkeypatch.setattr(compat_audit, "_acquire_pair", forbidden)
+    with pytest.raises(compat_audit.AuditFailure):
+        compat_audit.prepare(manifest, tmp_path / "out.json", work)
+    assert manifest.read_bytes() == content
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "missing",
+        "extra",
+        "duplicate",
+        "skip",
+        "pillow",
+        "private-claim",
+        "empty-object",
+        "nonfinite",
+        "malformed-finding",
+    ],
+)
+def test_strict_comparison_rejects_independent_report_defects(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mutation: str
+) -> None:
+    manifest, output, work, query, _ = _comparison_fixture(tmp_path, monkeypatch)
+    raw = _write_audit_report(output, query)
+    assert compat_audit._report_inventory(raw, query) == 0
+    report = json.loads(raw)
+    if mutation == "missing":
+        report["dependencies"].pop()
+    elif mutation == "extra":
+        report["dependencies"].append({"name": "unlisted", "version": "1.0", "vulns": []})
+    elif mutation == "duplicate":
+        report["dependencies"].append(report["dependencies"][0])
+    elif mutation == "skip":
+        report["dependencies"][0] = {"name": "numpy", "skip_reason": "unknown"}
+    elif mutation == "pillow":
+        report["dependencies"][1]["version"] = "12.3.0"
+    elif mutation == "private-claim":
+        report["dependencies"][-1]["version"] = "0.8.0+pulseplate.1"
+    elif mutation == "empty-object":
+        report = {}
+    elif mutation == "nonfinite":
+        report["dependencies"][0]["vulns"] = float("nan")
+    else:
+        report["dependencies"][0]["vulns"] = [{"id": "GHSA-fixture", "fix_versions": "1.0"}]
+    mutated = json.dumps(report).encode()
+    output.write_bytes(mutated)
+    assert not compat_audit.validate(
+        manifest,
+        output,
+        work,
+        scanner_exit=0,
+        scanner_version="pip-audit 2.10.1",
+        auditor="/synthetic/pip-audit",
+    )
+    evidence = json.loads(output.with_suffix(".evidence.json").read_text())
+    assert evidence["inventory_validation_error"] is not None
+    assert output.read_bytes() == mutated
+
+
+@pytest.mark.parametrize("failure", ["nonzero", "upstream-finding", "empty-output"])
+def test_upstream_findings_or_nonterminal_reports_are_never_suppressed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str
+) -> None:
+    manifest, output, work, query, _ = _comparison_fixture(tmp_path, monkeypatch)
+    raw = _write_audit_report(output, query)
+    if failure == "upstream-finding":
+        report = json.loads(raw)
+        report["dependencies"][-1]["vulns"] = [
+            {
+                "id": "GHSA-fixture",
+                "fix_versions": [],
+                "aliases": [],
+                "description": "preserved upstream finding",
+            }
+        ]
+        raw = json.dumps(report).encode()
+    elif failure == "empty-output":
+        raw = b""
+    output.write_bytes(raw)
+    assert not compat_audit.validate(
+        manifest,
+        output,
+        work,
+        scanner_exit=7 if failure == "nonzero" else 0,
+        scanner_version="pip-audit 2.10.1",
+        auditor="/synthetic/pip-audit",
+    )
+    assert output.read_bytes() == raw
+    evidence = json.loads(output.with_suffix(".evidence.json").read_text())
+    if failure == "upstream-finding":
+        assert evidence["findings"] == 1
+
+
+@pytest.mark.parametrize("changed", ["manifest", "comparand", "proof"])
+def test_validation_rebinds_preparation_bytes_and_derivation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, changed: str
+) -> None:
+    manifest, output, work, query, _ = _comparison_fixture(tmp_path, monkeypatch)
+    raw = _write_audit_report(output, query)
+    if changed == "manifest":
+        manifest.write_bytes(manifest.read_bytes() + b"# drift\n")
+        expected = "original_manifest_changed"
+    elif changed == "comparand":
+        (work / "comparand.txt").write_text("pillow==12.3.0\n")
+        expected = "comparand_bytes_changed"
+    else:
+
+        def rejected(_: Path) -> dict[str, str]:
+            raise compat_audit.AuditFailure("compat_wheel_identity_changed")
+
+        monkeypatch.setattr(compat_audit, "_prove_pair", rejected)
+        expected = "compat_wheel_identity_changed"
+    with pytest.raises(compat_audit.AuditFailure, match=expected):
+        compat_audit.validate(
+            manifest,
+            output,
+            work,
+            scanner_exit=0,
+            scanner_version="pip-audit 2.10.1",
+            auditor="/synthetic/pip-audit",
+        )
+    assert output.read_bytes() == raw and not output.with_suffix(".evidence.json").exists()
+
+
+def test_empty_registered_lock_needs_complete_empty_report(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest = tmp_path / "requirements-evals.txt"
+    manifest.write_text("# empty registered lock\n")
+    work = tmp_path / "work"
+    work.mkdir(mode=0o700)
+    output = tmp_path / "audit.json"
+    compat_audit.prepare(manifest, output, work)
+    _write_audit_report(output, {})
+    assert compat_audit.validate(
+        manifest,
+        output,
+        work,
+        scanner_exit=0,
+        scanner_version="pip-audit 2.10.1",
+        auditor="/synthetic/pip-audit",
+    )
+
+
+def test_stale_output_or_false_claim_cannot_be_preparation_authority(tmp_path: Path) -> None:
+    manifest = tmp_path / "requirements.txt"
+    manifest.write_text("example==1.0.0\n")
+    work = tmp_path / "work"
+    work.mkdir(mode=0o700)
+    output = tmp_path / "audit.json"
+    stale = b'{"private_version_directly_audited":true,"passed":true}'
+    output.with_suffix(".evidence.json").write_bytes(stale)
+    with pytest.raises(compat_audit.AuditFailure, match="stale_audit_output_exists"):
+        compat_audit.prepare(manifest, output, work)
+    assert output.with_suffix(".evidence.json").read_bytes() == stale
+
+
+@pytest.mark.parametrize(
+    "mutation", [None, "foreign-host", "wrong-hash", "wrong-bytes", "http-failure"]
+)
+def test_comparison_acquisition_uses_only_exact_private_proxy_links(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mutation: str | None
+) -> None:
+    import hashlib
+
+    source = b"s" * 116572
+    private = b"p" * 116726
+    monkeypatch.setattr(compat_audit, "SOURCE_SHA256", hashlib.sha256(source).hexdigest())
+    monkeypatch.setattr(compat_audit, "PRIVATE_SHA256", hashlib.sha256(private).hexdigest())
+    index = "https://packages.pulseplate.app/root/pulseplate/+simple/"
+    monkeypatch.setattr(compat_audit, "resolve_private_proxy_settings", lambda **_: (index, None))
+    monkeypatch.setattr(
+        compat_audit, "_admit_private_proxy_netrc_auth", lambda **_: "Basic synthetic"
+    )
+    source_url = (
+        "https://packages.pulseplate.app/root/pypi/+f/source/"
+        + compat_audit.builder.SOURCE_FILENAME
+    )
+    private_url = (
+        "https://packages.pulseplate.app/root/pulseplate/+f/private/"
+        + compat_audit.builder.OUTPUT_FILENAME
+    )
+    html = f'<a href="{source_url}#sha256={compat_audit.SOURCE_SHA256}">source</a><a href="{private_url}#sha256={compat_audit.PRIVATE_SHA256}">private</a>'
+    if mutation == "foreign-host":
+        html = html.replace(
+            "https://packages.pulseplate.app/root/pulseplate/+f/private/",
+            "https://foreign.invalid/",
+        )
+    elif mutation == "wrong-hash":
+        html = html.replace(compat_audit.PRIVATE_SHA256, "0" * 64)
+    calls: list[str] = []
+
+    def fetch(url: str, **kwargs: object) -> tuple[int, bytes]:
+        calls.append(url)
+        assert url.startswith("https://packages.pulseplate.app/")
+        assert kwargs["authorization_header"] == "Basic synthetic"
+        if url.endswith("/fastembed/"):
+            return (503 if mutation == "http-failure" else 200), html.encode()
+        if url == source_url:
+            return 200, source
+        assert url == private_url
+        return 200, (b"!" + private[1:] if mutation == "wrong-bytes" else private)
+
+    monkeypatch.setattr(compat_audit, "fetch_project_page", fetch)
+    if mutation is None:
+        compat_audit._acquire_pair(tmp_path)
+        assert (tmp_path / compat_audit.builder.SOURCE_FILENAME).read_bytes() == source
+        assert (tmp_path / compat_audit.builder.OUTPUT_FILENAME).read_bytes() == private
+        assert len(calls) == 3
+    else:
+        with pytest.raises((compat_audit.AuditFailure, ValueError)):
+            compat_audit._acquire_pair(tmp_path)
+        assert not (tmp_path / compat_audit.builder.OUTPUT_FILENAME).exists()
+
+
+def test_missing_scanner_report_is_not_an_empty_success(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest, output, work, _, _ = _comparison_fixture(tmp_path, monkeypatch)
+    output.unlink()
+    with pytest.raises(FileNotFoundError):
+        compat_audit.validate(
+            manifest,
+            output,
+            work,
+            scanner_exit=0,
+            scanner_version="pip-audit 2.10.1",
+            auditor="/synthetic/pip-audit",
+        )
+    assert not output.with_suffix(".evidence.json").exists()
+
+
+def test_stale_valid_scanner_report_stays_unchanged(tmp_path: Path) -> None:
+    manifest = tmp_path / "requirements.txt"
+    manifest.write_text("example==1.0.0\n")
+    work = tmp_path / "work"
+    work.mkdir(mode=0o700)
+    output = tmp_path / "audit.json"
+    raw = _write_audit_report(output, {"example": "1.0.0"})
+    with pytest.raises(compat_audit.AuditFailure, match="stale_audit_output_exists"):
+        compat_audit.prepare(manifest, output, work)
+    assert output.read_bytes() == raw
+
+
+def test_comparison_diagnostic_does_not_echo_untrusted_requirement_credentials(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    manifest = tmp_path / "requirements.txt"
+    manifest.write_text("example @ https://synthetic-secret@invalid.example/package.whl\n")
+    work = tmp_path / "work"
+    work.mkdir(mode=0o700)
+    assert (
+        compat_audit.main(
+            [
+                "prepare",
+                "--manifest",
+                str(manifest),
+                "--output",
+                str(tmp_path / "audit.json"),
+                "--work-dir",
+                str(work),
+            ]
+        )
+        == 1
+    )
+    stderr = capsys.readouterr().err
+    assert "invalid_exact_requirement_inventory" in stderr
+    assert "synthetic-secret" not in stderr
+
+
+@pytest.fixture
+def black_hook_repo(tmp_path: Path) -> Path:
+    """A later patch satisfies the unchanged compatible source lower bound."""
+    config = {
+        "repos": [
+            {"repo": "https://github.com/psf/black", "rev": "26.10.2", "hooks": [{"id": "black"}]}
+        ]
+    }
+    (tmp_path / ".pre-commit-config.yaml").write_text(yaml.safe_dump(config), encoding="utf-8")
+    for filename in ("requirements-dev.txt", "requirements-lock.txt"):
+        (tmp_path / filename).write_text("black==26.10.2\n", encoding="utf-8")
+    for filename in ("constraints.txt", "requirements-all.txt"):
+        (tmp_path / filename).write_text("black>=26.10.1\n", encoding="utf-8")
+    (tmp_path / "requirements-dev.in").write_text("black~=26.10.1\n", encoding="utf-8")
+    return tmp_path
+
+
+@pytest.mark.parametrize("revision", ("26.10.2", "v26.10.2"))
+def test_black_hook_parity_allows_later_patch_with_unchanged_source_floor(
+    black_hook_repo: Path, revision: str
+) -> None:
+    path = black_hook_repo / ".pre-commit-config.yaml"
+    config = yaml.safe_load(path.read_text())
+    config["repos"][0]["rev"] = revision
+    path.write_text(yaml.safe_dump(config), encoding="utf-8")
+    _assert_black_hook_lock_parity(black_hook_repo)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "hook-mismatch",
+        "aggregate-mismatch",
+        "source-excludes",
+        "duplicate-hook",
+        "duplicate-repository",
+        "missing-source",
+        "duplicate-source",
+        "missing-lock",
+        "duplicate-lock",
+        "marked-lock",
+        "invalid-revision",
+    ),
+)
+def test_black_hook_parity_rejects_mismatched_or_ambiguous_owners(
+    black_hook_repo: Path, mutation: str
+) -> None:
+    path = black_hook_repo / ".pre-commit-config.yaml"
+    config = yaml.safe_load(path.read_text())
+    if mutation == "hook-mismatch":
+        config["repos"][0]["rev"] = "26.10.3"
+    elif mutation == "aggregate-mismatch":
+        (black_hook_repo / "requirements-lock.txt").write_text("black==26.10.3\n")
+    elif mutation == "source-excludes":
+        (black_hook_repo / "requirements-dev.in").write_text("black~=26.11.0\n")
+    elif mutation == "duplicate-hook":
+        config["repos"][0]["hooks"].append({"id": "black"})
+    elif mutation == "duplicate-repository":
+        config["repos"].append(config["repos"][0])
+    elif mutation == "missing-source":
+        (black_hook_repo / "constraints.txt").write_text("# no owner\n")
+    elif mutation == "duplicate-source":
+        (black_hook_repo / "requirements-all.txt").write_text("black>=26.10.1\nBlack>=26.10.1\n")
+    elif mutation == "missing-lock":
+        (black_hook_repo / "requirements-dev.txt").write_text("# no owner\n")
+    elif mutation == "duplicate-lock":
+        (black_hook_repo / "requirements-dev.txt").write_text("black==26.10.2\nBlack==26.10.2\n")
+    elif mutation == "marked-lock":
+        (black_hook_repo / "requirements-dev.txt").write_text(
+            'black==26.10.2; python_version >= "3.13"\n'
+        )
+    else:
+        config["repos"][0]["rev"] = "not-a-version"
+    path.write_text(yaml.safe_dump(config), encoding="utf-8")
+    with pytest.raises((AssertionError, InvalidVersion)):
+        _assert_black_hook_lock_parity(black_hook_repo)
+
+
+@pytest.mark.parametrize("first_fails", (False, True))
+def test_pip_audit_repeated_invocations_preserve_all_previous_outputs(
+    tmp_path: Path, first_fails: bool
+) -> None:
+    fake_bin, log = _fake_strict_auditor(tmp_path, fail_first=first_fails)
+    first = _run_strict_audit_shell(tmp_path, fake_bin)
+    assert first.returncode == (7 if first_fails else 0), first.stderr
+    first_outputs = _strict_audit_outputs(log)
+    assert len(first_outputs) == 6
+    retained = {path: path.read_bytes() for path in tmp_path.glob("pip-audit-*")}
+    assert len(retained) == 18
+    second = _run_strict_audit_shell(tmp_path, fake_bin)
+    assert second.returncode == 0, second.stderr
+    outputs = _strict_audit_outputs(log)
+    assert len(outputs) == len(set(outputs)) == 12
+    assert all(path.read_bytes() == raw for path, raw in retained.items())
+    assert len(list(tmp_path.glob("pip-audit-*"))) == 36
+    for output in outputs[6:]:
+        evidence = json.loads((tmp_path / output).with_suffix(".evidence.json").read_text())
+        assert evidence["passed"] is True
+
+
+def test_pip_audit_concurrent_invocations_keep_distinct_retained_outputs(tmp_path: Path) -> None:
+    barrier = tmp_path / "scanner-barrier"
+    barrier.mkdir()
+    fake_bin, log = _fake_strict_auditor(tmp_path, barrier=barrier)
+    retained = {}
+    for suffix in ("json", "stderr.log", "evidence.json"):
+        path = tmp_path / f"pip-audit-requirements.{suffix}"
+        path.write_bytes(b"retained previous invocation\n")
+        retained[path] = path.read_bytes()
+    immutable_inputs = {path: path.read_bytes() for path in tmp_path.glob("requirements*.txt")}
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = [executor.submit(_run_strict_audit_shell, tmp_path, fake_bin) for _ in range(2)]
+        try:
+            deadline = time.monotonic() + 20
+            while len(list(barrier.glob("pip-audit-*.json"))) < 2 and time.monotonic() < deadline:
+                time.sleep(0.01)
+            assert len(list(barrier.glob("pip-audit-*.json"))) == 2, "both scanners must overlap"
+        finally:
+            (barrier / "release").write_text("release\n", encoding="utf-8")
+        results = [future.result(timeout=60) for future in futures]
+    assert all(result.returncode == 0 for result in results), [result.stderr for result in results]
+    outputs = _strict_audit_outputs(log)
+    assert len(outputs) == len(set(outputs)) == 12
+    assert len(list(tmp_path.glob("pip-audit-*"))) == 39
+    assert all(path.read_bytes() == raw for path, raw in retained.items())
+    assert all(path.read_bytes() == raw for path, raw in immutable_inputs.items())
+    for output in outputs:
+        assert Path(output).parent == Path(".") and output.startswith("pip-audit-")
+        evidence = json.loads((tmp_path / output).with_suffix(".evidence.json").read_text())
+        assert evidence["passed"] is True

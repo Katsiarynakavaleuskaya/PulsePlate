@@ -1,7 +1,8 @@
 # ---------------------------------------------------------------------------
 # PulsePlate Devcontainer Smoke — lightweight tooling-layer CI guard
 # ---------------------------------------------------------------------------
-# Builds the devcontainer image and verifies core developer tools exist.
+# Builds the named tooling foundation and verifies core developer tools exist.
+# The default full SDK consumer is validated separately by genuine SDK/native checks.
 # Does NOT install application dependencies, does NOT require secrets,
 # and does NOT run backend/frontend tests.
 # ---------------------------------------------------------------------------
@@ -39,7 +40,7 @@ jobs:
       - name: Build devcontainer tooling image
         run: |
           set -euo pipefail
-          docker build \
+          docker build --platform linux/amd64 --target tooling \
             -f .devcontainer/Dockerfile \
             -t pulseplate-devcontainer-smoke:ci \
             .
@@ -47,10 +48,11 @@ jobs:
       - name: Run devcontainer tooling smoke
         run: |
           set -euo pipefail
-          docker run --rm \
+          docker run --rm --network none --read-only \
+            --cap-drop ALL --security-opt no-new-privileges \
             -e PULSEPLATE_IN_CONTAINER=1 \
             -e PYTHONPATH=/workspaces/PulsePlate \
-            -v "$PWD:/workspaces/PulsePlate" \
+            -v "$PWD:/workspaces/PulsePlate:ro" \
             -w /workspaces/PulsePlate \
             pulseplate-devcontainer-smoke:ci \
             bash scripts/devcontainer/smoke.sh

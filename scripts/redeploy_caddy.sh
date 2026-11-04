@@ -6,8 +6,8 @@
 # Usage: Run this ON THE SERVER (after ssh or via console)
 #   bash scripts/redeploy_caddy.sh
 #
-# Or copy to server and run:
-#   bash redeploy_caddy.sh
+# Use the synchronized scripts/ tree, including ci/prometheus_source_image.py,
+# and the selected deployment's prometheus/image-manifest.json.
 
 set -euo pipefail
 
@@ -57,8 +57,19 @@ else
 fi
 
 cd "$DEPLOY_DIR" || exit 1
+DEPLOY_DIR="$(pwd -P)"
 echo "Working directory: $(pwd)"
 echo ""
+
+PYTHON_BIN="${PYTHON_BIN:-/usr/bin/python3}"
+if [[ "$PYTHON_BIN" != /* ]] || [ ! -x "$PYTHON_BIN" ]; then
+    echo "An absolute Python executable is required" >&2
+    exit 1
+fi
+PROMETHEUS_RUNTIME_REF="$("$PYTHON_BIN" "$SCRIPT_DIR/ci/prometheus_source_image.py" \
+    --operation read-manifest \
+    --manifest "$DEPLOY_DIR/prometheus/image-manifest.json" --field runtime_ref)"
+export PROMETHEUS_RUNTIME_REF
 
 # Repo root is one level above the canonical nested deploy directory.
 REPO_ROOT="$(cd "$DEPLOY_DIR/.." && pwd)"

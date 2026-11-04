@@ -94,11 +94,14 @@ def _resolve_experiment_domain(
     decision_question: str,
     task_class: str,
     mutable_paths: list[str],
+    runner_mode: str = DEFAULT_RUNNER_MODE,
 ) -> str:
     """Resolve the dominant experiment domain without mutating shared routing helpers."""
 
     normalized_text = normalize_text(decision_question, task_class, *mutable_paths)
-    if is_cv_experiment(decision_question, task_class, *mutable_paths):
+    if is_cv_experiment(
+        decision_question, task_class, runner_mode=runner_mode, surface_paths=mutable_paths
+    ):
         return "ml"
     if any(
         path.startswith(prefix) for path in mutable_paths for prefix in ALLOWED_MUTABLE_PREFIXES
@@ -116,11 +119,12 @@ def _recommend_advisory_agents(
     *,
     decision_question: str,
     mutable_paths: list[str],
+    runner_mode: str = DEFAULT_RUNNER_MODE,
 ) -> list[str]:
     """Return deterministic advisory agents for the experimentation lane."""
 
     advisory_agents = ["data-scientist-agent"]
-    if is_cv_experiment(decision_question, *mutable_paths):
+    if is_cv_experiment(decision_question, runner_mode=runner_mode, surface_paths=mutable_paths):
         advisory_agents.extend(["cv-agent", "ml-engineer-agent"])
     else:
         advisory_agents.append("ml-engineer-agent")
@@ -298,7 +302,12 @@ def build_experiment_packet(
     validated_negative_controls = validate_negative_controls(negative_controls)
     validated_promotion_target = validate_promotion_target(promotion_target)
     budget_payload = validate_budget_payload(budgets)
-    cv_intent = is_cv_experiment(decision_question, task_class, *validated_paths)
+    cv_intent = is_cv_experiment(
+        decision_question,
+        task_class,
+        runner_mode=validated_runner_mode,
+        surface_paths=validated_paths,
+    )
     validated_cv_context = validate_cv_context(cv_context) if cv_context is not None else None
     validated_creative_research_origin = validate_creative_research_origin(creative_research_origin)
     if candidate_patch_fingerprint is not None and not CANDIDATE_PATCH_FINGERPRINT_RE.fullmatch(
@@ -323,6 +332,7 @@ def build_experiment_packet(
         decision_question=decision_question,
         task_class=task_class,
         mutable_paths=validated_paths,
+        runner_mode=validated_runner_mode,
     )
     routing = load_routing_graph()
     routing_decision = route(
@@ -361,6 +371,7 @@ def build_experiment_packet(
         _recommend_advisory_agents(
             decision_question=decision_question,
             mutable_paths=validated_paths,
+            runner_mode=validated_runner_mode,
         )
     )
     recommended_agents.append(REVIEWER)
