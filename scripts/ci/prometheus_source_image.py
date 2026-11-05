@@ -27,7 +27,7 @@ import selectors
 import signal
 import ssl
 import stat
-import subprocess  # nosec B404: # fixed native Go/Docker metadata commands require subprocess (remove-by: 2026-10-28, ref: PR-2477)
+import subprocess  # nosec B404 # B404: native producer, kernel census and authenticated CLI owners require the process API (remove-by: 2026-11-11, ref: PR-2494)
 import sys
 import tarfile
 import time
@@ -1057,7 +1057,7 @@ class Native:
         with stdout.open("xb") as output, stderr.open("xb") as error:
             process = subprocess.Popen(
                 argv, cwd=cwd, env=env, stdout=output, stderr=error, start_new_session=True
-            )  # nosec B603: # closed absolute verified native metadata argv, no shell, bounded owned group (remove-by: 2026-10-28, ref: PR-2477)
+            )  # nosec B603 # B603: absolute owner-selected native argv, nonsecret recorded environment and bounded process group (remove-by: 2026-11-11, ref: PR-2494)
             try:
                 next_inventory = 0.0
                 while process.poll() is None:
@@ -2172,7 +2172,7 @@ def process_census(cap: float, known: tuple[bytes, ...]) -> dict[int, dict[str, 
         env={"PATH": "/usr/bin:/bin", "LC_ALL": "C"},
         timeout=min(1, max(0.001, cap - time.monotonic())),
         check=False,
-    )  # nosec B603 # B603: fixed absolute ps ownership census; closed env, bounded capture before credential inspection (remove-by: 2026-10-28, ref: PR-2477)
+    )  # nosec B603 # B603: fixed /bin/ps ownership census with closed argv, minimal environment and bounded timeout (remove-by: 2026-11-11, ref: PR-2494)
     require(
         observed.returncode == 0
         and len(observed.stdout) + len(observed.stderr) <= GHCR_OUTPUT_LIMIT,
@@ -2401,7 +2401,7 @@ def qualify_existing_ghcr_package(
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             start_new_session=True,
-        )  # nosec B603 # B603: fixed absolute gh auth/API argv; bounded memory before inspection (remove-by: 2026-10-28, ref: PR-2477)
+        )  # nosec B603 # B603: dedicated absolute gh qualification with fixed requests, private credentials and bounded capture (remove-by: 2026-11-11, ref: PR-2494)
         if process.stdout is None or process.stderr is None:
             raise QualificationError("GHCR_capture_streams_missing")
         witness_owned_process(process, seen, deadline, (known,))
@@ -3756,7 +3756,7 @@ class GitHubRead:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             start_new_session=True,
-        )  # nosec B603: # fixed absolute authenticated gh/native argv; bounded memory and stdin, secret reflection checked before retention (remove-by: 2026-10-28, ref: PR-2477)
+        )  # nosec B603 # B603: owner-bound native argv, private credential environment or stdin, bounded capture and owned cleanup (remove-by: 2026-11-11, ref: PR-2494)
         self.process = process
         streams = [bytearray(), bytearray()]
         primary: BaseException | None = None
