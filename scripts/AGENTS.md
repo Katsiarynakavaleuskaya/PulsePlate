@@ -253,6 +253,13 @@ phase budget, and its failure still blocks a successful cleanup result.
   before starting the finite image build; unset output selection remains HOLD.
   Preserve the complete spent invocation history and never infer native totals
   from job names or renew a compiler budget through a consumer.
+- AM COPY assembly uses its fixed epoch zero, consistent with the binary BuildDate.
+  Normalize only the fresh seven-file context, empty storage directory and root,
+  and check exact membership, type, mode, identity and mtime before and after assembly.
+  Before accepting a subject required to match a later full H rebuild, prove two
+  independent fresh native COPY assemblies preserve the original base and produce
+  identical complete config/history, graph, blobs and canonical archives. Synthetic
+  graph fixtures and equal binaries alone leave that reproducibility unproved.
 - The existing native AM entrypoint defaults to `selected_consumer`. Its explicit
   `--alertmanager-producer-image` option belongs only to the source producer and
   requires an observation. It runs all image controls and emits a distinct

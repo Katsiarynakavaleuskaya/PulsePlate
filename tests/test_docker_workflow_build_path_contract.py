@@ -10825,6 +10825,16 @@ def test_alertmanager_support_reader_closes_auth_before_native_and_preserves_HOL
     "fault,observation_failure",
     [
         (None, False),
+        ("epoch-early", False),
+        ("epoch-late", False),
+        ("context-extra-directory", False),
+        ("context-hardlink", False),
+        ("context-storage-populated", False),
+        ("post-context-file-mtime", False),
+        ("post-context-root-mtime", False),
+        ("post-context-storage-mtime", False),
+        ("post-context-storage-mode", False),
+        ("post-context-extra-directory", False),
         ("buildkit-repository", False),
         ("buildkit-digest", False),
         ("buildkit-prefix", False),
@@ -11000,7 +11010,7 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
     builder_id, builder_image = "b" * 64, "sha256:" + "c" * 64
     native_buildkit_digest = "moby/buildkit@" + docker_sources._ALERT_BUILDKIT.split("@", 1)[1]
     buildkit_failure = fault is not None and fault.startswith("buildkit-")
-    successful_faults = (None, "index-boundary", "index-valid-leap")
+    successful_faults = (None, "epoch-early", "epoch-late", "index-boundary", "index-valid-leap")
     index_failure = (
         fault is not None and fault.startswith("index-") and fault not in successful_faults
     )
@@ -11018,6 +11028,24 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
     observation_attempts: list[Path] = []
     original_write = Path.write_text
     original_copyfile = shutil.copyfile
+    original_mkdir = Path.mkdir
+    incoming_mtime = 2_000_000_000 if fault == "epoch-late" else 1_000_000_000
+    monkeypatch.setenv("SOURCE_DATE_EPOCH", str(incoming_mtime))
+    immutable_times = {
+        path: path.lstat().st_mtime_ns
+        for root in (d["inputs"], d["support"])
+        for path in (root, *root.rglob("*"))
+    }
+
+    def mkdir(path: Path, *args: Any, **kwargs: Any) -> None:
+        original_mkdir(path, *args, **kwargs)
+        if path == work / "context/storage-dir":
+            if fault == "context-storage-populated":
+                (path / "extra").write_text("unexpected")
+            os.utime(path, ns=(incoming_mtime, incoming_mtime))
+            os.utime(path.parent, ns=(incoming_mtime, incoming_mtime))
+
+    monkeypatch.setattr(Path, "mkdir", mkdir)
     layout_errors: list[BaseException] = []
     launch_errors: list[subprocess.CalledProcessError] = []
     layout_facts: list[dict[str, Any]] = []
@@ -11074,6 +11102,14 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
     def copyfile(source: Any, destination: Any, *args: Any, **kwargs: Any) -> Any:
         copied = original_copyfile(source, destination, *args, **kwargs)
         selected = Path(destination)
+        if selected.parent == work / "context":
+            os.utime(selected, ns=(incoming_mtime, incoming_mtime))
+            os.utime(selected.parent, ns=(incoming_mtime, incoming_mtime))
+        if selected == work / "context/probe-bin-bracket":
+            if fault == "context-extra-directory":
+                (selected.parent / "unexpected-directory").mkdir()
+            elif fault == "context-hardlink":
+                os.link(selected, work / "probe-second-link")
         if selected == work / "context/Containerfile":
             if fault == "context-missing-recipe":
                 selected.unlink()
@@ -11089,8 +11125,7 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
             selected.write_bytes(selected.read_bytes() + b"# changed config\n")
         return copied
 
-    if context_failure:
-        monkeypatch.setattr(shutil, "copyfile", copyfile)
+    monkeypatch.setattr(shutil, "copyfile", copyfile)
     raw_path = work / "evidence/pair-export-index.raw.json"
     canonical_path = work / "evidence/pair-export-index.canonical.json"
     index_path = work / "candidate-layout/index.json"
@@ -11317,6 +11352,11 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
             elif "inspect" in argv and argv[-1] in containers:
                 raw = json.dumps(containers[argv[-1]]).encode()
             elif name == "pair-only-COPY-assembly":
+                assert "SOURCE_DATE_EPOCH" not in env
+                assert argv[argv.index("--build-arg") + 1] == "SOURCE_DATE_EPOCH=0"
+                assert "rewrite-timestamp=true" in argv[argv.index("--output") + 1]
+                assert all(path.lstat().st_mtime_ns == 0 for path in (work / "context").iterdir())
+                assert (work / "context").lstat().st_mtime_ns == 0
                 assert argv[:6] == [
                     sys.executable,
                     "-I",
@@ -11336,6 +11376,8 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
                     "--platform=linux/amd64",
                     "--provenance=false",
                     "--sbom=false",
+                    "--build-arg",
+                    "SOURCE_DATE_EPOCH=0",
                     "--annotation",
                     "manifest-descriptor:org.opencontainers.image.ref.name=candidate",
                     "--network=none",
@@ -11349,7 +11391,8 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
                     "--file",
                     str(work / "context/Containerfile"),
                     "--output",
-                    "type=oci,tar=false,dest=" + str(work / "candidate-layout"),
+                    "type=oci,tar=false,rewrite-timestamp=true,dest="
+                    + str(work / "candidate-layout"),
                     str(work / "context"),
                 ]
                 if fault == "assembly-exec":
@@ -11378,6 +11421,18 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
                 if fault == "assembly":
                     raise primary_error
                 shutil.copytree(d["seed"], work / "candidate-layout")
+                post_changes = {
+                    "post-context-file-mtime": "LICENSE",
+                    "post-context-root-mtime": ".",
+                    "post-context-storage-mtime": "storage-dir",
+                }
+                if fault in post_changes:
+                    os.utime(work / "context" / post_changes[fault], ns=(1, 1))
+                elif fault == "post-context-storage-mode":
+                    (work / "context/storage-dir").chmod(0o755)
+                elif fault == "post-context-extra-directory":
+                    (work / "context/extra").mkdir()
+
                 # Source-backed native exporter/client shape, not recovered C2 bytes.
                 index_path = work / "candidate-layout/index.json"
                 native_index = json.loads(index_path.read_bytes())
@@ -11659,7 +11714,17 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
                 assert caught.value.filename == str(work / "context/Containerfile")
             else:
                 assert isinstance(caught.value, transport.QualificationError)
-                assert str(caught.value) == "AM_context_recipe_drift"
+                assert str(caught.value) == {
+                    "context-extra-directory": "AM_context_exact_members",
+                    "context-hardlink": "AM_context_type_or_mode",
+                    "context-storage-populated": "AM_context_storage_not_empty",
+                }.get(fault, "AM_context_recipe_drift")
+        elif fault is not None and fault.startswith("post-context-"):
+            assert str(caught.value) == {
+                "post-context-storage-mode": "AM_context_type_or_mode",
+                "post-context-extra-directory": "AM_context_exact_members",
+            }.get(fault, "AM_context_identity_or_timestamp")
+            assert not (work / "candidate.oci.tar").exists()
         elif index_failure:
             codes = {
                 **dict.fromkeys(
@@ -11927,6 +11992,8 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
             == set(result["build_information"])
             == {"alertmanager", "amtool"}
         )
+    if fault in successful_faults:
+        assert {path: path.lstat().st_mtime_ns for path in immutable_times} == immutable_times
     assert result["automatic_retries"] == 0
     assert sum(name == "pair-only-COPY-assembly" for name, _argv in calls) <= 1
     for name, argv in calls:

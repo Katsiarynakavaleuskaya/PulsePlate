@@ -88,6 +88,7 @@ _ALERT_UPSTREAM_0342_REVISION = "e8349048265ccc0871c3d0d668b05eacc68baf50"
 _ALERT_UPSTREAM_0342_METADATA = _ALERT_BUILD_METADATA.replace(
     "Version=0.34.1", "Version=0.34.2"
 ).replace("73c6bfe7393929211294c1954f30d8ed78e4d0ad", _ALERT_UPSTREAM_0342_REVISION)
+_ALERT_ASSEMBLY_EPOCH = 0
 _ALERT_ASSEMBLY_LAUNCH = (
     "-I",
     "-S",
@@ -4762,6 +4763,7 @@ def _alertmanager_input_plan(
             "--platform=linux/amd64",
             "--provenance=false",
             "--sbom=false",
+            *(["--build-arg", f"SOURCE_DATE_EPOCH={_ALERT_ASSEMBLY_EPOCH}"] if current else []),
             "--annotation",
             "manifest-descriptor:org.opencontainers.image.ref.name=candidate",
             "--network=none",
@@ -4775,7 +4777,9 @@ def _alertmanager_input_plan(
             "--file",
             "/context/Containerfile",
             "--output",
-            "type=oci,tar=false,dest=/out/candidate-layout",
+            "type=oci,tar=false,"
+            + ("rewrite-timestamp=true," if current else "")
+            + "dest=/out/candidate-layout",
             "/context",
         ],
         "assembly_execution": "UNOBSERVED_UNTIL_THE_ONE_SEPARATELY_ADMITTED_PAIR_BUILD",
@@ -7792,6 +7796,54 @@ def _alertmanager_pair(
             shutil.copyfile(source, context / name)
             (context / name).chmod(0o555 if name == "probe-bin-bracket" else 0o444)
         (context / "storage-dir").mkdir(mode=0o700)
+        context_modes = {
+            "alertmanager": 0o555,
+            "amtool": 0o555,
+            "Containerfile": 0o444,
+            "alertmanager.yml": 0o444,
+            "LICENSE": 0o444,
+            "NOTICE": 0o444,
+            "probe-bin-bracket": 0o555,
+            "storage-dir": 0o700,
+            ".": 0o700,
+        }
+        context_identities: dict[str, tuple[int, int, int, int]] = {}
+
+        def check_context(*, normalized: bool) -> None:
+            require(
+                {path.name for path in context.iterdir()} == set(context_modes) - {"."},
+                "AM_context_exact_members",
+            )
+            for name, mode in context_modes.items():
+                path = context / name
+                info = path.lstat()
+                directory = name in ("storage-dir", ".")
+                require(
+                    (
+                        stat.S_ISDIR(info.st_mode)
+                        if directory
+                        else stat.S_ISREG(info.st_mode) and info.st_nlink == 1
+                    )
+                    and stat.S_IMODE(info.st_mode) == mode,
+                    "AM_context_type_or_mode",
+                )
+                identity = (info.st_dev, info.st_ino, info.st_uid, info.st_gid)
+                if normalized:
+                    require(
+                        identity == context_identities[name]
+                        and info.st_mtime_ns == _ALERT_ASSEMBLY_EPOCH * 1_000_000_000,
+                        "AM_context_identity_or_timestamp",
+                    )
+                else:
+                    context_identities[name] = identity
+            require(not any((context / "storage-dir").iterdir()), "AM_context_storage_not_empty")
+
+        check_context(normalized=False)
+        epoch_ns = _ALERT_ASSEMBLY_EPOCH * 1_000_000_000
+        for name in context_modes:
+            os.utime(context / name, ns=(epoch_ns, epoch_ns), follow_symlinks=False)
+        check_context(normalized=True)
+
         context_inventory = tree_inventory(context)
         result["context"] = context_inventory
         require(
@@ -7833,6 +7885,8 @@ def _alertmanager_pair(
             "--platform=linux/amd64",
             "--provenance=false",
             "--sbom=false",
+            "--build-arg",
+            f"SOURCE_DATE_EPOCH={_ALERT_ASSEMBLY_EPOCH}",
             "--annotation",
             "manifest-descriptor:org.opencontainers.image.ref.name=candidate",
             "--network=none",
@@ -7846,9 +7900,10 @@ def _alertmanager_pair(
             "--file",
             str(context / "Containerfile"),
             "--output",
-            "type=oci,tar=false,dest=" + str(layout),
+            "type=oci,tar=false,rewrite-timestamp=true,dest=" + str(layout),
             str(context),
         ]
+        check_context(normalized=True)
         native.run(argv, "pair-only-COPY-assembly", env, cwd=work, watched_output=work)
         index_path = layout / "index.json"
         real_directory(layout)
@@ -7990,6 +8045,7 @@ def _alertmanager_pair(
                 tree_inventory(layout / "blobs", deadline=native.deadline) == blob_inventory,
                 "AM_export_index_blob_drift",
             )
+        check_context(normalized=True)
         require(
             tree_inventory(context) == context_inventory
             and all(tree_inventory(inputs / name) == before for name, before in snapshots.items()),
