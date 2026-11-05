@@ -196,7 +196,7 @@ def test_unavailable_preferred_device_is_not_selected() -> None:
     ("mutation", "message"),
     [
         ("wrong_runtime", "Exactly one iOS 27.0"),
-        ("malformed_runtime", "invalid runtime key"),
+        ("non_string_runtime", "invalid runtime key"),
         ("unknown_type", "Unknown device type"),
         ("invalid_udid", "Invalid simulator UDID"),
         ("control_name", "unsafe characters"),
@@ -218,8 +218,8 @@ def test_malformed_or_unproven_inventory_fails(mutation: str, message: str) -> N
         device_map["com.apple.CoreSimulator.SimRuntime.iOS-27-1"] = device_map.pop(
             selector.IOS_27_RUNTIME
         )
-    elif mutation == "malformed_runtime":
-        device_map["com.apple.CoreSimulator.SimRuntime.iOS-27-0-extra"] = []
+    elif mutation == "non_string_runtime":
+        device_map[27] = []
     elif mutation == "unknown_type":
         device["deviceTypeIdentifier"] = "com.apple.CoreSimulator.SimDeviceType.Unknown"
     elif mutation == "invalid_udid":
@@ -241,10 +241,21 @@ def test_malformed_or_unproven_inventory_fails(mutation: str, message: str) -> N
         selector.select_simulator(devices, types, family="iphone")
 
 
+@pytest.mark.parametrize("family", ["iphone", "ipad"])
 def test_cli_writes_family_and_udid_only_output(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    family: str,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     devices, types = _inventories()
+    device_map = devices["devices"]
+    assert isinstance(device_map, dict)
+    device_map["com.apple.CoreSimulator.SimRuntime.iOS-untrusted\nextra"] = {
+        "name": "untrusted-value",
+        "udid": IPHONE_UDID,
+        "isAvailable": True,
+    }
     output_path = tmp_path / "github-output"
     summary_path = tmp_path / "summary"
     monkeypatch.setenv("GITHUB_OUTPUT", str(output_path))
@@ -255,14 +266,18 @@ def test_cli_writes_family_and_udid_only_output(
         "_native_inventory",
         lambda _xcrun, *args: devices if args[0] == "devices" else types,
     )
-    monkeypatch.setattr(selector.sys, "argv", ["select_ios_simulator.py", "--family", "ipad"])
+    monkeypatch.setattr(selector.sys, "argv", ["select_ios_simulator.py", "--family", family])
 
     assert selector.main() == 0
     output = output_path.read_text()
-    assert "family=ipad\n" in output
-    assert f"destination=platform=iOS Simulator,id={IPAD_UDID}\n" in output
+    assert f"family={family}\n" in output
+    assert (
+        f"destination=platform=iOS Simulator,id={IPAD_UDID if family == 'ipad' else IPHONE_UDID}\n"
+        in output
+    )
     assert "ios_runtime_id=com.apple.CoreSimulator.SimRuntime.iOS-27-0" in output
     assert "### iOS Destination Selection" in summary_path.read_text()
+    assert "untrusted" not in output + summary_path.read_text() + capsys.readouterr().out
 
 
 def test_cli_failure_does_not_publish_a_destination(
@@ -300,7 +315,9 @@ def test_cli_missing_prerequisite_fails_before_outputs(
     monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary_path))
     monkeypatch.setattr(selector.sys, "argv", ["select_ios_simulator.py", "--family", "iphone"])
     monkeypatch.setattr(
-        selector.shutil, "which", lambda name: None if missing == "xcrun" else "/usr/bin/xcrun"
+        selector.shutil,
+        "which",
+        lambda name: None if missing == "xcrun" else "/usr/bin/xcrun",
     )
     if missing == "invalid_json":
         monkeypatch.setattr(
@@ -365,7 +382,12 @@ def test_native_inventory_uses_resolved_xcrun_with_exact_arguments(
         calls.append(args)
         assert args == expected[len(calls) - 1]
         assert kwargs.pop("shell", False) is False
-        assert kwargs == {"check": True, "capture_output": True, "text": True, "timeout": 30}
+        assert kwargs == {
+            "check": True,
+            "capture_output": True,
+            "text": True,
+            "timeout": 30,
+        }
         if len(calls) == failed_call:
             if error == "timeout":
                 raise selector.subprocess.TimeoutExpired(args, 30)
@@ -383,3 +405,83 @@ def test_native_inventory_uses_resolved_xcrun_with_exact_arguments(
         assert selector.main() == 0
         assert calls == expected
         assert f"udid={IPHONE_UDID}\n" in output.read_text()
+
+
+@pytest.mark.parametrize("family", ["iphone", "ipad"])
+@pytest.mark.parametrize(
+    "key",
+    [
+        "com.apple.CoreSimulator.SimRuntime.iOS-27-0-extra",
+        "com.apple.CoreSimulator.SimRuntime.iOS-27-0-1",
+        "com.apple.CoreSimulator.SimRuntime.iOS-27-1",
+        "com.apple.CoreSimulator.SimRuntime.iOS-27-0 ",
+        "com.apple.CoreSimulator.SimRuntime.ios-27-0",
+        "unrelated\nname=untrusted",
+        "",
+        "com.apple.CoreSimulator.SimRuntime.visionOS-3-0",
+    ],
+)
+def test_unselected_runtime_data_cannot_influence_family_selection(family: str, key: str) -> None:
+    devices, types = _inventories()
+    expected = selector.select_simulator(devices, types, family=family)
+    device_map = devices["devices"]
+    assert isinstance(device_map, dict)
+    for value in (
+        None,
+        False,
+        27,
+        "invalid",
+        {},
+        [None],
+        device_map[selector.IOS_27_RUNTIME],
+    ):
+        device_map[key] = value
+        assert selector.select_simulator(devices, types, family=family) == expected
+
+
+@pytest.mark.parametrize("family", ["iphone", "ipad"])
+@pytest.mark.parametrize("fault", ["missing", "alias-only", "null", "object", "empty", "unsafe"])
+def test_cli_selected_runtime_failure_survives_valid_foreign_bucket(
+    family: str,
+    fault: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    devices, types = _inventories()
+    device_map = devices["devices"]
+    assert isinstance(device_map, dict)
+    valid = device_map.pop(selector.IOS_27_RUNTIME)
+    device_map["com.apple.CoreSimulator.SimRuntime.iOS-27-0-extra"] = valid
+    if fault != "alias-only":
+        device_map["com.apple.CoreSimulator.SimRuntime.iOS-27-1"] = valid
+    if fault not in ("missing", "alias-only"):
+        device_map[selector.IOS_27_RUNTIME] = {
+            "null": None,
+            "object": {},
+            "empty": [],
+            "unsafe": [
+                {
+                    "name": "unsafe\noutput=injected",
+                    "isAvailable": True,
+                    "udid": IPHONE_UDID,
+                    "deviceTypeIdentifier": IPHONE_TYPE,
+                }
+            ],
+        }[fault]
+    output, summary = tmp_path / "output", tmp_path / "summary"
+    output.write_text("existing=preserved\n")
+    summary.write_text("previous summary\n")
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+    monkeypatch.setattr(selector.shutil, "which", lambda name: "/usr/bin/xcrun")
+    monkeypatch.setattr(
+        selector,
+        "_native_inventory",
+        lambda _tool, *args: devices if args[0] == "devices" else types,
+    )
+    monkeypatch.setattr(selector.sys, "argv", ["select_ios_simulator.py", "--family", family])
+    assert selector.main() == 1
+    assert capsys.readouterr().out == ""
+    assert output.read_text() == "existing=preserved\n"
+    assert summary.read_text() == "previous summary\n"
