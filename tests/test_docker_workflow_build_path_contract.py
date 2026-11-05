@@ -1095,10 +1095,21 @@ def test_production_dockerfile_prunes_package_manager_surface() -> None:
     ].split("# SECURITY: production-package-pruning-end", 1)[0]
 
     assert "dpkg --purge --force-depends --force-remove-essential" in pruning_block
+    assert "FROM production AS staging" in dockerfile
+    commands = [command.split() for command in pruning_block.replace("\\\n", "").split("&&")]
+    leaf = commands.index(["dpkg", "--purge", "libapt-pkg6.0"])
+    assert commands[leaf - 1][:5] == [
+        "dpkg",
+        "--purge",
+        "--force-depends",
+        "--force-remove-essential",
+        "apt",
+    ]
+    assert commands[leaf + 1] == ["ldconfig"]
     assert "perl_module_packages=" in pruning_block
     assert "'perl-modules-*'" in pruning_block
     assert (
-        "for package in apt gzip gpgv libacl1 libattr1 libgnutls30 "
+        "for package in apt libapt-pkg6.0 gzip gpgv libacl1 libattr1 libgnutls30 "
         "libsqlite3-0 libpcre2-8-0 perl-base ${perl_module_packages} bsdutils libblkid1 libmount1 "
         "libsmartcols1 libuuid1 mount util-linux util-linux-extra libsystemd0 libudev1; do"
     ) in pruning_block

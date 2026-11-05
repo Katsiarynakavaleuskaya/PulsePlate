@@ -1947,7 +1947,7 @@ def test_caddy_reuse_input_inventory_binds_all_caller_enumerated_files(
             runtime_surface.caddy_ci_source_inventory(tmp_path, paths)
 
 
-def _caddy_control_fixture(directory: Path) -> tuple[dict, dict]:
+def _caddy_control_fixture(directory: Path, *, local_layer: bool = False) -> tuple[dict, dict]:
     from copy import deepcopy
 
     directory.mkdir()
@@ -2072,6 +2072,18 @@ def _caddy_control_fixture(directory: Path) -> tuple[dict, dict]:
             ("GITHUB_PAT=" + "ghp_" + "012345678901234567890123456789abcdef" + "\n").encode()
         ).hexdigest(),
     }
+    if local_layer:
+        controls.update(owner="synthetic", child_tag="pulseplate-caddy-control:synthetic")
+        for report, tag, layers in (
+            (candidate, "pulseplate-caddy:contract", controls["parent_layers"]),
+            (child, controls["child_tag"], controls["child_layers"]),
+        ):
+            descriptors = [{"Size": 512, "DiffID": diff_id} for diff_id in layers]
+            report["Metadata"].update(
+                Reference=tag, RepoTags=[tag], DiffIDs=layers, Layers=descriptors
+            )
+            report["Metadata"]["ImageConfig"]["rootfs"] = {"type": "layers", "diff_ids": layers}
+        del child["Results"][-1]["Secrets"][0]["Layer"]["Digest"]
     for subject, full in (("candidate", candidate), ("official", official), ("secret", child)):
         high = deepcopy(full)
         for row in high["Results"]:
@@ -2110,6 +2122,28 @@ def _caddy_control_fixture(directory: Path) -> tuple[dict, dict]:
         "official-witness",
         "fingerprint",
         "unknown-field",
+        "local",
+        "same-subject",
+        "local-registry",
+        "local-tag",
+        "local-reference",
+        "local-chain",
+        "local-rootfs",
+        "local-layer-order",
+        "local-layer-size",
+        "local-descriptor-null",
+        "local-descriptor-extra",
+        "local-metadata-HC",
+        "local-HC-size-float",
+        "local-HC-size-bool",
+        "local-hides-digest",
+        "descriptor-digest-mismatch",
+        "descriptor-digest-match",
+        "legacy-registry",
+        "local-digest-null",
+        "local-created-by",
+        "local-layer-extra",
+        "local-masked-match",
         "secret-layer",
         "secret-extra-field",
         "secret-missing",
@@ -2124,7 +2158,9 @@ def test_caddy_native_controls_require_decoded_findings_and_complete_subject_rel
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str | None
 ) -> None:
     directory = tmp_path / "controls"
-    candidate, controls = _caddy_control_fixture(directory)
+    candidate, controls = _caddy_control_fixture(
+        directory, local_layer=(fault == "local" or bool(fault and fault.startswith("local-")))
+    )
     if fault in ("scanner-error", "timeout", "boolean-exit"):
         target = controls["scans"]["secret-HC"]
         if fault == "timeout":
@@ -2145,7 +2181,9 @@ def test_caddy_native_controls_require_decoded_findings_and_complete_subject_rel
         controls["child_was_started"] = True
     elif fault == "filesystem-delta":
         controls["filesystem_delta"].append("C /etc/hosts")
-    elif fault is not None:
+    elif fault == "same-subject":
+        controls["subjects"]["official"] = controls["subjects"]["secret"]
+    elif fault not in (None, "local"):
         names = (
             ["official-full", "official-HC"]
             if fault == "official-witness"
@@ -2164,6 +2202,57 @@ def test_caddy_native_controls_require_decoded_findings_and_complete_subject_rel
                 report["Results"][0]["unexplained"] = "must not be dropped"
             elif fault == "secret-layer":
                 report["Results"][-1]["Secrets"][0]["Layer"]["DiffID"] = "sha256:" + "9" * 64
+            elif fault == "local-registry":
+                report["Metadata"]["RepoDigests"] = [
+                    "registry.invalid/caddy@" + "sha256:" + "8" * 64
+                ]
+            elif fault == "local-tag":
+                report["Metadata"]["RepoTags"] = ["foreign:tag"]
+            elif fault == "local-reference":
+                report["Metadata"].pop("Reference")
+            elif fault == "local-chain":
+                report["Metadata"]["DiffIDs"][0] = "sha256:" + "8" * 64
+            elif fault == "local-rootfs":
+                report["Metadata"]["ImageConfig"]["rootfs"]["diff_ids"].reverse()
+            elif fault == "local-layer-order":
+                report["Metadata"]["Layers"].reverse()
+            elif fault == "local-layer-size":
+                report["Metadata"]["Layers"][-1]["Size"] = True
+            elif fault == "local-descriptor-null":
+                report["Metadata"]["Layers"][-1]["Digest"] = None
+            elif fault == "local-descriptor-extra":
+                report["Metadata"]["Layers"][-1]["unknown"] = True
+            elif fault == "local-HC-size-float" and name.endswith("HC"):
+                report["Metadata"]["Layers"][-1]["Size"] = 512.0
+            elif fault == "local-HC-size-bool":
+                report["Metadata"]["Layers"][-1]["Size"] = True if name.endswith("HC") else 1
+            elif fault == "local-metadata-HC" and name.endswith("HC"):
+                report["Metadata"]["Layers"][-1]["Size"] += 1
+            elif fault == "local-hides-digest":
+                report["Metadata"]["Layers"][-1]["Digest"] = "sha256:" + "8" * 64
+            elif fault in ("descriptor-digest-match", "descriptor-digest-mismatch"):
+                final_layer = report["Results"][-1]["Secrets"][0]["Layer"]
+                digest = (
+                    final_layer["Digest"]
+                    if fault == "descriptor-digest-match"
+                    else "sha256:" + "8" * 64
+                )
+                report["Metadata"]["Layers"] = [
+                    {"Size": 512, "DiffID": controls["parent_layers"][0]},
+                    {"Size": 512, "DiffID": final_layer["DiffID"], "Digest": digest},
+                ]
+            elif fault == "legacy-registry":
+                report["Metadata"]["RepoDigests"] = [
+                    "registry.invalid/caddy@" + "sha256:" + "7" * 64
+                ]
+            elif fault == "local-digest-null":
+                report["Results"][-1]["Secrets"][0]["Layer"]["Digest"] = None
+            elif fault == "local-created-by":
+                report["Results"][-1]["Secrets"][0]["Layer"]["CreatedBy"] = "other"
+            elif fault == "local-layer-extra":
+                report["Results"][-1]["Secrets"][0]["Layer"]["unknown"] = True
+            elif fault == "local-masked-match":
+                report["Results"][-1]["Secrets"][0]["Match"] = "wrong"
             elif fault == "secret-extra-field":
                 report["Results"][-1]["Secrets"][0]["unknown"] = "must not be dropped"
             elif fault == "secret-missing":
@@ -2178,7 +2267,7 @@ def test_caddy_native_controls_require_decoded_findings_and_complete_subject_rel
         lambda args: subprocess.CompletedProcess(args, 0, args[-1] + "\n", ""),
     )
     original = {path.name: path.read_bytes() for path in directory.iterdir()}
-    if fault is None:
+    if fault in (None, "local", "descriptor-digest-match", "legacy-registry"):
         result = runtime_surface.validate_caddy_control_reports(candidate, controls, directory)
         assert result["native_controls"] == "observed_exact_current_epoch"
         assert result["v3_scanner_comparability"] == "UNKNOWN"

@@ -706,9 +706,10 @@ RUN perl_module_packages="$(dpkg-query -W -f='${Package}\n' 'perl-modules-*' 2>/
         libpcre2-8-0 \
         perl-base \
         ${perl_module_packages} \
+    && dpkg --purge libapt-pkg6.0 \
     && ldconfig \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/* \
-    && for package in apt gzip gpgv libacl1 libattr1 libgnutls30 libsqlite3-0 libpcre2-8-0 perl-base ${perl_module_packages} bsdutils libblkid1 libmount1 libsmartcols1 libuuid1 mount util-linux util-linux-extra libsystemd0 libudev1; do \
+    && for package in apt libapt-pkg6.0 gzip gpgv libacl1 libattr1 libgnutls30 libsqlite3-0 libpcre2-8-0 perl-base ${perl_module_packages} bsdutils libblkid1 libmount1 libsmartcols1 libuuid1 mount util-linux util-linux-extra libsystemd0 libudev1; do \
         status="$(dpkg-query -W -f='${db:Status-Abbrev}' "${package}" 2>/dev/null || true)"; \
         if [ "${status#ii}" != "${status}" ]; then \
             echo "${package} remains installed after production package pruning" >&2; \

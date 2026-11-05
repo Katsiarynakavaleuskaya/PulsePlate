@@ -1411,12 +1411,82 @@ def validate_caddy_policy_projection(image: str, raw_path: Path, projected_path:
         raise ValueError("Caddy strict native conversion changed a report member")
 
 
+def _validate_caddy_local_control_layers(
+    reports: dict[str, dict[str, Any]], controls: dict[str, Any]
+) -> None:
+    """Identify the local image transport before accepting a finding without a compressed digest."""
+    parent_layers, child_layers = controls["parent_layers"], controls["child_layers"]
+    if (
+        not parent_layers
+        or child_layers[-1] in parent_layers
+        or not all(
+            isinstance(value, str) and re.fullmatch(r"sha256:[0-9a-f]{64}", value)
+            for value in child_layers
+        )
+    ):
+        raise ValueError("Caddy local child DiffIDs differ")
+    child_tag = controls.get("child_tag")
+    if (
+        not isinstance(controls.get("owner"), str)
+        or not controls["owner"]
+        or child_tag != "pulseplate-caddy-control:" + controls["owner"]
+    ):
+        raise ValueError("Caddy owned local control tag required")
+    for subject, tag, expected_layers in (
+        ("candidate", "pulseplate-caddy:contract", parent_layers),
+        ("secret", child_tag, child_layers),
+    ):
+        metadata = reports[subject + "-full"]["Metadata"]
+        high_metadata = reports[subject + "-HC"]["Metadata"]
+        expected_rootfs = {"type": "layers", "diff_ids": expected_layers}
+        for observed in (metadata, high_metadata):
+            config = observed.get("ImageConfig")
+            if not isinstance(config, dict) or config.get("rootfs") != expected_rootfs:
+                raise ValueError("Caddy local image config layers differ")
+            descriptors = observed.get("Layers")
+            if (
+                observed.get("Reference") != tag
+                or observed.get("RepoTags") != [tag]
+                or observed.get("RepoDigests", []) != []
+                or observed.get("DiffIDs") != expected_layers
+                or not isinstance(descriptors, list)
+                or len(descriptors) != len(expected_layers)
+            ):
+                raise ValueError("Caddy local control source or layer metadata differs")
+            for descriptor, diff_id in zip(descriptors, expected_layers, strict=True):
+                if (
+                    not isinstance(descriptor, dict)
+                    or set(descriptor) not in ({"Size", "DiffID"}, {"Size", "Digest", "DiffID"})
+                    or not isinstance(descriptor["DiffID"], str)
+                    or descriptor["DiffID"] != diff_id
+                    or type(descriptor["Size"]) is not int
+                    or descriptor["Size"] < 0
+                    or (
+                        "Digest" in descriptor
+                        and not (
+                            isinstance(descriptor["Digest"], str)
+                            and re.fullmatch(r"sha256:[0-9a-f]{64}", descriptor["Digest"])
+                        )
+                    )
+                ):
+                    raise ValueError("Caddy native layer descriptor differs")
+        if metadata["Layers"] != high_metadata["Layers"]:
+            raise ValueError("Caddy local full and HC layer metadata differ")
+    if "Digest" in reports["secret-full"]["Metadata"]["Layers"][-1]:
+        raise ValueError("Caddy uncompressed finding contradicts native layer digest")
+
+
 def validate_caddy_control_reports(
     candidate: dict[str, Any],
     controls: dict[str, Any],
     directory: Path,
 ) -> dict[str, object]:
     """Consume the finite same-epoch candidate/official/secret native observations."""
+    if (
+        set(controls["subjects"]) != {"candidate", "official", "secret"}
+        or len(set(controls["subjects"].values())) != 3
+    ):
+        raise ValueError("Caddy distinct control subjects required")
     reports: dict[str, dict[str, Any]] = {"candidate-full": candidate}
     expected_exits = {
         "candidate-full": 0,
@@ -1565,21 +1635,48 @@ def validate_caddy_control_reports(
         "Offset": 11,
         "Layer": secret.get("Layer"),
     }
+    parent_layers, child_layers = controls["parent_layers"], controls["child_layers"]
+    if (
+        not isinstance(parent_layers, list)
+        or not isinstance(child_layers, list)
+        or len(child_layers) != len(parent_layers) + 1
+        or child_layers[:-1] != parent_layers
+    ):
+        raise ValueError("Caddy secret child layer lineage")
     layer = secret.get("Layer")
     if (
         secret != expected_secret
         or not isinstance(layer, dict)
-        or set(layer) != {"Digest", "DiffID", "CreatedBy"}
-        or layer["DiffID"] != controls["child_layers"][-1]
-        or re.fullmatch(r"sha256:[0-9a-f]{64}", layer["Digest"]) is None
+        or set(layer) not in ({"DiffID", "CreatedBy"}, {"Digest", "DiffID", "CreatedBy"})
+        or layer["DiffID"] != child_layers[-1]
+        or (
+            "Digest" in layer
+            and not (
+                isinstance(layer["Digest"], str)
+                and re.fullmatch(r"sha256:[0-9a-f]{64}", layer["Digest"])
+            )
+        )
         or layer["CreatedBy"] != "caddy run --config /etc/caddy/Caddyfile --adapter caddyfile"
     ):
         raise ValueError("Caddy synthetic secret contents or layer differ")
-    if (
-        controls["child_layers"][:-1] != controls["parent_layers"]
-        or len(controls["child_layers"]) != len(controls["parent_layers"]) + 1
-    ):
-        raise ValueError("Caddy secret child layer lineage")
+    if "Digest" not in layer:
+        _validate_caddy_local_control_layers(reports, controls)
+    else:
+        for stage in ("secret-full", "secret-HC"):
+            metadata = reports[stage]["Metadata"]
+            if "Layers" in metadata:
+                descriptors = metadata["Layers"]
+                if (
+                    not isinstance(descriptors, list)
+                    or not descriptors
+                    or not isinstance(descriptors[-1], dict)
+                ):
+                    raise ValueError("Caddy compressed layer metadata malformed")
+                final = descriptors[-1]
+                if "Digest" in final and (
+                    final["Digest"] != layer["Digest"] or final.get("DiffID") != layer["DiffID"]
+                ):
+                    raise ValueError("Caddy compressed finding contradicts native layer digest")
     if (
         controls["filesystem_delta"] != ["A /credentials.txt"]
         or controls["child_was_started"] is not False

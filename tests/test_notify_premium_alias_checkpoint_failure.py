@@ -33,6 +33,7 @@ from html import escape
 from html.parser import HTMLParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.error import HTTPError
 from urllib.request import ProxyHandler, Request, build_opener
 from collections.abc import Callable
 
@@ -2307,6 +2308,33 @@ def _native_amtool_candidate(
             raise
 
 
+def _native_alertmanager_foreign_status(method: str) -> None:
+    """Exercise the 0.34.2 loopback status route with an untrusted Origin."""
+    assert method in ("GET", "OPTIONS")
+    url = "http://127.0.0.1:19095/api/v2/status"
+    headers = {"Origin": "https://untrusted.example.invalid", "Accept-Encoding": "gzip"}
+    if method == "OPTIONS":
+        headers["Access-Control-Request-Method"] = "GET"
+    opener = build_opener(ProxyHandler({}), prometheus_image.NoRedirect())
+    try:
+        response = opener.open(Request(url, headers=headers, method=method), timeout=10)
+    except HTTPError as error:
+        if method != "OPTIONS" or error.code != 405:
+            error.close()
+            raise
+        response = error
+    with response:
+        assert response.geturl() == url
+        assert response.status in ((200, 204, 405) if method == "OPTIONS" else (200,))
+        assert len(response.read(1024 * 1024 + 1)) <= 1024 * 1024
+        if method == "OPTIONS":
+            assert not any(
+                key.lower().startswith("access-control-allow-") for key in response.headers
+            )
+        else:
+            assert not any(key.lower() == "access-control-allow-origin" for key in response.headers)
+
+
 def _native_alertmanager_candidate(
     directory: Path, image: str, evidence: dict[str, object], *, current: bool = True
 ) -> None:
@@ -2349,20 +2377,16 @@ def _native_alertmanager_candidate(
     (document / "index.html").write_text("pulseplate-owned-httpd-probe\n")
     (document / "index.html").chmod(0o444)
 
-    def request(
-        path: str, *, method: str = "GET", origin: str | None = None
-    ) -> tuple[bytes, dict[str, str]]:
+    def request(path: str, *, origin: str | None = None) -> tuple[bytes, dict[str, str]]:
         """Require a complete bounded local HTTP200 response without ambient proxies."""
         headers = {"Accept-Encoding": "gzip"}
         if origin is not None:
             headers["Origin"] = origin
-        if method == "OPTIONS":
-            headers["Access-Control-Request-Method"] = "GET"
         with build_opener(ProxyHandler({})).open(
-            Request("http://127.0.0.1:19095" + path, headers=headers, method=method),
+            Request("http://127.0.0.1:19095" + path, headers=headers),
             timeout=10,
         ) as response:
-            assert response.status in ((200, 204) if method == "OPTIONS" else (200,))
+            assert response.status == 200
             raw = response.read(1024 * 1024 + 1)
             assert len(raw) <= 1024 * 1024
             return raw, dict(response.headers)
@@ -2496,12 +2520,7 @@ def _native_alertmanager_candidate(
                 == "0.34.2"
             ):
                 for method in ("GET", "OPTIONS"):
-                    _, cors_headers = request(
-                        "/api/v2/status", method=method, origin="https://untrusted.example.invalid"
-                    )
-                    assert not any(
-                        key.lower() == "access-control-allow-origin" for key in cors_headers
-                    )
+                    _native_alertmanager_foreign_status(method)
                 request("/", origin="http://127.0.0.1:19095")
         root, headers = request("/")
         ui = evidence.get("UI_file_hashes")
@@ -4672,6 +4691,70 @@ def test_notifier_reader_failure_is_stable_and_never_sends(
         == 1
     )
     assert capsys.readouterr().out == notifier.ERROR + "\n"
+
+
+@pytest.mark.parametrize(
+    ("method", "status", "fault"),
+    [
+        ("GET", 200, None),
+        ("GET", 405, "status"),
+        ("GET", 200, "grant"),
+        ("OPTIONS", 200, None),
+        ("OPTIONS", 204, None),
+        ("OPTIONS", 405, None),
+        ("OPTIONS", 405, "grant"),
+        ("OPTIONS", 204, "grant"),
+        ("OPTIONS", 405, "route"),
+        ("OPTIONS", 405, "oversize"),
+        ("OPTIONS", 403, "status"),
+        ("OPTIONS", 500, "status"),
+        ("OPTIONS", 302, "status"),
+        ("OPTIONS", 405, "transport"),
+    ],
+)
+def test_native_alertmanager_foreign_status_requires_method_specific_denial(
+    method: str, status: int, fault: str | None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from email.message import Message
+    from urllib.response import addinfourl
+
+    url = "http://127.0.0.1:19095/api/v2/status"
+    headers = Message()
+    if fault == "grant":
+        key = "Access-Control-Allow-Origin" if method == "GET" else "Access-Control-Allow-Methods"
+        headers.add_header(key, "")
+        headers.add_header(key.swapcase(), "*")
+    body = io.BytesIO(b"x" * (1024 * 1024 + 1) if fault == "oversize" else b"synthetic")
+    received_url = url + "/other" if fault == "route" else url
+
+    class Opener:
+        def open(self, request: Request, *, timeout: int) -> addinfourl:
+            assert request.full_url == url and request.get_method() == method and timeout == 10
+            assert request.get_header("Origin") == "https://untrusted.example.invalid"
+            assert request.get_header("Access-control-request-method") == (
+                "GET" if method == "OPTIONS" else None
+            )
+            if fault == "transport":
+                raise ConnectionError("synthetic transport failure")
+            if status >= 300:
+                raise HTTPError(received_url, status, "synthetic", headers, body)
+            return addinfourl(body, headers, received_url, status)
+
+    def opener(proxy: ProxyHandler, redirects: prometheus_image.NoRedirect) -> Opener:
+        assert proxy.proxies == {} and isinstance(redirects, prometheus_image.NoRedirect)
+        return Opener()
+
+    monkeypatch.setattr(sys.modules[__name__], "build_opener", opener)
+    if fault is None:
+        _native_alertmanager_foreign_status(method)
+    else:
+        error = {"status": HTTPError, "transport": ConnectionError}.get(fault, AssertionError)
+        with pytest.raises(error):
+            _native_alertmanager_foreign_status(method)
+    if fault != "transport":
+        assert body.closed
+    else:
+        body.close()
 
 
 @pytest.mark.parametrize("fault", [None, "corrupt", "symlink", "hardlink"])
