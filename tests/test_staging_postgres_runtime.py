@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import base64
+from copy import deepcopy
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -42,6 +45,652 @@ def selected_fixture() -> tuple[dict[str, Any], dict[str, Any]]:
         }
     }
     return rendered, manifest
+
+
+def _bind_identity_raw(
+    contract: dict[str, Any],
+    manifest: dict[str, Any],
+    envelope: dict[str, Any],
+    local: list[dict[str, Any]],
+    raw: bytes,
+    projection: object,
+) -> None:
+    digest = "sha256:" + hashlib.sha256(raw).hexdigest()
+    subject = manifest["repository"] + "@" + digest
+    manifest["platform_manifest_digest"] = digest
+    contract["image"] = subject
+    envelope.update(
+        {
+            "Ref": subject,
+            "Raw": base64.b64encode(raw).decode("ascii"),
+            "Descriptor": {
+                "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                "digest": digest,
+                "size": len(raw),
+                "platform": {"architecture": "amd64", "os": "linux"},
+            },
+            "OCIManifest": deepcopy(projection),
+        }
+    )
+    local[0].update({"RepoDigests": [subject], "Id": manifest["config_digest"]})
+
+
+def _identity_fixture(
+    seed: str = "first",
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], list[dict[str, Any]]]:
+    rendered, manifest = selected_fixture()
+    config = ("synthetic-config-" + seed).encode()
+    manifest["config_digest"] = "sha256:" + hashlib.sha256(config).hexdigest()
+    document = {
+        "schemaVersion": 2,
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "config": {
+            "mediaType": "application/vnd.oci.image.config.v1+json",
+            "digest": manifest["config_digest"],
+            "size": len(config),
+        },
+        "layers": [
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:" + hashlib.sha256((seed + suffix).encode()).hexdigest(),
+                "size": size,
+                "annotations": {"synthetic": suffix},
+            }
+            for suffix, size in (("one", 1), ("two", 2))
+        ],
+    }
+    contract: dict[str, Any] = {}
+    envelope: dict[str, Any] = {}
+    local = [{"Os": "linux", "Architecture": "amd64"}]
+    _bind_identity_raw(contract, manifest, envelope, local, json.dumps(document).encode(), document)
+    manifest["runtime_ref"] = (
+        manifest["repository"] + ":synthetic@" + manifest["platform_manifest_digest"]
+    )
+    rendered["services"]["postgres"]["image"] = manifest["runtime_ref"]
+    return runtime.selected_contract(rendered, manifest), manifest, envelope, local
+
+
+def _identity_reader(
+    monkeypatch: pytest.MonkeyPatch, subject: str, registry: bytes, local: bytes
+) -> list[list[str]]:
+    calls: list[list[str]] = []
+
+    def native(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[bytes]:
+        calls.append(args)
+        if args == ["docker", "manifest", "inspect", "--verbose", subject]:
+            output = registry
+        else:
+            assert args == ["docker", "image", "inspect", subject]
+            output = local
+        return subprocess.CompletedProcess(args, 0, output, b"")
+
+    monkeypatch.setattr(runtime, "native", native)
+    return calls
+
+
+@pytest.mark.parametrize("id_form", ["config_digest", "platform_manifest_digest"])
+def test_selected_identity_requires_the_complete_witness_for_both_id_forms(
+    monkeypatch: pytest.MonkeyPatch, id_form: str
+) -> None:
+    contract, manifest, envelope, local = _identity_fixture()
+    local[0]["Id"] = manifest[id_form]
+    # Object order is immaterial; Raw bytes and layer array order remain unchanged.
+    envelope["OCIManifest"] = dict(reversed(list(envelope["OCIManifest"].items())))
+    calls = _identity_reader(
+        monkeypatch, contract["image"], json.dumps(envelope).encode(), json.dumps(local).encode()
+    )
+    subject = runtime._selected_image_subject(contract, manifest)
+    runtime._admit_selected_image(subject, manifest)
+    assert calls == [
+        ["docker", "manifest", "inspect", "--verbose", subject],
+        ["docker", "image", "inspect", subject],
+    ]
+    del envelope["Raw"]
+    calls = _identity_reader(
+        monkeypatch, subject, json.dumps(envelope).encode(), json.dumps(local).encode()
+    )
+    with pytest.raises(runtime.ProbeError, match="supported single OCI envelope"):
+        runtime._admit_selected_image(subject, manifest)
+    assert len(calls) == 1  # No config-form shortcut or local-inspect fallback.
+
+
+@pytest.mark.parametrize(
+    "owner,field,value",
+    [
+        ("manifest", "repository", None),
+        ("manifest", "repository", ""),
+        ("manifest", "repository", "https://ghcr.io/owner/image"),
+        ("manifest", "repository", "user:password@ghcr.io/owner/image"),
+        ("manifest", "repository", "ghcr.io/owner/image:tag"),
+        ("manifest", "platform_manifest_digest", None),
+        ("manifest", "platform_manifest_digest", "sha256:short"),
+        ("manifest", "platform_manifest_digest", "sha256:" + "A" * 64),
+        ("manifest", "config_digest", []),
+        ("manifest", "config_digest", "sha256:short"),
+        ("manifest", "platform", "linux/arm64"),
+        ("contract", "platform", None),
+        ("contract", "image", "ghcr.io/owner/image:tag"),
+        ("contract", "image", []),
+    ],
+)
+def test_selected_identity_rejects_consumed_tuple_fields_before_image_operations(
+    monkeypatch: pytest.MonkeyPatch, owner: str, field: str, value: object
+) -> None:
+    contract, manifest, _, _ = _identity_fixture()
+    (manifest if owner == "manifest" else contract)[field] = value
+    calls: list[list[str]] = []
+    monkeypatch.setattr(runtime, "native", lambda args, **kwargs: calls.append(args))
+    with pytest.raises(runtime.ProbeError, match="Native selected image"):
+        runtime._selected_image_subject(contract, manifest)
+    assert calls == []
+    if owner == "manifest":
+        rendered, selected = selected_fixture()
+        selected[field] = value
+        with pytest.raises(runtime.ProbeError):
+            runtime.selected_contract(rendered, selected)
+
+
+@pytest.mark.parametrize(
+    "fault,message",
+    [
+        ("array", "supported single OCI envelope"),
+        ("extra", "supported single OCI envelope"),
+        ("missing", "supported single OCI envelope"),
+        ("ref", "reference or Raw field"),
+        ("raw_type", "reference or Raw field"),
+        ("base64", "malformed or non-finite"),
+        ("base64_nonascii", "malformed or non-finite"),
+        ("hash", "Raw identity or Descriptor"),
+        ("descriptor_type", "Raw identity or Descriptor"),
+        ("descriptor_extra", "Raw identity or Descriptor"),
+        ("descriptor_missing", "Raw identity or Descriptor"),
+        ("descriptor_digest", "Raw identity or Descriptor"),
+        ("descriptor_size", "Raw identity or Descriptor"),
+        ("descriptor_bool", "Raw identity or Descriptor"),
+        ("descriptor_float", "Raw identity or Descriptor"),
+        ("descriptor_zero", "Raw identity or Descriptor"),
+        ("descriptor_media", "Raw identity or Descriptor"),
+        ("descriptor_platform", "Raw identity or Descriptor"),
+        ("descriptor_platform_extra", "Raw identity or Descriptor"),
+    ],
+)
+def test_registry_envelope_rejects_independent_binding_faults(
+    monkeypatch: pytest.MonkeyPatch, fault: str, message: str
+) -> None:
+    contract, manifest, envelope, local = _identity_fixture()
+    observation: object = envelope
+    if fault == "array":
+        observation = [envelope]
+    elif fault == "extra":
+        envelope["unknown"] = "synthetic-marker"
+    elif fault == "missing":
+        del envelope["Raw"]
+    elif fault == "ref":
+        envelope["Ref"] += "suffix"
+    elif fault == "raw_type":
+        envelope["Raw"] = []
+    elif fault == "base64":
+        envelope["Raw"] += "!"
+    elif fault == "base64_nonascii":
+        envelope["Raw"] = "é"
+    elif fault == "hash":
+        raw = base64.b64decode(envelope["Raw"])
+        changed = raw.replace(b'"schemaVersion": 2', b'"schemaVersion": 3')
+        assert changed != raw and len(changed) == len(raw)
+        envelope["Raw"] = base64.b64encode(changed).decode()
+    elif fault == "descriptor_type":
+        envelope["Descriptor"] = []
+    elif fault == "descriptor_extra":
+        envelope["Descriptor"]["unknown"] = True
+    elif fault == "descriptor_missing":
+        del envelope["Descriptor"]["size"]
+    elif fault == "descriptor_platform_extra":
+        envelope["Descriptor"]["platform"]["variant"] = "unknown"
+    else:
+        field, value = {
+            "descriptor_digest": ("digest", "sha256:" + "0" * 64),
+            "descriptor_size": ("size", envelope["Descriptor"]["size"] + 1),
+            "descriptor_bool": ("size", True),
+            "descriptor_float": ("size", float(envelope["Descriptor"]["size"])),
+            "descriptor_zero": ("size", 0),
+            "descriptor_media": (
+                "mediaType",
+                "application/vnd.docker.distribution.manifest.v2+json",
+            ),
+            "descriptor_platform": ("platform", {"os": "linux", "architecture": "arm64"}),
+        }[fault]
+        envelope["Descriptor"][field] = value
+    calls = _identity_reader(
+        monkeypatch, contract["image"], json.dumps(observation).encode(), json.dumps(local).encode()
+    )
+    with pytest.raises(runtime.ProbeError, match=message):
+        runtime._admit_selected_image(contract["image"], manifest)
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize(
+    "field,value,message",
+    [
+        ("schemaVersion", True, "supported OCI image manifest"),
+        ("schemaVersion", 2.0, "supported OCI image manifest"),
+        ("schemaVersion", "2", "supported OCI image manifest"),
+        ("mediaType", "application/vnd.oci.image.index.v1+json", "supported OCI image manifest"),
+        (
+            "mediaType",
+            "application/vnd.docker.distribution.manifest.v2+json",
+            "supported OCI image manifest",
+        ),
+        ("layers", {}, "supported OCI image manifest"),
+        ("manifests", [], "supported OCI image manifest"),
+        ("config", [], "config descriptor"),
+        ("__root__", [], "supported OCI image manifest"),
+        ("__missing_layers__", None, "supported OCI image manifest"),
+    ],
+)
+def test_raw_manifest_shape_is_checked_after_recomputed_hash_binding(
+    monkeypatch: pytest.MonkeyPatch, field: str, value: object, message: str
+) -> None:
+    contract, manifest, envelope, local = _identity_fixture()
+    document = deepcopy(envelope["OCIManifest"])
+    if field == "__root__":
+        document = value
+    elif field == "__missing_layers__":
+        del document["layers"]
+    else:
+        document[field] = value
+    _bind_identity_raw(contract, manifest, envelope, local, json.dumps(document).encode(), document)
+    _identity_reader(
+        monkeypatch, contract["image"], json.dumps(envelope).encode(), json.dumps(local).encode()
+    )
+    with pytest.raises(runtime.ProbeError, match=message):
+        runtime._admit_selected_image(contract["image"], manifest)
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("digest", "sha256:" + "0" * 64),
+        ("mediaType", "application/vnd.docker.container.image.v1+json"),
+        ("size", True),
+        ("size", 1.0),
+        ("size", 0),
+        ("size", -1),
+        ("size", "1"),
+        ("size", None),
+        ("extra", "unsupported"),
+        ("missing", None),
+        ("cross_pair", None),
+    ],
+)
+def test_config_descriptor_requires_its_own_exact_witness(
+    monkeypatch: pytest.MonkeyPatch, field: str, value: object
+) -> None:
+    contract, manifest, envelope, local = _identity_fixture()
+    document = deepcopy(envelope["OCIManifest"])
+    if field == "missing":
+        del document["config"]["digest"]
+    elif field == "cross_pair":
+        _, other, _, _ = _identity_fixture("second")
+        document["config"]["digest"] = other["config_digest"]
+    else:
+        document["config"][field] = value
+    # Rebind all upstream bytes/hash/Ref/Descriptor prerequisites to target this check.
+    _bind_identity_raw(contract, manifest, envelope, local, json.dumps(document).encode(), document)
+    calls = _identity_reader(
+        monkeypatch, contract["image"], json.dumps(envelope).encode(), json.dumps(local).encode()
+    )
+    with pytest.raises(runtime.ProbeError, match="config descriptor"):
+        runtime._admit_selected_image(contract["image"], manifest)
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("fault", ["bool", "float", "missing", "extra", "order", "value"])
+def test_oci_projection_preserves_complete_values_array_order_and_json_types(
+    monkeypatch: pytest.MonkeyPatch, fault: str
+) -> None:
+    contract, manifest, envelope, local = _identity_fixture()
+    projection = envelope["OCIManifest"]
+    if fault == "bool":
+        projection["layers"][0]["size"] = True  # Python equality would equate this with 1.
+    elif fault == "float":
+        projection["schemaVersion"] = 2.0  # Python equality would equate this with 2.
+    elif fault == "missing":
+        del projection["layers"][0]["annotations"]
+    elif fault == "extra":
+        projection["extra"] = None
+    elif fault == "order":
+        projection["layers"].reverse()
+    else:
+        projection["layers"][0]["annotations"]["synthetic"] = "changed"
+    _identity_reader(
+        monkeypatch, contract["image"], json.dumps(envelope).encode(), json.dumps(local).encode()
+    )
+    with pytest.raises(runtime.ProbeError, match="OCI projection differs"):
+        runtime._admit_selected_image(contract["image"], manifest)
+
+
+@pytest.mark.parametrize("location", ["envelope", "raw", "local"])
+@pytest.mark.parametrize(
+    "payload",
+    [
+        pytest.param(b'{"marker":"synthetic-private-marker",', id="malformed-json"),
+        pytest.param(b'{"duplicate":1,"duplicate":2}', id="duplicate-keys"),
+        pytest.param(b'{"value":NaN}', id="nan"),
+        pytest.param(b'{"value":Infinity}', id="positive-infinity"),
+        pytest.param(b'{"value":-Infinity}', id="negative-infinity"),
+        pytest.param(b'{"value":1e999}', id="exponent-overflow"),
+        pytest.param(b"\xffsynthetic-private-marker", id="invalid-utf8"),
+    ],
+)
+def test_new_observations_contain_decode_and_nonfinite_failures(
+    monkeypatch: pytest.MonkeyPatch, location: str, payload: bytes
+) -> None:
+    contract, manifest, envelope, local = _identity_fixture()
+    registry = json.dumps(envelope).encode()
+    inspected = json.dumps(local).encode()
+    if location == "envelope":
+        registry = payload
+    elif location == "local":
+        inspected = payload
+    else:
+        _bind_identity_raw(contract, manifest, envelope, local, payload, envelope["OCIManifest"])
+        registry, inspected = json.dumps(envelope).encode(), json.dumps(local).encode()
+    _identity_reader(monkeypatch, contract["image"], registry, inspected)
+    with pytest.raises(runtime.ProbeError) as observed:
+        runtime._admit_selected_image(contract["image"], manifest)
+    assert str(observed.value) == "Native image identity observation is malformed or non-finite"
+    assert "synthetic-private-marker" not in str(observed.value)
+
+
+@pytest.mark.parametrize(
+    "location,shape_error",
+    [
+        pytest.param(
+            "envelope",
+            "Native registry observation is not the supported single OCI envelope",
+            id="envelope",
+        ),
+        pytest.param(
+            "raw",
+            "Native registry Raw is not the supported OCI image manifest",
+            id="raw",
+        ),
+        pytest.param("local", "Native pulled image inspection is ambiguous", id="local"),
+    ],
+)
+def test_real_deep_unsupported_json_has_a_constant_location_specific_hold(
+    monkeypatch: pytest.MonkeyPatch, location: str, shape_error: str
+) -> None:
+    contract, manifest, envelope, local = _identity_fixture()
+    payload = b'{"synthetic-private-marker":' + b"[" * 2000 + b"0" + b"]" * 2000 + b"}"
+    registry, inspected = json.dumps(envelope).encode(), json.dumps(local).encode()
+    if location == "envelope":
+        registry = payload
+    elif location == "local":
+        inspected = payload
+    else:
+        _bind_identity_raw(contract, manifest, envelope, local, payload, envelope["OCIManifest"])
+        registry, inspected = json.dumps(envelope).encode(), json.dumps(local).encode()
+    calls = _identity_reader(monkeypatch, contract["image"], registry, inspected)
+    with pytest.raises(runtime.ProbeError) as observed:
+        runtime._admit_selected_image(contract["image"], manifest)
+    # A finite depth does not promise an interpreter-specific RecursionError.
+    assert str(observed.value) in {
+        shape_error,
+        "Native image identity observation is malformed or non-finite",
+    }
+    assert "synthetic-private-marker" not in str(observed.value)
+    assert len(calls) == (2 if location == "local" else 1)
+
+
+@pytest.mark.parametrize(
+    "observation_number",
+    [pytest.param(1, id="envelope"), pytest.param(2, id="raw"), pytest.param(3, id="local")],
+)
+def test_decoder_recursion_error_has_only_the_constant_hold_diagnostic(
+    monkeypatch: pytest.MonkeyPatch, observation_number: int
+) -> None:
+    contract, manifest, envelope, local = _identity_fixture()
+    calls = _identity_reader(
+        monkeypatch, contract["image"], json.dumps(envelope).encode(), json.dumps(local).encode()
+    )
+    real_decoder = runtime.source._read_json
+    decoded = 0
+
+    def decode(value: str) -> object:
+        nonlocal decoded
+        decoded += 1
+        if decoded == observation_number:
+            raise RecursionError("synthetic-private-marker")
+        return real_decoder(value)
+
+    monkeypatch.setattr(runtime.source, "_read_json", decode)
+    with pytest.raises(runtime.ProbeError) as observed:
+        runtime._admit_selected_image(contract["image"], manifest)
+    assert str(observed.value) == "Native image identity observation is malformed or non-finite"
+    assert "synthetic-private-marker" not in str(observed.value)
+    assert decoded == observation_number
+    assert len(calls) == (2 if observation_number == 3 else 1)
+
+
+@pytest.mark.parametrize("location", ["envelope", "raw", "local"])
+def test_exponent_overflow_in_otherwise_accepted_observation_fields_is_rejected(
+    monkeypatch: pytest.MonkeyPatch, location: str
+) -> None:
+    contract, manifest, envelope, local = _identity_fixture()
+    if location == "envelope":
+        envelope["OCIManifest"]["layers"][0]["annotations"]["overflow"] = float("inf")
+    elif location == "local":
+        local[0]["unconsumed"] = float("inf")
+    else:
+        document = deepcopy(envelope["OCIManifest"])
+        document["layers"][0]["annotations"]["overflow"] = float("inf")
+        raw = json.dumps(document).encode().replace(b"Infinity", b"1e999")
+        _bind_identity_raw(contract, manifest, envelope, local, raw, envelope["OCIManifest"])
+    registry = json.dumps(envelope).encode().replace(b"Infinity", b"1e999")
+    inspected = json.dumps(local).encode().replace(b"Infinity", b"1e999")
+    _identity_reader(monkeypatch, contract["image"], registry, inspected)
+    with pytest.raises(runtime.ProbeError, match="malformed or non-finite"):
+        runtime._admit_selected_image(contract["image"], manifest)
+
+
+@pytest.mark.parametrize("location", ["envelope", "raw", "local"])
+def test_image_observation_parser_admission_has_explicit_byte_bounds(
+    monkeypatch: pytest.MonkeyPatch, location: str
+) -> None:
+    contract, manifest, envelope, local = _identity_fixture()
+    registry, inspected = json.dumps(envelope).encode(), json.dumps(local).encode()
+    if location == "envelope":
+        registry = b" " * (runtime.IMAGE_OBSERVATION_LIMIT + 1)
+    elif location == "local":
+        inspected = b" " * (runtime.IMAGE_OBSERVATION_LIMIT + 1)
+    else:
+        raw = b" " * (runtime.IMAGE_OBSERVATION_LIMIT // 2 + 1)
+        _bind_identity_raw(contract, manifest, envelope, local, raw, envelope["OCIManifest"])
+        registry, inspected = json.dumps(envelope).encode(), json.dumps(local).encode()
+        assert len(registry) <= runtime.IMAGE_OBSERVATION_LIMIT
+    _identity_reader(monkeypatch, contract["image"], registry, inspected)
+    with pytest.raises(runtime.ProbeError, match="exceeds parser bounds"):
+        runtime._admit_selected_image(contract["image"], manifest)
+
+
+@pytest.mark.parametrize(
+    "fault,message",
+    [
+        ("empty", "inspection is ambiguous"),
+        ("multiple", "inspection is ambiguous"),
+        ("object", "inspection is ambiguous"),
+        ("member", "inspection is ambiguous"),
+        ("digest_missing", "subject or platform"),
+        ("digest_type", "subject or platform"),
+        ("digest_member", "subject or platform"),
+        ("foreign_repository", "subject or platform"),
+        ("suffix", "subject or platform"),
+        ("os", "subject or platform"),
+        ("architecture", "subject or platform"),
+        ("id_type", "Id differs"),
+        ("cross_config", "Id differs"),
+        ("cross_platform", "Id differs"),
+    ],
+)
+def test_local_image_requires_the_same_canonical_subject_platform_and_pair(
+    monkeypatch: pytest.MonkeyPatch, fault: str, message: str
+) -> None:
+    contract, manifest, envelope, local = _identity_fixture()
+    observation: object = local
+    if fault == "empty":
+        observation = []
+    elif fault == "multiple":
+        observation = local * 2
+    elif fault == "object":
+        observation = local[0]
+    elif fault == "member":
+        observation = [None]
+    elif fault == "digest_missing":
+        del local[0]["RepoDigests"]
+    elif fault == "digest_type":
+        local[0]["RepoDigests"] = contract["image"]
+    elif fault == "digest_member":
+        local[0]["RepoDigests"].append(1)
+    elif fault == "foreign_repository":
+        local[0]["RepoDigests"] = ["ghcr.io/foreign/image@" + manifest["platform_manifest_digest"]]
+    elif fault == "suffix":
+        local[0]["RepoDigests"] = [contract["image"] + "suffix"]
+    elif fault == "os":
+        local[0]["Os"] = "windows"
+    elif fault == "architecture":
+        local[0]["Architecture"] = "arm64"
+    elif fault == "id_type":
+        local[0]["Id"] = []
+    else:
+        _, other, _, _ = _identity_fixture("second")
+        local[0]["Id"] = other[
+            "config_digest" if fault == "cross_config" else "platform_manifest_digest"
+        ]
+    _identity_reader(
+        monkeypatch,
+        contract["image"],
+        json.dumps(envelope).encode(),
+        json.dumps(observation).encode(),
+    )
+    with pytest.raises(runtime.ProbeError, match=message):
+        runtime._admit_selected_image(contract["image"], manifest)
+
+
+@pytest.mark.parametrize("failure", ["nonzero", "timeout", "unavailable"])
+def test_registry_observation_preserves_real_native_failure_despite_plausible_stdout(
+    monkeypatch: pytest.MonkeyPatch, failure: str
+) -> None:
+    contract, manifest, envelope, _ = _identity_fixture()
+    calls: list[list[str]] = []
+    monkeypatch.setattr(
+        runtime.shutil,
+        "which",
+        lambda name: None if failure == "unavailable" else "/resolved/docker",
+    )
+
+    def run(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[bytes]:
+        calls.append(args)
+        assert kwargs["timeout"] == 60 and kwargs["check"] is False
+        if failure == "timeout":
+            raise subprocess.TimeoutExpired(args, 60)
+        return subprocess.CompletedProcess(
+            args, 23, json.dumps(envelope).encode(), b"reader failed"
+        )
+
+    monkeypatch.setattr(runtime.subprocess, "run", run)
+    expected = subprocess.TimeoutExpired if failure == "timeout" else runtime.ProbeError
+    with pytest.raises(expected):
+        runtime._admit_selected_image(contract["image"], manifest)
+    assert len(calls) == (0 if failure == "unavailable" else 1)
+    if calls:
+        assert calls[0] == [
+            "/resolved/docker",
+            "manifest",
+            "inspect",
+            "--verbose",
+            contract["image"],
+        ]
+
+
+@pytest.mark.parametrize("fault", ["selection", "registry", "local", "registry_cleanup"])
+def test_cli_identity_hold_precedes_native_resources_and_leaves_no_success_report(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], fault: str
+) -> None:
+    contract, manifest, envelope, local = _identity_fixture()
+    if fault == "selection":
+        contract["image"] = "ghcr.io/owner/image:unselected"
+    elif fault.startswith("registry"):
+        del envelope["Raw"]
+    else:
+        local[0]["RepoDigests"] = []
+    root = tmp_path / "source"
+    selected = root / "deploy/postgres-pgvector/image-manifest.json"
+    selected.parent.mkdir(parents=True)
+    selected.write_text(json.dumps(manifest))
+    output = tmp_path / "native-result.json"
+    calls: list[list[str]] = []
+    cleanups: list[str] = []
+
+    def pki(directory: Path) -> Path:
+        secrets = directory / "secrets"
+        secrets.mkdir()
+        (secrets / "postgres_password").write_text("synthetic-private-marker")
+        return secrets
+
+    def native(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[bytes]:
+        calls.append(args)
+        if args[:2] == ["openssl", "x509"]:
+            data = b"synthetic-public-fingerprint"
+        elif args[:2] == ["docker", "pull"]:
+            assert args[-1] == contract["image"] and kwargs["timeout"] == 180
+            data = b""
+        elif args == ["docker", "manifest", "inspect", "--verbose", contract["image"]]:
+            data = json.dumps(envelope).encode()
+        else:
+            assert args == ["docker", "image", "inspect", contract["image"]]
+            data = json.dumps(local).encode()
+        return subprocess.CompletedProcess(args, 0, data, b"")
+
+    def cleanup(resources: dict[str, list[str]], owner: str) -> None:
+        cleanups.append(owner)
+        if fault == "registry_cleanup":
+            raise runtime.ProbeError("secondary cleanup must not replace identity failure")
+
+    monkeypatch.setattr(runtime, "create_pki", pki)
+    monkeypatch.setattr(runtime, "native", native)
+    monkeypatch.setattr(runtime, "cleanup", cleanup)
+    monkeypatch.setattr(runtime, "render_contract", lambda root, selected: contract)
+    monkeypatch.setattr(runtime.sys, "platform", "linux")
+    monkeypatch.setattr(
+        runtime.sys,
+        "argv",
+        ["probe", "--repo-root", str(root), "--json-out", str(output)],
+    )
+    assert runtime.main() == 1
+    assert not output.exists() and len(cleanups) == 1
+    error = capsys.readouterr().err
+    expected = (
+        "selected image subject differs"
+        if fault == "selection"
+        else (
+            "supported single OCI envelope"
+            if fault.startswith("registry")
+            else "local image subject or platform differs"
+        )
+    )
+    assert "Native staging experiment HOLD:" in error and expected in error
+    assert "synthetic-private-marker" not in error
+    assert "secondary cleanup must not replace" not in error
+    # No network/volume create, helper, Compose up, query or restore command is admitted.
+    assert all(
+        args[:2] in (["openssl", "x509"], ["docker", "pull"])
+        or args[:4] == ["docker", "manifest", "inspect", "--verbose"]
+        or args[:3] == ["docker", "image", "inspect"]
+        for args in calls
+    )
+    image_calls = [args for args in calls if args[0] == "docker"]
+    assert len(image_calls) == (0 if fault == "selection" else 3 if fault == "local" else 2)
 
 
 def test_native_adapter_retains_real_command_image_hba_and_pgdata() -> None:
@@ -271,8 +920,7 @@ def test_external_current_incomplete_tuple_control_precedes_spdx_and_complete_pr
 def test_driver_protocol_rejects_bad_outcomes_and_cleans_owned_resources(
     monkeypatch: pytest.MonkeyPatch, fault: str | None
 ) -> None:
-    rendered, manifest = selected_fixture()
-    contract = runtime.selected_contract(rendered, manifest)
+    contract, manifest, envelope, inspected = _identity_fixture()
     state: dict[str, Any] = {
         "container": None,
         "volume": None,
@@ -300,20 +948,13 @@ def test_driver_protocol_rejects_bad_outcomes_and_cleans_owned_resources(
                     Path(args[args.index(flag) + 1]).write_text("disposable-crypto-oracle")
             if "-fingerprint" in args:
                 output = b"SHA256 Fingerprint=disposable-public-oracle"
+        elif args[1:4] == ["manifest", "inspect", "--verbose"]:
+            output = json.dumps(envelope).encode()
         elif args[1:3] == ["image", "inspect"]:
-            output = json.dumps(
-                []
-                if fault == "inspect_malformed"
-                else [
-                    {
-                        "Id": (
-                            "wrong"
-                            if fault == "inspect_wrong_config"
-                            else manifest["config_digest"]
-                        )
-                    }
-                ]
-            ).encode()
+            local = deepcopy(inspected)
+            if fault == "inspect_wrong_config":
+                local[0]["Id"] = "wrong"
+            output = json.dumps([] if fault == "inspect_malformed" else local).encode()
         elif args[1] in ("network", "volume") and args[2] == "create":
             state[args[1]] = args[-1]
         elif args[1] == "compose":
@@ -418,17 +1059,49 @@ def test_driver_protocol_rejects_bad_outcomes_and_cleans_owned_resources(
         assert result["isolated_restore_sentinel_count_equal"] is True
         assert len(result["fingerprint"]) == 64
     else:
-        with pytest.raises(runtime.ProbeError):
+        expected_error = {
+            "accept_corrupt": "Native corrupted custom archive unexpectedly accepted",
+            "accept_plaintext": "Native plaintext rejection unexpectedly succeeded",
+            "lose_committed": "Process crash lost committed sentinel",
+            "wrong_version": "Actual PostgreSQL binary version differs",
+            "missing_archive_table": "Native custom dump does not contain",
+            "bad_tls": "Actual TCP PostgreSQL session did not use required TLS",
+            "bad_cast": "Native pgvector extension/cast failed",
+            "bad_vector_version": "Actual pgvector extension version differs",
+            "source_missing": "Synthetic source sentinel mismatch",
+            "restart_missing": "Same-volume restart lost synthetic sentinel",
+            "restore_missing": "Isolated native restore sentinel/count differs",
+            "bad_dump_size": "Native custom dump size is outside",
+            "negative_healthy_lost": (
+                "Native TLS negative control lost its healthy positive baseline"
+            ),
+            "expired_accepted": "Expired native server certificate unexpectedly accepted",
+            "inspect_malformed": "Native pulled image inspection is ambiguous",
+            "inspect_wrong_config": (
+                "Native local image Id differs from the witnessed selected tuple"
+            ),
+            "cleanup_pki": "Native private PKI cleanup denied",
+            "wrapper_failure": "Native wrapper controls rejected",
+        }[fault]
+        with pytest.raises(runtime.ProbeError, match=expected_error):
             runtime.experiment(ROOT, contract, manifest)
     assert not state["container"] and not state["volume"] and not state["network"]
     assert not any("--publish" in args or "--privileged" in args for args in calls)
     expected_image = manifest["repository"] + "@" + manifest["platform_manifest_digest"]
     for args in calls:
-        if args[:2] == ["docker", "pull"] or args[:3] == ["docker", "image", "inspect"]:
+        if (
+            args[:2] == ["docker", "pull"]
+            or args[:3] == ["docker", "image", "inspect"]
+            or args[:4] == ["docker", "manifest", "inspect", "--verbose"]
+        ):
             assert args[-1] == expected_image
         if args[:2] == ["docker", "run"]:
             assert args[args.index("-ec") - 1] == expected_image
     if "compose" in state:
+        registry_call = ["docker", "manifest", "inspect", "--verbose", expected_image]
+        assert calls.index(registry_call) < next(
+            i for i, args in enumerate(calls) if args[1:3] == ["network", "create"]
+        )
         service = state["compose"]["services"]["postgres"]
         assert service["image"] == expected_image
         assert service["command"] == contract["command"]
@@ -534,14 +1207,21 @@ def test_cli_keeps_configuration_and_native_execution_claims_separate(
     monkeypatch.setattr(
         runtime.sys, "platform", "linux" if mode in ("linux", "error") else "darwin"
     )
+    experiment_calls: list[str] = []
+
+    def forbidden_native(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[bytes]:
+        raise AssertionError("CLI must not add image operations outside the native experiment")
 
     def experiment(root: Path, contract: dict, selected: dict) -> dict:
+        experiment_calls.append("experiment")
         if mode == "error":
             raise runtime.ProbeError("native rejected")
         return {"native_execution": True}
 
     monkeypatch.setattr(runtime, "experiment", experiment)
+    monkeypatch.setattr(runtime, "native", forbidden_native)
     assert runtime.main() == (1 if mode in ("nonlinux", "error") else 0)
+    assert experiment_calls == ([] if mode in ("configure", "nonlinux") else ["experiment"])
     if mode in ("nonlinux", "error"):
         assert not output.exists()
     else:

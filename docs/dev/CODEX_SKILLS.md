@@ -70,6 +70,39 @@ repo source of truth.
 After installation or updates, restart Codex so newly installed skills are loaded.
 This restart requirement is tooling-local only; it does not change repo orchestration semantics.
 
+## Remote VM and devcontainer runtime
+
+RDEV-01 keeps PRIMARY Codex desktop/chat, configured Mac Computer Use/browser/
+apps/plugins, local skills and permissions LOCAL. Preserve canonical discovery/
+install paths above. SSH sends selected Linux commands; it does not transfer
+Mac tools/permissions or require a remote project. Observe actual tool availability;
+Developer Mode is not blanket permission. No Accessibility/Screen Recording/app/
+browser setting is changed by this workflow.
+
+Remote Codex CLI is OPTIONAL for separately scoped work. Install/verify its OWN
+skills/login on the host or selected container where that worker executes:
+
+```bash
+scripts/install_codex_skills.sh --no-cybersec
+python3 scripts/verify_codex_skills_install.py --strict
+codex --version
+```
+
+Restart THAT worker and observe its skills. Mac install does not install remote
+skills; host state does not automatically configure container state. An ordinary
+local SSH check needs no second Codex. Repo Python/tests/Git mutations/hooks
+explicitly use selected-container execution with exact material/input-view/run
+binding. SSH/material failure stops, with no silent heavy Mac fallback.
+
+Nested container worktree Git/hooks/status stay inside the container. No host
+alias or assumed managed remote-project UI parity. Optional host/container home/
+auth and source/venv/caches have different persistence; recreation may require
+reinstall/login. Never copy Mac auth/home/private keys/signing/browser profiles/
+device codes or mount home/host sockets. Keep auth out of Git/captures/archives/
+Drive. Skills stay passive and do not replace packet/role/gates. See the
+[remote runbook](REMOTE_DEVELOPMENT.md) for transfer/persistent-job/reconnect and
+compound actual acceptance.
+
 ## Troubleshooting
 
 If OpenCode or Codex reports fewer loaded skills than the repo contains:
