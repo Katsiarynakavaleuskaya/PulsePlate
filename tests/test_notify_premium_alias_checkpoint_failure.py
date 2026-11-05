@@ -44,9 +44,10 @@ from scripts.ci import prometheus_source_image as prometheus_image
 from scripts.ops import notify_premium_alias_checkpoint_failure as notifier
 
 ROOT = Path(__file__).resolve().parents[1]
-ALERTMANAGER_IMAGE = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:5a476cb3c572d11f8b5fcb6d42400f4613011a5f592ca574b7015c5231b70781"
+ALERTMANAGER_IMAGE = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:e4b0453fb56079d8ee565f76c4029c34d0711215b2a72541cc060bdcbe9827d3"
+_ACCEPTED_AM_CONFIG = "sha256:db6b5863659a4d2e4372cbf32602429299763e0efacc2c165dc7245c3e9df2ee"
 # Frozen native UI oracle from accepted C10; ordinary checks do not depend on artifact expiry.
-_ACCEPTED_AM_UI = {
+_HISTORICAL_AM_UI = {
     ".build_stamp": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "assets/fontawesome-webfont-B-jkhYfk.woff2": "2adefcbc041e7d18fcf2d417879dc5a09997aa64d675b7a3c4b6ce33da13f3fe",
     "assets/fontawesome-webfont-CDK5bt4p.woff": "ba0c59deb5450f5cb41b3f93609ee2d0d995415877ddfa223e8a8a7533474f07",
@@ -65,9 +66,33 @@ _ACCEPTED_AM_UI = {
     "index.html.br": "d5c8902b247bb34a39cadc6538e5bf04416b52a1a26f44cdad36e58e8c080757",
     "index.html.gz": "cda9f8f59ab3194a9e16416887800e7f6d99bb69e167e5db9f3963fd91b1257d",
 }
-_ACCEPTED_AM_BINARIES = {
+_HISTORICAL_AM_BINARIES = {
     "alertmanager": "c7df6fc46c9f41f83657de5956b0373d1e733b04549c59d9657c44a426334aff",
     "amtool": "47bd3f8d054eb8b6ab1005577508da00b52efba55ba647a83612ec31731da42b",
+}
+
+_ACCEPTED_AM_UI = {
+    "favicon.ico.br": "b3761d089558180bb068354cb7f2f72aa055d4a442b0362820021ae6b7c93cd5",
+    ".build_stamp": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "favicon.ico.gz": "0449fc08a09431cb4d78805a820a0a121803e08a33389ba83a12206664799bfb",
+    "assets/fontawesome-webfont-CQDK8MU3.ttf.br": "8048e9ede4a9dd536e8cca75e8b2340f2a055722aef030caa417c36f32cd9b5a",
+    "assets/fontawesome-webfont-D13rzr4g.svg.br": "c2df316d94b864d726fbf995ab04b5096e33669f8d48ebc345db50023f4e5b75",
+    "assets/fontawesome-webfont-CDK5bt4p.woff": "ba0c59deb5450f5cb41b3f93609ee2d0d995415877ddfa223e8a8a7533474f07",
+    "assets/index-OLfEAnkS.css.gz": "c2df3900c65ec13f4a6d62bff90200da87aa2c4b0cf3856835478197e3004b22",
+    "assets/index-aNRKuvMz.js.br": "71fbfb3fbf1810902e546e6dd1436eea9149e7b330b70dc99cebde94a5ff0501",
+    "assets/fontawesome-webfont-G5YE5S7X.eot.br": "dd9a61283fd3a0f543f95c9778e31775e10160ba567c4f0abcbe4b5d233a049c",
+    "assets/fontawesome-webfont-B-jkhYfk.woff2": "2adefcbc041e7d18fcf2d417879dc5a09997aa64d675b7a3c4b6ce33da13f3fe",
+    "assets/index-OLfEAnkS.css.br": "61866ae189af1a140fe04ad24de882e010ac28fce4458a5c45072371d862ce9f",
+    "assets/fontawesome-webfont-D13rzr4g.svg.gz": "64ad34590af0fb6b10b587e156e0935c0c6ab6fbd8b13ceba233ec9432dcf2e4",
+    "assets/index-aNRKuvMz.js.gz": "be05a4f9d5eaf190f27bf5b268c311103281b8cb32a54caa918807ab00a43a8f",
+    "assets/fontawesome-webfont-CQDK8MU3.ttf.gz": "7c613ddd2cde1e1298d41aae563fd71bcb886773df60bca980a13d89988f4d4b",
+    "assets/fontawesome-webfont-G5YE5S7X.eot.gz": "5e6b26dbf1f3c59d60ac9731778d1dc0826b9001b8fd262cb477dc08b61832f2",
+    "index.html.br": "d5c8902b247bb34a39cadc6538e5bf04416b52a1a26f44cdad36e58e8c080757",
+    "index.html.gz": "cda9f8f59ab3194a9e16416887800e7f6d99bb69e167e5db9f3963fd91b1257d",
+}
+_ACCEPTED_AM_BINARIES = {
+    "alertmanager": "4a871fe631f8b91e9f421f2ff9c3a4f2472d340cc654448155cb8722cae125d1",
+    "amtool": "e041a8aadb52426695dcee36f2ce854ca26d82f53a2f0379d4faaabfb316b954",
 }
 
 SYSTEMD_UNIT_DIRECTORY = Path("/run/systemd/system")
@@ -2529,11 +2554,20 @@ def _native_alertmanager_candidate(
             assert (
                 image == "sha256:542c5e287fc8e0dc4f6c7db21576f4eaa508b28e9733e205ef78d2e3d06be62c"
             )
-            assert graph["manifest"]["digest"] == ALERTMANAGER_IMAGE.split("@", 1)[1]
+            assert (
+                graph["manifest"]["digest"]
+                == "sha256:5a476cb3c572d11f8b5fcb6d42400f4613011a5f592ca574b7015c5231b70781"
+            )
+            assert all(
+                files["usr/bin/" + name] == digest
+                for name, digest in _HISTORICAL_AM_BINARIES.items()
+            )
+            ui = _HISTORICAL_AM_UI
+        if image == _ACCEPTED_AM_CONFIG:
+            assert ui == _ACCEPTED_AM_UI
             assert all(
                 files["usr/bin/" + name] == digest for name, digest in _ACCEPTED_AM_BINARIES.items()
             )
-            ui = _ACCEPTED_AM_UI
         assert isinstance(ui, dict)
         assert (
             headers.get("Content-Encoding") == "gzip"
@@ -3081,7 +3115,16 @@ def native_alertmanager_main(
     assert re.fullmatch(
         r"sha256:[0-9a-f]{64}", image_id
     ), "one immutable local AM image ID required"
+    from scripts.ci import fetch_docker_source_artifacts as source_owner
+
+    historical = source_owner._ALERT_HISTORICAL_C10
+    if observation is None:
+        assert source_owner._alertmanager_accepted_producer() == historical
+        assert (
+            image_id == historical["graph"]["config"]["digest"]
+        ), "historical native subject required"
     merged_H = False
+    historical_observation = observation is None
     expected_version = "0.34.1"
     expected_revision = "73c6bfe7393929211294c1954f30d8ed78e4d0ad"
     if observation is not None:
@@ -3090,10 +3133,44 @@ def native_alertmanager_main(
         assert observation.is_file() and not observation.is_symlink()
         assert observation.stat().st_size <= 64 * 1024**2
         source_evidence = prometheus_image.one_object(observation.read_bytes())
+        graph = source_evidence.get("graph")
+        assert isinstance(graph, dict) and isinstance(graph.get("config"), dict)
+        assert graph["config"].get("digest") == image_id, "native observation image differs"
+        assert isinstance(source_evidence.get("source"), str) and re.fullmatch(
+            r"[0-9a-f]{40}", source_evidence["source"]
+        )
+        is_historical = (
+            source_evidence.get("source") == historical["source"] and graph == historical["graph"]
+        )
+        historical_observation = is_historical
+        if not is_historical:
+            assert isinstance(
+                source_evidence.get("root_inputs"), dict
+            ), "current native root inputs required"
+            ui = source_evidence.get("UI_file_hashes")
+            assert (
+                isinstance(ui, dict)
+                and "index.html.gz" in ui
+                and all(
+                    isinstance(name, str)
+                    and bool(name)
+                    and isinstance(value, str)
+                    and re.fullmatch(r"[0-9a-f]{64}", value)
+                    for name, value in ui.items()
+                )
+            ), "current native UI inventory required"
+        if not producer_image:
+            selected = source_owner._alertmanager_accepted_producer()
+            assert (
+                source_evidence.get("source") == selected["source"] and graph == selected["graph"]
+            ), "native selected subject differs"
         if "root_inputs" in source_evidence:
             expected_version = source_owner._alertmanager_upstream_identity(
                 source_evidence["root_inputs"], current=True
             )
+            assert (
+                not is_historical or expected_version == "0.34.1"
+            ), "historical native root profile differs"
             if expected_version == "0.34.2":
                 expected_revision = source_owner._ALERT_UPSTREAM_0342_REVISION
     if producer_image and observation is not None:
@@ -3179,7 +3256,7 @@ def native_alertmanager_main(
                 assert stamped == {
                     "build user": "pulseplate@builder",
                     "build date": "19700101-00:00:00",
-                    "go version": "go1.27.3",
+                    "go version": "go1.27.2" if historical_observation else "go1.27.3",
                     "platform": "linux/amd64",
                     "tags": "netgo",
                 }, "actual stamped native metadata differs from frozen compiler command"
@@ -3326,7 +3403,10 @@ def native_main(alertmanager_image_id: str, alertmanager_config_sha256: str) -> 
 def test_alertmanager_only_native_entry_binds_local_identity_before_fixtures_without_prometheus(
     monkeypatch: pytest.MonkeyPatch, fault: str | None
 ) -> None:
-    image_id = "sha256:" + "a" * 64
+    from scripts.ci import fetch_docker_source_artifacts as source
+
+    monkeypatch.setattr(source, "_ALERT_ACCEPTED_CANDIDATE", source._ALERT_HISTORICAL_C10)
+    image_id = source._ALERT_HISTORICAL_C10["graph"]["config"]["digest"]
     config_hash = "5dc1025c293763618febeb74c17edcb126ad943f9b20c2296c67847e9f977549"
     calls: list[object] = []
     monkeypatch.setattr(sys, "platform", "linux")
@@ -5362,7 +5442,15 @@ def _synthetic_current_native_selection(
         row["diff_id"] for row in prometheus_image.BASE_LAYER_CONTRACTS
     ]
     monkeypatch.setattr(source, "_ALERT_ACCEPTED_CANDIDATE", selected)
-    return {"source": selected["source"], "graph": selected["graph"]}
+    return {
+        "source": selected["source"],
+        "graph": selected["graph"],
+        "root_inputs": {
+            "source.tar.gz": "5c5c72ec6b4c4746d523f2ed1994dfec4b94f7457e530ee6fb16cfec158e545e",
+            "ui.tar.gz": "881fe0f7beb9573f35be47dd233af6220e72c8db72c03bcd1780402eb8dc1307",
+        },
+        "UI_file_hashes": {"index.html.gz": "1" * 64, "assets/synthetic.js.gz": "2" * 64},
+    }
 
 
 @pytest.mark.parametrize(
@@ -7023,9 +7111,10 @@ def test_native_historical_flag_requires_exact_configured_C10_before_effects(
 
 
 @pytest.mark.parametrize("mode", ["ordinary_published_PR", "ordinary_published_main"])
-@pytest.mark.parametrize("fault", [None, "source", "graph"])
+@pytest.mark.parametrize("historical", [False, True])
+@pytest.mark.parametrize("fault", [None, "source", "graph", "missing-UI", "malformed-UI"])
 def test_ordinary_published_writer_supplies_native_consumer_subject(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: str, fault: str | None
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: str, fault: str | None, historical: bool
 ) -> None:
     """Exercise the real observation writer and native entry binding with controlled I/O."""
     from argparse import Namespace
@@ -7035,13 +7124,27 @@ def test_ordinary_published_writer_supplies_native_consumer_subject(
 
     image = "sha256:" + "8" * 64
     expected = _synthetic_current_native_selection(image, monkeypatch)
+    if historical:
+        selected = json.loads(json.dumps(source._ALERT_HISTORICAL_C10))
+        monkeypatch.setattr(source, "_ALERT_ACCEPTED_CANDIDATE", selected)
+        image = selected["graph"]["config"]["digest"]
+        expected = {"source": selected["source"], "graph": selected["graph"]}
+    else:
+        expected["root_inputs"] = {
+            "source.tar.gz": "81e69f87954aedb557ed67d9ef0218a1c0c9b9e0c3184c9ddffe07bd247239fc",
+            "ui.tar.gz": "3d6b13c5af094724e0bed8f757399e08af44d40d6c6cd87392a1f8ee6ed1e457",
+        }
     selected = source._alertmanager_accepted_producer()
     event = tmp_path / "event.json"
     event.write_text("{}")
     monkeypatch.setenv("GITHUB_EVENT_PATH", str(event))
     monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request" if mode.endswith("PR") else "push")
     monkeypatch.setenv("GITHUB_REPOSITORY", "Katsiarynakavaleuskaya/PulsePlate")
-    route = {"mode": mode, "source": "e" * 40, "upstream_version": "0.34.1"}
+    route = {
+        "mode": mode,
+        "source": "e" * 40,
+        "upstream_version": "0.34.1" if historical else "0.34.2",
+    }
     calls: list[str] = []
 
     class API:
@@ -7056,10 +7159,19 @@ def test_ordinary_published_writer_supplies_native_consumer_subject(
     monkeypatch.setattr(prometheus_image, "GitHubRead", API)
     monkeypatch.setattr(source, "_alertmanager_reader_route", lambda *a: route)
     monkeypatch.setattr(source, "_alertmanager_bind_material", lambda *a: {"synthetic": b"data"})
+    current_observation = json.loads(json.dumps(expected))
+    if not historical and fault == "missing-UI":
+        current_observation.pop("UI_file_hashes")
+    elif not historical and fault == "malformed-UI":
+        current_observation["UI_file_hashes"] = {"index.html.gz": None}
     monkeypatch.setattr(
         source,
         "_alertmanager_pull_published",
-        lambda *a: {"image_id": image, "source": "f" * 40},
+        lambda *a: {
+            "image_id": image,
+            "source": "f" * 40,
+            "publication_predecessor": {"current_observation": current_observation},
+        },
     )
     args = Namespace(
         output_dir=tmp_path / "output",
@@ -7071,6 +7183,14 @@ def test_ordinary_published_writer_supplies_native_consumer_subject(
     )
     old_timer = signal.getitimer(signal.ITIMER_REAL)
     try:
+        if not historical and fault in ("missing-UI", "malformed-UI"):
+            with pytest.raises(RuntimeError, match="AM_published_native_UI_inventory"):
+                source._alertmanager_prepare_candidate_body(
+                    args, {"CLEANUP_SECONDS": 45}, time.monotonic() + 30
+                )
+            assert calls == ["credentials-closed"]
+            assert not (args.output_dir / "candidate/candidate-observation.json").exists()
+            return
         candidate, payload, output, prepared = source._alertmanager_prepare_candidate_body(
             args, {"CLEANUP_SECONDS": 45}, time.monotonic() + 30
         )
@@ -7081,7 +7201,7 @@ def test_ordinary_published_writer_supplies_native_consumer_subject(
     observation = payload / "candidate-observation.json"
     evidence = json.loads(observation.read_text())
     assert evidence == candidate == expected
-    if fault:
+    if fault in ("source", "graph"):
         evidence[fault] = "b" * 40 if fault == "source" else {}
         observation.write_text(json.dumps(evidence))
     monkeypatch.setattr(sys, "platform", "linux")
@@ -7100,9 +7220,19 @@ def test_ordinary_published_writer_supplies_native_consumer_subject(
             name = next(arg.rsplit("/", 1)[1] for arg in argv if arg.startswith("--entrypoint="))
             raw = (
                 name
-                + ", version 0.34.1 (branch: HEAD, revision: 73c6bfe7393929211294c1954f30d8ed78e4d0ad)\n"
+                + ", version "
+                + ("0.34.1" if historical else "0.34.2")
+                + " (branch: HEAD, revision: "
+                + (
+                    "73c6bfe7393929211294c1954f30d8ed78e4d0ad"
+                    if historical
+                    else source._ALERT_UPSTREAM_0342_REVISION
+                )
+                + ")\n"
                 "  build user: pulseplate@builder\n  build date: 19700101-00:00:00\n"
-                "  go version: go1.27.3\n  platform: linux/amd64\n  tags: netgo\n"
+                + "  go version: "
+                + ("go1.27.2" if historical else "go1.27.3")
+                + "\n  platform: linux/amd64\n  tags: netgo\n"
             )
         else:
             assert "check-config" in argv
@@ -7112,7 +7242,7 @@ def test_ordinary_published_writer_supplies_native_consumer_subject(
     def candidate_controls(
         directory: Path, subject: str, actual: dict[str, object], *, current: bool
     ) -> None:
-        assert subject == image and actual == expected and current is True
+        assert subject == image and actual == expected and current is (not historical)
         calls.append("candidate-controls")
 
     monkeypatch.setattr(sys.modules[__name__], "_native", native)
@@ -7123,7 +7253,7 @@ def test_ordinary_published_writer_supplies_native_consumer_subject(
     monkeypatch.setattr(sys.modules[__name__], "_native_alertmanager_local_tls", lambda *a: None)
     monkeypatch.setattr(sys.modules[__name__], "_native_amtool_lifetime", lambda *a, **k: None)
     monkeypatch.setattr(sys.modules[__name__], "_native_alertmanager", lambda *a, **k: None)
-    if fault:
+    if fault in ("source", "graph"):
         with pytest.raises(AssertionError):
             native_alertmanager_main(
                 image,
@@ -7138,3 +7268,68 @@ def test_ordinary_published_writer_supplies_native_consumer_subject(
         assert calls == ["credentials-closed", "candidate-controls"]
         assert candidate == expected
         assert candidate["source"] != args.source_sha and candidate["source"] != route["source"]
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "observation",
+        "root-missing",
+        "root-malformed",
+        "UI-missing",
+        "UI-malformed",
+        "historical-0342",
+        "image",
+    ],
+)
+def test_native_consumer_incomplete_profile_rejects_before_setup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str
+) -> None:
+    from scripts.ci import fetch_docker_source_artifacts as source
+
+    image = "sha256:" + "8" * 64
+    evidence = _synthetic_current_native_selection(image, monkeypatch)
+    if fault == "root-missing":
+        evidence.pop("root_inputs")
+    elif fault == "root-malformed":
+        evidence["root_inputs"] = []
+    elif fault == "UI-missing":
+        evidence.pop("UI_file_hashes")
+    elif fault == "UI-malformed":
+        evidence["UI_file_hashes"] = {"index.html.gz": None}
+    elif fault == "historical-0342":
+        selected = json.loads(json.dumps(source._ALERT_HISTORICAL_C10))
+        monkeypatch.setattr(source, "_ALERT_ACCEPTED_CANDIDATE", selected)
+        image = selected["graph"]["config"]["digest"]
+        evidence = {
+            "source": selected["source"],
+            "graph": selected["graph"],
+            "root_inputs": {
+                "source.tar.gz": "81e69f87954aedb557ed67d9ef0218a1c0c9b9e0c3184c9ddffe07bd247239fc",
+                "ui.tar.gz": "3d6b13c5af094724e0bed8f757399e08af44d40d6c6cd87392a1f8ee6ed1e457",
+            },
+        }
+    elif fault == "image":
+        image = "sha256:" + "9" * 64
+    observation = tmp_path / "observation.json"
+    observation.write_text(json.dumps(evidence))
+    monkeypatch.setattr(sys, "platform", "linux")
+    calls: list[str] = []
+
+    def forbidden(*args: object, **kwargs: object) -> None:
+        calls.append("setup-or-native")
+        raise RuntimeError("invalid profile reached native setup")
+
+    monkeypatch.setattr(tempfile, "TemporaryDirectory", forbidden)
+    monkeypatch.setattr(sys.modules[__name__], "_native", forbidden)
+    monkeypatch.setattr(sys.modules[__name__], "_native_alertmanager_candidate", forbidden)
+    with pytest.raises(
+        AssertionError,
+        match="historical native root profile differs" if fault == "historical-0342" else None,
+    ):
+        native_alertmanager_main(
+            image,
+            "5dc1025c293763618febeb74c17edcb126ad943f9b20c2296c67847e9f977549",
+            None if fault == "observation" else observation,
+        )
+    assert calls == []

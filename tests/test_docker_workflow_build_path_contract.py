@@ -88,6 +88,7 @@ def test_current_selected_images_match_live_identity_consumers(
             assert manifest["phase"] != "source_prepared"
             return
         assert docker_sources._alertmanager_accepted_producer() == selected
+        assert docker_sources._alertmanager_accepted_live_profile() == (selected, "0.34.2")
         runtime_ref, config_id = docker_sources._alertmanager_contract_subject()
         assert native.ALERTMANAGER_IMAGE == runtime_ref
         assert native._ACCEPTED_AM_BINARIES == oracle["subject"]["binary_sha256"]
@@ -117,8 +118,8 @@ def test_current_selected_images_match_live_identity_consumers(
             raw = (WORKFLOWS_DIR / workflow).read_text()
             assert raw.count(tuple_text) == raw.count(source_text) == expected_count
             for kind, run_id, artifact_id in (
-                ("qualification", 40379971373, 12677328773),
-                ("support", 40383803043, 12679243318),
+                ("qualification", 42107347940, 13451573523),
+                ("support", 42108567179, 13452993574),
             ):
                 selector = (
                     f"--alertmanager-{kind}-run {run_id} "
@@ -214,15 +215,15 @@ def test_historical_AM_fixture_copy_does_not_change_current_selection(
             assert current_os[name][4] == "2026e"
         for name in ("alertmanager", "amtool"):
             assert historical["expected_modules"][name]["stdlib"] == "v1.27.2"
-            assert {
-                key: value
-                for key, value in historical["expected_modules"][name].items()
-                if key != "stdlib"
-            } == {
-                key: value
-                for key, value in oracle["expected_modules"][name].items()
-                if key != "stdlib"
-            }
+            assert (
+                historical["expected_modules"][name]["github.com/prometheus/alertmanager"]
+                == "0.34.1"
+            )
+            assert (
+                oracle["expected_modules"][name]["github.com/prometheus/alertmanager"] == "0.34.2"
+            )
+            assert oracle["expected_modules"][name]["stdlib"] == "v1.27.3"
+            assert historical["expected_modules"][name] != oracle["expected_modules"][name]
         old_ref = (
             "ghcr.io/katsiarynakavaleuskaya/pulseplate@"
             + docker_sources._ALERT_HISTORICAL_C10["graph"]["manifest"]["digest"]
@@ -6432,11 +6433,21 @@ def test_alertmanager_candidate_scan_requires_real_complete_pair_and_unsuppresse
     if fault not in (None, "encoding-only", "changed-reference"):
         with pytest.raises(RuntimeError, match="AM_"):
             docker_sources._alertmanager_candidate_inventory(
-                report, image_id, base, build_information
+                report,
+                image_id,
+                base,
+                build_information,
+                proof_mode="dynamic",
+                upstream_version="0.34.1",
             )
     else:
         actual = docker_sources._alertmanager_candidate_inventory(
-            report, image_id, base, build_information
+            report,
+            image_id,
+            base,
+            build_information,
+            proof_mode="dynamic",
+            upstream_version="0.34.1",
         )
         assert (
             len(actual["packages"]) == (11 if fault == "changed-reference" else 12)
@@ -6822,9 +6833,11 @@ def test_alertmanager_both_security_callers_use_actual_authenticated_support_ref
         actual_base: dict[str, Any],
         actual_information: dict[str, Any],
         *,
+        proof_mode: str,
+        upstream_version: str,
         current: bool = False,
-        upstream_version: str = "0.34.1",
     ) -> dict[str, Any]:
+        assert proof_mode == "dynamic"
         assert actual_base == base
         bound.append(actual_base)
         assert actual_information == build_information
@@ -6835,6 +6848,7 @@ def test_alertmanager_both_security_callers_use_actual_authenticated_support_ref
             subject,
             actual_base,
             actual_information,
+            proof_mode=proof_mode,
             current=current,
             upstream_version=upstream_version,
         )
@@ -7172,14 +7186,16 @@ def test_alertmanager_candidate_go_inventory_matches_each_actual_compiled_depend
         information[binary]["dependencies"]["uncomparable.invalid/module"] = ""
     if fault in (None, "versioned-main"):
         assert (
-            docker_sources._alertmanager_candidate_inventory(report, image_id, base, information)[
-                "findings"
-            ]
+            docker_sources._alertmanager_candidate_inventory(
+                report, image_id, base, information, proof_mode="dynamic", upstream_version="0.34.1"
+            )["findings"]
             == []
         )
     else:
         with pytest.raises(RuntimeError, match="AM_candidate_"):
-            docker_sources._alertmanager_candidate_inventory(report, image_id, base, information)
+            docker_sources._alertmanager_candidate_inventory(
+                report, image_id, base, information, proof_mode="dynamic", upstream_version="0.34.1"
+            )
 
 
 @pytest.mark.parametrize("alertmanager_proposal_graph", ["gzip"], indirect=True)
@@ -8408,10 +8424,19 @@ def test_alertmanager_current_scan_requires_complete_accepted_OS_and_both_native
         {} if fault == "mixed-proof" else None,
     )
     if fault is None:
-        assert len(docker_sources._alertmanager_candidate_inventory(*args)["packages"]) == 235
+        assert (
+            len(
+                docker_sources._alertmanager_candidate_inventory(
+                    *args, proof_mode="accepted-live", upstream_version="0.34.1"
+                )["packages"]
+            )
+            == 235
+        )
     else:
         with pytest.raises(RuntimeError, match="AM_"):
-            docker_sources._alertmanager_candidate_inventory(*args)
+            docker_sources._alertmanager_candidate_inventory(
+                *args, proof_mode="accepted-live", upstream_version="0.34.1"
+            )
 
 
 @pytest.mark.parametrize("current_epoch", [False, True])
@@ -8433,13 +8458,20 @@ def test_alertmanager_target_CVE_postcondition_is_severity_independent_in_curren
     arguments = (report, docker_sources._ALERT_CURRENT_SCAN_ORACLE["subject"]["config"], None, None)
     if severity in ("HIGH", "CRITICAL"):
         with pytest.raises(RuntimeError, match="^AM_new_blocking_support_finding_HOLD$"):
-            docker_sources._alertmanager_candidate_inventory(*arguments, current=current_epoch)
+            docker_sources._alertmanager_candidate_inventory(
+                *arguments,
+                current=current_epoch,
+                proof_mode="accepted-live",
+                upstream_version="0.34.1",
+            )
     elif current_epoch and identifier == "CVE-2026-111943":
         with pytest.raises(RuntimeError, match="^AM_current_Go_CVE_still_present$"):
-            docker_sources._alertmanager_candidate_inventory(*arguments, current=True)
+            docker_sources._alertmanager_candidate_inventory(
+                *arguments, current=True, proof_mode="accepted-live", upstream_version="0.34.1"
+            )
     else:
         observed = docker_sources._alertmanager_candidate_inventory(
-            *arguments, current=current_epoch
+            *arguments, current=current_epoch, proof_mode="accepted-live", upstream_version="0.34.1"
         )
         assert observed["findings"] == [finding]
 
@@ -8528,7 +8560,12 @@ def test_alertmanager_current_inventory_rejects_extra_unclassified_package_carri
         RuntimeError, match="AM_(unclassified_package_bearing_target|candidate_OS_classifier)"
     ):
         docker_sources._alertmanager_candidate_inventory(
-            report, report["Metadata"]["ImageID"], None, None
+            report,
+            report["Metadata"]["ImageID"],
+            None,
+            None,
+            proof_mode="accepted-live",
+            upstream_version="0.34.1",
         )
 
 
@@ -13968,6 +14005,8 @@ def test_alertmanager_payload_C_H_scope_reaches_binary_owner_only_with_exact_bin
         "footer",
         "squash-ancestry",
         "ambiguous",
+        "missing-UI",
+        "malformed-UI",
     ],
 )
 def test_alertmanager_current_durable_predecessor_requires_complete_H_publication_conjunction(
@@ -14134,6 +14173,11 @@ def test_alertmanager_current_durable_predecessor_requires_complete_H_publicatio
             "ui.tar.gz": "3d6b13c5af094724e0bed8f757399e08af44d40d6c6cd87392a1f8ee6ed1e457",
         },
     }
+    built["UI_file_hashes"] = {"index.html.gz": "a" * 64, "assets/main.js.gz": "b" * 64}
+    if fault == "missing-UI":
+        built.pop("UI_file_hashes")
+    elif fault == "malformed-UI":
+        built["UI_file_hashes"] = {"index.html.gz": None}
     built["native"] = native(
         producer_files, "native-evidence", b"native_AM_merged_H_full_controls=pass"
     )
@@ -14336,9 +14380,12 @@ def test_alertmanager_current_durable_predecessor_requires_complete_H_publicatio
             result["upstream_version"] == "0.34.2"
             and result["current_observation"]["producer"] == producer_binding
         )
+        assert result["current_observation"]["UI_file_hashes"] == built["UI_file_hashes"]
         assert len(scan_calls) == 2
     else:
         diagnostic = {
+            "missing-UI": "AM_current_H_native_UI_inventory",
+            "malformed-UI": "AM_current_H_native_UI_inventory",
             "weaker-CD": "AM_positive_publication_predecessor_missing",
             "weaker-P": "AM_positive_publication_predecessor_missing",
             "missing-publication": "AM_current_publication_artifact_unique_HOLD",
@@ -15148,3 +15195,81 @@ def test_alertmanager_current_source_context_routes_2494_without_premature_publi
             invoke()
     assert len(contexts) == 1
     assert not any("artifacts" in value or "packages" in value for value in calls)
+
+
+def test_alertmanager_inventory_requires_explicit_proof_keywords() -> None:
+    report = _alertmanager_current_scan_report()
+    with pytest.raises(TypeError, match="proof_mode"):
+        docker_sources._alertmanager_candidate_inventory(
+            report, report["Metadata"]["ImageID"], None, None
+        )
+
+
+@pytest.mark.parametrize(
+    "mode,base,build,diagnostic",
+    [
+        ("unknown", None, None, "AM_scan_proof_mode"),
+        ("dynamic", None, None, "AM_scan_dynamic_proof_required"),
+        ("dynamic", {}, None, "AM_scan_dynamic_proof_required"),
+        ("dynamic", None, {}, "AM_scan_dynamic_proof_required"),
+        ("dynamic", {}, {}, "AM_candidate_both_actual_buildinfo_required"),
+        ("dynamic", {}, {"alertmanager": {}}, "AM_candidate_both_actual_buildinfo_required"),
+        ("accepted-live", {}, None, "AM_scan_proof_modes_mixed"),
+        ("accepted-live", None, {}, "AM_scan_proof_modes_mixed"),
+    ],
+)
+def test_alertmanager_inventory_rejects_ambiguous_proof_operands(
+    mode: str, base: dict[str, Any] | None, build: dict[str, Any] | None, diagnostic: str
+) -> None:
+    report = _alertmanager_current_scan_report()
+    with pytest.raises(RuntimeError, match=diagnostic):
+        docker_sources._alertmanager_candidate_inventory(
+            report,
+            report["Metadata"]["ImageID"],
+            base,
+            build,
+            proof_mode=mode,
+            upstream_version="0.34.1",
+        )
+
+
+@pytest.mark.parametrize(
+    "fault", ["unconfigured", "source", "version", "binary", "modules", "upstream"]
+)
+def test_alertmanager_inventory_requires_coherent_configured_live_profile(
+    monkeypatch: pytest.MonkeyPatch, fault: str
+) -> None:
+    report = _alertmanager_current_scan_report()
+    oracle = deepcopy(docker_sources._ALERT_CURRENT_SCAN_ORACLE)
+    if fault == "unconfigured":
+        monkeypatch.setattr(docker_sources, "_ALERT_ACCEPTED_CANDIDATE", None)
+    elif fault == "source":
+        oracle["subject"]["source"] = "f" * 40
+    elif fault == "version":
+        oracle["subject"]["upstream_version"] = "0.34.2"
+    elif fault == "binary":
+        oracle["subject"]["binary_sha256"].pop("amtool")
+    elif fault == "modules":
+        oracle["expected_modules"].pop("amtool")
+    monkeypatch.setattr(docker_sources, "_ALERT_CURRENT_SCAN_ORACLE", oracle)
+    with pytest.raises(
+        RuntimeError,
+        match="AM_(accepted_producer_UNCONFIGURED_HOLD|current_scan_profile_UNCONFIGURED_HOLD|current_scan_accepted_subject|scan_upstream_profile)",
+    ):
+        docker_sources._alertmanager_candidate_inventory(
+            report,
+            report["Metadata"]["ImageID"],
+            None,
+            None,
+            proof_mode="accepted-live",
+            upstream_version="0.34.2" if fault == "upstream" else "0.34.1",
+            current=True,
+        )
+
+
+def test_alertmanager_inventory_requires_explicit_upstream_keyword() -> None:
+    report = _alertmanager_current_scan_report()
+    with pytest.raises(TypeError, match="upstream_version"):
+        docker_sources._alertmanager_candidate_inventory(
+            report, report["Metadata"]["ImageID"], None, None, proof_mode="accepted-live"
+        )

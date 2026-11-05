@@ -242,6 +242,14 @@ phase budget, and its failure still blocks a successful cleanup result.
 
 ## Retained Alertmanager consumer admission
 
+- The common AM inventory recognizer requires explicit dynamic or accepted-live
+  proof mode and upstream profile. Dynamic proof carries both authenticated base
+  and both native buildinfos. Accepted-live proof carries neither and must join
+  the exact configured source/profile and complete static oracle before effects.
+  Current native selected-consumer checks require the full observation, root
+  inputs and UI inventory; historical fallback requires the exact historical subject.
+
+
 - The same source owner retains the original Q/S/C10 lineage and separately
   admits only actual qualified current outputs. Keep original
   producer PR/ref/run/attempt/job/source/artifact and all content hashes intact;

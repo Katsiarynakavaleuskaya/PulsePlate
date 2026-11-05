@@ -558,9 +558,9 @@ jobs:
       ALERTMANAGER_JOB_TIMEOUT_MINUTES: '80'
       ALERTMANAGER_CALLER_KIND: standalone
       # Real retained coordinates are set only after the separately admitted candidate exists.
-      AM_CANDIDATE_RUN: '40387641620'
-      AM_CANDIDATE_ARTIFACT: '12684611600'
-      AM_CANDIDATE_SOURCE: 'a8c9b361dbd57d86e2adf8f01f7880830fc04e53'
+      AM_CANDIDATE_RUN: '42110438896'
+      AM_CANDIDATE_ARTIFACT: '13456175467'
+      AM_CANDIDATE_SOURCE: '8aee3976d8f13027a5f2a38f0152ede0f4990156'
     steps:
       - name: Checkout exact current AM PR source
         timeout-minutes: 1
@@ -609,12 +609,12 @@ jobs:
             --artifact alertmanager --alertmanager-stage candidate-check --alertmanager-prepare-only \
             --source-sha "$SOURCE_SHA" --material-root "$material" \
             --alertmanager-controller-source "$ALERTMANAGER_CONTROLLER_SOURCE" \
-            --alertmanager-qualification-run 40379971373 --alertmanager-qualification-artifact 12677328773 \
-            --alertmanager-qualification-source a8c9b361dbd57d86e2adf8f01f7880830fc04e53 \
-            --alertmanager-support-run 40383803043 --alertmanager-support-artifact 12679243318 \
-            --alertmanager-support-source a8c9b361dbd57d86e2adf8f01f7880830fc04e53 \
-            --alertmanager-candidate-run 40387641620 --alertmanager-candidate-artifact 12684611600 \
-            --alertmanager-candidate-source a8c9b361dbd57d86e2adf8f01f7880830fc04e53 \
+            --alertmanager-qualification-run 42107347940 --alertmanager-qualification-artifact 13451573523 \
+            --alertmanager-qualification-source 8aee3976d8f13027a5f2a38f0152ede0f4990156 \
+            --alertmanager-support-run 42108567179 --alertmanager-support-artifact 13452993574 \
+            --alertmanager-support-source 8aee3976d8f13027a5f2a38f0152ede0f4990156 \
+            --alertmanager-candidate-run 42110438896 --alertmanager-candidate-artifact 13456175467 \
+            --alertmanager-candidate-source 8aee3976d8f13027a5f2a38f0152ede0f4990156 \
             --output-dir "$RUNNER_TEMP/alertmanager-consumer-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
 
       - name: Remove designated AM controller after credential cleanup
@@ -1978,12 +1978,12 @@ jobs:
             --artifact alertmanager --alertmanager-stage candidate-check --alertmanager-prepare-only \
             --source-sha "$SOURCE_SHA" --material-root "$material" \
             --alertmanager-controller-source "$controller_source" \
-            --alertmanager-qualification-run 40379971373 --alertmanager-qualification-artifact 12677328773 \
-            --alertmanager-qualification-source a8c9b361dbd57d86e2adf8f01f7880830fc04e53 \
-            --alertmanager-support-run 40383803043 --alertmanager-support-artifact 12679243318 \
-            --alertmanager-support-source a8c9b361dbd57d86e2adf8f01f7880830fc04e53 \
-            --alertmanager-candidate-run 40387641620 --alertmanager-candidate-artifact 12684611600 \
-            --alertmanager-candidate-source a8c9b361dbd57d86e2adf8f01f7880830fc04e53 \
+            --alertmanager-qualification-run 42107347940 --alertmanager-qualification-artifact 13451573523 \
+            --alertmanager-qualification-source 8aee3976d8f13027a5f2a38f0152ede0f4990156 \
+            --alertmanager-support-run 42108567179 --alertmanager-support-artifact 13452993574 \
+            --alertmanager-support-source 8aee3976d8f13027a5f2a38f0152ede0f4990156 \
+            --alertmanager-candidate-run 42110438896 --alertmanager-candidate-artifact 13456175467 \
+            --alertmanager-candidate-source 8aee3976d8f13027a5f2a38f0152ede0f4990156 \
             --output-dir "$RUNNER_TEMP/alertmanager-consumer-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
           printf 'controller_source=%s\n' "$controller_source" >> "$GITHUB_OUTPUT"
 
@@ -2270,7 +2270,7 @@ jobs:
           for binary in alertmanager amtool; do
             docker run --rm --pull never --platform linux/amd64 --network none --read-only \
               --user 65534:65534 --cap-drop ALL --security-opt no-new-privileges:true \
-              --entrypoint "/bin/$binary" "$AM_IMAGE_ID" --version | grep -F 'version 0.34.1'
+              --entrypoint "/bin/$binary" "$AM_IMAGE_ID" --version | grep -F 'version 0.34.2'
           done
           docker run --rm --pull never --platform linux/amd64 --network none --read-only \
             --user 65534:65534 --cap-drop ALL --security-opt no-new-privileges:true \
@@ -2750,12 +2750,12 @@ jobs:
             --artifact alertmanager --alertmanager-stage candidate-check --alertmanager-prepare-only \
             --source-sha "$SOURCE_SHA" --material-root "$material" \
             --alertmanager-controller-source "$controller_source" \
-            --alertmanager-qualification-run 40379971373 --alertmanager-qualification-artifact 12677328773 \
-            --alertmanager-qualification-source a8c9b361dbd57d86e2adf8f01f7880830fc04e53 \
-            --alertmanager-support-run 40383803043 --alertmanager-support-artifact 12679243318 \
-            --alertmanager-support-source a8c9b361dbd57d86e2adf8f01f7880830fc04e53 \
-            --alertmanager-candidate-run 40387641620 --alertmanager-candidate-artifact 12684611600 \
-            --alertmanager-candidate-source a8c9b361dbd57d86e2adf8f01f7880830fc04e53 \
+            --alertmanager-qualification-run 42107347940 --alertmanager-qualification-artifact 13451573523 \
+            --alertmanager-qualification-source 8aee3976d8f13027a5f2a38f0152ede0f4990156 \
+            --alertmanager-support-run 42108567179 --alertmanager-support-artifact 13452993574 \
+            --alertmanager-support-source 8aee3976d8f13027a5f2a38f0152ede0f4990156 \
+            --alertmanager-candidate-run 42110438896 --alertmanager-candidate-artifact 13456175467 \
+            --alertmanager-candidate-source 8aee3976d8f13027a5f2a38f0152ede0f4990156 \
             --output-dir "$RUNNER_TEMP/alertmanager-consumer-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
           printf 'controller_source=%s\n' "$controller_source" >> "$GITHUB_OUTPUT"
 

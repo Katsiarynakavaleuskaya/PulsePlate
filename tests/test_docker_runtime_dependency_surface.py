@@ -1177,6 +1177,10 @@ def test_caddy_private_environment_response_uses_literal_native_placeholders() -
     "fault",
     [
         None,
+        "order-prepared",
+        "order-runtime",
+        "order-cleanup",
+        "order-each",
         "response",
         "config",
         "process",
@@ -1233,6 +1237,18 @@ def test_caddy_private_environment_response_uses_literal_native_placeholders() -
         "env-cr",
         "env-nul",
         "env-unicode",
+        "pre-label",
+        "typed-pre-duplicate",
+        "typed-pre-nonstring",
+        "typed-pre-unhashable",
+        "typed-runtime-duplicate",
+        "typed-runtime-nonstring",
+        "typed-runtime-unhashable",
+        "typed-cleanup-duplicate",
+        "typed-cleanup-nonstring",
+        "typed-cleanup-unhashable",
+        "typed-pre-and-cleanup",
+        "typed-runtime-and-cleanup",
         "pre-id",
         "pre-image",
         "pre-path",
@@ -1413,6 +1429,26 @@ def test_caddy_actual_loaded_runtime_requires_complete_native_boundary_and_clean
                     }
                 ],
             }
+            orders = {
+                "prepared": [1, 0, 2, 3, 4, 5],
+                "main": [5, 4, 3, 2, 1, 0],
+                "cleanup": [2, 3, 4, 5, 0, 1],
+            }
+            order_phase = {
+                "order-prepared": "prepared",
+                "order-runtime": "main",
+                "order-cleanup": "cleanup",
+            }.get(fault)
+            if fault == "order-each" or phase == order_phase:
+                observed["Config"]["Env"] = [synthetic_environment[k] for k in orders[phase]]
+            typed_phase = {"pre": "prepared", "runtime": "main", "cleanup": "cleanup"}
+            if fault is not None and fault.startswith("typed-"):
+                _, target, kind = fault.split("-", 2)
+                if phase == typed_phase[target] or kind == "and-cleanup" and phase == "cleanup":
+                    values = observed["Config"]["Env"]
+                    values[-1] = {"duplicate": values[0], "nonstring": False}.get(
+                        kind, {"private": sentinel}
+                    )
             if fault is not None and fault.startswith("env-"):
                 values = observed["Config"]["Env"]
                 if fault == "env-not-list":
@@ -1438,6 +1474,7 @@ def test_caddy_actual_loaded_runtime_requires_complete_native_boundary_and_clean
                         values.append(binding)
             if phase == "prepared" and fault is not None and fault.startswith("pre-"):
                 field, value = {
+                    "pre-label": ("Labels", {"pulseplate.caddy-D": "foreign"}),
                     "pre-id": ("Id", "invalid"),
                     "pre-image": ("Image", "sha256:" + "c" * 64),
                     "pre-path": ("Path", "/bin/sh"),
@@ -1454,7 +1491,7 @@ def test_caddy_actual_loaded_runtime_requires_complete_native_boundary_and_clean
                     if field in ("Status", "Running")
                     else (
                         observed["Config"]
-                        if field in ("Tty", "Hostname", "WorkingDir")
+                        if field in ("Tty", "Hostname", "WorkingDir", "Labels")
                         else observed
                     )
                 )
@@ -1710,12 +1747,18 @@ def test_caddy_actual_loaded_runtime_requires_complete_native_boundary_and_clean
     }.get(fault, set())
     for filename in capture_obstructions:
         (current_directory / filename).mkdir()
-    if fault is None:
+    if fault in (None, "order-prepared", "order-runtime", "order-cleanup", "order-each"):
         result = runtime_surface.observe_caddy_ci_runtime(image, current_directory)
         assert result["response"] == expected_response
     else:
         error_type: type[Exception] = ValueError
-        if fault.startswith("native-"):
+        if fault.startswith("typed-pre-"):
+            message = "Caddy pre-start synthetic environment binding differs"
+        elif fault.startswith("typed-runtime-"):
+            message = "Caddy synthetic environment changed after startup"
+        elif fault.startswith("typed-cleanup-"):
+            message = "Caddy synthetic inspection not retained"
+        elif fault.startswith("native-"):
             error_type, message = RuntimeError, "synthetic native command failed"
         elif fault == "response-invalid-utf8":
             error_type, message = RuntimeError, "Docker output is not valid UTF-8"
@@ -1856,6 +1899,21 @@ def test_caddy_actual_loaded_runtime_requires_complete_native_boundary_and_clean
             assert "Caddy cleanup also failed: ValueError" in caught.value.__notes__
         if fault == "diagnostic-primary-cleanup-command":
             assert "Caddy cleanup also failed: RuntimeError" in caught.value.__notes__
+    if fault is not None and fault.startswith("typed-"):
+        if fault.startswith("typed-pre-"):
+            assert "Caddy runtime phase: pre-start-inspect" in caught.value.__notes__
+        elif fault.startswith("typed-runtime-"):
+            assert "Caddy runtime phase: runtime-inspect" in caught.value.__notes__
+            assert any(args[0] == "start" for args in calls)
+            assert not any(args[0] == "logs" for args in calls)
+        else:
+            assert any(args[0] == "start" for args in calls)
+            assert any(args[0] == "logs" for args in calls)
+        if fault.endswith("and-cleanup") or fault.startswith("typed-cleanup-"):
+            assert (
+                "Caddy diagnostic write failed (cleanup-inspect): ValueError"
+                in caught.value.__notes__
+            )
     if fault == "native-create":
         assert inspect_outputs == []
     else:
@@ -1867,7 +1925,13 @@ def test_caddy_actual_loaded_runtime_requires_complete_native_boundary_and_clean
         if phase == "prepared":
             continue
         prefix = "container-inspect" if phase == "main" else "cleanup-inspect"
-        safe = json.loads(output)[0]["Config"]["Env"] == synthetic_environment
+        values = json.loads(output)[0]["Config"]["Env"]
+        safe = (
+            type(values) is list
+            and len(values) == 6
+            and all(type(value) is str for value in values)
+            and sorted(values) == sorted(synthetic_environment)
+        )
         for channel, expected in (("stdout", output), ("stderr", "inspection-diagnostic\n")):
             filename = prefix + "." + channel
             path = current_directory / filename
@@ -1882,7 +1946,7 @@ def test_caddy_actual_loaded_runtime_requires_complete_native_boundary_and_clean
         for path in directory.iterdir():
             if path.is_file():
                 assert sentinel not in path.read_text()
-    if fault is not None and (fault.startswith("env-") or fault.startswith("pre-")):
+    if fault is not None and fault.startswith(("env-", "pre-", "typed-pre-")):
         assert not any(args[0] in ("start", "logs") for args in calls)
     if fault == "native-create":
         assert calls[-1][0] == "create"
@@ -2276,3 +2340,50 @@ def test_caddy_native_controls_require_decoded_findings_and_complete_subject_rel
         with pytest.raises(ValueError):
             runtime_surface.validate_caddy_control_reports(candidate, controls, directory)
     assert {path.name: path.read_bytes() for path in directory.iterdir()} == original
+
+
+def test_caddy_synthetic_environment_accepts_exactly_all_720_orders() -> None:
+    from itertools import permutations
+
+    expected = [
+        "HOME=/run/pulseplate-caddy-tmp",
+        "TMPDIR=/run/pulseplate-caddy-tmp",
+        "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "CADDY_VERSION=v2.11.4",
+        "XDG_CONFIG_HOME=/config",
+        "XDG_DATA_HOME=/data",
+    ]
+    assert len({entry.split("=", 1)[0] for entry in expected}) == 6
+    count = 0
+    for order in permutations(expected):
+        actual = list(order)
+        assert runtime_surface._is_caddy_synthetic_environment(actual)
+        assert actual == list(order)
+        count += 1
+    assert count == 720
+    invalid: list[object] = [None, tuple(expected), {}, "invalid", 1, True]
+    for position in range(6):
+        invalid.extend(
+            [expected[:position] + expected[position + 1 :], expected + [expected[position]]]
+        )
+        for replacement in (
+            False,
+            1,
+            None,
+            [],
+            {},
+            "invalid",
+            "HOME=/changed",
+            expected[(position + 1) % 6],
+        ):
+            invalid.append([*expected[:position], replacement, *expected[position + 1 :]])
+        for suffix in (" ", "\nprivate", "\rprivate", "\0private", "\u2028private"):
+            invalid.append(
+                [*expected[:position], expected[position] + suffix, *expected[position + 1 :]]
+            )
+    invalid.extend(
+        expected + [key + "=synthetic"]
+        for key in ("HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "UNKNOWN")
+    )
+    for value in invalid:
+        assert runtime_surface._is_caddy_synthetic_environment(value) is False

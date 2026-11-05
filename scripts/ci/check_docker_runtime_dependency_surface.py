@@ -10,6 +10,7 @@ optional vector/ML packages.
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import copy
 import os
 import time
@@ -432,6 +433,26 @@ def caddy_ci_source_inventory(root: Path, paths: list[str]) -> dict[str, dict[st
     return inventory
 
 
+_CADDY_SYNTHETIC_ENVIRONMENT = (
+    "HOME=/run/pulseplate-caddy-tmp",
+    "TMPDIR=/run/pulseplate-caddy-tmp",
+    "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "CADDY_VERSION=v2.11.4",
+    "XDG_CONFIG_HOME=/config",
+    "XDG_DATA_HOME=/data",
+)
+
+
+def _is_caddy_synthetic_environment(value: object) -> bool:
+    """Recognize all six reviewed unique bindings, independent of Docker's list order."""
+    return (
+        type(value) is list
+        and len(value) == 6
+        and all(type(entry) is str for entry in value)
+        and Counter(value) == Counter(_CADDY_SYNTHETIC_ENVIRONMENT)
+    )
+
+
 def observe_caddy_ci_runtime(image: str, directory: Path) -> dict[str, object]:
     """Bind two serving-process values and isolated storage, never a deployed service."""
     global _CADDY_REMAINING
@@ -490,14 +511,6 @@ def observe_caddy_ci_runtime(image: str, directory: Path) -> dict[str, object]:
     diagnostic_errors: list[tuple[str, Exception]] = []
     primary_error: BaseException | None = None
     evidence: dict[str, object] = {"image_config_id": image, "argv": arguments}
-    synthetic_environment = [
-        "HOME=/run/pulseplate-caddy-tmp",
-        "TMPDIR=/run/pulseplate-caddy-tmp",
-        "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-        "CADDY_VERSION=v2.11.4",
-        "XDG_CONFIG_HOME=/config",
-        "XDG_DATA_HOME=/data",
-    ]
     phase = "create"
     observed_channels: tuple[tuple[str, str], ...] = ()
     outer_remaining = _CADDY_REMAINING
@@ -535,7 +548,7 @@ def observe_caddy_ci_runtime(image: str, directory: Path) -> dict[str, object]:
             or prepared_config["Tty"] is not False
             or prepared_config["WorkingDir"] != "/srv"
             or prepared_config["Hostname"] != prepared["Id"][:12]
-            or prepared_config.get("Env") != synthetic_environment
+            or not _is_caddy_synthetic_environment(prepared_config.get("Env"))
         ):
             raise ValueError("Caddy pre-start synthetic environment binding differs")
         phase, observed_channels = "start", ()
@@ -603,7 +616,7 @@ def observe_caddy_ci_runtime(image: str, directory: Path) -> dict[str, object]:
         inspection = _run_docker(["inspect", name])
         observed_channels = (("inspect.stdout", inspection.stdout),)
         inspected = json.loads(inspection.stdout)[0]
-        if inspected["Config"].get("Env") != synthetic_environment:
+        if not _is_caddy_synthetic_environment(inspected["Config"].get("Env")):
             raise ValueError("Caddy synthetic environment changed after startup")
         for channel, output in (("stdout", inspection.stdout), ("stderr", inspection.stderr)):
             try:
@@ -730,7 +743,7 @@ def observe_caddy_ci_runtime(image: str, directory: Path) -> dict[str, object]:
             if created:
                 inspection = _run_docker(["inspect", name])
                 current = json.loads(inspection.stdout)[0]
-                if current["Config"].get("Env") == synthetic_environment:
+                if _is_caddy_synthetic_environment(current["Config"].get("Env")):
                     for channel, output in (
                         ("stdout", inspection.stdout),
                         ("stderr", inspection.stderr),

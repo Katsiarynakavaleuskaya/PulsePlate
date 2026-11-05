@@ -979,8 +979,441 @@ _ALERT_HISTORICAL_AM11: dict[str, Any] = {
     "OCI_archive_sha256": "fa74ac0777c59c73299c6424239038bfcd9b0a0d7366beaf24fc432b364090c1",
 }
 
-# No accepted producer exists for the new upstream source epoch.
-_ALERT_ACCEPTED_CANDIDATE: dict[str, Any] | None = None
+# Accepted C2 retains its original producer source and complete native graph.
+_ALERT_ACCEPTED_CANDIDATE: dict[str, Any] | None = {
+    "run": 42110438896,
+    "attempt": 1,
+    "artifact": 13456175467,
+    "source": "8aee3976d8f13027a5f2a38f0152ede0f4990156",
+    "job": 127536259342,
+    "zip_sha256": "9a3780a984c8d4c309eb8755c71d0bda09c3884f923c5e3a023aa5b38b60867f",
+    "source_files": {
+        "scripts/ci/fetch_docker_source_artifacts.py": "2da3e626cfea5a9c33c6d32eded9b9c2a6896ca7e500626279a717cd5b4a3487",
+        ".github/workflows/cd.yml": "ae36965ae3b20893a16cb2363a355e73c5f4b3547a99292f8fa498bb107f4a64",
+        "scripts/ci/docker_source_artifacts.json": "8b14ca1c62bf4ec0a130e5a2cbe55e986f823c3b8686ddb835c7f736f09be98b",
+        "deploy/alertmanager/Containerfile": "2c70a5f492866c30e2c7db69be001003c674ef0f16b336f94a8a23be2777de13",
+        "deploy/alertmanager/alertmanager.yml": "5dc1025c293763618febeb74c17edcb126ad943f9b20c2296c67847e9f977549",
+        "tests/test_notify_premium_alias_checkpoint_failure.py": "3c8d43cf2b9c33e8d95ef522620a2ff3aef1d9610ba99c5db171e015de6112e3",
+    },
+    "graph": {
+        "manifest": {
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "digest": "sha256:e4b0453fb56079d8ee565f76c4029c34d0711215b2a72541cc060bdcbe9827d3",
+            "size": 5085,
+        },
+        "config": {
+            "mediaType": "application/vnd.oci.image.config.v1+json",
+            "digest": "sha256:db6b5863659a4d2e4372cbf32602429299763e0efacc2c165dc7245c3e9df2ee",
+            "size": 5243,
+        },
+        "layers": [
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar",
+                "digest": "sha256:9486261b5a13f63ca6904b36721527ac8f19df53d300560138d69ae9b4c203de",
+                "size": 491520,
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar",
+                "digest": "sha256:621c35e751a51a9a9dc3e80aa0b7fe8be2a93402ea6ccd307d30852cd7776cda",
+                "size": 40960,
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar",
+                "digest": "sha256:92a3b02188b326c1b10a0a375d3c0019dff4ee8ff02a4b51a7e640bb9400932f",
+                "size": 1157120,
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar",
+                "digest": "sha256:ef430e4865b6130e131d5777c1d072fdcc89478668d10ab41a18549e0fdc88b5",
+                "size": 1331200,
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar",
+                "digest": "sha256:275a30dd8ce958b21daa9ad962c6fbc09f98306ee2f486b65c9075dc257b1412",
+                "size": 102400,
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar",
+                "digest": "sha256:4d049f83d9cf21d1f5cc0e11deaf36df02790d0e60c1a3829538fb4b61685368",
+                "size": 1536,
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar",
+                "digest": "sha256:af5aa97ebe6ce1604747ec1e21af7136ded391bcabe4acef882e718a87c86bcc",
+                "size": 2560,
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar",
+                "digest": "sha256:6f1cdceb6a3146f0ccb986521156bef8a422cdbb0863396f7f751f575ba308f4",
+                "size": 2560,
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar",
+                "digest": "sha256:bd3cdfae1d3fdd83a2231d608969b38b82349777c2fff9a7c12d54f8ac5c9b38",
+                "size": 2560,
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar",
+                "digest": "sha256:4cde6b0bb6f50a5f255eef7b2a42162c661cf776b803225dcac9a659e396bb6b",
+                "size": 1536,
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar",
+                "digest": "sha256:ad51d0769d16ba578106a177987dfe3d2e02c1668c852b795b2f6b024068242a",
+                "size": 2048,
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar",
+                "digest": "sha256:187cfc6d1e3e8a40a5e64653bcd3239c140807dcf1c09e48021178705a5a6139",
+                "size": 3072,
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar",
+                "digest": "sha256:0762a1f6557d1e88a761ab05aa7f65a10dc0e559913ea13befb873d907e1a396",
+                "size": 276480,
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:f0c99cb46dc3075e00bcbf7cacb455db42cc1919a5317ab7ee74e00365c2d772",
+                "size": 25500490,
+                "annotations": {"buildkit/rewritten-timestamp": "0"},
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:14462b113359b676c1048b09131792950e2890decacdd40a3c01f453c0f443c7",
+                "size": 15805672,
+                "annotations": {"buildkit/rewritten-timestamp": "0"},
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:ed53005ab7a3eda1c4e318dc3749f1b0e1bbaf7b1f512f5ed23874920a8e1b67",
+                "size": 757847,
+                "annotations": {"buildkit/rewritten-timestamp": "0"},
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:3f7073302b8d53123283aed48a518b1921ce8feddb14942d83394be258419f72",
+                "size": 757849,
+                "annotations": {"buildkit/rewritten-timestamp": "0"},
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:45b6955d306ab4f615bb5dbf288dcdc2db5c8c04934a4e6b8681f33a298d5c16",
+                "size": 612,
+                "annotations": {"buildkit/rewritten-timestamp": "0"},
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:088129772a902e049909e77376849a4f5363c89f983d50a5138904bb41a0a92d",
+                "size": 4010,
+                "annotations": {"buildkit/rewritten-timestamp": "0"},
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:9426ce3b6d972a36e7f2ac052b62757765a9209a376f43bb6f17c404b3cb804d",
+                "size": 297,
+                "annotations": {"buildkit/rewritten-timestamp": "0"},
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:1bcd9d02d07c61ea09b224e897faef8c89a6c46f2892c57f6549e312610d6dcb",
+                "size": 97,
+                "annotations": {"buildkit/rewritten-timestamp": "0"},
+            },
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:4f4fb700ef54461cfa02571ae0db9a0dc1e0cdb5577484a6d75e68dc38e8acc1",
+                "size": 32,
+                "annotations": {"buildkit/rewritten-timestamp": "0"},
+            },
+        ],
+        "diff_ids": [
+            "sha256:9486261b5a13f63ca6904b36721527ac8f19df53d300560138d69ae9b4c203de",
+            "sha256:621c35e751a51a9a9dc3e80aa0b7fe8be2a93402ea6ccd307d30852cd7776cda",
+            "sha256:92a3b02188b326c1b10a0a375d3c0019dff4ee8ff02a4b51a7e640bb9400932f",
+            "sha256:ef430e4865b6130e131d5777c1d072fdcc89478668d10ab41a18549e0fdc88b5",
+            "sha256:275a30dd8ce958b21daa9ad962c6fbc09f98306ee2f486b65c9075dc257b1412",
+            "sha256:4d049f83d9cf21d1f5cc0e11deaf36df02790d0e60c1a3829538fb4b61685368",
+            "sha256:af5aa97ebe6ce1604747ec1e21af7136ded391bcabe4acef882e718a87c86bcc",
+            "sha256:6f1cdceb6a3146f0ccb986521156bef8a422cdbb0863396f7f751f575ba308f4",
+            "sha256:bd3cdfae1d3fdd83a2231d608969b38b82349777c2fff9a7c12d54f8ac5c9b38",
+            "sha256:4cde6b0bb6f50a5f255eef7b2a42162c661cf776b803225dcac9a659e396bb6b",
+            "sha256:ad51d0769d16ba578106a177987dfe3d2e02c1668c852b795b2f6b024068242a",
+            "sha256:187cfc6d1e3e8a40a5e64653bcd3239c140807dcf1c09e48021178705a5a6139",
+            "sha256:0762a1f6557d1e88a761ab05aa7f65a10dc0e559913ea13befb873d907e1a396",
+            "sha256:7cbccd2b7da66b161400635cf64d46a21195e590f44320b20deb0436c6677f47",
+            "sha256:7a97889d786f042fae2f59f9cb17a3e21d1dea08a9fe38b4333bec5dc3c5d9a0",
+            "sha256:f051c02db927594f23745b7dc826033115c2e33debba4d67204ae615943f7e73",
+            "sha256:94e89fbfb258668bb6fdc87b0fc7f37eeeefd1fc89aa739bcc57ffada8663f8b",
+            "sha256:65f56c9aa7619e167cb91d1beb61ced1d834816e96a73af2aa760f3ef433245c",
+            "sha256:e24bff050ddf9053222fc87bb07da9d515fdffaa6b8f00b613dc4229f0b3b150",
+            "sha256:3a4a9e6bb5564f8d757029258936b0c566d6110e1339463f0bfb729b30ed2ed5",
+            "sha256:620f62c178df2355281c80decca65ea32427834c05d5a78ea387547f5fd13435",
+            "sha256:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef",
+        ],
+        "configuration": {
+            "architecture": "amd64",
+            "config": {
+                "User": "65534:65534",
+                "ExposedPorts": {"9093/tcp": {}},
+                "Env": [
+                    "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                    "SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt",
+                ],
+                "Entrypoint": ["/bin/alertmanager"],
+                "Cmd": [
+                    "--config.file=/etc/alertmanager/alertmanager.yml",
+                    "--storage.path=/alertmanager",
+                    "--cluster.listen-address=",
+                ],
+                "Volumes": {"/alertmanager": {}},
+                "WorkingDir": "/alertmanager",
+                "ArgsEscaped": True,
+            },
+            "created": "1970-01-01T00:00:00Z",
+            "history": [
+                {
+                    "created": "1970-01-01T00:00:00Z",
+                    "created_by": "bazel build @trixie//base-files/amd64:data_statusd",
+                },
+                {
+                    "created": "1970-01-01T00:00:00Z",
+                    "created_by": "bazel build @trixie//netbase/amd64:data_statusd",
+                },
+                {
+                    "created": "1970-01-01T00:00:00Z",
+                    "created_by": "bazel build @trixie//tzdata/amd64:data_statusd",
+                },
+                {
+                    "created": "1970-01-01T00:00:00Z",
+                    "created_by": "bazel build @trixie//tzdata-legacy/amd64:data_statusd",
+                },
+                {
+                    "created": "1970-01-01T00:00:00Z",
+                    "created_by": "bazel build @trixie//media-types/amd64:data_statusd",
+                },
+                {"created": "1970-01-01T00:00:00Z", "created_by": "bazel build //common:rootfs"},
+                {"created": "1970-01-01T00:00:00Z", "created_by": "bazel build //common:passwd"},
+                {"created": "1970-01-01T00:00:00Z", "created_by": "bazel build //common:home"},
+                {"created": "1970-01-01T00:00:00Z", "created_by": "bazel build //common:group"},
+                {"created": "1970-01-01T00:00:00Z", "created_by": "bazel build //common:tmp"},
+                {"created": "1970-01-01T00:00:00Z", "created_by": "bazel build //static:nsswitch"},
+                {
+                    "created": "1970-01-01T00:00:00Z",
+                    "created_by": "bazel build //common:os_release_debian13",
+                },
+                {
+                    "created": "1970-01-01T00:00:00Z",
+                    "created_by": "bazel build //common:cacerts_debian13_amd64_tar",
+                },
+                {
+                    "created": "1970-01-01T00:00:00Z",
+                    "created_by": "COPY alertmanager /usr/bin/alertmanager # buildkit",
+                    "comment": "buildkit.dockerfile.v0",
+                },
+                {
+                    "created": "1970-01-01T00:00:00Z",
+                    "created_by": "COPY amtool /usr/bin/amtool # buildkit",
+                    "comment": "buildkit.dockerfile.v0",
+                },
+                {
+                    "created": "1970-01-01T00:00:00Z",
+                    "created_by": "COPY probe-bin-bracket /usr/bin/wget # buildkit",
+                    "comment": "buildkit.dockerfile.v0",
+                },
+                {
+                    "created": "1970-01-01T00:00:00Z",
+                    "created_by": "COPY probe-bin-bracket /usr/bin/httpd # buildkit",
+                    "comment": "buildkit.dockerfile.v0",
+                },
+                {
+                    "created": "1970-01-01T00:00:00Z",
+                    "created_by": "COPY alertmanager.yml /etc/alertmanager/alertmanager.yml # buildkit",
+                    "comment": "buildkit.dockerfile.v0",
+                },
+                {
+                    "created": "1970-01-01T00:00:00Z",
+                    "created_by": "COPY LICENSE /LICENSE # buildkit",
+                    "comment": "buildkit.dockerfile.v0",
+                },
+                {
+                    "created": "1970-01-01T00:00:00Z",
+                    "created_by": "COPY NOTICE /NOTICE # buildkit",
+                    "comment": "buildkit.dockerfile.v0",
+                },
+                {
+                    "created": "1970-01-01T00:00:00Z",
+                    "created_by": "USER 65534:65534",
+                    "comment": "buildkit.dockerfile.v0",
+                    "empty_layer": True,
+                },
+                {
+                    "created": "1970-01-01T00:00:00Z",
+                    "created_by": "COPY --chown=65534:65534 --chmod=0700 storage-dir /alertmanager # buildkit",
+                    "comment": "buildkit.dockerfile.v0",
+                },
+                {
+                    "created": "1970-01-01T00:00:00Z",
+                    "created_by": "WORKDIR /alertmanager",
+                    "comment": "buildkit.dockerfile.v0",
+                },
+                {
+                    "created": "1970-01-01T00:00:00Z",
+                    "created_by": "EXPOSE [9093/tcp]",
+                    "comment": "buildkit.dockerfile.v0",
+                    "empty_layer": True,
+                },
+                {
+                    "created": "1970-01-01T00:00:00Z",
+                    "created_by": "VOLUME [/alertmanager]",
+                    "comment": "buildkit.dockerfile.v0",
+                    "empty_layer": True,
+                },
+                {
+                    "created": "1970-01-01T00:00:00Z",
+                    "created_by": 'ENTRYPOINT ["/bin/alertmanager"]',
+                    "comment": "buildkit.dockerfile.v0",
+                    "empty_layer": True,
+                },
+                {
+                    "created": "1970-01-01T00:00:00Z",
+                    "created_by": 'CMD ["--config.file=/etc/alertmanager/alertmanager.yml" "--storage.path=/alertmanager" "--cluster.listen-address="]',
+                    "comment": "buildkit.dockerfile.v0",
+                    "empty_layer": True,
+                },
+            ],
+            "os": "linux",
+            "rootfs": {
+                "type": "layers",
+                "diff_ids": [
+                    "sha256:9486261b5a13f63ca6904b36721527ac8f19df53d300560138d69ae9b4c203de",
+                    "sha256:621c35e751a51a9a9dc3e80aa0b7fe8be2a93402ea6ccd307d30852cd7776cda",
+                    "sha256:92a3b02188b326c1b10a0a375d3c0019dff4ee8ff02a4b51a7e640bb9400932f",
+                    "sha256:ef430e4865b6130e131d5777c1d072fdcc89478668d10ab41a18549e0fdc88b5",
+                    "sha256:275a30dd8ce958b21daa9ad962c6fbc09f98306ee2f486b65c9075dc257b1412",
+                    "sha256:4d049f83d9cf21d1f5cc0e11deaf36df02790d0e60c1a3829538fb4b61685368",
+                    "sha256:af5aa97ebe6ce1604747ec1e21af7136ded391bcabe4acef882e718a87c86bcc",
+                    "sha256:6f1cdceb6a3146f0ccb986521156bef8a422cdbb0863396f7f751f575ba308f4",
+                    "sha256:bd3cdfae1d3fdd83a2231d608969b38b82349777c2fff9a7c12d54f8ac5c9b38",
+                    "sha256:4cde6b0bb6f50a5f255eef7b2a42162c661cf776b803225dcac9a659e396bb6b",
+                    "sha256:ad51d0769d16ba578106a177987dfe3d2e02c1668c852b795b2f6b024068242a",
+                    "sha256:187cfc6d1e3e8a40a5e64653bcd3239c140807dcf1c09e48021178705a5a6139",
+                    "sha256:0762a1f6557d1e88a761ab05aa7f65a10dc0e559913ea13befb873d907e1a396",
+                    "sha256:7cbccd2b7da66b161400635cf64d46a21195e590f44320b20deb0436c6677f47",
+                    "sha256:7a97889d786f042fae2f59f9cb17a3e21d1dea08a9fe38b4333bec5dc3c5d9a0",
+                    "sha256:f051c02db927594f23745b7dc826033115c2e33debba4d67204ae615943f7e73",
+                    "sha256:94e89fbfb258668bb6fdc87b0fc7f37eeeefd1fc89aa739bcc57ffada8663f8b",
+                    "sha256:65f56c9aa7619e167cb91d1beb61ced1d834816e96a73af2aa760f3ef433245c",
+                    "sha256:e24bff050ddf9053222fc87bb07da9d515fdffaa6b8f00b613dc4229f0b3b150",
+                    "sha256:3a4a9e6bb5564f8d757029258936b0c566d6110e1339463f0bfb729b30ed2ed5",
+                    "sha256:620f62c178df2355281c80decca65ea32427834c05d5a78ea387547f5fd13435",
+                    "sha256:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef",
+                ],
+            },
+        },
+        "payload": [
+            {"path": "usr", "mode": 493, "uid": 0, "gid": 0, "size": 0, "type": "directory"},
+            {"path": "usr/bin", "mode": 493, "uid": 0, "gid": 0, "size": 0, "type": "directory"},
+            {
+                "path": "usr/bin/alertmanager",
+                "mode": 365,
+                "uid": 0,
+                "gid": 0,
+                "size": 50375721,
+                "type": "file",
+                "sha256": "4a871fe631f8b91e9f421f2ff9c3a4f2472d340cc654448155cb8722cae125d1",
+            },
+            {"path": "usr", "mode": 493, "uid": 0, "gid": 0, "size": 0, "type": "directory"},
+            {"path": "usr/bin", "mode": 493, "uid": 0, "gid": 0, "size": 0, "type": "directory"},
+            {
+                "path": "usr/bin/amtool",
+                "mode": 365,
+                "uid": 0,
+                "gid": 0,
+                "size": 30696071,
+                "type": "file",
+                "sha256": "e041a8aadb52426695dcee36f2ce854ca26d82f53a2f0379d4faaabfb316b954",
+            },
+            {"path": "usr", "mode": 493, "uid": 0, "gid": 0, "size": 0, "type": "directory"},
+            {"path": "usr/bin", "mode": 493, "uid": 0, "gid": 0, "size": 0, "type": "directory"},
+            {
+                "path": "usr/bin/wget",
+                "mode": 365,
+                "uid": 0,
+                "gid": 0,
+                "size": 1173752,
+                "type": "file",
+                "sha256": "462febe85977f9787d1d4a45fae0c0858fdb65f2312ccb95e034a505cbaaebfe",
+            },
+            {"path": "usr", "mode": 493, "uid": 0, "gid": 0, "size": 0, "type": "directory"},
+            {"path": "usr/bin", "mode": 493, "uid": 0, "gid": 0, "size": 0, "type": "directory"},
+            {
+                "path": "usr/bin/httpd",
+                "mode": 365,
+                "uid": 0,
+                "gid": 0,
+                "size": 1173752,
+                "type": "file",
+                "sha256": "462febe85977f9787d1d4a45fae0c0858fdb65f2312ccb95e034a505cbaaebfe",
+            },
+            {"path": "etc", "mode": 493, "uid": 0, "gid": 0, "size": 0, "type": "directory"},
+            {
+                "path": "etc/alertmanager",
+                "mode": 493,
+                "uid": 0,
+                "gid": 0,
+                "size": 0,
+                "type": "directory",
+            },
+            {
+                "path": "etc/alertmanager/alertmanager.yml",
+                "mode": 292,
+                "uid": 0,
+                "gid": 0,
+                "size": 1094,
+                "type": "file",
+                "sha256": "5dc1025c293763618febeb74c17edcb126ad943f9b20c2296c67847e9f977549",
+            },
+            {
+                "path": "LICENSE",
+                "mode": 292,
+                "uid": 0,
+                "gid": 0,
+                "size": 11357,
+                "type": "file",
+                "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+            },
+            {
+                "path": "NOTICE",
+                "mode": 292,
+                "uid": 0,
+                "gid": 0,
+                "size": 311,
+                "type": "file",
+                "sha256": "24f7d73529defd2e28b4bb5e0f0396cebb6d3e74b7f66a26b62d0d3251431582",
+            },
+            {
+                "path": "alertmanager",
+                "mode": 448,
+                "uid": 65534,
+                "gid": 65534,
+                "size": 0,
+                "type": "directory",
+            },
+        ],
+        "files": {
+            "usr/bin/alertmanager": "4a871fe631f8b91e9f421f2ff9c3a4f2472d340cc654448155cb8722cae125d1",
+            "usr/bin/amtool": "e041a8aadb52426695dcee36f2ce854ca26d82f53a2f0379d4faaabfb316b954",
+            "usr/bin/wget": "462febe85977f9787d1d4a45fae0c0858fdb65f2312ccb95e034a505cbaaebfe",
+            "usr/bin/httpd": "462febe85977f9787d1d4a45fae0c0858fdb65f2312ccb95e034a505cbaaebfe",
+            "etc/alertmanager/alertmanager.yml": "5dc1025c293763618febeb74c17edcb126ad943f9b20c2296c67847e9f977549",
+            "LICENSE": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+            "NOTICE": "24f7d73529defd2e28b4bb5e0f0396cebb6d3e74b7f66a26b62d0d3251431582",
+        },
+        "default_CA_sha256": "e9c7b63ee2623386e9b0a3ee32f499d01a8ea23dc83b8383ddff9f8e749543b7",
+    },
+    "OCI_archive_sha256": "2c3f25468765d3c84c1f2eba73b25b96bb71b2cbeaaf6e42dd5b531ed9eaff5f",
+}
 
 # Only these two reviewed upstream repository/ref records use codeload basenames.
 _PINNED_CODELOAD_SOURCES = {
@@ -3782,6 +4215,19 @@ def _alertmanager_publication_predecessor(
             == built.get("OCI_archive_sha256"),
             "AM_current_H_retained_OCI_bytes",
         )
+        ui = built.get("UI_file_hashes")
+        require(
+            type(ui) is dict
+            and "index.html.gz" in ui
+            and all(
+                type(name) is str
+                and bool(name)
+                and type(digest) is str
+                and _HEX_RE.fullmatch(digest) is not None
+                for name, digest in ui.items()
+            ),
+            "AM_current_H_native_UI_inventory",
+        )
         return {
             "publication": publication,
             "producer": producer,
@@ -3789,6 +4235,7 @@ def _alertmanager_publication_predecessor(
             "graph": built["graph"],
             "upstream_version": upstream,
             "root_inputs": built["root_inputs"],
+            "UI_file_hashes": ui,
         }
 
     proof_failure: BaseException | None = None
@@ -6314,6 +6761,7 @@ def _alertmanager_candidate_payload(
             upstream_version=_alertmanager_upstream_identity(
                 inspected["root_inputs"], current=current
             ),
+            proof_mode="dynamic",
         )
         == result["security"].get("candidate"),
         "AM_candidate_full_report_not_summary_only",
@@ -6799,11 +7247,13 @@ def _alertmanager_build_information(
 # Accepted native build-info and base-package oracle, bound to immutable S.
 _ALERT_CURRENT_SCAN_ORACLE: dict[str, dict[str, Any]] = {
     "subject": {
-        "manifest": "sha256:5a476cb3c572d11f8b5fcb6d42400f4613011a5f592ca574b7015c5231b70781",
-        "config": "sha256:542c5e287fc8e0dc4f6c7db21576f4eaa508b28e9733e205ef78d2e3d06be62c",
+        "source": "8aee3976d8f13027a5f2a38f0152ede0f4990156",
+        "upstream_version": "0.34.2",
+        "manifest": "sha256:e4b0453fb56079d8ee565f76c4029c34d0711215b2a72541cc060bdcbe9827d3",
+        "config": "sha256:db6b5863659a4d2e4372cbf32602429299763e0efacc2c165dc7245c3e9df2ee",
         "binary_sha256": {
-            "alertmanager": "c7df6fc46c9f41f83657de5956b0373d1e733b04549c59d9657c44a426334aff",
-            "amtool": "47bd3f8d054eb8b6ab1005577508da00b52efba55ba647a83612ec31731da42b",
+            "alertmanager": "4a871fe631f8b91e9f421f2ff9c3a4f2472d340cc654448155cb8722cae125d1",
+            "amtool": "e041a8aadb52426695dcee36f2ce854ca26d82f53a2f0379d4faaabfb316b954",
         },
     },
     "expected_OS": {
@@ -6971,14 +7421,14 @@ _ALERT_CURRENT_SCAN_ORACLE: dict[str, dict[str, Any]] = {
             "go.opentelemetry.io/auto/sdk": "v1.2.1",
             "go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace": "v0.69.0",
             "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp": "v0.69.0",
-            "go.opentelemetry.io/otel": "v1.44.0",
-            "go.opentelemetry.io/otel/exporters/otlp/otlptrace": "v1.44.0",
-            "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc": "v1.44.0",
-            "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp": "v1.44.0",
-            "go.opentelemetry.io/otel/metric": "v1.44.0",
-            "go.opentelemetry.io/otel/sdk": "v1.44.0",
-            "go.opentelemetry.io/otel/trace": "v1.44.0",
-            "go.opentelemetry.io/proto/otlp": "v1.10.0",
+            "go.opentelemetry.io/otel": "v1.45.0",
+            "go.opentelemetry.io/otel/exporters/otlp/otlptrace": "v1.45.0",
+            "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc": "v1.45.0",
+            "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp": "v1.45.0",
+            "go.opentelemetry.io/otel/metric": "v1.45.0",
+            "go.opentelemetry.io/otel/sdk": "v1.45.0",
+            "go.opentelemetry.io/otel/trace": "v1.45.0",
+            "go.opentelemetry.io/proto/otlp": "v1.11.0",
             "go.yaml.in/yaml/v2": "v2.4.4",
             "go.yaml.in/yaml/v3": "v3.0.4",
             "golang.org/x/crypto": "v0.57.0",
@@ -6988,14 +7438,14 @@ _ALERT_CURRENT_SCAN_ORACLE: dict[str, dict[str, Any]] = {
             "golang.org/x/sys": "v0.48.0",
             "golang.org/x/text": "v0.42.0",
             "golang.org/x/time": "v0.15.0",
-            "google.golang.org/genproto/googleapis/api": "v0.0.0-20260526163538-3dc84a4a5aaa",
-            "google.golang.org/genproto/googleapis/rpc": "v0.0.0-20260526163538-3dc84a4a5aaa",
+            "google.golang.org/genproto/googleapis/api": "v0.0.0-20260803160001-6ac0973c030d",
+            "google.golang.org/genproto/googleapis/rpc": "v0.0.0-20260803160001-6ac0973c030d",
             "google.golang.org/grpc": "v1.83.2",
             "google.golang.org/protobuf": "v1.36.11",
             "gopkg.in/telebot.v3": "v3.3.8",
             "gopkg.in/yaml.v2": "v2.4.0",
             "stdlib": "v1.27.3",
-            "github.com/prometheus/alertmanager": "0.34.1",
+            "github.com/prometheus/alertmanager": "0.34.2",
         },
         "amtool": {
             "github.com/alecthomas/kingpin/v2": "v2.4.0",
@@ -7084,14 +7534,14 @@ _ALERT_CURRENT_SCAN_ORACLE: dict[str, dict[str, Any]] = {
             "go.opentelemetry.io/auto/sdk": "v1.2.1",
             "go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace": "v0.69.0",
             "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp": "v0.69.0",
-            "go.opentelemetry.io/otel": "v1.44.0",
-            "go.opentelemetry.io/otel/exporters/otlp/otlptrace": "v1.44.0",
-            "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc": "v1.44.0",
-            "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp": "v1.44.0",
-            "go.opentelemetry.io/otel/metric": "v1.44.0",
-            "go.opentelemetry.io/otel/sdk": "v1.44.0",
-            "go.opentelemetry.io/otel/trace": "v1.44.0",
-            "go.opentelemetry.io/proto/otlp": "v1.10.0",
+            "go.opentelemetry.io/otel": "v1.45.0",
+            "go.opentelemetry.io/otel/exporters/otlp/otlptrace": "v1.45.0",
+            "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc": "v1.45.0",
+            "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp": "v1.45.0",
+            "go.opentelemetry.io/otel/metric": "v1.45.0",
+            "go.opentelemetry.io/otel/sdk": "v1.45.0",
+            "go.opentelemetry.io/otel/trace": "v1.45.0",
+            "go.opentelemetry.io/proto/otlp": "v1.11.0",
             "go.yaml.in/yaml/v2": "v2.4.4",
             "go.yaml.in/yaml/v3": "v3.0.4",
             "golang.org/x/crypto": "v0.57.0",
@@ -7102,17 +7552,57 @@ _ALERT_CURRENT_SCAN_ORACLE: dict[str, dict[str, Any]] = {
             "golang.org/x/sys": "v0.48.0",
             "golang.org/x/text": "v0.42.0",
             "golang.org/x/time": "v0.15.0",
-            "google.golang.org/genproto/googleapis/api": "v0.0.0-20260526163538-3dc84a4a5aaa",
-            "google.golang.org/genproto/googleapis/rpc": "v0.0.0-20260526163538-3dc84a4a5aaa",
+            "google.golang.org/genproto/googleapis/api": "v0.0.0-20260803160001-6ac0973c030d",
+            "google.golang.org/genproto/googleapis/rpc": "v0.0.0-20260803160001-6ac0973c030d",
             "google.golang.org/grpc": "v1.83.2",
             "google.golang.org/protobuf": "v1.36.11",
             "gopkg.in/telebot.v3": "v3.3.8",
             "gopkg.in/yaml.v2": "v2.4.0",
             "stdlib": "v1.27.3",
-            "github.com/prometheus/alertmanager": "0.34.1",
+            "github.com/prometheus/alertmanager": "0.34.2",
         },
     },
 }
+
+
+def _alertmanager_accepted_live_profile() -> tuple[dict[str, Any], str]:
+    """Join the configured immutable subject to its independent static inventory profile."""
+    from scripts.ci.prometheus_source_image import require
+
+    selected = _alertmanager_accepted_producer()
+    subject = _ALERT_CURRENT_SCAN_ORACLE.get("subject")
+    require(type(subject) is dict, "AM_current_scan_profile_UNCONFIGURED_HOLD")
+    subject = cast(dict[str, Any], subject)
+    version = subject.get("upstream_version")
+    require(
+        subject.get("source") == selected["source"]
+        and version in ("0.34.1", "0.34.2")
+        and (version == "0.34.1") == (selected["source"] == _ALERT_HISTORICAL_C10["source"]),
+        "AM_current_scan_profile_UNCONFIGURED_HOLD",
+    )
+    graph = selected["graph"]
+    binaries = subject.get("binary_sha256")
+    modules = _ALERT_CURRENT_SCAN_ORACLE.get("expected_modules")
+    require(
+        all(type(graph.get(key)) is dict for key in ("manifest", "config", "files"))
+        and type(binaries) is dict
+        and set(binaries) == {"alertmanager", "amtool"}
+        and type(modules) is dict
+        and set(modules) == {"alertmanager", "amtool"}
+        and all(
+            type(modules[name]) is dict and modules[name] for name in ("alertmanager", "amtool")
+        )
+        and graph["config"]["digest"] == subject.get("config")
+        and graph["manifest"]["digest"] == subject.get("manifest")
+        and all(
+            type(digest) is str
+            and _HEX_RE.fullmatch(digest) is not None
+            and graph["files"].get("usr/bin/" + name) == digest
+            for name, digest in binaries.items()
+        ),
+        "AM_current_scan_accepted_subject",
+    )
+    return selected, cast(str, version)
 
 
 def _alertmanager_candidate_inventory(
@@ -7121,8 +7611,9 @@ def _alertmanager_candidate_inventory(
     base_report: dict[str, Any] | None,
     build_information: dict[str, Any] | None,
     *,
+    proof_mode: str,
+    upstream_version: str,
     current: bool = False,
-    upstream_version: str = "0.34.1",
 ) -> dict[str, Any]:
     """Check retained solver closure or a current complete supported scan of immutable S.
 
@@ -7145,29 +7636,24 @@ def _alertmanager_candidate_inventory(
         upstream_version in ("0.34.1", "0.34.2") and (upstream_version == "0.34.1" or current),
         "AM_scan_upstream_join",
     )
-    require(
-        upstream_version == "0.34.1" or build_information is not None,
-        "AM_new_upstream_accepted_scan_UNCONFIGURED_HOLD",
-    )
-    inventory = _alertmanager_support_inventory(report)
-    require((base_report is None) == (build_information is None), "AM_scan_proof_modes_mixed")
-    if base_report is None:
-        graph = _alertmanager_accepted_producer()["graph"]
-        subject = _ALERT_CURRENT_SCAN_ORACLE["subject"]
+    require(proof_mode in ("dynamic", "accepted-live"), "AM_scan_proof_mode")
+    if proof_mode == "accepted-live":
+        require(base_report is None and build_information is None, "AM_scan_proof_modes_mixed")
+        selected, version = _alertmanager_accepted_live_profile()
+        require(upstream_version == version, "AM_scan_upstream_profile")
         require(
-            image_id == graph["config"]["digest"] == subject["config"]
-            and graph["manifest"]["digest"] == subject["manifest"]
-            and all(
-                graph["files"].get("usr/bin/" + name) == digest
-                for name, digest in subject["binary_sha256"].items()
-            ),
-            "AM_current_scan_accepted_subject",
+            image_id == selected["graph"]["config"]["digest"], "AM_current_scan_accepted_subject"
         )
     else:
-        # The disjoint-mode guard above proves this optional operand is present.
+        require(
+            type(base_report) is dict and type(build_information) is dict,
+            "AM_scan_dynamic_proof_required",
+        )
+        base_report = cast(dict[str, Any], base_report)
         build_information = cast(dict[str, Any], build_information)
         require(
-            set(build_information) == {"alertmanager", "amtool"},
+            set(build_information) == {"alertmanager", "amtool"}
+            and all(type(value) is dict for value in build_information.values()),
             "AM_candidate_both_actual_buildinfo_required",
         )
         require(
@@ -7178,6 +7664,7 @@ def _alertmanager_candidate_inventory(
             "AM_candidate_authenticated_base_scan_subject",
         )
         _alertmanager_support_inventory(base_report)
+    inventory = _alertmanager_support_inventory(report)
     expected_os = _ALERT_CURRENT_SCAN_ORACLE["expected_OS"] if base_report is None else {}
     os_inventories = (
         [
@@ -8409,6 +8896,7 @@ def _alertmanager_live_security(args: argparse.Namespace) -> None:
         require,
     )
 
+    selected, live_upstream = _alertmanager_accepted_live_profile()
     limits = _alertmanager_limits(caller=True)
     scanner, cache = args.alertmanager_scanner, args.alertmanager_cache
     require(
@@ -8548,7 +9036,6 @@ def _alertmanager_live_security(args: argparse.Namespace) -> None:
         require(
             result["scanner_version"].get("Version") == "0.74.0", "AM_live_native_scanner_version"
         )
-        selected = _alertmanager_accepted_producer()
         current_epoch = selected["source"] != _ALERT_HISTORICAL_C10["source"]
         graph = selected["graph"]
         image_id = graph["config"]["digest"]
@@ -8574,6 +9061,8 @@ def _alertmanager_live_security(args: argparse.Namespace) -> None:
             None,
             None,
             current=current_epoch,
+            proof_mode="accepted-live",
+            upstream_version=live_upstream,
         )
         native.run(
             [*prefix, "pull", "--platform", "linux/amd64", _ALERT_OLD_RUNTIME_REF],
@@ -8856,6 +9345,7 @@ def _alertmanager_final_security(
             build_information,
             current=True,
             upstream_version=upstream_version,
+            proof_mode="dynamic",
         )
         reports["scanner"] = {
             "sha256": _ALERT_TRIVY_SHA256,
@@ -9964,6 +10454,22 @@ def _alertmanager_prepare_candidate_body(
                 candidate["root_inputs"] = prepared["publication_predecessor"][
                     "current_observation"
                 ]["root_inputs"]
+                ui = prepared["publication_predecessor"]["current_observation"].get(
+                    "UI_file_hashes"
+                )
+                require(
+                    type(ui) is dict
+                    and "index.html.gz" in ui
+                    and all(
+                        type(name) is str
+                        and bool(name)
+                        and type(digest) is str
+                        and _HEX_RE.fullmatch(digest) is not None
+                        for name, digest in ui.items()
+                    ),
+                    "AM_published_native_UI_inventory",
+                )
+                candidate["UI_file_hashes"] = ui
                 require(
                     _alertmanager_upstream_identity(candidate["root_inputs"], current=True)
                     == route["upstream_version"],

@@ -3472,9 +3472,9 @@ def test_alertmanager_PR_retained_candidate_has_no_registry_or_compiler_authorit
     assert job["env"] == {
         "ALERTMANAGER_JOB_TIMEOUT_MINUTES": "80",
         "ALERTMANAGER_CALLER_KIND": "standalone",
-        "AM_CANDIDATE_RUN": "40387641620",
-        "AM_CANDIDATE_ARTIFACT": "12684611600",
-        "AM_CANDIDATE_SOURCE": "a8c9b361dbd57d86e2adf8f01f7880830fc04e53",
+        "AM_CANDIDATE_RUN": "42110438896",
+        "AM_CANDIDATE_ARTIFACT": "13456175467",
+        "AM_CANDIDATE_SOURCE": "8aee3976d8f13027a5f2a38f0152ede0f4990156",
     }
     runs = "\n".join(step.get("run", "") for step in _steps(job))
     assert "--alertmanager-stage candidate-check" in runs
@@ -4334,6 +4334,7 @@ def test_alertmanager_current_four_controls_retain_native_reports_and_reject_unp
     oracle = deepcopy(fetcher._ALERT_CURRENT_SCAN_ORACLE)
     if current_epoch:
         selected["source"] = "a" * 40
+        oracle["subject"].update(source=selected["source"], upstream_version="0.34.2")
         selected["source_files"][
             "deploy/alertmanager/Containerfile"
         ] = fetcher._ALERT_CURRENT_ASSEMBLY_RECIPE_SHA256
@@ -4346,15 +4347,22 @@ def test_alertmanager_current_four_controls_retain_native_reports_and_reject_unp
                 name
             ] = (letter * 64)
             oracle["expected_modules"][name]["stdlib"] = "v1.27.3"
+            oracle["expected_modules"][name]["github.com/prometheus/alertmanager"] = "0.34.2"
     monkeypatch.setattr(fetcher, "_ALERT_ACCEPTED_CANDIDATE", selected)
     monkeypatch.setattr(fetcher, "_ALERT_CURRENT_SCAN_ORACLE", oracle)
     forwarded: list[tuple[str, bool]] = []
     inventory_owner = fetcher._alertmanager_candidate_inventory
     control_owner = fetcher._alertmanager_vulnerability_control
 
-    def inventory(*args: Any, current: bool = False) -> dict[str, Any]:
+    def inventory(
+        *args: Any, current: bool = False, proof_mode: str, upstream_version: str
+    ) -> dict[str, Any]:
+        assert proof_mode == "accepted-live"
+        assert upstream_version == ("0.34.2" if current_epoch else "0.34.1")
         forwarded.append(("candidate", current))
-        return inventory_owner(*args, current=current)
+        return inventory_owner(
+            *args, current=current, proof_mode=proof_mode, upstream_version=upstream_version
+        )
 
     def control(*args: Any, current: bool = False) -> dict[str, Any]:
         forwarded.append(("old_control", current))
