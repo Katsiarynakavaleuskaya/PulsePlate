@@ -278,11 +278,13 @@ echo ""
 echo "=== Step 5.1: Verify hardened Caddy runtime ==="
 CADDY_VERSION="$(dc exec -T caddy caddy version)"
 CADDY_VERSION_TOKEN="${CADDY_VERSION%%[[:space:]]*}"
-if [ "$CADDY_VERSION_TOKEN" != "v2.11.4" ]; then
-    echo "❌ Expected Caddy v2.11.4, got: $CADDY_VERSION"
+if [ "$CADDY_VERSION_TOKEN" != "v2.11.9" ]; then
+    echo "❌ Expected Caddy v2.11.9, got: $CADDY_VERSION"
     exit 1
 fi
 echo "✅ Caddy runtime version: $CADDY_VERSION"
+# Version probes do not prove the maintained stdlib source patch; admission uses
+# the source-qualified producer and its closed evidence inventory.
 
 CADDY_BUILD_INFO="$(dc exec -T caddy caddy build-info)"
 CADDY_GO_VERSION=""
@@ -356,7 +358,7 @@ echo "Quick Fix Complete"
 echo "=========================================="
 echo ""
 echo "Expected results:"
-echo "  - Caddy image: PulsePlate Caddy 2.11.4 rebuilt with Go 1.26.10"
+echo "  - Caddy image: PulsePlate Caddy 2.11.9 rebuilt with Go 1.26.10"
 echo "  - APP_ENV: production"
 echo "  - ENVIRONMENT: production"
 echo "  - Readiness endpoint: environment='production'"

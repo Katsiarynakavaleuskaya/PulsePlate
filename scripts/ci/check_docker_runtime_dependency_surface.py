@@ -348,7 +348,7 @@ CADDY_D_CONFIG = (
 )
 CADDY_PATCHED_ROOT = "/opt/go-jose-v3.0.5-patched"
 CADDY_BUILD_EVIDENCE_PATH = "/usr/share/pulseplate-caddy-build"
-CADDY_BUILD_MEMBERS = frozenset(
+CADDY_V3_BUILD_MEMBERS = frozenset(
     {
         "patch-tool.txt",
         "inputs.sha256",
@@ -368,6 +368,149 @@ CADDY_BUILD_MEMBERS = frozenset(
         "binary.sha256",
     }
 )
+CADDY_STDLIB_ROOT = "/opt/go1.26.10-http-patched"
+CADDY_STDLIB_BASELINE_ROOT = "/opt/go1.26.10-http-baseline"
+CADDY_STDLIB_ORIGINAL_TREE = "e54472503fcedc70793baefd53d9ae2eee748610e190f99f533ae6ef7c3ecf64"
+CADDY_STDLIB_BASELINE_TREE = "aed4cf1ca75d78f74118dc8686cd0bdd6d017c1b8bb98e0f46c2ed859ad72a26"
+CADDY_STDLIB_PATCHED_TREE = "afce6dcef776fcfe337fff1c5d4a3c68cd4729be7c27463d07e09fc7fafaa3f5"
+CADDY_STDLIB_ORIGINAL_COUNT = 15045
+CADDY_STDLIB_PATCH_SHA256 = "9beb880c561244794fda6176ac17f3f9c1690ae31fc26ac069afbf452e1c3f22"
+CADDY_STDLIB_FIXTURE_SHA256 = "2dc6f44b2e7a95a1b970cdbbcf70ddc532c35921c4b83ff80ca6e48b20a1c32e"
+CADDY_STDLIB_BEFORE_SHA256 = "3e04744176d3cf5bef2827ab158b10aaeec3981ac5f4e7fb86e3dbf5f592eed7"
+CADDY_STDLIB_AFTER_SHA256 = "0a19c32dab21d8c906795189b5c35da22551e0c2932a07b1fe64ac4559e70a01"
+CADDY_GO_BINARY_SHA256 = "9c2a37ae5b21ba1d5a004bb9ab4d0c64de6fc5778e9d30487adccea62678b8b5"
+CADDY_STDLIB_MEMBERS = frozenset(
+    {
+        "stdlib-inputs.sha256",
+        "stdlib-original-tree.sha256",
+        "stdlib-baseline-tree.sha256",
+        "stdlib-patched-tree.sha256",
+        "stdlib-post-tests-tree.sha256",
+        "stdlib-post-build-tree.sha256",
+        "stdlib-original-post-build-tree.sha256",
+        "stdlib-baseline-red.jsonl",
+        "stdlib-baseline-controls.jsonl",
+        "stdlib-patched-tests.jsonl",
+        "stdlib-test-inventory.txt",
+        "stdlib-test-commands.txt",
+    }
+)
+CADDY_BUILD_MEMBERS = CADDY_V3_BUILD_MEMBERS | CADDY_STDLIB_MEMBERS
+CADDY_V3_TOTAL_BYTES = 8 * 1024**2
+CADDY_STDLIB_TOTAL_BYTES = 16 * 1024**2
+CADDY_SOURCE_TOTAL_BYTES = 24 * 1024**2
+CADDY_SOURCE_TAR_BYTES = CADDY_SOURCE_TOTAL_BYTES + 1024**2
+CADDY_STDLIB_MEMBER_LIMITS = {
+    "stdlib-inputs.sha256": 4096,
+    "stdlib-test-inventory.txt": 65536,
+    "stdlib-test-commands.txt": 16384,
+}
+CADDY_STDLIB_CUSTOM_TOPS = [
+    "TestPPHTTPConnectionBaseline",
+    "TestPPHTTPConnectionSurvivors",
+    "TestPPHTTPConnectionFieldNameCase",
+    "TestPPHTTPBoundaryControls",
+    "TestPPHTTPFramingControls",
+    "TestPPHTTPMalformedReaderControls",
+    "TestPPHTTPMalformedAcceptedParity",
+    "TestPPHTTPResponseWriteRoundTrip",
+    "TestPPHTTPTransportCloseNominees",
+    "TestPPHTTPTransportPersistenceOptions",
+    "TestPPHTTPPersistenceOptions",
+    "TestPPHTTPPersistenceBoundaryControls",
+    "TestPPHTTPPersistenceWriteRoundTrip",
+]
+CADDY_STDLIB_CUSTOM_SUBTESTS = {
+    "TestPPHTTPConnectionSurvivors": [
+        "close_only",
+        "repeated_close",
+        "first",
+        "middle",
+        "last",
+        "separate_fields",
+        "duplicates_and_spelling",
+        "ows_empty",
+        "opaque_near_misses",
+    ],
+    "TestPPHTTPBoundaryControls": [
+        "no_connection",
+        "upgrade_no_close",
+        "empty_elements_no_close",
+        "near_misses_no_close",
+        "http10_close",
+        "http10_keepalive",
+        "http10_close_keepalive",
+        "request_false_flag",
+    ],
+    "TestPPHTTPFramingControls": [
+        "content_length_nomination",
+        "chunked_trailer",
+        "eof_delimited",
+        "truncated_content_length",
+        "head",
+        "no_content",
+        "not_modified",
+    ],
+    "TestPPHTTPMalformedReaderControls": [
+        "embedded_cr",
+        "nul_value",
+        "invalid_field_name",
+        "bare_lf_broken_field",
+        "invalid_content_length",
+        "invalid_transfer_coding",
+    ],
+    "TestPPHTTPMalformedAcceptedParity": [
+        "legacy_space_field_name",
+        "opaque_obs_text",
+        "bare_lf_lines",
+        "folded_ows",
+    ],
+    "TestPPHTTPPersistenceOptions": [
+        "same_line",
+        "reversed",
+        "split_fields",
+        "case_duplicate_controls",
+        "nominees",
+        "duplicate_nominees",
+        "ows_empty",
+        "opaque_near_misses",
+    ],
+    "TestPPHTTPPersistenceBoundaryControls": [
+        "keepalive_only",
+        "keepalive_with_nominees",
+        "eof_close_without_close_token",
+        "request_both_controls",
+    ],
+    "TestPPHTTPPersistenceWriteRoundTrip": ["controls_only", "controls_and_nominees"],
+}
+CADDY_STDLIB_BASELINE_CUSTOM = {
+    "TestPPHTTPBoundaryControls",
+    "TestPPHTTPMalformedReaderControls",
+    "TestPPHTTPMalformedAcceptedParity",
+    "TestPPHTTPPersistenceBoundaryControls",
+}
+CADDY_STDLIB_UPSTREAM_TOPS = [
+    "TestReadResponse",
+    "TestWriteResponse",
+    "TestReadResponseErrors",
+    "TestResponseWritesOnlySingleConnectionClose",
+    "TestReadResponseCloseInMiddle",
+    "TestResponseContentLengthShortBody",
+    "TestTransportConnectionCloseOnResponse",
+    "TestTransportConnectionCloseOnRequest",
+    "TestTransportRespectRequestWantsClose",
+    "TestTransportReadToEndReusesConn",
+    "TestIssue3644",
+    "TestTransportResponseBodyWritableOnProtocolSwitch",
+]
+CADDY_STDLIB_HELPERS = {
+    "src/net/http/internal/ascii/print.go": "f2af00c0c1b74c279c0bd7d1b0054a5440cb4046cbd60292dfc1aa4ada76845e",
+    "src/net/http/server.go": "6f344ca40661ce5d31ce7f237dc23c53d4d34fe3043bd5e76bac50e6c97d91cb",
+    "src/net/textproto/reader.go": "fe649123b4df42a4aeb7713aa3f8028de61897072874f37c67c497bd6bbf734f",
+    "src/net/textproto/textproto.go": "e4f0d94752345b5dec4fe7f4805531e8036a9cd44131d807cafa700dd5323901",
+    "src/vendor/golang.org/x/net/http/httpguts/httplex.go": "8cfd5819dc821d45f82fde10afff4b2e652535b0091e0559fc8ad7766051a2c2",
+}
+
 CADDY_ORIGINAL_TREE = "1c0d532bafdf2a7de4fea465082117f97e6e8bcf31e1704203f838a873901ce1"
 CADDY_PATCHED_TREE = "e71a63d7a08abecf4c3f2f72c41c1f469c097d853eafe854fdb6e782a70e1065"
 CADDY_PATCH_SHA256 = "f0e1b6f4791089dfebbc9a742533af650268e87bffec09847190e59da04aad27"
@@ -437,30 +580,457 @@ _CADDY_SYNTHETIC_ENVIRONMENT = (
     "HOME=/run/pulseplate-caddy-tmp",
     "TMPDIR=/run/pulseplate-caddy-tmp",
     "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-    "CADDY_VERSION=v2.11.4",
+    "CADDY_VERSION=v2.11.9",
     "XDG_CONFIG_HOME=/config",
     "XDG_DATA_HOME=/data",
 )
 
 
-def _is_caddy_synthetic_environment(value: object) -> bool:
+def _is_caddy_synthetic_environment(value: object, *, vulnerable_control: bool = False) -> bool:
     """Recognize all six reviewed unique bindings, independent of Docker's list order."""
+    if type(vulnerable_control) is not bool:
+        return False
+    expected = list(_CADDY_SYNTHETIC_ENVIRONMENT)
+    if vulnerable_control:
+        expected[3] = "CADDY_VERSION=v2.11.4"
     return (
         type(value) is list
         and len(value) == 6
         and all(type(entry) is str for entry in value)
-        and Counter(value) == Counter(_CADDY_SYNTHETIC_ENVIRONMENT)
+        and Counter(value) == Counter(expected)
     )
 
 
-def observe_caddy_ci_runtime(image: str, directory: Path) -> dict[str, object]:
+# This is a second, finite runtime contour. CADDY_D_CONFIG remains byte-for-byte static.
+CADDY_UPGRADE_CONFIG = (
+    b'{"admin":{"disabled":true,"config":{"persist":false}},"apps":{"http":{"servers":'
+    b'{"ci":{"listen":["127.0.0.1:18080"],"automatic_https":{"disable":true},'
+    b'"routes":[{"match":[{"path":["/ws"]}],"handle":[{"handler":"reverse_proxy",'
+    b'"upstreams":[{"dial":"127.0.0.1:18081"}],"transport":{"protocol":"http",'
+    b'"dial_timeout":2000000000,"response_header_timeout":5000000000}}]},'
+    b'{"handle":[{"handler":"static_response","body":'
+    b'"pulseplate-caddy-D\\nHOME={env.HOME}\\nTMPDIR={env.TMPDIR}\\n"}]}]}}}}}\n'
+)
+
+
+def _caddy_upgrade_cases() -> dict[str, tuple[bytes, bytes, bool]]:
+    """Closed synthetic HTTP/1.1 cases; no general network-protocol parser or generator."""
+    request = (
+        b"GET /ws HTTP/1.1\r\nHost: localhost\r\nConnection: Upgrade\r\n"
+        b"Upgrade: websocket\r\nSec-WebSocket-Version: 13\r\n"
+        b"Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n"
+    )
+    preserved = (
+        b"X-End-To-End: first\r\nx-end-to-end: second\r\n"
+        b"Sec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n"
+    )
+    hop = (
+        b"X-Strip-One: first-secret\r\nX-Strip-Two: second-secret\r\n"
+        b'Alt-Svc: h3=":443"\r\n'
+        b"Keep-Alive: timeout=5\r\nProxy-Connection: keep-alive\r\n"
+        b"Proxy-Authenticate: synthetic\r\nProxy-Authorization: synthetic\r\n"
+        b"Te: trailers\r\nTrailer: X-Trailer\r\n"
+    )
+    response = (
+        b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\n"
+        b"Connection: Upgrade, X-Strip-One, X-Strip-Two\r\n" + hop + preserved + b"\r\n"
+    )
+    duplicate = response.replace(
+        b"Connection: Upgrade, X-Strip-One, X-Strip-Two\r\n",
+        b"Connection: Upgrade, X-Strip-One\r\ncOnNeCtIoN: X-Strip-Two, uPgRaDe\r\n",
+    )
+    return {
+        "upgrade": (request, response, True),
+        "duplicate-connection": (request, duplicate, True),
+        "ordinary-200": (
+            request.replace(b"Connection: Upgrade", b"Connection: close").replace(
+                b"Upgrade: websocket\r\n", b""
+            ),
+            b"HTTP/1.1 200 OK\r\nContent-Length: 15\r\n"
+            b"Connection: close, X-Strip-One, X-Strip-Two\r\n"
+            + hop
+            + b"X-End-To-End: first\r\nx-end-to-end: second\r\n\r\nordinary-body\r\n",
+            False,
+        ),
+        "missing-upgrade": (request, response.replace(b"Upgrade: websocket\r\n", b""), False),
+        "mismatched-upgrade": (
+            request,
+            response.replace(b"Upgrade: websocket\r\n", b"Upgrade: h2c\r\n"),
+            False,
+        ),
+        "invalid-upgrade": (
+            request,
+            response.replace(b"Upgrade: websocket\r\n", b"Upgrade: \x80\r\n"),
+            False,
+        ),
+        "no-request-upgrade": (
+            request.replace(b"Connection: Upgrade", b"Connection: close").replace(
+                b"Upgrade: websocket\r\n", b""
+            ),
+            response,
+            False,
+        ),
+    }
+
+
+def _caddy_websocket_frame(payload: bytes, *, masked: bool) -> bytes:
+    """One short, final text frame for the two literal ASCII sentinels."""
+    if payload not in (b"PP2494-client", b"PP2494-server"):
+        raise ValueError("Caddy fixture sentinel differs")
+    if not masked:
+        return bytes((0x81, len(payload))) + payload
+    mask = b"\x13\x57\x9b\xdf"
+    return (
+        bytes((0x81, 0x80 | len(payload)))
+        + mask
+        + bytes(value ^ mask[index % 4] for index, value in enumerate(payload))
+    )
+
+
+_CADDY_UPGRADE_GUEST = r"""
+set -eu
+set -o pipefail
+cd /run/pulseplate-caddy-tmp
+mkdir "$1"
+cd "$1"
+ulimit -f 8
+server_pid=
+client_pid=
+finish() {
+  primary=$?
+  trap - EXIT HUP INT TERM
+  set +e
+  for role in server client; do
+    if [ "$role" = server ]; then pid=$server_pid; else pid=$client_pid; fi
+    stop=255
+    if [ -n "$pid" ]; then kill -STOP "$pid" 2>stop-"$role".stderr; stop=$?; fi
+    printf '%s\n' "$stop" >stop-"$role".result
+  done
+  for role in server client; do
+    if [ "$role" = server ]; then pid=$server_pid; else pid=$client_pid; fi
+    killed=255
+    if [ -n "$pid" ]; then kill -KILL "$pid" 2>kill-"$role".stderr; killed=$?; fi
+    waited=255
+    if [ -n "$pid" ]; then wait "$pid" 2>wait-"$role".stderr; waited=$?; fi
+    printf 'TERMINAL role=%s stop=%s kill=%s wait=%s\n' \
+      "$role" "$(cat stop-"$role".result)" "$killed" "$waited"
+  done
+  capture=0
+  for channel in server-received client-received server-stderr client-stderr \
+      stop-server.stderr stop-client.stderr kill-server.stderr kill-client.stderr \
+      wait-server.stderr wait-client.stderr; do
+    if [ ! -f "$channel" ]; then
+      printf 'FILE name=%s missing=1\n' "$channel"
+      capture=1
+      continue
+    fi
+    bytes=$(wc -c <"$channel")
+    if [ "$bytes" -gt 8192 ]; then capture=1; fi
+    hex=$(head -c 8192 "$channel" | od -An -v -tx1 | tr -d ' \n')
+    if [ "$?" -ne 0 ]; then capture=1; fi
+    printf 'FILE name=%s bytes=%s hex=%s\n' "$channel" "$bytes" "$hex"
+  done
+  printf 'RESULT primary=%s capture=%s\n' "$primary" "$capture"
+  if [ "$primary" -ne 0 ]; then exit "$primary"; fi
+  exit "$capture"
+}
+trap finish EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+for file in server-received client-received server-stderr client-stderr \
+    stop-server.stderr stop-client.stderr kill-server.stderr kill-client.stderr \
+    wait-server.stderr wait-client.stderr; do : >"$file"; done
+mkfifo server-in client-in
+exec 3<>server-in
+exec 4<>client-in
+/bin/busybox nc -l -p 18081 -s 127.0.0.1 <server-in >server-received 2>server-stderr 3>&- 4>&- &
+server_pid=$!
+i=0
+until /bin/busybox awk '$2 == "0100007F:46A1" && $4 == "0A" { found=1 } END { exit !found }' /proc/net/tcp; do
+  i=$((i+1)); [ "$i" -le 4 ]; sleep 1
+done
+/bin/busybox nc 127.0.0.1 18080 <client-in >client-received 2>client-stderr 3>&- 4>&- &
+client_pid=$!
+printf '%b' "$2" >&4
+i=0
+until od -An -v -tx1 server-received | tr -d ' \n' | grep -q '0d0a0d0a'; do
+  i=$((i+1)); [ "$i" -le 4 ]; sleep 1
+done
+printf '%b' "$3" >&3
+i=0
+until od -An -v -tx1 client-received | tr -d ' \n' | grep -q '0d0a0d0a'; do
+  i=$((i+1)); [ "$i" -le 4 ]; sleep 1
+done
+if [ "$4" = duplex ]; then
+  printf '%b' "$5" >&4
+  printf '%b' "$6" >&3
+  i=0
+  until od -An -v -tx1 server-received | tr -d ' \n' | grep -q "$7" &&
+      od -An -v -tx1 client-received | tr -d ' \n' | grep -q "$8"; do
+    i=$((i+1)); [ "$i" -le 4 ]; sleep 1
+  done
+elif [ "$1" = ordinary-200 ]; then
+  i=0
+  until od -An -v -tx1 client-received | tr -d ' \n' | grep -q '6f7264696e6172792d626f64790d0a'; do
+    i=$((i+1)); [ "$i" -le 4 ]; sleep 1
+  done
+fi
+exit 0
+"""
+
+
+def _caddy_fixture_http(raw: bytes) -> tuple[bytes, list[tuple[bytes, bytes]], bytes]:
+    """Read one bounded fixture message, preserving all repeated native headers."""
+    if len(raw) > 8192 or b"\r\n\r\n" not in raw:
+        raise ValueError("Caddy fixture missing or oversized HTTP header")
+    head, body = raw.split(b"\r\n\r\n", 1)
+    lines = head.split(b"\r\n")
+    headers = []
+    for line in lines[1:]:
+        if b":" not in line or line[:1] in (b" ", b"\t"):
+            raise ValueError("Caddy fixture malformed header")
+        name, value = line.split(b":", 1)
+        if re.fullmatch(rb"[A-Za-z0-9-]+", name) is None:
+            raise ValueError("Caddy fixture malformed header name")
+        headers.append((name.lower(), value.strip(b" \t")))
+    return lines[0], headers, body
+
+
+def _validate_caddy_upgrade_exchange(
+    case: str, raw: bytes, *, vulnerable_control: bool
+) -> dict[str, object]:
+    cases = _caddy_upgrade_cases()
+    if case not in cases:
+        raise ValueError("Caddy fixture case differs")
+    _, _, duplex = cases[case]
+    lines = raw.decode("ascii").splitlines()
+    files: dict[str, bytes] = {}
+    roles: dict[str, tuple[int, int, int]] = {}
+    expected_files = {
+        "server-received",
+        "client-received",
+        "server-stderr",
+        "client-stderr",
+        "stop-server.stderr",
+        "stop-client.stderr",
+        "kill-server.stderr",
+        "kill-client.stderr",
+        "wait-server.stderr",
+        "wait-client.stderr",
+    }
+    for line in lines[:-1]:
+        terminal = re.fullmatch(
+            r"TERMINAL role=(server|client) stop=([0-9]+) kill=([0-9]+) wait=([0-9]+)", line
+        )
+        channel = re.fullmatch(r"FILE name=([a-z.-]+) bytes=([0-9]+) hex=([0-9a-f]*)", line)
+        if terminal:
+            name = terminal[1]
+            if name in roles:
+                raise ValueError("Caddy fixture duplicate role")
+            roles[name] = (int(terminal[2]), int(terminal[3]), int(terminal[4]))
+        elif channel:
+            name, size = channel[1], int(channel[2])
+            data = bytes.fromhex(channel[3])
+            if name in files or name not in expected_files or size != len(data) or size > 8192:
+                raise ValueError("Caddy fixture channel binding differs")
+            files[name] = data
+        else:
+            raise ValueError("Caddy fixture unrecognized native output")
+    if (
+        len(lines) != 13
+        or lines[-1] != "RESULT primary=0 capture=0"
+        or set(files) != expected_files
+        or set(roles) != {"server", "client"}
+    ):
+        raise ValueError("Caddy fixture incomplete native terminal result")
+    for name, result in roles.items():
+        natural_exit = result[2] == 0 and all(code in (0, 1) for code in result[:2])
+        if result != (0, 0, 137) and (duplex or not natural_exit):
+            raise ValueError("Caddy fixture role did not terminate as expected")
+        if result == (0, 0, 137):
+            if (
+                files["stop-" + name + ".stderr"]
+                or files["kill-" + name + ".stderr"]
+                or files["wait-" + name + ".stderr"] != b"Killed\n"
+            ):
+                raise ValueError("Caddy fixture controlled termination diagnostics differ")
+        elif files["wait-" + name + ".stderr"]:
+            raise ValueError("Caddy fixture natural termination diagnostic")
+    if files["server-stderr"] or files["client-stderr"]:
+        raise ValueError("Caddy fixture socket diagnostic")
+    request, request_headers, sent = _caddy_fixture_http(files["server-received"])
+    status, headers, received = _caddy_fixture_http(files["client-received"])
+    if request != b"GET /ws HTTP/1.1":
+        raise ValueError("Caddy fixture did not traverse /ws reverse_proxy")
+
+    def values(name: bytes) -> list[bytes]:
+        return [value for key, value in headers if key == name]
+
+    if duplex:
+        if (
+            status != b"HTTP/1.1 101 Switching Protocols"
+            or values(b"upgrade") != [b"websocket"]
+            or values(b"sec-websocket-accept") != [b"s3pPLMBiTxaQ9kYGzzhZRbK+xOo="]
+            or sent != _caddy_websocket_frame(b"PP2494-client", masked=True)
+            or received != _caddy_websocket_frame(b"PP2494-server", masked=False)
+            or [v.lower() for k, v in request_headers if k == b"upgrade"] != [b"websocket"]
+        ):
+            raise ValueError("Caddy fixture valid 101 or real duplex frames differ")
+    elif status != b"HTTP/1.1 200 OK" or sent:
+        # The selected Caddy source returns without writing a response on a rejected
+        # backend upgrade; the HTTP server emits an empty 200, never a tunnel.
+        raise ValueError("Caddy fixture rejection/ordinary response differs")
+    elif received != (b"ordinary-body\r\n" if case == "ordinary-200" else b""):
+        raise ValueError("Caddy fixture unexpected ordinary/rejected body")
+    if case == "ordinary-200" and values(b"content-length") != [b"15"]:
+        raise ValueError("Caddy fixture ordinary response length differs")
+    if duplex or case == "ordinary-200":
+        if values(b"x-end-to-end") != [b"first", b"second"]:
+            raise ValueError("Caddy fixture end-to-end header multiplicity differs")
+    elif values(b"upgrade") or values(b"sec-websocket-accept"):
+        raise ValueError("Caddy fixture rejected upgrade leaked handshake")
+    blocked = {
+        b"alt-svc",
+        b"x-strip-one",
+        b"x-strip-two",
+        b"keep-alive",
+        b"proxy-connection",
+        b"proxy-authenticate",
+        b"proxy-authorization",
+        b"te",
+        b"trailer",
+        b"transfer-encoding",
+    }
+    if vulnerable_control and duplex:
+        if values(b"x-strip-one") != [b"first-secret"] or values(b"x-strip-two") != [
+            b"second-secret"
+        ]:
+            raise ValueError("Caddy vulnerable control did not positively reproduce header leak")
+    else:
+        if any(name in blocked for name, _ in headers):
+            raise ValueError("Caddy upstream hop-by-hop header leaked")
+        if duplex and values(b"connection") != [b"Upgrade"]:
+            raise ValueError("Caddy canonical upgrade Connection differs")
+    return {
+        "case": case,
+        "duplex": duplex,
+        "roles": roles,
+        "native_stdout_sha256": hashlib.sha256(raw).hexdigest(),
+        "request_sha256": hashlib.sha256(files["server-received"]).hexdigest(),
+        "response_sha256": hashlib.sha256(files["client-received"]).hexdigest(),
+        "vulnerable_leak_reproduced": vulnerable_control and duplex,
+    }
+
+
+def _observe_caddy_upgrade_exchanges(
+    name: str, directory: Path, *, vulnerable_control: bool
+) -> list[dict[str, object]]:
+    from scripts.ci.prometheus_source_image import Native
+
+    if DOCKER_BINARY is None or not Path(DOCKER_BINARY).is_absolute() or _CADDY_REMAINING is None:
+        raise ValueError("Caddy upgrade requires the existing bounded native runtime phase")
+    workspace = directory / "upgrade-native"
+    workspace.mkdir(mode=0o700)
+    config = workspace / "docker-config"
+    config.mkdir(mode=0o700)
+    native = Native(workspace, time.monotonic() + _CADDY_REMAINING(float("inf")), 0)
+    environment = {
+        "PATH": "/usr/bin:/bin",
+        "HOME": str(workspace.resolve()),
+        "DOCKER_CONFIG": str(config.resolve()),
+        "LANG": "C.UTF-8",
+    }
+    results = []
+    client_frame = _caddy_websocket_frame(b"PP2494-client", masked=True)
+    server_frame = _caddy_websocket_frame(b"PP2494-server", masked=False)
+
+    def octal(value: bytes) -> str:
+        return "".join("\\0" + format(byte, "03o") for byte in value)
+
+    primary_error: BaseException | None = None
+    try:
+        for case, (request, response, duplex) in _caddy_upgrade_cases().items():
+            # The historical image is a positive leak/duplex control, not a new
+            # compatibility promise for its different invalid-upgrade behavior.
+            if vulnerable_control and not duplex:
+                continue
+            raw = native.run(
+                [
+                    DOCKER_BINARY,
+                    "--config",
+                    str(config.resolve()),
+                    "exec",
+                    name,
+                    "/bin/busybox",
+                    "sh",
+                    "-c",
+                    _CADDY_UPGRADE_GUEST,
+                    "fixture",
+                    case,
+                    octal(request),
+                    octal(response),
+                    "duplex" if duplex else "ordinary",
+                    octal(client_frame),
+                    octal(server_frame),
+                    client_frame.hex(),
+                    server_frame.hex(),
+                ],
+                case,
+                environment,
+                cwd=directory.resolve(),
+                maximum_seconds=35,
+                output_bound=65536,
+            )
+            if (workspace / (case + ".stderr")).read_bytes():
+                raise ValueError("Caddy upgrade guest emitted unexpected stderr")
+            results.append(
+                _validate_caddy_upgrade_exchange(case, raw, vulnerable_control=vulnerable_control)
+            )
+    except BaseException as error:
+        primary_error = error
+    finally:
+        try:
+            with (workspace / "native-records.json").open("x", encoding="utf-8") as stream:
+                json.dump(native.records, stream, indent=2)
+        except BaseException as capture_error:
+            if primary_error is None:
+                primary_error = capture_error
+            else:
+                primary_error.add_note(
+                    "Caddy upgrade record capture also failed: " + type(capture_error).__name__
+                )
+        try:
+            config.rmdir()
+        except BaseException as cleanup_error:
+            if primary_error is None:
+                primary_error = cleanup_error
+            else:
+                primary_error.add_note(
+                    "Caddy upgrade config cleanup also failed: " + type(cleanup_error).__name__
+                )
+    if primary_error is not None:
+        raise primary_error
+    return results
+
+
+def observe_caddy_ci_runtime(
+    image: str, directory: Path, *, upgrade: bool = False, vulnerable_control: bool = False
+) -> dict[str, object]:
     """Bind two serving-process values and isolated storage, never a deployed service."""
     global _CADDY_REMAINING
     if re.fullmatch(r"sha256:[0-9a-f]{64}", image) is None:
         raise ValueError("Caddy runtime requires an immutable local image ID")
+    if (
+        type(upgrade) is not bool
+        or type(vulnerable_control) is not bool
+        or (vulnerable_control and not upgrade)
+    ):
+        raise ValueError("Caddy runtime contour differs")
+    selected_config = CADDY_UPGRADE_CONFIG if upgrade else CADDY_D_CONFIG
     config = directory / "loaded-ci-config.json"
     with config.open("xb") as stream:
-        stream.write(CADDY_D_CONFIG)
+        stream.write(selected_config)
     config.chmod(0o444)
     name = "pulseplate-caddy-D-" + uuid.uuid4().hex
     arguments = [
@@ -548,7 +1118,9 @@ def observe_caddy_ci_runtime(image: str, directory: Path) -> dict[str, object]:
             or prepared_config["Tty"] is not False
             or prepared_config["WorkingDir"] != "/srv"
             or prepared_config["Hostname"] != prepared["Id"][:12]
-            or not _is_caddy_synthetic_environment(prepared_config.get("Env"))
+            or not _is_caddy_synthetic_environment(
+                prepared_config.get("Env"), vulnerable_control=vulnerable_control
+            )
         ):
             raise ValueError("Caddy pre-start synthetic environment binding differs")
         phase, observed_channels = "start", ()
@@ -589,7 +1161,7 @@ def observe_caddy_ci_runtime(image: str, directory: Path) -> dict[str, object]:
         ).stdout
         observed_channels += (("command.stdout", command),)
         if (
-            loaded != CADDY_D_CONFIG
+            loaded != selected_config
             or command != "/usr/bin/caddy\x00run\x00--config\x00/ci.json\x00"
         ):
             mismatch = ValueError("Caddy actual process/config binding differs")
@@ -600,6 +1172,11 @@ def observe_caddy_ci_runtime(image: str, directory: Path) -> dict[str, object]:
                 + str(command == "/usr/bin/caddy\x00run\x00--config\x00/ci.json\x00")
             )
             raise mismatch
+        if upgrade:
+            phase, observed_channels = "normal-upgrade", ()
+            evidence["upgrade_exchanges"] = _observe_caddy_upgrade_exchanges(
+                name, directory, vulnerable_control=vulnerable_control
+            )
         sockets = {}
         for kind in ("tcp", "tcp6", "udp", "udp6"):
             phase, observed_channels = "sockets-" + kind, ()
@@ -616,7 +1193,9 @@ def observe_caddy_ci_runtime(image: str, directory: Path) -> dict[str, object]:
         inspection = _run_docker(["inspect", name])
         observed_channels = (("inspect.stdout", inspection.stdout),)
         inspected = json.loads(inspection.stdout)[0]
-        if not _is_caddy_synthetic_environment(inspected["Config"].get("Env")):
+        if not _is_caddy_synthetic_environment(
+            inspected["Config"].get("Env"), vulnerable_control=vulnerable_control
+        ):
             raise ValueError("Caddy synthetic environment changed after startup")
         for channel, output in (("stdout", inspection.stdout), ("stderr", inspection.stderr)):
             try:
@@ -743,7 +1322,9 @@ def observe_caddy_ci_runtime(image: str, directory: Path) -> dict[str, object]:
             if created:
                 inspection = _run_docker(["inspect", name])
                 current = json.loads(inspection.stdout)[0]
-                if _is_caddy_synthetic_environment(current["Config"].get("Env")):
+                if _is_caddy_synthetic_environment(
+                    current["Config"].get("Env"), vulnerable_control=vulnerable_control
+                ):
                     for channel, output in (
                         ("stdout", inspection.stdout),
                         ("stderr", inspection.stderr),
@@ -1011,6 +1592,425 @@ def caddy_ci_phase(phase: str) -> Iterator[Callable[[float], float]]:
         state_path.write_text(json.dumps(current, sort_keys=True))
 
 
+def _caddy_stdlib_require(condition: object, message: str) -> None:
+    if not condition:
+        raise ValueError("Caddy stdlib: " + message)
+
+
+def _caddy_stdlib_custom_identities(tops: set[str]) -> set[str]:
+    result = set(tops)
+    for top in tops:
+        result.update(top + "/" + suffix for suffix in CADDY_STDLIB_CUSTOM_SUBTESTS.get(top, ()))
+    return result
+
+
+def validate_caddy_stdlib_tests(raw: bytes, phase: str) -> dict[str, Any]:
+    """Validate bounded phase-specific native events within final source-proof admission."""
+    from scripts.ci.prometheus_source_image import decode_objects
+
+    _caddy_stdlib_require(
+        phase in {"baseline-controls", "baseline-red", "patched-tests"}, "native phase"
+    )
+    events = decode_objects(raw)
+    red = phase == "baseline-red"
+    custom = (
+        {"TestPPHTTPConnectionBaseline"}
+        if red
+        else (
+            CADDY_STDLIB_BASELINE_CUSTOM
+            if phase == "baseline-controls"
+            else set(CADDY_STDLIB_CUSTOM_TOPS)
+        )
+    )
+    required_tops = {"net/http": custom | (set() if red else set(CADDY_STDLIB_UPSTREAM_TOPS))}
+    if not red:
+        required_tops["net/http/httputil"] = {"TestReverseProxyStripHeadersPresentInConnection"}
+    starts: Counter[str] = Counter()
+    runs: Counter[tuple[str, str]] = Counter()
+    passes: Counter[tuple[str, str]] = Counter()
+    fails: Counter[tuple[str, str]] = Counter()
+    package_pass: Counter[str] = Counter()
+    package_fail: Counter[str] = Counter()
+    outputs: list[str] = []
+    for event in events:
+        _caddy_stdlib_require(
+            type(event) is dict and event.get("Package") in required_tops, "native_package_identity"
+        )
+        action = event.get("Action")
+        package = event["Package"]
+        name = event.get("Test")
+        _caddy_stdlib_require(
+            action in {"start", "run", "pause", "cont", "output", "pass", "fail"},
+            "native_unexpected_action_or_skip",
+        )
+        if name is not None:
+            _caddy_stdlib_require(
+                type(name) is str and name.split("/", 1)[0] in required_tops[package],
+                "native_test_identity",
+            )
+        if action == "start":
+            _caddy_stdlib_require(name is None, "package_start_shape")
+            starts[package] += 1
+        elif action == "run":
+            _caddy_stdlib_require(
+                name is not None
+                and starts[package] == 1
+                and not runs[(package, name)]
+                and not package_pass[package]
+                and not package_fail[package],
+                "test_run_shape_order",
+            )
+            runs[(package, name)] += 1
+        elif action in {"pass", "fail"}:
+            if name is None:
+                _caddy_stdlib_require(
+                    starts[package] == 1
+                    and not package_pass[package]
+                    and not package_fail[package]
+                    and all(p != package or passes[(p, n)] + fails[(p, n)] == 1 for p, n in runs),
+                    "package_terminal_order",
+                )
+                (package_pass if action == "pass" else package_fail)[package] += 1
+            else:
+                _caddy_stdlib_require(
+                    runs[(package, name)] == 1
+                    and not passes[(package, name)]
+                    and not fails[(package, name)]
+                    and not package_pass[package]
+                    and not package_fail[package],
+                    "test_terminal_order",
+                )
+                (passes if action == "pass" else fails)[(package, name)] += 1
+        elif action == "output":
+            _caddy_stdlib_require(type(event.get("Output")) is str, "output_shape")
+            outputs.append(event["Output"])
+    _caddy_stdlib_require(
+        starts == Counter({p: 1 for p in required_tops}), "complete_package_starts"
+    )
+    _caddy_stdlib_require(runs and all(n == 1 for n in runs.values()), "unique_native_runs")
+    _caddy_stdlib_require(
+        all(n == 1 for n in (passes + fails).values())
+        and set(runs) == set(passes) | set(fails)
+        and not (set(passes) & set(fails)),
+        "unique_terminal_pairs",
+    )
+    for package, tops in required_tops.items():
+        actual_tops = {name for pkg, name in runs if pkg == package and "/" not in name}
+        _caddy_stdlib_require(actual_tops == tops, "complete_exact_top_inventory")
+    actual_custom = {
+        name for pkg, name in runs if pkg == "net/http" and name.startswith("TestPPHTTP")
+    }
+    _caddy_stdlib_require(
+        actual_custom == _caddy_stdlib_custom_identities(custom),
+        "A6_S2_exact_custom_top_subtest_inventory",
+    )
+    text = "".join(outputs)
+    if red:
+        expected = {("net/http", "TestPPHTTPConnectionBaseline")}
+        _caddy_stdlib_require(
+            set(fails) == expected
+            and not passes
+            and package_fail == Counter({"net/http": 1})
+            and not package_pass,
+            "exact_expected_RED",
+        )
+        _caddy_stdlib_require(
+            text.count("PP_BASELINE_SETUP_BODY_CLOSE_OK\n") == 1
+            and text.count('PP_EXPECTED_NOMINATION_MISMATCH: got=[] want=["X-A" "X-B"]\n') == 1,
+            "RED_setup_and_specific_assertion",
+        )
+        _caddy_stdlib_require(
+            all(
+                word not in text
+                for word in (
+                    "PP_BASELINE_SETUP_OR_BODY_CLOSE_FAILURE",
+                    "PP_SETUP_READ",
+                    "PP_BODY_CLOSE",
+                    "panic:",
+                    "test timed out",
+                    "build failed",
+                    "[build failed]",
+                )
+            ),
+            "RED_not_infrastructure",
+        )
+    else:
+        _caddy_stdlib_require(
+            not fails
+            and not package_fail
+            and package_pass == Counter({p: 1 for p in required_tops}),
+            "all_selected_packages_PASS",
+        )
+    parity: list[str] = []
+    rejections: list[str] = []
+    headers: list[str] = []
+    for line in text.splitlines():
+        for marker, target in (
+            ("PP_ACCEPTED_PARITY ", parity),
+            ("PP_READER_REJECT ", rejections),
+            ("PP_ACCEPTED_HEADER ", headers),
+        ):
+            if marker in line:
+                _caddy_stdlib_require(line.count(marker) == 1, "parity_marker_unique")
+                target.append(line[line.index(marker) :])
+    if not red:
+        _caddy_stdlib_require(
+            len(parity) == 4
+            and len(set(parity)) == 4
+            and len(rejections) == 6
+            and len(set(rejections)) == 6
+            and len(headers) == 4,
+            "complete_malformed_controls",
+        )
+        for case in CADDY_STDLIB_CUSTOM_SUBTESTS["TestPPHTTPMalformedAcceptedParity"]:
+            wanted = (
+                f'PP_ACCEPTED_PARITY name={case} close=false length=0 body="" error=<nil> field=["x"]'
+                if case == "legacy_space_field_name"
+                else f'PP_ACCEPTED_PARITY name={case} close=true length=1 body="x" error=<nil>'
+            )
+            _caddy_stdlib_require(wanted in parity, "accepted_framing_parity")
+        for case in CADDY_STDLIB_CUSTOM_SUBTESTS["TestPPHTTPMalformedReaderControls"]:
+            _caddy_stdlib_require(
+                sum(x.startswith("PP_READER_REJECT name=" + case + " error=") for x in rejections)
+                == 1,
+                "reader_rejection_case",
+            )
+        for case in CADDY_STDLIB_CUSTOM_SUBTESTS["TestPPHTTPMalformedAcceptedParity"]:
+            value = (
+                "[]"
+                if phase == "baseline-controls" or case == "legacy_space_field_name"
+                else (
+                    '["cloſe" "\\"close\\"" "close;parameter"]'
+                    if case == "opaque_obs_text"
+                    else '["X-A"]'
+                )
+            )
+            _caddy_stdlib_require(
+                "PP_ACCEPTED_HEADER name=" + case + " values=" + value in headers,
+                "accepted_header_observation",
+            )
+    return {
+        "runs": [[p, n] for p, n in sorted(runs)],
+        "passes": [[p, n] for p, n in sorted(passes)],
+        "fails": [[p, n] for p, n in sorted(fails)],
+        "package_pass": dict(package_pass),
+        "package_fail": dict(package_fail),
+        "parity": sorted(parity),
+        "reader_rejections": sorted(rejections),
+        "accepted_headers": sorted(headers),
+    }
+
+
+def _caddy_stdlib_list(raw: bytes) -> list[str]:
+    lines = raw.decode("utf-8").splitlines()
+    names = [line for line in lines if line.startswith("Test")]
+    _caddy_stdlib_require(
+        len(names) == len(set(names))
+        and set(names)
+        == set(CADDY_STDLIB_UPSTREAM_TOPS)
+        | set(CADDY_STDLIB_CUSTOM_TOPS)
+        | {"TestReverseProxyStripHeadersPresentInConnection"},
+        "exact_native_list",
+    )
+    rest = [line for line in lines if not line.startswith("Test")]
+    _caddy_stdlib_require(
+        len(rest) == 2
+        and all(
+            re.fullmatch(r"ok[ \t]+net/http(?:/httputil)?[ \t]+[0-9.]+s", line) for line in rest
+        )
+        and any(re.match(r"ok[ \t]+net/http[ \t]", line) for line in rest)
+        and any(re.match(r"ok[ \t]+net/http/httputil[ \t]", line) for line in rest),
+        "native_list_package_results",
+    )
+    return sorted(names)
+
+
+def caddy_stdlib_test_argv(phase: str) -> list[str]:
+    """Exact offline component selections, also used by the existing producer contract."""
+    all_names = [
+        *CADDY_STDLIB_UPSTREAM_TOPS,
+        *CADDY_STDLIB_CUSTOM_TOPS,
+        "TestReverseProxyStripHeadersPresentInConnection",
+    ]
+    selected = all_names
+    if phase == "baseline-controls":
+        selected = [
+            *CADDY_STDLIB_UPSTREAM_TOPS,
+            *sorted(CADDY_STDLIB_BASELINE_CUSTOM),
+            "TestReverseProxyStripHeadersPresentInConnection",
+        ]
+    elif phase == "baseline-red":
+        selected = ["TestPPHTTPConnectionBaseline"]
+    elif phase not in {"baseline-list", "patched-list", "patched-tests"}:
+        raise ValueError("Caddy stdlib: unknown phase")
+    pattern = "^(" + "|".join(selected) + ")$"
+    command = ["/usr/local/go/bin/go", "test", "-count=1", "-p=2"]
+    if phase.endswith("-list"):
+        command += ["-list", pattern]
+    else:
+        command += ["-parallel=2", "-timeout=90s", "-json", "-run", pattern]
+    return command + (
+        ["net/http"] if phase == "baseline-red" else ["net/http", "net/http/httputil"]
+    )
+
+
+def caddy_stdlib_inputs() -> bytes:
+    paths = {
+        "/opt/go1.26.10-http-connection-nominations.patch": CADDY_STDLIB_PATCH_SHA256,
+        "/opt/go_http_connection_nominations_test.go": CADDY_STDLIB_FIXTURE_SHA256,
+        "/usr/local/go/bin/go": CADDY_GO_BINARY_SHA256,
+        "/usr/local/go/src/net/http/transfer.go": CADDY_STDLIB_BEFORE_SHA256,
+        CADDY_STDLIB_ROOT + "/src/net/http/transfer.go": CADDY_STDLIB_AFTER_SHA256,
+        **{"/usr/local/go/" + path: digest for path, digest in CADDY_STDLIB_HELPERS.items()},
+    }
+    return "".join(sorted(digest + "  " + path + "\n" for path, digest in paths.items())).encode()
+
+
+def caddy_stdlib_commands() -> bytes:
+    """Closed producer record; statuses come from actual shell execution."""
+    rows = []
+    for phase in (
+        "baseline-list",
+        "baseline-controls",
+        "baseline-red",
+        "patched-list",
+        "patched-tests",
+    ):
+        stage = "baseline" if phase.startswith("baseline") else "patched"
+        root = CADDY_STDLIB_BASELINE_ROOT if stage == "baseline" else CADDY_STDLIB_ROOT
+        rows.append(
+            "\t".join(
+                (
+                    phase,
+                    "1" if phase == "baseline-red" else "0",
+                    root,
+                    "/opt/caddy-stdlib-" + stage + "-cache",
+                    "off",
+                    "off",
+                    json.dumps(caddy_stdlib_test_argv(phase), separators=(",", ":")),
+                )
+            )
+            + "\n"
+        )
+    return "".join(rows).encode()
+
+
+def _validate_caddy_stdlib_evidence(data: dict[str, bytes], recipe: bytes) -> dict[str, Any]:
+    require = _caddy_stdlib_require
+    groups = (
+        (
+            ("stdlib-original-tree.sha256", "stdlib-original-post-build-tree.sha256"),
+            CADDY_STDLIB_ORIGINAL_TREE,
+            CADDY_STDLIB_ORIGINAL_COUNT,
+        ),
+        (
+            ("stdlib-baseline-tree.sha256",),
+            CADDY_STDLIB_BASELINE_TREE,
+            CADDY_STDLIB_ORIGINAL_COUNT + 1,
+        ),
+        (
+            (
+                "stdlib-patched-tree.sha256",
+                "stdlib-post-tests-tree.sha256",
+                "stdlib-post-build-tree.sha256",
+            ),
+            CADDY_STDLIB_PATCHED_TREE,
+            CADDY_STDLIB_ORIGINAL_COUNT + 1,
+        ),
+    )
+    inventories = {}
+    for names, digest, count in groups:
+        for name in names:
+            raw = data[name]
+            require(
+                hashlib.sha256(raw).hexdigest() == digest and raw.endswith(b"\n"),
+                "complete tree identity",
+            )
+            lines = raw.decode("utf-8").splitlines()
+            require(
+                len(lines) == count and len(set(lines)) == count and lines == sorted(lines),
+                "complete sorted tree records",
+            )
+            entries = {}
+            for line in lines:
+                match = re.fullmatch(r"([0-9a-f]{64})  \./([^\x00\r\n]+)", line)
+                if match is None:
+                    raise ValueError("Caddy stdlib: tree record syntax")
+                path = match[2]
+                require(
+                    not PurePosixPath(path).is_absolute()
+                    and ".." not in PurePosixPath(path).parts
+                    and str(PurePosixPath(path)) == path
+                    and "\\" not in path
+                    and path not in entries,
+                    "tree path identity",
+                )
+                entries[path] = match[1]
+            inventories[name] = entries
+    original = inventories["stdlib-original-tree.sha256"]
+    baseline = inventories["stdlib-baseline-tree.sha256"]
+    patched = inventories["stdlib-patched-tree.sha256"]
+    fixture = "src/net/http/go_http_connection_nominations_test.go"
+    transfer = "src/net/http/transfer.go"
+    require(
+        fixture not in original and baseline == {**original, fixture: CADDY_STDLIB_FIXTURE_SHA256},
+        "baseline sole fixture addition",
+    )
+    require(
+        baseline.get(transfer) == CADDY_STDLIB_BEFORE_SHA256
+        and patched == {**baseline, transfer: CADDY_STDLIB_AFTER_SHA256},
+        "patched sole transfer delta",
+    )
+    require(data["stdlib-inputs.sha256"] == caddy_stdlib_inputs(), "exact stdlib inputs")
+    require(
+        data["stdlib-test-commands.txt"] == caddy_stdlib_commands(),
+        "actual source cache command exit binding",
+    )
+    inventory = data["stdlib-test-inventory.txt"]
+    require(
+        inventory.startswith(b"BASELINE_NATIVE_LIST\n")
+        and inventory.count(b"PATCHED_NATIVE_LIST\n") == 1,
+        "two native lists",
+    )
+    before, after = inventory.removeprefix(b"BASELINE_NATIVE_LIST\n").split(
+        b"PATCHED_NATIVE_LIST\n"
+    )
+    require(_caddy_stdlib_list(before) == _caddy_stdlib_list(after), "native list equality")
+    baseline_tests = validate_caddy_stdlib_tests(
+        data["stdlib-baseline-controls.jsonl"], "baseline-controls"
+    )
+    red = validate_caddy_stdlib_tests(data["stdlib-baseline-red.jsonl"], "baseline-red")
+    patched_tests = validate_caddy_stdlib_tests(data["stdlib-patched-tests.jsonl"], "patched-tests")
+    require(
+        baseline_tests["parity"] == patched_tests["parity"]
+        and baseline_tests["reader_rejections"] == patched_tests["reader_rejections"],
+        "finite malformed parity",
+    )
+    for witness in (
+        ("ENV GOROOT=" + CADDY_STDLIB_ROOT).encode(),
+        b"GOCACHE=/opt/caddy-stdlib-patched-cache",
+        CADDY_STDLIB_PATCH_SHA256.encode(),
+        CADDY_STDLIB_FIXTURE_SHA256.encode(),
+        CADDY_STDLIB_BEFORE_SHA256.encode(),
+        CADDY_STDLIB_AFTER_SHA256.encode(),
+        b"apply --no-index --check --whitespace=error-all /opt/go1.26.10-http-connection-nominations.patch",
+        b"apply --no-index --whitespace=error-all /opt/go1.26.10-http-connection-nominations.patch",
+    ):
+        require(witness in recipe, "stdlib producer recipe binding")
+    require(
+        recipe.index(b"go build -mod=readonly") < recipe.index(b"stdlib-post-build-tree.sha256"),
+        "post-Caddy snapshot order",
+    )
+    return {
+        "patched_goroot": CADDY_STDLIB_ROOT,
+        "compiler_sha256": CADDY_GO_BINARY_SHA256,
+        "custom_stdlib": True,
+        "baseline_controls": baseline_tests,
+        "baseline_red": red,
+        "patched_tests": patched_tests,
+    }
+
+
 def validate_caddy_source_evidence(
     directory: Path,
     *,
@@ -1018,7 +2018,7 @@ def validate_caddy_source_evidence(
     binary_sha256: str,
     recipe: bytes,
 ) -> dict[str, object]:
-    """Recognize only the reviewed v3 source carrier; execution belongs to its producer."""
+    """Recognize the closed v3/stdlib source proof; execution belongs to its producer."""
     from scripts.ci.prometheus_source_image import decode_objects
 
     def require(condition: object, message: str) -> None:
@@ -1026,18 +2026,29 @@ def validate_caddy_source_evidence(
             raise ValueError("Caddy source: " + message)
 
     require(directory.is_dir() and not directory.is_symlink(), "evidence directory")
-    require({path.name for path in directory.iterdir()} == CADDY_BUILD_MEMBERS, "sixteen members")
+    require({path.name for path in directory.iterdir()} == CADDY_BUILD_MEMBERS, "closed 28 members")
     data = {}
     for name in sorted(CADDY_BUILD_MEMBERS):
         path = directory / name
         info = path.lstat()
         require(
-            stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and 0 < info.st_size <= 2097152,
+            stat.S_ISREG(info.st_mode)
+            and info.st_nlink == 1
+            and 0 < info.st_size <= CADDY_STDLIB_MEMBER_LIMITS.get(name, 2097152),
             "regular bounded member",
         )
         data[name] = path.read_bytes()
         require(len(data[name]) == info.st_size, "member read drift")
-    require(sum(map(len, data.values())) <= 8388608, "aggregate bytes")
+    require(
+        sum(len(data[name]) for name in CADDY_V3_BUILD_MEMBERS) <= CADDY_V3_TOTAL_BYTES,
+        "original v3 aggregate bytes",
+    )
+    require(
+        sum(len(data[name]) for name in CADDY_STDLIB_MEMBERS) <= CADDY_STDLIB_TOTAL_BYTES,
+        "stdlib aggregate bytes",
+    )
+    require(sum(map(len, data.values())) <= CADDY_SOURCE_TOTAL_BYTES, "combined aggregate bytes")
+    stdlib = _validate_caddy_stdlib_evidence(data, recipe)
     for names, digest, count in (
         (
             ("original-tree.sha256", "copied-tree.sha256", "original-post-build-tree.sha256"),
@@ -1178,7 +2189,7 @@ def validate_caddy_source_evidence(
         require(len(fields) == 3 and fields[0] and fields[0] not in graph, "import graph identity")
         package, location, imports = fields
         require(
-            location.startswith(("/usr/local/go/src/", "/go/pkg/mod/", CADDY_PATCHED_ROOT))
+            location.startswith((CADDY_STDLIB_ROOT + "/src/", "/go/pkg/mod/", CADDY_PATCHED_ROOT))
             and ".." not in Path(location).parts
             and not any(c.isspace() for c in package + location),
             "import graph directory",
@@ -1204,8 +2215,8 @@ def validate_caddy_source_evidence(
     imported_modules: set[str] = set()
     for package, (location, _) in graph.items():
         require(str(Path(location)) == location, "import directory alias")
-        if location.startswith("/usr/local/go/src/"):
-            require(location == "/usr/local/go/src/" + package, "standard library directory")
+        if location.startswith(CADDY_STDLIB_ROOT + "/src/"):
+            require(location == CADDY_STDLIB_ROOT + "/src/" + package, "standard library directory")
             continue
         owners = [
             (name, row["Dir"])
@@ -1292,6 +2303,7 @@ def validate_caddy_source_evidence(
             name: modules[name]["Version"] for name in sorted(imported_modules)
         },
         "import_packages": len(graph),
+        "stdlib_source": stdlib,
         "source_correction": "CVE-2026-116587",
         "v3_scanner_comparability": "UNKNOWN",
     }

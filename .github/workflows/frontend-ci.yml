@@ -139,6 +139,8 @@ jobs:
               - 'frontend/Dockerfile.caddy-spa'
               - 'frontend/patches/go-jose-v3.0.5-CVE-2026-116587.patch'
               - 'frontend/patches/caddy_v3_compat_test.go'
+              - 'frontend/patches/go1.26.10-http-connection-nominations.patch'
+              - 'frontend/patches/go_http_connection_nominations_test.go'
               - 'deploy/Caddyfile'
               - 'deploy/Caddyfile.production'
               - 'deploy/docker-compose.staging.yaml'
@@ -990,7 +992,7 @@ jobs:
           exit-code: '0'
           cache-dir: /tmp/trivy-cache-caddy-metadata
 
-      - name: Qualify Caddy compiler and two counterfactual v4 derivations
+      - name: Qualify Caddy compiler and two independent root derivations
         timeout-minutes: ${{ fromJSON(env.CADDY_ACTION_METADATA_MINUTES) }}
         id: caddy-metadata
         if: ${{ steps.caddy-admission.outputs.mode == 'metadata' || steps.caddy-admission.outputs.mode == 'build' }}
@@ -1030,15 +1032,16 @@ jobs:
           recipe = (root / "frontend/Dockerfile.caddy-spa").read_bytes()
           gets = re.findall(rb"^    go get ([^;]+);", recipe, re.MULTILINE)
           baseline_gets = [b"github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.4", b"google.golang.org/grpc@v1.83.2", b"golang.org/x/crypto@v0.55.0", b"golang.org/x/net@v0.60.0", b"github.com/klauspost/compress@v1.18.7"]
-          require(gets == baseline_gets + [b"github.com/go-jose/go-jose/v4@v4.1.6"], "caddy_selected_six_gets")
+          baseline_gets += [b"github.com/go-jose/go-jose/v4@v4.1.6"]
+          require(gets == baseline_gets + [b"github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.9"], "caddy_selected_seed_then_root_get")
           report = {"purpose": "Counterfactual recipe baselines, not recovered historical ephemeral locks or a compiled candidate",
                     "compiler_index": compiler, "recipe_sha256": hashlib.sha256(recipe).hexdigest(),
                     "counterfactual_seed_gets": [value.decode() for value in baseline_gets],
                     "selected_recipe_gets": [value.decode() for value in gets],
-                    "authored_action": "github.com/go-jose/go-jose/v4@v4.1.6",
+                    "authored_action": "github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.9",
                     "run_id": int(os.environ["GITHUB_RUN_ID"]), "run_attempt": 1,
                     "source_head": json.loads((Path(os.environ["RUNNER_TEMP"]) / "caddy-admission/admission.json").read_bytes())["current_head"], "go_build_invocations": 0,
-                    "failure": None, "derivations": {}, "closure_admission": "exact authored v4 action only; additional solver closure is HOLD"}
+                    "failure": None, "derivations": {}, "closure_admission": "one Caddy authored action; complete independent replay and actual source/security admission remain required"}
           owned = []
           try:
               with caddy_ci_phase("COMPILER_WORK") as remaining:
@@ -1132,6 +1135,7 @@ jobs:
               go get golang.org/x/crypto@v0.55.0
               go get golang.org/x/net@v0.60.0
               go get github.com/klauspost/compress@v1.18.7
+              go get github.com/go-jose/go-jose/v4@v4.1.6
               go mod download all
               go mod verify > /output/baseline-verify.txt
               cp go.mod /output/baseline-go.mod
@@ -1141,7 +1145,7 @@ jobs:
               go list -mod=readonly -deps -json github.com/caddyserver/caddy/v2/cmd/caddy > /output/baseline-packages.json
               cmp go.mod /output/baseline-go.mod
               cmp go.sum /output/baseline-go.sum
-              go get github.com/go-jose/go-jose/v4@v4.1.6
+              go get github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.9
               cp go.mod /output/post-get-go.mod
               cp go.sum /output/post-get-go.sum
               go mod download all
@@ -1174,16 +1178,16 @@ jobs:
                           for row in packages:
                               mapping = row.get("ImportMap", {})
                               require(all(mapping.get(path, path) in indexed for path in row.get("Imports", [])), "caddy_complete_native_import_graph")
-                          require(modules["github.com/caddyserver/caddy/v2"]["Version"] == "v2.11.4", "caddy_preserved_source_version")
+                          require(modules["github.com/caddyserver/caddy/v2"]["Version"] == ("v2.11.4" if phase == "baseline" else "v2.11.9"), "caddy_observed_root_transition")
                           report["derivations"].setdefault(label, {})[phase] = {"modules": modules, "packages": len(packages)}
                       before, after = report["derivations"][label]["baseline"]["modules"], report["derivations"][label]["final"]["modules"]
-                      target = "github.com/go-jose/go-jose/v4"
-                      require(before[target]["Version"] == "v4.1.4" and after[target]["Version"] == "v4.1.6"
-                              and after[target]["Sum"] == "h1:sNRkftxFJxwsILiQukqp5z83QBSmntVwmgRY7AqBDO4=", "caddy_exact_authored_v4_transition")
+                      target = "github.com/caddyserver/caddy/v2"
+                      require(before[target]["Version"] == "v2.11.4" and after[target]["Version"] == "v2.11.9"
+                              and after[target]["Sum"] == "h1:bhZtcRKQOq0fuLvEgCdPYvUxXyGn9kzjG4lh2332DTE=", "caddy_exact_authored_root_transition")
                       delta = [{"path": path, "before": before.get(path), "after": after.get(path),
                                 "class": "I_R" if path == target else "C_R_candidate"}
                                for path in sorted(set(before) | set(after)) if before.get(path) != after.get(path)]
-                      require([row["path"] for row in delta] == [target], "caddy_unexpected_solver_closure_HOLD")
+                      require(any(row["path"] == target for row in delta), "caddy_missing_authored_transition")
                       (output / "complete-delta.json").write_bytes(canonical_data(delta))
                       patch = "".join("".join(difflib.unified_diff((output / ("baseline-" + name)).read_text().splitlines(True), (output / ("final-" + name)).read_text().splitlines(True), fromfile="a/" + name, tofile="b/" + name)) for name in ("go.mod", "go.sum"))
                       (output / "module-derivation.patch").write_text(patch)
@@ -1284,7 +1288,7 @@ jobs:
           import tempfile
           import io
           import tarfile
-          from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_phase, CADDY_BUILD_MEMBERS, CADDY_BUILD_EVIDENCE_PATH
+          from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_phase, CADDY_BUILD_MEMBERS, CADDY_BUILD_EVIDENCE_PATH, CADDY_V3_BUILD_MEMBERS, CADDY_STDLIB_MEMBERS, CADDY_STDLIB_MEMBER_LIMITS, CADDY_SOURCE_TOTAL_BYTES, CADDY_SOURCE_TAR_BYTES, CADDY_V3_TOTAL_BYTES, CADDY_STDLIB_TOTAL_BYTES
 
           try:
               root = Path.cwd().resolve(strict=True)
@@ -1369,7 +1373,7 @@ jobs:
                           "--network", "none", "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
                           "--entrypoint", "/bin/busybox", image, "tar", "-C", CADDY_BUILD_EVIDENCE_PATH, "-cf", "-", "."],
                           capture_output=True, timeout=remaining(60), check=True)
-                      if len(result.stdout) > 9437184:
+                      if len(result.stdout) > CADDY_SOURCE_TAR_BYTES:
                           raise ValueError("Caddy source tar bound")
                       with tarfile.open(fileobj=io.BytesIO(result.stdout), mode="r:") as archive:
                           members = archive.getmembers()
@@ -1378,11 +1382,13 @@ jobs:
                                   {member.name.removeprefix("./") for member in files} != CADDY_BUILD_MEMBERS or
                                   any(not member.isdir() for member in members if member.name in (".", "./"))):
                               raise ValueError("Caddy exact build evidence membership")
-                          if sum(member.size for member in files) > 8388608:
+                          if (sum(member.size for member in files) > CADDY_SOURCE_TOTAL_BYTES or
+                                  sum(member.size for member in files if member.name.removeprefix("./") in CADDY_V3_BUILD_MEMBERS) > CADDY_V3_TOTAL_BYTES or
+                                  sum(member.size for member in files if member.name.removeprefix("./") in CADDY_STDLIB_MEMBERS) > CADDY_STDLIB_TOTAL_BYTES):
                               raise ValueError("Caddy source total bound")
                           for member in files:
                               if (not member.isfile() or member.linkname or member.pax_headers or
-                                      not 0 < member.size <= 2097152 or member.name not in (member.name.removeprefix("./"), "./" + member.name.removeprefix("./"))):
+                                      not 0 < member.size <= CADDY_STDLIB_MEMBER_LIMITS.get(member.name.removeprefix("./"), 2097152) or member.name not in (member.name.removeprefix("./"), "./" + member.name.removeprefix("./"))):
                                   raise ValueError("Caddy source nonregular member")
                               (source_evidence / member.name.removeprefix("./")).write_bytes(archive.extractfile(member).read())
                   except BaseException:
@@ -1522,12 +1528,12 @@ jobs:
           evidence.mkdir(exist_ok=True)
           common = ["run", "--rm", "--pull", "never", "--network", "none", "--read-only", "--cap-drop", "ALL", "--cap-add", "NET_BIND_SERVICE"]
           recipe = Path("frontend/Dockerfile.caddy-spa").read_text()
-          official_caddy_ref = re.findall(r"^FROM (caddy:2\.11\.4-alpine@sha256:[0-9a-f]{64})$", recipe, re.MULTILINE)
+          official_caddy_ref = re.findall(r"^FROM (caddy:2\.11\.9-alpine@sha256:[0-9a-f]{64})$", recipe, re.MULTILINE)
           if len(official_caddy_ref) != 1:
               raise ValueError("Caddy official runtime reference")
           with caddy_ci_phase("RUNTIME_CONFIG"):
               version = _run_docker([*common, "pulseplate-caddy:contract", "caddy", "version"]).stdout
-              if not version.split() or version.split()[0] != "v2.11.4":
+              if not version.split() or version.split()[0] != "v2.11.9":
                   raise ValueError("Caddy version differs")
               (evidence / "version.txt").write_text(version)
               info = _run_docker([*common, "pulseplate-caddy:contract", "caddy", "build-info"]).stdout
@@ -2194,6 +2200,13 @@ jobs:
           runtime_dir.mkdir(mode=0o700)
           with caddy_ci_phase("RUNTIME"):
               loaded = observe_caddy_ci_runtime(image, runtime_dir)
+              upgrade_dir = runtime_dir / "upgrade"
+              upgrade_dir.mkdir(mode=0o700)
+              loaded["normal_upgrade"] = observe_caddy_ci_runtime(image, upgrade_dir, upgrade=True)
+              control_dir = runtime_dir / "vulnerable-upgrade-control"
+              control_dir.mkdir(mode=0o700)
+              loaded["vulnerable_upgrade_control"] = observe_caddy_ci_runtime(
+                  controls["subjects"]["official"], control_dir, upgrade=True, vulnerable_control=True)
           (runtime_dir / "observation.json").write_text(json.dumps(loaded, indent=2))
           output = evidence / "strict-control.raw.json"
           argv = [subject["scanner"], "convert", "--quiet", "--format", "json", "--ignore-policy",

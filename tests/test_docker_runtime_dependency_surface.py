@@ -839,7 +839,136 @@ _CADDY_FIXTURE_BINARY = (
 )
 
 
-def _caddy_source_fixture(directory: Path) -> tuple[bytes, str, bytes]:
+def _synthetic_stdlib_events(phase: str) -> bytes:
+    """Small procedural fixture; never native execution/source proof."""
+    custom = (
+        {"TestPPHTTPConnectionBaseline"}
+        if phase == "baseline-red"
+        else (
+            runtime_surface.CADDY_STDLIB_BASELINE_CUSTOM
+            if phase == "baseline-controls"
+            else set(runtime_surface.CADDY_STDLIB_CUSTOM_TOPS)
+        )
+    )
+    packages = {"net/http": set(custom)}
+    if phase != "baseline-red":
+        packages["net/http"].update(runtime_surface.CADDY_STDLIB_UPSTREAM_TOPS)
+        packages["net/http/httputil"] = {"TestReverseProxyStripHeadersPresentInConnection"}
+    records = []
+    for package, tops in packages.items():
+        records.append({"Action": "start", "Package": package})
+        for top in sorted(tops):
+            records.append({"Action": "run", "Package": package, "Test": top})
+            for suffix in runtime_surface.CADDY_STDLIB_CUSTOM_SUBTESTS.get(top, ()):
+                name = top + "/" + suffix
+                records.append({"Action": "run", "Package": package, "Test": name})
+                outputs = []
+                if top == "TestPPHTTPMalformedReaderControls":
+                    outputs = [f"PP_READER_REJECT name={suffix} error=synthetic\n"]
+                elif top == "TestPPHTTPMalformedAcceptedParity":
+                    legacy = suffix == "legacy_space_field_name"
+                    state = (
+                        'close=false length=0 body="" error=<nil> field=["x"]'
+                        if legacy
+                        else 'close=true length=1 body="x" error=<nil>'
+                    )
+                    values = (
+                        "[]"
+                        if phase == "baseline-controls" or legacy
+                        else (
+                            '["cloſe" "\\"close\\"" "close;parameter"]'
+                            if suffix == "opaque_obs_text"
+                            else '["X-A"]'
+                        )
+                    )
+                    outputs = [
+                        f"PP_ACCEPTED_PARITY name={suffix} {state}\n",
+                        f"PP_ACCEPTED_HEADER name={suffix} values={values}\n",
+                    ]
+                for output in outputs:
+                    records.append(
+                        {"Action": "output", "Package": package, "Test": name, "Output": output}
+                    )
+                records.append({"Action": "pass", "Package": package, "Test": name})
+            if phase == "baseline-red":
+                for output in (
+                    "PP_BASELINE_SETUP_BODY_CLOSE_OK\n",
+                    'PP_EXPECTED_NOMINATION_MISMATCH: got=[] want=["X-A" "X-B"]\n',
+                ):
+                    records.append(
+                        {"Action": "output", "Package": package, "Test": top, "Output": output}
+                    )
+            records.append(
+                {
+                    "Action": "fail" if phase == "baseline-red" else "pass",
+                    "Package": package,
+                    "Test": top,
+                }
+            )
+        records.append(
+            {"Action": "fail" if phase == "baseline-red" else "pass", "Package": package}
+        )
+    return b"".join(json.dumps(row).encode() + b"\n" for row in records)
+
+
+def _synthetic_stdlib_evidence(monkeypatch: pytest.MonkeyPatch) -> dict[str, bytes]:
+    """Exercise the real recognizer with an explicitly synthetic, tiny tree."""
+    original = {
+        "bin/go": runtime_surface.CADDY_GO_BINARY_SHA256,
+        "src/net/http/transfer.go": runtime_surface.CADDY_STDLIB_BEFORE_SHA256,
+        **runtime_surface.CADDY_STDLIB_HELPERS,
+        "test/Þsample.go": "d" * 64,
+    }
+    baseline = {
+        **original,
+        "src/net/http/go_http_connection_nominations_test.go": runtime_surface.CADDY_STDLIB_FIXTURE_SHA256,
+    }
+    patched = {**baseline, "src/net/http/transfer.go": runtime_surface.CADDY_STDLIB_AFTER_SHA256}
+    manifests = {}
+    for label, entries in (("original", original), ("baseline", baseline), ("patched", patched)):
+        raw = "".join(
+            sorted(digest + "  ./" + path + "\n" for path, digest in entries.items())
+        ).encode()
+        manifests[label] = raw
+        monkeypatch.setattr(
+            runtime_surface,
+            "CADDY_STDLIB_" + label.upper() + "_TREE",
+            hashlib.sha256(raw).hexdigest(),
+        )
+    monkeypatch.setattr(runtime_surface, "CADDY_STDLIB_ORIGINAL_COUNT", len(original))
+    data = {
+        "stdlib-inputs.sha256": runtime_surface.caddy_stdlib_inputs(),
+        "stdlib-test-commands.txt": runtime_surface.caddy_stdlib_commands(),
+        "stdlib-original-tree.sha256": manifests["original"],
+        "stdlib-original-post-build-tree.sha256": manifests["original"],
+        "stdlib-baseline-tree.sha256": manifests["baseline"],
+        "stdlib-patched-tree.sha256": manifests["patched"],
+        "stdlib-post-tests-tree.sha256": manifests["patched"],
+        "stdlib-post-build-tree.sha256": manifests["patched"],
+    }
+    for phase in ("baseline-red", "baseline-controls", "patched-tests"):
+        data["stdlib-" + phase + ".jsonl"] = _synthetic_stdlib_events(phase)
+    listing = (
+        "\n".join(
+            [
+                *runtime_surface.CADDY_STDLIB_UPSTREAM_TOPS,
+                *runtime_surface.CADDY_STDLIB_CUSTOM_TOPS,
+                "TestReverseProxyStripHeadersPresentInConnection",
+                "ok\tnet/http\t0.001s",
+                "ok\tnet/http/httputil\t0.001s",
+            ]
+        )
+        + "\n"
+    ).encode()
+    data["stdlib-test-inventory.txt"] = (
+        b"BASELINE_NATIVE_LIST\n" + listing + b"PATCHED_NATIVE_LIST\n" + listing
+    )
+    return data
+
+
+def _caddy_source_fixture(
+    directory: Path, monkeypatch: pytest.MonkeyPatch
+) -> tuple[bytes, str, bytes]:
     directory.mkdir()
     data = {
         "patch-tool.txt": b"git version 2.52.0\n" + b"a" * 64 + b"  /usr/bin/git\n",
@@ -885,6 +1014,11 @@ def _caddy_source_fixture(directory: Path) -> tuple[bytes, str, bytes]:
                 )
         records.extend({"Action": "pass", "Package": package} for package in packages)
         data[name] = b"\n".join(json.dumps(row).encode() for row in records) + b"\n"
+    data.update(_synthetic_stdlib_evidence(monkeypatch))
+    graph = data["import-graph.txt"].decode().splitlines()
+    graph[0] += " fmt"
+    graph.append("fmt|" + runtime_surface.CADDY_STDLIB_ROOT + "/src/fmt|")
+    data["import-graph.txt"] = ("\n".join(graph) + "\n").encode()
     assert set(data) == runtime_surface.CADDY_BUILD_MEMBERS
     for name, raw in data.items():
         (directory / name).write_bytes(raw)
@@ -962,10 +1096,10 @@ def _caddy_source_report() -> dict:
     ],
 )
 def test_caddy_source_carrier_exact_replacement_and_independent_proof(
-    tmp_path: Path, fault: str | None
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str | None
 ) -> None:
     directory = tmp_path / "source"
-    binary, digest, recipe = _caddy_source_fixture(directory)
+    binary, digest, recipe = _caddy_source_fixture(directory, monkeypatch)
     if fault == "missing":
         (directory / "inputs.sha256").unlink()
     elif fault == "extra":
@@ -1058,7 +1192,7 @@ def test_caddy_source_report_preserves_unknown_and_rejects_unqualified_findings(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str | None
 ) -> None:
     directory = tmp_path / "source"
-    binary, digest, recipe = _caddy_source_fixture(directory)
+    binary, digest, recipe = _caddy_source_fixture(directory, monkeypatch)
     report = _caddy_source_report()
     packages = report["Results"][1]["Packages"]
     if fault in ("high", "critical"):
@@ -1329,7 +1463,7 @@ def test_caddy_actual_loaded_runtime_requires_complete_native_boundary_and_clean
         "HOME=/run/pulseplate-caddy-tmp",
         "TMPDIR=/run/pulseplate-caddy-tmp",
         "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-        "CADDY_VERSION=v2.11.4",
+        "CADDY_VERSION=v2.11.9",
         "XDG_CONFIG_HOME=/config",
         "XDG_DATA_HOME=/data",
     ]
@@ -2349,7 +2483,7 @@ def test_caddy_synthetic_environment_accepts_exactly_all_720_orders() -> None:
         "HOME=/run/pulseplate-caddy-tmp",
         "TMPDIR=/run/pulseplate-caddy-tmp",
         "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-        "CADDY_VERSION=v2.11.4",
+        "CADDY_VERSION=v2.11.9",
         "XDG_CONFIG_HOME=/config",
         "XDG_DATA_HOME=/data",
     ]
@@ -2387,3 +2521,470 @@ def test_caddy_synthetic_environment_accepts_exactly_all_720_orders() -> None:
     )
     for value in invalid:
         assert runtime_surface._is_caddy_synthetic_environment(value) is False
+
+
+def _upgrade_native_fixture(
+    case: str = "upgrade", *, vulnerable: bool = False, response: bytes | None = None
+) -> bytes:
+    """Independent native-shape fixture; not evidence of a real Caddy process."""
+    duplex = case in ("upgrade", "duplicate-connection")
+    client_frame = bytes.fromhex("818d13579bdf4307a9eb2a63b6bc7f3efeb167")
+    server_frame = bytes.fromhex("810d5050323439342d736572766572")
+    request = b"GET /ws HTTP/1.1\r\nHost: localhost\r\n"
+    if duplex:
+        request += b"Connection: Upgrade\r\nUpgrade: websocket\r\n"
+    request += b"\r\n" + (client_frame if duplex else b"")
+    if response is None:
+        if duplex:
+            response = (
+                b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\n"
+                b"Connection: Upgrade\r\n"
+                b"Sec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n"
+                b"X-End-To-End: first\r\nx-end-to-end: second\r\n"
+            )
+            if vulnerable:
+                response += b"X-Strip-One: first-secret\r\nX-Strip-Two: second-secret\r\n"
+            response += b"\r\n" + server_frame
+        elif case == "ordinary-200":
+            response = (
+                b"HTTP/1.1 200 OK\r\nContent-Length: 15\r\n"
+                b"X-End-To-End: first\r\nx-end-to-end: second\r\n\r\nordinary-body\r\n"
+            )
+        else:
+            response = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
+    files = {
+        "server-received": request,
+        "client-received": response,
+        "server-stderr": b"",
+        "client-stderr": b"",
+        "stop-server.stderr": b"",
+        "stop-client.stderr": b"",
+        "kill-server.stderr": b"",
+        "kill-client.stderr": b"",
+        "wait-server.stderr": b"Killed\n",
+        "wait-client.stderr": b"Killed\n",
+    }
+    rows = [
+        "TERMINAL role=server stop=0 kill=0 wait=137",
+        "TERMINAL role=client stop=0 kill=0 wait=137",
+    ]
+    rows += [f"FILE name={name} bytes={len(raw)} hex={raw.hex()}" for name, raw in files.items()]
+    return ("\n".join(rows) + "\nRESULT primary=0 capture=0\n").encode()
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "upgrade",
+        "duplicate-connection",
+        "ordinary-200",
+        "missing-upgrade",
+        "mismatched-upgrade",
+        "invalid-upgrade",
+        "no-request-upgrade",
+    ],
+)
+def test_caddy_upgrade_native_channels_keep_http_and_duplex_contract(case: str) -> None:
+    result = runtime_surface._validate_caddy_upgrade_exchange(
+        case, _upgrade_native_fixture(case), vulnerable_control=False
+    )
+    assert result["case"] == case
+    assert result["duplex"] is (case in ("upgrade", "duplicate-connection"))
+    assert result["vulnerable_leak_reproduced"] is False
+
+
+@pytest.mark.parametrize("vulnerable", [False, True])
+def test_caddy_upgrade_control_requires_positive_leak_not_a_clean_or_failed_run(
+    vulnerable: bool,
+) -> None:
+    raw = _upgrade_native_fixture(vulnerable=vulnerable)
+    if vulnerable:
+        assert (
+            runtime_surface._validate_caddy_upgrade_exchange(
+                "upgrade", raw, vulnerable_control=True
+            )["vulnerable_leak_reproduced"]
+            is True
+        )
+        with pytest.raises(ValueError, match="leaked"):
+            runtime_surface._validate_caddy_upgrade_exchange(
+                "upgrade", raw, vulnerable_control=False
+            )
+    else:
+        with pytest.raises(ValueError, match="positively reproduce"):
+            runtime_surface._validate_caddy_upgrade_exchange(
+                "upgrade", raw, vulnerable_control=True
+            )
+
+
+@pytest.mark.parametrize(
+    "defect",
+    [
+        "status",
+        "missing-upgrade",
+        "extra-connection",
+        "lost-duplicate",
+        "wrong-frame",
+        "unmasked-client",
+        "leak",
+        "timeout",
+        "native-failure",
+        "missing-role",
+        "duplicate-role",
+        "missing-channel",
+        "truncated-channel",
+        "socket-diagnostic",
+        "cleanup",
+        "extra-output",
+    ],
+)
+def test_caddy_upgrade_rejects_protocol_capture_and_cleanup_failures(defect: str) -> None:
+    raw = _upgrade_native_fixture()
+    rows = raw.decode().splitlines()
+    if defect in {
+        "status",
+        "missing-upgrade",
+        "extra-connection",
+        "lost-duplicate",
+        "wrong-frame",
+        "unmasked-client",
+        "leak",
+    }:
+        index = next(
+            i
+            for i, row in enumerate(rows)
+            if row.startswith(
+                "FILE name="
+                + ("server-received" if defect == "unmasked-client" else "client-received")
+            )
+        )
+        prefix, wire_hex = rows[index].split(" hex=")
+        wire = bytes.fromhex(wire_hex)
+        if defect == "status":
+            wire = wire.replace(b"101 Switching Protocols", b"200 OK")
+        elif defect == "missing-upgrade":
+            wire = wire.replace(b"Upgrade: websocket\r\n", b"")
+        elif defect == "extra-connection":
+            wire = wire.replace(
+                b"Connection: Upgrade\r\n", b"Connection: Upgrade\r\nConnection: other\r\n"
+            )
+        elif defect == "lost-duplicate":
+            wire = wire.replace(b"x-end-to-end: second\r\n", b"")
+        elif defect == "leak":
+            wire = wire.replace(b"\r\n\r\n", b"\r\nx-StRiP-TwO: leak\r\n\r\n")
+        elif defect == "unmasked-client":
+            wire = wire[: wire.index(b"\r\n\r\n") + 4] + bytes.fromhex(
+                "810d5050323439342d636c69656e74"
+            )
+        else:
+            wire = wire[:-1] + b"x"
+        rows[index] = prefix.split(" bytes=")[0] + f" bytes={len(wire)} hex={wire.hex()}"
+    elif defect == "timeout":
+        rows[-1] = "RESULT primary=143 capture=0"
+    elif defect == "native-failure":
+        rows[-1] = "RESULT primary=1 capture=0"
+    elif defect == "missing-role":
+        rows.pop(0)
+    elif defect == "duplicate-role":
+        rows[1] = rows[0]
+    elif defect == "missing-channel":
+        rows.pop(4)
+    elif defect == "truncated-channel":
+        rows[2] = rows[2].replace("bytes=", "bytes=9")
+    elif defect == "socket-diagnostic":
+        rows[4] = "FILE name=server-stderr bytes=1 hex=78"
+    elif defect == "cleanup":
+        rows[0] = "TERMINAL role=server stop=0 kill=1 wait=0"
+    else:
+        rows.insert(-1, "UNRECOGNIZED")
+    with pytest.raises(ValueError):
+        runtime_surface._validate_caddy_upgrade_exchange(
+            "upgrade", ("\n".join(rows) + "\n").encode(), vulnerable_control=False
+        )
+
+
+def test_caddy_normal_entry_configuration_keeps_static_d_separate() -> None:
+    static = json.loads(runtime_surface.CADDY_D_CONFIG)
+    upgraded = json.loads(runtime_surface.CADDY_UPGRADE_CONFIG)
+    assert upgraded["admin"] == static["admin"]
+    server = upgraded["apps"]["http"]["servers"]["ci"]
+    assert server["listen"] == ["127.0.0.1:18080"]
+    assert server["routes"][1:] == static["apps"]["http"]["servers"]["ci"]["routes"]
+    assert server["routes"][0]["match"] == [{"path": ["/ws"]}]
+    handler = server["routes"][0]["handle"][0]
+    assert handler["handler"] == "reverse_proxy"
+    assert handler["upstreams"] == [{"dial": "127.0.0.1:18081"}]
+    cases = runtime_surface._caddy_upgrade_cases()
+    duplicate = cases["duplicate-connection"][1]
+    assert b"Connection: Upgrade, X-Strip-One\r\n" in duplicate
+    assert b"cOnNeCtIoN: X-Strip-Two, uPgRaDe\r\n" in duplicate
+    assert b"X-Strip-One: first-secret\r\nX-Strip-Two: second-secret\r\n" in duplicate
+    assert runtime_surface._caddy_websocket_frame(b"PP2494-client", masked=True) == bytes.fromhex(
+        "818d13579bdf4307a9eb2a63b6bc7f3efeb167"
+    )
+    assert runtime_surface._caddy_websocket_frame(b"PP2494-server", masked=False) == bytes.fromhex(
+        "810d5050323439342d736572766572"
+    )
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [None, "native", "stderr", "capture", "cleanup", "native-and-capture", "native-and-cleanup"],
+)
+def test_caddy_upgrade_execution_reuses_native_owner_and_retains_failure_evidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str | None
+) -> None:
+    from scripts.ci import prometheus_source_image as source
+
+    seen: list[str] = []
+    monkeypatch.setattr(runtime_surface, "DOCKER_BINARY", "/usr/bin/docker")
+    monkeypatch.setattr(runtime_surface, "_CADDY_REMAINING", lambda cap: min(cap, 120.0))
+
+    class Native:
+        def __init__(self, evidence: Path, deadline: float, cleanup: int) -> None:
+            self.evidence = evidence
+            self.records: list[dict[str, object]] = []
+            assert cleanup == 0
+
+        def run(
+            self,
+            argv: list[str],
+            name: str,
+            env: dict[str, str],
+            *,
+            cwd: Path,
+            maximum_seconds: int,
+            output_bound: int,
+        ) -> bytes:
+            seen.append(name)
+            assert argv[:2] == ["/usr/bin/docker", "--config"]
+            assert argv[3:8] == ["exec", "owned-caddy", "/bin/busybox", "sh", "-c"]
+            assert maximum_seconds == 35 and output_bound == 65536
+            assert set(env) == {"PATH", "HOME", "DOCKER_CONFIG", "LANG"}
+            assert cwd == tmp_path
+            assert Path(env["DOCKER_CONFIG"]).is_dir()
+            self.records.append({"name": name, "exit": 1 if fault == "native" else 0})
+            (self.evidence / (name + ".stderr")).write_bytes(
+                b"diagnostic" if fault == "stderr" else b""
+            )
+            if fault in ("capture", "native-and-capture"):
+                (self.evidence / "native-records.json").write_text("existing retained evidence")
+            if fault in ("cleanup", "native-and-cleanup"):
+                (Path(env["DOCKER_CONFIG"]) / "unexpected").write_text("retain")
+            if fault in ("native", "native-and-capture", "native-and-cleanup"):
+                raise RuntimeError("native failure retained")
+            return _upgrade_native_fixture(name)
+
+    monkeypatch.setattr(source, "Native", Native)
+    if fault is None:
+        result = runtime_surface._observe_caddy_upgrade_exchanges(
+            "owned-caddy", tmp_path, vulnerable_control=False
+        )
+        assert len(result) == 7 and len(seen) == 7
+    else:
+        with pytest.raises((RuntimeError, ValueError, OSError)) as failure:
+            runtime_surface._observe_caddy_upgrade_exchanges(
+                "owned-caddy", tmp_path, vulnerable_control=False
+            )
+        assert seen == (
+            ["upgrade"]
+            if fault in ("native", "stderr", "native-and-capture", "native-and-cleanup")
+            else list(runtime_surface._caddy_upgrade_cases())
+        )
+        if fault.startswith("native-and-"):
+            assert str(failure.value) == "native failure retained"
+            assert len(failure.value.__notes__) == 1
+    record = (tmp_path / "upgrade-native/native-records.json").read_text()
+    if fault in ("capture", "native-and-capture"):
+        assert record == "existing retained evidence"
+    else:
+        assert len(json.loads(record)) == len(seen)
+    assert (tmp_path / "upgrade-native/docker-config").exists() is (
+        fault in ("cleanup", "native-and-cleanup")
+    )
+
+
+@pytest.mark.parametrize("stop,kill", [(0, 0), (0, 1), (1, 0), (1, 1)])
+def test_caddy_nonupgrade_natural_exit_retains_actual_signal_race(stop: int, kill: int) -> None:
+    raw = (
+        _upgrade_native_fixture("ordinary-200")
+        .replace(
+            b"TERMINAL role=client stop=0 kill=0 wait=137",
+            f"TERMINAL role=client stop={stop} kill={kill} wait=0".encode(),
+        )
+        .replace(
+            b"FILE name=wait-client.stderr bytes=7 hex=4b696c6c65640a",
+            b"FILE name=wait-client.stderr bytes=0 hex=",
+        )
+    )
+    assert runtime_surface._validate_caddy_upgrade_exchange(
+        "ordinary-200", raw, vulnerable_control=False
+    )["roles"]["client"] == (stop, kill, 0)
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        b"HTTP/1.1 200 OK\r\nContent-Length: 14\r\nX-End-To-End: first\r\nX-End-To-End: second\r\n\r\nordinary-body\r\n",
+        b"HTTP/1.1 200 OK\r\nContent-Length: 15\r\nX-End-To-End: first\r\nX-End-To-End: second\r\n\r\n",
+        b'HTTP/1.1 200 OK\r\nContent-Length: 15\r\nAlt-Svc: h3=":443"\r\nX-End-To-End: first\r\nX-End-To-End: second\r\n\r\nordinary-body\r\n',
+    ],
+)
+def test_caddy_ordinary_response_requires_complete_body_length_and_no_alt_svc(
+    response: bytes,
+) -> None:
+    with pytest.raises(ValueError):
+        runtime_surface._validate_caddy_upgrade_exchange(
+            "ordinary-200",
+            _upgrade_native_fixture("ordinary-200", response=response),
+            vulnerable_control=False,
+        )
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "missing-stdlib",
+        "extra-member",
+        "original-goroot",
+        "goroot-alias",
+        "stdlib-location",
+        "changed-postbuild",
+        "input-drift",
+        "command-root",
+        "shared-cache",
+        "red-setup",
+        "missing-custom",
+        "substituted-custom",
+        "duplicate-terminal",
+        "terminal-before-run",
+        "skip",
+        "malformed-parity",
+        "v3-aggregate",
+        "stdlib-aggregate",
+        "union-aggregate",
+    ],
+)
+def test_caddy_stdlib_proof_and_private_import_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str | None
+) -> None:
+    directory = tmp_path / "source"
+    binary, digest, recipe = _caddy_source_fixture(directory, monkeypatch)
+    if fault in {"v3-aggregate", "stdlib-aggregate", "union-aggregate"}:
+        names, constant = {
+            "v3-aggregate": (runtime_surface.CADDY_V3_BUILD_MEMBERS, "CADDY_V3_TOTAL_BYTES"),
+            "stdlib-aggregate": (runtime_surface.CADDY_STDLIB_MEMBERS, "CADDY_STDLIB_TOTAL_BYTES"),
+            "union-aggregate": (runtime_surface.CADDY_BUILD_MEMBERS, "CADDY_SOURCE_TOTAL_BYTES"),
+        }[fault]
+        monkeypatch.setattr(
+            runtime_surface, constant, sum((directory / name).stat().st_size for name in names) - 1
+        )
+    elif fault == "missing-stdlib":
+        (directory / "stdlib-post-build-tree.sha256").unlink()
+    elif fault == "extra-member":
+        (directory / "stdlib-unknown.txt").write_text("not admitted")
+    elif fault in {"original-goroot", "goroot-alias", "stdlib-location"}:
+        path = directory / "import-graph.txt"
+        original = runtime_surface.CADDY_STDLIB_ROOT + "/src/fmt"
+        changed = {
+            "original-goroot": "/usr/local/go/src/fmt",
+            "goroot-alias": runtime_surface.CADDY_STDLIB_ROOT + "/src/./fmt",
+            "stdlib-location": runtime_surface.CADDY_STDLIB_ROOT + "/src/other",
+        }[fault]
+        path.write_text(path.read_text().replace(original, changed))
+    elif fault == "changed-postbuild":
+        path = directory / "stdlib-post-build-tree.sha256"
+        path.write_bytes(path.read_bytes().replace(b"a", b"b", 1))
+    elif fault == "input-drift":
+        path = directory / "stdlib-inputs.sha256"
+        path.write_bytes(path.read_bytes().replace(b"2dc6", b"3dc6", 1))
+    elif fault in {"command-root", "shared-cache"}:
+        path = directory / "stdlib-test-commands.txt"
+        old, new = (
+            (runtime_surface.CADDY_STDLIB_ROOT, "/usr/local/go")
+            if fault == "command-root"
+            else ("/opt/caddy-stdlib-patched-cache", "/opt/caddy-stdlib-baseline-cache")
+        )
+        command_text = path.read_text()
+        assert old in command_text
+        path.write_text(command_text.replace(old, new))
+    elif fault == "red-setup":
+        path = directory / "stdlib-baseline-red.jsonl"
+        path.write_bytes(
+            path.read_bytes().replace(
+                b"PP_BASELINE_SETUP_BODY_CLOSE_OK", b"PP_BASELINE_SETUP_OR_BODY_CLOSE_FAILURE"
+            )
+        )
+    elif fault in {
+        "missing-custom",
+        "substituted-custom",
+        "duplicate-terminal",
+        "terminal-before-run",
+        "skip",
+        "malformed-parity",
+    }:
+        path = directory / "stdlib-patched-tests.jsonl"
+        rows = [json.loads(line) for line in path.read_bytes().splitlines()]
+        selected = "TestPPHTTPPersistenceOptions/duplicate_nominees"
+        if fault == "missing-custom":
+            rows = [row for row in rows if row.get("Test") != selected]
+        elif fault == "substituted-custom":
+            for row in rows:
+                if row.get("Test") == selected:
+                    row["Test"] = "TestPPHTTPPersistenceOptions/unreviewed_substitute"
+        elif fault == "duplicate-terminal":
+            rows.append(
+                next(
+                    dict(row)
+                    for row in rows
+                    if row.get("Test") == selected and row["Action"] == "pass"
+                )
+            )
+        elif fault == "terminal-before-run":
+            run = next(
+                i
+                for i, row in enumerate(rows)
+                if row.get("Test") == selected and row["Action"] == "run"
+            )
+            end = next(
+                i
+                for i, row in enumerate(rows)
+                if row.get("Test") == selected and row["Action"] == "pass"
+            )
+            rows[run], rows[end] = rows[end], rows[run]
+        elif fault == "skip":
+            next(row for row in rows if row.get("Test") == selected and row["Action"] == "pass")[
+                "Action"
+            ] = "skip"
+        else:
+            row = next(row for row in rows if "PP_ACCEPTED_PARITY" in row.get("Output", ""))
+            row["Output"] = row["Output"].replace("error=<nil>", "error=changed")
+        path.write_bytes(b"".join(json.dumps(row).encode() + b"\n" for row in rows))
+    if fault is not None:
+        with pytest.raises(ValueError):
+            runtime_surface.validate_caddy_source_evidence(
+                directory, binary_metadata=binary, binary_sha256=digest, recipe=recipe
+            )
+    else:
+        result = runtime_surface.validate_caddy_source_evidence(
+            directory, binary_metadata=binary, binary_sha256=digest, recipe=recipe
+        )
+        assert result["stdlib_source"]["patched_goroot"] == runtime_surface.CADDY_STDLIB_ROOT
+        assert len(result["stdlib_source"]["patched_tests"]["runs"]) >= 61
+        assert result["v3_scanner_comparability"] == "UNKNOWN"
+
+
+def test_caddy_stdlib_exact_identity_inventory() -> None:
+    patched = runtime_surface._caddy_stdlib_custom_identities(
+        set(runtime_surface.CADDY_STDLIB_CUSTOM_TOPS)
+    )
+    baseline = runtime_surface._caddy_stdlib_custom_identities(
+        runtime_surface.CADDY_STDLIB_BASELINE_CUSTOM
+    )
+    assert len(patched) == 61
+    assert len(baseline) == 26
+    assert "TestPPHTTPPersistenceBoundaryControls/eof_close_without_close_token" in baseline
+    assert "TestPPHTTPMalformedAcceptedParity/legacy_space_field_name" in baseline
+    assert len(runtime_surface.CADDY_V3_BUILD_MEMBERS) == 16
+    assert len(runtime_surface.CADDY_STDLIB_MEMBERS) == 12
+    assert len(runtime_surface.CADDY_BUILD_MEMBERS) == 28

@@ -451,6 +451,39 @@ or claim that passing this probe validates the application on Python 3.14.
 
 ## Native Docker image evidence
 
+Before changing a source-image recipe, compiler or standard-library input, or
+producer/consumer checker, record in the existing task notes each affected consumer,
+which exact evidence remains reusable or becomes invalid, and the real producer
+needed to replace it. Distinguish a PR candidate, the first trusted-main publisher,
+and an ordinary published-image reader; verify that each prerequisite is achievable
+without requiring its own dependent consumer to pass first. If the producer requires
+published source, separate that prerequisite publication from dependent subject
+adoption or publication admission. Consume the required fresh native proof before
+admitting the dependent result, and reuse historical proof only after positively
+verifying its unchanged governed inputs. Preserve failed and pending consumers
+honestly; neither relabeling old success nor adding workflow needs or retries supplies
+missing producer evidence.
+
+- The maintained Caddy standard-library correction uses the pinned compiler executable
+  with a separate, exact private patched GOROOT. Preserve the original sixteen v3
+  evidence members and the checker's closed twelve-member stdlib extension. Require
+  the actual component baseline RED discriminator, positive controls and complete
+  custom identities; counts alone and cached test results do not qualify a new source.
+  Keep original and copied source inventories, separate fresh caches and post-build
+  source checks. Final import evidence must name only the exact patched stdlib root.
+  Source-local correction is not an official Go release or scanner-clearance claim.
+
+- Caddy's static-D response is not proof of a reverse-proxy WebSocket upgrade.
+  Qualify the finite normal-entry `/ws` contour separately, with the real Caddy
+  process/configuration, raw repeated and case-varied headers, canonical 101
+  Upgrade/Connection semantics and actual masked-client/unmasked-server frames.
+  Keep end-to-end header multiplicity and ordinary/rejected-upgrade controls.
+  A vulnerable control must positively reproduce the leak with working duplex;
+  setup failure, missing response or timeout is not that proof. Qualify the
+  selected raw duplex tool before use, retain both role exits and bounded
+  cleanup, and share the existing RUNTIME reservation without resetting it.
+  See `docs/security/CVE-2026-116587-caddy-go-jose.md` for the source owner.
+
 - Keep required vulnerable-control identity detection separate from mutable
   severity metadata. A reconciled rescore may admit only the explicit observed
   whole-report states in the existing inventory consumer; it must retain exact

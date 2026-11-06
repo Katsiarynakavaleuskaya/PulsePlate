@@ -116,8 +116,10 @@ full-image proof. The existing `caddy-contract` job selects `ubuntu-24.04`.
 That runner pin is preventive configuration, not observed qualification of this
 source-patched producer. A runner or image-store change requires actual native
 requalification; another recipe's runner evidence cannot qualify this one.
-The source-qualified PR2494 producer/consumer uses exactly the sixteen regular
-members at `/usr/share/pulseplate-caddy-build`; replaced-v3 native Sum/Version
+The source-qualified producer/consumer requires the exact closed regular-member
+inventory owned by `scripts/ci/check_docker_runtime_dependency_surface.py` at
+`/usr/share/pulseplate-caddy-build`, including the original sixteen v3 proof members
+and the explicitly bound standard-library extension. Replaced-v3 native Sum/Version
 omissions must remain truthful. Its six candidate/official/secret full+HC scans
 share a frozen scanner/DB epoch, and complete native finding/fingerprint relations
 plus owned cleanup must pass before candidate artifact release. No D policy
