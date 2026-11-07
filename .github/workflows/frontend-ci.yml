@@ -115,7 +115,7 @@ on:
         description: Import a qualified PR2494 candidate, inspect metadata, or explicitly build the patched source
         type: choice
         default: contract
-        options: [contract, xnet060-metadata, candidate-D]
+        options: [contract, xnet062-metadata, candidate-D]
 jobs:
   changes:
     runs-on: ubuntu-latest
@@ -152,7 +152,7 @@ jobs:
               - '.github/workflows/cd.yml'
               - '.github/workflows/frontend-ci.yml'
   build-and-test:
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata' }}
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet062-metadata' }}
     runs-on: ubuntu-latest
     env:
       BUILD_OUTPUT_DIR: dist
@@ -509,8 +509,6 @@ jobs:
       CADDY_API_CALL_SECONDS: '30'
       CADDY_API_CLEANUP_SECONDS: '10'
       CADDY_FULL_SCAN_TIMEOUT_SECONDS: '300'
-      CADDY_METADATA_TIMEOUT_SECONDS: '900'
-      CADDY_METADATA_CLEANUP_SECONDS: '120'
       CADDY_CHECKOUT_SECONDS: '120'
       CADDY_REUSE_TIMEOUT_SECONDS: '840'
       CADDY_REUSE_DOWNLOAD_SECONDS: '300'
@@ -521,7 +519,7 @@ jobs:
       CADDY_PHASE_SETUP: '300'
       CADDY_PHASE_ADMISSION: '600'
       CADDY_PHASE_COMPILER_BOOTSTRAP: '600'
-      CADDY_PHASE_COMPILER_WORK: '900'
+      CADDY_PHASE_COMPILER_WORK: '1200'
       CADDY_PHASE_COMPILER_CLEANUP: '120'
       CADDY_PHASE_METADATA_UPLOAD: '180'
       CADDY_PHASE_BUILD: '1800'
@@ -541,7 +539,7 @@ jobs:
       CADDY_PHASE_RETENTION: '420'
       CADDY_PHASE_UPLOAD: '600'
       CADDY_PHASE_SAFETY: '270'
-    timeout-minutes: ${{ fromJSON(vars.CADDY_CONTRACT_TIMEOUT_MINUTES || '220') }}
+    timeout-minutes: ${{ fromJSON(vars.CADDY_CONTRACT_TIMEOUT_MINUTES || '225') }}
     needs: changes
     if: ${{ !cancelled() && (needs.changes.outputs.caddy == 'true' || github.event_name == 'workflow_dispatch') }}
     runs-on: ubuntu-24.04
@@ -583,6 +581,8 @@ jobs:
               output.write("CADDY_ACTION_REUSE_DOWNLOAD_MINUTES=" + str(math.ceil(int(os.environ["CADDY_REUSE_DOWNLOAD_SECONDS"]) / 60)) + "\n")
               output.write("CADDY_ACTION_CHECKOUT_MINUTES=" + str(math.ceil(checkout / 60)) + "\n")
               output.write("CADDY_ACTION_BUILDX_MINUTES=" + str(math.ceil((caps["SETUP"] - checkout) / 60)) + "\n")
+              output.write("CADDY_METADATA_TIMEOUT_SECONDS=" + str(caps["COMPILER_WORK"]) + "\n")
+              output.write("CADDY_METADATA_CLEANUP_SECONDS=" + str(caps["COMPILER_CLEANUP"]) + "\n")
               output.write("CADDY_ACTION_METADATA_MINUTES=" + str(math.ceil((caps["COMPILER_WORK"] + caps["COMPILER_CLEANUP"]) / 60)) + "\n")
           PY
       - name: Checkout code
@@ -626,7 +626,7 @@ jobs:
               event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_bytes())
               event_name = os.environ["GITHUB_EVENT_NAME"]
               action = os.environ.get("CADDY_ACTION", "")
-              if (event_name == "workflow_dispatch" and action not in ("contract", "xnet060-metadata", "candidate-D")) or (event_name != "workflow_dispatch" and action):
+              if (event_name == "workflow_dispatch" and action not in ("contract", "xnet062-metadata", "candidate-D")) or (event_name != "workflow_dispatch" and action):
                   raise ValueError("Caddy unknown operation")
               selected = os.environ["CADDY_SOURCE_HEAD"]
               if re.fullmatch(r"[0-9a-f]{40}", selected) is None:
@@ -834,7 +834,7 @@ jobs:
               prefix = "/repos/" + repo
               proof_api = SimpleNamespace(json=lambda endpoint: api(endpoint.removeprefix(prefix)))
               proof_api.pages = lambda endpoint, key, count: GitHubRead.pages(proof_api, endpoint, key, count)
-              if action == "xnet060-metadata":
+              if action == "xnet062-metadata":
                   state["mode"] = "metadata"
               elif action == "candidate-D":
                   if event_name != "workflow_dispatch" or state["current_run_attempt"] != 1:
@@ -961,7 +961,7 @@ jobs:
               (work / "caddy-admission/admission.json").write_text(json.dumps(state, indent=2))
           PY
 
-      # xnet060-metadata is the retained compatibility identifier for the current fixed recipe.
+      # xnet062-metadata is a distinct metadata epoch; old xnet060 receipts stay historical.
       - name: Admit explicit first Caddy metadata invocation
         if: ${{ steps.caddy-admission.outputs.mode == 'metadata' || steps.caddy-admission.outputs.mode == 'build' }}
         run: |
@@ -1000,7 +1000,9 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           import difflib
-          from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_phase
+          from scripts.ci.check_docker_runtime_dependency_surface import (
+              CADDY_XNET062_METADATA_SUCCESS, caddy_ci_phase, validate_caddy_metadata_custody,
+          )
           import hashlib
           import json
           import os
@@ -1011,13 +1013,17 @@ jobs:
           import stat
           import time
           import urllib.request
-          from scripts.ci.prometheus_source_image import Native, fresh_directory, tree_inventory, canonical_data, require
+          from scripts.ci.prometheus_source_image import (
+              MAX_COMPILE_OUTPUT_BYTES, Native, canonical_data, check_deadline,
+              fresh_directory, native_container_image_identity, native_go_identity,
+              native_one_image, one_object, require, tree_inventory,
+          )
 
           require(os.environ.get("GITHUB_ACTIONS") == "true" and platform.system() == "Linux"
                   and platform.machine() == "x86_64" and os.environ["GITHUB_REPOSITORY"] == "Katsiarynakavaleuskaya/PulsePlate"
                   and os.environ["GITHUB_RUN_ATTEMPT"] == "1", "caddy_metadata_admission")
           root = Path.cwd()
-          work = Path(os.environ["RUNNER_TEMP"]) / "caddy-xnet060-metadata"
+          work = Path(os.environ["RUNNER_TEMP"]) / "caddy-xnet062-metadata"
           fresh_directory(work)
           evidence = work / "evidence"
           fresh_directory(evidence)
@@ -1033,41 +1039,130 @@ jobs:
           gets = re.findall(rb"^    go get ([^;]+);", recipe, re.MULTILINE)
           baseline_gets = [b"github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.4", b"google.golang.org/grpc@v1.83.2", b"golang.org/x/crypto@v0.55.0", b"golang.org/x/net@v0.60.0", b"github.com/klauspost/compress@v1.18.7"]
           baseline_gets += [b"github.com/go-jose/go-jose/v4@v4.1.6"]
-          require(gets == baseline_gets + [b"github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.9"], "caddy_selected_seed_then_root_get")
-          report = {"purpose": "Counterfactual recipe baselines, not recovered historical ephemeral locks or a compiled candidate",
+          require(gets == baseline_gets + [b"github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.9", b"golang.org/x/net@v0.62.0"], "caddy_selected_incumbent_then_xnet_get")
+          report = {"purpose": "Retained incumbent then sole xnet062 metadata action; no compiled candidate or output-profile adoption",
                     "compiler_index": compiler, "recipe_sha256": hashlib.sha256(recipe).hexdigest(),
                     "counterfactual_seed_gets": [value.decode() for value in baseline_gets],
                     "selected_recipe_gets": [value.decode() for value in gets],
-                    "authored_action": "github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.9",
+                    "authored_action": "golang.org/x/net@v0.62.0",
                     "run_id": int(os.environ["GITHUB_RUN_ID"]), "run_attempt": 1,
                     "source_head": json.loads((Path(os.environ["RUNNER_TEMP"]) / "caddy-admission/admission.json").read_bytes())["current_head"], "go_build_invocations": 0,
-                    "failure": None, "derivations": {}, "closure_admission": "one Caddy authored action; complete independent replay and actual source/security admission remain required"}
-          owned = []
+                    "failure": None, "derivations": {}, "closure_admission": "one x/net authored action; actual fullF/output-profile adoption remains HOLD"}
+          owned = {}
+          owned_profiles = {}
+          start_attempts = set()
+          removed = set()
+
+          def container_inventory(channel, *, cleaning=False):
+              raw = native.run([docker, "--config", str(config), "ps", "--all", "--no-trunc",
+                                 "--format", "{{.ID}}\t{{.Names}}"], channel, environment,
+                                cwd=work, cleaning=cleaning)
+              require(not raw or raw.endswith(b"\n"), "caddy_metadata_container_inventory")
+              rows = raw.decode("ascii").split("\n")[:-1]
+              inventory = {}
+              names = set()
+              for row in rows:
+                  fields = row.split("\t")
+                  require(len(fields) == 2 and re.fullmatch(r"[0-9a-f]{64}", fields[0]) is not None
+                          and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", fields[1]) is not None
+                          and fields[0] not in inventory and fields[1] not in names,
+                          "caddy_metadata_container_inventory")
+                  inventory[fields[0]] = fields[1]
+                  names.add(fields[1])
+              return inventory
+
+          def require_absent(inventory, cid, name):
+              require(cid not in inventory and name not in inventory.values(),
+                      "caddy_metadata_owned_container_survives")
+
+          def remove_owned(cid, name, *, cleaning=False):
+              native.run([docker, "--config", str(config), "rm", cid], name + "-remove",
+                         environment, cwd=work, cleaning=cleaning)
+              require_absent(container_inventory(name + "-absence", cleaning=cleaning), cid, name)
+              removed.add(cid)
+
+          def cache_identity(path):
+              info = path.lstat()
+              require(stat.S_ISDIR(info.st_mode) and (info.st_uid, info.st_gid) == (os.getuid(), os.getgid()),
+                      "caddy_metadata_phase_cache_custody")
+              return info.st_dev, info.st_ino
+
+          def retire_phase_cache(path, identity):
+              def walk_error(error):
+                  raise error
+
+              check_deadline(native.deadline)
+              require(cache_identity(path) == identity, "caddy_metadata_phase_cache_replaced")
+              for directory, children, files in os.walk(path, onerror=walk_error, followlinks=False):
+                  root_cache = Path(directory)
+                  for member in [root_cache, *(root_cache / name for name in children + files)]:
+                      check_deadline(native.deadline)
+                      info = member.lstat()
+                      require((info.st_uid, info.st_gid) == (os.getuid(), os.getgid())
+                              and (stat.S_ISDIR(info.st_mode) or stat.S_ISREG(info.st_mode)),
+                              "caddy_metadata_phase_cache_member")
+                  os.chmod(root_cache, stat.S_IMODE(root_cache.lstat().st_mode) | 0o700)
+              check_deadline(native.deadline)
+              require(cache_identity(path) == identity, "caddy_metadata_phase_cache_replaced")
+              shutil.rmtree(path)
+              require(not path.exists() and not path.is_symlink(), "caddy_metadata_phase_cache_survives")
+              check_deadline(native.deadline)
+
+          primary_error = None
           try:
               with caddy_ci_phase("COMPILER_WORK") as remaining:
                   native.deadline = min(native.deadline, time.monotonic() + remaining(float("inf")))
                   raw = native.run([docker, "--config", str(config), "buildx", "imagetools", "inspect", "--raw", compiler], "compiler-index", environment, cwd=work)
                   require(hashlib.sha256(raw).hexdigest() == compiler.split("sha256:")[1], "compiler_raw_index_digest")
-                  index = json.loads(raw)
+                  index = one_object(raw)
                   targets = [row for row in index["manifests"] if row.get("platform") == {"architecture": "amd64", "os": "linux"}]
                   require(len(targets) == 1 and re.fullmatch(r"sha256:[0-9a-f]{64}", targets[0]["digest"]) is not None, "compiler_exact_platform")
                   selected = "golang@" + targets[0]["digest"]
                   native.run([docker, "--config", str(config), "pull", "--platform", "linux/amd64", selected], "compiler-pull", environment, cwd=work)
-                  observed = json.loads(native.run([docker, "--config", str(config), "image", "inspect", selected], "compiler-config", environment, cwd=work))[0]
+                  observed = native_one_image(native.run([docker, "--config", str(config), "image", "inspect", selected], "compiler-config", environment, cwd=work))
                   require((observed["Os"], observed["Architecture"]) == ("linux", "amd64"), "compiler_native_platform")
                   platform_raw = native.run([docker, "--config", str(config), "buildx", "imagetools", "inspect", "--raw", selected], "compiler-platform-raw", environment, cwd=work)
-                  require("sha256:" + hashlib.sha256(platform_raw).hexdigest() == targets[0]["digest"]
-                          and json.loads(platform_raw)["config"]["digest"] == observed["Id"], "compiler_platform_config_binding")
+                  image_relation = native_go_identity(observed, raw, platform_raw)
+                  require(image_relation["operand"] == observed["Id"], "compiler_bound_native_operand")
                   report["compiler_platform"] = targets[0]
                   report["compiler_config"] = observed
                   version_name = "pulseplate-caddy-compiler-version-" + os.environ["GITHUB_RUN_ID"]
-                  owned.append(version_name)
-                  go_version = native.run([docker, "--config", str(config), "run", "--rm", "--pull", "never", "--name", version_name,
+                  owned[version_name] = None
+                  version_id = native.run([docker, "--config", str(config), "create", "--pull", "never", "--name", version_name,
                       "--label", "pulseplate.caddy-metadata=" + os.environ["GITHUB_RUN_ID"],
                       "--user", "65532:65532", "--network", "none", "--read-only", "--cap-drop", "ALL",
                       "--security-opt", "no-new-privileges", "--cpus", "2", "--memory", "2g", "--pids-limit", "128",
                       "--env", "GOTOOLCHAIN=local", "--env", "GOENV=off", "--env", "GOWORK=off",
-                      "--entrypoint", "/usr/local/go/bin/go", observed["Id"], "version"], "compiler-native-version", environment, cwd=work)
+                      "--entrypoint", "/usr/local/go/bin/go", observed["Id"], "version"], "compiler-version-create", environment, cwd=work).decode("ascii").strip()
+                  require(re.fullmatch(r"[0-9a-f]{64}", version_id) is not None, "compiler_version_full_ID")
+                  owned[version_name] = version_id
+                  version_before = native_one_image(native.run([docker, "--config", str(config), "inspect", version_id], "compiler-version-prestart", environment, cwd=work))
+                  native_container_image_identity(version_before, image_relation)
+                  require(version_before["Id"] == version_id and version_before["Name"] == "/" + version_name
+                          and version_before["Config"]["Labels"].get("pulseplate.caddy-metadata") == os.environ["GITHUB_RUN_ID"]
+                          and version_before["Config"]["Entrypoint"] == ["/usr/local/go/bin/go"]
+                          and version_before["Config"]["Cmd"] == ["version"] and version_before["Mounts"] == [], "compiler_version_command")
+                  version_env = dict(value.split("=", 1) for value in observed["Config"]["Env"])
+                  version_env.update(GOTOOLCHAIN="local", GOENV="off", GOWORK="off")
+                  version_host = version_before["HostConfig"]
+                  require(version_before["Config"]["User"] == "65532:65532"
+                          and dict(value.split("=", 1) for value in version_before["Config"]["Env"]) == version_env
+                          and version_host["NetworkMode"] == "none" and version_host["ReadonlyRootfs"] is True
+                          and version_host["Privileged"] is False and version_host["CapDrop"] == ["ALL"]
+                          and version_host.get("CapAdd") in (None, [])
+                          and version_host["SecurityOpt"] in (["no-new-privileges"], ["no-new-privileges:true"])
+                          and version_host["NanoCpus"] == 2000000000 and version_host["Memory"] == 2147483648
+                          and version_host["PidsLimit"] == 128, "compiler_version_isolation")
+                  validate_caddy_metadata_custody(version_before, version_before, started_id=None)
+                  owned_profiles[version_name] = version_before
+                  start_attempts.add(version_id)
+                  go_version = native.run([docker, "--config", str(config), "start", "--attach", version_id], "compiler-native-version", environment, cwd=work)
+                  version_after = native_one_image(native.run([docker, "--config", str(config), "inspect", version_id], "compiler-version-terminal", environment, cwd=work))
+                  native_container_image_identity(version_after, image_relation)
+                  validate_caddy_metadata_custody(version_before, version_after, started_id=version_id)
+                  require(version_after["State"]["Status"] == "exited" and version_after["State"]["Running"] is False
+                          and type(version_after["State"]["ExitCode"]) is int and version_after["State"]["ExitCode"] == 0
+                          and version_after["State"]["OOMKilled"] is False, "compiler_version_terminal")
                   require(go_version == b"go version go1.26.10 linux/amd64\n", "compiler_native_version")
                   report["compiler_go_version_sha256"] = hashlib.sha256(go_version).hexdigest()
                   scanner = shutil.which("trivy")
@@ -1103,30 +1198,22 @@ jobs:
                       "scanner_sha256": hashlib.sha256(Path(scanner).read_bytes()).hexdigest(), "DB": db,
                       "Secrets_fields_absent": sum("Secrets" not in row for row in full["Results"]),
                       "boundary": "Native vuln,secret command and listed inventory; omitted Secrets fields are not a forced zero claim"}
-                  # Historical signed Alpine acquisitions remain at their original proof identity.
-                  # This transition changes only go-jose/v4; do not reacquire old cutoff inputs.
-                  for label in ("a", "b"):
-                      lane = work / label
-                      fresh_directory(lane)
-                      for name in ("work", "modules", "home", "cache", "tmp", "output"):
-                          fresh_directory(lane / name, 0o777)
-                          (lane / name).chmod(0o777)
-                      name = "pulseplate-caddy-metadata-" + os.environ["GITHUB_RUN_ID"] + "-" + label
-                      argv = [docker, "--config", str(config), "create", "--pull", "never", "--name", name,
-                              "--label", "pulseplate.caddy-metadata=" + os.environ["GITHUB_RUN_ID"],
-                              "--user", "65532:65532", "--workdir", "/work", "--read-only", "--cap-drop", "ALL",
-                              "--security-opt", "no-new-privileges", "--cpus", "2", "--memory", "2g", "--pids-limit", "128"]
-                      for directory in ("work", "modules", "home", "cache", "tmp", "output"):
-                          argv += ["--mount", f"type=bind,source={lane / directory},target=/{directory}"]
-                      for key, value in {"PATH": "/usr/local/go/bin:/usr/bin:/bin", "HOME": "/home", "TMPDIR": "/tmp",
-                                         "GOCACHE": "/cache", "GOMODCACHE": "/modules", "GOPATH": "/home/gopath",
-                                         "GOOS": "linux", "GOARCH": "amd64", "CGO_ENABLED": "0", "GOTOOLCHAIN": "local",
-                                         "GOWORK": "off", "GOENV": "off", "GOPROXY": "https://proxy.golang.org",
-                                         "GOSUMDB": "sum.golang.org", "GOMAXPROCS": "2"}.items():
-                          argv += ["--env", key + "=" + value]
-                      # The same fixed guest paths and canonical phases are used in both fresh lanes.
-                      script = '''set -eu
-              go version > /output/compiler-version.txt
+                  from scripts.ci.check_docker_runtime_dependency_surface import CADDY_XNET062_INCUMBENT_FILES, validate_caddy_xnet062_metadata
+                  require(os.getuid() > 0 and os.getgid() > 0, "caddy_metadata_nonroot_owner")
+                  capture = '''capture() {
+              phase="$1"
+              export GOPROXY=off GOSUMDB=off GOFLAGS=-mod=readonly
+              cp go.mod "/output/$phase-go.mod"
+              cp go.sum "/output/$phase-go.sum"
+              go mod verify > "/output/$phase-verify.txt"
+              go list -mod=readonly -m -json all > "/output/$phase-modules.json"
+              go mod graph > "/output/$phase-module-graph.txt"
+              go list -mod=readonly -deps -json github.com/caddyserver/caddy/v2/cmd/caddy > "/output/$phase-packages.json"
+              cmp go.mod "/output/$phase-go.mod"
+              cmp go.sum "/output/$phase-go.sum"
+              }
+              '''
+                  seed = '''go version > /output/compiler-version.txt
               test "$(cat /output/compiler-version.txt)" = "go version go1.26.10 linux/amd64"
               cat /etc/alpine-release > /output/alpine-release.txt
               go mod init pulseplate.local/caddy-build
@@ -1137,82 +1224,175 @@ jobs:
               go get github.com/klauspost/compress@v1.18.7
               go get github.com/go-jose/go-jose/v4@v4.1.6
               go mod download all
-              go mod verify > /output/baseline-verify.txt
-              cp go.mod /output/baseline-go.mod
-              cp go.sum /output/baseline-go.sum
-              go list -mod=readonly -m -json all > /output/baseline-modules.json
-              go mod graph > /output/baseline-module-graph.txt
-              go list -mod=readonly -deps -json github.com/caddyserver/caddy/v2/cmd/caddy > /output/baseline-packages.json
-              cmp go.mod /output/baseline-go.mod
-              cmp go.sum /output/baseline-go.sum
+              capture baseline
+              export GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org GOFLAGS=
               go get github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.9
+              cp go.mod /output/incumbent-postget-go.mod
+              cp go.sum /output/incumbent-postget-go.sum
+              go mod download all
+              cmp go.mod /output/incumbent-postget-go.mod
+              # Historical incumbent download adds known checksums; retain both
+              # observations and bind the final incumbent to its exact pins.
+              capture incumbent
+              '''
+                  advance = '''if go get golang.org/x/net@v0.62.0; then
               cp go.mod /output/post-get-go.mod
               cp go.sum /output/post-get-go.sum
+              else
+              status=$?
+              if cp go.mod /output/failed-get-go.mod; then :; else printf '%s\n' 'failed go.mod retention' >&2; fi
+              if cp go.sum /output/failed-get-go.sum; then :; else printf '%s\n' 'failed go.sum retention' >&2; fi
+              exit "$status"
+              fi
               go mod download all
-              go mod verify > /output/final-verify.txt
-              cp go.mod /output/final-go.mod
-              cp go.sum /output/final-go.sum
-              export GOPROXY=off GOSUMDB=off GOFLAGS=-mod=readonly
-              go list -mod=readonly -m -json all > /output/final-modules.json
-              go mod graph > /output/final-module-graph.txt
-              go list -mod=readonly -deps -json github.com/caddyserver/caddy/v2/cmd/caddy > /output/final-packages.json
-              cmp go.mod /output/final-go.mod
-              cmp go.sum /output/final-go.sum
+              cmp go.mod /output/post-get-go.mod
+              printf '%s\n' 'f5d9289fa0e27604a936ed5e35368db876398dac62154b9a6af9d0d2a891f7d9  /output/post-get-go.sum' | sha256sum -c -
+              printf '%s\n' 'be8f44f7e591bcaa54412fe5f3061235596be2faf9bd3f5fdece0106fea45338  go.sum' | sha256sum -c -
+              capture final
               '''
-                      owned.append(name)
-                      native.run(argv + ["--entrypoint", "/bin/sh", observed["Id"], "-c", script], label + "-create", environment, cwd=work)
-                      native.run([docker, "--config", str(config), "start", "--attach", name], label + "-native", environment, cwd=work)
-                      terminal = json.loads(native.run([docker, "--config", str(config), "inspect", name], label + "-terminal", environment, cwd=work))[0]
-                      require(terminal["State"]["ExitCode"] == 0 and terminal["State"]["OOMKilled"] is False, "caddy_metadata_native_terminal")
-                      require(terminal["Config"]["Labels"].get("pulseplate.caddy-metadata") == os.environ["GITHUB_RUN_ID"], "caddy_metadata_owned_identity")
+                  for label in ("a", "b"):
+                      lane = work / label
+                      fresh_directory(lane)
+                      for directory in ("work", "modules", "home", "tmp", "output"):
+                          fresh_directory(lane / directory)
                       output = lane / "output"
-                      for phase in ("baseline", "final"):
-                          from scripts.ci.prometheus_source_image import decode_selected_modules, decode_objects
-                          modules = decode_selected_modules((output / (phase + "-modules.json")).read_bytes(), root_module="pulseplate.local/caddy-build")
-                          require(all("Replace" not in row for row in modules.values()), "caddy_no_module_replacement")
-                          packages = decode_objects((output / (phase + "-packages.json")).read_bytes())
-                          require(all(not row.get("Error") and not row.get("DepsErrors") and not row.get("Incomplete") for row in packages), "caddy_metadata_package_errors")
-                          indexed = {row["ImportPath"]: row for row in packages}
-                          require(len(indexed) == len(packages) and "github.com/caddyserver/caddy/v2/cmd/caddy" in indexed
-                                  and indexed["github.com/caddyserver/caddy/v2/cmd/caddy"].get("Name") == "main", "caddy_complete_command_identity")
-                          for row in packages:
-                              mapping = row.get("ImportMap", {})
-                              require(all(mapping.get(path, path) in indexed for path in row.get("Imports", [])), "caddy_complete_native_import_graph")
-                          require(modules["github.com/caddyserver/caddy/v2"]["Version"] == ("v2.11.4" if phase == "baseline" else "v2.11.9"), "caddy_observed_root_transition")
-                          report["derivations"].setdefault(label, {})[phase] = {"modules": modules, "packages": len(packages)}
-                      before, after = report["derivations"][label]["baseline"]["modules"], report["derivations"][label]["final"]["modules"]
-                      target = "github.com/caddyserver/caddy/v2"
-                      require(before[target]["Version"] == "v2.11.4" and after[target]["Version"] == "v2.11.9"
-                              and after[target]["Sum"] == "h1:bhZtcRKQOq0fuLvEgCdPYvUxXyGn9kzjG4lh2332DTE=", "caddy_exact_authored_root_transition")
-                      delta = [{"path": path, "before": before.get(path), "after": after.get(path),
-                                "class": "I_R" if path == target else "C_R_candidate"}
-                               for path in sorted(set(before) | set(after)) if before.get(path) != after.get(path)]
-                      require(any(row["path"] == target for row in delta), "caddy_missing_authored_transition")
-                      (output / "complete-delta.json").write_bytes(canonical_data(delta))
-                      patch = "".join("".join(difflib.unified_diff((output / ("baseline-" + name)).read_text().splitlines(True), (output / ("final-" + name)).read_text().splitlines(True), fromfile="a/" + name, tofile="b/" + name)) for name in ("go.mod", "go.sum"))
+                      for phase, online_script in (("incumbent", seed), ("final", advance)):
+                          for offline in (False, True):
+                              suffix = phase + ("-offline" if offline else "-online")
+                              name = "pulseplate-caddy-metadata-" + os.environ["GITHUB_RUN_ID"] + "-" + label + "-" + suffix
+                              private_cache = lane / ("cache-" + suffix)
+                              fresh_directory(private_cache)
+                              private_cache_identity = cache_identity(private_cache)
+                              frozen_work = tree_inventory(lane / "work", deadline=native.deadline) if offline else None
+                              frozen_modules = tree_inventory(lane / "modules", maximum=MAX_COMPILE_OUTPUT_BYTES,
+                                                              deadline=native.deadline) if offline else None
+                              argv = [docker, "--config", str(config), "create", "--pull", "never", "--name", name,
+                                      "--label", "pulseplate.caddy-metadata=" + os.environ["GITHUB_RUN_ID"],
+                                      "--user", str(os.getuid()) + ":" + str(os.getgid()), "--workdir", "/work", "--read-only", "--cap-drop", "ALL",
+                                      "--security-opt", "no-new-privileges", "--cpus", "2", "--memory", "2g", "--pids-limit", "128"]
+                              if offline:
+                                  argv += ["--network", "none"]
+                              for directory in ("work", "modules", "home", "cache", "tmp", "output"):
+                                  host = private_cache if directory == "cache" else lane / directory
+                                  readonly = ",readonly" if offline and directory in ("work", "modules") else ""
+                                  argv += ["--mount", f"type=bind,source={host},target=/{directory}{readonly}"]
+                              guest_env = {"PATH": "/usr/local/go/bin:/usr/bin:/bin", "HOME": "/home", "TMPDIR": "/tmp",
+                                           "GOCACHE": "/cache", "GOMODCACHE": "/modules", "GOPATH": "/home/gopath",
+                                           "GOOS": "linux", "GOARCH": "amd64", "CGO_ENABLED": "0", "GOTOOLCHAIN": "local",
+                                           "GOWORK": "off", "GOENV": "off", "GOPROXY": "off" if offline else "https://proxy.golang.org",
+                                           "GOSUMDB": "off" if offline else "sum.golang.org", "GOFLAGS": "-mod=readonly" if offline else "", "GOMAXPROCS": "2"}
+                              for key, value in guest_env.items():
+                                  argv += ["--env", key + "=" + value]
+                              script = "set -eu\n" + capture + ("capture " + phase + "-offline\n" if offline else online_script)
+                              owned[name] = None
+                              container_id = native.run(argv + ["--entrypoint", "/bin/sh", image_relation["operand"], "-c", script], label + "-" + suffix + "-create", environment, cwd=work).decode("ascii").strip()
+                              require(re.fullmatch(r"[0-9a-f]{64}", container_id) is not None, "caddy_metadata_full_ID")
+                              owned[name] = container_id
+                              inspected = native_one_image(native.run([docker, "--config", str(config), "inspect", container_id], label + "-" + suffix + "-inspect", environment, cwd=work))
+                              native_container_image_identity(inspected, image_relation)
+                              require(inspected["Id"] == container_id and inspected["Name"] == "/" + name, "caddy_metadata_full_identity")
+                              require(inspected["Config"]["User"] == str(os.getuid()) + ":" + str(os.getgid())
+                                      and inspected["HostConfig"]["ReadonlyRootfs"] is True
+                                      and (not offline or inspected["HostConfig"]["NetworkMode"] == "none")
+                                      and inspected["Config"]["Labels"].get("pulseplate.caddy-metadata") == os.environ["GITHUB_RUN_ID"], "caddy_metadata_prestart_profile")
+                              expected_env = dict(value.split("=", 1) for value in observed["Config"].get("Env", []))
+                              expected_env.update(guest_env)
+                              expected_mounts = {"/" + directory: (str(private_cache if directory == "cache" else lane / directory), not (offline and directory in ("work", "modules"))) for directory in ("work", "modules", "home", "cache", "tmp", "output")}
+                              mounts = inspected["Mounts"]
+                              require(inspected["Image"] == observed["Id"] and inspected["Config"]["Entrypoint"] == ["/bin/sh"]
+                                      and inspected["Config"]["Cmd"] == ["-c", script]
+                                      and dict(value.split("=", 1) for value in inspected["Config"]["Env"]) == expected_env
+                                      and len(mounts) == len(expected_mounts)
+                                      and all(row["Type"] == "bind" and expected_mounts.get(row["Destination"]) == (row["Source"], row["RW"]) for row in mounts)
+                                      and inspected["HostConfig"]["CapDrop"] == ["ALL"]
+                                      and inspected["HostConfig"]["SecurityOpt"] == ["no-new-privileges"]
+                                      and inspected["HostConfig"]["NanoCpus"] == 2000000000
+                                      and inspected["HostConfig"]["Memory"] == 2147483648
+                                      and inspected["HostConfig"]["PidsLimit"] == 128, "caddy_metadata_exact_prestart")
+                              validate_caddy_metadata_custody(inspected, inspected, started_id=None)
+                              owned_profiles[name] = inspected
+                              start_attempts.add(container_id)
+                              native.run([docker, "--config", str(config), "start", "--attach", container_id],
+                                         label + "-" + suffix + "-native", environment, cwd=work, watched_output=lane)
+                              terminal = native_one_image(native.run([docker, "--config", str(config), "inspect", container_id], label + "-" + suffix + "-terminal", environment, cwd=work))
+                              native_container_image_identity(terminal, image_relation)
+                              validate_caddy_metadata_custody(inspected, terminal, started_id=container_id)
+                              require(terminal["State"]["Status"] == "exited" and terminal["State"]["Running"] is False
+                                      and type(terminal["State"]["ExitCode"]) is int and terminal["State"]["ExitCode"] == 0
+                                      and terminal["State"]["OOMKilled"] is False, "caddy_metadata_native_terminal")
+                              remove_owned(container_id, name)
+                              retire_phase_cache(private_cache, private_cache_identity)
+                              if offline:
+                                  require(tree_inventory(lane / "work", deadline=native.deadline) == frozen_work
+                                          and tree_inventory(lane / "modules", maximum=MAX_COMPILE_OUTPUT_BYTES,
+                                                             deadline=native.deadline) == frozen_modules,
+                                          "caddy_metadata_offline_input_changed")
+                                  (evidence / (label + "-" + phase + "-readonly-inputs.json")).write_bytes(canonical_data({"work": frozen_work, "modules": frozen_modules, "after_equal": True}))
+                          if phase == "incumbent":
+                              for filename, digest in CADDY_XNET062_INCUMBENT_FILES.items():
+                                  require(hashlib.sha256((output / filename).read_bytes()).hexdigest() == digest, "caddy_retained_incumbent_before_new_get")
+                      result = validate_caddy_xnet062_metadata(output)
+                      report["derivations"][label] = result
+                      (output / "complete-delta.json").write_bytes(canonical_data(result["complete_delta"]))
+                      (output / "historical-caddy-delta.json").write_bytes(canonical_data(result["historical_caddy_delta"]))
+                      patch = "".join("".join(difflib.unified_diff((output / ("incumbent-" + name)).read_text().splitlines(True), (output / ("final-" + name)).read_text().splitlines(True), fromfile="a/" + name, tofile="b/" + name)) for name in ("go.mod", "go.sum"))
                       (output / "module-derivation.patch").write_text(patch)
-                      report["derivations"][label]["native_terminal"] = terminal
-                      report["derivations"][label]["output_inventory"] = tree_inventory(output)
                   left, right = work / "a/output", work / "b/output"
-                  require(tree_inventory(left) == tree_inventory(right), "caddy_independent_raw_output_equality")
-                  report["status"] = "observed_counterfactual_metadata_only"
+                  require(tree_inventory(left, deadline=native.deadline)
+                          == tree_inventory(right, deadline=native.deadline),
+                          "caddy_independent_raw_output_equality")
           except BaseException as error:
+              primary_error = error
               report["failure"] = type(error).__name__
               raise
           finally:
-              with caddy_ci_phase("COMPILER_CLEANUP"):
-                  native.begin_cleanup()
-                  inventory = native.run([docker, "--config", str(config), "ps", "--all", "--format", "{{.Names}}"], "cleanup-inventory", environment, cwd=work, cleaning=True).decode().splitlines()
-                  for name in owned:
-                      if name not in inventory:
-                          continue
-                      actual = json.loads(native.run([docker, "--config", str(config), "inspect", name], name + "-cleanup-inspect", environment, cwd=work, cleaning=True))[0]
-                      require(actual["Config"]["Labels"].get("pulseplate.caddy-metadata") == os.environ["GITHUB_RUN_ID"], "caddy_cleanup_ownership")
-                      native.run([docker, "--config", str(config), "rm", "--force", name], name + "-cleanup", environment, cwd=work, cleaning=True)
-                  remaining = native.run([docker, "--config", str(config), "ps", "--all", "--format", "{{.Names}}"], "cleanup-absence", environment, cwd=work, cleaning=True).decode().splitlines()
-                  require(not set(owned).intersection(remaining), "caddy_metadata_owned_container_survives")
+              try:
+                  with caddy_ci_phase("COMPILER_CLEANUP") as cleanup_remaining:
+                      native.begin_cleanup()
+                      native.cleanup_deadline = min(native.cleanup_deadline, time.monotonic() + cleanup_remaining(float("inf")))
+                      inventory = container_inventory("cleanup-inventory", cleaning=True)
+                      for name, cid in owned.items():
+                          if cid not in inventory:
+                              require_absent(inventory, cid, name)
+                              continue
+                          require(cid not in removed and inventory[cid] == name and name in owned_profiles,
+                                  "caddy_cleanup_full_custody")
+                          actual = native_one_image(native.run([docker, "--config", str(config), "inspect", cid], name + "-cleanup-inspect", environment, cwd=work, cleaning=True))
+                          native_container_image_identity(actual, image_relation)
+                          started_id = cid if cid in start_attempts else None
+                          validate_caddy_metadata_custody(owned_profiles[name], actual, started_id=started_id)
+                          require(actual["Config"]["Labels"].get("pulseplate.caddy-metadata") == os.environ["GITHUB_RUN_ID"], "caddy_cleanup_ownership")
+                          if actual["State"]["Running"] is True:
+                              native.run([docker, "--config", str(config), "stop", "--time", "10", cid],
+                                         name + "-cleanup-stop", environment, cwd=work, cleaning=True, maximum_seconds=20)
+                              stopped = native_one_image(native.run([docker, "--config", str(config), "inspect", cid],
+                                  name + "-cleanup-terminal", environment, cwd=work, cleaning=True))
+                              native_container_image_identity(stopped, image_relation)
+                              validate_caddy_metadata_custody(owned_profiles[name], stopped, started_id=started_id)
+                              require(stopped["State"]["Status"] == "exited" and stopped["State"]["Running"] is False
+                                      and stopped["State"]["StartedAt"] == actual["State"]["StartedAt"],
+                                      "caddy_cleanup_terminal")
+                          remove_owned(cid, name, cleaning=True)
+                      remaining = container_inventory("cleanup-absence", cleaning=True)
+                      for name, cid in owned.items():
+                          require_absent(remaining, cid, name)
+              except BaseException as cleanup_error:
+                  report["cleanup_failure"] = type(cleanup_error).__name__
+                  if primary_error is None:
+                      primary_error = cleanup_error
+                      raise
+                  primary_error.add_note("Caddy cleanup failed: " + type(cleanup_error).__name__)
+              else:
+                  if primary_error is None:
+                      report["status"] = CADDY_XNET062_METADATA_SUCCESS
+              finally:
                   report["native_commands"] = native.records
-                  (evidence / "qualification.json").write_bytes(canonical_data(report))
+                  try:
+                      (evidence / "qualification.json").write_bytes(canonical_data(report))
+                  except BaseException as retention_error:
+                      if primary_error is None:
+                          raise
+                      primary_error.add_note("Caddy report retention failed: " + type(retention_error).__name__)
           PY
 
       - name: Charge Upload counterfactual Caddy metadata budget
@@ -1230,11 +1410,11 @@ jobs:
         if: ${{ always() && (steps.caddy-admission.outputs.mode == 'metadata' || steps.caddy-admission.outputs.mode == 'build') && steps.caddy-metadata-upload-budget.outcome == 'success' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
         with:
-          name: caddy-xnet060-metadata-${{ github.run_id }}-${{ github.run_attempt }}
+          name: caddy-xnet062-metadata-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
-            ${{ runner.temp }}/caddy-xnet060-metadata/evidence
-            ${{ runner.temp }}/caddy-xnet060-metadata/a/output
-            ${{ runner.temp }}/caddy-xnet060-metadata/b/output
+            ${{ runner.temp }}/caddy-xnet062-metadata/evidence
+            ${{ runner.temp }}/caddy-xnet062-metadata/a/output
+            ${{ runner.temp }}/caddy-xnet062-metadata/b/output
           if-no-files-found: error
           retention-days: 30
 
@@ -1243,7 +1423,6 @@ jobs:
         run: |
           python3 - <<'PY'
           import os
-          from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_charge_action
           import json
           from pathlib import Path
           from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_source_inventory, caddy_ci_phase
@@ -1251,7 +1430,7 @@ jobs:
           with caddy_ci_phase("PROCESSING"):
               if caddy_ci_source_inventory(Path.cwd(), list(state["inputs"])) != state["inputs"]:
                   raise ValueError("Caddy source changed immediately before build")
-          caddy_ci_charge_action("BUILD")
+          raise ValueError("Caddy xnet062 output profile not adopted; metadata only")
           PY
 
       - name: Build source-patched Caddy candidate
@@ -1271,7 +1450,7 @@ jobs:
           cache-to: type=gha,scope=frontend-caddy-contract,mode=min,ignore-error=true
 
       - name: Capture next loaded Caddy image identity
-        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata') }}
+        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet062-metadata') }}
         id: caddy-image
         run: |
           set -euo pipefail
@@ -1422,10 +1601,14 @@ jobs:
         if: ${{ (steps.caddy-build.outcome == 'success' || steps.caddy-import.outcome == 'success') && steps.caddy-image.outcome == 'success' }}
         env:
           CADDY_OBSERVATION_STATE: ${{ steps.caddy-image.outputs.state }}
+          CADDY_METADATA_OUTCOME: ${{ steps.caddy-metadata.outcome }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_phase
+          from scripts.ci.check_docker_runtime_dependency_surface import (
+              CADDY_XNET062_METADATA_EPOCH, CADDY_XNET062_METADATA_SUCCESS, caddy_ci_phase,
+              validate_caddy_source_evidence,
+          )
           with caddy_ci_phase("RETENTION") as remaining:
               import hashlib
               import json
@@ -1441,21 +1624,36 @@ jobs:
               evidence.mkdir(exist_ok=True)
               (evidence / "admission.json").write_text(json.dumps(admission, indent=2))
               if admission["mode"] == "build":
-                  metadata_root = work / "caddy-xnet060-metadata"
+                  metadata_root = work / "caddy-xnet062-metadata"
                   qualification = json.loads((metadata_root / "evidence/qualification.json").read_bytes())
-                  if (qualification["failure"] is not None or qualification["status"] != "observed_counterfactual_metadata_only"
-                          or qualification["source_head"] != admission["current_head"] or qualification["go_build_invocations"] != 0):
+                  recipe = Path("frontend/Dockerfile.caddy-spa").read_bytes()
+                  if (os.environ.get("CADDY_METADATA_OUTCOME") != "success"
+                          or qualification["failure"] is not None or qualification.get("cleanup_failure") is not None
+                          or qualification["status"] != CADDY_XNET062_METADATA_SUCCESS
+                          or qualification["source_head"] != admission["current_head"]
+                          or type(qualification["run_id"]) is not int or qualification["run_id"] != admission["current_run_id"]
+                          or type(qualification["run_attempt"]) is not int or qualification["run_attempt"] != admission["current_run_attempt"]
+                          or qualification["recipe_sha256"] != hashlib.sha256(recipe).hexdigest()
+                          or type(qualification["go_build_invocations"]) is not int or qualification["go_build_invocations"] != 0):
                       raise ValueError("Caddy build metadata predecessor differs")
                   from scripts.ci.prometheus_source_image import decode_objects
-                  modules = qualification["derivations"]["a"]["final"]["modules"]
+                  derivations = qualification["derivations"]
+                  if (not isinstance(derivations, dict) or set(derivations) != {"a", "b"}
+                          or any(not isinstance(value, dict) or value.get("epoch") != CADDY_XNET062_METADATA_EPOCH
+                                 for value in derivations.values())):
+                      raise ValueError("Caddy build metadata epoch differs")
+                  phases = derivations["a"].get("phases")
+                  final = phases.get("final") if isinstance(phases, dict) else None
+                  modules = final.get("modules") if isinstance(final, dict) else None
+                  if not isinstance(modules, dict):
+                      raise ValueError("Caddy build metadata final modules missing")
                   packages = decode_objects((metadata_root / "a/output/final-packages.json").read_bytes())
                   command_modules = {package["Module"]["Path"] for package in packages if "Module" in package}
                   expected_modules = {name: (modules[name]["Version"], modules[name]["Sum"]) for name in command_modules}
                   binary_path = Path(os.environ["CADDY_OBSERVATION_STATE"]).parent / "native-projections/build-info.txt"
                   rows = [line.split() for line in binary_path.read_text().splitlines()]
-                  from scripts.ci.check_docker_runtime_dependency_surface import validate_caddy_source_evidence
                   validate_caddy_source_evidence(Path(subject["build_evidence"]), binary_metadata=binary_path.read_bytes(),
-                      binary_sha256=subject["binary_sha256"], recipe=Path("frontend/Dockerfile.caddy-spa").read_bytes())
+                      binary_sha256=subject["binary_sha256"], recipe=recipe)
                   original_v3 = "github.com/go-jose/go-jose/v3"
                   selected_rows = [row for row in rows if row and row[0] in ("mod", "dep") and row[1] != original_v3]
                   expected_modules.pop(original_v3)
@@ -1514,7 +1712,7 @@ jobs:
           PY
 
       - name: Verify hardened Caddy runtime and module parity
-        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata') }}
+        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet062-metadata') }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -1555,7 +1753,7 @@ jobs:
           PY
 
       - name: Validate staging and production Caddyfiles
-        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata') }}
+        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet062-metadata') }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -1575,7 +1773,7 @@ jobs:
           PY
 
       - name: Verify Caddy route ordering and security headers
-        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata') }}
+        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet062-metadata') }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -1632,7 +1830,7 @@ jobs:
           PY
 
       - name: Charge Scan hardened Caddy shell image budget
-        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata') }}
+        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet062-metadata') }}
         run: |
           python3 - <<'PY'
           import os
@@ -1642,7 +1840,7 @@ jobs:
 
       - name: Scan hardened Caddy shell image
         timeout-minutes: ${{ fromJSON(env.CADDY_ACTION_SCANNER_BOOTSTRAP_MINUTES) }}
-        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata') }}
+        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet062-metadata') }}
         id: caddy-security
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 / Node 24 cache path
         with:
@@ -1656,7 +1854,7 @@ jobs:
 
       - name: Prepare same-epoch full Caddy observation
         id: caddy-full-prep
-        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata') && (!cancelled() && (steps.caddy-build.outcome == 'success' || steps.caddy-import.outcome == 'success') && steps.caddy-image.outcome == 'success' && (steps.caddy-security.outcome == 'success' || steps.caddy-security.outcome == 'failure')) }}
+        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet062-metadata') && (!cancelled() && (steps.caddy-build.outcome == 'success' || steps.caddy-import.outcome == 'success') && steps.caddy-image.outcome == 'success' && (steps.caddy-security.outcome == 'success' || steps.caddy-security.outcome == 'failure')) }}
         env:
           CADDY_OBSERVATION_STATE: ${{ steps.caddy-image.outputs.state }}
           CADDY_BOOTSTRAP_OUTCOME: ${{ steps.caddy-security.outcome }}
@@ -1753,7 +1951,7 @@ jobs:
 
       - name: Observe all-severity Caddy native report
         id: caddy-full-scan
-        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata') && (!cancelled() && steps.caddy-full-prep.outcome == 'success') }}
+        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet062-metadata') && (!cancelled() && steps.caddy-full-prep.outcome == 'success') }}
         env:
           CADDY_OBSERVATION_STATE: ${{ steps.caddy-image.outputs.state }}
         run: |
@@ -1969,7 +2167,7 @@ jobs:
 
       - name: Validate and publish full Caddy observation
         id: caddy-full-publish
-        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata') && (!cancelled() && steps.caddy-full-prep.outcome == 'success' && steps.caddy-full-scan.outcome == 'success') }}
+        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet062-metadata') && (!cancelled() && steps.caddy-full-prep.outcome == 'success' && steps.caddy-full-scan.outcome == 'success') }}
         env:
           CADDY_OBSERVATION_STATE: ${{ steps.caddy-image.outputs.state }}
         run: |
@@ -2341,7 +2539,7 @@ jobs:
 
       - name: Charge Upload Caddy contract evidence budget
         id: caddy-upload-budget
-        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata') && (always()) }}
+        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet062-metadata') && (always()) }}
         run: |
           python3 - <<'PY'
           import os
@@ -2351,7 +2549,7 @@ jobs:
 
       - name: Upload Caddy contract evidence
         timeout-minutes: ${{ fromJSON(env.CADDY_ACTION_UPLOAD_MINUTES) }}
-        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata') && (always()) && steps.caddy-upload-budget.outcome == 'success' }}
+        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet062-metadata') && (always()) && steps.caddy-upload-budget.outcome == 'success' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
         with:
           name: caddy-contract-evidence

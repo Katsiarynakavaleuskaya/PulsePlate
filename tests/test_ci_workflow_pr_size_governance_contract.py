@@ -615,7 +615,7 @@ _FRONTEND_CADDY_DISPATCH = {
             ),
             "type": "choice",
             "default": "contract",
-            "options": ["contract", "xnet060-metadata", "candidate-D"],
+            "options": ["contract", "xnet062-metadata", "candidate-D"],
         }
     }
 }
@@ -2316,7 +2316,7 @@ def _assert_node24_frontend_builder_workflow_contract(
     assert isinstance(job, dict)
     assert (
         job.get("if")
-        == "${{ github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata' }}"
+        == "${{ github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet062-metadata' }}"
     )
     assert "continue-on-error" not in job
 
@@ -4196,7 +4196,7 @@ def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() 
 
     expected_action_lines = {
         BUILD_WORKFLOW_PATH: {
-            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} # v7.0.1 / Node 24": 13,
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} # v7.0.1 / Node 24": 14,
         },
         GREENLIGHT_IOS_WORKFLOW_PATH: {
             f"actions/setup-go@{SETUP_GO_NODE24_SHA} # v7.0.0 / Node 24": 1,
@@ -4451,6 +4451,8 @@ def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() 
             None,
         ),
     )
+    pair_evidence = "${{ runner.temp }}/prometheus-pair-${{ github.run_id }}-1/evidence/"
+    native_saves = tuple(f"{pair_evidence}{lane}/import-save/native.tar" for lane in ("a", "b"))
     expected_contracts[9:9] = [
         (
             ".github/workflows/build.yml",
@@ -4485,11 +4487,26 @@ def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() 
         (
             ".github/workflows/build.yml",
             "prometheus-source-build-pair",
+            "Retain raw native-save diagnostics",
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
+            {
+                "name": "prometheus-source-native-save-${{ github.run_id }}-${{ github.run_attempt }}",
+                "path": "\n".join((*native_saves, "")),
+                "if-no-files-found": "error",
+                "retention-days": 90,
+            },
+            "${{ always() && steps.native-save-files.outputs.present == 'true' }}",
+            None,
+            None,
+        ),
+        (
+            ".github/workflows/build.yml",
+            "prometheus-source-build-pair",
             "Retain complete real pair evidence",
             f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
             {
                 "name": "prometheus-source-candidate-${{ github.run_id }}-1",
-                "path": "${{ runner.temp }}/prometheus-pair-${{ github.run_id }}-1/evidence/",
+                "path": "\n".join((pair_evidence, *(f"!{path}" for path in native_saves), "")),
                 "if-no-files-found": "error",
                 "retention-days": 90,
             },
@@ -8535,7 +8552,7 @@ def _assert_frontend_node24_foundation_contract(
     assert isinstance(job, dict)
     assert (
         job.get("if")
-        == "${{ github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata' }}"
+        == "${{ github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet062-metadata' }}"
     )
     assert "continue-on-error" not in job
     assert job["defaults"] == {"run": {"working-directory": "frontend"}}

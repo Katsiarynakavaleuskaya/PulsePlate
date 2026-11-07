@@ -57,6 +57,12 @@ OCI_MANIFEST = "application/vnd.oci.image.manifest.v1+json"
 OCI_CONFIG = "application/vnd.oci.image.config.v1+json"
 OCI_LAYER = "application/vnd.oci.image.layer.v1.tar+gzip"
 DERIVED_LOCKS = {
+    "go.mod": "6e2dfa8d25b5cd3da5513334134e63549aff7e70915958f98893893c825d609e",
+    "go.sum": "673bf9d73e667b94aa125f5ac3987bfb4a26b7ccbe1b0e51e7de030bc45fcce5",
+}
+# Selected D209 input for the new transition; later output-pin adoption must not
+# move this historical baseline.
+XNET060_INCUMBENT_LOCKS = {
     "go.mod": "d85af091d5bf9ba19f98e4d92e24b368d3e5537af086521ef10c7dd669695fd7",
     "go.sum": "eaeb5e4f16a9edcab1aeeb2b1a90a0f85decbd0065b3bf63e03729d324f7fc1f",
 }
@@ -367,8 +373,12 @@ def interrupt(signum: int, frame: Any) -> None:
         raise KeyboardInterrupt("owned_qualification_interrupted")
 
 
-def file_hash(path: Path, deadline: float | None = None) -> str:
+def file_hash(
+    path: Path, deadline: float | None = None, *, maximum_bytes: int | None = None
+) -> str:
     """Read one bounded single-link regular leaf in cooperative private directories."""
+    maximum = MAX_CACHE_BYTES if maximum_bytes is None else maximum_bytes
+    require(type(maximum) is int and 0 < maximum <= MAX_COMPILE_OUTPUT_BYTES, "file_maximum_bound")
     real_directory(path.parent)
     leaf = path.lstat()
     require(stat.S_ISREG(leaf.st_mode) and leaf.st_nlink == 1, "nonregular_or_multilink_file")
@@ -387,7 +397,7 @@ def file_hash(path: Path, deadline: float | None = None) -> str:
             for chunk in iter(lambda: stream.read(1024**2), b""):
                 check_deadline(deadline)
                 total += len(chunk)
-                require(total <= MAX_CACHE_BYTES, "file_byte_bound")
+                require(total <= maximum, "file_byte_bound")
                 digest.update(chunk)
         after = os.fstat(descriptor)
         current = path.lstat()
@@ -1148,8 +1158,12 @@ def create_owned(
     env: dict[str, str],
     work: Path,
 ) -> None:
+    require(name not in owned, "owned_create_name_reused")
     owned[name] = expected
-    native.run(argv, label + "-create", env, cwd=work)
+    raw = native.run(argv, label + "-create", env, cwd=work)
+    identifier = raw.decode("ascii").strip()
+    require(re.fullmatch(r"[0-9a-f]{64}", identifier) is not None, "owned_create_full_ID")
+    expected["container_id"] = identifier
 
 
 def start_owned(
@@ -1163,19 +1177,19 @@ def start_owned(
     work: Path,
 ) -> tuple[bytes, dict[str, Any]]:
     raw = native.run(
-        [docker, "--config", str(config), "start", "--attach", name],
+        [docker, "--config", str(config), "start", "--attach", expected["container_id"]],
         label + "-native",
         env,
         cwd=work,
     )
-    actual = json.loads(
+    actual = native_one_image(
         native.run(
-            [docker, "--config", str(config), "inspect", name],
+            [docker, "--config", str(config), "inspect", expected["container_id"]],
             label + "-completed-inspect",
             env,
             cwd=work,
         )
-    )[0]
+    )
     validate_container(actual, name, expected)
     state = actual["State"]
     require(
@@ -1217,7 +1231,7 @@ def cleanup_owned(
                     {"name": name, "native_absent": True, "already_or_never_created": True}
                 )
                 continue
-            actual = json.loads(
+            actual = native_one_image(
                 native.run(
                     [docker, "--config", str(config), "inspect", name],
                     name + "-cleanup-inspect",
@@ -1225,10 +1239,10 @@ def cleanup_owned(
                     cwd=work,
                     cleaning=cleaning,
                 )
-            )[0]
+            )
             validate_container(actual, name, expected)
             native.run(
-                [docker, "--config", str(config), "rm", "--force", name],
+                [docker, "--config", str(config), "rm", "--force", expected["container_id"]],
                 name + "-cleanup-remove",
                 env,
                 cwd=work,
@@ -1449,7 +1463,25 @@ def _derivation_offline(
     owned: dict[str, dict[str, Any]],
     docker_env: dict[str, str],
     work: Path,
+    *,
+    restore_cache_modes: bool = False,
 ) -> dict[str, Any]:
+    # An incumbent observation precedes the newly authored get. Retain the
+    # complete owned member identities before temporarily freezing its cache.
+    members: dict[Path, os.stat_result] = {}
+    original_cache: list[dict[str, Any]] = []
+    if restore_cache_modes:
+        original_cache = tree_inventory(modules, deadline=native.deadline)
+        for path in (modules, *sorted(modules.rglob("*"))):
+            check_deadline(native.deadline)
+            info = path.lstat()
+            require(
+                len(members) < 250000
+                and info.st_uid == os.getuid()
+                and (stat.S_ISDIR(info.st_mode) or stat.S_ISREG(info.st_mode)),
+                "incumbent_cache_owned_member",
+            )
+            members[path] = info
     for path in modules.rglob("*"):
         check_deadline(native.deadline)
         info = path.lstat()
@@ -1490,20 +1522,22 @@ def _derivation_offline(
         )
         expected = {
             "image": image["Id"],
+            "image_relation": native_base_identity(image),
             "owner": owner,
             "command": command,
+            "create_argv": list(argv),
             "environment": environment,
             "mounts": {"/src": str(source), "/usr/local/go": str(go), "/modules": str(modules)},
         }
         create_owned(native, argv, name, expected, owned, stage, docker_env, work)
-        actual = json.loads(
+        actual = native_one_image(
             native.run(
                 [docker, "--config", str(config), "inspect", name],
                 stage + "-inspect",
                 docker_env,
                 cwd=work,
             )
-        )[0]
+        )
         validate_container(actual, name, expected)
         raw, completed = start_owned(
             native, docker, config, name, expected, stage, docker_env, work
@@ -1522,15 +1556,72 @@ def _derivation_offline(
                 value["ImportPath"]: value for value in decode_objects(raw)
             }
     require(set(observations) == {"prometheus", "promtool"}, "both_command_graphs_required")
-    return {
+    if restore_cache_modes:
+        require(
+            set((modules, *modules.rglob("*"))) == set(members)
+            and tree_inventory(modules, deadline=native.deadline) == cache,
+            "incumbent_cache_members_changed",
+        )
+        identity_fields = (
+            "st_dev",
+            "st_ino",
+            "st_uid",
+            "st_gid",
+            "st_nlink",
+            "st_size",
+            "st_mtime_ns",
+        )
+        for path, before in members.items():
+            check_deadline(native.deadline)
+            current = path.lstat()
+            require(
+                all(getattr(current, field) == getattr(before, field) for field in identity_fields)
+                and stat.S_IFMT(current.st_mode) == stat.S_IFMT(before.st_mode)
+                and stat.S_IMODE(current.st_mode)
+                == (0o555 if stat.S_ISDIR(before.st_mode) else 0o444),
+                "incumbent_cache_identity_changed",
+            )
+        # No finally-based thaw: observation or identity failure stops the next get.
+        for path, before in members.items():
+            check_deadline(native.deadline)
+            path.chmod(stat.S_IMODE(before.st_mode), follow_symlinks=False)
+        require(
+            tree_inventory(modules, deadline=native.deadline) == original_cache,
+            "incumbent_cache_restore_changed_bytes",
+        )
+        for path, before in members.items():
+            current = path.lstat()
+            require(
+                all(getattr(current, field) == getattr(before, field) for field in identity_fields)
+                and current.st_mode == before.st_mode,
+                "incumbent_cache_restore_identity",
+            )
+    result: dict[str, Any] = {
         "command_observations": observations,
         "full_native_package_objects": full_packages,
         "container_completion": completions,
         "module_inventory_sha256": sha(json.dumps(cache, sort_keys=True).encode()),
     }
+    if restore_cache_modes:
+        result["cache_mode_restoration"] = {
+            "files_before": original_cache,
+            "files_frozen": cache,
+            "files_restored": tree_inventory(modules, deadline=native.deadline),
+            "members": [
+                {
+                    "path": path.relative_to(modules).as_posix(),
+                    "mode_before": stat.S_IMODE(before.st_mode),
+                    "mode_restored": stat.S_IMODE(path.lstat().st_mode),
+                    "identity": {field: getattr(before, field) for field in identity_fields},
+                }
+                for path, before in members.items()
+            ],
+            "scope": "Observed incumbent phase only; the following authored get may hydrate cache",
+        }
+    return result
 
 
-def derive_xnet060_observe(
+def derive_xnet_observe(
     native: Native,
     work: Path,
     downloads: Path,
@@ -1542,10 +1633,13 @@ def derive_xnet060_observe(
     config: Path,
     docker_env: dict[str, str],
     report: dict[str, Any],
+    *,
+    target_version: str = "v0.60.0",
 ) -> None:
     """Exactly two original-source fixed-get replays inside this existing Native lease."""
     import difflib
 
+    require(target_version in ("v0.60.0", "v0.62.0"), "unsupported_xnet_derivation_target")
     owner = uuid.uuid4().hex
     before_names = (
         native.run(
@@ -1563,25 +1657,19 @@ def derive_xnet060_observe(
         docker_env,
         cwd=work,
     )
-    image = json.loads(
+    image = native_one_image(
         native.run(
             [docker, "--config", str(config), "image", "inspect", BASE],
             "derive-base-inspect",
             docker_env,
             cwd=work,
         )
-    )[0]
-    require(
-        image["Os"] == "linux"
-        and image["Architecture"] == "amd64"
-        and BASE in image["RepoDigests"]
-        and image["Id"] == BASE_CONFIG
-        and not image["Config"].get("Volumes"),
-        "base_native_identity",
     )
+    native_base_identity(image)
     report["runtime_base_native"] = image
-    report["module_action"] = "xnet060-replay"
-    report["module_derivation"] = {"authored_action": "golang.org/x/net@v0.60.0", "replays": []}
+    report["module_action"] = "xnet060-replay" if target_version == "v0.60.0" else "xnet062-replay"
+    authored_action = "golang.org/x/net@" + target_version
+    report["module_derivation"] = {"authored_action": authored_action, "replays": []}
     go_hash = file_hash(go / "bin/go", native.deadline)
     original_remainder = _derivation_nonlocks(source_a, native.deadline)
     prior: dict[str, Any] | None = None
@@ -1629,10 +1717,78 @@ def derive_xnet060_observe(
             "original_xnet_identity",
         )
         writable = dict(online, GOFLAGS="")
+        incumbent: dict[str, Any] | None = None
+        if target_version == "v0.62.0":
+            original_before = before
+            report["derivation_stage"] = label + "-incumbent-reconstruction"
+            try:
+                native.run(
+                    [str(go / "bin/go"), "get", "golang.org/x/net@v0.60.0"],
+                    label + "-incumbent-get",
+                    writable,
+                    cwd=source,
+                )
+            except BaseException:
+                for name, raw in _derivation_locks(source).items():
+                    (native.evidence / (label + "-failed-incumbent-" + name)).write_bytes(raw)
+                raise
+            incumbent_locks = _derivation_locks(source)
+            require(
+                {name: sha(raw) for name, raw in incumbent_locks.items()}
+                == XNET060_INCUMBENT_LOCKS,
+                "incumbent_selected_lock_identity",
+            )
+            for name, raw in incumbent_locks.items():
+                (native.evidence / (label + "-incumbent-" + name)).write_bytes(raw)
+            before = _derivation_phase(
+                native,
+                source,
+                go,
+                modules,
+                online,
+                label + "-incumbent",
+                incumbent_locks,
+                original_remainder,
+                go_hash,
+            )
+            selected_incumbent = before["selected"].get("golang.org/x/net")
+            require(
+                selected_incumbent is not None
+                and selected_incumbent["Version"] == "v0.60.0"
+                and "Replace" not in selected_incumbent,
+                "incumbent_selected_xnet_identity",
+            )
+            incumbent_offline = _derivation_offline(
+                native,
+                source,
+                go,
+                modules,
+                incumbent_locks,
+                original_remainder,
+                go_hash,
+                label + "-incumbent",
+                docker,
+                config,
+                image,
+                owner,
+                before_names,
+                owned,
+                docker_env,
+                work,
+                restore_cache_modes=True,
+            )
+            _retain_xnet062_arrays(native, label, incumbent_offline)
+            incumbent = {
+                "role": "historical selected-base reconstruction; not new authored intent",
+                "action": "golang.org/x/net@v0.60.0",
+                "original_before": original_before,
+                "locks": {name: sha(raw) for name, raw in incumbent_locks.items()},
+                "offline": incumbent_offline,
+            }
         report["derivation_stage"] = label + "-sole-fixed-get"
         try:
             native.run(
-                [str(go / "bin/go"), "get", "golang.org/x/net@v0.60.0"],
+                [str(go / "bin/go"), "get", authored_action],
                 label + "-sole-get",
                 writable,
                 cwd=source,
@@ -1644,6 +1800,8 @@ def derive_xnet060_observe(
         # Freeze exactly ONCE, immediately after successful get. Never after download.
         derived = _derivation_locks(source)
         require(derived != original, "empty_authored_module_delta")
+        if incumbent is not None:
+            require(derived != incumbent_locks, "empty_incumbent_to_final_delta")
         for name, raw in derived.items():
             (native.evidence / (label + "-derived-" + name)).write_bytes(raw)
         (native.evidence / (label + "-postget-source-members.json")).write_text(
@@ -1677,7 +1835,9 @@ def derive_xnet060_observe(
         )
         selected = after["selected"].get("golang.org/x/net")
         require(
-            selected is not None and selected["Version"] == "v0.60.0" and "Replace" not in selected,
+            selected is not None
+            and selected["Version"] == target_version
+            and "Replace" not in selected,
             "derived_xnet_identity",
         )
         transitions = [
@@ -1729,6 +1889,9 @@ def derive_xnet060_observe(
             ),
         }
         report["module_derivation"]["replays"].append(record)
+        if incumbent is not None:
+            record["incumbent_reconstruction"] = incumbent
+            record["lock_patch_scope"] = "original-to-final materialization; not new closure base"
         comparison = {
             "original": original,
             "derived": derived,
@@ -1738,6 +1901,10 @@ def derive_xnet060_observe(
             "full_native_package_objects": offline["full_native_package_objects"],
             "nonlock_source": original_remainder,
         }
+        if incumbent is not None:
+            comparison["incumbent_locks"] = incumbent_locks
+            comparison["original_before"] = _derivation_comparison(original_before, source, modules)
+            comparison["incumbent_packages"] = incumbent_offline["full_native_package_objects"]
         if prior is not None:
             require(comparison == prior, "independent_derivation_replay_mismatch")
         prior = comparison
@@ -1752,9 +1919,430 @@ def derive_xnet060_observe(
     ] = "pending independent complete delta/fullF review; metadata only"
 
 
-def qualify(
-    work: Path, seconds: int, cleanup: int, *, derive_xnet060: bool = False
+def _xnet062_json_bytes(value: Any, deadline: float | None) -> bytes:
+    """Bound this producer's new JSON before writing; never encode the full report."""
+    result = bytearray()
+    encoder = json.JSONEncoder(sort_keys=True, separators=(",", ":"), allow_nan=False)
+    for part in encoder.iterencode(value):
+        check_deadline(deadline)
+        raw = part.encode("utf-8")
+        require(len(result) + len(raw) + 1 <= MAX_NATIVE_OUTPUT, "xnet062_report_size")
+        result.extend(raw)
+    result.extend(b"\n")
+    return bytes(result)
+
+
+def _xnet062_member(evidence: Path, name: str, deadline: float | None) -> bytes:
+    """Read only a producer-enumerated leaf, not a descriptor-selected path."""
+    require(name not in ("", ".", "..") and Path(name).name == name, "xnet062_member_name")
+    real_directory(evidence)
+    path = evidence / name
+    leaf = path.lstat()
+    require(
+        stat.S_ISREG(leaf.st_mode) and leaf.st_nlink == 1,
+        "xnet062_member_type",
+    )
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        before = os.fstat(descriptor)
+        require(
+            stat.S_ISREG(before.st_mode)
+            and before.st_nlink == 1
+            and (before.st_dev, before.st_ino) == (leaf.st_dev, leaf.st_ino)
+            and 0 <= before.st_size <= MAX_NATIVE_OUTPUT,
+            "xnet062_member_identity_or_size",
+        )
+        result = bytearray()
+        with os.fdopen(descriptor, "rb", closefd=False) as stream:
+            while True:
+                check_deadline(deadline)
+                chunk = stream.read(min(1024**2, MAX_NATIVE_OUTPUT + 1 - len(result)))
+                if not chunk:
+                    break
+                result.extend(chunk)
+                require(len(result) <= MAX_NATIVE_OUTPUT, "xnet062_member_size")
+        after, current = os.fstat(descriptor), path.lstat()
+        fields = (
+            "st_dev",
+            "st_ino",
+            "st_mode",
+            "st_nlink",
+            "st_size",
+            "st_mtime_ns",
+            "st_ctime_ns",
+        )
+        require(
+            all(
+                getattr(before, field) == getattr(after, field) == getattr(current, field)
+                for field in fields
+            )
+            and len(result) == before.st_size,
+            "xnet062_member_changed",
+        )
+        return bytes(result)
+    finally:
+        os.close(descriptor)
+
+
+def _xnet062_write(evidence: Path, name: str, raw: bytes, deadline: float | None) -> None:
+    real_directory(evidence)
+    require(Path(name).name == name and 0 < len(raw) <= MAX_NATIVE_OUTPUT, "xnet062_write_bound")
+    check_deadline(deadline)
+    descriptor = os.open(
+        evidence / name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600
+    )
+    with os.fdopen(descriptor, "wb") as stream:
+        stream.write(raw)
+        stream.flush()
+        check_deadline(deadline)
+    require(_xnet062_member(evidence, name, deadline) == raw, "xnet062_written_bytes")
+
+
+def _retain_xnet062_arrays(native: Native, lane: str, offline: dict[str, Any]) -> None:
+    require(lane in ("a", "b"), "xnet062_lane")
+    restoration = offline["cache_mode_restoration"]
+    for key, suffix in (
+        ("files_before", "before"),
+        ("files_restored", "restored"),
+        ("members", "physical-members"),
+    ):
+        _xnet062_write(
+            native.evidence,
+            lane + "-incumbent-cache-" + suffix + ".json",
+            _xnet062_json_bytes(restoration[key], native.deadline),
+            native.deadline,
+        )
+
+
+def _check_xnet062_report(
+    original: dict[str, Any],
+    view: dict[str, Any],
+    native: Native,
+    owned: dict[str, dict[str, Any]],
+    docker: str,
+    config: Path,
+    *,
+    complete: bool,
+    files: dict[str, bytes] | None = None,
+) -> None:
+    """Check finite serialization preservation, never admit locks or alleged originals.
+
+    Original/owned values come directly from this operation's existing runtime
+    checks. The optional mapping is the existing validated archive transport.
+    """
+
+    def raw_member(name: str) -> bytes:
+        check_deadline(native.cleanup_deadline)
+        raw = (
+            _xnet062_member(native.evidence, name, native.cleanup_deadline)
+            if files is None
+            else files[name]
+        )
+        require(type(raw) is bytes and len(raw) <= MAX_NATIVE_OUTPUT, "xnet062_member_size")
+        return raw
+
+    def bound(binding: Any, name: str) -> bytes:
+        raw = raw_member(name)
+        require(bool(raw), "xnet062_empty_member")
+        exact_data(binding, {"member": name, "bytes": len(raw), "sha256": sha(raw)})
+        return raw
+
+    def array(binding: Any, name: str, *, compact: bool) -> list[Any]:
+        raw = bound(binding, name)
+        value = json.loads(
+            raw.decode("utf-8", errors="strict"),
+            object_pairs_hook=unique_object,
+            parse_constant=reject_constant,
+        )
+        require(type(value) is list, "xnet062_array_root")
+        expected = (
+            _xnet062_json_bytes(value, native.cleanup_deadline)
+            if compact
+            else (json.dumps(value, sort_keys=True, allow_nan=False) + "\n").encode()
+        )
+        require(raw == expected, "xnet062_array_encoding")
+        return cast(list[Any], value)
+
+    def native_record(stage: str) -> tuple[dict[str, Any], bytes]:
+        matches = [
+            row
+            for row in original["native_operations"]
+            if row.get("stdout") == str(native.evidence / (stage + ".stdout"))
+        ]
+        require(len(matches) == 1, "xnet062_native_record_cardinality")
+        row = matches[0]
+        require(
+            type(row.get("exit")) is int and row["exit"] == 0 and row.get("failure") is None,
+            "xnet062_native_terminal",
+        )
+        stdout = raw_member(stage + ".stdout")
+        stderr = raw_member(stage + ".stderr")
+        require(
+            row.get("stderr") == str(native.evidence / (stage + ".stderr"))
+            and row.get("stdout_sha256") == sha(stdout)
+            and row.get("stderr_sha256") == sha(stderr),
+            "xnet062_native_raw_binding",
+        )
+        return row, stdout
+
+    def offline(before: dict[str, Any], after: dict[str, Any], label: str) -> None:
+        reconstructed = dict(after)
+        bindings = reconstructed.pop("full_native_package_members")
+        require(
+            type(bindings) is dict and set(bindings) == {"prometheus", "promtool"},
+            "xnet062_package_slots",
+        )
+        packages = {}
+        for command in ("prometheus", "promtool"):
+            raw = bound(bindings[command], label + "-offline-" + command + "-native.stdout")
+            exact_data(decode_packages(raw, command), before["command_observations"][command])
+            packages[command] = {value["ImportPath"]: value for value in decode_objects(raw)}
+        reconstructed["full_native_package_objects"] = packages
+        frozen = array(
+            reconstructed.pop("module_inventory_member"),
+            label + "-module-cache-members.json",
+            compact=False,
+        )
+        require(
+            sha(json.dumps(frozen, sort_keys=True).encode()) == before["module_inventory_sha256"],
+            "xnet062_frozen_semantic_hash",
+        )
+        if label.endswith("-incumbent"):
+            restoration = dict(reconstructed["cache_mode_restoration"])
+            for key, replacement, suffix in (
+                ("files_before", "files_before_member", "before"),
+                ("files_restored", "files_restored_member", "restored"),
+                ("members", "physical_members_member", "physical-members"),
+            ):
+                restoration[key] = array(
+                    restoration.pop(replacement), label + "-cache-" + suffix + ".json", compact=True
+                )
+            restoration["files_frozen"] = frozen
+            reconstructed["cache_mode_restoration"] = restoration
+        exact_data(reconstructed, before)
+        if not complete:
+            return
+        # Reuse the actual construction's expected values, never inspect paths
+        # that the subsequent get may already have changed.
+        for command, argv in (
+            ("version", ["version"]),
+            ("verify", ["mod", "verify"]),
+            (
+                "prometheus",
+                ["list", "-deps", "-json", "-tags=netgo,builtinassets", "./cmd/prometheus"],
+            ),
+            ("promtool", ["list", "-deps", "-json", "-tags=netgo,builtinassets", "./cmd/promtool"]),
+        ):
+            matches = [
+                (name, expected)
+                for name, expected in owned.items()
+                if name == "pp-prom-derive-" + expected["owner"][:12] + "-" + label + "-" + command
+            ]
+            require(len(matches) == 1, "xnet062_owned_command")
+            name, expected = matches[0]
+            exact_data(expected["command"], argv)
+            stage = label + "-offline-" + command
+            created, identifier_raw = native_record(stage + "-create")
+            exact_data(created["argv"], expected["create_argv"])
+            require(
+                identifier_raw.decode("ascii").strip() == expected["container_id"],
+                "xnet062_create_ID",
+            )
+            started, _ = native_record(stage + "-native")
+            exact_data(
+                started["argv"],
+                [docker, "--config", str(config), "start", "--attach", expected["container_id"]],
+            )
+            prestart, prestart_raw = native_record(stage + "-inspect")
+            exact_data(prestart["argv"], [docker, "--config", str(config), "inspect", name])
+            validate_container(native_one_image(prestart_raw), name, expected)
+            terminal, terminal_raw = native_record(stage + "-completed-inspect")
+            exact_data(
+                terminal["argv"],
+                [docker, "--config", str(config), "inspect", expected["container_id"]],
+            )
+            actual = native_one_image(terminal_raw)
+            validate_container(actual, name, expected)
+            exact_data(actual["State"], before["container_completion"][command])
+            state = actual["State"]
+            require(
+                state.get("Running") is False
+                and type(state.get("ExitCode")) is int
+                and state["ExitCode"] == 0
+                and state.get("OOMKilled") is False,
+                "xnet062_container_terminal",
+            )
+
+    if "module_derivation" not in original:
+        require(not complete, "xnet062_incomplete")
+        exact_data(view, original)
+        return
+    before_replays = original["module_derivation"]["replays"]
+    lanes = [record["replay"] for record in before_replays]
+    require(lanes == (["a", "b"] if complete else ["a", "b"][: len(lanes)]), "xnet062_replay_slots")
+    require(
+        original.get("module_action") == "xnet062-replay"
+        and original["module_derivation"].get("authored_action") == "golang.org/x/net@v0.62.0",
+        "xnet062_report_action",
+    )
+    reconstructed = dict(view)
+    derivation = dict(reconstructed["module_derivation"])
+    replays = derivation["replays"]
+    require(type(replays) is list and len(replays) == len(before_replays), "xnet062_replay_slots")
+    restored = []
+    for before, after in zip(before_replays, replays, strict=True):
+        lane = before["replay"]
+        offline(before["offline"], after["offline"], lane)
+        offline(
+            before["incumbent_reconstruction"]["offline"],
+            after["incumbent_reconstruction"]["offline"],
+            lane + "-incumbent",
+        )
+        record = dict(after)
+        record["offline"] = before["offline"]
+        incumbent = dict(record["incumbent_reconstruction"])
+        incumbent["offline"] = before["incumbent_reconstruction"]["offline"]
+        record["incumbent_reconstruction"] = incumbent
+        restored.append(record)
+    derivation["replays"] = restored
+    reconstructed["module_derivation"] = derivation
+    exact_data(reconstructed, original)
+
+
+def _xnet062_report_view(
+    report: dict[str, Any],
+    native: Native,
+    owned: dict[str, dict[str, Any]],
+    docker: str,
+    config: Path,
+    *,
+    complete: bool,
 ) -> dict[str, Any]:
+    def binding(name: str) -> dict[str, Any]:
+        raw = _xnet062_member(native.evidence, name, native.cleanup_deadline)
+        return {"member": name, "bytes": len(raw), "sha256": sha(raw)}
+
+    def offline(value: dict[str, Any], label: str) -> dict[str, Any]:
+        result = dict(value)
+        del result["full_native_package_objects"]
+        result["full_native_package_members"] = {
+            command: binding(label + "-offline-" + command + "-native.stdout")
+            for command in ("prometheus", "promtool")
+        }
+        result["module_inventory_member"] = binding(label + "-module-cache-members.json")
+        if label.endswith("-incumbent"):
+            restoration = dict(result["cache_mode_restoration"])
+            for key, replacement, suffix in (
+                ("files_before", "files_before_member", "before"),
+                ("files_restored", "files_restored_member", "restored"),
+                ("members", "physical_members_member", "physical-members"),
+            ):
+                del restoration[key]
+                restoration[replacement] = binding(label + "-cache-" + suffix + ".json")
+            del restoration["files_frozen"]
+            result["cache_mode_restoration"] = restoration
+        return result
+
+    view = dict(report)
+    if "module_derivation" in report:
+        derivation = dict(report["module_derivation"])
+        replays = []
+        for record in derivation["replays"]:
+            lane = record["replay"]
+            require(lane in ("a", "b"), "xnet062_lane")
+            replay = dict(record)
+            replay["offline"] = offline(record["offline"], lane)
+            incumbent = dict(record["incumbent_reconstruction"])
+            incumbent["offline"] = offline(incumbent["offline"], lane + "-incumbent")
+            replay["incumbent_reconstruction"] = incumbent
+            replays.append(replay)
+        derivation["replays"] = replays
+        view["module_derivation"] = derivation
+    _check_xnet062_report(report, view, native, owned, docker, config, complete=complete)
+    return view
+
+
+def _finalize_xnet062_report(
+    report: dict[str, Any],
+    native: Native,
+    owned: dict[str, dict[str, Any]],
+    docker: str,
+    config: Path,
+    *,
+    derive_completed: bool,
+) -> dict[str, Any]:
+    """Finalize within the one cleanup allowance; the caller preserves primary errors."""
+    require(native.cleanup_deadline is not None, "cleanup_deadline_not_started")
+    success = (
+        derive_completed
+        and report["failure"] is None
+        and not report["interruptions"]
+        and all(
+            row.get("native_absent") is True and "failure" not in row for row in report["cleanup"]
+        )
+    )
+    report["status"] = "failed_or_unknown"
+    view = _xnet062_report_view(report, native, owned, docker, config, complete=success)
+    if success:
+        require(
+            all(
+                type(row.get("exit")) is int and row["exit"] == 0 and row.get("failure") is None
+                for row in report["native_operations"]
+            ),
+            "xnet062_native_terminal",
+        )
+        view["status"] = "observed_package_metadata_only"
+    else:
+        # An incumbent may have completed before the final get failed, without
+        # ever entering the completed replay list. Keep its finite raw homes
+        # visible as diagnostics, not as another successful replay.
+        completed_lanes = {
+            row["replay"] for row in report.get("module_derivation", {}).get("replays", [])
+        }
+        partial = {}
+        for lane in ("a", "b"):
+            if lane in completed_lanes:
+                continue
+            for suffix in ("before", "restored", "physical-members"):
+                name = lane + "-incumbent-cache-" + suffix + ".json"
+                path = native.evidence / name
+                if not path.exists() and not path.is_symlink():
+                    continue
+                try:
+                    raw = _xnet062_member(native.evidence, name, native.cleanup_deadline)
+                    partial[name] = {"member": name, "bytes": len(raw), "sha256": sha(raw)}
+                except (OSError, QualificationError) as error:
+                    partial[name] = {
+                        "failure": type(error).__name__,
+                        "code": diagnostic_code(error),
+                    }
+        if partial:
+            view["partial_incumbent_members"] = partial
+    encoded = _xnet062_json_bytes(view, native.cleanup_deadline)
+    exact_data(one_object(encoded), view)
+    # Publish only complete, read-back bytes. A failed staging write stays raw
+    # diagnostic evidence and cannot occupy the successful report's name.
+    _xnet062_write(native.evidence, ".qualification.json.pending", encoded, native.cleanup_deadline)
+    destination = native.evidence / "qualification.json"
+    require(not destination.exists() and not destination.is_symlink(), "xnet062_report_collision")
+    check_deadline(native.cleanup_deadline)
+    (native.evidence / ".qualification.json.pending").rename(destination)
+    return view
+
+
+def qualify(
+    work: Path,
+    seconds: int,
+    cleanup: int,
+    *,
+    derive_xnet060: bool = False,
+    derive_xnet062: bool = False,
+) -> dict[str, Any]:
+    require(
+        type(derive_xnet060) is bool and type(derive_xnet062) is bool,
+        "xnet_derivation_selector_type",
+    )
+    require(not (derive_xnet060 and derive_xnet062), "conflicting_xnet_derivation_targets")
     require(
         platform.system() == "Linux"
         and platform.machine() in ("x86_64", "amd64")
@@ -1763,7 +2351,10 @@ def qualify(
         "hosted_linux_only",
     )
     require(
-        type(seconds) is int and 0 < seconds <= 900 and type(cleanup) is int and 0 < cleanup <= 120,
+        type(seconds) is int
+        and 0 < seconds <= (1800 if derive_xnet062 else 900)
+        and type(cleanup) is int
+        and 0 < cleanup <= 120,
         "qualification_budget",
     )
     global CLEANING
@@ -1798,7 +2389,35 @@ def qualify(
         "LANG": "C.UTF-8",
     }
     stage = "source_acquisition"
+    derive_completed = False
+    primary_error: BaseException | None = None
+    compact_report: dict[str, Any] | None = None
     try:
+        if os.environ.get("GITHUB_REF") == P062_REF:
+            require(derive_xnet062, "p062_Q_exact_selector")
+            stage = "authenticated_P1_and_retained_T"
+            root = producer_paths()[0].parents[2]
+            api = GitHubRead(work / "GitHub-private", evidence, deadline, cleanup)
+            authentication_error: BaseException | None = None
+            try:
+                report["admission"] = manual_hosted_admission(
+                    api, "qualification", producer_root=root
+                )
+                _tool, retained = retained_tool(api, root, work)
+                report["retained_tool"] = retained["coordinates"]
+            except BaseException as error:
+                authentication_error = error
+                raise
+            finally:
+                try:
+                    api.close()
+                except BaseException as cleanup_error:
+                    report["authentication_cleanup_failure"] = {
+                        "class": type(cleanup_error).__name__,
+                        "code": diagnostic_code(cleanup_error),
+                    }
+                    if authentication_error is None:
+                        raise
         downloads = work / "downloads"
         fresh_directory(downloads)
         report["acquisition"] = []
@@ -1832,11 +2451,26 @@ def qualify(
         report["UI_transform"] = stage_ui(source, ui, deadline)
         locks_unchanged(source)
         initial_source = tree_inventory(source, deadline=deadline)
-        if derive_xnet060:
-            stage = "xnet060_replay"
-            derive_xnet060_observe(
-                native, work, downloads, source, go, ui, owned, docker, config, docker_env, report
+        if derive_xnet060 or derive_xnet062:
+            stage = "xnet062_replay" if derive_xnet062 else "xnet060_replay"
+            derive_xnet_observe(
+                native,
+                work,
+                downloads,
+                source,
+                go,
+                ui,
+                owned,
+                docker,
+                config,
+                docker_env,
+                report,
+                target_version="v0.62.0" if derive_xnet062 else "v0.60.0",
             )
+            if report.get("admission", {}).get("producer_epoch") == "xnet062":
+                for replay in report["module_derivation"]["replays"]:
+                    exact_data(replay["derived_locks"], DERIVED_LOCKS)
+            derive_completed = True
         else:
             modules = work / "modules"
             fresh_directory(modules, 0o755)
@@ -1889,22 +2523,15 @@ def qualify(
                 docker_env,
                 cwd=work,
             )
-            image = json.loads(
+            image = native_one_image(
                 native.run(
                     [docker, "--config", str(config), "image", "inspect", BASE],
                     "base-native-inspect",
                     docker_env,
                     cwd=work,
                 )
-            )[0]
-            require(
-                image["Os"] == "linux"
-                and image["Architecture"] == "amd64"
-                and BASE in image["RepoDigests"]
-                and image["Id"] == BASE_CONFIG
-                and not image["Config"].get("Volumes"),
-                "base_native_identity",
             )
+            native_base_identity(image)
             report["runtime_base_native"] = image
             owner = uuid.uuid4().hex
             captures = [
@@ -1936,6 +2563,7 @@ def qualify(
                 )
                 expected = {
                     "image": image["Id"],
+                    "image_relation": native_base_identity(image),
                     "owner": owner,
                     "command": command,
                     "environment": expected_env,
@@ -1947,14 +2575,14 @@ def qualify(
                 }
                 stage = "offline_" + label
                 create_owned(native, argv, name, expected, owned, label, docker_env, work)
-                actual = json.loads(
+                actual = native_one_image(
                     native.run(
                         [docker, "--config", str(config), "inspect", name],
                         label + "-inspect",
                         docker_env,
                         cwd=work,
                     )
-                )[0]
+                )
                 validate_container(actual, name, expected)
                 raw, completion = start_owned(
                     native, docker, config, name, expected, label, docker_env, work
@@ -1980,6 +2608,7 @@ def qualify(
             )
         report["producer"] = {str(p): file_hash(p) for p in producer_paths()}
     except BaseException as error:
+        primary_error = error
         report["failure"] = {
             "class": type(error).__name__,
             "code": diagnostic_code(error),
@@ -1994,24 +2623,77 @@ def qualify(
             report["cleanup"] = removals
             report["native_operations"] = native.records
             report["interruptions"] = list(INTERRUPTIONS)
-            report["status"] = (
-                "observed_package_metadata_only"
-                if report["failure"] is None
-                and not INTERRUPTIONS
-                and not any("failure" in v for v in removals)
-                else "failed_or_unknown"
+            if derive_xnet062:
+                compact_report = _finalize_xnet062_report(
+                    report, native, owned, docker, config, derive_completed=derive_completed
+                )
+            else:
+                report["status"] = (
+                    "observed_package_metadata_only"
+                    if report["failure"] is None
+                    and not INTERRUPTIONS
+                    and not any("failure" in v for v in removals)
+                    else "failed_or_unknown"
+                )
+                (evidence / "qualification.json").write_text(
+                    json.dumps(report, indent=2, sort_keys=True) + "\n"
+                )
+        except BaseException as reporting_error:
+            if not derive_xnet062:
+                raise
+            # A partially written file is retained, never overwritten as success.
+            # If no output was created, retain a bounded diagnostic without
+            # attempting to encode the original oversized derivation again.
+            diagnostic = {key: value for key, value in report.items() if key != "module_derivation"}
+            diagnostic.update(
+                status="failed_or_unknown",
+                native_operations=native.records,
+                interruptions=list(INTERRUPTIONS),
+                report_failure={
+                    "class": type(reporting_error).__name__,
+                    "code": diagnostic_code(reporting_error),
+                },
+                incomplete_diagnostic=True,
             )
-            (evidence / "qualification.json").write_text(
-                json.dumps(report, indent=2, sort_keys=True) + "\n"
-            )
+            try:
+                require(native.cleanup_deadline is not None, "cleanup_deadline_not_started")
+                if not (evidence / "qualification.json").exists():
+                    _xnet062_write(
+                        evidence,
+                        "qualification.json",
+                        _xnet062_json_bytes(diagnostic, native.cleanup_deadline),
+                        native.cleanup_deadline,
+                    )
+            except BaseException:
+                # The actual primary exception/raw native streams remain the
+                # failure evidence when diagnostic storage is also unavailable.
+                if primary_error is None:
+                    raise reporting_error
+            if primary_error is None:
+                raise
         finally:
             CLEANING = False
+    if derive_xnet062:
+        if compact_report is None:
+            raise QualificationError("qualification_or_cleanup_failed")
+        require(
+            compact_report["status"] == "observed_package_metadata_only",
+            "qualification_or_cleanup_failed",
+        )
+        return compact_report
     require(report["status"] == "observed_package_metadata_only", "qualification_or_cleanup_failed")
     return report
 
 
 def validate_container(actual: dict[str, Any], name: str, expected: dict[str, Any]) -> None:
     config, host = actual["Config"], actual["HostConfig"]
+    require(
+        actual.get("Id") == expected.get("container_id")
+        and type(expected.get("container_id")) is str
+        and re.fullmatch(r"[0-9a-f]{64}", expected["container_id"]) is not None,
+        "container_full_identity",
+    )
+    native_container_image_identity(actual, expected["image_relation"])
     require(
         actual["Name"] == "/" + name
         and actual["Image"] == expected["image"]
@@ -2570,6 +3252,332 @@ def exact_data(actual: Any, expected: Any) -> None:
         require(actual == expected, "declared_data_value")
 
 
+# Content identities are distinct from the daemon's image and container operands.
+_NATIVE_BASE_MANIFEST_SIZE = 2864
+_NATIVE_HISTORICAL_BASE_DIFF_IDS = [
+    "sha256:9486261b5a13f63ca6904b36721527ac8f19df53d300560138d69ae9b4c203de",
+    "sha256:621c35e751a51a9a9dc3e80aa0b7fe8be2a93402ea6ccd307d30852cd7776cda",
+    "sha256:763a77745f27b86cf26b97887b6842d83720e63b1c48848c0ba9ee54e351d63a",
+    "sha256:f0d0eff4c2312a7bd6e21797bdfea5eb35f60e76b555ce2b22794424af2cad36",
+    "sha256:275a30dd8ce958b21daa9ad962c6fbc09f98306ee2f486b65c9075dc257b1412",
+    "sha256:4d049f83d9cf21d1f5cc0e11deaf36df02790d0e60c1a3829538fb4b61685368",
+    "sha256:af5aa97ebe6ce1604747ec1e21af7136ded391bcabe4acef882e718a87c86bcc",
+    "sha256:6f1cdceb6a3146f0ccb986521156bef8a422cdbb0863396f7f751f575ba308f4",
+    "sha256:bd3cdfae1d3fdd83a2231d608969b38b82349777c2fff9a7c12d54f8ac5c9b38",
+    "sha256:4cde6b0bb6f50a5f255eef7b2a42162c661cf776b803225dcac9a659e396bb6b",
+    "sha256:ad51d0769d16ba578106a177987dfe3d2e02c1668c852b795b2f6b024068242a",
+    "sha256:187cfc6d1e3e8a40a5e64653bcd3239c140807dcf1c09e48021178705a5a6139",
+    "sha256:f2392a9484bf6b18f06beaf705b994e31dbb2716c99cf7d03c9c495cd107f364",
+]
+_NATIVE_GO_INDEX = "sha256:0525c952defebc693cdaf62cdf43afa32be5a7f377e99260642ea19c240c708e"
+_NATIVE_GO_MANIFEST = "sha256:9d1e2c4fda593efb2c405e1c855c75ec17fe42dc02f6b7142a5ea7af7f386bf4"
+_NATIVE_GO_CONFIG = "sha256:c3b115201bc73f32bec28694395c415387ba16e1068e9f1c1ac4971db9ba20df"
+_NATIVE_GO_DIFF_IDS = [
+    "sha256:54ea9baa1bbd7651dbda5c61569dad60fa601c73e5b784e154e8ba0f314e84fd",
+    "sha256:93b494d131b8f63f5b27e2dc65f28c90a5af5a99a60c2fa63d6f5548fe582e9d",
+    "sha256:a3d0eb5960971c8a8822f904fcb5d504055279767de489edaec0a50ab9c0f2d7",
+    "sha256:9ddd0f534847de5d0718677fa9f94ba7106c45594305edc5e1f612fc87397d71",
+    "sha256:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef",
+]
+_NATIVE_GO_ANNOTATIONS = {
+    "com.docker.official-images.bashbrew.arch": "amd64",
+    "org.opencontainers.image.base.digest": "sha256:3d67941fed5ae436b2bb9791cb3f50a252441c7706bbc5b4e738936df8ff8306",
+    "org.opencontainers.image.base.name": "alpine:3.23",
+    "org.opencontainers.image.created": "2026-10-21T21:25:10Z",
+    "org.opencontainers.image.revision": "650cf2f338d22da87df8c773cfc88afa26699502",
+    "org.opencontainers.image.source": "https://github.com/docker-library/golang.git#650cf2f338d22da87df8c773cfc88afa26699502:1.26/alpine3.23",
+    "org.opencontainers.image.url": "https://hub.docker.com/_/golang",
+    "org.opencontainers.image.version": "1.26.10-alpine3.23",
+}
+
+
+def native_one_image(raw: bytes) -> dict[str, Any]:
+    """One complete Docker inspect array; Go's JSON object stream is not this carrier."""
+    require(0 < len(raw) <= MAX_NATIVE_OUTPUT, "native_image_JSON_size")
+    value = json.loads(
+        raw.decode("utf-8"), object_pairs_hook=unique_object, parse_constant=reject_constant
+    )
+    require(
+        type(value) is list and len(value) == 1 and type(value[0]) is dict, "native_image_exact_one"
+    )
+    return cast(dict[str, Any], value[0])
+
+
+def _native_descriptor(
+    value: Any, core: dict[str, Any], *, platform: bool, annotations: bool = False
+) -> None:
+    required = {"mediaType", "digest", "size"} | ({"platform"} if platform else set())
+    require(
+        type(value) is dict
+        and set(value) in (required, required | {"annotations"} if annotations else required),
+        "native_descriptor_role_keys",
+    )
+    exact_data({key: value[key] for key in core}, core)
+    if platform:
+        exact_data(value["platform"], {"architecture": "amd64", "os": "linux"})
+    if "annotations" in value:
+        exact_data(value["annotations"], _NATIVE_GO_ANNOTATIONS)
+
+
+def native_base_identity(image: dict[str, Any], *, current: bool = True) -> dict[str, Any]:
+    """Only the independently pinned current/historical distroless base content."""
+    require(type(current) is bool and type(image) is dict, "native_base_epoch")
+    manifest = BASE.split("@", 1)[1] if current else HISTORICAL_BASE.split("@", 1)[1]
+    config = BASE_CONFIG if current else HISTORICAL_BASE_CONFIG
+    reference = BASE if current else HISTORICAL_BASE
+    diff_ids = (
+        [row["diff_id"] for row in BASE_LAYER_CONTRACTS]
+        if current
+        else _NATIVE_HISTORICAL_BASE_DIFF_IDS
+    )
+    require(
+        (image.get("Os"), image.get("Architecture")) == ("linux", "amd64"), "native_base_platform"
+    )
+    exact_data(image.get("RootFS"), {"Type": "layers", "Layers": diff_ids})
+    digests = image.get("RepoDigests")
+    require(
+        type(digests) is list
+        and all(type(v) is str for v in digests)
+        and digests.count(reference) == 1,
+        "native_base_repository",
+    )
+    cfg = image.get("Config")
+    require(
+        type(cfg) is dict and cfg.get("Volumes") in (None, {}) and cfg.get("OnBuild") in (None, []),
+        "native_base_config",
+    )
+    cfg = cast(dict[str, Any], cfg)
+    require(
+        cfg.get("User") == "65532"
+        and cfg.get("WorkingDir") == "/home/nonroot"
+        and cfg.get("Cmd") in (None, [])
+        and cfg.get("Entrypoint") in (None, []),
+        "native_base_runtime_config",
+    )
+    exact_data(
+        cfg.get("Env"),
+        [
+            "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            "SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt",
+        ],
+    )
+    core = {"mediaType": OCI_MANIFEST, "digest": manifest, "size": _NATIVE_BASE_MANIFEST_SIZE}
+    engine = image.get("Id")
+    if engine == config:
+        if "Descriptor" in image:
+            require(current, "historical_descriptor_unqualified")
+            _native_descriptor(image["Descriptor"], core, platform=False)
+        representation = "config"
+    else:
+        require(current and engine == manifest, "native_base_engine_relation")
+        _native_descriptor(image.get("Descriptor"), core, platform=False)
+        representation = "manifest"
+    return {
+        "profile": "base-current" if current else "base-historical",
+        "representation": representation,
+        "engine_id": engine,
+        "operand": engine,
+        "config_digest": config,
+        "requested_root": reference,
+        "manifest": core if current else None,
+    }
+
+
+def native_go_identity(
+    image: dict[str, Any], index_raw: bytes, manifest_raw: bytes, *, indexed: bool = False
+) -> dict[str, Any]:
+    """Exact qualified Go0525 platform-pull/M-create profile, never arbitrary compiler input."""
+    require(type(indexed) is bool, "native_Go_operand_role")
+    require(
+        "sha256:" + sha(index_raw) == _NATIVE_GO_INDEX
+        and "sha256:" + sha(manifest_raw) == _NATIVE_GO_MANIFEST,
+        "native_Go_content_roots",
+    )
+    require(len(manifest_raw) == 1922, "native_Go_manifest_size")
+    index, manifest = one_object(index_raw), one_object(manifest_raw)
+    require(set(index) == {"schemaVersion", "mediaType", "manifests"}, "native_Go_index_shape")
+    exact_data(index["mediaType"], "application/vnd.oci.image.index.v1+json")
+    require(type(index.get("manifests")) is list, "native_Go_index_members")
+    exact_data(index.get("schemaVersion"), 2)
+    selected = [
+        row
+        for row in index["manifests"]
+        if type(row) is dict and row.get("platform") == {"architecture": "amd64", "os": "linux"}
+    ]
+    require(len(selected) == 1, "native_Go_one_platform")
+    core = {"mediaType": OCI_MANIFEST, "digest": _NATIVE_GO_MANIFEST, "size": 1922}
+    _native_descriptor(selected[0], core, platform=True, annotations=True)
+    require(
+        selected[0].get("annotations") == _NATIVE_GO_ANNOTATIONS, "native_Go_source_annotations"
+    )
+    exact_data(manifest.get("schemaVersion"), 2)
+    exact_data(manifest.get("mediaType"), OCI_MANIFEST)
+    config = _descriptor(manifest.get("config"), OCI_CONFIG)
+    require(config["digest"] == _NATIVE_GO_CONFIG, "native_Go_config_content")
+    require(
+        type(manifest.get("layers")) is list and len(manifest["layers"]) == 5, "native_Go_layers"
+    )
+    for layer in manifest["layers"]:
+        _descriptor(layer, "application/vnd.oci.image.layer.v1.tar+gzip")
+    require(
+        type(image) is dict and (image.get("Os"), image.get("Architecture")) == ("linux", "amd64"),
+        "native_Go_platform",
+    )
+    exact_data(image.get("RootFS"), {"Type": "layers", "Layers": _NATIVE_GO_DIFF_IDS})
+    digests = image.get("RepoDigests")
+    require(
+        type(digests) is list
+        and all(type(v) is str for v in digests)
+        and digests.count("golang@" + (_NATIVE_GO_INDEX if indexed else _NATIVE_GO_MANIFEST)) == 1,
+        "native_Go_platform_repository",
+    )
+    cfg = image.get("Config")
+    require(
+        type(cfg) is dict and cfg.get("Volumes") in (None, {}) and cfg.get("OnBuild") in (None, []),
+        "native_Go_config",
+    )
+    cfg = cast(dict[str, Any], cfg)
+    require(
+        cfg.get("WorkingDir") == "/go"
+        and cfg.get("Cmd") == ["/bin/sh"]
+        and cfg.get("User") in (None, "")
+        and cfg.get("Entrypoint") in (None, []),
+        "native_Go_runtime_config",
+    )
+    exact_data(
+        cfg.get("Env"),
+        [
+            "PATH=/go/bin:/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            "GOLANG_VERSION=1.26.10",
+            "GOTOOLCHAIN=local",
+            "GOPATH=/go",
+        ],
+    )
+    engine = image.get("Id")
+    if engine == _NATIVE_GO_CONFIG:
+        require(not indexed, "native_Go_classic_index_operand_unqualified")
+        if "Descriptor" in image:
+            _native_descriptor(image["Descriptor"], core, platform=False)
+        representation = "config"
+    else:
+        require(engine == _NATIVE_GO_MANIFEST, "native_Go_engine_relation")
+        _native_descriptor(image.get("Descriptor"), core, platform=indexed, annotations=indexed)
+        if indexed:
+            exact_data(image["Descriptor"].get("annotations"), _NATIVE_GO_ANNOTATIONS)
+        representation = "manifest"
+    return {
+        "profile": "go0525-index" if indexed else "go0525-platform",
+        "representation": representation,
+        "engine_id": engine,
+        "operand": ("golang:1.26.10-alpine3.23@" + _NATIVE_GO_INDEX) if indexed else engine,
+        "config_digest": _NATIVE_GO_CONFIG,
+        "requested_root": (
+            ("golang:1.26.10-alpine3.23@" + _NATIVE_GO_INDEX)
+            if indexed
+            else "golang@" + _NATIVE_GO_MANIFEST
+        ),
+        "manifest": core,
+    }
+
+
+def native_container_image_identity(actual: dict[str, Any], relation: dict[str, Any]) -> None:
+    """Bind one declared create operand; descriptor roles are not whole-object aliases."""
+    profile = relation.get("profile")
+    require(
+        profile in ("base-current", "base-historical", "go0525-platform", "go0525-index"),
+        "native_container_profile",
+    )
+    if profile == "base-historical":
+        require(
+            relation.get("representation") == "config"
+            and relation.get("requested_root") == HISTORICAL_BASE
+            and relation.get("config_digest") == HISTORICAL_BASE_CONFIG
+            and relation.get("manifest") is None
+            and relation.get("engine_id") == relation.get("operand") == HISTORICAL_BASE_CONFIG
+            and actual.get("Image") == HISTORICAL_BASE_CONFIG
+            and actual.get("Config", {}).get("Image") == HISTORICAL_BASE_CONFIG
+            and "ImageManifestDescriptor" not in actual,
+            "historical_native_config_operand",
+        )
+        return
+    expected_root = (
+        BASE
+        if profile == "base-current"
+        else (
+            "golang@" + _NATIVE_GO_MANIFEST
+            if profile == "go0525-platform"
+            else "golang:1.26.10-alpine3.23@" + _NATIVE_GO_INDEX
+        )
+    )
+    require(relation.get("requested_root") == expected_root, "native_container_requested_root")
+    core = relation["manifest"]
+    expected_config = (
+        _NATIVE_GO_CONFIG
+        if profile in ("go0525-platform", "go0525-index")
+        else BASE_CONFIG if profile == "base-current" else HISTORICAL_BASE_CONFIG
+    )
+    expected_manifest = (
+        _NATIVE_GO_MANIFEST
+        if profile in ("go0525-platform", "go0525-index")
+        else (
+            BASE.split("@", 1)[1] if profile == "base-current" else HISTORICAL_BASE.split("@", 1)[1]
+        )
+    )
+    require(
+        relation["config_digest"] == expected_config and core["digest"] == expected_manifest,
+        "native_container_content_epoch",
+    )
+    exact_data(
+        core,
+        {
+            "mediaType": OCI_MANIFEST,
+            "digest": expected_manifest,
+            "size": (
+                1922
+                if profile in ("go0525-platform", "go0525-index")
+                else _NATIVE_BASE_MANIFEST_SIZE
+            ),
+        },
+    )
+    representation = relation.get("representation")
+    require(
+        representation in ("config", "manifest")
+        and not (profile == "base-historical" and representation == "manifest"),
+        "native_container_representation",
+    )
+    if profile == "go0525-index":
+        operand = "golang:1.26.10-alpine3.23@" + _NATIVE_GO_INDEX
+        require(
+            representation == "manifest"
+            and relation["engine_id"] == _NATIVE_GO_MANIFEST
+            and relation["operand"] == operand
+            and actual.get("Image") == _NATIVE_GO_INDEX
+            and actual.get("Config", {}).get("Image") == operand,
+            "native_Go_index_operand",
+        )
+        _native_descriptor(
+            actual.get("ImageManifestDescriptor"), core, platform=True, annotations=True
+        )
+        exact_data(actual["ImageManifestDescriptor"].get("annotations"), _NATIVE_GO_ANNOTATIONS)
+        return
+    operand = expected_config if representation == "config" else expected_manifest
+    require(
+        relation["operand"] == relation["engine_id"] == operand
+        and actual.get("Image") == operand
+        and type(actual.get("Config")) is dict
+        and actual["Config"].get("Image") == operand,
+        "native_container_operand",
+    )
+    if representation == "manifest" or "ImageManifestDescriptor" in actual:
+        require(profile != "base-historical", "historical_container_descriptor_unqualified")
+        _native_descriptor(
+            actual.get("ImageManifestDescriptor"),
+            core,
+            platform=True,
+            annotations=profile == "go0525-platform",
+        )
+
+
 def finite_recipe() -> bytes:
     return (
         "# Finite payload declaration; prometheus_source_image.py compares these exact bytes.\n"
@@ -2583,7 +3591,7 @@ def finite_recipe() -> bytes:
     ).encode()
 
 
-def declared_inputs() -> dict[str, Any]:
+def declared_inputs(*, historical_xnet060: bool = False) -> dict[str, Any]:
     return {
         "source": {
             "version": "3.15.0",
@@ -2592,7 +3600,7 @@ def declared_inputs() -> dict[str, Any]:
             "epoch": SOURCE_DATE_EPOCH,
             "archive": SOURCE.__dict__,
             "original_locks": LOCKS,
-            "derived_locks": DERIVED_LOCKS,
+            "derived_locks": XNET060_INCUMBENT_LOCKS if historical_xnet060 else DERIVED_LOCKS,
         },
         "go": {"archive": CURRENT_GO.__dict__, "version": CURRENT_GO_VERSION},
         "ui": {
@@ -2685,7 +3693,9 @@ def read_image_manifest(path: Path, *, preparation: bool = False) -> dict[str, A
         type(value["inputs"]) is dict and type(value["inputs"].get("oras")) is dict,
         "image_input_objects",
     )
-    expected = declared_inputs()
+    # Two exact data epochs; recognizing historical data grants no current stage.
+    historical = value["inputs"].get("source", {}).get("derived_locks") == XNET060_INCUMBENT_LOCKS
+    expected = declared_inputs(historical_xnet060=historical)
     retained = value["inputs"]["oras"].get("retained")
     if retained is not None:
         validate_tool_coordinates(retained)
@@ -2914,14 +3924,30 @@ def validate_default_ca(data: bytes) -> None:
 
 
 def base_graph(layout: Path) -> dict[str, Any]:
+    """Canonical repo-authored ingress remains distinct from native Docker save."""
+    root_path = layout / "blobs/sha256" / BASE.split("@", 1)[1][7:]
+    exact_data(
+        _layout_root(layout),
+        {
+            "mediaType": OCI_MANIFEST,
+            "size": root_path.stat().st_size,
+            "digest": BASE.split("@", 1)[1],
+        },
+    )
+    content = _base_graph_content(layout)
+    _layout_inventory(
+        layout,
+        {BASE.split("@", 1)[1], BASE_CONFIG}
+        | {row["descriptor"]["digest"] for row in BASE_LAYER_CONTRACTS},
+    )
+    return content
+
+
+def _base_graph_content(layout: Path) -> dict[str, Any]:
     """Authenticate and inspect the one vendor graph; never extract/apply its layers."""
     root_path = layout / "blobs/sha256" / BASE.rsplit(":", 1)[1]
     require(file_hash(root_path) == BASE.rsplit(":", 1)[1], "vendor_root_digest")
     raw_root = root_path.read_bytes()
-    exact_data(
-        _layout_root(layout),
-        {"mediaType": OCI_MANIFEST, "size": len(raw_root), "digest": BASE.rsplit("@", 1)[1]},
-    )
     root = one_object(raw_root)
     require(
         set(root) == {"schemaVersion", "mediaType", "config", "layers", "annotations"},
@@ -3003,11 +4029,6 @@ def base_graph(layout: Path) -> dict[str, Any]:
         "vendor_payload_parent_topology",
     )
     require(ca_occurrences == 1, "vendor_default_CA_unique")
-    _layout_inventory(
-        layout,
-        {BASE.rsplit("@", 1)[1], BASE_CONFIG}
-        | {row["descriptor"]["digest"] for row in BASE_LAYER_CONTRACTS},
-    )
     return {
         "manifest": root,
         "manifest_raw": raw_root,
@@ -3481,6 +4502,136 @@ def _layout_root(layout: Path) -> dict[str, Any]:
     if "platform" in descriptor:
         exact_data(descriptor.pop("platform"), {"architecture": "amd64", "os": "linux"})
     return _descriptor(descriptor, OCI_MANIFEST)
+
+
+def native_base_export_graph(layout: Path) -> dict[str, Any]:
+    """Two closed current-BASE native transports; canonical _layout_root is unchanged."""
+    real_directory(layout)
+    members = list(layout.rglob("*"))
+    require(len(members) <= 33, "native_BASE_export_member_bound")
+    total = 0
+    for path in members:
+        info = path.lstat()
+        relative = path.relative_to(layout).as_posix()
+        require(info.st_uid == os.getuid(), "native_BASE_export_owner")
+        if stat.S_ISDIR(info.st_mode):
+            require(relative in ("blobs", "blobs/sha256"), "native_BASE_export_directory")
+        else:
+            require(
+                stat.S_ISREG(info.st_mode)
+                and info.st_nlink == 1
+                and stat.S_IMODE(info.st_mode) in (0o444, 0o600, 0o644)
+                and (
+                    relative in ("index.json", "manifest.json", "oci-layout")
+                    or re.fullmatch(r"blobs/sha256/[0-9a-f]{64}", relative) is not None
+                ),
+                "native_BASE_export_member",
+            )
+            total += info.st_size
+            require(
+                0 <= info.st_size <= 16 * 1024**2 and total <= 16 * 1024**2,
+                "native_BASE_export_byte_bound",
+            )
+    index = one_object((layout / "index.json").read_bytes())
+    expected_core = {
+        "mediaType": OCI_MANIFEST,
+        "digest": BASE.split("@", 1)[1],
+        "size": _NATIVE_BASE_MANIFEST_SIZE,
+    }
+    native_index = {
+        "schemaVersion": 2,
+        "mediaType": "application/vnd.oci.image.index.v1+json",
+        "manifests": [
+            {
+                **expected_core,
+                "annotations": {
+                    "containerd.io/distribution.source.gcr.io": "distroless/static-debian13"
+                },
+            }
+        ],
+    }
+    if index == native_index:
+        exact_data(index, native_index)
+        exact_data(
+            one_object((layout / "oci-layout").read_bytes()), {"imageLayoutVersion": "1.0.0"}
+        )
+        expected_files = {"index.json", "manifest.json", "oci-layout"}
+        expected_files |= {
+            "blobs/sha256/" + digest[7:]
+            for digest in (
+                {BASE.split("@", 1)[1], BASE_CONFIG}
+                | {row["descriptor"]["digest"] for row in BASE_LAYER_CONTRACTS}
+            )
+        }
+        files, directories = set(), set()
+        real_directory(layout)
+        for path in layout.rglob("*"):
+            info = path.lstat()
+            name = path.relative_to(layout).as_posix()
+            require(info.st_uid == os.getuid(), "native_BASE_export_owner")
+            if stat.S_ISDIR(info.st_mode):
+                directories.add(name)
+            else:
+                require(
+                    stat.S_ISREG(info.st_mode)
+                    and info.st_nlink == 1
+                    and stat.S_IMODE(info.st_mode) in (0o444, 0o600, 0o644),
+                    "native_BASE_export_regular",
+                )
+                files.add(name)
+        exact_data(files, expected_files)
+        exact_data(directories, {"blobs", "blobs/sha256"})
+        raw = (layout / "manifest.json").read_bytes()
+        require(0 < len(raw) <= MAX_NATIVE_OUTPUT, "native_BASE_Docker_manifest_bound")
+        docker_manifest = json.loads(
+            raw, object_pairs_hook=unique_object, parse_constant=reject_constant
+        )
+        exact_data(
+            docker_manifest,
+            [
+                {
+                    "Config": "blobs/sha256/" + BASE_CONFIG[7:],
+                    "RepoTags": None,
+                    "Layers": [
+                        "blobs/sha256/" + row["descriptor"]["digest"][7:]
+                        for row in BASE_LAYER_CONTRACTS
+                    ],
+                }
+            ],
+        )
+        _base_graph_content(layout)
+        return expected_core
+    # Original current legacy31 export: canonical wrapper and uncompressed graph.
+    require(
+        len(tree_inventory(layout, maximum=16 * 1024**2)) == 31, "AM_current_Q_export_finite_shape"
+    )
+    descriptor = _layout_root(layout)
+    manifest = one_object(_blob(layout, descriptor))
+    exact_data(set(manifest), {"schemaVersion", "mediaType", "config", "layers"})
+    exact_data(manifest["schemaVersion"], 2)
+    exact_data(manifest["mediaType"], OCI_MANIFEST)
+    exact_data(manifest["config"], {"mediaType": OCI_CONFIG, "size": 2938, "digest": BASE_CONFIG})
+    configuration = one_object(_blob(layout, manifest["config"]))
+    exact_data(
+        configuration["rootfs"],
+        {"type": "layers", "diff_ids": [row["diff_id"] for row in BASE_LAYER_CONTRACTS]},
+    )
+    require(
+        configuration["os"] == "linux" and configuration["architecture"] == "amd64",
+        "AM_current_export_platform",
+    )
+    expected_layers = [
+        {
+            "mediaType": "application/vnd.oci.image.layer.v1.tar",
+            "digest": row["diff_id"],
+            "size": row["expanded"],
+        }
+        for row in BASE_LAYER_CONTRACTS
+    ]
+    exact_data(manifest["layers"], expected_layers)
+    for layer in expected_layers:
+        _blob(layout, layer)
+    return descriptor
 
 
 def _payload_files(expanded: bytes) -> dict[str, bytes]:
@@ -4089,6 +5240,13 @@ def authenticate_producer_inputs(
         source_inputs["oras"]["retained"] = None
         current_inputs["oras"]["retained"] = None
     exact_data(source_inputs, current_inputs)
+    if not tool and current_inputs.get("source", {}).get("derived_locks") == DERIVED_LOCKS:
+        require(
+            source_manifest.get("phase") == "source_prepared"
+            and source_manifest.get("selection") is None
+            and source_manifest.get("candidate") is None,
+            "p062_P1_prepared_null_outputs",
+        )
     return {
         name: {"bytes": len(raw), "sha256": sha(raw)}
         for name, raw in files.items()
@@ -4326,6 +5484,14 @@ def event_admission(
         require(number == producer["pr_number"], "changed_PR_original_producer")
         authenticate_pr_source(api, number, producer["source_head"], head, producer["source_ref"])
         authenticate_producer_inputs(api, root, producer["source_head"])
+        if manifest["inputs"]["source"]["derived_locks"] == DERIVED_LOCKS:
+            require(
+                number == 2494
+                and producer["source_ref"] == P062_REF
+                and head != producer["source_head"],
+                "p062_P2_distinct_actual_output_descendant",
+            )
+            require_native_ancestor(api, producer["source_head"], head)
         return {"mode": "changed_pr_candidate", "head": head, "publisher_head": None}
     require(event_name in ("push", "schedule", "workflow_dispatch"), "consumer_event_table")
     if (
@@ -4707,7 +5873,12 @@ def _current_qualification_artifact(
     """Resolve one real same-producer qualification; never choose latest success."""
     head = admission["head"]
     require(
-        admission.get("ref") == "refs/heads/codex/python-setup-security-stabilization",
+        admission.get("ref")
+        == (
+            P062_REF
+            if admission.get("producer_epoch") == "xnet062"
+            else "refs/heads/codex/python-setup-security-stabilization"
+        ),
         "stabilization_qualification_owner",
     )
     endpoint = f"/repos/{GHCR_REPOSITORY}/actions/workflows/build.yml/runs?event=workflow_dispatch"
@@ -4730,7 +5901,7 @@ def _current_qualification_artifact(
             continue
         require(
             len(selected) == 1
-            and run.get("head_branch") == "codex/python-setup-security-stabilization"
+            and run.get("head_branch") == admission["ref"][11:]
             and type(run.get("run_attempt")) is int
             and run["run_attempt"] == 1
             and run.get("status") == "completed"
@@ -4765,11 +5936,641 @@ def _current_qualification_artifact(
     return result
 
 
+XNET062_PATCH_SHA256 = "73950dc5f646f76ff0d09885a2fb1ce29f62b29c00dc7ca96d7910ad7ac304bc"
+
+
+def _qualification_xnet062(
+    files: dict[str, bytes],
+    root: Path,
+    qualified: dict[str, Any],
+    work: Path,
+    vendor_base: dict[str, Any],
+) -> dict[str, bytes]:
+    """Independent retained Q predicates; no runtime-original/Native reconstruction."""
+    import difflib
+
+    report = one_object(files["qualification.json"])
+    qrun = qualified["run"]
+    require(
+        qrun["head_branch"] == P062_REF[11:]
+        and qrun["run_attempt"] == 1
+        and qrun["conclusion"] == "success"
+        and qrun["status"] == "completed",
+        "p062_Q_authenticated_context",
+    )
+    require(
+        work.is_absolute() and work.name == f'prometheus-source-{qrun["id"]}-1',
+        "p062_Q_trusted_work_root",
+    )
+    manifest = read_image_manifest(root / MANIFEST_PATH, preparation=True)
+    require(manifest["inputs"]["source"]["derived_locks"] == DERIVED_LOCKS, "p062_Q_current_epoch")
+    for key, expected_scalar in (
+        ("source_revision", REVISION),
+        ("source_tree", TREE),
+        ("module_action", "xnet062-replay"),
+        ("heavy_build_invocations", 0),
+        ("publication_commands", 0),
+        ("automatic_retries", 0),
+        ("interruptions", []),
+        ("failure", None),
+        ("status", "observed_package_metadata_only"),
+    ):
+        exact_data(report.get(key), expected_scalar)
+    expected_admission = {
+        "run_id": qrun["id"],
+        "head": qrun["head_sha"],
+        "ref": P062_REF,
+        "job": P062_JOB_NAMES["qualification"],
+        "workflow_id": 199904435,
+        "job_id": qualified["job"]["id"],
+        "pr_number": 2494,
+        "producer_epoch": "xnet062",
+    }
+    admission = report.get("admission")
+    require(type(admission) is dict, "p062_Q_source_admission")
+    admission = cast(dict[str, Any], admission)
+    exact_data({key: admission.get(key) for key in expected_admission}, expected_admission)
+    exact_data(report.get("retained_tool"), manifest["inputs"]["oras"]["retained"])
+    exact_data(
+        report.get("producer"),
+        {
+            str(root / name): file_hash(root / name)
+            for name in ("scripts/ci/prometheus_source_image.py", ".github/workflows/build.yml")
+        },
+    )
+    exact_data(
+        report.get("acquisition"),
+        [
+            {
+                "artifact": item.name,
+                "public_source": item.url,
+                "bytes": item.size,
+                "sha256": item.digest,
+                "explicit_release_handoff": item.release,
+                "final_redirects": 0,
+            }
+            for item in (SOURCE, CURRENT_GO, UI, CHECKSUMS)
+        ],
+    )
+    transform = report.get("UI_transform")
+    require(
+        type(transform) is dict
+        and set(transform)
+        == {
+            "generated_paths",
+            "embed_sha256",
+            "python",
+            "gzip_source_sha256",
+            "zlib_build",
+            "zlib_runtime",
+            "algorithm",
+        },
+        "p062_Q_UI_inventory",
+    )
+    transform = cast(dict[str, Any], transform)
+    exact_data(transform["generated_paths"], [name + ".gz" for name in sorted(UI_FILES)])
+    exact_data(
+        transform["algorithm"],
+        "Python GzipFile filename-empty mtime0 level6 OS255; not GNU gzip byte equality",
+    )
+    for field in ("embed_sha256", "gzip_source_sha256"):
+        _digest("sha256:" + transform[field])
+    require(
+        all(
+            type(transform[field]) is str and bool(transform[field])
+            for field in ("python", "zlib_build", "zlib_runtime")
+        ),
+        "p062_Q_UI_implementation",
+    )
+    records = report.get("native_operations")
+    require(type(records) is list, "p062_Q_native_records")
+    records = cast(list[dict[str, Any]], records)
+    position = 0
+    evidence, go, config = work / "evidence", work / "go", work / "docker-config"
+    docker = "/usr/bin/docker"
+    docker_env = {
+        "PATH": "/usr/bin:/bin",
+        "HOME": str(work),
+        "DOCKER_CONFIG": str(config),
+        "LANG": "C.UTF-8",
+    }
+    bound_slots: set[str] = set()
+
+    def member(name: str) -> bytes:
+        require(
+            name in files and type(files[name]) is bytes and len(files[name]) <= MAX_NATIVE_OUTPUT,
+            "p062_Q_raw_member",
+        )
+        return files[name]
+
+    def bound(value: Any, name: str) -> bytes:
+        require(name not in bound_slots, "p062_Q_duplicate_slot")
+        bound_slots.add(name)
+        raw = member(name)
+        require(bool(raw), "p062_Q_empty_slot")
+        exact_data(value, {"member": name, "bytes": len(raw), "sha256": sha(raw)})
+        return raw
+
+    def array(raw: bytes, *, compact: bool = False) -> list[dict[str, Any]]:
+        value = json.loads(raw, object_pairs_hook=unique_object, parse_constant=reject_constant)
+        require(
+            type(value) is list
+            and 0 < len(value) <= 250000
+            and all(type(row) is dict for row in value),
+            "p062_Q_array",
+        )
+        encoding = (
+            canonical_data(value) + b"\n"
+            if compact
+            else (json.dumps(value, sort_keys=True, allow_nan=False) + "\n").encode()
+        )
+        require(raw == encoding, "p062_Q_array_encoding")
+        return cast(list[dict[str, Any]], value)
+
+    def record(stage: str, argv: list[str], env: dict[str, str], cwd: Path) -> bytes:
+        nonlocal position
+        require(position < len(records), "p062_Q_missing_native_record")
+        row = records[position]
+        position += 1
+        require(type(row) is dict, "p062_Q_native_record_object")
+        stdout, stderr = member(stage + ".stdout"), member(stage + ".stderr")
+        exact_data(
+            row,
+            {
+                "argv": argv,
+                "environment": env,
+                "cwd": str(cwd),
+                "exit": 0,
+                "failure": None,
+                "stdout": str(evidence / (stage + ".stdout")),
+                "stderr": str(evidence / (stage + ".stderr")),
+                "stdout_sha256": sha(stdout),
+                "stderr_sha256": sha(stderr),
+            },
+        )
+        return stdout
+
+    def names(raw: bytes) -> list[str]:
+        require(not raw or raw.endswith(b"\n"), "p062_Q_inventory_terminal")
+        rows = raw.decode("ascii").splitlines()
+        require(
+            len(rows) == len(set(rows))
+            and all(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", n) for n in rows),
+            "p062_Q_inventory_names",
+        )
+        return rows
+
+    before_names = names(
+        record(
+            "derive-containers-before",
+            [docker, "--config", str(config), "ps", "--all", "--format", "{{.Names}}"],
+            docker_env,
+            work,
+        )
+    )
+    record(
+        "derive-base-pull",
+        [docker, "--config", str(config), "pull", "--platform", "linux/amd64", BASE],
+        docker_env,
+        work,
+    )
+    image = native_one_image(
+        record(
+            "derive-base-inspect",
+            [docker, "--config", str(config), "image", "inspect", BASE],
+            docker_env,
+            work,
+        )
+    )
+    relation = native_base_identity(image)
+    exact_data(report.get("runtime_base_native"), image)
+    expected_config = vendor_base["config"]["config"]
+    exact_data({key: image.get("Config", {}).get(key) for key in expected_config}, expected_config)
+    derivation = report.get("module_derivation")
+    require(
+        type(derivation) is dict
+        and type(derivation.get("replays")) is list
+        and len(derivation["replays"]) == 2,
+        "p062_Q_two_replays",
+    )
+    derivation = cast(dict[str, Any], derivation)
+    exact_data(derivation.get("authored_action"), "golang.org/x/net@v0.62.0")
+    exact_data(
+        derivation.get("replay_equality"), "observed_under_explicit_coordinate_correspondence_only"
+    )
+    require(
+        derivation.get("closure_disposition")
+        == "pending independent complete delta/fullF review; metadata only",
+        "p062_Q_no_inferred_closure",
+    )
+    container_records: list[tuple[str, dict[str, Any]]] = []
+    owner: str | None = None
+    ids: set[str] = set()
+    comparisons = []
+    outputs: dict[str, bytes] = {}
+
+    for lane, replay in zip(("a", "b"), derivation["replays"], strict=True):
+        exact_data(replay.get("replay"), lane)
+        source = work / ("source" if lane == "a" else "source-b")
+        area = work / ("replay-" + lane)
+        modules = area / "modules"
+        online = clean_environment(
+            area / "home", area / "tmp", area / "gocache", modules, offline=False
+        )
+        writable = dict(online, GOFLAGS="")
+        lock_epochs = {}
+        for label, expected in (
+            ("original", LOCKS),
+            ("incumbent", XNET060_INCUMBENT_LOCKS),
+            ("derived", DERIVED_LOCKS),
+        ):
+            lock_epochs[label] = {name: member(lane + "-" + label + "-" + name) for name in LOCKS}
+            exact_data({name: sha(raw) for name, raw in lock_epochs[label].items()}, expected)
+        exact_data(replay.get("original_locks"), LOCKS)
+        exact_data(replay.get("derived_locks"), DERIVED_LOCKS)
+        patch = b"".join(
+            b"".join(
+                difflib.diff_bytes(
+                    difflib.unified_diff,
+                    lock_epochs["original"][name].splitlines(keepends=True),
+                    lock_epochs["derived"][name].splitlines(keepends=True),
+                    fromfile=("a/" + name).encode(),
+                    tofile=("b/" + name).encode(),
+                )
+            )
+            for name in LOCKS
+        )
+        require(
+            member(lane + "-module-derivation.patch") == patch
+            and sha(patch) == XNET062_PATCH_SHA256
+            and replay.get("patch_sha256") == sha(patch),
+            "p062_Q_materialization_patch",
+        )
+        postget = array(member(lane + "-postget-source-members.json"))
+        require(len({row.get("path") for row in postget}) == len(postget), "p062_Q_source_paths")
+        nonlocks = [row for row in postget if row.get("path") not in LOCKS]
+        exact_data(
+            replay.get("nonlock_source_inventory_sha256"),
+            sha(json.dumps(nonlocks, sort_keys=True).encode()),
+        )
+
+        def phase(label: str) -> dict[str, Any]:
+            result: dict[str, Any] = {}
+            for key, command in (
+                ("version", ["version"]),
+                ("edit", ["mod", "edit", "-json"]),
+                ("download", ["mod", "download", "-json"]),
+                ("verify", ["mod", "verify"]),
+                ("selected", ["list", "-m", "-json", "all"]),
+                ("graph", ["mod", "graph"]),
+            ):
+                raw = record(label + "-" + key, [str(go / "bin/go"), *command], online, source)
+                if key == "version":
+                    require(raw == CURRENT_GO_VERSION.encode(), "p062_Q_compiler_version")
+                elif key == "edit":
+                    value = one_object(raw)
+                    require(
+                        "Error" not in value and value.get("Module", {}).get("Path") == ROOT_MODULE,
+                        "p062_Q_directive_root",
+                    )
+                    result[key] = value
+                elif key == "selected":
+                    result[key] = decode_selected_modules(raw)
+                elif key == "download":
+                    result[key] = decode_modules(raw)
+                else:
+                    result[key] = raw.decode("utf-8", errors="strict")
+            require(bool(result["graph"]), "p062_Q_empty_graph")
+            return result
+
+        def offline(label: str, value: dict[str, Any], *, incumbent: bool) -> dict[str, Any]:
+            nonlocal owner
+            bindings = value.get("full_native_package_members")
+            require(
+                type(bindings) is dict and set(bindings) == {"prometheus", "promtool"},
+                "p062_Q_package_slots",
+            )
+            bindings = cast(dict[str, Any], bindings)
+            frozen = array(
+                bound(value.get("module_inventory_member"), label + "-module-cache-members.json")
+            )
+            require(len({v.get("path") for v in frozen}) == len(frozen), "p062_Q_cache_paths")
+            for row in frozen:
+                require(
+                    set(row) == {"path", "size", "mode", "sha256"}
+                    and type(row["size"]) is int
+                    and row["size"] >= 0
+                    and type(row["mode"]) is int
+                    and row["mode"] == 0o444,
+                    "p062_Q_frozen_cache",
+                )
+                _digest("sha256:" + row["sha256"])
+            exact_data(
+                value.get("module_inventory_sha256"),
+                sha(json.dumps(frozen, sort_keys=True).encode()),
+            )
+            full_packages = {}
+            observations = {}
+            completions = {}
+            for command, argv in (
+                ("version", ["version"]),
+                ("verify", ["mod", "verify"]),
+                (
+                    "prometheus",
+                    ["list", "-deps", "-json", "-tags=netgo,builtinassets", "./cmd/prometheus"],
+                ),
+                (
+                    "promtool",
+                    ["list", "-deps", "-json", "-tags=netgo,builtinassets", "./cmd/promtool"],
+                ),
+            ):
+                require(position < len(records), "p062_Q_missing_create")
+                create = records[position].get("argv")
+                require(type(create) is list and create.count("--label") == 1, "p062_Q_owner_label")
+                create = cast(list[str], create)
+                label_value = create[create.index("--label") + 1]
+                require(
+                    type(label_value) is str
+                    and re.fullmatch(re.escape(LABEL) + r"=[0-9a-f]{32}", label_value) is not None,
+                    "p062_Q_owner_label",
+                )
+                observed_owner = label_value.split("=", 1)[1]
+                require(owner is None or owner == observed_owner, "p062_Q_one_owner")
+                owner = observed_owner
+                name = "pp-prom-derive-" + owner[:12] + "-" + label + "-" + command
+                require(name not in before_names, "p062_Q_owned_name_collision")
+                stage = label + "-offline-" + command
+                create_argv = (
+                    sandbox_arguments(docker, config, image["Id"], name, owner, source, go, modules)
+                    + argv
+                )
+                identifier = (
+                    record(stage + "-create", create_argv, docker_env, work).decode("ascii").strip()
+                )
+                require(
+                    re.fullmatch(r"[0-9a-f]{64}", identifier) is not None and identifier not in ids,
+                    "p062_Q_unique_full_created_ID",
+                )
+                ids.add(identifier)
+                environment = dict(v.split("=", 1) for v in expected_config.get("Env", []))
+                environment.update(
+                    clean_environment(
+                        GUEST_TMP, GUEST_TMP, GUEST_TMP / "gocache", Path("/modules"), offline=True
+                    )
+                )
+                expected = {
+                    "image": image["Id"],
+                    "image_relation": relation,
+                    "owner": owner,
+                    "container_id": identifier,
+                    "command": argv,
+                    "environment": environment,
+                    "mounts": {
+                        "/src": str(source),
+                        "/usr/local/go": str(go),
+                        "/modules": str(modules),
+                    },
+                }
+                actual = native_one_image(
+                    record(
+                        stage + "-inspect",
+                        [docker, "--config", str(config), "inspect", name],
+                        docker_env,
+                        work,
+                    )
+                )
+                validate_container(actual, name, expected)
+                require(actual["State"].get("Running") is False, "p062_Q_prestart_state")
+                raw = record(
+                    stage + "-native",
+                    [docker, "--config", str(config), "start", "--attach", identifier],
+                    docker_env,
+                    work,
+                )
+                actual = native_one_image(
+                    record(
+                        stage + "-completed-inspect",
+                        [docker, "--config", str(config), "inspect", identifier],
+                        docker_env,
+                        work,
+                    )
+                )
+                validate_container(actual, name, expected)
+                state = actual["State"]
+                require(
+                    state.get("Running") is False
+                    and type(state.get("ExitCode")) is int
+                    and state["ExitCode"] == 0
+                    and state.get("OOMKilled") is False,
+                    "p062_Q_container_terminal",
+                )
+                completions[command] = state
+                if command == "version":
+                    require(raw == CURRENT_GO_VERSION.encode(), "p062_Q_compiler_version")
+                elif command in ("prometheus", "promtool"):
+                    require(
+                        bound(bindings[command], stage + "-native.stdout") == raw,
+                        "p062_Q_package_binding",
+                    )
+                    observations[command] = decode_packages(raw, command)
+                    full_packages[command] = {v["ImportPath"]: v for v in decode_objects(raw)}
+                container_records.append((name, expected))
+            exact_data(value.get("command_observations"), observations)
+            exact_data(value.get("container_completion"), completions)
+            if incumbent:
+                restoration = value.get("cache_mode_restoration")
+                require(type(restoration) is dict, "p062_Q_cache_restoration")
+                restoration = cast(dict[str, Any], restoration)
+                before = array(
+                    bound(restoration.get("files_before_member"), label + "-cache-before.json"),
+                    compact=True,
+                )
+                restored = array(
+                    bound(restoration.get("files_restored_member"), label + "-cache-restored.json"),
+                    compact=True,
+                )
+                physical = array(
+                    bound(
+                        restoration.get("physical_members_member"),
+                        label + "-cache-physical-members.json",
+                    ),
+                    compact=True,
+                )
+                exact_data(restored, before)
+                exact_data([{**v, "mode": 0o444} for v in before], frozen)
+                require(
+                    len({v.get("path") for v in physical}) == len(physical),
+                    "p062_Q_physical_cache_paths",
+                )
+                files_before = {v["path"]: v for v in before}
+                for row in physical:
+                    require(
+                        type(row.get("mode_before")) is int
+                        and row.get("mode_restored") == row["mode_before"]
+                        and type(row.get("identity")) is dict,
+                        "p062_Q_cache_mode_identity",
+                    )
+                    identity = row["identity"]
+                    require(
+                        set(identity)
+                        == {
+                            "st_dev",
+                            "st_ino",
+                            "st_uid",
+                            "st_gid",
+                            "st_nlink",
+                            "st_size",
+                            "st_mtime_ns",
+                        }
+                        and all(type(v) is int and v >= 0 for v in identity.values()),
+                        "p062_Q_cache_identity_fields",
+                    )
+                    if row["path"] in files_before:
+                        require(
+                            identity["st_size"] == files_before[row["path"]]["size"]
+                            and row["mode_before"] == files_before[row["path"]]["mode"],
+                            "p062_Q_cache_file_identity",
+                        )
+                require(
+                    set(files_before) <= {v["path"] for v in physical},
+                    "p062_Q_cache_physical_complete",
+                )
+            return {"packages": full_packages, "frozen": frozen}
+
+        original = phase(lane + "-base")
+        require(
+            original["selected"].get("golang.org/x/net", {}).get("Version") == "v0.58.0"
+            and "Replace" not in original["selected"]["golang.org/x/net"],
+            "p062_Q_original_epoch",
+        )
+        record(
+            lane + "-incumbent-get",
+            [str(go / "bin/go"), "get", "golang.org/x/net@v0.60.0"],
+            writable,
+            source,
+        )
+        incumbent_phase = phase(lane + "-incumbent")
+        inc = replay.get("incumbent_reconstruction")
+        require(type(inc) is dict, "p062_Q_incumbent")
+        exact_data(
+            inc.get("role"), "historical selected-base reconstruction; not new authored intent"
+        )
+        exact_data(
+            replay.get("lock_patch_scope"),
+            "original-to-final materialization; not new closure base",
+        )
+        exact_data(inc.get("original_before"), original)
+        exact_data(inc.get("locks"), XNET060_INCUMBENT_LOCKS)
+        exact_data(inc.get("action"), "golang.org/x/net@v0.60.0")
+        require(
+            incumbent_phase["selected"].get("golang.org/x/net", {}).get("Version") == "v0.60.0"
+            and "Replace" not in incumbent_phase["selected"]["golang.org/x/net"],
+            "p062_Q_incumbent_epoch",
+        )
+        incumbent_offline = offline(lane + "-incumbent", inc["offline"], incumbent=True)
+        record(
+            lane + "-sole-get",
+            [str(go / "bin/go"), "get", "golang.org/x/net@v0.62.0"],
+            writable,
+            source,
+        )
+        final = phase(lane + "-derived")
+        require(
+            final["selected"].get("golang.org/x/net", {}).get("Version") == "v0.62.0"
+            and "Replace" not in final["selected"]["golang.org/x/net"],
+            "p062_Q_current_epoch",
+        )
+        exact_data(replay.get("before"), incumbent_phase)
+        exact_data(replay.get("after"), final)
+        exact_data(replay.get("native_directives_before"), incumbent_phase["edit"])
+        exact_data(replay.get("native_directives_after"), final["edit"])
+        transitions = [
+            {
+                "Path": name,
+                "before": incumbent_phase["selected"].get(name),
+                "after": final["selected"].get(name),
+                "class": (
+                    "I_R"
+                    if name == "golang.org/x/net"
+                    else "C_R_candidate_pending_independent_review"
+                ),
+            }
+            for name in sorted(set(incumbent_phase["selected"]) | set(final["selected"]))
+            if incumbent_phase["selected"].get(name) != final["selected"].get(name)
+        ]
+        exact_data(replay.get("complete_module_transitions"), transitions)
+        final_offline = offline(lane, replay["offline"], incumbent=False)
+        comparisons.append(
+            {
+                "original": _derivation_comparison(original, source, modules),
+                "incumbent": _derivation_comparison(incumbent_phase, source, modules),
+                "final": _derivation_comparison(final, source, modules),
+                "nonlocks": nonlocks,
+                "incumbent_packages": incumbent_offline["packages"],
+                "packages": final_offline["packages"],
+                "locks": lock_epochs,
+                "patch": patch,
+            }
+        )
+        outputs = lock_epochs["derived"]
+    exact_data(comparisons[0], comparisons[1])
+    require(len(bound_slots) == 18 and len(container_records) == 16, "p062_Q_complete_slots")
+    for name, expected in container_records:
+        current = names(
+            record(
+                name + "-cleanup-inventory",
+                [docker, "--config", str(config), "ps", "--all", "--format", "{{.Names}}"],
+                docker_env,
+                work,
+            )
+        )
+        require(name in current, "p062_Q_cleanup_owned_presence")
+        actual = native_one_image(
+            record(
+                name + "-cleanup-inspect",
+                [docker, "--config", str(config), "inspect", name],
+                docker_env,
+                work,
+            )
+        )
+        validate_container(actual, name, expected)
+        raw = record(
+            name + "-cleanup-remove",
+            [docker, "--config", str(config), "rm", "--force", expected["container_id"]],
+            docker_env,
+            work,
+        )
+        require(
+            raw.decode("ascii").strip() == expected["container_id"], "p062_Q_cleanup_removed_ID"
+        )
+        require(
+            name
+            not in names(
+                record(
+                    name + "-cleanup-absence",
+                    [docker, "--config", str(config), "ps", "--all", "--format", "{{.Names}}"],
+                    docker_env,
+                    work,
+                )
+            ),
+            "p062_Q_cleanup_absence",
+        )
+    require(position == len(records), "p062_Q_extra_native_record")
+    exact_data(
+        report.get("cleanup"),
+        [{"name": name, "native_absent": True} for name, _ in container_records],
+    )
+    return outputs
+
+
 def qualification_locks(
     archive: Path,
     *,
     producer_root: Path | None = None,
     artifact_digest: str | None = None,
+    qualified: dict[str, Any] | None = None,
+    qualification_root: Path | None = None,
+    vendor_base: dict[str, Any] | None = None,
 ) -> dict[str, bytes]:
     require(
         (producer_root is None) == (artifact_digest is None),
@@ -4785,8 +6586,23 @@ def qualification_locks(
         "qualification_acquired_input_zip",
     )
     files = _zip_members(archive)
+    if qualified is not None:
+        require(
+            producer_root is not None
+            and qualification_root is not None
+            and vendor_base is not None,
+            "p062_Q_independent_caller_context",
+        )
+        return _qualification_xnet062(
+            files,
+            cast(Path, producer_root),
+            qualified,
+            cast(Path, qualification_root),
+            cast(dict[str, Any], vendor_base),
+        )
+    require(qualification_root is None and vendor_base is None, "p062_Q_context_pair")
     result = {}
-    for name, digest in DERIVED_LOCKS.items():
+    for name, digest in XNET060_INCUMBENT_LOCKS.items():
         a, b = files["a-derived-" + name], files["b-derived-" + name]
         require(a == b and sha(a) == digest, "qualification_both_native_lock_bytes")
         result[name] = a
@@ -4959,9 +6775,529 @@ TOOL_PREFETCH_INPUT_DIGEST = (
 )
 
 
+P062_REF = "refs/heads/codex/dependency-alertmanager-remediation"
+P062_JOB_NAMES = {
+    "tool": "prometheus-oras-qualification",
+    "qualification": "prometheus-source-qualification",
+    "pair": "prometheus-source-build-pair",
+}
+P062_COMPANION = "prometheus-ghcr-package-qualification"
+# Complete relevant first-attempt prefix at the externally admitted 2026-11-07 cutoff.
+# These historical starts remain spent; neither new source nor a new run renews them.
+P062_SPENT_HISTORY = (
+    (
+        37992081779,
+        114028582875,
+        "prometheus-source-qualification",
+        "5082c598007a3da1d86dfe57a37c7713d0e01df3",
+        "codex/dependency-native-runtime-remediation",
+        1,
+        "completed",
+        "failure",
+        "completed",
+        "failure",
+        "2026-10-09T21:13:17Z",
+        "2026-10-09T21:14:14Z",
+    ),
+    (
+        38012637047,
+        114095853422,
+        "prometheus-source-qualification",
+        "e2ab7b64238f93df3012110a6f2a572cb00dd111",
+        "codex/dependency-native-runtime-remediation",
+        1,
+        "completed",
+        "success",
+        "completed",
+        "success",
+        "2026-10-10T01:18:05Z",
+        "2026-10-10T01:19:44Z",
+    ),
+    (
+        38037035815,
+        114169514909,
+        "prometheus-ghcr-package-qualification",
+        "f0442f4fdf5f281730c4584f6352beac09cfd754",
+        "codex/dependency-native-runtime-remediation",
+        1,
+        "completed",
+        "success",
+        "completed",
+        "success",
+        "2026-10-10T08:11:48Z",
+        "2026-10-10T08:12:08Z",
+    ),
+    (
+        38037035815,
+        114169515047,
+        "prometheus-source-qualification",
+        "f0442f4fdf5f281730c4584f6352beac09cfd754",
+        "codex/dependency-native-runtime-remediation",
+        1,
+        "completed",
+        "success",
+        "completed",
+        "success",
+        "2026-10-10T08:11:48Z",
+        "2026-10-10T08:19:24Z",
+    ),
+    (
+        38170923494,
+        114563178711,
+        "prometheus-oras-qualification",
+        "5de54811121079eadbd3f5d8dbbb8720f712530a",
+        "codex/dependency-native-runtime-remediation",
+        1,
+        "completed",
+        "failure",
+        "completed",
+        "failure",
+        "2026-10-11T20:08:13Z",
+        "2026-10-11T20:09:10Z",
+    ),
+    (
+        38192419687,
+        114627819440,
+        "prometheus-oras-qualification",
+        "15097adaa871a900370f6c57a512fe862dddb041",
+        "codex/dependency-native-runtime-remediation",
+        1,
+        "completed",
+        "failure",
+        "completed",
+        "failure",
+        "2026-10-12T01:34:40Z",
+        "2026-10-12T01:35:41Z",
+    ),
+    (
+        38239428418,
+        114778090287,
+        "prometheus-oras-qualification",
+        "f632572057453d57975a397a5b2db64894204be0",
+        "codex/dependency-native-runtime-remediation",
+        1,
+        "completed",
+        "failure",
+        "completed",
+        "failure",
+        "2026-10-12T10:56:20Z",
+        "2026-10-12T10:58:07Z",
+    ),
+    (
+        38269614712,
+        114880342307,
+        "prometheus-oras-qualification",
+        "a18d636138bbab67e96c902b1c61f690263c8b55",
+        "codex/dependency-native-runtime-remediation",
+        1,
+        "completed",
+        "success",
+        "completed",
+        "success",
+        "2026-10-12T15:21:22Z",
+        "2026-10-12T15:23:35Z",
+    ),
+    (
+        38291450453,
+        114952275845,
+        "prometheus-source-build-pair",
+        "b732222719f70fa592218d2255324850843e9eea",
+        "codex/dependency-native-runtime-remediation",
+        1,
+        "completed",
+        "success",
+        "completed",
+        "success",
+        "2026-10-12T18:31:13Z",
+        "2026-10-12T18:48:04Z",
+    ),
+    (
+        39020247533,
+        117360452632,
+        "prometheus-oras-qualification",
+        "9c1b48f8b3a63bf827543cf69090505c1f157fc6",
+        "codex/consolidate-legacy-ownership-guard",
+        1,
+        "completed",
+        "success",
+        "completed",
+        "success",
+        "2026-10-17T09:12:38Z",
+        "2026-10-17T09:14:31Z",
+    ),
+    (
+        39033193167,
+        117397709770,
+        "prometheus-source-build-pair",
+        "e2b86644a9a0264098f57f1bbca5914a3438fbe6",
+        "codex/consolidate-legacy-ownership-guard",
+        1,
+        "completed",
+        "success",
+        "completed",
+        "success",
+        "2026-10-17T12:36:32Z",
+        "2026-10-17T12:53:02Z",
+    ),
+    (
+        40188825249,
+        121155232821,
+        "prometheus-oras-qualification",
+        "c22d641bc0d4dce56925114c827be6d712db7070",
+        "codex/python-setup-security-stabilization",
+        1,
+        "completed",
+        "success",
+        "completed",
+        "success",
+        "2026-10-25T11:25:50Z",
+        "2026-10-25T11:27:41Z",
+    ),
+    (
+        40220581563,
+        121251084855,
+        "prometheus-ghcr-package-qualification",
+        "7e275934593fa83749c5d89054c019fd4f7c6e89",
+        "codex/python-setup-security-stabilization",
+        1,
+        "completed",
+        "success",
+        "completed",
+        "success",
+        "2026-10-25T18:18:06Z",
+        "2026-10-25T18:18:24Z",
+    ),
+    (
+        40220581563,
+        121251085016,
+        "prometheus-source-qualification",
+        "7e275934593fa83749c5d89054c019fd4f7c6e89",
+        "codex/python-setup-security-stabilization",
+        1,
+        "completed",
+        "success",
+        "completed",
+        "success",
+        "2026-10-25T18:18:07Z",
+        "2026-10-25T18:25:55Z",
+    ),
+    (
+        40222244853,
+        121256136190,
+        "prometheus-source-build-pair",
+        "7e275934593fa83749c5d89054c019fd4f7c6e89",
+        "codex/python-setup-security-stabilization",
+        1,
+        "completed",
+        "success",
+        "completed",
+        "success",
+        "2026-10-25T18:39:03Z",
+        "2026-10-25T18:56:16Z",
+    ),
+    (
+        40309564942,
+        121527061782,
+        "prometheus-oras-qualification",
+        "7d2805f8ac60ac17c178c92f24c8f484c89e31f8",
+        "codex/python-setup-security-stabilization",
+        1,
+        "completed",
+        "success",
+        "completed",
+        "success",
+        "2026-10-26T10:43:06Z",
+        "2026-10-26T10:44:57Z",
+    ),
+    (
+        40379959203,
+        121773207468,
+        "prometheus-source-qualification",
+        "a8c9b361dbd57d86e2adf8f01f7880830fc04e53",
+        "codex/python-setup-security-stabilization",
+        1,
+        "completed",
+        "success",
+        "completed",
+        "success",
+        "2026-10-26T18:41:30Z",
+        "2026-10-26T18:46:31Z",
+    ),
+    (
+        40379959203,
+        121773207880,
+        "prometheus-ghcr-package-qualification",
+        "a8c9b361dbd57d86e2adf8f01f7880830fc04e53",
+        "codex/python-setup-security-stabilization",
+        1,
+        "completed",
+        "success",
+        "completed",
+        "success",
+        "2026-10-26T18:41:30Z",
+        "2026-10-26T18:41:49Z",
+    ),
+    (
+        40384356149,
+        121788589461,
+        "prometheus-source-build-pair",
+        "a8c9b361dbd57d86e2adf8f01f7880830fc04e53",
+        "codex/python-setup-security-stabilization",
+        1,
+        "completed",
+        "success",
+        "completed",
+        "success",
+        "2026-10-26T19:10:37Z",
+        "2026-10-26T19:28:29Z",
+    ),
+)
+
+
+def _p062_stage_admission(api: GitHubRead, root: Path, purpose: str) -> dict[str, Any]:
+    """One fixed PR2494 successor; caller release is separate from this observation."""
+    require(
+        purpose in P062_JOB_NAMES
+        and os.environ.get("GITHUB_REF") == P062_REF
+        and os.environ.get("GITHUB_ACTIONS") == "true"
+        and os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
+        and os.environ.get("GITHUB_REPOSITORY") == GHCR_REPOSITORY
+        and os.environ.get("GITHUB_REPOSITORY_ID") == "1043311030"
+        and os.environ.get("GITHUB_RUN_ATTEMPT") == "1"
+        and platform.system() == "Linux"
+        and platform.machine() in ("x86_64", "amd64"),
+        "p062_manual_hosted_first_attempt",
+    )
+    raw_run = os.environ.get("GITHUB_RUN_ID", "")
+    head = os.environ.get("GITHUB_SHA", "")
+    require(
+        re.fullmatch(r"[1-9][0-9]*", raw_run) is not None
+        and re.fullmatch(r"[0-9a-f]{40}", head) is not None,
+        "p062_runtime_coordinates",
+    )
+    run_id = int(raw_run)
+    prefix = "/repos/" + GHCR_REPOSITORY
+    current = api.json(prefix + f"/actions/runs/{run_id}")
+    workflow = api.json(prefix + "/actions/workflows/build.yml")
+    exact_data(
+        {key: workflow.get(key) for key in ("id", "path")},
+        {"id": 199904435, "path": ".github/workflows/build.yml"},
+    )
+    pr = authenticate_pr_source(api, 2494, head, head, P062_REF)
+    require(pr.get("state") == "open" and pr.get("merged") is False, "p062_open_own_PR")
+    source_files = api.source_files(head, (*PRODUCER_FILES, MANIFEST_PATH))
+    authenticate_material_files(root, source_files, api.deadline)
+    manifest = read_image_manifest(root / MANIFEST_PATH, preparation=True)
+    require(
+        manifest["phase"] == "source_prepared"
+        and manifest["selection"] is None
+        and manifest["candidate"] is None,
+        "p062_prepared_null_outputs",
+    )
+    expected_inputs = declared_inputs()
+    coordinates = manifest["inputs"]["oras"]["retained"]
+    if purpose == "tool":
+        require(coordinates is None, "p062_P0_retained_must_be_null")
+    else:
+        require(coordinates is not None, "p062_P1_requires_actual_T")
+        expected_inputs["oras"]["retained"] = coordinates
+    exact_data(manifest["inputs"], expected_inputs)
+    endpoint = prefix + "/actions/workflows/build.yml/runs?event=workflow_dispatch"
+    page = api.json(endpoint + "&per_page=100&page=1")
+    runs = api.pages(endpoint, "workflow_runs", page["total_count"])
+    require(sum(r.get("id") == run_id for r in runs) == 1, "p062_current_run_in_census")
+    bound_current = next(r for r in runs if r.get("id") == run_id)
+    for key in (
+        "id",
+        "head_sha",
+        "head_branch",
+        "run_attempt",
+        "event",
+        "workflow_id",
+        "status",
+        "conclusion",
+    ):
+        exact_data(bound_current.get(key), current.get(key))
+    require(
+        current.get("head_sha") == head
+        and current.get("head_branch") == P062_REF[11:]
+        and current.get("status") == "in_progress"
+        and current.get("conclusion") is None,
+        "p062_current_run_identity",
+    )
+    historical: list[tuple[Any, ...]] = []
+    successors: list[tuple[dict[str, Any], dict[str, Any]]] = []
+    current_jobs: list[dict[str, Any]] = []
+    names = set(P062_JOB_NAMES.values()) | {P062_COMPANION}
+    historical_ids = {row[0] for row in P062_SPENT_HISTORY}
+    seen_jobs: set[int] = set()
+    for run in runs:
+        jobs_endpoint = prefix + f'/actions/runs/{run["id"]}/jobs?filter=all'
+        jp = api.json(jobs_endpoint + "&per_page=100&page=1")
+        jobs = api.pages(jobs_endpoint, "jobs", jp["total_count"])
+        relevant = [j for j in jobs if j.get("name") in names and j.get("conclusion") != "skipped"]
+        if not relevant:
+            require(run.get("id") != run_id, "p062_current_job_missing")
+            continue
+        for key, value in (
+            ("workflow_id", 199904435),
+            ("run_attempt", 1),
+            ("event", "workflow_dispatch"),
+        ):
+            exact_data(run.get(key), value)
+        for key in ("repository", "head_repository"):
+            exact_data(run.get(key, {}).get("id"), 1043311030)
+        for job in relevant:
+            require(
+                type(job.get("id")) is int and job["id"] > 0 and job["id"] not in seen_jobs,
+                "p062_unique_native_job",
+            )
+            seen_jobs.add(job["id"])
+            exact_data(job.get("run_id"), run["id"])
+            exact_data(job.get("run_attempt"), 1)
+            exact_data(job.get("head_sha"), run["head_sha"])
+            if run["id"] == run_id:
+                current_jobs.append(job)
+            elif run["id"] in historical_ids:
+                historical.append(
+                    (
+                        run["id"],
+                        job["id"],
+                        job["name"],
+                        run["head_sha"],
+                        run["head_branch"],
+                        run["run_attempt"],
+                        run["status"],
+                        run["conclusion"],
+                        job["status"],
+                        job["conclusion"],
+                        job.get("started_at"),
+                        job.get("completed_at"),
+                    )
+                )
+            else:
+                require(
+                    run.get("head_branch") == P062_REF[11:]
+                    and run.get("status") == "completed"
+                    and run.get("conclusion") == "success"
+                    and job.get("status") == "completed"
+                    and job.get("conclusion") == "success",
+                    "p062_successor_spent_or_unknown",
+                )
+                successors.append((run, job))
+    exact_data(sorted(historical), list(P062_SPENT_HISTORY))
+    expected_current_names = {P062_JOB_NAMES[purpose]} | (
+        {P062_COMPANION} if purpose == "qualification" else set()
+    )
+    require(
+        len(current_jobs) == len(expected_current_names)
+        and {j["name"] for j in current_jobs} == expected_current_names,
+        "p062_current_purpose_inventory",
+    )
+    selected = next(j for j in current_jobs if j["name"] == P062_JOB_NAMES[purpose])
+    require(
+        selected.get("status") == "in_progress" and selected.get("conclusion") is None,
+        "p062_current_job_in_progress",
+    )
+    expected_prior = [] if purpose == "tool" else [P062_JOB_NAMES["tool"]]
+    if purpose == "pair":
+        expected_prior += [P062_JOB_NAMES["qualification"], P062_COMPANION]
+    require(
+        sorted(j["name"] for _, j in successors) == sorted(expected_prior),
+        "p062_nonrenewable_stage_prefix",
+    )
+    if purpose != "tool":
+        tool_run, tool_job = next(
+            row for row in successors if row[1]["name"] == P062_JOB_NAMES["tool"]
+        )
+        require(
+            tool_run["id"] == coordinates["run_id"]
+            and tool_run["head_sha"] == coordinates["source_head"]
+            and tool_run["head_sha"] != head,
+            "p062_actual_T_source_join",
+        )
+        authenticate_pr_source(api, 2494, tool_run["head_sha"], head, P062_REF)
+        require_native_ancestor(api, tool_run["head_sha"], head)
+        original = api.source_files(tool_run["head_sha"], (*PRODUCER_FILES, MANIFEST_PATH))
+        require(
+            all(original[name] == source_files[name] for name in PRODUCER_FILES),
+            "p062_raw_producer_unchanged",
+        )
+        p0 = one_object(original[MANIFEST_PATH])
+        expected_p0 = copy.deepcopy(manifest)
+        expected_p0["inputs"]["oras"]["retained"] = None
+        exact_data(p0, expected_p0)
+        # Explicitly compare the existing own-output-free projection on both heads.
+        projection = tool_input_projection(root)
+        exact_data(projection["inputs"], p0["inputs"])
+        for name in PRODUCER_FILES:
+            exact_data(
+                projection["raw_producer"][name],
+                {"bytes": len(original[name]), "sha256": sha(original[name])},
+            )
+        ordered_jobs = [tool_job]
+        if purpose == "pair":
+            qrun, qjob = next(
+                row for row in successors if row[1]["name"] == P062_JOB_NAMES["qualification"]
+            )
+            companion_run, _ = next(row for row in successors if row[1]["name"] == P062_COMPANION)
+            require(
+                qrun["head_sha"] == head and companion_run["id"] == qrun["id"],
+                "p062_same_P1_qualification_pair",
+            )
+            ordered_jobs.append(qjob)
+            companion_job = next(row[1] for row in successors if row[1]["name"] == P062_COMPANION)
+            require(
+                type(companion_job.get("completed_at")) is str
+                and type(selected.get("started_at")) is str
+                and datetime.fromisoformat(companion_job["completed_at"].replace("Z", "+00:00"))
+                < datetime.fromisoformat(selected["started_at"].replace("Z", "+00:00")),
+                "p062_companion_precedes_pair",
+            )
+        ordered_jobs.append(selected)
+        for prior, following in zip(ordered_jobs, ordered_jobs[1:]):
+            end, start = prior.get("completed_at"), following.get("started_at")
+            require(
+                type(end) is str
+                and type(start) is str
+                and re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z", end)
+                is not None
+                and re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z", start)
+                is not None
+                and datetime.fromisoformat(end.replace("Z", "+00:00"))
+                < datetime.fromisoformat(start.replace("Z", "+00:00")),
+                "p062_stage_chronology",
+            )
+    return {
+        "run_id": run_id,
+        "head": head,
+        "ref": P062_REF,
+        "workflow_id": 199904435,
+        "job": P062_JOB_NAMES[purpose],
+        "job_id": selected["id"],
+        "pr_number": 2494,
+        "producer_epoch": "xnet062",
+        "budget": 2 if purpose == "pair" else 1,
+        "actual_prior_invocations": [
+            {"run_id": r["id"], "job_id": j["id"], "job": j["name"], "head": r["head_sha"]}
+            for r, j in successors
+        ],
+    }
+
+
 def manual_hosted_admission(
-    api: GitHubRead, purpose: str, *, prefetch_predecessor: str | None = None
+    api: GitHubRead,
+    purpose: str,
+    *,
+    prefetch_predecessor: str | None = None,
+    producer_root: Path | None = None,
 ) -> dict[str, Any]:
+    if os.environ.get("GITHUB_REF") == P062_REF:
+        require(
+            producer_root is not None and prefetch_predecessor is None,
+            "p062_explicit_owner_no_retry_selector",
+        )
+        return _p062_stage_admission(api, cast(Path, producer_root), purpose)
     require(
         prefetch_predecessor is None
         or (
@@ -5655,6 +7991,20 @@ def manual_hosted_admission(
                 and not image.get("Config", {}).get("Volumes"),
                 "tool_prefetch_second_fixed_base",
             )
+            create_member = f"tool-{kind}-create.stdout"
+            require(
+                records[create_index]["stdout"] == str(work / "evidence" / create_member)
+                and records[create_index - 1]["stdout"]
+                == str(work / "evidence" / f"tool-{kind}-base.stdout"),
+                "tool_prefetch_second_identity_record_join",
+            )
+            identifier = second_files[create_member].decode("ascii").strip()
+            require(
+                re.fullmatch(r"[0-9a-f]{64}", identifier) is not None,
+                "tool_prefetch_second_create_ID",
+            )
+            expected["container_id"] = identifier
+            expected["image_relation"] = native_base_identity(image, current=False)
             environment = dict(value.split("=", 1) for value in image["Config"].get("Env", []))
             environment.update(
                 clean_environment(
@@ -6075,6 +8425,17 @@ def manual_hosted_admission(
                 and not image.get("Config", {}).get("Volumes"),
                 "tool_third_fixed_base",
             )
+            create_member = "tool-" + name + "-create.stdout"
+            require(
+                records[create_index]["stdout"] == str(work / "evidence" / create_member)
+                and records[create_index - 1]["stdout"]
+                == str(work / "evidence" / ("tool-" + name + "-base.stdout")),
+                "tool_third_identity_record_join",
+            )
+            identifier = data[create_member].decode("ascii").strip()
+            require(re.fullmatch(r"[0-9a-f]{64}", identifier) is not None, "tool_third_create_ID")
+            expected["container_id"] = identifier
+            expected["image_relation"] = native_base_identity(image, current=False)
             environment = dict(value.split("=", 1) for value in image["Config"].get("Env", []))
             environment.update(
                 clean_environment(
@@ -6205,14 +8566,7 @@ def finite_go(
             cwd=work,
         )
     )
-    require(
-        image.get("Id") == BASE_CONFIG
-        and image.get("Os") == "linux"
-        and image.get("Architecture") == "amd64"
-        and BASE in image.get("RepoDigests", [])
-        and not image.get("Config", {}).get("Volumes"),
-        "compiler_fixed_base",
-    )
+    relation = native_base_identity(image)
     environment = dict(value.split("=", 1) for value in image["Config"].get("Env", []))
     environment.update(
         clean_environment(
@@ -6222,7 +8576,8 @@ def finite_go(
     if output is not None:
         environment.update(TMPDIR="/output/tmp", GOCACHE="/output/cache")
     expected = {
-        "image": BASE_CONFIG,
+        "image": relation["engine_id"],
+        "image_relation": relation,
         "owner": owner,
         "command": command,
         "environment": environment,
@@ -6232,36 +8587,36 @@ def finite_go(
         expected["output"] = str(output)
     argv = (
         sandbox_arguments(
-            docker, config, BASE_CONFIG, name, owner, source, go, modules, output=output
+            docker, config, relation["operand"], name, owner, source, go, modules, output=output
         )
         + command
     )
     create_owned(native, argv, name, expected, owned, label, docker_env, work)
-    actual = json.loads(
+    actual = native_one_image(
         native.run(
-            [docker, "--config", str(config), "inspect", name],
+            [docker, "--config", str(config), "inspect", expected["container_id"]],
             label + "-before",
             docker_env,
             cwd=work,
         )
-    )[0]
+    )
     validate_container(actual, name, expected)
     raw = native.run(
-        [docker, "--config", str(config), "start", "--attach", name],
+        [docker, "--config", str(config), "start", "--attach", expected["container_id"]],
         label + "-native",
         docker_env,
         cwd=work,
         maximum_seconds=compile_seconds,
         watched_output=output if compile_seconds is not None else None,
     )
-    actual = json.loads(
+    actual = native_one_image(
         native.run(
-            [docker, "--config", str(config), "inspect", name],
+            [docker, "--config", str(config), "inspect", expected["container_id"]],
             label + "-terminal",
             docker_env,
             cwd=work,
         )
-    )[0]
+    )
     validate_container(actual, name, expected)
     require(
         actual["State"].get("Running") is False
@@ -6485,6 +8840,303 @@ def selection_from_graph(graph: dict[str, Any]) -> dict[str, Any]:
     return selection
 
 
+def _native_product_save(
+    path: Path, graph: dict[str, Any], image: dict[str, Any], deadline: float, maximum: int
+) -> dict[str, Any]:
+    """Only the observed product schema2 save; source layers remain opaque raw bytes."""
+    engine = _digest(image.get("Id"))
+    content = {"blobs/sha256/" + graph["config_digest"][7:]: graph["config_raw"]}
+    content.update(
+        ("blobs/sha256/" + digest[7:], raw)
+        for digest, raw in zip(graph["diff_ids"], graph["expanded_layers"], strict=True)
+    )
+    manifest_name = "blobs/sha256/" + engine[7:]
+    metadata_names = {"index.json", "manifest.json", "oci-layout", manifest_name}
+    directories = {"blobs", "blobs/sha256"}
+    expected_names = set(content) | metadata_names | directories
+    require(len(expected_names) == len(graph["diff_ids"]) + 7, "product_save_unique_graph")
+    before_hash = file_hash(path, deadline, maximum_bytes=maximum)
+    before = path.lstat()
+    require(
+        0 < before.st_size <= maximum and before.st_uid == os.getuid(), "product_save_file_size"
+    )
+    metadata: dict[str, bytes] = {}
+    seen: set[str] = set()
+    offset = 0
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(descriptor, "rb") as stream:
+        current = os.fstat(stream.fileno())
+        require(
+            stat.S_ISREG(current.st_mode)
+            and current.st_nlink == 1
+            and (current.st_dev, current.st_ino, current.st_size)
+            == (before.st_dev, before.st_ino, before.st_size),
+            "product_save_file_identity",
+        )
+        with tarfile.open(fileobj=stream, mode="r:") as archive:
+            for member in archive:
+                check_deadline(deadline)
+                name = member.name
+                require(name in expected_names and name not in seen, "product_save_inventory")
+                require(
+                    member.offset == offset
+                    and member.offset_data == offset + 512
+                    and not member.pax_headers
+                    and not archive.pax_headers
+                    and member.sparse is None
+                    and not member.linkname
+                    and member.uid == member.gid == member.mtime == 0
+                    and member.uname == member.gname == "",
+                    "product_save_header",
+                )
+                stream.seek(member.offset)
+                header = stream.read(512)
+                literal_name = name + "/" if name in directories else name
+                require(
+                    header[:100] == literal_name.encode("ascii").ljust(100, b"\0")
+                    and header[345:500] == bytes(155),
+                    "product_save_literal_path",
+                )
+                seen.add(name)
+                if name in directories:
+                    require(
+                        member.type == tarfile.DIRTYPE
+                        and member.size == 0
+                        and member.mode == 0o755,
+                        "product_save_directory",
+                    )
+                else:
+                    mode = 0o644 if name in {"index.json", "manifest.json"} else 0o444
+                    require(
+                        member.type == tarfile.REGTYPE and member.mode == mode,
+                        "product_save_regular",
+                    )
+                    source = archive.extractfile(member)
+                    require(source is not None, "product_save_member")
+                    source = cast(BinaryIO, source)
+                    if name in content:
+                        expected = memoryview(content[name])
+                        require(member.size == len(expected), "product_save_content_size")
+                        digest, position = hashlib.sha256(), 0
+                        while position < len(expected):
+                            check_deadline(deadline)
+                            chunk = source.read(min(1024**2, len(expected) - position))
+                            require(
+                                bool(chunk) and chunk == expected[position : position + len(chunk)],
+                                "product_save_content_bytes",
+                            )
+                            digest.update(chunk)
+                            position += len(chunk)
+                        require(
+                            source.read(1) == b"" and digest.hexdigest() == name.rsplit("/", 1)[1],
+                            "product_save_content_digest",
+                        )
+                    else:
+                        require(0 < member.size <= MAX_NATIVE_OUTPUT, "product_save_metadata_bound")
+                        metadata[name] = source.read(member.size + 1)
+                        require(len(metadata[name]) == member.size, "product_save_metadata_size")
+                offset = member.offset_data + ((member.size + 511) // 512) * 512
+                require(offset <= before.st_size, "product_save_member_bound")
+            require(seen == expected_names, "product_save_inventory")
+            stream.seek(offset)
+            tail = stream.read(10241)
+            require(
+                1024 <= len(tail) <= 10240
+                and len(tail) % 512 == 0
+                and not any(tail)
+                and stream.read(1) == b"",
+                "product_save_trailer",
+            )
+    raw = metadata[manifest_name]
+    require("sha256:" + sha(raw) == engine, "product_save_manifest_digest")
+    native_manifest = one_object(raw)
+    expected_manifest = {
+        "schemaVersion": 2,
+        "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
+        "config": {
+            "mediaType": "application/vnd.docker.container.image.v1+json",
+            "digest": graph["config_digest"],
+            "size": len(graph["config_raw"]),
+        },
+        "layers": [
+            {
+                "mediaType": "application/vnd.docker.image.rootfs.diff.tar",
+                "digest": digest,
+                "size": len(layer),
+            }
+            for digest, layer in zip(graph["diff_ids"], graph["expanded_layers"], strict=True)
+        ],
+    }
+    exact_data(native_manifest, expected_manifest)
+    export_descriptor = {
+        "mediaType": expected_manifest["mediaType"],
+        "digest": engine,
+        "size": len(raw),
+    }
+    # Save by immutable ID is untagged; live tagged custody is a separate relation.
+    tagged_descriptor = {
+        **export_descriptor,
+        "annotations": {
+            "io.containerd.image.name": "docker.io/library/pulseplate-prometheus:candidate",
+            "org.opencontainers.image.ref.name": "candidate",
+        },
+    }
+    exact_data(image.get("Descriptor"), tagged_descriptor)
+    exact_data(
+        one_object(metadata["index.json"]),
+        {
+            "schemaVersion": 2,
+            "mediaType": "application/vnd.oci.image.index.v1+json",
+            "manifests": [export_descriptor],
+        },
+    )
+    exact_data(one_object(metadata["oci-layout"]), {"imageLayoutVersion": "1.0.0"})
+    compatibility = json.loads(
+        metadata["manifest.json"], object_pairs_hook=unique_object, parse_constant=reject_constant
+    )
+    exact_data(
+        compatibility,
+        [
+            {
+                "Config": "blobs/sha256/" + graph["config_digest"][7:],
+                "RepoTags": None,
+                "Layers": ["blobs/sha256/" + digest[7:] for digest in graph["diff_ids"]],
+            }
+        ],
+    )
+    require(
+        all(
+            getattr(path.lstat(), field) == getattr(before, field)
+            for field in (
+                "st_dev",
+                "st_ino",
+                "st_mode",
+                "st_nlink",
+                "st_size",
+                "st_mtime_ns",
+                "st_ctime_ns",
+            )
+        )
+        and file_hash(path, deadline, maximum_bytes=maximum) == before_hash,
+        "product_save_changed",
+    )
+    return tagged_descriptor
+
+
+def _native_product_container(actual: dict[str, Any], expected: dict[str, Any], stage: str) -> None:
+    """Product-only custody; never broaden the compiler/BASE/Go profiles."""
+    identifier = expected.get("container_id")
+    require(
+        type(identifier) is str
+        and re.fullmatch(r"[0-9a-f]{64}", identifier) is not None
+        and actual.get("Id") == identifier
+        and actual.get("Name") == "/" + expected["name"]
+        and actual.get("Image") == expected["image"],
+        "product_container_identity",
+    )
+    config, host, state = actual.get("Config"), actual.get("HostConfig"), actual.get("State")
+    require(
+        type(config) is dict and type(host) is dict and type(state) is dict,
+        "product_container_objects",
+    )
+    config, host, state = cast(dict, config), cast(dict, host), cast(dict, state)
+    exact_data({key: config.get(key) for key in expected["config"]}, expected["config"])
+    require(
+        config.get("Image") == expected["image"]
+        and config.get("Volumes") in (None, {})
+        and actual.get("Mounts") == [],
+        "product_container_operand_mounts",
+    )
+    exact_data(actual.get("Path"), expected["config"]["Entrypoint"][0])
+    exact_data(actual.get("Args"), expected["config"]["Cmd"])
+    if expected["descriptor"] is None:
+        require("ImageManifestDescriptor" not in actual, "product_classic_container_descriptor")
+    else:
+        exact_data(
+            actual.get("ImageManifestDescriptor"),
+            {
+                **expected["descriptor"],
+                "platform": {"architecture": "amd64", "os": "linux"},
+            },
+        )
+    exact_data(
+        {
+            key: host.get(key)
+            for key in (
+                "NetworkMode",
+                "ReadonlyRootfs",
+                "Privileged",
+                "NanoCpus",
+                "Memory",
+                "PidsLimit",
+                "CapDrop",
+                "AutoRemove",
+                "RestartPolicy",
+            )
+        },
+        {
+            "NetworkMode": "none",
+            "ReadonlyRootfs": True,
+            "Privileged": False,
+            "NanoCpus": 2000000000,
+            "Memory": 4294967296,
+            "PidsLimit": 128,
+            "CapDrop": ["ALL"],
+            "AutoRemove": False,
+            "RestartPolicy": {"Name": "no", "MaximumRetryCount": 0},
+        },
+    )
+    require(
+        host.get("CapAdd") in (None, [])
+        and host.get("SecurityOpt") in (["no-new-privileges"], ["no-new-privileges:true"])
+        and host.get("Binds") in (None, [])
+        and host.get("VolumesFrom") in (None, [])
+        and host.get("Tmpfs") in (None, {})
+        and host.get("Devices") == []
+        and host.get("DeviceRequests") in (None, [])
+        and host.get("PidMode") == host.get("UTSMode") == ""
+        and host.get("IpcMode") == "private",
+        "product_container_isolation",
+    )
+    require(
+        type(state.get("Running")) is bool
+        and state.get("Paused") is False
+        and state.get("Restarting") is False
+        and state.get("Dead") is False
+        and type(state.get("ExitCode")) is int
+        and type(state.get("Pid")) is int,
+        "product_container_state",
+    )
+    if stage == "created" or expected["role"] == "copy":
+        require(
+            state.get("Status") == "created"
+            and state["Running"] is False
+            and state.get("Pid") == 0
+            and state["ExitCode"] == 0
+            and state.get("OOMKilled") is False
+            and state.get("Error") == ""
+            and state.get("StartedAt") == "0001-01-01T00:00:00Z",
+            "product_container_unstarted",
+        )
+    elif stage == "terminal":
+        require(
+            state.get("Status") == "exited"
+            and state["Running"] is False
+            and state.get("Pid") == 0
+            and state["ExitCode"] == 0
+            and state.get("OOMKilled") is False
+            and state.get("Error") == "",
+            "product_container_completion",
+        )
+    else:
+        require(
+            stage == "cleanup"
+            and state.get("Status") in ("created", "exited", "running")
+            and state["Running"] is (state["Status"] == "running"),
+            "product_container_cleanup_state",
+        )
+
+
 def native_import(
     native: Native,
     work: Path,
@@ -6497,57 +9149,129 @@ def native_import(
     synthetic: bool,
 ) -> dict[str, Any]:
     validate_docker_archive(archive, graph)
-    inventory = native.run(
-        [docker, "--config", str(config), "image", "ls", "--format", "{{.Repository}}:{{.Tag}}"],
-        "import-inventory",
-        env,
-        cwd=work,
-    )
-    require(
-        b"pulseplate-prometheus:candidate" not in inventory.splitlines(),
-        "native_import_tag_collision",
-    )
-    native.run(
-        [docker, "--config", str(config), "load", "--input", str(archive)],
-        "import-load",
-        env,
-        cwd=work,
-    )
-    image = one_object(
-        native.run(
-            [
-                docker,
-                "--config",
-                str(config),
-                "image",
-                "inspect",
-                "--format",
-                "{{json .}}",
-                "pulseplate-prometheus:candidate",
-            ],
-            "import-image",
-            env,
-            cwd=work,
+    prefix = [docker, "--config", str(config)]
+    tag = "pulseplate-prometheus:candidate"
+
+    def run(args: list[str], label: str, *, cleaning: bool = False) -> bytes:
+        return native.run(prefix + args, label, env, cwd=work, cleaning=cleaning)
+
+    def inventory(kind: str, label: str, *, cleaning: bool = False) -> list[tuple[str, str]]:
+        args = (
+            ["image", "ls", "--all", "--no-trunc", "--format", "{{.ID}}\t{{.Repository}}:{{.Tag}}"]
+            if kind == "image"
+            else ["ps", "--all", "--no-trunc", "--format", "{{.ID}}\t{{.Names}}"]
         )
-    )
-    require(
-        image.get("Id") == graph["config_digest"]
-        and (image.get("Os"), image.get("Architecture")) == ("linux", "amd64")
-        and image.get("RootFS", {}).get("Layers") == graph["diff_ids"]
-        and image.get("Config", {}).get("User") == "65532:65532"
-        and image["Config"].get("Entrypoint") == ["/bin/prometheus"]
-        and image["Config"].get("Volumes") in (None, {}),
-        "native_import_identity",
-    )
-    name, owner = "pp-prom-format-" + uuid.uuid4().hex[:16], uuid.uuid4().hex
-    created = False
-    captures = {}
+        raw = run(args, label, cleaning=cleaning)
+        require(not raw or raw.endswith(b"\n"), "product_inventory_terminal")
+        pattern = (
+            r"sha256:[0-9a-f]{64}\t[!-~]+:[!-~]+"
+            if kind == "image"
+            else r"[0-9a-f]{64}\t[A-Za-z0-9][A-Za-z0-9_.-]*"
+        )
+        lines = raw.decode("ascii").splitlines()
+        require(
+            len(lines) <= 250000
+            and all(re.fullmatch(pattern, row) for row in lines)
+            and len(lines) == len(set(lines)),
+            "product_inventory_rows",
+        )
+        rows = [(row.split("\t", 1)[0], row.split("\t", 1)[1]) for row in lines]
+        # Docker's exact Tag=<none> sentinel may repeat under a named repository.
+        # Keep every row/ID; only real mutable tags participate in name uniqueness.
+        names = [name for _, name in rows if kind != "image" or name.rsplit(":", 1)[1] != "<none>"]
+        require(len(names) == len(set(names)), "product_inventory_ambiguous_names")
+        if kind == "container":
+            require(
+                len(rows) == len({identifier for identifier, _ in rows}),
+                "product_inventory_ambiguous_ids",
+            )
+        return rows
+
+    before = inventory("image", "import-inventory")
+    preexisting_ids = {row[0] for row in before}
+    require(all(row[1] != tag for row in before), "native_import_tag_collision")
+    owned: dict[str, dict[str, Any]] = {}
+    engine: str | None = None
+    admitted = False
+    primary: BaseException | None = None
+    captures: dict[str, Any] = {}
+    removals: list[dict[str, Any]] = []
+    load_attempted = False
     try:
-        native.run(
-            [
-                docker,
-                "--config",
-                str(config),
+        load_attempted = True
+        run(["load", "--input", str(archive)], "import-load")
+        image = one_object(run(["image", "inspect", "--format", "{{json .}}", tag], "import-image"))
+        engine = _digest(image.get("Id"))
+        require(engine not in preexisting_ids, "product_preexisting_image_HOLD")
+        require(
+            (image.get("Os"), image.get("Architecture")) == ("linux", "amd64"),
+            "native_import_identity",
+        )
+        exact_data(image.get("RootFS"), {"Type": "layers", "Layers": graph["diff_ids"]})
+        image_config = one_object(graph["config_raw"])["config"]
+        actual_config = image.get("Config")
+        require(
+            type(actual_config) is dict
+            and actual_config.get("Volumes") in (None, {})
+            and actual_config.get("OnBuild") in (None, []),
+            "native_import_config",
+        )
+        actual_config = cast(dict[str, Any], actual_config)
+        exact_data({key: actual_config.get(key) for key in image_config}, image_config)
+        exact_data(image.get("RepoTags"), [tag])
+        saved_descriptor = None
+        if engine == graph["config_digest"]:
+            require(
+                "Descriptor" not in image and image.get("RepoDigests") in (None, []),
+                "product_classic_descriptor",
+            )
+        else:
+            exact_data(image.get("RepoDigests"), ["pulseplate-prometheus@" + engine])
+            save_directory = native.evidence / "import-save"
+            fresh_directory(save_directory)
+            saved = save_directory / "native.tar"
+            maximum = (
+                sum(
+                    ((len(raw) + 511) // 512) * 512
+                    for raw in [graph["config_raw"], *graph["expanded_layers"]]
+                )
+                + 4 * MAX_NATIVE_OUTPUT
+                + (len(graph["diff_ids"]) + 7) * 512
+                + 10240
+            )
+            require(maximum <= MAX_COMPILE_OUTPUT_BYTES, "product_save_derived_bound")
+            require(
+                shutil.disk_usage(save_directory).free >= maximum + 512 * 1024**2,
+                "product_save_free_space_HOLD",
+            )
+            native.run(
+                prefix + ["image", "save", "--output", str(saved), engine],
+                "import-save",
+                env,
+                cwd=work,
+                watched_output=save_directory,
+            )
+            require(set(save_directory.iterdir()) == {saved}, "product_save_output_inventory")
+            saved_descriptor = _native_product_save(saved, graph, image, native.deadline, maximum)
+        admitted = True
+        for role in (("copy",) if synthetic else ("copy", "prometheus", "promtool")):
+            name = "pp-prom-format-" + uuid.uuid4().hex
+            owner = uuid.uuid4().hex
+            prior_containers = inventory("container", "import-" + role + "-before-create")
+            require(all(row[1] != name for row in prior_containers), "product_container_collision")
+            expected_config = copy.deepcopy(image_config)
+            expected_config["Labels"] = {**image_config.get("Labels", {}), LABEL: owner}
+            if role != "copy":
+                expected_config.update(Entrypoint=["/bin/" + role], Cmd=["--version"])
+            expected = {
+                "name": name,
+                "role": role,
+                "image": engine,
+                "descriptor": saved_descriptor,
+                "config": expected_config,
+                "prior_ids": [row[0] for row in prior_containers],
+            }
+            argv = prefix + [
                 "create",
                 "--pull",
                 "never",
@@ -6564,111 +9288,129 @@ def native_import(
                 "ALL",
                 "--security-opt",
                 "no-new-privileges",
-                graph["config_digest"],
-            ],
-            "import-create",
-            env,
-            cwd=work,
-        )
-        created = True
-        for index, path in enumerate(
-            (
-                "/usr/bin/prometheus",
-                "/bin/prometheus",
-                "/usr/bin/promtool",
-                "/bin/promtool",
-                "/etc/prometheus/prometheus.yml",
-                "/LICENSE",
-                "/NOTICE",
-            )
-        ):
-            raw = native.run(
-                [docker, "--config", str(config), "cp", name + ":" + path, "-"],
-                "import-copy-" + str(index),
-                env,
-                cwd=work,
-                output_bound=257 * 1024**2,
-            )
-            with tarfile.open(fileobj=io.BytesIO(raw), mode="r:") as stream:
-                members = stream.getmembers()
-                require(
-                    len(members) == 1 and members[0].isreg() and members[0].linkname == "",
-                    "native_copy_one_regular_file",
+                "--cpus",
+                "2",
+                "--memory",
+                "4g",
+                "--pids-limit",
+                "128",
+            ]
+            if role != "copy":
+                argv += ["--entrypoint", "/bin/" + role]
+            argv += [engine] + ([] if role == "copy" else ["--version"])
+            create_owned(native, argv, name, expected, owned, "import-" + role, env, work)
+            identifier = expected["container_id"]
+            require(identifier not in expected["prior_ids"], "product_preexisting_container_HOLD")
+            actual = one_object(
+                run(
+                    ["inspect", "--format", "{{json .}}", identifier],
+                    "import-" + role + "-prestart",
                 )
-                member = members[0]
-                filename = PurePosixPath(path).name
-                expected = graph["files"][filename]
-                source = stream.extractfile(member)
-                require(
-                    source is not None
-                    and member.name == filename
-                    and member.uid == member.gid == 0
-                    and member.mode == (0o755 if filename in ("prometheus", "promtool") else 0o644)
-                    and member.size == len(expected)
-                    and source.read() == expected,
-                    "native_copy_physical_alias_bytes_modes",
+            )
+            _native_product_container(actual, expected, "created")
+            if role == "copy":
+                for index, path in enumerate(
+                    (
+                        "/usr/bin/prometheus",
+                        "/bin/prometheus",
+                        "/usr/bin/promtool",
+                        "/bin/promtool",
+                        "/etc/prometheus/prometheus.yml",
+                        "/LICENSE",
+                        "/NOTICE",
+                    )
+                ):
+                    _native_product_container(
+                        one_object(
+                            run(
+                                ["inspect", "--format", "{{json .}}", identifier],
+                                "import-copy-before-" + str(index),
+                            )
+                        ),
+                        expected,
+                        "created",
+                    )
+                    raw = native.run(
+                        [docker, "--config", str(config), "cp", identifier + ":" + path, "-"],
+                        "import-copy-" + str(index),
+                        env,
+                        cwd=work,
+                        output_bound=257 * 1024**2,
+                    )
+                    with tarfile.open(fileobj=io.BytesIO(raw), mode="r:") as stream:
+                        members = stream.getmembers()
+                        require(
+                            len(members) == 1 and members[0].isreg() and members[0].linkname == "",
+                            "native_copy_one_regular_file",
+                        )
+                        member = members[0]
+                        filename = PurePosixPath(path).name
+                        expected_bytes = graph["files"][filename]
+                        source = stream.extractfile(member)
+                        require(
+                            source is not None
+                            and member.name == filename
+                            and member.uid == member.gid == 0
+                            and member.mode
+                            == (0o755 if filename in ("prometheus", "promtool") else 0o644)
+                            and member.size == len(expected_bytes)
+                            and source.read() == expected_bytes,
+                            "native_copy_physical_alias_bytes_modes",
+                        )
+                        captures[path] = {
+                            "tar_sha256": sha(raw),
+                            "file_sha256": sha(expected_bytes),
+                            "header": {
+                                "name": member.name,
+                                "mode": member.mode,
+                                "uid": member.uid,
+                                "gid": member.gid,
+                                "size": member.size,
+                            },
+                        }
+                    # Preserve complete native tar bytes losslessly without retaining several
+                    # uncompressed copies of the same large binaries in the Actions archive.
+                    original = native.evidence / ("import-copy-" + str(index) + ".stdout")
+                    compressed = original.with_suffix(original.suffix + ".gz")
+                    with (
+                        compressed.open("xb") as target,
+                        gzip.GzipFile(
+                            filename="", fileobj=target, mode="wb", mtime=0, compresslevel=6
+                        ) as gzip_output,
+                    ):
+                        gzip_output.write(raw)
+                    require(
+                        _gunzip(compressed.read_bytes(), 257 * 1024**2) == raw,
+                        "native_copy_lossless_retention",
+                    )
+                    native.records[-1].update(
+                        stdout=str(compressed),
+                        stdout_encoding="gzip",
+                        stdout_stored_sha256=file_hash(compressed),
+                    )
+                    captures[path]["retained_tar_gzip_sha256"] = file_hash(compressed)
+                    original.unlink()
+                _native_product_container(
+                    one_object(
+                        run(
+                            ["inspect", "--format", "{{json .}}", identifier],
+                            "import-copy-terminal",
+                        )
+                    ),
+                    expected,
+                    "created",
                 )
-                captures[path] = {
-                    "tar_sha256": sha(raw),
-                    "file_sha256": sha(expected),
-                    "header": {
-                        "name": member.name,
-                        "mode": member.mode,
-                        "uid": member.uid,
-                        "gid": member.gid,
-                        "size": member.size,
-                    },
-                }
-            # Preserve complete native tar bytes losslessly without retaining several
-            # uncompressed copies of the same large binaries in the Actions archive.
-            original = native.evidence / ("import-copy-" + str(index) + ".stdout")
-            compressed = original.with_suffix(original.suffix + ".gz")
-            with (
-                compressed.open("xb") as target,
-                gzip.GzipFile(
-                    filename="", fileobj=target, mode="wb", mtime=0, compresslevel=6
-                ) as gzip_output,
-            ):
-                gzip_output.write(raw)
-            require(
-                _gunzip(compressed.read_bytes(), 257 * 1024**2) == raw,
-                "native_copy_lossless_retention",
-            )
-            native.records[-1].update(
-                stdout=str(compressed),
-                stdout_encoding="gzip",
-                stdout_stored_sha256=file_hash(compressed),
-            )
-            captures[path]["retained_tar_gzip_sha256"] = file_hash(compressed)
-            original.unlink()
-        if not synthetic:
-            for binary in ("prometheus", "promtool"):
-                output = native.run(
-                    [
-                        docker,
-                        "--config",
-                        str(config),
-                        "run",
-                        "--rm",
-                        "--pull",
-                        "never",
-                        "--network",
-                        "none",
-                        "--read-only",
-                        "--cap-drop",
-                        "ALL",
-                        "--security-opt",
-                        "no-new-privileges",
-                        "--user",
-                        "65532:65532",
-                        "--entrypoint",
-                        "/bin/" + binary,
-                        graph["config_digest"],
-                        "--version",
-                    ],
-                    "import-" + binary + "-version",
-                    env,
-                    cwd=work,
+            else:
+                output = run(["start", "--attach", identifier], "import-" + role + "-version")
+                _native_product_container(
+                    one_object(
+                        run(
+                            ["inspect", "--format", "{{json .}}", identifier],
+                            "import-" + role + "-terminal",
+                        )
+                    ),
+                    expected,
+                    "terminal",
                 )
                 require(
                     re.search(rb"\bversion 3\.15\.0\b", output) is not None
@@ -6676,99 +9418,127 @@ def native_import(
                     and re.search(rb"\bgo1\.27\.3\b", output) is not None,
                     "native_candidate_version_revision_compiler",
                 )
-        return {
-            "status": (
-                "observed_synthetic_format_only" if synthetic else "observed_real_native_import"
-            ),
-            "image_config_id": image["Id"],
-            "diff_ids": image["RootFS"]["Layers"],
-            "copies": captures,
-            "synthetic_executed": False,
-        }
+    except BaseException as error:
+        primary = error
+        raise
     finally:
-        cleaning = sys.exc_info()[0] is not None or time.monotonic() >= native.deadline
-        if cleaning and native.cleanup_deadline is None:
-            native.begin_cleanup()
-        if created:
-            actual = one_object(
-                native.run(
-                    [docker, "--config", str(config), "inspect", "--format", "{{json .}}", name],
-                    "import-owned-before-remove",
-                    env,
-                    cwd=work,
-                    cleaning=cleaning,
-                )
-            )
-            require(
-                actual["Image"] == graph["config_digest"]
-                and actual["Config"]["Labels"].get(LABEL) == owner
-                and actual["State"]["Running"] is False
-                and actual.get("Mounts") == [],
-                "native_format_owned_container",
-            )
-            native.run(
-                [docker, "--config", str(config), "rm", name],
-                "import-remove",
-                env,
-                cwd=work,
-                cleaning=cleaning,
-            )
-            remaining = native.run(
-                [docker, "--config", str(config), "ps", "--all", "--format", "{{.Names}}"],
-                "import-container-absence",
-                env,
-                cwd=work,
-                cleaning=cleaning,
-            )
-            require(name.encode() not in remaining.splitlines(), "native_format_container_survives")
-        actual_image = one_object(
-            native.run(
-                [
-                    docker,
-                    "--config",
-                    str(config),
-                    "image",
-                    "inspect",
-                    "--format",
-                    "{{json .}}",
-                    graph["config_digest"],
-                ],
-                "import-image-before-remove",
-                env,
-                cwd=work,
-                cleaning=cleaning,
-            )
-        )
-        require(
-            actual_image.get("RepoTags") == ["pulseplate-prometheus:candidate"],
-            "native_import_owned_tag",
-        )
-        native.run(
-            [docker, "--config", str(config), "image", "rm", graph["config_digest"]],
-            "import-image-remove",
-            env,
-            cwd=work,
-            cleaning=cleaning,
-        )
-        remaining = native.run(
-            [
-                docker,
-                "--config",
-                str(config),
-                "image",
-                "ls",
-                "--format",
-                "{{.Repository}}:{{.Tag}}",
-            ],
-            "import-image-absence",
-            env,
-            cwd=work,
-            cleaning=cleaning,
-        )
-        require(
-            b"pulseplate-prometheus:candidate" not in remaining.splitlines(),
-            "native_format_image_survives",
-        )
+        try:
+            if native.cleanup_deadline is None:
+                native.begin_cleanup()
+            for name, expected in owned.items():
+                try:
+                    rows = inventory("container", name + "-cleanup-inventory", cleaning=True)
+                    identifier = expected.get("container_id")
+                    require(
+                        identifier is not None and identifier not in expected["prior_ids"],
+                        "product_missing_created_ID_HOLD",
+                    )
+                    identifier = cast(str, identifier)
+                    if (identifier, name) not in rows:
+                        require(
+                            all(row[0] != identifier and row[1] != name for row in rows),
+                            "product_container_replaced_HOLD",
+                        )
+                    else:
+                        actual = one_object(
+                            run(
+                                ["inspect", "--format", "{{json .}}", identifier],
+                                name + "-cleanup-inspect",
+                                cleaning=True,
+                            )
+                        )
+                        _native_product_container(actual, expected, "cleanup")
+                        run(
+                            [
+                                "rm",
+                                *(["--force"] if actual["State"]["Running"] else []),
+                                identifier,
+                            ],
+                            name + "-cleanup-remove",
+                            cleaning=True,
+                        )
+                        rows = inventory("container", name + "-cleanup-absence", cleaning=True)
+                        require(
+                            all(row[0] != identifier and row[1] != name for row in rows),
+                            "product_container_survives",
+                        )
+                    removals.append({"name": name, "container_id": identifier, "absent": True})
+                except BaseException as error:
+                    removals.append(
+                        {
+                            "name": name,
+                            "failure": type(error).__name__,
+                            "code": diagnostic_code(error),
+                        }
+                    )
+            if load_attempted:
+                rows = inventory("image", "import-image-cleanup-inventory", cleaning=True)
+                selected = [row for row in rows if row[1] == tag or row[0] == engine]
+                if selected:
+                    require(
+                        admitted
+                        and engine is not None
+                        and engine not in preexisting_ids
+                        and not any("failure" in row for row in removals)
+                        and selected == [(engine, tag)],
+                        "product_image_cleanup_ownership_HOLD",
+                    )
+                    engine = cast(str, engine)
+                    actual_image = one_object(
+                        run(
+                            ["image", "inspect", "--format", "{{json .}}", engine],
+                            "import-image-before-remove",
+                            cleaning=True,
+                        )
+                    )
+                    for field in (
+                        "Id",
+                        "RepoTags",
+                        "RepoDigests",
+                        "Os",
+                        "Architecture",
+                        "RootFS",
+                        "Config",
+                        "Descriptor",
+                    ):
+                        exact_data(actual_image.get(field), image.get(field))
+                    run(["image", "rm", engine], "import-image-remove", cleaning=True)
+                    rows = inventory("image", "import-image-absence", cleaning=True)
+                    require(
+                        all(row[0] != engine and row[1] != tag for row in rows),
+                        "native_format_image_survives",
+                    )
+                if engine is None:
+                    require(
+                        {row[0] for row in rows} <= preexisting_ids,
+                        "product_unbound_load_effect_HOLD",
+                    )
+                    removals.append({"image": None, "tag_absent": True, "no_new_image_ids": True})
+                else:
+                    removals.append({"image": engine, "absent": True})
+        except BaseException as error:
+            removals.append({"failure": type(error).__name__, "code": diagnostic_code(error)})
+        try:
+            with (native.evidence / "import-cleanup.json").open("xb") as output_file:
+                output_file.write(canonical_data(removals))
+        except BaseException as error:
+            removals.append({"failure": type(error).__name__, "code": diagnostic_code(error)})
+        if primary is not None:
+            # The received work error stays primary; cleanup diagnostics are independent.
+            try:
+                setattr(primary, "native_import_cleanup", removals)
+            except BaseException as diagnostic_error:
+                # Optional attachment cannot replace the received work failure.
+                removals.append({"diagnostic_failure": type(diagnostic_error).__name__})
+        else:
+            require(not any("failure" in row for row in removals), "product_import_cleanup_failed")
+    return {
+        "status": "observed_synthetic_format_only" if synthetic else "observed_real_native_import",
+        "image_config_id": graph["config_digest"],
+        "diff_ids": graph["diff_ids"],
+        "copies": captures,
+        "synthetic_executed": False,
+    }
 
 
 def tool_scan_inventory(raw: bytes, subject: str) -> dict[str, Any]:
@@ -6968,9 +9738,12 @@ def qualify_tool(
     native = Native(evidence, time.monotonic() + seconds, cleanup)
     api = GitHubRead(work / "GitHub-private", evidence, native.deadline, cleanup)
     try:
-        admission = manual_hosted_admission(api, "tool", prefetch_predecessor=prefetch_predecessor)
+        admission = manual_hosted_admission(
+            api, "tool", prefetch_predecessor=prefetch_predecessor, producer_root=root
+        )
         require(
-            admission.get("ref") == "refs/heads/codex/python-setup-security-stabilization",
+            admission.get("ref") == "refs/heads/codex/python-setup-security-stabilization"
+            or admission.get("producer_epoch") == "xnet062",
             "current_tool_requires_stabilization_admission",
         )
         authenticate_producer_inputs(api, root, admission["head"], tool=True)
@@ -7339,19 +10112,36 @@ def build_pair(work: Path, root: Path, seconds: int, cleanup: int) -> dict[str, 
     require(manifest["phase"] == "source_prepared", "pair_preparation_phase_only")
     api = GitHubRead(work / "GitHub-private", evidence, preparatory.deadline, cleanup)
     try:
-        admission = manual_hosted_admission(api, "pair")
+        admission = manual_hosted_admission(api, "pair", producer_root=root)
         require(
-            admission.get("ref") == "refs/heads/codex/python-setup-security-stabilization",
+            admission.get("ref") == "refs/heads/codex/python-setup-security-stabilization"
+            or admission.get("producer_epoch") == "xnet062",
             "current_pair_requires_stabilization_admission",
         )
         authenticate_producer_inputs(api, root, admission["head"])
         tool, tool_record = retained_tool(api, root, work)
         qualification = work / "xnet-qualified-input.zip"
         qualified = _current_qualification_artifact(api, root, admission, qualification)
+        current_epoch = admission.get("producer_epoch") == "xnet062"
+        qroot = None
+        if current_epoch:
+            # Both hosted jobs use the same explicit runner layout; report argv/cwd
+            # never chooses the expected mount/source roots.
+            runner_temp = Path(os.environ.get("RUNNER_TEMP", ""))
+            require(
+                runner_temp == Path("/home/runner/work/_temp")
+                and work.parent == runner_temp
+                and root == Path("/home/runner/work/PulsePlate/PulsePlate"),
+                "p062_Q_hosted_layout_HOLD",
+            )
+            qroot = runner_temp / f'prometheus-source-{qualified["run"]["id"]}-1'
         derived = qualification_locks(
             qualification,
             producer_root=root,
             artifact_digest=qualified["artifact"]["digest"],
+            qualified=qualified if current_epoch else None,
+            qualification_root=qroot,
+            vendor_base=tool_record["base"] if current_epoch else None,
         )
     finally:
         api.close()
@@ -7432,7 +10222,7 @@ def build_pair(work: Path, root: Path, seconds: int, cleanup: int) -> dict[str, 
                 "pair_authentic_source_licenses",
             )
             modules, module_record = prefetch_modules(
-                native, lane, source, go, label, DERIVED_LOCKS
+                native, lane, source, go, label, manifest["inputs"]["source"]["derived_locks"]
             )
             source_inventory, module_inventory = tree_inventory(source), tree_inventory(modules)
             observations, graph_hashes = {}, {}
@@ -7529,7 +10319,10 @@ def build_pair(work: Path, root: Path, seconds: int, cleanup: int) -> dict[str, 
             require(
                 tree_inventory(source) == source_inventory
                 and tree_inventory(modules) == module_inventory
-                and all(file_hash(source / name) == value for name, value in DERIVED_LOCKS.items()),
+                and all(
+                    file_hash(source / name) == value
+                    for name, value in manifest["inputs"]["source"]["derived_locks"].items()
+                ),
                 "pair_readonly_compilation_inputs",
             )
             files = {name: (output / name).read_bytes() for name in ("prometheus", "promtool")}
@@ -8648,7 +11441,9 @@ def main() -> int:
     )
     parser.add_argument("--manifest", type=Path)
     parser.add_argument("--field", choices=("runtime_ref", "selection"), default="selection")
-    parser.add_argument("--derive-xnet060", action="store_true")
+    derivation = parser.add_mutually_exclusive_group()
+    derivation.add_argument("--derive-xnet060", action="store_true")
+    derivation.add_argument("--derive-xnet062", action="store_true")
     parser.add_argument("--work-dir", type=Path)
     parser.add_argument("--timeout-seconds", type=int)
     parser.add_argument("--cleanup-seconds", type=int)
@@ -8661,7 +11456,10 @@ def main() -> int:
     root = Path(__file__).resolve(strict=True).parents[2]
     manifest_path = args.manifest if args.manifest is not None else root / MANIFEST_PATH
     if args.operation != "metadata" and (
-        args.derive_xnet060 or args.qualify_existing_ghcr_package or args.public_output is not None
+        args.derive_xnet060
+        or args.derive_xnet062
+        or args.qualify_existing_ghcr_package
+        or args.public_output is not None
     ):
         parser.error("Native producer/consumer operations cannot combine with metadata selectors")
     if args.operation not in ("read-manifest", "inspect-image") and (
@@ -8670,7 +11468,7 @@ def main() -> int:
         parser.error(
             "An owned work directory, operation deadline and cleanup deadline are required"
         )
-    if args.derive_xnet060 and (
+    if (args.derive_xnet060 or args.derive_xnet062) and (
         args.qualify_existing_ghcr_package or args.public_output is not None
     ):
         parser.error("Module derivation cannot combine with GHCR/public output")
@@ -8714,7 +11512,11 @@ def main() -> int:
                 args.work_dir, args.public_output, args.timeout_seconds, args.cleanup_seconds
             )
         elif args.operation == "metadata":
-            if args.derive_xnet060:
+            if args.derive_xnet062:
+                qualify(
+                    args.work_dir, args.timeout_seconds, args.cleanup_seconds, derive_xnet062=True
+                )
+            elif args.derive_xnet060:
                 qualify(
                     args.work_dir, args.timeout_seconds, args.cleanup_seconds, derive_xnet060=True
                 )

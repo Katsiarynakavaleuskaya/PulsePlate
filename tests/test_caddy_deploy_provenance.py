@@ -183,6 +183,17 @@ EXPECTED_CADDY_BUILDER_STAGE = (
     "    go get github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.9; \\\n"
     "    go mod download all; \\\n"
     "    go mod verify; \\\n"
+    "    echo '40a8c29bde80ddaaf323030a9631453d905b1deafc4eb909c0b2b1c43bd2965d  go.mod' | sha256sum -c -; \\\n"
+    "    echo 'bc1def232f1f0a8d205b39c38fa9b0159d481c05f90933bc975659ec0c0317c8  go.sum' | sha256sum -c -; \\\n"
+    "    go get golang.org/x/net@v0.62.0; \\\n"
+    "    cp go.mod /tmp/caddy-xnet062-postget.mod; \\\n"
+    "    cp go.sum /tmp/caddy-xnet062-postget.sum; \\\n"
+    "    go mod download all; \\\n"
+    "    go mod verify; \\\n"
+    "    cmp go.mod /tmp/caddy-xnet062-postget.mod; \\\n"
+    "    echo 'f5d9289fa0e27604a936ed5e35368db876398dac62154b9a6af9d0d2a891f7d9  /tmp/caddy-xnet062-postget.sum' | sha256sum -c -; \\\n"
+    "    echo 'f06331d8fba11ae7ac7ba36f80198bb9ca7c5ac22df4deb7011ab91a4d52f596  go.mod' | sha256sum -c -; \\\n"
+    "    echo 'be8f44f7e591bcaa54412fe5f3061235596be2faf9bd3f5fdece0106fea45338  go.sum' | sha256sum -c -; \\\n"
     "    test -z \"$(go list -m -f '{{if .Replace}}{{.Path}} => {{.Replace.Path}}{{end}}' all)\"; \\\n"
     "    evidence=/caddy-build-evidence; \\\n"
     '    test -d "$evidence"; \\\n'
@@ -243,15 +254,15 @@ EXPECTED_CADDY_BUILDER_STAGE = (
     "      'github.com/go-jose/go-jose/v3 v3.0.5' \\\n"
     "      'github.com/go-jose/go-jose/v4 v4.1.6' \\\n"
     "      'github.com/klauspost/compress v1.20.1' \\\n"
-    "      'golang.org/x/crypto v0.57.0' \\\n"
+    "      'golang.org/x/crypto v0.58.0' \\\n"
     "      'golang.org/x/mod v0.41.0' \\\n"
-    "      'golang.org/x/net v0.60.0' \\\n"
-    "      'golang.org/x/sync v0.23.0' \\\n"
-    "      'golang.org/x/sys v0.48.0' \\\n"
-    "      'golang.org/x/telemetry v0.0.0-20260908163034-4bcc4b2ee518' \\\n"
-    "      'golang.org/x/term v0.46.0' \\\n"
-    "      'golang.org/x/text v0.42.0' \\\n"
-    "      'golang.org/x/tools v0.50.0' \\\n"
+    "      'golang.org/x/net v0.62.0' \\\n"
+    "      'golang.org/x/sync v0.24.0' \\\n"
+    "      'golang.org/x/sys v0.49.0' \\\n"
+    "      'golang.org/x/telemetry v0.0.0-20260924152758-ed294f943157' \\\n"
+    "      'golang.org/x/term v0.47.0' \\\n"
+    "      'golang.org/x/text v0.43.0' \\\n"
+    "      'golang.org/x/tools v0.51.0' \\\n"
     "      'google.golang.org/grpc v1.83.2' \\\n"
     "      | LC_ALL=C sort > /tmp/caddy-expected-graph; \\\n"
     "    test \"$(wc -l < /tmp/caddy-governed-graph | tr -d '[:space:]')\" = '14'; \\\n"
@@ -271,12 +282,12 @@ EXPECTED_CADDY_BUILDER_STAGE = (
     "      'dep github.com/go-jose/go-jose/v3 v3.0.5' \\\n"
     "      'dep github.com/go-jose/go-jose/v4 v4.1.6' \\\n"
     "      'dep github.com/klauspost/compress v1.20.1' \\\n"
-    "      'dep golang.org/x/crypto v0.57.0' \\\n"
-    "      'dep golang.org/x/net v0.60.0' \\\n"
-    "      'dep golang.org/x/sync v0.23.0' \\\n"
-    "      'dep golang.org/x/sys v0.48.0' \\\n"
-    "      'dep golang.org/x/term v0.46.0' \\\n"
-    "      'dep golang.org/x/text v0.42.0' \\\n"
+    "      'dep golang.org/x/crypto v0.58.0' \\\n"
+    "      'dep golang.org/x/net v0.62.0' \\\n"
+    "      'dep golang.org/x/sync v0.24.0' \\\n"
+    "      'dep golang.org/x/sys v0.49.0' \\\n"
+    "      'dep golang.org/x/term v0.47.0' \\\n"
+    "      'dep golang.org/x/text v0.43.0' \\\n"
     "      'dep google.golang.org/grpc v1.83.2' \\\n"
     "      | LC_ALL=C sort > /tmp/caddy-expected-binary; \\\n"
     "    test \"$(wc -l < /tmp/caddy-governed-binary | tr -d '[:space:]')\" = '11'; \\\n"
@@ -503,6 +514,15 @@ def test_caddy_dockerfile_owns_exact_hardened_build_recipe() -> None:
         < text.index("go mod download all", text.index(upgrade))
         < text.index("go mod verify", text.index(upgrade))
     )
+    xnet_get = "go get golang.org/x/net@v0.62.0"
+    assert text.count(xnet_get) == 1
+    xnet_start = text.index(xnet_get)
+    assert text.index("go mod verify", text.index(upgrade)) < xnet_start
+    assert (
+        xnet_start
+        < text.index("go mod download all", xnet_start)
+        < text.index("go mod verify", xnet_start)
+    )
     assert '"musl>=1.2.6-r3"' in text and '"musl-utils>=1.2.6-r3"' in text
     assert '"GOPROXY=https://proxy.golang.org,direct"' not in text
     for exact_graph_identity in (
@@ -510,15 +530,15 @@ def test_caddy_dockerfile_owns_exact_hardened_build_recipe() -> None:
         "github.com/go-jose/go-jose/v3 v3.0.5",
         "github.com/go-jose/go-jose/v4 v4.1.6",
         "google.golang.org/grpc v1.83.2",
-        "golang.org/x/crypto v0.57.0",
+        "golang.org/x/crypto v0.58.0",
         "golang.org/x/mod v0.41.0",
-        "golang.org/x/net v0.60.0",
-        "golang.org/x/sync v0.23.0",
-        "golang.org/x/sys v0.48.0",
-        "golang.org/x/telemetry v0.0.0-20260908163034-4bcc4b2ee518",
-        "golang.org/x/term v0.46.0",
-        "golang.org/x/text v0.42.0",
-        "golang.org/x/tools v0.50.0",
+        "golang.org/x/net v0.62.0",
+        "golang.org/x/sync v0.24.0",
+        "golang.org/x/sys v0.49.0",
+        "golang.org/x/telemetry v0.0.0-20260924152758-ed294f943157",
+        "golang.org/x/term v0.47.0",
+        "golang.org/x/text v0.43.0",
+        "golang.org/x/tools v0.51.0",
     ):
         assert f"'{exact_graph_identity}'" in text
     assert "test -z \"$(go list -m -f '{{if .Replace}}" in text
@@ -532,12 +552,12 @@ def test_caddy_dockerfile_owns_exact_hardened_build_recipe() -> None:
         "dep github.com/go-jose/go-jose/v3 v3.0.5",
         "dep github.com/go-jose/go-jose/v4 v4.1.6",
         "dep google.golang.org/grpc v1.83.2",
-        "dep golang.org/x/crypto v0.57.0",
-        "dep golang.org/x/net v0.60.0",
-        "dep golang.org/x/sync v0.23.0",
-        "dep golang.org/x/sys v0.48.0",
-        "dep golang.org/x/term v0.46.0",
-        "dep golang.org/x/text v0.42.0",
+        "dep golang.org/x/crypto v0.58.0",
+        "dep golang.org/x/net v0.62.0",
+        "dep golang.org/x/sync v0.24.0",
+        "dep golang.org/x/sys v0.49.0",
+        "dep golang.org/x/term v0.47.0",
+        "dep golang.org/x/text v0.43.0",
     ):
         assert f"'{exact_binary_identity}'" in text
     assert '"c-ares>=1.34.8-r0"' in text
@@ -653,6 +673,17 @@ def test_caddy_cve_owner_and_ledger_remain_one_bounded_contract() -> None:
         "net-omitted",
         "net-duplicate",
         "net-floating",
+        "xnet062-omitted",
+        "xnet062-duplicate",
+        "xnet062-downgraded",
+        "post-get-sum-unbound",
+        "final-sum-unbound",
+        "xnet062-floating",
+        "xnet062-reordered",
+        "post-get-sum-omitted",
+        "final-sum-omitted",
+        "final-go-mod-unbound",
+        "go-mod-comparison-omitted",
     ),
 )
 def test_caddy_builder_stage_snapshot_rejects_dependency_contract_drift(case: str) -> None:
@@ -699,7 +730,7 @@ def test_caddy_builder_stage_snapshot_rejects_dependency_contract_drift(case: st
         )
     elif case == "graph-fixed-binary-stale":
         candidate = source.replace(
-            "      'dep golang.org/x/crypto v0.57.0' \\\n",
+            "      'dep golang.org/x/crypto v0.58.0' \\\n",
             "      'dep golang.org/x/crypto v0.54.0' \\\n",
             1,
         )
@@ -711,10 +742,41 @@ def test_caddy_builder_stage_snapshot_rejects_dependency_contract_drift(case: st
             "net-floating": net_action.replace("v0.60.0", "latest"),
         }[case]
         candidate = source.replace(net_action, replacement, 1)
+    elif case in ("xnet062-omitted", "xnet062-duplicate", "xnet062-downgraded", "xnet062-floating"):
+        action = "    go get golang.org/x/net@v0.62.0; \\\n"
+        replacement = {
+            "xnet062-omitted": "",
+            "xnet062-duplicate": action * 2,
+            "xnet062-downgraded": action.replace("v0.62.0", "v0.60.0"),
+            "xnet062-floating": action.replace("v0.62.0", "latest"),
+        }[case]
+        candidate = source.replace(action, replacement, 1)
+    elif case == "xnet062-reordered":
+        action = "    go get golang.org/x/net@v0.62.0; \\\n"
+        incumbent = "    go get github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.9; \\\n"
+        candidate = source.replace(action, "", 1).replace(incumbent, action + incumbent, 1)
+    elif case in ("post-get-sum-omitted", "final-sum-omitted"):
+        expected_check = {
+            "post-get-sum-omitted": "    echo 'f5d9289fa0e27604a936ed5e35368db876398dac62154b9a6af9d0d2a891f7d9  /tmp/caddy-xnet062-postget.sum' | sha256sum -c -; \\\n",
+            "final-sum-omitted": "    echo 'be8f44f7e591bcaa54412fe5f3061235596be2faf9bd3f5fdece0106fea45338  go.sum' | sha256sum -c -; \\\n",
+        }[case]
+        candidate = source.replace(expected_check, "", 1)
+    elif case == "final-go-mod-unbound":
+        candidate = source.replace(
+            "f06331d8fba11ae7ac7ba36f80198bb9ca7c5ac22df4deb7011ab91a4d52f596", "0" * 64, 1
+        )
+    elif case == "go-mod-comparison-omitted":
+        candidate = source.replace("    cmp go.mod /tmp/caddy-xnet062-postget.mod; \\\n", "", 1)
+    elif case in ("post-get-sum-unbound", "final-sum-unbound"):
+        digest = {
+            "post-get-sum-unbound": "f5d9289fa0e27604a936ed5e35368db876398dac62154b9a6af9d0d2a891f7d9",
+            "final-sum-unbound": "be8f44f7e591bcaa54412fe5f3061235596be2faf9bd3f5fdece0106fea45338",
+        }[case]
+        candidate = source.replace(digest, "0" * 64, 1)
     else:
         assert case == "binary-fixed-graph-stale"
         candidate = source.replace(
-            "      'golang.org/x/crypto v0.57.0' \\\n",
+            "      'golang.org/x/crypto v0.58.0' \\\n",
             "      'golang.org/x/crypto v0.54.0' \\\n",
             1,
         )
@@ -2532,15 +2594,12 @@ def test_caddy_full_observation_preserves_blocking_scan_and_exact_conditions() -
     }
     assert "continue-on-error" not in original
     assert job["permissions"] == {"contents": "read", "actions": "read"}
-    for key, value in {
-        "CADDY_FULL_SCAN_TIMEOUT_SECONDS": "300",
-        "CADDY_METADATA_TIMEOUT_SECONDS": "900",
-        "CADDY_METADATA_CLEANUP_SECONDS": "120",
-    }.items():
-        assert job["env"][key] == value
+    assert job["env"]["CADDY_FULL_SCAN_TIMEOUT_SECONDS"] == "300"
+    assert "CADDY_METADATA_TIMEOUT_SECONDS" not in job["env"]
+    assert "CADDY_METADATA_CLEANUP_SECONDS" not in job["env"]
     assert (
         sum(int(value) for key, value in job["env"].items() if key.startswith("CADDY_PHASE_"))
-        == 220 * 60
+        == 225 * 60
     )
     assert (
         _step_index(steps, "Capture next loaded Caddy image identity")
@@ -2563,7 +2622,7 @@ def test_caddy_full_observation_preserves_blocking_scan_and_exact_conditions() -
     for name, condition in expected.items():
         step = _named_step(steps, name)
         expected_condition = (
-            "${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata') && ("
+            "${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet062-metadata') && ("
             + condition[len("${{ ") : -len(" }}")]
             + ") }}"
         )
@@ -2573,7 +2632,7 @@ def test_caddy_full_observation_preserves_blocking_scan_and_exact_conditions() -
     upload = _named_step(steps, "Upload Caddy contract evidence")
     assert (
         upload["if"]
-        == "${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata') && (always()) && steps.caddy-upload-budget.outcome == 'success' }}"
+        == "${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet062-metadata') && (always()) && steps.caddy-upload-budget.outcome == 'success' }}"
     )
     assert upload["with"]["path"] == "${{ runner.temp }}/caddy-contract"
     assert (
@@ -3206,7 +3265,7 @@ def test_caddy_counterfactual_metadata_owns_no_compiler_or_final_recipe_mutation
     event = workflow.get("on", workflow.get(True))
     assert event["workflow_dispatch"]["inputs"]["caddy_action"]["options"] == [
         "contract",
-        "xnet060-metadata",
+        "xnet062-metadata",
         "candidate-D",
     ]
     steps = _steps(_job(workflow, "caddy-contract"))
@@ -3219,19 +3278,23 @@ def test_caddy_counterfactual_metadata_owns_no_compiler_or_final_recipe_mutation
     assert re.search(r"\bgo\s+build\b", source) is None
     assert 'for label in ("a", "b")' in source
     assert '"go_build_invocations": 0' in source
-    assert 'root_module="pulseplate.local/caddy-build"' in source
-    assert "tree_inventory(left) == tree_inventory(right)" in source
-    assert "baseline-packages.json" in source and "final-packages.json" in source
+    assert "result = validate_caddy_xnet062_metadata(output)" in source
+    checker = inspect.getsource(caddy_surface.validate_caddy_xnet062_metadata)
+    assert 'root_module="pulseplate.local/caddy-build"' in checker
+    assert "tree_inventory(left, deadline=native.deadline)" in source
+    assert "== tree_inventory(right, deadline=native.deadline)" in source
+    assert '"/output/$phase-packages.json"' in source
     assert "post-get-go.mod" in source and "module-derivation.patch" in source
-    assert 'require(any(row["path"] == target for row in delta)' in source
-    assert '"caddy_exact_authored_root_transition"' in source
-    assert '"v2.11.4"' in source and '"v2.11.9"' in source
+    assert 'result["complete_delta"]' in source and 'result["historical_caddy_delta"]' in source
+    assert '"v2.11.4"' in checker and '"v2.11.9"' in checker
     assert "vendor_script" not in source and "secdb_url" not in source
-    assert source.index("go get github.com/klauspost/compress@v1.18.7") < source.index(
-        "cp go.mod /output/baseline-go.mod"
-    )
-    assert source.index("cp go.sum /output/baseline-go.sum") < source.index(
-        "go get github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.9"
+    assert (
+        source.index("go get github.com/klauspost/compress@v1.18.7")
+        < source.index("capture baseline")
+        < source.index("go get github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.9")
+        < source.index("capture incumbent")
+        < source.index("go get golang.org/x/net@v0.62.0")
+        < source.index("capture final")
     )
     build = _named_step(steps, "Build source-patched Caddy candidate")
     assert (
@@ -4790,7 +4853,7 @@ def test_caddy_unit_download_preserves_original_module_inputs() -> None:
     assert "go mod download all" not in unit
     assert unit.index("go mod download;") < unit.index("go mod verify;")
     assert unit.index("go mod verify;") < unit.index("go test -mod=readonly")
-    assert recipe.count("go mod download all;") == 2
+    assert recipe.count("go mod download all;") == 3
     assert recipe.index("go mod download all;") < start
     assert '72 "$patched_tree" post-build;' in recipe
     # Returning to the scratch acquisition command must fail the current recipe
@@ -5269,6 +5332,7 @@ def alertmanager_support_native(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
         }
     ).encode()
     base_id = "sha256:" + hashlib.sha256(config_bytes).hexdigest()
+    monkeypatch.setattr(fetcher, "_ALERT_BASE_CONFIG", base_id)
     config_descriptor = {
         "mediaType": "application/vnd.oci.image.config.v1+json",
         "digest": base_id,
@@ -5794,15 +5858,594 @@ def _caddy_budget_fixture(runner: Path, monkeypatch: pytest.MonkeyPatch) -> dict
     return json.loads((runner / "caddy-admission/admission.json").read_text())
 
 
+@pytest.mark.parametrize("fault", [None, "post-get", "post-download", "go.mod", "swapped"])
+def test_caddy_metadata_advance_checks_each_raw_sum_before_capture(
+    tmp_path: Path, fault: str | None
+) -> None:
+    source = _caddy_inline("Qualify Caddy compiler and two independent root derivations")
+    advance = source.split("advance = '''", 1)[1].split("'''", 1)[0]
+    original, final = "post get witness\n", "post download witness\n"
+    pinned = (
+        "f5d9289fa0e27604a936ed5e35368db876398dac62154b9a6af9d0d2a891f7d9",
+        "be8f44f7e591bcaa54412fe5f3061235596be2faf9bd3f5fdece0106fea45338",
+    )
+    for digest, value in zip(pinned, (original, final), strict=True):
+        assert advance.count(digest) == 1
+        advance = advance.replace(digest, hashlib.sha256(value.encode()).hexdigest())
+    output = tmp_path / "output"
+    output.mkdir()
+    env = {
+        "PATH": os.defpath + ":/sbin",
+        "OUTPUT": str(output),
+        "POST_GET_SUM": (
+            final if fault == "swapped" else original + ("drift" if fault == "post-get" else "")
+        ),
+        "POST_DOWNLOAD_SUM": (
+            original
+            if fault == "swapped"
+            else final + ("drift" if fault == "post-download" else "")
+        ),
+        "MOD_AFTER_DOWNLOAD": "changed" if fault == "go.mod" else "original",
+    }
+    stubs = """go() {
+        if [ "$1" = get ]; then
+            printf '%s' "$POST_GET_SUM" > go.sum
+            printf '%s' original > go.mod
+        elif [ "$*" = 'mod download all' ]; then
+            printf '%s' "$POST_DOWNLOAD_SUM" > go.sum
+            printf '%s' "$MOD_AFTER_DOWNLOAD" > go.mod
+        else
+            return 88
+        fi
+    }
+    capture() { [ "$1" = final ] && : > "$OUTPUT/captured-final"; }
+    """
+    result = subprocess.run(
+        ["/bin/bash", "-euc", stubs + advance.replace("/output", "output")],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        timeout=5,
+        check=False,
+    )
+    assert (output / "post-get-go.sum").read_text() == env["POST_GET_SUM"]
+    if fault is None:
+        assert result.returncode == 0, result.stderr
+        assert (output / "captured-final").exists()
+    else:
+        assert result.returncode == 1
+        assert not (output / "captured-final").exists()
+        if fault == "go.mod":
+            assert b"go.mod" in result.stdout + result.stderr
+        else:
+            name = b"go.sum" if fault == "post-download" else b"post-get-go.sum"
+            assert name + b": FAILED" in result.stdout
+
+
+@pytest.mark.parametrize(
+    ("fault", "diagnostic"),
+    [
+        (None, None),
+        ("version-profile", "declared_data_value"),
+        ("resolver-profile", "declared_data_value"),
+        ("cache-replaced", "caddy_metadata_phase_cache_replaced"),
+        ("cache-link", "caddy_metadata_phase_cache_member"),
+        ("offline-input-drift", "caddy_metadata_offline_input_changed"),
+        ("module-cap", "tree_size_bound"),
+        ("work-cap", "tree_size_bound"),
+        ("cleanup-rename", "caddy_cleanup_full_custody"),
+        ("cleanup-replacement", "caddy_metadata_owned_container_survives"),
+        ("cleanup-truncated", "caddy_metadata_container_inventory"),
+        ("timeout", "resolver test timeout"),
+        ("timeout-without-start", "resolver test timeout"),
+    ],
+)
+def test_caddy_metadata_step_owns_full_id_watcher_and_terminal_cleanup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str | None, diagnostic: str | None
+) -> None:
+    import platform
+    import time
+    from contextlib import contextmanager
+    from types import SimpleNamespace
+
+    from scripts.ci import prometheus_source_image as native_owner
+
+    step_name = "Qualify Caddy compiler and two independent root derivations"
+    _caddy_budget_fixture(tmp_path, monkeypatch)
+    next_env = dict(row.split("=", 1) for row in (tmp_path / "github-env").read_text().splitlines())
+    aliases = {
+        "CADDY_METADATA_TIMEOUT_SECONDS": "1200",
+        "CADDY_METADATA_CLEANUP_SECONDS": "120",
+        "CADDY_ACTION_METADATA_MINUTES": "22",
+    }
+    assert {key: next_env[key] for key in aliases} == aliases
+    assert all(key not in os.environ for key in aliases)
+    workflow_step = _named_step(
+        _steps(_job(_workflow(FRONTEND_WORKFLOW), "caddy-contract")), step_name
+    )
+    assert workflow_step["timeout-minutes"] == "${{ fromJSON(env.CADDY_ACTION_METADATA_MINUTES) }}"
+    for key, value in {
+        **aliases,
+        "GITHUB_ACTIONS": "true",
+        "GITHUB_REPOSITORY": "Katsiarynakavaleuskaya/PulsePlate",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "GITHUB_RUN_ID": "9",
+    }.items():
+        monkeypatch.setenv(key, value)
+    (tmp_path / "caddy-admission/admission.json").write_text(json.dumps({"current_head": "9" * 40}))
+    monkeypatch.setattr(platform, "system", lambda: "Linux")
+    monkeypatch.setattr(platform, "machine", lambda: "x86_64")
+    monkeypatch.setattr(shutil, "which", lambda binary: "/synthetic/" + binary)
+    cache = tmp_path / "scanner-cache"
+    (cache / "db").mkdir(parents=True)
+    for name in ("trivy.db", "metadata.json"):
+        (cache / "db" / name).write_text("scanner fixture")
+    real_read_bytes = Path.read_bytes
+
+    def read_bytes(path: Path) -> bytes:
+        if str(path) == "/synthetic/trivy":
+            return b"synthetic scanner"
+        return real_read_bytes(path)
+
+    monkeypatch.setattr(Path, "read_bytes", read_bytes)
+    index = (
+        b'{"manifests":[{"platform":{"architecture":"amd64","os":"linux"},"digest":"sha256:'
+        + b"a" * 64
+        + b'"}]}'
+    )
+    image = "sha256:" + "b" * 64
+    real_sha256 = hashlib.sha256
+
+    class IndexHash:
+        def hexdigest(self) -> str:
+            return "0525c952defebc693cdaf62cdf43afa32be5a7f377e99260642ea19c240c708e"
+
+    monkeypatch.setattr(
+        hashlib, "sha256", lambda raw=b"": IndexHash() if raw == index else real_sha256(raw)
+    )
+    monkeypatch.setattr(native_owner, "native_go_identity", lambda *_: {"operand": image})
+    monkeypatch.setattr(caddy_surface, "validate_trivy_image_report", lambda *_: None)
+    monkeypatch.setattr(caddy_surface, "CADDY_XNET062_INCUMBENT_FILES", {})
+    monkeypatch.setattr(
+        caddy_surface,
+        "validate_caddy_xnet062_metadata",
+        lambda _: {"complete_delta": [], "historical_caddy_delta": []},
+    )
+
+    def native_image_identity(actual: dict[str, Any], relation: dict[str, str]) -> None:
+        assert actual["Image"] == relation["operand"]
+
+    monkeypatch.setattr(native_owner, "native_container_image_identity", native_image_identity)
+
+    @contextmanager
+    def phase(name: str) -> Any:
+        yield lambda limit: min(limit, {"COMPILER_WORK": 1100, "COMPILER_CLEANUP": 120}[name])
+
+    monkeypatch.setattr(caddy_surface, "caddy_ci_phase", phase)
+    real_inventory = native_owner.tree_inventory
+    real_lstat, real_file_hash = Path.lstat, native_owner.file_hash
+    snapshots: list[tuple[str, int | None]] = []
+
+    def inventory_size(path: Path) -> Any:
+        info = real_lstat(path)
+        if path.name != "synthetic-inventory-size":
+            return info
+        size = 3 * 1024**3
+        if fault == "module-cap" and path.parent.name == "modules":
+            size = 4 * 1024**3 + 1
+        return SimpleNamespace(st_mode=info.st_mode, st_size=size)
+
+    def inventory_hash(path: Path, *args: Any, **kwargs: Any) -> str:
+        if path.name == "synthetic-inventory-size":
+            return real_sha256(path.read_bytes()).hexdigest()
+        return real_file_hash(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "lstat", inventory_size)
+    monkeypatch.setattr(native_owner, "file_hash", inventory_hash)
+
+    def tree_inventory(path: Path, **options: Any) -> list[dict[str, Any]]:
+        snapshots.append((path.name, options.get("maximum")))
+        return real_inventory(path, **options)
+
+    monkeypatch.setattr(native_owner, "tree_inventory", tree_inventory)
+    active: dict[str, dict[str, Any]] = {}
+    watch: list[tuple[str, Path]] = []
+    commands: list[tuple[str, list[str]]] = []
+    initial = {"Status": "created", "Running": False, "StartedAt": "0001-01-01T00:00:00Z"}
+
+    class FixtureNative:
+        def __init__(self, evidence: Path, deadline: float, cleanup: int) -> None:
+            assert evidence.parent == tmp_path / "caddy-xnet062-metadata"
+            assert 1199 <= deadline - time.monotonic() <= 1200
+            assert cleanup == 120
+            self.deadline = deadline
+            self.cleanup_deadline = None
+            self.records: list[dict[str, Any]] = []
+
+        def begin_cleanup(self) -> None:
+            self.cleanup_deadline = self.deadline + 120
+
+        def run(self, argv: list[str], channel: str, env: dict[str, str], **kwargs: Any) -> bytes:
+            commands.append((channel, argv))
+            self.records.append({"channel": channel, "argv": argv})
+            if argv[0] == "/synthetic/trivy":
+                if "--output" in argv:
+                    Path(argv[argv.index("--output") + 1]).write_text('{"Results":[{}]}')
+                    return b""
+                return b"Version: 0.74.0\n"
+            assert argv[0] == "/synthetic/docker"
+            command = argv[3]
+            if command == "buildx":
+                return index if channel == "compiler-index" else b"{}"
+            if command == "pull":
+                return b""
+            if command == "image":
+                return json.dumps(
+                    [{"Id": image, "Os": "linux", "Architecture": "amd64", "Config": {"Env": []}}]
+                ).encode()
+            if command == "create":
+                entry = argv.index("--entrypoint")
+                name = argv[argv.index("--name") + 1]
+                cid = real_sha256(name.encode()).hexdigest()
+                mounts = []
+                for index_arg, arg in enumerate(argv):
+                    if arg == "--mount":
+                        _, source, target, *flags = argv[index_arg + 1].split(",")
+                        mounts.append(
+                            {
+                                "Type": "bind",
+                                "Source": source[7:],
+                                "Destination": target[7:],
+                                "RW": not flags,
+                            }
+                        )
+                active[cid] = {
+                    "Id": cid,
+                    "Name": "/" + name,
+                    "Image": argv[entry + 2],
+                    "Mounts": mounts,
+                    "Config": {
+                        "Cmd": argv[entry + 3 :],
+                        "Entrypoint": [argv[entry + 1]],
+                        "User": argv[argv.index("--user") + 1],
+                        "Labels": {"pulseplate.caddy-metadata": "9"},
+                        "Env": [argv[i + 1] for i, arg in enumerate(argv) if arg == "--env"],
+                    },
+                    "HostConfig": {
+                        "NetworkMode": "none" if "--network" in argv else "default",
+                        "ReadonlyRootfs": True,
+                        "Privileged": False,
+                        "CapDrop": ["ALL"],
+                        "SecurityOpt": ["no-new-privileges"],
+                        "NanoCpus": 2000000000,
+                        "Memory": 2147483648,
+                        "PidsLimit": 128,
+                        "OomKillDisable": False,
+                    },
+                    "State": dict(initial),
+                }
+                return (cid + "\n").encode()
+            if command == "ps":
+                assert argv[4:] == ["--all", "--no-trunc", "--format", "{{.ID}}\t{{.Names}}"]
+                pairs = [(cid, value["Name"][1:]) for cid, value in active.items()]
+                if channel == "cleanup-inventory" and fault in {
+                    "cleanup-rename",
+                    "cleanup-replacement",
+                }:
+                    assert len(pairs) == 1
+                    cid, name = pairs[0]
+                    pairs = (
+                        [(cid, "foreign-name")] if fault == "cleanup-rename" else [("f" * 64, name)]
+                    )
+                raw = "".join(f"{cid}\t{name}\n" for cid, name in pairs).encode()
+                return (
+                    raw[:-1]
+                    if channel == "cleanup-inventory" and fault == "cleanup-truncated"
+                    else raw
+                )
+            cid = argv[-1]
+            assert cid in active
+            container = active[cid]
+            if command == "inspect":
+                return json.dumps([container]).encode()
+            if command == "start":
+                assert kwargs.get("cleaning", False) is False
+                assert 0 < self.deadline - time.monotonic() <= 1100
+                container["State"].update(
+                    Status="exited",
+                    Running=False,
+                    StartedAt="2026-11-07T18:00:00.123456789Z",
+                    OOMKilled=False,
+                    ExitCode=0,
+                )
+                container["HostConfig"]["OomKillDisable"] = None
+                if channel == "compiler-native-version":
+                    assert "watched_output" not in kwargs
+                    if fault == "version-profile":
+                        container["HostConfig"]["PidsLimit"] = 129
+                    return b"go version go1.26.10 linux/amd64\n"
+                paths = {m["Destination"]: Path(m["Source"]) for m in container["Mounts"]}
+                watch.append((channel, kwargs["watched_output"]))
+                assert kwargs["watched_output"] == paths["/work"].parent
+                if channel == "a-incumbent-online-native":
+                    if fault == "resolver-profile":
+                        container["Config"]["Cmd"][1] = "changed"
+                    elif fault == "cache-replaced":
+                        paths["/cache"].rename(paths["/cache"].with_name("old-cache"))
+                        paths["/cache"].mkdir()
+                    elif fault == "cache-link":
+                        (paths["/cache"] / "foreign").symlink_to(paths["/modules"])
+                    elif fault in {"timeout", "timeout-without-start"}:
+                        if fault == "timeout":
+                            container["State"].update(Status="running", Running=True)
+                        else:
+                            container["State"] = dict(initial)
+                        raise TimeoutError("resolver test timeout")
+                if fault == "offline-input-drift" and channel == "a-incumbent-offline-native":
+                    (paths["/modules"] / "drift").write_text("changed offline")
+                if channel.endswith("-online-native"):
+                    target = paths["/work"] if fault == "work-cap" else paths["/modules"]
+                    (target / "synthetic-inventory-size").write_text("small fixture, large lstat")
+                phase_name = "final" if "-final-" in channel else "incumbent"
+                for lock in ("go.mod", "go.sum"):
+                    (paths["/output"] / f"{phase_name}-{lock}").write_text(lock + phase_name)
+                return b""
+            if command == "stop":
+                assert argv[4:7] == ["--time", "10", cid] and kwargs["cleaning"] is True
+                assert kwargs["maximum_seconds"] == 20 and container["State"]["Running"] is True
+                container["State"].update(Status="exited", Running=False)
+                return b""
+            assert command == "rm" and argv[4:] == [cid]
+            assert container["State"]["Running"] is False
+            del active[cid]
+            return b""
+
+    monkeypatch.setattr(native_owner, "Native", FixtureNative)
+    source = _caddy_inline(step_name)
+    assert source.count('"/tmp/trivy-cache-caddy-metadata"') == 1
+    source = source.replace('"/tmp/trivy-cache-caddy-metadata"', repr(str(cache)))
+    program = compile(source, "<actual-Caddy-metadata>", "exec")
+    if diagnostic is None:
+        exec(program, {})
+    else:
+        with pytest.raises((RuntimeError, ValueError, TimeoutError), match=diagnostic):
+            exec(program, {})
+    root = tmp_path / "caddy-xnet062-metadata"
+    report = json.loads((root / "evidence/qualification.json").read_text())
+    channels = [channel for channel, _ in commands]
+    if fault is None:
+        assert len(watch) == 8 and set(path.name for _, path in watch) == {"a", "b"}
+        assert snapshots.count(("modules", 4 * 1024**3)) == snapshots.count(("work", None)) == 8
+        assert not list(root.glob("*/cache-*")) and not active
+        assert all(
+            (root / lane / directory).is_dir()
+            for lane in ("a", "b")
+            for directory in ("work", "modules", "output")
+        )
+        assert channels[-1] == "cleanup-absence"
+        assert report["status"] == caddy_surface.CADDY_XNET062_METADATA_SUCCESS
+    else:
+        assert "status" not in report
+        cleanup_faults = {"cleanup-rename", "cleanup-replacement", "cleanup-truncated"}
+        assert "a-final-online-native" not in channels or fault in cleanup_faults
+        if fault in cleanup_faults | {"timeout-without-start"}:
+            assert "cleanup_failure" in report and active
+        if fault in {"timeout", "timeout-without-start"}:
+            assert report["failure"] == "TimeoutError"
+        if fault == "timeout":
+            assert not active and sum(argv[3:4] == ["stop"] for _, argv in commands) == 1
+        if fault == "timeout-without-start":
+            assert not any(argv[3:4] == ["stop"] for _, argv in commands)
+        if fault == "cache-replaced":
+            assert (root / "a/cache-incumbent-online").is_dir()
+            assert (root / "a/old-cache").is_dir()
+
+
+@pytest.mark.parametrize(
+    ("fault", "diagnostic"),
+    [
+        (None, None),
+        ("reuse", None),
+        ("historical-status", "metadata predecessor"),
+        ("cleanup-failed", "metadata predecessor"),
+        ("skipped-metadata", "metadata predecessor"),
+        ("wrong-source", "metadata predecessor"),
+        ("wrong-run", "metadata predecessor"),
+        ("wrong-attempt", "metadata predecessor"),
+        ("wrong-recipe", "metadata predecessor"),
+        ("false-zero", "metadata predecessor"),
+        ("float-zero", "metadata predecessor"),
+        ("wrong-b-epoch", "metadata epoch"),
+        ("flat-phase", "final modules missing"),
+        ("wrong-sum", "ordinary modules differ"),
+        ("duplicate-binary-module", "ordinary modules differ"),
+        ("missing-binary-module", "ordinary modules differ"),
+    ],
+)
+def test_caddy_retention_requires_current_completed_metadata_before_candidate_save(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str | None, diagnostic: str | None
+) -> None:
+    from contextlib import nullcontext
+
+    mode = "reuse" if fault == "reuse" else "build"
+    admission: dict[str, Any] = {
+        "mode": mode,
+        "current_head": "9" * 40,
+        "current_run_id": 9,
+        "current_run_attempt": 1,
+        "repository": "Katsiarynakavaleuskaya/PulsePlate",
+        "inputs": {},
+        "producer": {"run_id": 7},
+        "original_candidate": {"image_config_id": "image", "binary_sha256": "binary"},
+    }
+    (tmp_path / "caddy-admission").mkdir()
+    (tmp_path / "caddy-admission/admission.json").write_text(json.dumps(admission))
+    observation = tmp_path / "observation"
+    (observation / "native-projections").mkdir(parents=True)
+    state = observation / "state.json"
+    state.write_text(
+        json.dumps(
+            {
+                "docker": "/synthetic/docker",
+                "image_config_id": "image",
+                "binary_sha256": "binary",
+                "build_evidence": str(observation / "build-evidence"),
+            }
+        )
+    )
+    metadata = tmp_path / "caddy-xnet062-metadata"
+    (metadata / "evidence").mkdir(parents=True)
+    (metadata / "a/output").mkdir(parents=True)
+    (metadata / "b/output").mkdir(parents=True)
+    root, net, original_v3 = (
+        "github.com/caddyserver/caddy/v2",
+        "golang.org/x/net",
+        "github.com/go-jose/go-jose/v3",
+    )
+    modules = {
+        root: {"Version": "v2.11.9", "Sum": "h1:caddy"},
+        net: {"Version": "v0.62.0", "Sum": "h1:net"},
+        original_v3: {"Version": "v3.0.5", "Sum": "h1:v3"},
+    }
+    packages = "".join(json.dumps({"Module": {"Path": name}}) + "\n" for name in modules)
+    for lane in ("a", "b"):
+        (metadata / lane / "output/final-packages.json").write_text(packages)
+    qualification: dict[str, Any] = {
+        "status": caddy_surface.CADDY_XNET062_METADATA_SUCCESS,
+        "failure": None,
+        "source_head": "9" * 40,
+        "run_id": 9,
+        "run_attempt": 1,
+        "recipe_sha256": hashlib.sha256(DOCKERFILE.read_bytes()).hexdigest(),
+        "go_build_invocations": 0,
+        "derivations": {
+            lane: {
+                "epoch": caddy_surface.CADDY_XNET062_METADATA_EPOCH,
+                "phases": {"final": {"modules": modules}},
+            }
+            for lane in ("a", "b")
+        },
+    }
+    mutations = {
+        "historical-status": ("status", "observed_counterfactual_metadata_only"),
+        "cleanup-failed": ("cleanup_failure", "QualificationError"),
+        "wrong-source": ("source_head", "8" * 40),
+        "wrong-run": ("run_id", 8),
+        "wrong-attempt": ("run_attempt", 2),
+        "wrong-recipe": ("recipe_sha256", "8" * 64),
+        "false-zero": ("go_build_invocations", False),
+        "float-zero": ("go_build_invocations", 0.0),
+    }
+    if fault is not None and fault in mutations:
+        key, value = mutations[fault]
+        qualification[key] = value
+    elif fault == "wrong-b-epoch":
+        qualification["derivations"]["b"]["epoch"] = "historical"
+    elif fault == "flat-phase":
+        qualification["derivations"]["a"].pop("phases")
+        qualification["derivations"]["a"]["final"] = {"modules": modules}
+    (metadata / "evidence/qualification.json").write_text(json.dumps(qualification))
+    rows = [
+        f"mod {root} v2.11.9 h1:caddy",
+        f"dep {original_v3} v3.0.5",
+        f"dep {net} v0.62.0 h1:net",
+    ]
+    if fault == "wrong-sum":
+        rows[-1] = f"dep {net} v0.62.0 h1:other"
+    elif fault == "duplicate-binary-module":
+        rows.append(rows[-1])
+    elif fault == "missing-binary-module":
+        rows.pop()
+    binary = observation / "native-projections/build-info.txt"
+    binary.write_text("\n".join(rows) + "\n")
+    monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
+    monkeypatch.setenv("CADDY_OBSERVATION_STATE", str(state))
+    monkeypatch.setenv(
+        "CADDY_METADATA_OUTCOME", "skipped" if fault in {"reuse", "skipped-metadata"} else "success"
+    )
+    step_name = "Retain original Caddy candidate or current import binding"
+    step = _named_step(_steps(_job(_workflow(FRONTEND_WORKFLOW), "caddy-contract")), step_name)
+    assert step["env"]["CADDY_METADATA_OUTCOME"] == "${{ steps.caddy-metadata.outcome }}"
+    monkeypatch.setattr(
+        caddy_surface, "caddy_ci_phase", lambda _: nullcontext(lambda seconds: seconds)
+    )
+    source_checks: list[bytes] = []
+
+    def source_evidence(
+        path: Path, *, binary_metadata: bytes, binary_sha256: str, recipe: bytes
+    ) -> None:
+        assert path == observation / "build-evidence"
+        assert binary_metadata == binary.read_bytes() and binary_sha256 == "binary"
+        assert recipe == DOCKERFILE.read_bytes()
+        source_checks.append(recipe)
+
+    monkeypatch.setattr(caddy_surface, "validate_caddy_source_evidence", source_evidence)
+    saves: list[list[str]] = []
+
+    def save(argv: list[str], *, check: bool, timeout: int) -> None:
+        assert argv[:3] == ["/synthetic/docker", "save", "--output"]
+        assert argv[-1] == "pulseplate-caddy:contract" and check and timeout == 300
+        saves.append(argv)
+        Path(argv[3]).write_bytes(b"synthetic Docker save")
+
+    monkeypatch.setattr(subprocess, "run", save)
+    program = compile(_caddy_inline(step_name), "<actual-Caddy-retention>", "exec")
+    if diagnostic is None:
+        exec(program, {})
+    else:
+        with pytest.raises(ValueError, match=diagnostic):
+            exec(program, {})
+    if mode == "reuse":
+        assert json.loads((tmp_path / "caddy-contract/original-producer.json").read_text()) == {
+            "run_id": 7
+        }
+        assert source_checks == [] and saves == []
+    elif fault is None:
+        assert len(saves) == len(source_checks) == 1
+        candidate = json.loads((observation / "candidate/candidate.json").read_text())
+        assert candidate["producer_head"] == "9" * 40
+        assert (
+            candidate["metadata_qualification_sha256"]
+            == hashlib.sha256((metadata / "evidence/qualification.json").read_bytes()).hexdigest()
+        )
+    else:
+        assert saves == [] and not (observation / "candidate").exists()
+
+
 def test_caddy_job_budget_is_complete_and_owned_only_by_existing_job() -> None:
     job = _job(_workflow(FRONTEND_WORKFLOW), "caddy-contract")
-    assert job["timeout-minutes"] == "${{ fromJSON(vars.CADDY_CONTRACT_TIMEOUT_MINUTES || '220') }}"
+    assert job["timeout-minutes"] == "${{ fromJSON(vars.CADDY_CONTRACT_TIMEOUT_MINUTES || '225') }}"
     caps = {
         key.removeprefix("CADDY_PHASE_"): int(value)
         for key, value in job["env"].items()
         if key.startswith("CADDY_PHASE_")
     }
-    assert sum(caps.values()) == 13200
+    assert caps == {
+        "SETUP": 300,
+        "ADMISSION": 600,
+        "COMPILER_BOOTSTRAP": 600,
+        "COMPILER_WORK": 1200,
+        "COMPILER_CLEANUP": 120,
+        "METADATA_UPLOAD": 180,
+        "BUILD": 1800,
+        "CAPTURE": 420,
+        "RUNTIME_CONFIG": 420,
+        "OFFICIAL_PULL": 300,
+        "SOURCE16": 180,
+        "FINAL_SUBJECT": 300,
+        "REPORT_BINDINGS": 540,
+        "CONVERSION": 60,
+        "RUNTIME": 900,
+        "FIXTURE": 1050,
+        "SCANNER_BOOTSTRAP": 600,
+        "SCANS": 1980,
+        "PROCESSING": 300,
+        "CONTROL_CLEANUP": 360,
+        "RETENTION": 420,
+        "UPLOAD": 600,
+        "SAFETY": 270,
+    }
+    assert sum(caps.values()) == 13500
     assert caps["SCANS"] == 6 * sum(
         int(job["env"][key])
         for key in (
@@ -5812,7 +6455,7 @@ def test_caddy_job_budget_is_complete_and_owned_only_by_existing_job() -> None:
             "CADDY_SCAN_BOOKKEEPING_SECONDS",
         )
     )
-    assert caps["COMPILER_WORK"] == 900 and caps["COMPILER_CLEANUP"] == 120
+    assert caps["COMPILER_WORK"] == 1200 and caps["COMPILER_CLEANUP"] == 120
     assert caps["RUNTIME"] == 15 * 60 and caps["FIXTURE"] == 14 * 60 + 180 + 30
     assert caps["SAFETY"] == 270 and "TERMINATION" not in caps
     steps = _steps(job)
@@ -5859,7 +6502,7 @@ def test_caddy_job_budget_is_complete_and_owned_only_by_existing_job() -> None:
 
 
 @pytest.mark.parametrize(
-    "fault", [None, "low-job", "host", "exhausted-phase", "global-reserve", "clock-reset"]
+    "fault", [None, "220", "224", "host", "exhausted-phase", "global-reserve", "clock-reset"]
 )
 def test_caddy_shared_budget_rejects_drift_and_preserves_cleanup_reserve(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str | None
@@ -5869,11 +6512,12 @@ def test_caddy_shared_budget_rejects_drift_and_preserves_cleanup_reserve(
     runner = tmp_path / "runner"
     state = _caddy_budget_fixture(runner, monkeypatch)
     path = runner / "caddy-admission/admission.json"
-    if fault == "low-job":
+    if fault in {"220", "224"}:
         other = tmp_path / "low"
         other.mkdir()
         monkeypatch.setenv("RUNNER_TEMP", str(other))
-        monkeypatch.setenv("CADDY_CONFIGURED_JOB_MINUTES", "219")
+        assert fault is not None
+        monkeypatch.setenv("CADDY_CONFIGURED_JOB_MINUTES", fault)
         with pytest.raises(ValueError, match="below phase ledger"):
             exec(
                 compile(
@@ -5890,7 +6534,7 @@ def test_caddy_shared_budget_rejects_drift_and_preserves_cleanup_reserve(
     elif fault == "exhausted-phase":
         state["budget"]["charged"]["SCANS"] = int(os.environ["CADDY_PHASE_SCANS"])
     elif fault == "global-reserve":
-        state["budget"]["started"] -= 13200
+        state["budget"]["started"] -= 13500
     path.write_text(json.dumps(state))
     if fault is None:
         with owner.caddy_ci_phase("SCANS") as remaining:
@@ -6337,7 +6981,7 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
     action = (
         ""
         if event_name == "pull_request"
-        else "xnet060-metadata" if case == "metadata" else "candidate-D"
+        else "xnet062-metadata" if case == "metadata" else "candidate-D"
     )
     event = runner / "event.json"
     event.write_text(json.dumps({"pull_request": pr} if event_name == "pull_request" else {}))
@@ -6921,3 +7565,152 @@ def test_caddy_source_extraction_uses_closed_split_limits() -> None:
     assert caddy_surface.CADDY_V3_TOTAL_BYTES == 8 * 1024**2
     assert caddy_surface.CADDY_STDLIB_TOTAL_BYTES == 16 * 1024**2
     assert caddy_surface.CADDY_SOURCE_TOTAL_BYTES == 24 * 1024**2
+
+
+# These compact metadata fixtures do not qualify a native Go source/build output.
+def _am062_module_rows(version: str) -> list[dict[str, Any]]:
+    return [
+        {"Path": "github.com/prometheus/alertmanager", "Main": True},
+        {"Path": "golang.org/x/net", "Version": version},
+        {"Path": "google.golang.org/grpc", "Version": "v1.83.2"},
+        {"Path": "example.test/unchanged", "Version": "v1.0.0"},
+    ]
+
+
+def test_am062_metadata_delta_has_one_intent_and_complete_added_removed_closure() -> None:
+    from scripts.ci import fetch_docker_source_artifacts as fetcher
+
+    before = _am062_module_rows("v0.60.0")
+    after = _am062_module_rows("v0.62.0")
+    before += [{"Path": "example.test/removed", "Version": "v1.0.0"}]
+    after += [{"Path": "example.test/added", "Version": "v2.0.0"}]
+    after[2]["Version"] = "v1.84.0"  # A solver transition, never a second authored identity.
+    frozen = deepcopy((before, after))
+    delta = fetcher._alertmanager_xnet062_delta(before, after, epoch="alertmanager-0.34.2-xnet062")
+    assert (before, after) == frozen
+    by_path = {row["path"]: row for row in delta}
+    assert set(by_path) == {
+        "golang.org/x/net",
+        "google.golang.org/grpc",
+        "example.test/removed",
+        "example.test/added",
+    }
+    assert [row["path"] for row in delta if row["class"] == "authored"] == ["golang.org/x/net"]
+    assert by_path["golang.org/x/net"]["before"] == "v0.60.0"
+    assert by_path["golang.org/x/net"]["after"] == "v0.62.0"
+    assert by_path["example.test/removed"]["after"] is None
+    assert by_path["example.test/added"]["before"] is None
+    assert all(row["before"] is not None or row["after"] is not None for row in delta)
+    assert all(
+        row["class"] == "solver_closure_reproduced_by_fixed_get"
+        for row in delta
+        if row["path"] != "golang.org/x/net"
+    )
+
+
+@pytest.mark.parametrize("epoch", ["", "0.34.2", "alertmanager-0.34.1", "alertmanager-0.34.2-noop"])
+def test_am062_metadata_rejects_historical_or_ambiguous_epoch(epoch: str) -> None:
+    from scripts.ci import fetch_docker_source_artifacts as fetcher
+
+    with pytest.raises(RuntimeError, match="metadata epoch"):
+        fetcher._alertmanager_xnet062_delta(
+            _am062_module_rows("v0.60.0"), _am062_module_rows("v0.62.0"), epoch=epoch
+        )
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "original058",
+        "noop",
+        "wrong-target",
+        "duplicate",
+        "missing-net",
+        "missing-main",
+        "extra-main",
+        "version-null",
+        "error",
+        "replacement",
+        "main-type",
+        "missing-grpc",
+    ],
+)
+def test_am062_metadata_rejects_wrong_base_noop_and_unqualified_rows(fault: str) -> None:
+    from scripts.ci import fetch_docker_source_artifacts as fetcher
+
+    before = _am062_module_rows("v0.60.0")
+    after = _am062_module_rows("v0.62.0")
+    if fault == "original058":
+        before[1]["Version"] = "v0.58.0"
+    elif fault == "noop":
+        after[1]["Version"] = "v0.60.0"
+    elif fault == "wrong-target":
+        after[1]["Version"] = "v0.63.0"
+    elif fault == "duplicate":
+        after.append(dict(after[1]))
+    elif fault == "missing-net":
+        after.pop(1)
+    elif fault == "missing-main":
+        after.pop(0)
+    elif fault == "extra-main":
+        after.append({"Path": "example.test/other", "Main": True})
+    elif fault == "version-null":
+        after.append({"Path": "example.test/unresolved", "Version": None})
+    elif fault == "error":
+        after[1]["Error"] = {}
+    elif fault == "replacement":
+        after[1]["Replace"] = {}
+    elif fault == "main-type":
+        after[0]["Main"] = 1
+    else:
+        before.pop(2)
+    with pytest.raises(RuntimeError):
+        fetcher._alertmanager_xnet062_delta(before, after, epoch="alertmanager-0.34.2-xnet062")
+
+
+def test_am062_metadata_ignores_hydration_fields_but_preserves_raw_module_inputs() -> None:
+    from scripts.ci import fetch_docker_source_artifacts as fetcher
+
+    before = _am062_module_rows("v0.60.0")
+    after = _am062_module_rows("v0.62.0")
+    after[3].update(Dir="/owned/modules/unchanged", Sum="h1:synthetic-checksum")
+    delta = fetcher._alertmanager_xnet062_delta(before, after, epoch="alertmanager-0.34.2-xnet062")
+    assert [row["path"] for row in delta] == ["golang.org/x/net"]
+    assert after[3]["Sum"] == "h1:synthetic-checksum"
+
+
+def test_am062_metadata_fixed_get_and_immediate_lock_capture_contract() -> None:
+    import ast
+
+    from scripts.ci import fetch_docker_source_artifacts as fetcher
+
+    phase = inspect.getsource(fetcher._alertmanager_module_phase)
+    get = phase.index('["get", "golang.org/x/net@v0.62.0"]')
+    freeze = phase.index("derived_locks = {name: (source / name).read_bytes()", get)
+    retain = phase.index('"-derived-" + lock', freeze)
+    bind = phase.index("expected_locks = derived_locks", retain)
+    download = phase.index('command(["mod", "download", "-json"], "derived-download")', bind)
+    assert get < freeze < retain < bind < download
+    assert phase.count('["get",') == 1
+    assert '"xnet062-authored-get",\n                    solver=True,' in phase
+    assert 'dict(env, GOFLAGS="") if solver else env' in phase
+    assert "or before_locks != expected_locks" in phase
+    assert '"GOFLAGS": "-mod=readonly"' in phase
+    assert '"-failed-get-" + lock' in phase
+    retained_error_note = ast.parse(
+        'error.add_note("Failed-get lock retention failed: " + type(retention_error).__name__)',
+        mode="eval",
+    ).body
+    assert any(
+        ast.dump(node) == ast.dump(retained_error_note)
+        for node in ast.walk(ast.parse(phase))
+        if isinstance(node, ast.Call)
+    )
+    assert '"derivation_epoch": _ALERT_XNET062_METADATA_EPOCH' in phase
+    assert 'for cmd in ("alertmanager", "amtool")' in phase
+    assert '["list", "-mod=readonly", "-tags=netgo", "-deps", "-json", "./cmd/" + cmd]' in phase
+    # New discovery report cannot silently enter the closed historical Q reader.
+    retained = inspect.getsource(fetcher._alertmanager_qualified_payload)
+    assert '"derivation_epoch"' not in retained
+    assert '"AM_upstream_noop_lock_replay"' in retained
+    assert '"AM_source_epoch_dependency_action"' in retained

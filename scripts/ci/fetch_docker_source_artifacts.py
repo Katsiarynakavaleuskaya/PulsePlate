@@ -2372,6 +2372,10 @@ def _alertmanager_cleanup_member(
     cwd: Path,
     index: int,
     docker_config: Path,
+    *,
+    image_relation: dict[str, Any] | None = None,
+    expected_commands: dict[str, list[str]] | None = None,
+    expected_profiles: dict[str, dict[str, Any]] | None = None,
 ) -> None:
     """Remove only a retained full create ID whose exact name and owner label still match."""
     from scripts.ci.prometheus_source_image import decode_objects
@@ -2403,6 +2407,26 @@ def _alertmanager_cleanup_member(
         != owner_token
     ):
         raise RuntimeError("Cleanup census includes unknown resource.")
+    if image_relation is not None:
+        from scripts.ci.prometheus_source_image import native_container_image_identity, require
+
+        native_container_image_identity(observed[0], image_relation)
+        require(
+            expected_commands is not None
+            and identifier in expected_commands
+            and observed[0]["Config"].get("Cmd") == expected_commands[identifier]
+            and observed[0]["Config"].get("Entrypoint") == ["/toolchain/bin/go"],
+            "AM_metadata_cleanup_command",
+        )
+        require(
+            expected_profiles is not None
+            and identifier in expected_profiles
+            and all(
+                observed[0].get(key) == expected_profiles[identifier].get(key)
+                for key in ("Config", "HostConfig", "Mounts")
+            ),
+            "AM_metadata_cleanup_profile",
+        )
     native.run(
         [docker, "--config", str(docker_config), "rm", "--force", identifier],
         "cleanup-remove-" + str(index),
@@ -2576,56 +2600,12 @@ def _retain_alertmanager_inputs(
 
 
 def _alertmanager_loaded_base(objects: list[dict[str, Any]], *, current: bool = False) -> str:
-    """Bind the single native public-base config, platform, digest and thirteen diffIDs."""
-    from scripts.ci.prometheus_source_image import BASE, BASE_CONFIG, BASE_LAYER_CONTRACTS, require
+    """Return the native operand, never reinterpret it as config-content identity."""
+    from scripts.ci.prometheus_source_image import native_base_identity, require
 
-    require(type(current) is bool, "AM_loaded_base_epoch_type")
-    if len(objects) != 1:
-        raise RuntimeError("Exact public base native observation ambiguous.")
-    image = objects[0]
-    expected = [
-        "sha256:9486261b5a13f63ca6904b36721527ac8f19df53d300560138d69ae9b4c203de",
-        "sha256:621c35e751a51a9a9dc3e80aa0b7fe8be2a93402ea6ccd307d30852cd7776cda",
-        "sha256:763a77745f27b86cf26b97887b6842d83720e63b1c48848c0ba9ee54e351d63a",
-        "sha256:f0d0eff4c2312a7bd6e21797bdfea5eb35f60e76b555ce2b22794424af2cad36",
-        "sha256:275a30dd8ce958b21daa9ad962c6fbc09f98306ee2f486b65c9075dc257b1412",
-        "sha256:4d049f83d9cf21d1f5cc0e11deaf36df02790d0e60c1a3829538fb4b61685368",
-        "sha256:af5aa97ebe6ce1604747ec1e21af7136ded391bcabe4acef882e718a87c86bcc",
-        "sha256:6f1cdceb6a3146f0ccb986521156bef8a422cdbb0863396f7f751f575ba308f4",
-        "sha256:bd3cdfae1d3fdd83a2231d608969b38b82349777c2fff9a7c12d54f8ac5c9b38",
-        "sha256:4cde6b0bb6f50a5f255eef7b2a42162c661cf776b803225dcac9a659e396bb6b",
-        "sha256:ad51d0769d16ba578106a177987dfe3d2e02c1668c852b795b2f6b024068242a",
-        "sha256:187cfc6d1e3e8a40a5e64653bcd3239c140807dcf1c09e48021178705a5a6139",
-        "sha256:f2392a9484bf6b18f06beaf705b994e31dbb2716c99cf7d03c9c495cd107f364",
-    ]
-    reference = "gcr.io/distroless/static-debian13@sha256:2293b36c7c9082bf4115aab724b4d2cddec82c8eba39bf27ac0517e159acf150"
-    identifier_expected = _ALERT_BASE_CONFIG
-    if current:
-        reference = BASE
-        identifier_expected = BASE_CONFIG
-        expected = [row["diff_id"] for row in BASE_LAYER_CONTRACTS]
-    digests = image.get("RepoDigests")
-    rootfs = image.get("RootFS")
-    if (
-        type(digests) is not list
-        or any(type(value) is not str for value in digests)
-        or digests.count(reference) != 1
-        or type(rootfs) is not dict
-        or rootfs.get("Type") != "layers"
-        or type(rootfs.get("Layers")) is not list
-    ):
-        raise RuntimeError("Exact public base native field shapes differ.")
-    if (
-        image.get("Id") != identifier_expected
-        or image.get("Os") != "linux"
-        or image.get("Architecture") != "amd64"
-        or rootfs["Layers"] != expected
-    ):
-        raise RuntimeError("Exact public base config/platform/RepoDigest/thirteen diffIDs differ.")
-    identifier = image["Id"]
-    if not isinstance(identifier, str):
-        raise RuntimeError("Native base ID type differs.")
-    return identifier
+    require(type(objects) is list and len(objects) == 1, "AM_exact_one_native_base")
+    relation = native_base_identity(objects[0], current=current)
+    return cast(str, relation["engine_id"])
 
 
 def _alertmanager_finalize_payload(evidence: Path, deadline: float) -> None:
@@ -2743,6 +2723,68 @@ def _alertmanager_readonly_go(toolchain: Path, deadline: float) -> dict[str, lis
     }
 
 
+_ALERT_XNET062_METADATA_EPOCH = "alertmanager-0.34.2-xnet062"
+
+
+def _alertmanager_xnet062_delta(
+    before_rows: list[dict[str, Any]],
+    after_rows: list[dict[str, Any]],
+    *,
+    epoch: str,
+) -> list[dict[str, Any]]:
+    """One current metadata action; historical qualification readers stay separate."""
+    if epoch != _ALERT_XNET062_METADATA_EPOCH:
+        raise RuntimeError("Alertmanager xnet062 metadata epoch differs.")
+
+    def selected(rows: list[dict[str, Any]]) -> dict[str, str | None]:
+        result: dict[str, str | None] = {}
+        mains = 0
+        for row in rows:
+            path = row.get("Path")
+            version = row.get("Version")
+            if (
+                not isinstance(path, str)
+                or not path
+                or path in result
+                or "Error" in row
+                or "Replace" in row
+                or ("Main" in row and type(row["Main"]) is not bool)
+            ):
+                raise RuntimeError("Alertmanager metadata module identity differs.")
+            if row.get("Main") is True:
+                mains += 1
+                if path != "github.com/prometheus/alertmanager" or version is not None:
+                    raise RuntimeError("Alertmanager metadata main module differs.")
+            elif not isinstance(version, str) or not version:
+                raise RuntimeError("Alertmanager metadata module version missing.")
+            result[path] = version
+        if mains != 1:
+            raise RuntimeError("Alertmanager metadata requires one main module.")
+        return result
+
+    before, after = selected(before_rows), selected(after_rows)
+    if (
+        before.get("golang.org/x/net") != "v0.60.0"
+        or before.get("google.golang.org/grpc") != "v1.83.2"
+        or after.get("golang.org/x/net") != "v0.62.0"
+    ):
+        raise RuntimeError("Alertmanager xnet062 original/derived selection differs.")
+    return [
+        {
+            "path": path,
+            "before": before.get(path),
+            "after": after.get(path),
+            "class": (
+                "authored"
+                if path == "golang.org/x/net"
+                else "solver_closure_reproduced_by_fixed_get"
+            ),
+        }
+        for path in sorted(set(before) | set(after))
+        if before.get(path) != after.get(path)
+    ]
+
+
 def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> None:
     """Fixed metadata-only online/offline replay; this function never compiles."""
     import shutil
@@ -2755,6 +2797,10 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
         decode_objects,
         file_hash,
         tree_inventory,
+        native_base_identity,
+        native_container_image_identity,
+        one_object,
+        require,
     )
 
     evidence = output / "alertmanager-module-evidence"
@@ -2764,6 +2810,9 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
     owner_token = uuid.uuid4().hex
     owned_names: set[str] = set()
     owned_ids: set[str] = set()
+    expected_commands: dict[str, list[str]] = {}
+    expected_profiles: dict[str, dict[str, Any]] = {}
+    base_relation: dict[str, Any] | None = None
     primary: BaseException | None = None
     cleanup_error: BaseException | None = None
     docker_config = output / "alertmanager-empty-docker-config"
@@ -2815,6 +2864,7 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
         )
         base_objects = decode_objects(base_raw)
         base_id = _alertmanager_loaded_base(base_objects, current=True)
+        base_relation = native_base_identity(base_objects[0])
         base_retention = evidence / "base-retention"
         base_retention.mkdir(mode=0o700)
         base_archive = base_retention / "base-image.tar"
@@ -2827,6 +2877,7 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
         )
         originals = {item.name: item for item in artifacts}
         replay: list[dict[str, object]] = []
+        baseline_observations: list[dict[str, object]] = []
         for number in (1, 2):
             source = output / ("alertmanager-replay-" + str(number))
             source.mkdir(mode=0o755)
@@ -2872,7 +2923,7 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
                 "CGO_ENABLED": "0",
                 "GOPROXY": "https://proxy.golang.org",
                 "GOSUMDB": "sum.golang.org",
-                "GOFLAGS": "",
+                "GOFLAGS": "-mod=readonly",
             }
             original_locks = {name: (source / name).read_bytes() for name in ("go.mod", "go.sum")}
             if (
@@ -2897,13 +2948,21 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
                 ]
 
             frozen_source = nonlocks()
+            expected_locks = original_locks
 
             def command(args: list[str], label: str, solver: bool = False) -> bytes:
                 before_locks = {name: (source / name).read_bytes() for name in original_locks}
-                if nonlocks() != frozen_source or file_hash(go_archive, deadline) != GO.digest:
+                if (
+                    nonlocks() != frozen_source
+                    or file_hash(go_archive, deadline) != GO.digest
+                    or before_locks != expected_locks
+                ):
                     raise RuntimeError("Alertmanager source/tool drift before metadata command.")
                 raw: bytes = native.run(
-                    [str(go), *args], "replay" + str(number) + "-" + label, env, cwd=source
+                    [str(go), *args],
+                    "replay" + str(number) + "-" + label,
+                    dict(env, GOFLAGS="") if solver else env,
+                    cwd=source,
                 )
                 if nonlocks() != frozen_source or (
                     not solver
@@ -2917,13 +2976,49 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
             if version != b"go version go1.27.3 linux/amd64\n":
                 raise RuntimeError("Qualified Go version/platform differs.")
             command(["mod", "download", "-json"], "baseline-download")
-            baseline = decode_objects(
-                command(["list", "-mod=readonly", "-m", "-json", "all"], "baseline-modules")
+            baseline_raw = command(
+                ["list", "-mod=readonly", "-m", "-json", "all"], "baseline-modules"
             )
-            command(
-                ["get", "golang.org/x/net@v0.60.0", "google.golang.org/grpc@v1.83.2"],
-                "upstream-target-replay",
-            )
+            baseline = decode_objects(baseline_raw)
+            baseline_graph = command(["mod", "graph"], "baseline-graph")
+            if (
+                not baseline_graph
+                or len(baseline_graph.splitlines()) != len(set(baseline_graph.splitlines()))
+                or any(len(line.split()) != 2 for line in baseline_graph.splitlines())
+            ):
+                raise RuntimeError("Alertmanager original module graph malformed or duplicated.")
+            baseline_versions = {row.get("Path"): row.get("Version") for row in baseline}
+            if (
+                len(baseline_versions) != len(baseline)
+                or baseline_versions.get("golang.org/x/net") != "v0.60.0"
+                or baseline_versions.get("google.golang.org/grpc") != "v1.83.2"
+                or any("Error" in row or "Replace" in row for row in baseline)
+            ):
+                raise RuntimeError("Alertmanager original selected module graph differs.")
+            try:
+                command(
+                    ["get", "golang.org/x/net@v0.62.0"],
+                    "xnet062-authored-get",
+                    solver=True,
+                )
+            except BaseException as error:
+                try:
+                    for lock in original_locks:
+                        (evidence / ("replay" + str(number) + "-failed-get-" + lock)).write_bytes(
+                            (source / lock).read_bytes()
+                        )
+                except BaseException as retention_error:
+                    error.add_note(
+                        "Failed-get lock retention failed: " + type(retention_error).__name__
+                    )
+                raise
+            # Capture immediately, before any download can modify checksum history.
+            derived_locks = {name: (source / name).read_bytes() for name in original_locks}
+            if derived_locks == original_locks:
+                raise RuntimeError("Alertmanager xnet062 derivation must change original locks.")
+            for lock, raw in derived_locks.items():
+                (evidence / ("replay" + str(number) + "-derived-" + lock)).write_bytes(raw)
+            expected_locks = derived_locks
             command(["mod", "download", "-json"], "derived-download")
             command(["mod", "verify"], "online-verify")
             modules_raw = command(["list", "-mod=readonly", "-m", "-json", "all"], "online-modules")
@@ -2970,8 +3065,7 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
                 if (
                     len(main) != 1
                     or main[0]["Path"] != "github.com/prometheus/alertmanager"
-                    or versions.get("golang.org/x/net") != "v0.60.0"
-                    or versions.get("google.golang.org/grpc") != "v1.83.2"
+                    or versions.get("golang.org/x/net") != "v0.62.0"
                 ):
                     raise RuntimeError("Alertmanager selected module identities differ.")
                 fields = ("Path", "Version", "Main", "GoVersion", "Sum", "GoModSum", "Indirect")
@@ -3028,6 +3122,14 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
                     key=lambda row: row["ImportPath"],
                 )
 
+            baseline_observations.append(
+                {
+                    "modules": sorted(
+                        decode_objects(coordinate(baseline_raw)), key=lambda row: row["Path"]
+                    ),
+                    "graph": sorted(baseline_graph.splitlines()),
+                }
+            )
             online_modules = modules_projection(modules_raw)
             online_packages = {
                 cmd: packages_projection(raw, cmd) for cmd, raw in package_graphs.items()
@@ -3040,41 +3142,11 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
                 raise RuntimeError("Alertmanager module graph malformed or duplicated.")
             online_graph = sorted(graph.splitlines())
             modules = decode_objects(modules_raw)
-            before = {row["Path"]: row.get("Version") for row in baseline}
-            after = {row["Path"]: row.get("Version") for row in modules}
-            if (
-                len(before) != len(baseline)
-                or len(after) != len(modules)
-                or before.get("golang.org/x/net") != "v0.60.0"
-                or before.get("google.golang.org/grpc") != "v1.83.2"
-                or before != after
-            ):
-                raise RuntimeError("Current upstream module replay must preserve the exact graph.")
-            if (
-                after.get("golang.org/x/net") != "v0.60.0"
-                or after.get("google.golang.org/grpc") != "v1.83.2"
-                or any(row.get("Error") or row.get("Replace") for row in modules)
-            ):
-                raise RuntimeError(
-                    "Alertmanager authored module targets or selected identities differ."
-                )
-            delta = [
-                {
-                    "path": path,
-                    "before": before.get(path),
-                    "after": after.get(path),
-                    "class": (
-                        "authored"
-                        if path in ("golang.org/x/net", "google.golang.org/grpc")
-                        else "solver_closure_reproduced_by_fixed_get"
-                    ),
-                }
-                for path in sorted(set(before) | set(after))
-                if before.get(path) != after.get(path)
-            ]
-            derived_locks = {name: (source / name).read_bytes() for name in original_locks}
-            for lock, raw in derived_locks.items():
-                (evidence / ("replay" + str(number) + "-derived-" + lock)).write_bytes(raw)
+            delta = _alertmanager_xnet062_delta(
+                baseline, modules, epoch=_ALERT_XNET062_METADATA_EPOCH
+            )
+            if {name: (source / name).read_bytes() for name in original_locks} != derived_locks:
+                raise RuntimeError("Alertmanager immediate post-get locks changed.")
             cache_inventory = tree_inventory(cache, deadline=deadline)
             module_inventory = tree_inventory(cache / "pkg/mod", deadline=deadline)
             build_inventory = tree_inventory(cache / "build", deadline=deadline)
@@ -3108,6 +3180,7 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
                         "package_graphs": online_packages,
                         "module_edges": [line.decode("utf-8") for line in online_graph],
                         "delta": delta,
+                        "derivation_epoch": _ALERT_XNET062_METADATA_EPOCH,
                     },
                     indent=2,
                 )
@@ -3121,6 +3194,9 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
                 "--read-only",
                 "--cap-drop=ALL",
                 "--security-opt=no-new-privileges",
+                "--cpus=2",
+                "--memory=4g",
+                "--pids-limit=128",
                 "--user=65534:65534",
                 "--tmpfs",
                 "/run/alertmanager-metadata:size=64m,noexec,nosuid,uid=65534,gid=65534,mode=0700",
@@ -3132,7 +3208,7 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
                 "type=bind,source=" + str(toolchain) + ",target=/toolchain,readonly",
                 "--workdir=/source",
             ]
-            for key, value in {
+            guest_env = {
                 "HOME": "/run/alertmanager-metadata",
                 "GOPATH": "/cache",
                 "GOMODCACHE": "/cache/pkg/mod",
@@ -3146,8 +3222,9 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
                 "CGO_ENABLED": "0",
                 "GOOS": "linux",
                 "GOARCH": "amd64",
-                "GOFLAGS": "",
-            }.items():
+                "GOFLAGS": "-mod=readonly",
+            }
+            for key, value in guest_env.items():
                 prefix += ["--env", key + "=" + value]
             prefix += [
                 "--entrypoint=/toolchain/bin/go",
@@ -3199,6 +3276,63 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
                 if re.fullmatch(r"[0-9a-f]{64}", identifier) is None:
                     raise RuntimeError("Owned Alertmanager metadata container identity malformed.")
                 owned_ids.add(identifier)
+                expected_commands[identifier] = args
+                before_start = one_object(
+                    native.run(
+                        [*docker_prefix, "inspect", "--format", "{{json .}}", identifier],
+                        "replay" + str(number) + "-prestart-" + label,
+                        docker_env,
+                        cwd=source,
+                    )
+                )
+                expected_profiles[identifier] = before_start
+                require(base_relation is not None, "AM_metadata_base_relation")
+                native_container_image_identity(before_start, base_relation)
+                expected_env = dict(
+                    value.split("=", 1) for value in base_objects[0]["Config"]["Env"]
+                )
+                expected_env.update(guest_env)
+                cfg, host = before_start["Config"], before_start["HostConfig"]
+                require(
+                    before_start.get("Id") == identifier
+                    and before_start.get("Name") == "/" + name
+                    and cfg.get("Labels", {}).get("pulseplate.alertmanager-module") == owner_token
+                    and cfg.get("Entrypoint") == ["/toolchain/bin/go"]
+                    and cfg.get("Cmd") == args
+                    and cfg.get("User") == "65534:65534"
+                    and cfg.get("WorkingDir") == "/source"
+                    and dict(value.split("=", 1) for value in cfg["Env"]) == expected_env,
+                    "AM_metadata_prestart_identity_command",
+                )
+                require(
+                    host.get("NetworkMode") == "none"
+                    and host.get("ReadonlyRootfs") is True
+                    and host.get("Privileged") is False
+                    and host.get("CapDrop") == ["ALL"]
+                    and host.get("CapAdd") in (None, [])
+                    and host.get("SecurityOpt")
+                    in (["no-new-privileges"], ["no-new-privileges:true"])
+                    and host.get("NanoCpus") == 2000000000
+                    and host.get("Memory") == 4294967296
+                    and host.get("PidsLimit") == 128,
+                    "AM_metadata_prestart_isolation",
+                )
+                mounts = before_start["Mounts"]
+                require(
+                    len(mounts) == 3
+                    and all(row["Type"] == "bind" and row["RW"] is False for row in mounts)
+                    and {row["Destination"]: row["Source"] for row in mounts}
+                    == {"/source": str(source), "/cache": str(cache), "/toolchain": str(toolchain)},
+                    "AM_metadata_prestart_mounts",
+                )
+                require(
+                    host.get("Binds") in (None, [])
+                    and host.get("Tmpfs")
+                    == {
+                        "/run/alertmanager-metadata": "size=64m,noexec,nosuid,uid=65534,gid=65534,mode=0700"
+                    },
+                    "AM_metadata_prestart_tmpfs",
+                )
                 raw = native.run(
                     [*docker_prefix, "start", "--attach", identifier],
                     "replay" + str(number) + "-offline-" + label,
@@ -3222,6 +3356,13 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
                 if len(terminal) != 1:
                     raise RuntimeError("Owned Alertmanager terminal state ambiguous.")
                 _alertmanager_command_exit(terminal[0], identifier, name, owner_token, waited)
+                native_container_image_identity(terminal[0], base_relation)
+                require(
+                    terminal[0]["Config"] == before_start["Config"]
+                    and terminal[0]["HostConfig"] == before_start["HostConfig"]
+                    and terminal[0]["Mounts"] == before_start["Mounts"],
+                    "AM_metadata_terminal_profile_changed",
+                )
                 if (
                     label in package_graphs
                     and packages_projection(raw, label) != online_packages[label]
@@ -3288,6 +3429,8 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
                 }
             )
         _alertmanager_compare_replays(replay)
+        if len(baseline_observations) != 2 or baseline_observations[0] != baseline_observations[1]:
+            raise RuntimeError("Independent Alertmanager original selected graphs differ.")
     except BaseException as error:
         primary = error
     finally:
@@ -3336,6 +3479,9 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
                         evidence,
                         index,
                         docker_config,
+                        image_relation=base_relation,
+                        expected_commands=expected_commands,
+                        expected_profiles=expected_profiles,
                     )
                 absent = native.run(
                     [
@@ -3380,6 +3526,8 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
         raise cleanup_error
     report = {
         "metadata_only": True,
+        # Existing historical Q readers reject this new epoch until separately admitted.
+        "derivation_epoch": _ALERT_XNET062_METADATA_EPOCH,
         "compiler_starts": 0,
         "compiler_counter_meaning": "Procedural fixed-command inventory excludes Go build/install/test; no whole-process-tree or external-compiler absence claim",
         "owned_container_names": sorted(owned_names),
@@ -5312,46 +5460,10 @@ def _alertmanager_base_export_inventory(
 
 
 def _alertmanager_current_base_graph(layout: Path) -> dict[str, Any]:
-    """Bind the current native export representation to the independent vendor thirteen-layer graph."""
-    from scripts.ci.prometheus_source_image import (
-        BASE_CONFIG,
-        BASE_LAYER_CONTRACTS,
-        OCI_CONFIG,
-        OCI_MANIFEST,
-        _blob,
-        _layout_root,
-        exact_data,
-        one_object,
-        require,
-    )
+    """Delegate both finite current export transports to the P content owner."""
+    from scripts.ci.prometheus_source_image import native_base_export_graph
 
-    descriptor = _layout_root(layout)
-    manifest = one_object(_blob(layout, descriptor))
-    exact_data(set(manifest), {"schemaVersion", "mediaType", "config", "layers"})
-    exact_data(manifest["schemaVersion"], 2)
-    exact_data(manifest["mediaType"], OCI_MANIFEST)
-    exact_data(manifest["config"], {"mediaType": OCI_CONFIG, "size": 2938, "digest": BASE_CONFIG})
-    configuration = one_object(_blob(layout, manifest["config"]))
-    exact_data(
-        configuration["rootfs"],
-        {"type": "layers", "diff_ids": [row["diff_id"] for row in BASE_LAYER_CONTRACTS]},
-    )
-    require(
-        configuration["os"] == "linux" and configuration["architecture"] == "amd64",
-        "AM_current_export_platform",
-    )
-    expected_layers = [
-        {
-            "mediaType": "application/vnd.oci.image.layer.v1.tar",
-            "digest": row["diff_id"],
-            "size": row["expanded"],
-        }
-        for row in BASE_LAYER_CONTRACTS
-    ]
-    exact_data(manifest["layers"], expected_layers)
-    for layer in expected_layers:
-        _blob(layout, layer)
-    return cast(dict[str, Any], descriptor)
+    return cast(dict[str, Any], native_base_export_graph(layout))
 
 
 def _alertmanager_support_observation(
@@ -5448,28 +5560,35 @@ def _alertmanager_support_observation(
     layout_rows, _ = _alertmanager_base_export_inventory(base_archive, destination=layout)
     require(type(current) is bool, "AM_support_observation_epoch")
     if current:
-        require(len(layout_rows) == 31, "AM_current_Q_export_finite_shape")
         _alertmanager_loaded_base([original_base], current=True)
-        _alertmanager_current_base_graph(layout)
-    descriptor = _layout_root(layout)
+        descriptor = _alertmanager_current_base_graph(layout)
+    else:
+        descriptor = _layout_root(layout)
     manifest = one_object(_blob(layout, descriptor))
     configuration = one_object(_blob(layout, manifest["config"]))
+    from scripts.ci.prometheus_source_image import BASE_CONFIG
+
+    config_digest = BASE_CONFIG if current else _ALERT_BASE_CONFIG
     require(
-        manifest["config"]["digest"] == base_id
+        manifest["config"]["digest"] == config_digest
         and type(manifest.get("layers")) is list
         and configuration.get("rootfs", {}).get("diff_ids") == original_base["RootFS"]["Layers"]
-        and [layer.get("digest") for layer in manifest["layers"]]
-        == original_base["RootFS"]["Layers"]
         and configuration.get("os") == original_base["Os"]
         and configuration.get("architecture") == original_base["Architecture"],
         "AM_base_export_config_diffIDs",
     )
-    for layer in manifest["layers"]:
+    if not current:
         require(
-            layer.get("mediaType") == "application/vnd.oci.image.layer.v1.tar",
-            "AM_base_export_layer_representation",
+            [layer.get("digest") for layer in manifest["layers"]]
+            == original_base["RootFS"]["Layers"],
+            "AM_historical_export_diffIDs",
         )
-        _blob(layout, layer)
+        for layer in manifest["layers"]:
+            require(
+                layer.get("mediaType") == "application/vnd.oci.image.layer.v1.tar",
+                "AM_base_export_layer_representation",
+            )
+            _blob(layout, layer)
     old_image = (
         "prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3"
     )
@@ -5510,7 +5629,7 @@ def _alertmanager_support_observation(
         )
         result["base"] = {
             "archive_sha256": file_hash(base_archive),
-            "config": base_id,
+            "config": config_digest,
             "RootFS": loaded["RootFS"],
             "original_compressed_OCI_claim": False,
             "actual_local_OCI_descriptor": descriptor,
@@ -5769,7 +5888,7 @@ def _alertmanager_support_observation(
         require(
             base_scan.get("ArtifactType") == "container_image"
             and type(base_scan.get("Metadata")) is dict
-            and base_scan["Metadata"].get("ImageID") == base_id,
+            and base_scan["Metadata"].get("ImageID") == config_digest,
             "AM_base_scan_exact_subject",
         )
         rootfs = work / "probe-rootfs"
@@ -6862,7 +6981,6 @@ def _alertmanager_current_support_base(
         "AM_current_S_exact_Q_export",
     )
     q_rows, q_directories = _alertmanager_base_export_inventory(destination / "base-image.tar")
-    require(len(q_rows) == 31, "AM_current_Q_export_finite_shape")
     layout = destination / "base-layout"
     inventory = tree_inventory(layout, maximum=16 * 1024**2)
     for row in inventory:
@@ -6953,7 +7071,14 @@ def _alertmanager_support_payload(
         require(
             set(footer) == {"files", "directories", "inventory_carrier_exception"}
             and type(footer["files"]) is list
-            and len(footer["files"]) == 91
+            and (
+                len(footer["files"]) == 91
+                if not current
+                else all(
+                    type(row) is dict and type(row.get("path")) is str for row in footer["files"]
+                )
+                and sum(not row["path"].startswith("base-layout/") for row in footer["files"]) == 60
+            )
             and type(footer["directories"]) is list
             and len(footer["directories"]) == 14,
             "AM_support_native_footer",

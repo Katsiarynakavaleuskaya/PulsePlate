@@ -2988,3 +2988,325 @@ def test_caddy_stdlib_exact_identity_inventory() -> None:
     assert len(runtime_surface.CADDY_V3_BUILD_MEMBERS) == 16
     assert len(runtime_surface.CADDY_STDLIB_MEMBERS) == 12
     assert len(runtime_surface.CADDY_BUILD_MEMBERS) == 28
+
+
+@pytest.fixture
+def caddy062_metadata(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Small synthetic metadata only; real retained source hashes are native evidence."""
+    output = tmp_path / "metadata"
+    output.mkdir()
+    for phase in ("baseline", "incumbent", "final"):
+        modules = [
+            {"Path": "pulseplate.local/caddy-build", "Main": True},
+            {
+                "Path": "github.com/caddyserver/caddy/v2",
+                "Version": "v2.11.4" if phase == "baseline" else "v2.11.9",
+                "Sum": "h1:synthetic",
+            },
+            {"Path": "golang.org/x/net", "Version": "v0.62.0" if phase == "final" else "v0.60.0"},
+            {
+                "Path": "example.test/added" if phase == "final" else "example.test/removed",
+                "Version": "v1.0.0",
+            },
+        ]
+        packages = [
+            {
+                "ImportPath": "github.com/caddyserver/caddy/v2/cmd/caddy",
+                "Name": "main",
+                "Imports": ["golang.org/x/net/html"],
+            },
+            {"ImportPath": "golang.org/x/net/html", "Name": "html", "Imports": []},
+        ]
+        files = {
+            "go.mod": (phase + " mod\n").encode(),
+            "go.sum": (phase + " sums\n").encode(),
+            "modules.json": ("\n".join(json.dumps(row) for row in modules) + "\n").encode(),
+            "packages.json": ("\n".join(json.dumps(row) for row in packages) + "\n").encode(),
+            "module-graph.txt": b"pulseplate.local/caddy-build golang.org/x/net@v0.60.0\n",
+            "verify.txt": b"all modules verified\n",
+        }
+        for suffix, raw in files.items():
+            (output / (phase + "-" + suffix)).write_bytes(raw)
+            if phase != "baseline":
+                (output / (phase + "-offline-" + suffix)).write_bytes(raw)
+    monkeypatch.setattr(
+        runtime_surface,
+        "CADDY_XNET062_INCUMBENT_FILES",
+        {
+            name: hashlib.sha256((output / name).read_bytes()).hexdigest()
+            for name in runtime_surface.CADDY_XNET062_INCUMBENT_FILES
+        },
+    )
+    return output
+
+
+def test_caddy062_metadata_separates_historical_root_and_new_module_intent(
+    caddy062_metadata: Path,
+) -> None:
+    result = runtime_surface.validate_caddy_xnet062_metadata(caddy062_metadata)
+    assert result["epoch"] == "caddy2.11.9-xnet062-metadata"
+    assert result["build_profile_admission"].startswith("HOLD")
+    delta = {row["path"]: row for row in result["complete_delta"]}
+    assert set(delta) == {"golang.org/x/net", "example.test/added", "example.test/removed"}
+    assert delta["golang.org/x/net"]["class"] == "I_R"
+    assert delta["golang.org/x/net"]["before"]["Version"] == "v0.60.0"
+    assert delta["golang.org/x/net"]["after"]["Version"] == "v0.62.0"
+    assert delta["example.test/added"]["before"] is None
+    assert delta["example.test/removed"]["after"] is None
+    assert [row["path"] for row in result["historical_caddy_delta"]] == [
+        "github.com/caddyserver/caddy/v2"
+    ]
+
+
+@pytest.mark.parametrize("fault", ["incumbent", "missing", "symlink", "offline", "empty"])
+def test_caddy062_metadata_rejects_unbound_or_incomplete_bytes(
+    caddy062_metadata: Path, fault: str
+) -> None:
+    target = caddy062_metadata / "final-go.sum"
+    if fault == "incumbent":
+        (caddy062_metadata / "incumbent-go.sum").write_bytes(b"different incumbent")
+    elif fault == "missing":
+        target.unlink()
+    elif fault == "symlink":
+        target.unlink()
+        target.symlink_to(caddy062_metadata / "final-offline-go.sum")
+    elif fault == "empty":
+        target.write_bytes(b"")
+    else:
+        (caddy062_metadata / "final-offline-go.sum").write_bytes(b"different offline")
+    with pytest.raises((ValueError, OSError)):
+        runtime_surface.validate_caddy_xnet062_metadata(caddy062_metadata)
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "wrong-net",
+        "wrong-root",
+        "replacement",
+        "duplicate",
+        "package-error",
+        "missing-import",
+        "malformed-graph",
+        "missing-command",
+    ],
+)
+def test_caddy062_metadata_rejects_semantically_invalid_final_observations(
+    caddy062_metadata: Path, fault: str
+) -> None:
+    suffix = "modules.json"
+    if fault in ("package-error", "missing-import", "missing-command"):
+        suffix = "packages.json"
+    if fault == "malformed-graph":
+        suffix = "module-graph.txt"
+        data = b"malformed-edge\n"
+    else:
+        rows = [
+            json.loads(line)
+            for line in (caddy062_metadata / ("final-" + suffix)).read_text().splitlines()
+        ]
+        if fault == "wrong-net":
+            rows[2]["Version"] = "v0.60.0"
+        elif fault == "wrong-root":
+            rows[1]["Version"] = "v2.11.4"
+        elif fault == "replacement":
+            rows[2]["Replace"] = {"Path": "/unqualified"}
+        elif fault == "duplicate":
+            rows.append(dict(rows[2]))
+        elif fault == "package-error":
+            rows[0]["Error"] = {"Err": "synthetic error"}
+        elif fault == "missing-command":
+            rows.pop(0)
+        else:
+            rows.pop(1)
+        data = ("\n".join(json.dumps(row) for row in rows) + "\n").encode()
+    for phase in ("final", "final-offline"):
+        (caddy062_metadata / (phase + "-" + suffix)).write_bytes(data)
+    with pytest.raises((ValueError, RuntimeError)):
+        runtime_surface.validate_caddy_xnet062_metadata(caddy062_metadata)
+
+
+def test_caddy062_recipe_and_workflow_preserve_seed_then_one_new_action() -> None:
+    import re
+
+    root = Path(__file__).resolve().parents[1]
+    recipe = (root / "frontend/Dockerfile.caddy-spa").read_text()
+    gets = re.findall(r"^    go get ([^;]+);", recipe, re.MULTILINE)
+    assert gets == [
+        "github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.4",
+        "google.golang.org/grpc@v1.83.2",
+        "golang.org/x/crypto@v0.55.0",
+        "golang.org/x/net@v0.60.0",
+        "github.com/klauspost/compress@v1.18.7",
+        "github.com/go-jose/go-jose/v4@v4.1.6",
+        "github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.9",
+        "golang.org/x/net@v0.62.0",
+    ]
+    workflow = (root / ".github/workflows/frontend-ci.yml").read_text()
+    assert "options: [contract, xnet062-metadata, candidate-D]" in workflow
+    assert 'for phase, online_script in (("incumbent", seed), ("final", advance))' in workflow
+    assert "for offline in (False, True)" in workflow
+    assert '"caddy_retained_incumbent_before_new_get"' in workflow
+    assert '"caddy_metadata_offline_input_changed"' in workflow
+    assert '"caddy_independent_raw_output_equality"' in workflow
+    assert 'raise ValueError("Caddy xnet062 output profile not adopted; metadata only")' in workflow
+    assert '"historical-caddy-delta.json"' in workflow
+    seed = workflow.split("seed = '''", 1)[1].split("'''", 1)[0]
+    advance = workflow.split("advance = '''", 1)[1].split("'''", 1)[0]
+    assert "cp go.sum /output/incumbent-postget-go.sum" in seed
+    assert "cmp go.sum /output/incumbent-postget-go.sum" not in seed
+    assert seed.index("go mod download all", seed.index("@v2.11.9")) < seed.index(
+        "capture incumbent"
+    )
+    assert "cmp go.mod /output/post-get-go.mod" in advance
+    assert "cmp go.sum /output/post-get-go.sum" not in advance
+    assert (
+        "f5d9289fa0e27604a936ed5e35368db876398dac62154b9a6af9d0d2a891f7d9  /output/post-get-go.sum"
+        in advance
+    )
+    assert "be8f44f7e591bcaa54412fe5f3061235596be2faf9bd3f5fdece0106fea45338  go.sum" in advance
+
+
+@pytest.mark.parametrize(
+    "status",
+    [None, "unknown", "observed_caddy2119_module_replacement", "observed_xnet062_metadata_only"],
+)
+def test_caddy062_unadopted_profile_never_charges_or_reaches_build(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, status: str | None
+) -> None:
+    from contextlib import nullcontext
+    import yaml
+
+    root = Path(__file__).resolve().parents[1]
+    workflow = yaml.safe_load((root / ".github/workflows/frontend-ci.yml").read_text())
+    steps = workflow["jobs"]["caddy-contract"]["steps"]
+    hold = next(
+        step
+        for step in steps
+        if step["name"] == "Charge Build source-patched Caddy candidate budget"
+    )
+    build = next(step for step in steps if step["name"] == "Build source-patched Caddy candidate")
+    assert steps.index(hold) < steps.index(build)
+    assert not hold.get("continue-on-error", False)
+    assert not any(token in build["if"] for token in ("always()", "failure()", "cancelled()"))
+    (tmp_path / "caddy-admission").mkdir()
+    (tmp_path / "caddy-admission/admission.json").write_text(json.dumps({"inputs": []}))
+    metadata = tmp_path / "caddy-xnet062-metadata/evidence"
+    metadata.mkdir(parents=True)
+    (metadata / "qualification.json").write_text(
+        json.dumps({} if status is None else {"status": status})
+    )
+    monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
+    monkeypatch.setattr(runtime_surface, "caddy_ci_source_inventory", lambda *_: [])
+    monkeypatch.setattr(runtime_surface, "caddy_ci_phase", lambda *_: nullcontext())
+    charges: list[str] = []
+    monkeypatch.setattr(runtime_surface, "caddy_ci_charge_action", charges.append)
+    program = hold["run"].split("<<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
+    with pytest.raises(ValueError, match="output profile not adopted"):
+        exec(compile(program, "caddy-unadopted-profile", "exec"), {})
+    assert charges == []
+
+
+def test_caddy_metadata_native_identity_delegates_without_config_ID_alias() -> None:
+    workflow = (
+        Path(__file__).resolve().parents[1] / ".github/workflows/frontend-ci.yml"
+    ).read_text()
+    assert "image_relation = native_go_identity(observed, raw, platform_raw)" in workflow
+    assert "native_container_image_identity(inspected, image_relation)" in workflow
+    assert "native_container_image_identity(terminal, image_relation)" in workflow
+    assert "native_container_image_identity(actual, image_relation)" in workflow
+    assert 'inspected["Id"] == container_id' in workflow
+    assert (
+        "validate_caddy_metadata_custody(version_before, version_after, started_id=version_id)"
+        in workflow
+    )
+    assert (
+        "validate_caddy_metadata_custody(inspected, terminal, started_id=container_id)" in workflow
+    )
+    assert (
+        "validate_caddy_metadata_custody(owned_profiles[name], actual, started_id=started_id)"
+        in workflow
+    )
+    assert 'version_before["Config"]["Cmd"] == ["version"]' in workflow
+    assert 'inspected["Config"]["Cmd"] == ["-c", script]' in workflow
+    assert 'json.loads(platform_raw)["config"]["digest"] == observed["Id"]' not in workflow
+    assert 'raise ValueError("Caddy xnet062 output profile not adopted; metadata only")' in workflow
+
+
+@pytest.mark.parametrize(
+    ("fault", "message"),
+    [
+        (None, None),
+        ("missing-start", "actual start"),
+        ("zero-start", "actual start"),
+        ("invalid-date", "actual start"),
+        ("unknown-state", "current state"),
+        ("never-started-null", "declared_data_type"),
+        ("foreign-id", "declared_data_value"),
+        ("wrong-attempt", "another container"),
+        ("renamed", "declared_data_value"),
+        ("integer", "declared_data_type"),
+        ("nested-float", "declared_data_type"),
+        ("missing-key", "declared_data_keys"),
+        ("reverse-transition", "declared_data_type"),
+        ("short-id", "full container ID"),
+    ],
+)
+def test_caddy_metadata_custody_accepts_only_the_observed_typed_transition(
+    fault: str | None, message: str | None
+) -> None:
+    from copy import deepcopy
+    from typing import Any
+
+    before: dict[str, Any] = {
+        "Id": "a" * 64,
+        "Name": "/caddy-fixture",
+        "Image": "sha256:" + "b" * 64,
+        "Config": {"Cmd": ["version"], "Labels": {"pulseplate.caddy-metadata": "9"}},
+        "Mounts": [],
+        "State": {"Status": "created", "Running": False, "StartedAt": "0001-01-01T00:00:00Z"},
+        "HostConfig": {"OomKillDisable": False, "Resources": {"PidsLimit": 128}},
+    }
+    actual = deepcopy(before)
+    actual["State"] = {
+        "Status": "exited",
+        "Running": False,
+        "StartedAt": "2026-11-07T18:00:00.123456789Z",
+    }
+    actual["HostConfig"]["OomKillDisable"] = None
+    attempted = before["Id"]
+    if fault == "missing-start":
+        attempted = None
+    elif fault == "zero-start":
+        actual["State"]["StartedAt"] = before["State"]["StartedAt"]
+    elif fault == "invalid-date":
+        actual["State"]["StartedAt"] = "2026-02-31T18:00:00Z"
+    elif fault == "unknown-state":
+        actual["State"]["Status"] = "dead"
+    elif fault == "never-started-null":
+        actual["State"] = deepcopy(before["State"])
+    elif fault == "foreign-id":
+        actual["Id"] = "f" * 64
+    elif fault == "wrong-attempt":
+        attempted = "f" * 64
+    elif fault == "renamed":
+        actual["Name"] = "/foreign"
+    elif fault == "integer":
+        actual["HostConfig"]["OomKillDisable"] = 0
+    elif fault == "nested-float":
+        actual["HostConfig"]["Resources"]["PidsLimit"] = 128.0
+    elif fault == "missing-key":
+        del actual["HostConfig"]["OomKillDisable"]
+    elif fault == "reverse-transition":
+        before["HostConfig"]["OomKillDisable"] = None
+        actual["HostConfig"]["OomKillDisable"] = False
+    elif fault == "short-id":
+        before["Id"] = actual["Id"] = attempted = "a" * 12
+    snapshot = json.dumps([before, actual], sort_keys=True)
+    if message is None:
+        runtime_surface.validate_caddy_metadata_custody(before, actual, started_id=attempted)
+        runtime_surface.validate_caddy_metadata_custody(before, before, started_id=None)
+    else:
+        with pytest.raises((ValueError, RuntimeError), match=message):
+            runtime_surface.validate_caddy_metadata_custody(before, actual, started_id=attempted)
+    assert json.dumps([before, actual], sort_keys=True) == snapshot

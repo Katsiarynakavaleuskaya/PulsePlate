@@ -1140,3 +1140,74 @@ security predicate was changed for this analysis.
 Actual AM11 CA-qualified producer outputs are now selected as receiver data.
 Final C/H consumer admission, current-head gates and merged-main outcomes remain. See [AM11 vendor CA source preparation](CVE-2026-111943-go-trust-store.md#am11-vendor-ca-source-preparation)
 for the exact vendor delta, Q/S byte binding and remaining native proof.
+
+
+## PR #2494 P062 protected producer preparation
+
+The same-lane operator handoff admits the existing producer's finite x/net 0.62
+transition. It preserves all 39 accepted criteria, owners, original deadlines,
+spent compiler history and downstream publication/pullback obligations. Source
+preparation and deterministic tests do not release a hosted action. No new
+suppression, retry allowance, producer service or evidence schema is introduced.
+The current manifest is `source_prepared`: its tool coordinate, selection and
+candidate are null until separately authenticated actual outputs exist.
+
+The order is P0 → T → P1 → Q → B → P2. P0 freezes the complete raw helper,
+workflow and recipe plus declared inputs. T may compile one ORAS tool after the
+same shared admission check runs before scanner acquisition and again before
+compilation. P1 must be a distinct descendant in PR #2494, with the same raw
+producer bytes and tool input projection; only the actual retained T coordinate
+changes in the governed input set. Its artifact, scanner inventory, compiler,
+binary, native observations and cleanup are authenticated separately. Q and B
+use exactly P1. B remains two serial image builds, containing four named binary
+compiler invocations in total. P2 is a later same-PR output selection using the
+actual B artifact; future commit, run, artifact and image identities are unknown.
+
+The immutable spent inventory retains seven tool jobs, five source-qualification
+jobs, four pair jobs and three package companions. Both failed and successful
+jobs remain spent. The final historical tool is run `40309564942`, job
+`121527061782`; the final historical Q and package companion are run
+`40379959203`, jobs `121773207468` and `121773207880`; the final historical pair
+is run `40384356149`, job `121788589461`. The code retains every earlier exact
+run/job/source/ref/status/time row. Omission, repetition, another attempt,
+unknown relevant work, incomplete pagination or another successor prefix rejects.
+Current action IDs are never inferred from that history.
+
+Current derived lock hashes are go.mod
+`6e2dfa8d25b5cd3da5513334134e63549aff7e70915958f98893893c825d609e`
+and go.sum
+`673bf9d73e667b94aa125f5ac3987bfb4a26b7ccbe1b0e51e7de030bc45fcce5`.
+The original-to-final patch is
+`73950dc5f646f76ff0d09885a2fb1ce29f62b29c00dc7ca96d7910ad7ac304bc`;
+that patch does not redefine the new authored action as 0.58 → 0.62. The
+incumbent reconstruction remains historical 0.60, and the authored action is
+0.60 → 0.62. Its complete closure/full-advisory disposition remains a separate
+requirement. The old 0.60 lock artifact reader remains independently usable for
+its original proof class and cannot satisfy current Q.
+
+The current Q reader uses authenticated run/job/head coordinates, the trusted
+hosted layout and independently validated retained vendor base. It checks the
+ordered raw native records, both replay epochs, exact lock/patch bytes,
+complete module and package observations, all 18 compact member bindings,
+cache restoration, immutable container identities/controls and terminal cleanup.
+It never feeds the archive to the serializer as its own alleged original.
+An unknown runner path/layout holds B rather than accepting archive-provided
+roots. Q receives only step-scoped read access and closes its private API context
+before source/native work; the separate package companion retains its existing
+read-only package capability. B requires aggregate Q-run success, so either
+companion failure prevents a pair.
+
+Budgets remain T 1800 seconds plus cleanup120 inside the 35-minute job;
+Q062 1800 plus cleanup120/default35 minutes; historical Q060 900/default20;
+and B two serial 3600-second image builds. Early T admission runs only on the exact PR #2494 ref and consumes a bounded
+90-second API check plus cleanup30 within existing setup reserve. It does not
+claim a shared monotonic clock across workflow processes. Resource exhaustion,
+authentication cleanup failure or missing evidence cannot produce success.
+
+Source anchors: `scripts/ci/prometheus_source_image.py:5942`,
+`.github/workflows/build.yml:1007`, `deploy/prometheus/image-manifest.json:1`.
+Actual hosted T/Q/B, real product native qualification, complete current-head
+CI/review, merge and trusted-main publication/pullback remain pending. The
+Product29 synthetic transport proof and Caddy observations do not supply those
+outcomes. Rollback is to hold further effects and preserve evidence; selecting
+the vulnerable predecessor or renewing any expired deadline is not remediation.

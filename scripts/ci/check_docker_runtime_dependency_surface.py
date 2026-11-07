@@ -18,6 +18,7 @@ import math
 from contextlib import contextmanager
 from typing import Iterator
 from dataclasses import asdict, dataclass
+from datetime import datetime
 import hashlib
 import json
 from pathlib import Path, PurePosixPath
@@ -333,6 +334,200 @@ def _read_trivy_image_report(image: str, report_path: Path) -> dict[str, Any]:
 def validate_trivy_image_report(image: str, report_path: Path) -> None:
     """Validate the structural image projection only; retain the public None contract."""
     _read_trivy_image_report(image, report_path)
+
+
+# Frozen Go-v3 native metadata: seed2.11.4 and selected2.11.9 before local v3 replacement.
+# These historical input bindings never become guessed x/net062 output pins.
+CADDY_XNET062_INCUMBENT_FILES = {
+    "baseline-go.mod": "1d41fe1c258e7c6a6180eeea06b31aa3fd068e35120038cbc6fe15e7f89c21a6",
+    "baseline-go.sum": "912171681209ea4fcc6c3f2571307a16dfccb77ac88eb4ec6e1246329a1e23df",
+    "baseline-modules.json": "f18a737a749e514db520c435e888dfced1865efe5aafb64c28fa5e1935d85a09",
+    "baseline-module-graph.txt": "b1c650b3999bdd295f399bd1ed509b34b404c6fc239070b2c18d5dfae08bbace",
+    "baseline-packages.json": "325952468890a84b81b734895b72342ea33907feb15aa38d016da2451f249992",
+    "baseline-verify.txt": "b4537ed75f533f993f371954de47e42a793b8e5b0587577de7e27fb3e50696bd",
+    "incumbent-go.mod": "40a8c29bde80ddaaf323030a9631453d905b1deafc4eb909c0b2b1c43bd2965d",
+    "incumbent-go.sum": "bc1def232f1f0a8d205b39c38fa9b0159d481c05f90933bc975659ec0c0317c8",
+    "incumbent-modules.json": "fa0c145b518c15baa0e9d215a101400066fc43f1d39992bdb4e1cd25ca542197",
+    "incumbent-module-graph.txt": (
+        "1db07897d94dae5f699b88b5dfccb5afffc21240bbe89297029839735246db93"
+    ),
+    "incumbent-packages.json": "e373e649e7db5cc5dc972e5e8881b44c7871de5b7ea93ea59ae38da2c7fa22bb",
+    "incumbent-verify.txt": "b4537ed75f533f993f371954de47e42a793b8e5b0587577de7e27fb3e50696bd",
+}
+CADDY_XNET062_METADATA_EPOCH = "caddy2.11.9-xnet062-metadata"
+CADDY_XNET062_METADATA_SUCCESS = "observed_xnet062_metadata_only"
+_CADDY_METADATA_NEVER_STARTED = "0001-01-01T00:00:00Z"
+
+
+def validate_caddy_metadata_custody(
+    before: dict[str, Any], actual: dict[str, Any], *, started_id: str | None
+) -> None:
+    """Bind a Caddy compiler or resolver container to its owned prestart profile."""
+    from scripts.ci.prometheus_source_image import exact_data
+
+    container_id = before.get("Id")
+    if not isinstance(container_id, str) or re.fullmatch(r"[0-9a-f]{64}", container_id) is None:
+        raise ValueError("Caddy metadata custody requires a full container ID")
+    if started_id is not None and started_id != container_id:
+        raise ValueError("Caddy metadata start belongs to another container")
+    for field in ("Id", "Name", "Image", "Config", "Mounts"):
+        exact_data(actual[field], before[field])
+    original, state = before["State"], actual["State"]
+    if (
+        original.get("Status") != "created"
+        or original.get("Running") is not False
+        or original.get("StartedAt") != _CADDY_METADATA_NEVER_STARTED
+    ):
+        raise ValueError("Caddy metadata prestart state differs")
+    started_at = state.get("StartedAt")
+    started = (state.get("Status") == "running" and state.get("Running") is True) or (
+        state.get("Status") == "exited" and state.get("Running") is False
+    )
+    if started:
+        if (
+            started_id is None
+            or not isinstance(started_at, str)
+            or re.fullmatch(
+                r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,9})?Z",
+                started_at,
+            )
+            is None
+        ):
+            raise ValueError("Caddy metadata actual start is unproved")
+        try:
+            parsed_start = datetime.fromisoformat(started_at)
+        except ValueError as error:
+            raise ValueError("Caddy metadata actual start is unproved") from error
+        if parsed_start.year <= 1:
+            raise ValueError("Caddy metadata actual start is unproved")
+    elif (
+        state.get("Status") != "created"
+        or state.get("Running") is not False
+        or started_at != _CADDY_METADATA_NEVER_STARTED
+    ):
+        raise ValueError("Caddy metadata current state differs")
+
+    old_host, new_host = before["HostConfig"], actual["HostConfig"]
+    if (
+        started
+        and old_host.get("OomKillDisable") is False
+        and "OomKillDisable" in new_host
+        and new_host["OomKillDisable"] is None
+    ):
+        new_host = {**new_host, "OomKillDisable": False}
+    exact_data(new_host, old_host)
+
+
+def validate_caddy_xnet062_metadata(output: Path) -> dict[str, Any]:
+    """Inspect one complete new-action replay; no build/profile adoption or native call."""
+    from scripts.ci.prometheus_source_image import decode_objects, decode_selected_modules
+
+    if not stat.S_ISDIR(output.lstat().st_mode):
+        raise ValueError("Caddy metadata output must be a real directory")
+    suffixes = (
+        "go.mod",
+        "go.sum",
+        "modules.json",
+        "module-graph.txt",
+        "packages.json",
+        "verify.txt",
+    )
+    raw: dict[str, bytes] = {}
+    for phase in ("baseline", "incumbent", "incumbent-offline", "final", "final-offline"):
+        for suffix in suffixes:
+            name = phase + "-" + suffix
+            path = output / name
+            info = path.lstat()
+            if (
+                not stat.S_ISREG(info.st_mode)
+                or info.st_nlink != 1
+                or not 0 < info.st_size <= 32 * 1024**2
+            ):
+                raise ValueError("Caddy metadata member type/size differs")
+            data = path.read_bytes()
+            if len(data) != info.st_size:
+                raise ValueError("Caddy metadata member changed during read")
+            raw[name] = data
+    for name, digest in CADDY_XNET062_INCUMBENT_FILES.items():
+        if hashlib.sha256(raw[name]).hexdigest() != digest:
+            raise ValueError("Caddy retained incumbent metadata differs: " + name)
+    for phase in ("incumbent", "final"):
+        for suffix in suffixes:
+            if raw[phase + "-" + suffix] != raw[phase + "-offline-" + suffix]:
+                raise ValueError("Caddy online/offline metadata differs")
+    phases = {}
+    root = "github.com/caddyserver/caddy/v2"
+    command = root + "/cmd/caddy"
+    for phase in ("baseline", "incumbent", "final"):
+        modules = decode_selected_modules(
+            raw[phase + "-modules.json"], root_module="pulseplate.local/caddy-build"
+        )
+        if any("Replace" in row for row in modules.values()):
+            raise ValueError("Caddy metadata replacement is unqualified")
+        packages = decode_objects(raw[phase + "-packages.json"])
+        indexed = {row.get("ImportPath"): row for row in packages}
+        if (
+            len(indexed) != len(packages)
+            or any(not isinstance(name, str) or not name for name in indexed)
+            or indexed.get(command, {}).get("Name") != "main"
+            or any(
+                row.get("Error") or row.get("DepsErrors") or row.get("Incomplete")
+                for row in packages
+            )
+        ):
+            raise ValueError("Caddy complete command metadata differs")
+        for row in packages:
+            mapping = row.get("ImportMap", {})
+            if any(mapping.get(path, path) not in indexed for path in row.get("Imports", [])):
+                raise ValueError("Caddy command import closure incomplete")
+        graph = raw[phase + "-module-graph.txt"].splitlines()
+        if (
+            not graph
+            or len(graph) != len(set(graph))
+            or any(len(row.split()) != 2 for row in graph)
+        ):
+            raise ValueError("Caddy complete module edges malformed")
+        expected_root = "v2.11.4" if phase == "baseline" else "v2.11.9"
+        if modules.get(root, {}).get("Version") != expected_root:
+            raise ValueError("Caddy original/incumbent root identity differs")
+        phases[phase] = {"modules": modules, "packages": len(packages)}
+    before, after = phases["incumbent"]["modules"], phases["final"]["modules"]
+    target = "golang.org/x/net"
+    if (
+        before.get(target, {}).get("Version") != "v0.60.0"
+        or after.get(target, {}).get("Version") != "v0.62.0"
+    ):
+        raise ValueError("Caddy xnet062 authored selection differs")
+    if all(raw["incumbent-" + name] == raw["final-" + name] for name in ("go.mod", "go.sum")):
+        raise ValueError("Caddy xnet062 lock delta is empty")
+    delta = [
+        {
+            "path": path,
+            "before": before.get(path),
+            "after": after.get(path),
+            "class": "I_R" if path == target else "C_R_candidate",
+        }
+        for path in sorted(set(before) | set(after))
+        if before.get(path) != after.get(path)
+    ]
+    original = phases["baseline"]["modules"]
+    historical = [
+        {
+            "path": path,
+            "before": original.get(path),
+            "after": before.get(path),
+            "class": "historical_Caddy_intent" if path == root else "historical_Caddy_closure",
+        }
+        for path in sorted(set(original) | set(before))
+        if original.get(path) != before.get(path)
+    ]
+    return {
+        "epoch": CADDY_XNET062_METADATA_EPOCH,
+        "phases": phases,
+        "historical_caddy_delta": historical,
+        "complete_delta": delta,
+        "build_profile_admission": "HOLD pending actual closure/fullF and output-profile adoption",
+    }
 
 
 # The original module checksum remains pre-replacement source evidence.

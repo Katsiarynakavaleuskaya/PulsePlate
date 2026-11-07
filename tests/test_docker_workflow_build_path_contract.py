@@ -3649,15 +3649,20 @@ def test_prometheus_metadata_mode_is_explicit_and_independent() -> None:
         "type": "choice",
         "required": True,
         "default": "unchanged",
-        "options": ["unchanged", "xnet060-replay"],
+        "options": ["unchanged", "xnet060-replay", "xnet062-replay"],
     }
     jobs = workflow["jobs"]
     qualification = jobs["prometheus-source-qualification"]
     assert "needs" not in qualification
-    assert qualification["permissions"] == {"contents": "read"}
+    assert qualification["permissions"] == {"contents": "read", "actions": "read"}
     assert qualification["timeout-minutes"] == (
-        "${{ fromJSON(vars.PROMETHEUS_SOURCE_QUALIFICATION_TIMEOUT_MINUTES || '20') }}"
+        "${{ fromJSON(vars.PROMETHEUS_SOURCE_QUALIFICATION_TIMEOUT_MINUTES || "
+        "(inputs.prometheus_module_action == 'xnet062-replay' && '35' || '20')) }}"
     )
+    assert qualification["env"] == {
+        "PROMETHEUS_QUALIFICATION_SECONDS": "${{ inputs.prometheus_module_action == 'xnet062-replay' && '1800' || '900' }}",
+        "PROMETHEUS_CLEANUP_SECONDS": "120",
+    }
     assert qualification["if"] == (
         "github.event_name == 'workflow_dispatch' && "
         "inputs.mode == 'prometheus-source-qualify' && "
@@ -3672,13 +3677,23 @@ def test_prometheus_metadata_mode_is_explicit_and_independent() -> None:
     assert "$PROMETHEUS_QUALIFICATION_SECONDS" in command
     assert "$PROMETHEUS_CLEANUP_SECONDS" in command
     step = _step_by_name(qualification, "Qualify Prometheus package metadata only")
-    assert step["env"] == {"PROMETHEUS_MODULE_ACTION": "${{ inputs.prometheus_module_action }}"}
+    assert step["env"] == {
+        "PROMETHEUS_MODULE_ACTION": "${{ inputs.prometheus_module_action }}",
+        "GH_TOKEN": "${{ inputs.prometheus_module_action == 'xnet062-replay' && secrets.GITHUB_TOKEN || '' }}",
+    }
     assert 'case "$PROMETHEUS_MODULE_ACTION" in' in command
     assert "xnet060-replay) module_args+=(--derive-xnet060)" in command
+    assert "xnet062-replay) module_args+=(--derive-xnet062)" in command
     assert '"${module_args[@]}"' in command
     assert "${{ inputs.prometheus_module_action }}" not in command
     assert "buildx" not in command and "secrets." not in command
-    assert not any("secrets." in str(step) for step in qualification["steps"])
+    assert (
+        step["env"]["GH_TOKEN"]
+        == "${{ inputs.prometheus_module_action == 'xnet062-replay' && secrets.GITHUB_TOKEN || '' }}"
+    )
+    assert not any(
+        "secrets." in str(other) for other in qualification["steps"] if other is not step
+    )
     checkout = _step_by_name(qualification, "Checkout qualification source")
     assert checkout["with"]["persist-credentials"] is False
 
@@ -5890,7 +5905,9 @@ def test_alertmanager_hosted_transport_shares_clock_and_empty_docker_config() ->
     assert '"--network=none"' in source and '"--read-only"' in source
     assert '"GOSUMDB": "sum.golang.org"' in source
     assert '"GOTOOLCHAIN": "local"' in source
-    assert '["get", "golang.org/x/net@v0.60.0", "google.golang.org/grpc@v1.83.2"]' in source
+    assert 'baseline_versions.get("golang.org/x/net") != "v0.60.0"' in source
+    assert 'baseline_versions.get("google.golang.org/grpc") != "v1.83.2"' in source
+    assert '["get", "golang.org/x/net@v0.62.0"]' in source
     assert '"--cap-drop=ALL"' in source and '"--security-opt=no-new-privileges"' in source
     assert '"loaded_base_ID": base_id' in source
     assert "native_import(" not in source and '"login"' not in source
@@ -5946,6 +5963,14 @@ def test_alertmanager_public_base_native_binding_precedes_offline_use(fault: str
             ],
         },
     }
+    image["Config"] = {
+        "User": "65532",
+        "WorkingDir": "/home/nonroot",
+        "Env": [
+            "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            "SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt",
+        ],
+    }
     if fault == "config":
         image["Id"] = "sha256:" + "0" * 64
     elif fault == "platform":
@@ -5967,7 +5992,7 @@ def test_alertmanager_public_base_native_binding_precedes_offline_use(fault: str
     if fault == "none":
         assert docker_sources._alertmanager_loaded_base([image]) == image["Id"]
     else:
-        with pytest.raises(RuntimeError, match="Exact public base"):
+        with pytest.raises(RuntimeError, match="native_|declared_data"):
             docker_sources._alertmanager_loaded_base([image])
 
 
@@ -10992,6 +11017,7 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
     fault: str | None,
     observation_failure: bool,
 ) -> None:
+    import gzip
     import time
     from scripts.ci import prometheus_source_image as transport
 
@@ -11002,6 +11028,7 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
     index = json.loads((base_layout / "index.json").read_text())
     original_descriptor = index["manifests"][0]
     base_manifest = json.loads(transport._blob(base_layout, original_descriptor))
+    original_config_descriptor = dict(base_manifest["config"])
     configuration = json.loads(transport._blob(base_layout, base_manifest["config"]))
     configuration_bytes = json.dumps(configuration).encode().ljust(2938, b" ")
     configuration_digest = "sha256:" + sha256(configuration_bytes).hexdigest()
@@ -11024,6 +11051,58 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
     )
     index["manifests"] = [base_descriptor]
     (base_layout / "index.json").write_text(json.dumps(index))
+    # Model the full legacy native export: thirteen uncompressed layers AND
+    # their actual gzip representations, one config/manifest and three headers.
+    # These are content-bound counterparts, not padding to satisfy a file count.
+    compressed_blobs = set()
+    for layer, diff_id in zip(
+        base_manifest["layers"], configuration["rootfs"]["diff_ids"], strict=True
+    ):
+        assert layer["mediaType"] == "application/vnd.oci.image.layer.v1.tar"
+        expanded = transport._blob(base_layout, layer)
+        assert "sha256:" + sha256(expanded).hexdigest() == diff_id == layer["digest"]
+        compressed = gzip.compress(expanded, mtime=0)
+        compressed_digest = sha256(compressed).hexdigest()
+        (base_layout / "blobs/sha256" / compressed_digest).write_bytes(compressed)
+        assert gzip.decompress(compressed) == expanded
+        compressed_blobs.add(compressed_digest)
+    assert len(compressed_blobs) == len(base_manifest["layers"]) == 13
+    (base_layout / "manifest.json").write_text(
+        json.dumps(
+            [
+                {
+                    "Config": "blobs/sha256/" + configuration_digest.split(":", 1)[1],
+                    "RepoTags": None,
+                    "Layers": [
+                        "blobs/sha256/" + row["digest"].split(":", 1)[1]
+                        for row in base_manifest["layers"]
+                    ],
+                }
+            ]
+        )
+    )
+    selected_blobs = (
+        compressed_blobs
+        | {row["digest"].split(":", 1)[1] for row in base_manifest["layers"]}
+        | {configuration_digest.split(":", 1)[1], base_descriptor["digest"].split(":", 1)[1]}
+    )
+    # The rebind above supersedes precisely these two old synthetic objects.
+    for replaced in (original_config_descriptor, original_descriptor):
+        digest = replaced["digest"].split(":", 1)[1]
+        if digest not in selected_blobs:
+            (base_layout / "blobs/sha256" / digest).unlink()
+    assert {path.name for path in (base_layout / "blobs/sha256").iterdir()} == selected_blobs
+    assert len(selected_blobs) == 28
+    assert {
+        path.relative_to(base_layout).as_posix()
+        for path in base_layout.rglob("*")
+        if path.is_file()
+    } == {
+        "index.json",
+        "manifest.json",
+        "oci-layout",
+        *("blobs/sha256/" + digest for digest in selected_blobs),
+    }
     monkeypatch.setattr(transport, "BASE_CONFIG", configuration_digest)
     monkeypatch.setattr(docker_sources, "_ALERT_BASE_CONFIG", configuration_digest)
     monkeypatch.setattr(docker_sources, "_ALERT_BASE_MANIFEST", base_descriptor["digest"])
@@ -15273,3 +15352,290 @@ def test_alertmanager_inventory_requires_explicit_upstream_keyword() -> None:
         docker_sources._alertmanager_candidate_inventory(
             report, report["Metadata"]["ImageID"], None, None, proof_mode="accepted-live"
         )
+
+
+@pytest.mark.parametrize("reject", [False, True])
+def test_p062_early_tool_caller_executes_shared_admission_and_closes_before_scanner(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, reject: bool
+) -> None:
+    from scripts.ci import prometheus_source_image as prometheus
+    from tests.test_prometheus_source_image import _p062_stage_fixture
+
+    api, root = _p062_stage_fixture(tmp_path, monkeypatch, "tool")
+    if reject:
+        api.jobs[38170923494].clear()
+    workflow = _load_workflow(WORKFLOWS_DIR / "build.yml")
+    job = workflow["jobs"]["prometheus-oras-qualification"]
+    early = _step_by_name(job, "Admit exact tool source and once-only history before scanner")
+    assert _step_index(job, early["name"]) < _step_index(
+        job, "Install pinned tool scanner and acquire DB"
+    )
+    assert _step_index(job, "Install pinned tool scanner and acquire DB") < _step_index(
+        job, "Compile one ORAS tool and qualify native format"
+    )
+    assert job["timeout-minutes"] == 35 and early["timeout-minutes"] == 2
+    assert (
+        early["if"] == "${{ github.ref == 'refs/heads/codex/dependency-alertmanager-remediation' }}"
+    )
+    assert (
+        'prefetch_predecessor=os.environ.get("TOOL_PREFETCH_PREDECESSOR") or None' in early["run"]
+    )
+    assert early["env"]["GH_TOKEN"] == "${{ secrets.GITHUB_TOKEN }}"
+    assert "secrets." not in early["run"] and "--operation" not in early["run"]
+    assert 'manual_hosted_admission(api, "tool", producer_root=Path.cwd()' in early["run"]
+    private_paths: list[Path] = []
+
+    def reader(private: Path, evidence: Path, deadline: float, cleanup: int) -> Any:
+        assert 0 < deadline - prometheus.time.monotonic() <= 90 and cleanup == 30
+        private.mkdir()
+        private_paths.append(private)
+        api.close = lambda: private.rmdir()
+        return api
+
+    monkeypatch.setattr(prometheus, "GitHubRead", reader)
+    monkeypatch.chdir(root)
+    monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
+    monkeypatch.delenv("TOOL_PREFETCH_PREDECESSOR", raising=False)
+    monkeypatch.setenv("PROMETHEUS_ADMISSION_SECONDS", early["env"]["PROMETHEUS_ADMISSION_SECONDS"])
+    monkeypatch.setenv(
+        "PROMETHEUS_ADMISSION_CLEANUP_SECONDS", early["env"]["PROMETHEUS_ADMISSION_CLEANUP_SECONDS"]
+    )
+    program = early["run"].split("python3 - <<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
+    if reject:
+        with pytest.raises(prometheus.QualificationError):
+            exec(compile(program, "<actual-early-tool-step>", "exec"), {})
+    else:
+        exec(compile(program, "<actual-early-tool-step>", "exec"), {})
+    assert len(private_paths) == 1 and not private_paths[0].exists()
+    source_q = workflow["jobs"]["prometheus-source-qualification"]
+    package_q = workflow["jobs"]["prometheus-ghcr-package-qualification"]
+    assert source_q["permissions"] == {"contents": "read", "actions": "read"}
+    assert package_q["permissions"] == {"contents": "read", "packages": "read"}
+    assert "GHCR_READ_TOKEN" not in str(source_q) and "packages: write" not in str(package_q)
+    assert (
+        "--qualify-existing-ghcr-package"
+        in _step_by_name(package_q, "Observe existing package identity only")["run"]
+    )
+
+
+def test_prometheus_pair_upload_separates_only_two_native_save_diagnostics() -> None:
+    job = _load_workflow(WORKFLOWS_DIR / "build.yml")["jobs"]["prometheus-source-build-pair"]
+    check = _step_by_name(job, "Check exact native-save diagnostic retention")
+    diagnostic = _step_by_name(job, "Retain raw native-save diagnostics")
+    required = _step_by_name(job, "Require expected native-save upload")
+    candidate = _step_by_name(job, "Retain complete real pair evidence")
+    base = "${{ runner.temp }}/prometheus-pair-${{ github.run_id }}-1/evidence/"
+    leaves = [base + lane + "/import-save/native.tar" for lane in ("a", "b")]
+    assert candidate["with"]["path"].splitlines() == [base, *["!" + v for v in leaves]]
+    assert diagnostic["with"]["path"].splitlines() == leaves
+    assert candidate["with"]["name"] == "prometheus-source-candidate-${{ github.run_id }}-1"
+    assert (
+        diagnostic["with"]["name"]
+        == "prometheus-source-native-save-${{ github.run_id }}-${{ github.run_attempt }}"
+    )
+    for step in (candidate, diagnostic):
+        assert step["uses"] == "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+        assert step["with"]["if-no-files-found"] == "error"
+        assert step["with"]["retention-days"] == 90
+    assert check["if"] == candidate["if"] == "${{ always() }}"
+    assert check["env"] == {"PAIR_OUTCOME": "${{ steps.pair.outcome }}"}
+    assert (
+        diagnostic["if"] == "${{ always() && steps.native-save-files.outputs.present == 'true' }}"
+    )
+    assert required["if"] == "${{ always() && steps.native-save-files.outputs.required == 'true' }}"
+    assert (
+        _step_index(job, check["name"])
+        < _step_index(job, diagnostic["name"])
+        < _step_index(job, required["name"])
+        < _step_index(job, candidate["name"])
+    )
+    assert not any("continue-on-error" in step for step in (check, diagnostic, required, candidate))
+    assert "secrets." not in str((check, diagnostic, required, candidate))
+    assert job["timeout-minutes"] == 180
+
+
+@pytest.mark.parametrize(
+    "profile,fault",
+    [
+        ("modern", None),
+        ("classic", None),
+        ("mixed", None),
+        ("failed", None),
+        ("failed", "partial"),
+        ("failed", "none"),
+        ("failed", "empty"),
+        ("modern", "missing-a"),
+        ("modern", "missing-b"),
+        ("modern", "none"),
+        ("modern", "empty"),
+        ("modern", "missing-record"),
+        ("modern", "save-argv"),
+        ("modern", "save-exit"),
+        ("modern", "inspect-hash"),
+        ("modern", "missing-report"),
+        ("modern", "wrong-lanes"),
+        ("classic", "unexpected-save"),
+        ("failed", "symlink"),
+        ("failed", "linked-directory"),
+        ("failed", "hardlink"),
+        ("failed", "fifo"),
+    ],
+)
+def test_prometheus_pair_diagnostic_adapter_executes_positive_and_failure_profiles(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, profile: str, fault: str | None
+) -> None:
+    """Execute the actual embedded adapter over synthetic transcripts, without Docker."""
+    from scripts.ci import prometheus_source_image as prometheus
+
+    job = _load_workflow(WORKFLOWS_DIR / "build.yml")["jobs"]["prometheus-source-build-pair"]
+    check = _step_by_name(job, "Check exact native-save diagnostic retention")
+    program = check["run"].split("python3 - <<'PYCODE'\n", 1)[1].rsplit("\nPYCODE", 1)[0]
+    work = tmp_path / "prometheus-pair-77-1"
+    evidence = work / "evidence"
+    evidence.mkdir(parents=True)
+    output = tmp_path / "github-output"
+    for key, value in {
+        "RUNNER_TEMP": str(tmp_path),
+        "GITHUB_RUN_ID": "77",
+        "GITHUB_OUTPUT": str(output),
+        "PAIR_OUTCOME": "failure" if profile == "failed" else "success",
+    }.items():
+        monkeypatch.setenv(key, value)
+    config_id = "sha256:" + "c" * 64
+    report: dict[str, Any] = {
+        "status": "observed_equal_real_source_pair",
+        "failure": None,
+        "selection": {"config_digest": config_id},
+        "builds": [],
+        "native_commands": [],
+    }
+    saves = {}
+    for lane in ("a", "b"):
+        area = evidence / lane
+        area.mkdir()
+        engine = (
+            config_id
+            if profile == "classic" or (profile == "mixed" and lane == "a")
+            else "sha256:" + "e" * 64
+        )
+        raw = json.dumps({"Id": engine}).encode()
+        (area / "import-image.stdout").write_bytes(raw)
+        prefix = ["/usr/bin/docker", "--config", str(work / "docker-config")]
+        report["native_commands"].append(
+            {
+                "argv": prefix
+                + ["image", "inspect", "--format", "{{json .}}", "pulseplate-prometheus:candidate"],
+                "stdout": str(area / "import-image.stdout"),
+                "stdout_sha256": sha256(raw).hexdigest(),
+                "exit": 0,
+                "failure": None,
+            }
+        )
+        report["builds"].append(
+            {
+                "label": lane,
+                "native_import": {
+                    "status": "observed_real_native_import",
+                    "image_config_id": config_id,
+                },
+            }
+        )
+        saves[lane] = area / "import-save/native.tar"
+        if engine != config_id or fault == "unexpected-save":
+            saves[lane].parent.mkdir()
+            saves[lane].write_bytes(("synthetic raw diagnostic " + lane).encode())
+            report["native_commands"].append(
+                {
+                    "argv": prefix + ["image", "save", "--output", str(saves[lane]), engine],
+                    "stdout": str(area / "import-save.stdout"),
+                    "exit": 0,
+                    "failure": None,
+                }
+            )
+    if fault in ("missing-a", "missing-b", "partial"):
+        saves["a" if fault == "missing-a" else "b"].unlink()
+    elif fault == "none":
+        for path in saves.values():
+            path.unlink()
+    elif fault == "empty":
+        saves["a"].write_bytes(b"")
+    elif fault == "missing-record":
+        report["native_commands"].pop()
+    elif fault == "save-argv":
+        report["native_commands"][-1]["argv"][-2] = str(tmp_path / "foreign-save.tar")
+    elif fault == "save-exit":
+        report["native_commands"][-1]["exit"] = 1
+    elif fault == "inspect-hash":
+        report["native_commands"][0]["stdout_sha256"] = "0" * 64
+    elif fault == "wrong-lanes":
+        report["builds"].reverse()
+    elif fault in ("symlink", "linked-directory", "hardlink", "fifo"):
+        saves["a"].unlink()
+        foreign = tmp_path / "foreign"
+        foreign.mkdir()
+        (foreign / "native.tar").write_bytes(b"must never upload")
+        if fault == "symlink":
+            saves["a"].symlink_to(foreign / "native.tar")
+        elif fault == "linked-directory":
+            saves["a"].parent.rmdir()
+            saves["a"].parent.symlink_to(foreign, target_is_directory=True)
+        elif fault == "hardlink":
+            os.link(foreign / "native.tar", saves["a"])
+        else:
+            os.mkfifo(saves["a"])
+    if fault != "missing-report":
+        (evidence / "pair.json").write_text(json.dumps(report))
+    accepted = fault is None or (profile == "failed" and fault in ("partial", "none", "empty"))
+    if accepted:
+        exec(compile(program, "<actual-pair-diagnostic-step>", "exec"), {})
+    else:
+        with pytest.raises((prometheus.QualificationError, FileNotFoundError)):
+            exec(compile(program, "<actual-pair-diagnostic-step>", "exec"), {})
+    emitted = (
+        dict(line.split("=", 1) for line in output.read_text().splitlines())
+        if output.exists()
+        else {}
+    )
+    if fault in ("symlink", "linked-directory", "hardlink", "fifo"):
+        assert "present" not in emitted
+    else:
+        assert emitted["present"] == (
+            "false" if profile == "classic" and fault is None or fault == "none" else "true"
+        )
+    if accepted and profile != "failed":
+        assert emitted["required"] == ("false" if profile == "classic" else "true")
+    if profile == "failed":
+        assert "required" not in emitted
+    if fault in ("missing-a", "missing-b", "none", "empty") and profile == "modern":
+        assert emitted["required"] == "true"
+
+
+@pytest.mark.parametrize(
+    "outcome,artifact,passed",
+    [
+        ("success", "987", True),
+        ("success", "", False),
+        ("failure", "987", False),
+        ("skipped", "", False),
+    ],
+)
+def test_prometheus_pair_diagnostic_requires_successful_upload_output(
+    outcome: str, artifact: str, passed: bool
+) -> None:
+    job = _load_workflow(WORKFLOWS_DIR / "build.yml")["jobs"]["prometheus-source-build-pair"]
+    step = _step_by_name(job, "Require expected native-save upload")
+    bash = shutil.which("bash")
+    assert bash is not None
+    completed = subprocess.run(
+        [bash, "-c", step["run"]],
+        capture_output=True,
+        text=True,
+        env={
+            "PATH": "/usr/bin:/bin",
+            "DIAGNOSTIC_OUTCOME": outcome,
+            "DIAGNOSTIC_ARTIFACT_ID": artifact,
+        },
+        timeout=5,
+        check=False,
+    )
+    assert (completed.returncode == 0) is passed

@@ -66,7 +66,7 @@ def test_build_workflow_keeps_only_ordinary_fail_closed_topology() -> None:
             "type": "choice",
             "required": True,
             "default": "unchanged",
-            "options": ["unchanged", "xnet060-replay"],
+            "options": ["unchanged", "xnet060-replay", "xnet062-replay"],
         },
         "tool_prefetch_predecessor": {
             "description": "Exact failed precompile run:artifact evidence selector; no dispatch authorization",
@@ -108,7 +108,7 @@ def test_build_workflow_keeps_only_ordinary_fail_closed_topology() -> None:
         "github.repository == 'Katsiarynakavaleuskaya/PulsePlate'"
     )
     for name, permissions in (
-        ("prometheus-source-qualification", {"contents": "read"}),
+        ("prometheus-source-qualification", {"contents": "read", "actions": "read"}),
         ("prometheus-ghcr-package-qualification", {"contents": "read", "packages": "read"}),
     ):
         job = jobs[name]
@@ -134,7 +134,18 @@ def test_build_workflow_keeps_only_ordinary_fail_closed_topology() -> None:
         ):
             assert forbidden not in str(job)
     source_steps = jobs["prometheus-source-qualification"]["steps"]
-    assert "secrets." not in str(source_steps)
+    metadata_step = next(
+        step for step in source_steps if step["name"] == "Qualify Prometheus package metadata only"
+    )
+    assert metadata_step["env"] == {
+        "GH_TOKEN": (
+            "${{ inputs.prometheus_module_action == 'xnet062-replay' && secrets.GITHUB_TOKEN || '' }}"
+        ),
+        "PROMETHEUS_MODULE_ACTION": "${{ inputs.prometheus_module_action }}",
+    }
+    assert all(
+        str(step).count("secrets.") == (1 if step is metadata_step else 0) for step in source_steps
+    )
     package_steps = jobs["prometheus-ghcr-package-qualification"]["steps"]
     package = next(step for step in package_steps if step.get("id") == "package")
     assert package["env"] == {"GH_TOKEN": "${{ secrets.GITHUB_TOKEN }}"}

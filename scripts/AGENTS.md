@@ -322,6 +322,24 @@ phase budget, and its failure still blocks a successful cleanup result.
   full scanner inventory and synthetic native format before tool selection.
   Never substitute the affected upstream prebuilt binary or rebuild the tool
   during a Prometheus pair or promotion.
+- The finite PR #2494 x/net 0.62 successor is `P0 -> T -> P1 -> Q -> B -> P2`.
+  Complete all helper/workflow/recipe inputs at prepared P0, with retained tool,
+  selection and candidate null. T is one separately released tool operation.
+  P1 is a distinct same-PR descendant changing only the tool's actual retained
+  coordinates in these governed inputs; raw helper/workflow/recipe and the
+  tool's own-output-free projection must remain equal. Q and B share exact P1.
+  Q uses the current compact-18 native evidence reader; historical 0.60 evidence
+  retains its separate identity. B requires the whole Q run, including the
+  independent GHCR package companion, to have succeeded. P2 selects actual B
+  outputs as a later same-PR descendant; prepared inputs never authorize consumers.
+  The early T API check and ordinary precompile check call the same existing
+  admission owner. Early admission uses setup reserve within the existing job
+  cap, never a success token or renewed compiler allowance. Q closes its private
+  API context before source acquisition/native subprocesses. Unknown hosted
+  root correspondence stops B; archive paths cannot select trusted expectations.
+  Preserve the complete spent history and all original outcomes/deadlines.
+  A predicate match, fixture pass or source commit grants no external dispatch,
+  registry write, retry, merge or release authority.
 - An explicitly selected `tool_prefetch_predecessor` is historical evidence,
   never retry approval. The singleton selector covers only its original history;
   the exact two-history selector also binds the second failed offline-metadata
@@ -463,6 +481,19 @@ admitting the dependent result, and reuse historical proof only after positively
 verifying its unchanged governed inputs. Preserve failed and pending consumers
 honestly; neither relabeling old success nor adding workflow needs or retries supplies
 missing producer evidence.
+
+- Keep source content identity separate from Docker's native identity: requested
+  reference or index, selected platform manifest, raw config, compressed layer
+  digests and uncompressed diffIDs have different roles. Bind image inspection,
+  the actual create/load operand and container fields through the exact qualified
+  source graph and constructor. Never assume native `Id` is a config digest or
+  admit it by digest-set membership or Docker version alone. Reports retain the
+  true content-config identity; native operands remain separately identified.
+  Read each retained legacy or current archive through its exact supported
+  transport grammar and shared content checks; do not rewrite incoming bytes to
+  manufacture canonical admission. Track the returned full container ID through
+  prestart, terminal inspection and owned cleanup. A base-image observation does
+  not qualify a product-load or BuildKit constructor.
 
 - The maintained Caddy standard-library correction uses the pinned compiler executable
   with a separate, exact private patched GOROOT. Preserve the original sixteen v3

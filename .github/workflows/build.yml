@@ -19,7 +19,7 @@ on:
         type: choice
         required: true
         default: unchanged
-        options: [unchanged, xnet060-replay]
+        options: [unchanged, xnet060-replay, xnet062-replay]
       tool_prefetch_predecessor:
         description: Exact failed precompile run:artifact evidence selector; no dispatch authorization
         type: string
@@ -1010,11 +1010,12 @@ jobs:
       inputs.mode == 'prometheus-source-qualify' &&
       github.repository == 'Katsiarynakavaleuskaya/PulsePlate'
     runs-on: ubuntu-24.04
-    timeout-minutes: ${{ fromJSON(vars.PROMETHEUS_SOURCE_QUALIFICATION_TIMEOUT_MINUTES || '20') }}
+    timeout-minutes: ${{ fromJSON(vars.PROMETHEUS_SOURCE_QUALIFICATION_TIMEOUT_MINUTES || (inputs.prometheus_module_action == 'xnet062-replay' && '35' || '20')) }}
     permissions:
       contents: read
+      actions: read
     env:
-      PROMETHEUS_QUALIFICATION_SECONDS: '900'
+      PROMETHEUS_QUALIFICATION_SECONDS: ${{ inputs.prometheus_module_action == 'xnet062-replay' && '1800' || '900' }}
       PROMETHEUS_CLEANUP_SECONDS: '120'
     steps:
       - name: Require first explicit metadata attempt
@@ -1037,6 +1038,7 @@ jobs:
       - name: Qualify Prometheus package metadata only
         shell: bash
         env:
+          GH_TOKEN: ${{ inputs.prometheus_module_action == 'xnet062-replay' && secrets.GITHUB_TOKEN || '' }}
           PROMETHEUS_MODULE_ACTION: ${{ inputs.prometheus_module_action }}
         run: |
           set -euo pipefail
@@ -1045,6 +1047,7 @@ jobs:
           case "$PROMETHEUS_MODULE_ACTION" in
             unchanged) ;;
             xnet060-replay) module_args+=(--derive-xnet060) ;;
+            xnet062-replay) module_args+=(--derive-xnet062) ;;
             *) echo '::error::Unsupported Prometheus module action'; exit 1 ;;
           esac
           python_bin="$(command -v python)"
@@ -1367,6 +1370,43 @@ jobs:
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.13.14'
+      # This API-only step consumes setup reserve inside the unchanged 35-minute
+      # job cap. The tool operation separately retains its 1800s/120s lease.
+      - name: Admit exact tool source and once-only history before scanner
+        if: ${{ github.ref == 'refs/heads/codex/dependency-alertmanager-remediation' }}
+        timeout-minutes: 2
+        env:
+          PROMETHEUS_ADMISSION_SECONDS: '90'
+          PROMETHEUS_ADMISSION_CLEANUP_SECONDS: '30'
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TOOL_PREFETCH_PREDECESSOR: ${{ inputs.tool_prefetch_predecessor }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          import time
+          from pathlib import Path
+          from scripts.ci.prometheus_source_image import GitHubRead, fresh_directory, manual_hosted_admission
+
+          area = Path(os.environ["RUNNER_TEMP"]) / ("prometheus-tool-admission-" + os.environ["GITHUB_RUN_ID"] + "-1")
+          fresh_directory(area)
+          api = GitHubRead(area / "private", area, time.monotonic() + int(os.environ["PROMETHEUS_ADMISSION_SECONDS"]),
+                           int(os.environ["PROMETHEUS_ADMISSION_CLEANUP_SECONDS"]))
+          primary_error = None
+          try:
+              manual_hosted_admission(api, "tool", producer_root=Path.cwd(),
+                                      prefetch_predecessor=os.environ.get("TOOL_PREFETCH_PREDECESSOR") or None)
+          except BaseException as error:
+              primary_error = error
+              raise
+          finally:
+              try:
+                  api.close()
+              except BaseException as cleanup_error:
+                  if primary_error is None:
+                      raise
+                  raise primary_error from cleanup_error
+          PY
       - name: Install pinned tool scanner and acquire DB
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 / Node 24 cache path
         with:
@@ -1473,12 +1513,98 @@ jobs:
           set -euo pipefail
           cp -- "$PROVENANCE_BUNDLE" "$RUNNER_TEMP/prometheus-pair-$GITHUB_RUN_ID-1/evidence/provenance-bundle.jsonl"
           cp -- "$SBOM_BUNDLE" "$RUNNER_TEMP/prometheus-pair-$GITHUB_RUN_ID-1/evidence/sbom-bundle.jsonl"
+      - name: Check exact native-save diagnostic retention
+        id: native-save-files
+        if: ${{ always() }}
+        env:
+          PAIR_OUTCOME: ${{ steps.pair.outcome }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PYCODE'
+          import os
+          import stat
+          from pathlib import Path
+          from scripts.ci.prometheus_source_image import _digest, _xnet062_member, one_object, require, sha
+
+          work = Path(os.environ["RUNNER_TEMP"]) / ("prometheus-pair-" + os.environ["GITHUB_RUN_ID"] + "-1")
+          evidence = work / "evidence"
+          saves = {lane: evidence / lane / "import-save/native.tar" for lane in ("a", "b")}
+          present = {}
+          for lane, path in saves.items():
+              for parent in (work, evidence, evidence / lane, path.parent):
+                  try:
+                      info = parent.lstat()
+                  except FileNotFoundError:
+                      continue
+                  require(stat.S_ISDIR(info.st_mode) and info.st_uid == os.getuid(), "diagnostic_owned_directory")
+              try:
+                  info = path.lstat()
+              except FileNotFoundError:
+                  continue
+              require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and info.st_uid == os.getuid(), "diagnostic_regular_save")
+              present[lane] = info.st_size
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
+              output.write("present=" + ("true" if present else "false") + "\n")
+          if os.environ["PAIR_OUTCOME"] == "success":
+              report = one_object(_xnet062_member(evidence, "pair.json", None))
+              require(report.get("status") == "observed_equal_real_source_pair" and report.get("failure") is None, "diagnostic_pair_success")
+              builds = report.get("builds")
+              require(type(builds) is list and len(builds) == 2 and [row.get("label") for row in builds] == ["a", "b"], "diagnostic_pair_lanes")
+              commands = report.get("native_commands")
+              require(type(commands) is list, "diagnostic_native_commands")
+              required = []
+              for lane, build in zip(("a", "b"), builds, strict=True):
+                  observed = build["native_import"]
+                  require(observed.get("status") == "observed_real_native_import", "diagnostic_real_import")
+                  config_id = _digest(observed.get("image_config_id"))
+                  require(config_id == report["selection"]["config_digest"], "diagnostic_config_binding")
+                  raw = _xnet062_member(evidence / lane, "import-image.stdout", None)
+                  matches = [row for row in commands if row.get("stdout") == str(evidence / lane / "import-image.stdout")]
+                  require(len(matches) == 1, "diagnostic_inspect_record")
+                  inspect = matches[0]
+                  prefix = inspect["argv"][:3]
+                  require(prefix[1:] == ["--config", str(work / "docker-config")] and Path(prefix[0]).is_absolute(), "diagnostic_native_prefix")
+                  require(inspect["argv"] == prefix + ["image", "inspect", "--format", "{{json .}}", "pulseplate-prometheus:candidate"] and inspect.get("exit") == 0 and type(inspect.get("exit")) is int and inspect.get("failure") is None and inspect.get("stdout_sha256") == sha(raw), "diagnostic_inspect_binding")
+                  engine = _digest(one_object(raw).get("Id"))
+                  records = [row for row in commands if row.get("stdout") == str(evidence / lane / "import-save.stdout")]
+                  if engine != config_id:
+                      required.append(lane)
+                      require(len(records) == 1 and records[0].get("argv") == prefix + ["image", "save", "--output", str(saves[lane]), engine] and records[0].get("exit") == 0 and type(records[0].get("exit")) is int and records[0].get("failure") is None, "diagnostic_successful_save")
+                  else:
+                      require(not records, "diagnostic_classic_no_save")
+              with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
+                  output.write("required=" + ("true" if required else "false") + "\n")
+              require(all(present.get(lane, 0) > 0 for lane in required), "diagnostic_required_save_missing")
+          PYCODE
+      - name: Retain raw native-save diagnostics
+        id: native-save-upload
+        if: ${{ always() && steps.native-save-files.outputs.present == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
+        with:
+          name: prometheus-source-native-save-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/prometheus-pair-${{ github.run_id }}-1/evidence/a/import-save/native.tar
+            ${{ runner.temp }}/prometheus-pair-${{ github.run_id }}-1/evidence/b/import-save/native.tar
+          if-no-files-found: error
+          retention-days: 90
+      - name: Require expected native-save upload
+        if: ${{ always() && steps.native-save-files.outputs.required == 'true' }}
+        env:
+          DIAGNOSTIC_OUTCOME: ${{ steps.native-save-upload.outcome }}
+          DIAGNOSTIC_ARTIFACT_ID: ${{ steps.native-save-upload.outputs.artifact-id }}
+        run: |
+          set -euo pipefail
+          test "$DIAGNOSTIC_OUTCOME" = success
+          test -n "$DIAGNOSTIC_ARTIFACT_ID"
       - name: Retain complete real pair evidence
         if: ${{ always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
         with:
           name: prometheus-source-candidate-${{ github.run_id }}-1
-          path: ${{ runner.temp }}/prometheus-pair-${{ github.run_id }}-1/evidence/
+          path: |
+            ${{ runner.temp }}/prometheus-pair-${{ github.run_id }}-1/evidence/
+            !${{ runner.temp }}/prometheus-pair-${{ github.run_id }}-1/evidence/a/import-save/native.tar
+            !${{ runner.temp }}/prometheus-pair-${{ github.run_id }}-1/evidence/b/import-save/native.tar
           if-no-files-found: error
           retention-days: 90
 

@@ -5147,6 +5147,12 @@ def test_build_wheelhouse_with_emergency_fallback_retries_only_after_proxy_failu
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    shadow_python = _write_executable(tmp_path / "bin" / "python")
+    monkeypatch.setenv("PATH", str(shadow_python.parent))
+    monkeypatch.setenv("PYTHONPATH", str(tmp_path / "untrusted-import-root"))
+    assert installer.resolve_python_executable("python") == str(shadow_python)
+    assert installer.resolve_python_executable(sys.executable) != str(shadow_python)
+
     requirements = tmp_path / "requirements.txt"
     requirements.write_text("cryptography==46.0.7\n", encoding="utf-8")
     manifest = tmp_path / "emergency.json"
@@ -5173,6 +5179,7 @@ def test_build_wheelhouse_with_emergency_fallback_retries_only_after_proxy_failu
     build_attempts = {"count": 0}
 
     def fake_build_wheelhouse(**kwargs: object) -> None:
+        assert kwargs["python_executable"] == sys.executable
         build_attempts["count"] += 1
         observed_calls.append(Path(kwargs["wheelhouse_dir"]))
         if build_attempts["count"] == 1:
@@ -5184,6 +5191,7 @@ def test_build_wheelhouse_with_emergency_fallback_retries_only_after_proxy_failu
         assert trusted_host is None
 
     def fake_stage_emergency_artifacts(**kwargs: object) -> list[Path]:
+        assert kwargs["python_executable"] == sys.executable
         assert [artifact["package"] for artifact in kwargs["artifacts"]] == ["cryptography"]
         wheelhouse_dir = Path(kwargs["wheelhouse_dir"])
         destination = wheelhouse_dir / "cryptography-46.0.7.whl"
@@ -5196,7 +5204,7 @@ def test_build_wheelhouse_with_emergency_fallback_retries_only_after_proxy_failu
     monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
 
     installer.build_wheelhouse_with_emergency_fallback(
-        python_executable="python",
+        python_executable=sys.executable,
         requirement_files=[requirements],
         constraints_file=None,
         wheelhouse_dir=tmp_path / "wheelhouse",
@@ -5268,7 +5276,7 @@ def test_build_wheelhouse_with_emergency_fallback_stages_only_resolver_miss_arti
     monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
 
     installer.build_wheelhouse_with_emergency_fallback(
-        python_executable="python",
+        python_executable=sys.executable,
         requirement_files=[requirements],
         constraints_file=None,
         wheelhouse_dir=tmp_path / "wheelhouse",
@@ -5345,7 +5353,7 @@ def test_build_wheelhouse_with_emergency_fallback_continues_for_second_requested
     monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
 
     installer.build_wheelhouse_with_emergency_fallback(
-        python_executable="python",
+        python_executable=sys.executable,
         requirement_files=[requirements],
         constraints_file=None,
         wheelhouse_dir=tmp_path / "wheelhouse",
@@ -5692,7 +5700,7 @@ def test_install_from_proxy_with_emergency_fallback_keeps_health_gate_for_plain_
 
     with pytest.raises(RuntimeError, match="proxy health check failed"):
         installer.install_from_proxy_with_emergency_fallback(
-            python_executable="python",
+            python_executable=sys.executable,
             requirement_files=[requirements],
             constraints_file=None,
             index_url=APPROVED_PROXY_URL,
@@ -5761,7 +5769,7 @@ def test_install_from_proxy_with_emergency_fallback_rejects_failed_health_probe(
 
     with pytest.raises(RuntimeError, match=re.escape(health_detail)):
         installer.install_from_proxy_with_emergency_fallback(
-            python_executable="python",
+            python_executable=sys.executable,
             requirement_files=[requirements],
             constraints_file=None,
             index_url=APPROVED_PROXY_URL,
@@ -5820,7 +5828,7 @@ def test_install_from_proxy_with_emergency_fallback_rejects_same_line_server_err
 
     with pytest.raises(RuntimeError, match="pip exited with status 1"):
         installer.install_from_proxy_with_emergency_fallback(
-            python_executable="python",
+            python_executable=sys.executable,
             requirement_files=[requirements],
             constraints_file=None,
             index_url=APPROVED_PROXY_URL,
@@ -5887,7 +5895,7 @@ def test_install_from_proxy_with_emergency_fallback_does_not_treat_package_name_
     monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
 
     installer.install_from_proxy_with_emergency_fallback(
-        python_executable="python",
+        python_executable=sys.executable,
         requirement_files=[requirements],
         constraints_file=None,
         index_url=APPROVED_PROXY_URL,
@@ -5967,7 +5975,7 @@ def test_install_from_proxy_with_emergency_fallback_continues_for_second_request
     monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
 
     installer.install_from_proxy_with_emergency_fallback(
-        python_executable="python",
+        python_executable=sys.executable,
         requirement_files=[requirements],
         constraints_file=None,
         index_url=APPROVED_PROXY_URL,
@@ -6067,7 +6075,7 @@ def test_install_from_proxy_with_emergency_fallback_ignores_staged_package_retry
     monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
 
     installer.install_from_proxy_with_emergency_fallback(
-        python_executable="python",
+        python_executable=sys.executable,
         requirement_files=[requirements],
         constraints_file=None,
         index_url=APPROVED_PROXY_URL,
@@ -6190,7 +6198,7 @@ def test_install_from_proxy_with_emergency_fallback_rejects_mixed_network_resolv
 
     with pytest.raises(RuntimeError, match="pip exited with status 1"):
         installer.install_from_proxy_with_emergency_fallback(
-            python_executable="python",
+            python_executable=sys.executable,
             requirement_files=[requirements],
             constraints_file=None,
             index_url=APPROVED_PROXY_URL,
@@ -6301,7 +6309,7 @@ def test_install_from_proxy_with_emergency_fallback_rejects_non_resolver_failure
 
     with pytest.raises(RuntimeError, match="pip exited with status 1"):
         installer.install_from_proxy_with_emergency_fallback(
-            python_executable="python",
+            python_executable=sys.executable,
             requirement_files=[requirements],
             constraints_file=None,
             index_url=APPROVED_PROXY_URL,
@@ -6356,7 +6364,7 @@ def test_upgrade_pip_uses_emergency_wheel_after_proxy_resolver_miss(
     monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
 
     installer.upgrade_pip(
-        "python",
+        sys.executable,
         pip_spec="pip>=26.0,<27.0",
         index_url=APPROVED_PROXY_URL,
         trusted_host=None,
@@ -7692,7 +7700,7 @@ def test_run_dependency_floor_preflight_allows_exact_emergency_artifact(
     monkeypatch.setattr(installer, "_private_index_project_has_version", exact_version_missing)
 
     installer.run_dependency_floor_preflight(
-        python_executable="python",
+        python_executable=sys.executable,
         index_url=APPROVED_PROXY_URL,
         trusted_host=None,
         emergency_wheel_manifest=manifest,
@@ -7754,7 +7762,7 @@ def test_run_dependency_floor_preflight_allows_exact_emergency_artifact_after_pr
     monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
 
     installer.run_dependency_floor_preflight(
-        python_executable="python",
+        python_executable=sys.executable,
         index_url=APPROVED_PROXY_URL,
         trusted_host=None,
         emergency_wheel_manifest=manifest,
@@ -7954,7 +7962,7 @@ def test_run_dependency_floor_preflight_verifies_emergency_artifact_download(
     monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
 
     installer.run_dependency_floor_preflight(
-        python_executable="python",
+        python_executable=sys.executable,
         index_url=APPROVED_PROXY_URL,
         trusted_host=None,
         emergency_wheel_manifest=manifest,

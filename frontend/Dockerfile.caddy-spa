@@ -86,6 +86,17 @@ RUN set -eux; \
     go get github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.9; \
     go mod download all; \
     go mod verify; \
+    echo '40a8c29bde80ddaaf323030a9631453d905b1deafc4eb909c0b2b1c43bd2965d  go.mod' | sha256sum -c -; \
+    echo 'bc1def232f1f0a8d205b39c38fa9b0159d481c05f90933bc975659ec0c0317c8  go.sum' | sha256sum -c -; \
+    go get golang.org/x/net@v0.62.0; \
+    cp go.mod /tmp/caddy-xnet062-postget.mod; \
+    cp go.sum /tmp/caddy-xnet062-postget.sum; \
+    go mod download all; \
+    go mod verify; \
+    cmp go.mod /tmp/caddy-xnet062-postget.mod; \
+    echo 'f5d9289fa0e27604a936ed5e35368db876398dac62154b9a6af9d0d2a891f7d9  /tmp/caddy-xnet062-postget.sum' | sha256sum -c -; \
+    echo 'f06331d8fba11ae7ac7ba36f80198bb9ca7c5ac22df4deb7011ab91a4d52f596  go.mod' | sha256sum -c -; \
+    echo 'be8f44f7e591bcaa54412fe5f3061235596be2faf9bd3f5fdece0106fea45338  go.sum' | sha256sum -c -; \
     test -z "$(go list -m -f '{{if .Replace}}{{.Path}} => {{.Replace.Path}}{{end}}' all)"; \
     evidence=/caddy-build-evidence; \
     test -d "$evidence"; \
@@ -146,15 +157,15 @@ RUN set -eux; \
       'github.com/go-jose/go-jose/v3 v3.0.5' \
       'github.com/go-jose/go-jose/v4 v4.1.6' \
       'github.com/klauspost/compress v1.20.1' \
-      'golang.org/x/crypto v0.57.0' \
+      'golang.org/x/crypto v0.58.0' \
       'golang.org/x/mod v0.41.0' \
-      'golang.org/x/net v0.60.0' \
-      'golang.org/x/sync v0.23.0' \
-      'golang.org/x/sys v0.48.0' \
-      'golang.org/x/telemetry v0.0.0-20260908163034-4bcc4b2ee518' \
-      'golang.org/x/term v0.46.0' \
-      'golang.org/x/text v0.42.0' \
-      'golang.org/x/tools v0.50.0' \
+      'golang.org/x/net v0.62.0' \
+      'golang.org/x/sync v0.24.0' \
+      'golang.org/x/sys v0.49.0' \
+      'golang.org/x/telemetry v0.0.0-20260924152758-ed294f943157' \
+      'golang.org/x/term v0.47.0' \
+      'golang.org/x/text v0.43.0' \
+      'golang.org/x/tools v0.51.0' \
       'google.golang.org/grpc v1.83.2' \
       | LC_ALL=C sort > /tmp/caddy-expected-graph; \
     test "$(wc -l < /tmp/caddy-governed-graph | tr -d '[:space:]')" = '14'; \
@@ -174,12 +185,12 @@ RUN set -eux; \
       'dep github.com/go-jose/go-jose/v3 v3.0.5' \
       'dep github.com/go-jose/go-jose/v4 v4.1.6' \
       'dep github.com/klauspost/compress v1.20.1' \
-      'dep golang.org/x/crypto v0.57.0' \
-      'dep golang.org/x/net v0.60.0' \
-      'dep golang.org/x/sync v0.23.0' \
-      'dep golang.org/x/sys v0.48.0' \
-      'dep golang.org/x/term v0.46.0' \
-      'dep golang.org/x/text v0.42.0' \
+      'dep golang.org/x/crypto v0.58.0' \
+      'dep golang.org/x/net v0.62.0' \
+      'dep golang.org/x/sync v0.24.0' \
+      'dep golang.org/x/sys v0.49.0' \
+      'dep golang.org/x/term v0.47.0' \
+      'dep golang.org/x/text v0.43.0' \
       'dep google.golang.org/grpc v1.83.2' \
       | LC_ALL=C sort > /tmp/caddy-expected-binary; \
     test "$(wc -l < /tmp/caddy-governed-binary | tr -d '[:space:]')" = '11'; \

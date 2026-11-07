@@ -124,10 +124,15 @@ omissions must remain truthful. Its six candidate/official/secret full+HC scans
 share a frozen scanner/DB epoch, and complete native finding/fingerprint relations
 plus owned cleanup must pass before candidate artifact release. No D policy
 filter or calendar renewal substitutes for this proof. Preserve all lower findings
-and v3 UNKNOWN. The owning job's 220-minute cap and shared phase reserves are
-planning ceilings, not observed fit; each 330-second scan includes 300 seconds of work and
-bounded termination/capture. Keep historical attempts and failures as history,
+and v3 UNKNOWN. The owning job declares a 225-minute fallback. Its shared
+ledger derives the metadata step's 22-minute limit from 1,200 seconds of work
+and 120 seconds of cleanup. The configured limit must cover every phase.
+Each 330-second scan includes 300 seconds of work and bounded
+termination/capture. Keep historical attempts and failures as history,
 without using them as a new-attempt prohibition or successful hosted proof.
+Metadata qualification requires the two exact checksum states, complete
+offline comparisons and positive same-ID container cleanup. The source
+producer retains the separate prebuild output-profile HOLD.
 Authenticated API reads keep the canonical no-redirect opener inside the existing
 process owner: authentication and response collection share 20 seconds, with
 10 seconds reserved for owned cleanup in the same 30-second call slot. Bind the
