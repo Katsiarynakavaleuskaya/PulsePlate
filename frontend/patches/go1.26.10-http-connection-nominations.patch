@@ -1,0 +1,19 @@
+--- a/src/net/http/transfer.go
++++ b/src/net/http/transfer.go
+@@ -759,3 +759,15 @@
+ 	if hasClose && removeCloseHeader {
+-		header.Del("Connection")
++		var remaining []string
++		for _, value := range conv {
++			foreachHeaderElement(value, func(element string) {
++				if !ascii.EqualFold(element, "close") && !ascii.EqualFold(element, "keep-alive") {
++					remaining = append(remaining, element)
++				}
++			})
++		}
++		if len(remaining) == 0 {
++			header.Del("Connection")
++		} else {
++			header["Connection"] = remaining
++		}
+ 	}

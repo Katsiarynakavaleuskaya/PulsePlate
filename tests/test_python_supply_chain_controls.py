@@ -350,6 +350,7 @@ def _run_bash_script(script: str, *, env: dict[str, str]) -> subprocess.Complete
         text=True,
         capture_output=True,
         env=env,
+        timeout=30,
         check=False,
     )
 
@@ -3230,6 +3231,37 @@ def test_checked_in_docker_image_budget_policy_has_expected_schema() -> None:
     assert budget_payload["baseline_reference"]["workflow"] == "build.yml"
 
 
+@pytest.mark.parametrize("selection", ["relative", "directory", "non-executable", "missing"])
+def test_dependabot_index_discovery_rejects_invalid_git_before_launch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, selection: str
+) -> None:
+    repo = tmp_path / "repository"
+    repo.mkdir()
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    git = bin_dir / "git"
+    git.write_text("#!/bin/sh\nexit 91\n")
+    git.chmod(0o700)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PATH", "bin")
+    discovered = shutil.which("git")
+    assert discovered and not Path(discovered).is_absolute()
+    if selection == "non-executable":
+        git.chmod(0o600)
+    selected = {
+        "relative": discovered,
+        "directory": str(bin_dir),
+        "non-executable": str(git),
+        "missing": str(tmp_path / "absent"),
+    }[selection]
+    monkeypatch.setattr(carriers, "GIT_BINARY", selected)
+    monkeypatch.setattr(
+        carriers.subprocess, "run", lambda *args, **kwargs: pytest.fail("unqualified Git launched")
+    )
+    with pytest.raises(carriers.DependabotRequirementDiscoveryError):
+        carriers.discover_dependabot_requirement_carriers(repo)
+
+
 def test_dependabot_git_discovery_isolated_from_executable_config(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -3237,17 +3269,34 @@ def test_dependabot_git_discovery_isolated_from_executable_config(
     assert git is not None
     repo = tmp_path / "repo"
     repo.mkdir()
-    fixture_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    fixture_env = {
+        "PATH": os.defpath,
+        "LC_ALL": "C",
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_TERMINAL_PROMPT": "0",
+    }
 
     def fixture_git(*argv: str) -> None:
-        subprocess.run(  # nosec B603: resolved Git binary with fixed test-owned argv (remove-by: 2026-10-31, ref: PR-consol-ci-1)
-            [git, "-C", str(repo), *argv],
+        subprocess.run(
+            [
+                git,
+                "-c",
+                f"core.hooksPath={os.devnull}",
+                "-c",
+                "init.templateDir=",
+                "-C",
+                str(repo),
+                *argv,
+            ],
             check=True,
             capture_output=True,
             env=fixture_env,
+            timeout=10,
         )
 
     fixture_git("init", "--quiet")
+    assert carriers.discover_dependabot_requirement_carriers(repo) == set()
     (repo / "requirements.txt").write_text("requests==2.32.5\n", encoding="utf-8")
     fixture_git("add", "requirements.txt")
     fixture_git("config", "core.fsmonitor", str(tmp_path / "untrusted-helper"))
@@ -3291,6 +3340,7 @@ def _bandit_gate_test_repo(tmp_path: Path) -> tuple[Path, str, dict[str, str], P
         [git, *safe_git_config_args(), "-c", "init.templateDir=", "init", "--quiet", str(root)],
         env=fixture_env,
         check=True,
+        timeout=10,
     )
     tracked = [
         "src/regular.py",
@@ -3308,6 +3358,7 @@ def _bandit_gate_test_repo(tmp_path: Path) -> tuple[Path, str, dict[str, str], P
         cwd=root,
         env=fixture_env,
         check=True,
+        timeout=10,
     )
     control = tmp_path / "control"
     control.mkdir()
@@ -3608,6 +3659,7 @@ def test_full_bandit_native_report_rejects_findings_and_scanner_errors(
         [git, *safe_git_config_args(), "-c", "init.templateDir=", "init", "--quiet", str(root)],
         env=fixture_env,
         check=True,
+        timeout=10,
     )
     source = root / "fetch_docker_source_artifacts.py"
     source.write_text(bad)
@@ -3621,6 +3673,7 @@ def test_full_bandit_native_report_rejects_findings_and_scanner_errors(
         cwd=root,
         env=fixture_env,
         check=True,
+        timeout=10,
     )
     environment = {
         "PATH": str(Path(sys.executable).parent) + os.pathsep + os.defpath,

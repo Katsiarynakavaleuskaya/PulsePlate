@@ -8,6 +8,7 @@ repos:
         # Automatically fixes missing trailing newlines (POSIX requirement)
         # All text files must end with '\n' character
       - id: trailing-whitespace
+        exclude: '\Afrontend/patches/go-jose-v3\.0\.5-CVE-2026-116587\.patch\Z'
       - id: check-merge-conflict
       - id: check-added-large-files
         exclude: ^deploy/postgres-pgvector/builder-apk-index\.tar\.gz$

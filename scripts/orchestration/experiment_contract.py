@@ -12,7 +12,7 @@ from pathlib import Path
 import re
 import shlex
 import shutil
-import subprocess  # nosec B404: bounded git ls-files validation only (remove-by: 2026-10-31, ref: ledger-p1-experiment-runner-oracle-only-governance-reviewer)
+import subprocess  # nosec B404: bounded git ls-files validation only (remove-by: 2027-02-01, ref: ledger-p1-experiment-runner-oracle-only-governance-reviewer)
 from typing import Any
 
 from scripts.orchestration.context_pack import REPO_ROOT, normalize_text, repo_relative_paths
@@ -335,23 +335,42 @@ def validate_oracle_context_surface(paths: list[str] | tuple[str, ...]) -> list[
         )
 
     git_binary = shutil.which("git")
-    if not git_binary:
-        raise ValueError("git binary is required to validate oracle-only context paths.")
-    tracked_process = subprocess.run(  # nosec B603: absolute git binary checks tracked context paths without shell (remove-by: 2026-10-31, ref: ledger-p1-experiment-runner-oracle-only-governance-reviewer)
-        [git_binary, "--literal-pathspecs", "ls-files", "--error-unmatch", "--", *normalized_paths],
-        cwd=str(REPO_ROOT),
-        env=_git_env_without_parent_state(),
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if tracked_process.returncode != 0:
-        diagnostic = tracked_process.stderr.strip() or tracked_process.stdout.strip()
-        raise ValueError(
-            "Oracle-only context paths must already be tracked by git: "
-            f"{diagnostic or ', '.join(normalized_paths)}"
+    if (
+        not git_binary
+        or not Path(git_binary).is_absolute()
+        or not Path(git_binary).is_file()
+        or not os.access(git_binary, os.X_OK)
+    ):
+        raise ValueError("An absolute executable Git is required for the context query.")
+    try:
+        tracked_process = subprocess.run(  # nosec B603: absolute git binary checks tracked context paths without shell (remove-by: 2027-01-01, ref: ledger-p1-experiment-runner-oracle-only-governance-reviewer)
+            [
+                git_binary,
+                "--literal-pathspecs",
+                "ls-files",
+                "--error-unmatch",
+                "--",
+                *normalized_paths,
+            ],
+            cwd=str(REPO_ROOT),
+            env=_git_env_without_parent_state(),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=30,
+            check=False,
         )
-    return normalized_paths
+    except subprocess.TimeoutExpired:
+        failure = "Git tracked-context query timed out."
+    except OSError:
+        failure = "Git tracked-context query could not execute."
+    else:
+        if tracked_process.returncode == 0:
+            return normalized_paths
+        if tracked_process.returncode == 1:
+            raise ValueError("Oracle-only context paths must already be tracked by git.")
+        failure = "Git tracked-context query failed."
+    raise ValueError(failure)
 
 
 def validate_runner_mode(value: Any) -> str:

@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "generated_at": "2026-10-04",
-  "review_by": "2026-10-30",
-  "reason": "Reviewed official SQLite 3.53.2, util-linux 2.42.3, PCRE2 10.49 and its exact upstream SLJIT gitlink sources for the existing bounded native runtime-library builds. All four archive identities and digests are retained; fetch and checksum verification precede Docker builds. Exact reviewed zlib 1.3.2 plus df84 gzwrite fix, ncurses 6.6, shared OpenSSL 3.5.9 and client-only PostgreSQL 18.6 inputs extend this manifest; the prior four identities and source review date remain unchanged. Five exact adjacent official zlib maintenance commits support the retained public gzip-write and printf contract; the original nine input records are unchanged. The exact official a82e include-order correction follows d81; all prior fourteen records and bytes remain unchanged.",
+  "review_by": "2026-11-30",
+  "reason": "Manual source review 2026-10-31: retain bounded SQLite, util-linux libuuid, PCRE2, SLJIT, OpenSSL and PostgreSQL client dispositions; qualify exact maintained zlib 1.3.2.1-motley, signed ncurses 6.6-20261024 and official Alertmanager 0.34.2 source/UI. Original17 obligations and missed deadlines remain in existing security owners. Seven contained zlib patch inputs are removed from this qualification candidate; achieved retirement and native/image acceptance remain pending. Reassess immediately on new findings or source/recipe/toolchain/provenance changes. On 2026-11-04 the selected ncurses build input became the codeload archive of commit dc909d77781ef5c2a0684e9ad9eb9f0c0baf5ecc. The verified upstream signature on Git tag v6_6_20261024 authenticates that commit, and the ncurses row pins the downloaded archive bytes by SHA-256 and SHA3-256. The separately signed release ncurses-6.6-20261024.tgz remains the historical October 31 input.",
   "artifacts": [
     {
       "name": "sqlite-autoconf",
@@ -80,54 +80,54 @@
     },
     {
       "name": "zlib",
-      "version": "1.3.2",
-      "filename": "zlib-1.3.2.tar.gz",
-      "url": "https://www.zlib.net/fossils/zlib-1.3.2.tar.gz",
+      "version": "1.3.2.1-motley",
+      "filename": "zlib-71747d1d39168833e0cae8ed84b8ce77cb049699.tar.gz",
+      "url": "https://codeload.github.com/madler/zlib/tar.gz/71747d1d39168833e0cae8ed84b8ce77cb049699",
       "sha3_256_parts": [
-        "451bedbd",
-        "cd78dec3",
-        "704df673",
-        "c976fab2",
-        "5beaef6a",
-        "db9433fe",
-        "84665e7b",
-        "f946e325"
+        "d0327903",
+        "5bd9536a",
+        "0d4e0396",
+        "a593acd3",
+        "30c7ed51",
+        "fc42f7d8",
+        "aa834509",
+        "57f30a16"
       ],
       "sha256_parts": [
-        "bb329a0a",
-        "2cd0274d",
-        "05519d61",
-        "c667c062",
-        "e06990d7",
-        "2e125ee2",
-        "dfa8de64",
-        "f0119d16"
+        "c9db0fa6",
+        "5f2ab543",
+        "2d7d9709",
+        "7c058c81",
+        "e0cfff25",
+        "0f9e900a",
+        "c3dc1d70",
+        "989d4dd5"
       ]
     },
     {
       "name": "ncurses",
-      "version": "6.6",
-      "filename": "ncurses-6.6.tar.gz",
-      "url": "https://invisible-island.net/archives/ncurses/ncurses-6.6.tar.gz",
+      "version": "6.6-20261024",
+      "filename": "ncurses-snapshots-dc909d77781ef5c2a0684e9ad9eb9f0c0baf5ecc.tar.gz",
+      "url": "https://codeload.github.com/ThomasDickey/ncurses-snapshots/tar.gz/dc909d77781ef5c2a0684e9ad9eb9f0c0baf5ecc",
       "sha3_256_parts": [
-        "b755b6ab",
-        "f8bdb9fa",
-        "fa048a0c",
-        "55973212",
-        "ee491051",
-        "a0aaff08",
-        "dfa45339",
-        "34dc53cc"
+        "3c75e58a",
+        "86e20f38",
+        "0f2e245e",
+        "75c8ac48",
+        "b2b0fa61",
+        "881f0a81",
+        "394f5656",
+        "82c9532e"
       ],
       "sha256_parts": [
-        "355b4cbb",
-        "ed880b03",
-        "81a04c46",
-        "617b7656",
-        "e362585d",
-        "52e9cf84",
-        "a67e2009",
-        "b749ff11"
+        "4c1a95b8",
+        "f05f0f86",
+        "65988fa4",
+        "07693d33",
+        "224776f4",
+        "6e4728c1",
+        "5db910a2",
+        "f653fe29"
       ]
     },
     {
@@ -183,279 +183,55 @@
       ]
     },
     {
-      "name": "zlib-gzwrite-fix",
-      "filename": "zlib-gzwrite-fix-df84af25dc1942490e1d1c899a07619152a46148.patch",
-      "url": "https://github.com/madler/zlib/commit/df84af25dc1942490e1d1c899a07619152a46148.patch?full_index=1",
-      "sha3_256_parts": [
-        "73d989d6",
-        "57fc2056",
-        "900feb1a",
-        "83574139",
-        "4b079f94",
-        "3f8659fe",
-        "441299ee",
-        "bf91b310"
-      ],
-      "sha256_parts": [
-        "db74db83",
-        "084f8ff5",
-        "cf8d65ea",
-        "5fd1bd63",
-        "331f4c79",
-        "fc809189",
-        "d3735f35",
-        "18ae2527"
-      ],
-      "version_parts": [
-        "df84af25",
-        "dc194249",
-        "0e1d1c89",
-        "9a076191",
-        "52a46148"
-      ]
-    },
-    {
-      "name": "zlib-gzwrite-null-fix",
-      "filename": "zlib-gzwrite-null-fix-e3dc0a85b7032e98380dec011bc8f2c2ee0d8fca.patch",
-      "url": "https://github.com/madler/zlib/commit/e3dc0a85b7032e98380dec011bc8f2c2ee0d8fca.patch?full_index=1",
-      "sha3_256_parts": [
-        "2d97c97e",
-        "020dfe05",
-        "9b8b1981",
-        "95a8fe42",
-        "197f88b1",
-        "184bb9ef",
-        "0292a8af",
-        "a535aa26"
-      ],
-      "sha256_parts": [
-        "8be18219",
-        "a658f1dd",
-        "fa83d4e8",
-        "f778d2c3",
-        "be1ade11",
-        "3863f166",
-        "3929c399",
-        "02e001cc"
-      ],
-      "version_parts": [
-        "e3dc0a85",
-        "b7032e98",
-        "380dec01",
-        "1bc8f2c2",
-        "ee0d8fca"
-      ]
-    },
-    {
-      "name": "zlib-gzvprintf-return-fix",
-      "filename": "zlib-gzvprintf-return-fix-bbc2ccf3d0de267576b524b875c769a724a513b0.patch",
-      "url": "https://github.com/madler/zlib/commit/bbc2ccf3d0de267576b524b875c769a724a513b0.patch?full_index=1",
-      "sha3_256_parts": [
-        "28af72a5",
-        "d4d20648",
-        "1956ab11",
-        "ab164090",
-        "7577bc0c",
-        "021ef3b5",
-        "8344ea64",
-        "f00c764c"
-      ],
-      "sha256_parts": [
-        "96bd1c24",
-        "2f09b244",
-        "430bfe78",
-        "54a9bb57",
-        "a6e24a1e",
-        "38e93bce",
-        "f8ba946d",
-        "22ecaf16"
-      ],
-      "version_parts": [
-        "bbc2ccf3",
-        "d0de2675",
-        "76b524b8",
-        "75c769a7",
-        "24a513b0"
-      ]
-    },
-    {
-      "name": "zlib-gzprintf-return-fix",
-      "filename": "zlib-gzprintf-return-fix-7235b0a581227c56a79a43ff828f8ef6794194c8.patch",
-      "url": "https://github.com/madler/zlib/commit/7235b0a581227c56a79a43ff828f8ef6794194c8.patch?full_index=1",
-      "sha3_256_parts": [
-        "84bd6874",
-        "0f1bf101",
-        "fa85d3dd",
-        "726a9c9b",
-        "ec84c216",
-        "3adf5b7b",
-        "5c004bba",
-        "62db6d5d"
-      ],
-      "sha256_parts": [
-        "c5eff1cc",
-        "8dd1997b",
-        "16e0918e",
-        "bf6074b9",
-        "9bd38b2c",
-        "244fb2bf",
-        "2b697e74",
-        "541a0987"
-      ],
-      "version_parts": [
-        "7235b0a5",
-        "81227c56",
-        "a79a43ff",
-        "828f8ef6",
-        "794194c8"
-      ]
-    },
-    {
-      "name": "zlib-blocked-errno-fix",
-      "filename": "zlib-blocked-errno-fix-813dac5dcb5902ed241e9b0d38abd2d847a335a9.patch",
-      "url": "https://github.com/madler/zlib/commit/813dac5dcb5902ed241e9b0d38abd2d847a335a9.patch?full_index=1",
-      "sha3_256_parts": [
-        "d4fbd685",
-        "ed4c2ec2",
-        "d5e4962f",
-        "0f6d5a98",
-        "5ab1f542",
-        "0bc1224d",
-        "d262b419",
-        "e7c26ab5"
-      ],
-      "sha256_parts": [
-        "b1fcf877",
-        "5123d729",
-        "0a11e952",
-        "21632fca",
-        "7406cce1",
-        "73820a09",
-        "392c659e",
-        "adb0ba0a"
-      ],
-      "version_parts": [
-        "813dac5d",
-        "cb5902ed",
-        "241e9b0d",
-        "38abd2d8",
-        "47a335a9"
-      ]
-    },
-    {
-      "name": "zlib-gzprintf-contract-fix",
-      "filename": "zlib-gzprintf-contract-fix-d81c2d7eb705c62294ba03299255672078e89115.patch",
-      "url": "https://github.com/madler/zlib/commit/d81c2d7eb705c62294ba03299255672078e89115.patch?full_index=1",
-      "sha3_256_parts": [
-        "e9216856",
-        "034689c7",
-        "1656fb32",
-        "dd1b25d3",
-        "2304baf4",
-        "42b7e9b8",
-        "d454c732",
-        "187b0bcf"
-      ],
-      "sha256_parts": [
-        "22adf550",
-        "e344229d",
-        "f577ce66",
-        "fddfce16",
-        "451eb605",
-        "20e8f68e",
-        "5cae2192",
-        "1b9bc0ea"
-      ],
-      "version_parts": [
-        "d81c2d7e",
-        "b705c622",
-        "94ba0329",
-        "92556720",
-        "78e89115"
-      ]
-    },
-    {
-      "name": "zlib-errno-order-fix",
-      "filename": "zlib-errno-order-fix-a82e0db392178a3e05fb27bf551a6ce757a47898.patch",
-      "url": "https://github.com/madler/zlib/commit/a82e0db392178a3e05fb27bf551a6ce757a47898.patch?full_index=1",
-      "sha3_256_parts": [
-        "33b8bc65",
-        "706a2b85",
-        "2e4b7ede",
-        "ce112f13",
-        "59078b3c",
-        "8e475079",
-        "d7b8d92d",
-        "d4931d47"
-      ],
-      "sha256_parts": [
-        "c12fbe1d",
-        "d31e27c3",
-        "90d4552c",
-        "3862fe6b",
-        "c50169c7",
-        "3ab97a74",
-        "e81682b6",
-        "a713f1f9"
-      ],
-      "version_parts": [
-        "a82e0db3",
-        "92178a3e",
-        "05fb27bf",
-        "551a6ce7",
-        "57a47898"
-      ]
-    },
-    {
       "name": "alertmanager-source",
-      "version": "73c6bfe7393929211294c1954f30d8ed78e4d0ad",
-      "filename": "alertmanager-73c6bfe7393929211294c1954f30d8ed78e4d0ad.tar.gz",
-      "url": "https://codeload.github.com/prometheus/alertmanager/tar.gz/73c6bfe7393929211294c1954f30d8ed78e4d0ad",
+      "version": "e8349048265ccc0871c3d0d668b05eacc68baf50",
+      "filename": "alertmanager-e8349048265ccc0871c3d0d668b05eacc68baf50.tar.gz",
+      "url": "https://codeload.github.com/prometheus/alertmanager/tar.gz/e8349048265ccc0871c3d0d668b05eacc68baf50",
       "sha3_256_parts": [
-        "91f2352a",
-        "99d986dd",
-        "c734f19f",
-        "0e082c7d",
-        "c24f7baf",
-        "31b22f89",
-        "d5b61c4b",
-        "4af32400"
+        "06d88cbe",
+        "f612a0d4",
+        "ddb99117",
+        "7e5628a3",
+        "519a192b",
+        "16505581",
+        "b4e0c098",
+        "5797fac7"
       ],
       "sha256_parts": [
-        "5c5c72ec",
-        "6b4c4746",
-        "d523f2ed",
-        "1994dfec",
-        "4b94f745",
-        "7e530ee6",
-        "fb16cfec",
-        "158e545e"
+        "81e69f87",
+        "954aedb5",
+        "57ed67d9",
+        "ef0218a1",
+        "c0c9b9e0",
+        "c3184c9d",
+        "dffe07bd",
+        "247239fc"
       ]
     },
     {
       "name": "alertmanager-ui",
-      "version": "0.34.1",
-      "filename": "alertmanager-web-ui-0.34.1.tar.gz",
-      "url": "https://github.com/prometheus/alertmanager/releases/download/v0.34.1/alertmanager-web-ui-0.34.1.tar.gz",
+      "version": "0.34.2",
+      "filename": "alertmanager-web-ui-0.34.2.tar.gz",
+      "url": "https://github.com/prometheus/alertmanager/releases/download/v0.34.2/alertmanager-web-ui-0.34.2.tar.gz",
       "sha3_256_parts": [
-        "ba9042c8",
-        "7a601adb",
-        "24bef90c",
-        "cc2015fe",
-        "c88524f7",
-        "96eb63ed",
-        "c1d533f9",
-        "2f6ccdd1"
+        "94cca0b0",
+        "c04577a8",
+        "6deea79a",
+        "58e337ef",
+        "8a5854ea",
+        "026df8f9",
+        "92eb4040",
+        "c813f743"
       ],
       "sha256_parts": [
-        "881fe0f7",
-        "beb9573f",
-        "35be47dd",
-        "233af622",
-        "0e72c8db",
-        "72c03bcd",
-        "1780402e",
-        "b8dc1307"
+        "3d6b13c5",
+        "af094724",
+        "e0bed8f7",
+        "57399e08",
+        "af44d40d",
+        "6c6cd873",
+        "92a1f8ee",
+        "6ed1e457"
       ]
     }
   ]

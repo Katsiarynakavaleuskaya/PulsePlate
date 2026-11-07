@@ -283,7 +283,11 @@ the unchanged PR head.
 The implementation must keep the current closed Caddy recipe and add only the
 exact crypto selection plus resolved embedded-module assertions. The resulting
 closed recipe and negative mutation contract are enforced at
-`tests/test_caddy_deploy_provenance.py:282-460`;
+the builder checks at `tests/test_caddy_deploy_provenance.py:521` and
+`tests/test_caddy_deploy_provenance.py:632`, with builder mutations at
+`tests/test_caddy_deploy_provenance.py:694`, and the final-stage checks at
+`tests/test_caddy_deploy_provenance.py:763` and
+`tests/test_caddy_deploy_provenance.py:778`;
 the Prometheus manifest and CD identity contract is enforced at
 `tests/test_deploy_contract_scripts.py:210-269,309-380`.
 

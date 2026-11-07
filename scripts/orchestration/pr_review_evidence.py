@@ -14,7 +14,7 @@ import os
 import re
 import shutil
 import stat
-import subprocess  # nosec B404 # B404: fixed absolute git only (remove-by: 2026-10-30, ref: PR-governance-seal)
+import subprocess  # nosec B404 # B404: fixed absolute git only; owned call sites individually reviewed (remove-by: 2027-01-31, ref: PR-governance-seal)
 import unicodedata
 import urllib.parse
 from dataclasses import dataclass
@@ -1951,14 +1951,18 @@ def _run_git(
     *,
     input_bytes: bytes | None = None,
     timeout: int = 30,
+    isolate_global_config: bool = False,
 ) -> bytes:
     git = _git_path()
-    _reject_active_git_grafts(repo_root, git=git)
+    environment = _git_environment()
+    if isolate_global_config:
+        environment["GIT_CONFIG_GLOBAL"] = os.devnull
+    _reject_active_git_grafts(repo_root, git=git, environment=environment)
     try:
-        result = subprocess.run(  # nosec B603 # B603: resolved Git with bounded object/diff callers, sanitized environment, graft checks and timeout (remove-by: 2026-10-30, ref: PR-governance-seal)
+        result = subprocess.run(  # nosec B603 # B603: resolved Git with bounded object/diff callers, sanitized environment, graft checks and timeout; timeout and failure controls reviewed (remove-by: 2027-01-31, ref: PR-governance-seal)
             [git, *args],
             cwd=repo_root,
-            env=_git_environment(),
+            env=environment,
             input=input_bytes,
             capture_output=True,
             timeout=timeout,
@@ -1979,7 +1983,7 @@ def _git_is_ancestor(repo_root: Path, *, ancestor_sha: str, descendant_sha: str)
     _reject_active_git_grafts(repo_root, git=git)
     _reject_shallow_ancestry(repo_root, descendant_sha=descendant_sha, git=git)
     try:
-        result = subprocess.run(  # nosec B603 # B603: resolved Git with fixed ancestry query, checked identities, sanitized environment and shallow/graft rejection (remove-by: 2026-10-30, ref: PR-governance-seal)
+        result = subprocess.run(  # nosec B603 # B603: resolved Git with fixed ancestry query, checked identities, sanitized environment and shallow/graft rejection; timeout and failure controls reviewed (remove-by: 2027-01-31, ref: PR-governance-seal)
             [git, "merge-base", "--is-ancestor", ancestor_sha, descendant_sha],
             cwd=repo_root,
             env=_git_environment(),
@@ -1995,14 +1999,16 @@ def _git_is_ancestor(repo_root: Path, *, ancestor_sha: str, descendant_sha: str)
     raise _GitCommandError(f"git merge-base --is-ancestor failed: {diagnostic}")
 
 
-def _reject_active_git_grafts(repo_root: Path, *, git: str) -> None:
+def _reject_active_git_grafts(
+    repo_root: Path, *, git: str, environment: dict[str, str] | None = None
+) -> None:
     """Reject legacy graft files before trusting any local Git topology."""
 
     try:
-        result = subprocess.run(  # nosec B603 # B603: resolved Git with fixed graft-path lookup, sanitized environment and 30-second timeout (remove-by: 2026-10-30, ref: PR-governance-seal)
+        result = subprocess.run(  # nosec B603 # B603: resolved Git with fixed graft-path lookup, sanitized environment and 30-second timeout; timeout and failure controls reviewed (remove-by: 2027-01-31, ref: PR-governance-seal)
             [git, "rev-parse", "--git-path", "info/grafts"],
             cwd=repo_root,
-            env=_git_environment(),
+            env=environment if environment is not None else _git_environment(),
             capture_output=True,
             timeout=30,
             check=False,
@@ -2033,7 +2039,7 @@ def _shallow_boundary_shas(repo_root: Path, *, git: str) -> frozenset[str]:
     """Return validated local shallow boundaries without trusting their topology."""
 
     try:
-        result = subprocess.run(  # nosec B603 # B603: resolved Git with fixed shallow-path lookup, sanitized environment and 30-second timeout (remove-by: 2026-10-30, ref: PR-governance-seal)
+        result = subprocess.run(  # nosec B603 # B603: resolved Git with fixed shallow-path lookup, sanitized environment and 30-second timeout; timeout and failure controls reviewed (remove-by: 2027-01-31, ref: PR-governance-seal)
             [git, "rev-parse", "--git-path", "shallow"],
             cwd=repo_root,
             env=_git_environment(),
@@ -2100,7 +2106,7 @@ def _reject_shallow_ancestry(repo_root: Path, *, descendant_sha: str, git: str) 
     descendant = _require_sha(descendant_sha, label="stale-seal ancestry descendant")
     for boundary in _shallow_boundary_shas(repo_root, git=git):
         try:
-            result = subprocess.run(  # nosec B603 # B603: resolved Git with fixed parent-object read, checked commit, sanitized environment and 30-second timeout (remove-by: 2026-10-30, ref: PR-governance-seal)
+            result = subprocess.run(  # nosec B603 # B603: resolved Git with fixed parent-object read, checked commit, sanitized environment and 30-second timeout; timeout and failure controls reviewed (remove-by: 2027-01-31, ref: PR-governance-seal)
                 [git, "merge-base", "--is-ancestor", boundary, descendant],
                 cwd=repo_root,
                 env=_git_environment(),
@@ -2409,28 +2415,25 @@ def _stale_seal_commit_subject(repo_root: Path, commit_sha: str) -> str:
     return subject
 
 
-def _stale_seal_mapping_blob(
-    repo_root: Path,
-    *,
-    commit_sha: str,
-    pr_number: int,
+def read_regular_mapping_blob(
+    repo_root: Path, *, commit_sha: str, pr_number: int, isolate_global_config: bool = True
 ) -> str:
+    """Read the literal regular mapping leaf from one Git commit."""
     commit = _require_sha(commit_sha, label="stale-seal mapping commit")
+    if type(pr_number) is not int or pr_number <= 0:
+        raise ReviewEvidenceError("mapping requires a positive PR number")
     mapping_path = f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
-    try:
-        tree_raw = _run_git(
-            repo_root,
-            [
-                "ls-tree",
-                "-z",
-                "--full-tree",
-                commit,
-                "--",
-                f":(literal){mapping_path}",
-            ],
-        )
-    except _GitCommandError as exc:
-        raise _StaleSealEvidenceUnknown("owner stale-seal Git evidence is API_UNKNOWN") from exc
+
+    def query(args: list[str]) -> bytes:
+        if isolate_global_config:
+            return _run_git(repo_root, args, isolate_global_config=True)
+        return _run_git(repo_root, args)
+
+    if query(["cat-file", "-t", commit]) != b"commit\n":
+        raise ReviewEvidenceError("mapping revision must be a commit")
+    tree_raw = query(["ls-tree", "-z", "--full-tree", commit, "--", f":(literal){mapping_path}"])
+    if not tree_raw:
+        raise FileNotFoundError(f"Missing canonical review mapping blob: {mapping_path}")
     tree_match = re.fullmatch(
         rb"100644 blob (?P<oid>[0-9a-f]{40})\t(?P<path>[^\0]+)\0",
         tree_raw,
@@ -2438,16 +2441,30 @@ def _stale_seal_mapping_blob(
     if tree_match is None or tree_match.group("path") != mapping_path.encode("utf-8"):
         raise ReviewEvidenceError("owner stale-seal mapping must be one canonical regular blob")
     blob_oid = tree_match.group("oid").decode("ascii")
+    if query(["cat-file", "-t", blob_oid]) != b"blob\n":
+        raise ReviewEvidenceError("mapping leaf object must be a blob")
+    size_raw = query(["cat-file", "-s", blob_oid])
+    if not re.fullmatch(rb"(?:0|[1-9][0-9]*)\n", size_raw):
+        raise ValueError("mapping blob size is malformed")
+    size = int(size_raw)
+    if not 0 < size <= _MAX_JSON_ARTIFACT_BYTES:
+        raise ReviewEvidenceError("owner stale-seal mapping blob size is invalid")
+    raw = query(["cat-file", "blob", blob_oid])
+    if len(raw) != size:
+        raise ReviewEvidenceError("owner stale-seal mapping blob size changed")
+    return raw.decode("utf-8")
+
+
+def _stale_seal_mapping_blob(repo_root: Path, *, commit_sha: str, pr_number: int) -> str:
     try:
-        size_raw = _run_git(repo_root, ["cat-file", "-s", blob_oid])
-        size = int(size_raw.decode("ascii").strip())
-        if not 0 < size <= _MAX_JSON_ARTIFACT_BYTES:
-            raise ReviewEvidenceError("owner stale-seal mapping blob size is invalid")
-        raw = _run_git(repo_root, ["cat-file", "blob", blob_oid])
-        if len(raw) != size:
-            raise ReviewEvidenceError("owner stale-seal mapping blob size changed")
-        return raw.decode("utf-8")
-    except (_GitCommandError, UnicodeDecodeError, ValueError) as exc:
+        return read_regular_mapping_blob(
+            repo_root, commit_sha=commit_sha, pr_number=pr_number, isolate_global_config=False
+        )
+    except FileNotFoundError as exc:
+        raise ReviewEvidenceError(
+            "owner stale-seal mapping must be one canonical regular blob"
+        ) from exc
+    except (_GitCommandError, ValueError) as exc:
         raise _StaleSealEvidenceUnknown("owner stale-seal Git evidence is API_UNKNOWN") from exc
 
 

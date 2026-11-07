@@ -7216,3 +7216,44 @@ def test_runner_sdk_phase_barrier_prevents_external_loader_activation_with_crede
     assert "COPY sdk-inputs/" not in final
     assert "COPY --from=builder /usr/local/lib/ /usr/local/lib/" in final
     assert "COPY --from=builder /usr/local/share/doc/pulseplate-native/" in final
+
+
+@pytest.mark.parametrize("fault", ["timeout", "launch", "success", "nonzero"])
+def test_dispatch_native_boundary_exposes_only_its_fixed_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], fault: str
+) -> None:
+    import traceback
+
+    marker = "synthetic-private-dispatch"
+    argv = ["/fixture/" + marker, "info"]
+
+    def run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        assert command == argv and kwargs["input"] == marker
+        assert kwargs["timeout"] == 7 and kwargs["env"] == {"FIXTURE_INPUT": marker}
+        if fault == "timeout":
+            raise subprocess.TimeoutExpired(command, 7, output=marker, stderr=marker)
+        if fault == "launch":
+            raise OSError(marker)
+        return subprocess.CompletedProcess(
+            command, 13 if fault == "nonzero" else 0, stdout=marker, stderr=marker
+        )
+
+    monkeypatch.setattr(dispatch.subprocess, "run", run)
+
+    def probe() -> subprocess.CompletedProcess[str]:
+        return dispatch._run(
+            argv, cwd=tmp_path, timeout=7, input_text=marker, env_override={"FIXTURE_INPUT": marker}
+        )
+
+    if fault in ("timeout", "launch"):
+        with pytest.raises(dispatch.DispatchError) as failed:
+            probe()
+        assert failed.value.code == str(failed.value) == "probe_execution_failed"
+        assert failed.value.args == ("probe_execution_failed",)
+        assert failed.value.__cause__ is None and failed.value.__context__ is None
+        assert marker not in repr(failed.value) + "".join(traceback.format_exception(failed.value))
+    else:
+        private = probe()
+        assert private.returncode == (13 if fault == "nonzero" else 0)
+        assert private.stdout == private.stderr == marker
+    assert capsys.readouterr() == ("", "")

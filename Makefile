@@ -627,9 +627,11 @@ openapi: frontend-install ## Generate OpenAPI schema and regenerate FE types (de
 frontend-install: ## Install frontend dependencies
 	@if [ -d frontend/node_modules ] && [ -f frontend/node_modules/.package-lock.json ] \
 		&& cmp -s frontend/package-lock.json frontend/node_modules/.package-lock.json; then \
+		node frontend/scripts/check-redocly-compat.mjs verify && \
 		echo "Frontend dependencies already installed"; \
 	else \
 		./scripts/frontend_npm.sh --prefix frontend ci --no-audit --no-fund && \
+		node frontend/scripts/check-redocly-compat.mjs verify && \
 		cp frontend/package-lock.json frontend/node_modules/.package-lock.json; \
 	fi
 

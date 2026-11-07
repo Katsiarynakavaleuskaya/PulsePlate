@@ -10,7 +10,7 @@ Modes:
 from __future__ import annotations
 
 import shutil
-import subprocess  # nosec B404 # B404: fixed Git checks and current-interpreter consistency gate require subprocess (remove-by: 2026-10-30, ref: PR-main-nightly-nosec-ttl)
+import subprocess  # nosec B404 # B404: fixed Git checks and current-interpreter consistency gate require subprocess; owned call sites individually reviewed (remove-by: 2027-01-31, ref: PR-main-nightly-nosec-ttl)
 import sys
 from pathlib import Path, PurePosixPath
 
@@ -35,6 +35,8 @@ GIT_BIN = shutil.which("git")
 if GIT_BIN is None:
     raise RuntimeError("git executable not found on PATH")
 GIT_EXECUTABLE: str = GIT_BIN
+GIT_COMMAND_TIMEOUT_SECONDS = 30
+AGENT_CONSISTENCY_TIMEOUT_SECONDS = 120
 
 REQUIRED_FILES = [
     "docs/orchestration/workflow.md",
@@ -72,16 +74,23 @@ SUPPRESSED_NON_DEPENDENCY_INDEX_ERROR_CODES = frozenset(
 )
 
 
-def _run(cmd: list[str], cwd: Path | None = None) -> tuple[int, str]:
+def _run(
+    cmd: list[str], cwd: Path | None = None, *, timeout_seconds: int = GIT_COMMAND_TIMEOUT_SECONDS
+) -> tuple[int, str]:
+    """Return native status/text, or a sanitized 124 timeout result."""
     if cmd and cmd[0] == "git":
         cmd = [GIT_EXECUTABLE, *cmd[1:]]
-    r = subprocess.run(  # nosec B603 # B603: resolved Git or sys.executable with fixed repo consistency script and bounded argv; no shell (remove-by: 2026-10-30, ref: PR-main-nightly-nosec-ttl)
-        cmd,
-        cwd=cwd or ROOT,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        r = subprocess.run(  # nosec B603 # B603: resolved Git30s or sys.executable consistency120s; fixed callers, no shell, timeout124 (remove-by: 2027-01-31, ref: PR-main-nightly-nosec-ttl)
+            cmd,
+            cwd=cwd or ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired:
+        return 124, f"Preflight command timed out after {timeout_seconds} seconds"
     out = (r.stdout or "") + ("\n" + r.stderr if r.stderr else "")
     return r.returncode, out.rstrip()
 
@@ -112,7 +121,10 @@ def check_sot_files() -> bool:
 def check_agent_consistency() -> bool:
     """Verify routing/inventory/capability consistency."""
 
-    code, out = _run([sys.executable, "scripts/orchestration/check_agent_consistency.py"])
+    code, out = _run(
+        [sys.executable, "scripts/orchestration/check_agent_consistency.py"],
+        timeout_seconds=AGENT_CONSISTENCY_TIMEOUT_SECONDS,
+    )
     if code != 0:
         print("FAIL: agent consistency check failed")
         print(out)

@@ -1066,3 +1066,14 @@ separate. Keep parent OPS-04 open until its original outcome is proven.
 Actual AM11 CA-qualified producer outputs are now selected as receiver data.
 Final C/H consumer admission, current-head gates and merged-main outcomes remain. See [AM11 vendor CA source preparation](../security/CVE-2026-111943-go-trust-store.md#am11-vendor-ca-source-preparation)
 for the exact vendor delta, Q/S byte binding and remaining native proof.
+
+### Adopted controller context — 2026-10-31
+
+PR #2494 integrates merged main `d20922f741f431b6eb3e47386ae944ca441a971e`
+and its actual designated controller
+`dab47fc6153f87e35233e20aa255d97e68a5ed93`. Earlier instructions to create a
+future C/H pair describe the original preparation; they do not require another
+controller for these unchanged protected blobs. Current source, selected AM11
+and old-running cutoff checks remain independent of ordinary publication,
+current-material validation and operational deployment evidence. No deployment
+or new native acceptance is claimed by this synchronization.

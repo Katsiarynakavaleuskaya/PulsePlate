@@ -497,6 +497,46 @@ own decisions. Ordinary required local/current-head checks and final closeout
 remain mandatory. A reviewed revert removes the entries and restores inline
 date enforcement, including any then-expired-date HOLD.
 
+### November 5 seven-site transition in PR #2494
+
+At 00:28 Minsk on November 5 (21:28 UTC on November 4), the security-auditor
+reassessed the seven native subprocess sites. Timely joint owner/security review
+by November 4 on the owner's calendar remains unproved. The October 28 decision
+above supplies the existing November 11 inclusive limit. The November 5 work
+does not extend that limit.
+
+The PR #2494 working tree based on `ccb681eb0e6059c6515aba614ab761bdeff892ec`
+removes the seven PR-2497 fixture entries and places the same hard cutoff
+on each justified inline annotation, now referencing PR-2494. Native Trivy's
+original sites came from PR-2453 and Prometheus's from PR-2477. The accountable
+owner for each site is @katsiaryna_kavaleuskaya with the security-auditor.
+The dependency24 coordinator and scoped backend engineer own implementation
+and verification. Each site requires reassessment on the specific trigger
+below, or removal by the existing cutoff.
+
+| Current annotation and rule | Earlier removal or reassessment trigger |
+| --- | --- |
+| `scripts/ci/check_trivy_ignore_policy_native.py:13` B404 | Retire when the last native version/convert operation is retired or moves to a qualified equivalent that preserves the native results. |
+| `scripts/ci/check_trivy_ignore_policy_native.py:77` B603 | Reject executable identity, version, private environment, policy or decoded-output drift. Retire with the native conversion or a qualified equivalent. |
+| `scripts/ci/prometheus_source_image.py:30` B404 | Retire when all governed native process operations in this module have qualified replacements. |
+| `scripts/ci/prometheus_source_image.py:1060` B603 | Stop on credential-bearing recorded argv/environment or uncontrolled command or output. Retire when a qualified owner preserves native metadata, limits and group cleanup. |
+| `scripts/ci/prometheus_source_image.py:2175` B603 | Stop on changed or uncertain census identity. Retire when an alternative demonstrates equivalent Darwin/Linux ownership and cleanup under process churn. |
+| `scripts/ci/prometheus_source_image.py:2404` B603 | Reassess any change to the dedicated GHCR endpoints, credential scope or child cleanup. Retire when an equivalent authenticated reader qualifies or this native qualification ends. |
+| `scripts/ci/prometheus_source_image.py:3759` B603 | Reassess a new executable, secret-bearing argv, unbounded I/O or uncertain cleanup. Retire after all supported callers preserve their credential handling, nonblocking streams and custody on a qualified replacement. |
+
+For the technical Trivy helper, both the Linux x86_64 and Darwin arm64 runs of
+Trivy 0.74.0 passed all 122 native conversion and decoder cases. Linux verified
+the approved executable SHA-256 before running it. Darwin exercised its trusted
+local installation. Both ran with private working directories and explicit
+child environments. Those runs covered the technical helper before the inline
+comment transition. The resulting helper SHA-256 is
+`b25fc3d614665cfb33818bab85a8b1c170c624ca2929fac81c2fbdb59fa98e74`.
+Prometheus changes only the five comments. Its complete resulting SHA-256 is
+`9b0b45595cc160c4761570857a4577dbf7ecf7161460a778417fbb6018567347` and
+all three deployment readers pin those bytes. Exact-material validation,
+publication, merge and the required postmerge native evidence remain open
+under the [existing ledger item](../roadmap/BACKLOG_LEDGER.md#ledger-p1-source-preserving-native-nosec-seven-20261028).
+
 ### Current accepted decision — October 28, 2026
 
 On **2026-10-28**, @katsiaryna_kavaleuskaya explicitly accepted the exact eight-site

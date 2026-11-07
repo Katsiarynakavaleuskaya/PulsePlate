@@ -305,6 +305,10 @@ orders and inventories. CI output and Step Summary show family, runtime, UDID an
   select any available device of the same `productFamily`, sorted by name and UDID.
 - If that family, the exact iOS 27.0 runtime, a known device type, or a valid UDID
   is unavailable, fail the row. Never use device-name prefixes or cross-family fallback.
+- Runtime selection reads only the literal
+  `com.apple.CoreSimulator.SimRuntime.iOS-27-0` entry in the string-keyed devices
+  map. Unselected runtime keys and values have no effect on selection. Validate
+  every available device in that entry and the complete device-type inventory.
 - Output must include: `family`, `ios_runtime_id`, `device_name`, `udid`, and `destination`.
 - Each family has a distinct check and artifact name. Both family rows must succeed
   before the iOS-selected PR can pass the required merge gate.

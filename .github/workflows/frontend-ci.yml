@@ -59,7 +59,6 @@ on:
       - 'scripts/QUICK_FIX_PRODUCTION.sh'
       - 'tests/test_caddy_deploy_provenance.py'
       - 'scripts/ci/check_docker_runtime_dependency_surface.py'
-      - 'trivy/ignore-policy-caddy-go-jose-v3.rego'
       - 'tests/test_cd_attestation_workflow_contract.py'
       - '.github/workflows/cd.yml'
       - '.github/workflows/frontend-ci.yml'
@@ -107,14 +106,13 @@ on:
       - 'scripts/QUICK_FIX_PRODUCTION.sh'
       - 'tests/test_caddy_deploy_provenance.py'
       - 'scripts/ci/check_docker_runtime_dependency_surface.py'
-      - 'trivy/ignore-policy-caddy-go-jose-v3.rego'
       - 'tests/test_cd_attestation_workflow_contract.py'
       - '.github/workflows/cd.yml'
       - '.github/workflows/frontend-ci.yml'
   workflow_dispatch:
     inputs:
       caddy_action:
-        description: Import retained candidate, qualify metadata, or spend the single accepted D CI build
+        description: Import a qualified PR2494 candidate, inspect metadata, or explicitly build the patched source
         type: choice
         default: contract
         options: [contract, xnet060-metadata, candidate-D]
@@ -139,6 +137,10 @@ jobs:
           filters: |
             caddy:
               - 'frontend/Dockerfile.caddy-spa'
+              - 'frontend/patches/go-jose-v3.0.5-CVE-2026-116587.patch'
+              - 'frontend/patches/caddy_v3_compat_test.go'
+              - 'frontend/patches/go1.26.10-http-connection-nominations.patch'
+              - 'frontend/patches/go_http_connection_nominations_test.go'
               - 'deploy/Caddyfile'
               - 'deploy/Caddyfile.production'
               - 'deploy/docker-compose.staging.yaml'
@@ -146,7 +148,6 @@ jobs:
               - 'scripts/QUICK_FIX_PRODUCTION.sh'
               - 'tests/test_caddy_deploy_provenance.py'
               - 'scripts/ci/check_docker_runtime_dependency_surface.py'
-              - 'trivy/ignore-policy-caddy-go-jose-v3.rego'
               - 'tests/test_cd_attestation_workflow_contract.py'
               - '.github/workflows/cd.yml'
               - '.github/workflows/frontend-ci.yml'
@@ -503,27 +504,96 @@ jobs:
 
   caddy-contract:
     env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      PYTHONNOUSERSITE: '1'
+      CADDY_API_CALL_SECONDS: '30'
+      CADDY_API_CLEANUP_SECONDS: '10'
       CADDY_FULL_SCAN_TIMEOUT_SECONDS: '300'
       CADDY_METADATA_TIMEOUT_SECONDS: '900'
       CADDY_METADATA_CLEANUP_SECONDS: '120'
-    timeout-minutes: 30
+      CADDY_CHECKOUT_SECONDS: '120'
+      CADDY_REUSE_TIMEOUT_SECONDS: '840'
+      CADDY_REUSE_DOWNLOAD_SECONDS: '300'
+      CADDY_CONFIGURED_JOB_MINUTES: ${{ vars.CADDY_CONTRACT_TIMEOUT_MINUTES }}
+      CADDY_SCAN_TERM_SECONDS: '10'
+      CADDY_SCAN_KILL_SECONDS: '10'
+      CADDY_SCAN_BOOKKEEPING_SECONDS: '10'
+      CADDY_PHASE_SETUP: '300'
+      CADDY_PHASE_ADMISSION: '600'
+      CADDY_PHASE_COMPILER_BOOTSTRAP: '600'
+      CADDY_PHASE_COMPILER_WORK: '900'
+      CADDY_PHASE_COMPILER_CLEANUP: '120'
+      CADDY_PHASE_METADATA_UPLOAD: '180'
+      CADDY_PHASE_BUILD: '1800'
+      CADDY_PHASE_CAPTURE: '420'
+      CADDY_PHASE_RUNTIME_CONFIG: '420'
+      CADDY_PHASE_OFFICIAL_PULL: '300'
+      CADDY_PHASE_SOURCE16: '180'
+      CADDY_PHASE_FINAL_SUBJECT: '300'
+      CADDY_PHASE_REPORT_BINDINGS: '540'
+      CADDY_PHASE_CONVERSION: '60'
+      CADDY_PHASE_RUNTIME: '900'
+      CADDY_PHASE_FIXTURE: '1050'
+      CADDY_PHASE_SCANNER_BOOTSTRAP: '600'
+      CADDY_PHASE_SCANS: '1980'
+      CADDY_PHASE_PROCESSING: '300'
+      CADDY_PHASE_CONTROL_CLEANUP: '360'
+      CADDY_PHASE_RETENTION: '420'
+      CADDY_PHASE_UPLOAD: '600'
+      CADDY_PHASE_SAFETY: '270'
+    timeout-minutes: ${{ fromJSON(vars.CADDY_CONTRACT_TIMEOUT_MINUTES || '220') }}
     needs: changes
     if: ${{ !cancelled() && (needs.changes.outputs.caddy == 'true' || github.event_name == 'workflow_dispatch') }}
     runs-on: ubuntu-24.04
     concurrency:
-      group: caddy-D-single-candidate-2497
+      group: caddy-source-single-producer-2494
       cancel-in-progress: false
     permissions:
       contents: read
       actions: read
     steps:
+      - name: Initialize bounded Caddy runner clock
+        timeout-minutes: 1
+        run: |
+          python3 - <<'PY'
+          import json, math, os, time
+          from pathlib import Path
+          caps = {key.removeprefix("CADDY_PHASE_"): int(value) for key, value in os.environ.items() if key.startswith("CADDY_PHASE_")}
+          expected_phases = {'SAFETY', 'FINAL_SUBJECT', 'FIXTURE', 'METADATA_UPLOAD', 'SOURCE16', 'COMPILER_WORK', 'CONVERSION', 'PROCESSING', 'BUILD', 'SETUP', 'CAPTURE', 'COMPILER_BOOTSTRAP', 'ADMISSION', 'CONTROL_CLEANUP', 'RUNTIME_CONFIG', 'SCANNER_BOOTSTRAP', 'RUNTIME', 'OFFICIAL_PULL', 'RETENTION', 'COMPILER_CLEANUP', 'SCANS', 'UPLOAD', 'REPORT_BINDINGS'}
+          if set(caps) != expected_phases:
+              raise ValueError("Caddy closed phase inventory differs")
+          total = sum(caps.values())
+          configured = os.environ.get("CADDY_CONFIGURED_JOB_MINUTES", "")
+          if any(value <= 0 for value in caps.values()) or (configured and int(configured) * 60 < total):
+              raise ValueError("Caddy configured job budget below phase ledger")
+          directory = Path(os.environ["RUNNER_TEMP"]) / "caddy-admission"
+          directory.mkdir(mode=0o700)
+          charged = dict.fromkeys(caps, 0)
+          charged["SETUP"] = caps["SETUP"]
+          (directory / "admission.json").write_text(json.dumps({"budget": {
+              "started": time.monotonic(), "seconds": total,
+              "boot_id": Path("/proc/sys/kernel/random/boot_id").read_text().strip(),
+              "charged": charged, "action_deadlines": {}}}))
+          with Path(os.environ["GITHUB_ENV"]).open("a") as output:
+              for phase, seconds in caps.items():
+                  output.write("CADDY_ACTION_" + phase + "_MINUTES=" + str(math.ceil(seconds / 60)) + "\n")
+              checkout = int(os.environ["CADDY_CHECKOUT_SECONDS"])
+              if not 0 < checkout < caps["SETUP"]:
+                  raise ValueError("Caddy setup split")
+              output.write("CADDY_ACTION_REUSE_DOWNLOAD_MINUTES=" + str(math.ceil(int(os.environ["CADDY_REUSE_DOWNLOAD_SECONDS"]) / 60)) + "\n")
+              output.write("CADDY_ACTION_CHECKOUT_MINUTES=" + str(math.ceil(checkout / 60)) + "\n")
+              output.write("CADDY_ACTION_BUILDX_MINUTES=" + str(math.ceil((caps["SETUP"] - checkout) / 60)) + "\n")
+              output.write("CADDY_ACTION_METADATA_MINUTES=" + str(math.ceil((caps["COMPILER_WORK"] + caps["COMPILER_CLEANUP"]) / 60)) + "\n")
+          PY
       - name: Checkout code
+        timeout-minutes: ${{ fromJSON(env.CADDY_ACTION_CHECKOUT_MINUTES) }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Set up Docker Buildx
+        timeout-minutes: ${{ fromJSON(env.CADDY_ACTION_BUILDX_MINUTES) }}
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0 / Node 24
 
       - name: Admit existing Caddy producer or exact retained subject
@@ -535,362 +605,299 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          from datetime import datetime, timezone
-          import hashlib
-          import json
-          import os
-          from pathlib import Path
-          import re
-          import shutil
-          import subprocess
-          from types import SimpleNamespace
-          import urllib.request
-          from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_source_inventory, validate_caddy_ci_window
-          from scripts.ci.prometheus_source_image import opener, authenticate_pr_source, GitHubRead
+          from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_phase
+          with caddy_ci_phase("ADMISSION") as remaining:
+              from datetime import datetime, timezone
+              import hashlib
+              import json
+              import os
+              from pathlib import Path
+              import re
+              import shutil
+              import subprocess
+              from types import SimpleNamespace
+              import urllib.request
+              from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_source_inventory, caddy_ci_phase
 
-          root = Path.cwd()
-          repo = "Katsiarynakavaleuskaya/PulsePlate"
-          if os.environ["GITHUB_REPOSITORY"] != repo or os.environ["GITHUB_REPOSITORY_ID"] != "1043311030":
-              raise ValueError("Caddy D repository differs")
-          validate_caddy_ci_window(root / "trivy/ignore-policy-caddy-go-jose-v3.rego", today=datetime.now(timezone.utc).date())
-          event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_bytes())
-          event_name = os.environ["GITHUB_EVENT_NAME"]
-          action = os.environ.get("CADDY_ACTION", "")
-          selected = os.environ["CADDY_SOURCE_HEAD"]
-          if re.fullmatch(r"[0-9a-f]{40}", selected) is None:
-              raise ValueError("Caddy source head invalid")
-          git = shutil.which("git")
-          if git is None:
-              raise ValueError("git unavailable")
-          if subprocess.check_output([git, "rev-parse", "HEAD"], text=True).strip() != selected:
-              raise ValueError("Caddy checkout is not selected source head")
-          if event_name == "pull_request":
-              pr = event["pull_request"]
-              if type(pr["number"]) is not int or pr["number"] != 2497 or pr["head"]["repo"]["full_name"] != repo or pr["head"]["sha"] != selected:
-                  raise ValueError("Caddy D PR scope differs")
-          elif event_name == "push":
-              if os.environ["GITHUB_REF"] != "refs/heads/main" or selected != os.environ["GITHUB_SHA"]:
-                  raise ValueError("Caddy D main scope differs")
-          elif event_name != "workflow_dispatch":
-              raise ValueError("Caddy D event not admitted")
+              root = Path.cwd()
+              repo = "Katsiarynakavaleuskaya/PulsePlate"
+              if os.environ["GITHUB_REPOSITORY"] != repo or os.environ["GITHUB_REPOSITORY_ID"] != "1043311030":
+                  raise ValueError("Caddy source repository differs")
+              event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_bytes())
+              event_name = os.environ["GITHUB_EVENT_NAME"]
+              action = os.environ.get("CADDY_ACTION", "")
+              if (event_name == "workflow_dispatch" and action not in ("contract", "xnet060-metadata", "candidate-D")) or (event_name != "workflow_dispatch" and action):
+                  raise ValueError("Caddy unknown operation")
+              selected = os.environ["CADDY_SOURCE_HEAD"]
+              if re.fullmatch(r"[0-9a-f]{40}", selected) is None:
+                  raise ValueError("Caddy source head invalid")
+              git = shutil.which("git")
+              if git is None:
+                  raise ValueError("git unavailable")
+              if subprocess.check_output([git, "rev-parse", "HEAD"], text=True, timeout=remaining(30)).strip() != selected:
+                  raise ValueError("Caddy checkout is not selected source head")
+              if event_name == "pull_request":
+                  pr = event["pull_request"]
+                  if type(pr["number"]) is not int or pr["number"] != 2494 or pr["head"]["repo"]["full_name"] != repo or pr["head"]["sha"] != selected:
+                      raise ValueError("Caddy source PR scope differs")
+              elif event_name == "push":
+                  if os.environ["GITHUB_REF"] != "refs/heads/main" or selected != os.environ["GITHUB_SHA"]:
+                      raise ValueError("Caddy source main scope differs")
+              elif event_name != "workflow_dispatch":
+                  raise ValueError("Caddy source event not admitted")
 
-          # Reuse the canonical no-redirect transport; reject before credentials can be forwarded.
-          transport = opener()
-          def api(path):
-              url = "https://api.github.com/repos/" + repo + path
-              request = urllib.request.Request(url, headers={"Authorization": "Bearer " + os.environ["GH_TOKEN"],
-                  "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"})
-              with transport.open(request, timeout=30) as response:
-                  if response.geturl() != url:
-                      raise ValueError("Caddy API redirect")
-                  raw = response.read(8388609)
-              if len(raw) > 8388608:
-                  raise ValueError("Caddy API response bound")
-              return json.loads(raw)
+              fixed = [".github/workflows/frontend-ci.yml", "deploy/Caddyfile", "deploy/Caddyfile.production",
+                       "scripts/ci/check_docker_runtime_dependency_surface.py", "scripts/ci/prometheus_source_image.py",
+                       "scripts/ci/check_trivy_ignore_policy_expiry.py",
+                       "trivy/ignore-policy.rego"]
+              tracked = subprocess.check_output([git, "ls-files", "-z", "--", "frontend/"], timeout=remaining(60)).decode().split("\0")[:-1]
+              if subprocess.check_output([git, "status", "--porcelain", "--", "frontend/", *fixed], timeout=remaining(60)):
+                  raise ValueError("Caddy build context is dirty")
+              inputs = caddy_ci_source_inventory(root, tracked + fixed)
 
-          def positive_id(value):
-              if type(value) is not int or value <= 0:
-                  raise ValueError("Caddy native positive ID required")
-              return value
+              # The same no-redirect opener runs under its existing bounded process owner.
+              from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_api
+              api_sequence = 0
+              def api(path):
+                  global api_sequence
+                  api_sequence += 1
+                  directory = Path(os.environ["RUNNER_TEMP"]) / "caddy-admission" / ("api-" + str(api_sequence))
+                  return caddy_ci_api(root, directory, path, remaining, inputs["scripts/ci/prometheus_source_image.py"]["sha256"])
 
-          def pages(path, key):
-              observations = []
-              for observation in range(2):
-                  rows, identities, total = [], set(), None
-                  for page in range(1, 101):
-                      separator = "&" if "?" in path else "?"
-                      response = api(path + separator + "per_page=100&page=" + str(page))
-                      count = response["total_count"]
-                      if type(count) is not int or not 0 <= count <= 10000 or not isinstance(response[key], list):
-                          raise ValueError("Caddy API inventory shape")
-                      if total is None:
-                          total = count
-                      expected_page_size = min(100, total - len(rows))
-                      if count != total or len(response[key]) != expected_page_size:
-                          raise ValueError("Caddy API inventory incomplete or changed")
-                      for row in response[key]:
-                          if not isinstance(row, dict):
-                              raise ValueError("Caddy API row shape")
-                          identity = positive_id(row.get("id"))
-                          if identity in identities:
-                              raise ValueError("Caddy duplicate API identity")
-                          identities.add(identity)
-                          rows.append(row)
-                      if len(rows) == total:
-                          observations.append(rows)
-                          break
-                  else:
-                      raise ValueError("Caddy API pagination bound")
-              if observations[0] != observations[1]:
-                  raise ValueError("Caddy API same-count inventory replacement")
-              return observations[0]
+              def positive_id(value):
+                  if type(value) is not int or value <= 0:
+                      raise ValueError("Caddy native positive ID required")
+                  return value
 
-          pr = api("/pulls/2497")
-          if (type(pr["number"]) is not int or pr["number"] != 2497
-                  or pr["head"]["repo"]["full_name"] != repo or pr["base"]["ref"] != "main"
-                  or positive_id(pr["head"]["repo"]["id"]) != 1043311030
-                  or positive_id(pr["base"]["repo"]["id"]) != 1043311030):
-              raise ValueError("Caddy original PR identity differs")
-          if event_name == "workflow_dispatch" and (pr["state"] != "open" or selected != pr["head"]["sha"]
-                  or os.environ["GITHUB_REF"] != "refs/heads/" + pr["head"]["ref"]):
-              raise ValueError("Caddy dispatch must select current accepted PR head")
-          if event_name == "push" and (pr["merged"] is not True or pr["merge_commit_sha"] != selected):
-              raise ValueError("Caddy D main observation is only the accepted PR merge")
-          fixed = [".github/workflows/frontend-ci.yml", "deploy/Caddyfile", "deploy/Caddyfile.production",
-                   "scripts/ci/check_docker_runtime_dependency_surface.py", "scripts/ci/prometheus_source_image.py",
-                   "scripts/ci/check_trivy_ignore_policy_expiry.py",
-                   "trivy/ignore-policy-caddy-go-jose-v3.rego", "trivy/ignore-policy.rego"]
-          tracked = subprocess.check_output([git, "ls-files", "-z", "--", "frontend/"]).decode().split("\0")[:-1]
-          if subprocess.check_output([git, "status", "--porcelain", "--", "frontend/", *fixed]):
-              raise ValueError("Caddy build context is dirty")
-          inputs = caddy_ci_source_inventory(root, tracked + fixed)
-          state_dir = Path(os.environ["RUNNER_TEMP"]) / "caddy-admission"
-          state_dir.mkdir(mode=0o700)
-          state = {"current_head": selected, "current_run_id": positive_id(int(os.environ["GITHUB_RUN_ID"])),
-                   "current_run_attempt": positive_id(int(os.environ["GITHUB_RUN_ATTEMPT"])), "inputs": inputs,
-                   "repository": repo, "repository_id": 1043311030, "producer": None, "mode": None}
-          workflow_id = positive_id(api("/actions/workflows/frontend-ci.yml")["id"])
-          if workflow_id != 196310935:
-              raise ValueError("Caddy recovery workflow identity differs")
-          # All three exact failed predecessors remain charged. This proposed final slot
-          # requires a separate external owner decision before publication or invocation.
-          failed_run_id, failed_job_id = 40809053754, 123234862421
-          failed_head = "243d270847d10786177ecf2e1632cb6b9bb49e45"
-          failed_q_run_id, failed_q_job_id = 40874768112, 123450755201
-          failed_q_head = "5b434bd412c5dd92dc9eee21ab9da193cf76614d"
-          failed_r_run_id, failed_r_job_id = 40971831227, 123790320307
-          failed_r_head = "39ad702e3ba3e7e963cdc8edd3cf5835e8c12256"
-          branch = "codex/python-setup-security-stabilization"
-          if pr["head"]["ref"] != branch:
-              raise ValueError("Caddy recovery PR branch differs")
-          # Server job history, never artifact absence, owns every observed named start.
-          runs = pages("/actions/workflows/frontend-ci.yml/runs?created=%3E%3D2026-10-28T00%3A00%3A00Z", "workflow_runs")
-          spent, current_runs, current_jobs = [], [], []
-          for run in runs:
-              if (run["repository"]["full_name"] != repo or positive_id(run["repository"]["id"]) != 1043311030
-                      or positive_id(run["workflow_id"]) != workflow_id or run["path"] != ".github/workflows/frontend-ci.yml"
-                      or re.fullmatch(r"[0-9a-f]{40}", run["head_sha"]) is None):
-                  raise ValueError("Caddy producer run identity differs")
-              positive_id(run["run_attempt"])
-              if run["id"] == state["current_run_id"]:
-                  current_runs.append(run)
-              # Never exclude the current run: filter=all retains its older attempts.
-              for job in pages("/actions/runs/" + str(run["id"]) + "/jobs?filter=all", "jobs"):
-                  if (positive_id(job["run_id"]) != run["id"] or positive_id(job["run_attempt"]) > run["run_attempt"]
-                          or job["head_sha"] != run["head_sha"]):
-                      raise ValueError("Caddy native job/run relationship differs")
-                  if (run["id"] == state["current_run_id"] and job["run_attempt"] == state["current_run_attempt"]
-                          and job["name"] == "caddy-contract"):
-                      current_jobs.append(job)
-                  numbers = set()
-                  for step in job["steps"]:
-                      number = positive_id(step["number"])
-                      if number in numbers:
+              def pages(path, key):
+                  observations = []
+                  for observation in range(2):
+                      rows, identities, total = [], set(), None
+                      for page in range(1, 101):
+                          separator = "&" if "?" in path else "?"
+                          response = api(path + separator + "per_page=100&page=" + str(page))
+                          count = response["total_count"]
+                          if type(count) is not int or not 0 <= count <= 10000 or not isinstance(response[key], list):
+                              raise ValueError("Caddy API inventory shape")
+                          if total is None:
+                              total = count
+                          expected_page_size = min(100, total - len(rows))
+                          if count != total or len(response[key]) != expected_page_size:
+                              raise ValueError("Caddy API inventory incomplete or changed")
+                          for row in response[key]:
+                              if not isinstance(row, dict):
+                                  raise ValueError("Caddy API row shape")
+                              identity = positive_id(row.get("id"))
+                              if identity in identities:
+                                  raise ValueError("Caddy duplicate API identity")
+                              identities.add(identity)
+                              rows.append(row)
+                          if len(rows) == total:
+                              observations.append(rows)
+                              break
+                      else:
+                          raise ValueError("Caddy API pagination bound")
+                  if observations[0] != observations[1]:
+                      raise ValueError("Caddy API same-count inventory replacement")
+                  return observations[0]
+
+              pr = api("/pulls/2494")
+              if (type(pr["number"]) is not int or pr["number"] != 2494
+                      or pr["head"]["repo"]["full_name"] != repo or pr["base"]["ref"] != "main"
+                      or positive_id(pr["head"]["repo"]["id"]) != 1043311030
+                      or positive_id(pr["base"]["repo"]["id"]) != 1043311030):
+                  raise ValueError("Caddy original PR identity differs")
+              if event_name in ("workflow_dispatch", "pull_request") and (pr["state"] != "open" or selected != pr["head"]["sha"]
+                      or (event_name == "workflow_dispatch" and os.environ["GITHUB_REF"] != "refs/heads/" + pr["head"]["ref"])):
+                  raise ValueError("Caddy dispatch must select current accepted PR head")
+              if event_name == "push" and (pr["merged"] is not True or pr["merge_commit_sha"] != selected):
+                  raise ValueError("Caddy main observation is only the accepted PR merge")
+              state_dir = Path(os.environ["RUNNER_TEMP"]) / "caddy-admission"
+              budget = json.loads((state_dir / "admission.json").read_bytes())["budget"]
+              state = {"current_head": selected, "current_run_id": positive_id(int(os.environ["GITHUB_RUN_ID"])),
+                       "current_run_attempt": positive_id(int(os.environ["GITHUB_RUN_ATTEMPT"])), "inputs": inputs,
+                       "repository": repo, "repository_id": 1043311030, "producer": None, "mode": None, "budget": budget}
+              workflow_id = positive_id(api("/actions/workflows/frontend-ci.yml")["id"])
+              if workflow_id != 196310935:
+                  raise ValueError("Caddy recovery workflow identity differs")
+              branch = pr["head"]["ref"]
+              build_name = "Build source-patched Caddy candidate"
+              decision_name = "Decide source-qualified Caddy inventory and current native controls"
+              # Historical PR2497 starts stay visible in the complete observed history.
+              # They are not permissions or a remaining-attempt counter for PR2494.
+              runs = pages("/actions/workflows/frontend-ci.yml/runs?created=%3E%3D2026-10-28T00%3A00%3A00Z", "workflow_runs")
+              spent, current_runs, current_jobs, candidates = [], [], [], []
+              for run in runs:
+                  if (run["repository"]["full_name"] != repo or positive_id(run["repository"]["id"]) != 1043311030
+                          or positive_id(run["workflow_id"]) != workflow_id or run["path"] != ".github/workflows/frontend-ci.yml"
+                          or re.fullmatch(r"[0-9a-f]{40}", run["head_sha"]) is None):
+                      raise ValueError("Caddy producer run identity differs")
+                  positive_id(run["run_attempt"])
+                  if run["id"] == state["current_run_id"]:
+                      current_runs.append(run)
+                  for job in pages("/actions/runs/" + str(run["id"]) + "/jobs?filter=all", "jobs"):
+                      if (positive_id(job["run_id"]) != run["id"] or positive_id(job["run_attempt"]) > run["run_attempt"]
+                              or job["head_sha"] != run["head_sha"]):
+                          raise ValueError("Caddy native job/run relationship differs")
+                      if job["name"] != "caddy-contract":
+                          continue
+                      if run["id"] == state["current_run_id"] and job["run_attempt"] == state["current_run_attempt"]:
+                          current_jobs.append(job)
+                      if len({positive_id(step["number"]) for step in job["steps"]}) != len(job["steps"]):
                           raise ValueError("Caddy duplicate native step")
-                      numbers.add(number)
-                      if step["name"] == "Build accepted D Caddy candidate once":
+                      starts = [step for step in job["steps"] if step["name"] in (build_name, "Build accepted D Caddy candidate once")]
+                      for step in starts:
                           if not {"status", "conclusion", "started_at", "completed_at"} <= set(step):
-                              raise ValueError("Caddy build start/status evidence incomplete")
-                          started, finished = step["started_at"], step["completed_at"]
-                          if (step["status"] in ("pending", "queued") and step["conclusion"] is None
-                                  and started is None and finished is None):
+                              raise ValueError("Caddy native build history incomplete")
+                          if step["status"] in ("pending", "queued") and step["started_at"] is None and step["conclusion"] is None:
                               continue
-                          try:
-                              times = [datetime.fromisoformat(value) for value in (started, finished) if value is not None]
-                          except (TypeError, ValueError):
-                              raise ValueError("Caddy build start/status evidence incomplete") from None
-                          if any(value.tzinfo != timezone.utc for value in times):
-                              raise ValueError("Caddy build start/status evidence incomplete")
-                          if step["conclusion"] == "skipped":
-                              if step["status"] != "completed" or started != finished or len(times) not in (0, 2):
-                                  raise ValueError("Caddy skipped build evidence differs")
+                          if step["conclusion"] == "skipped" and step["status"] == "completed" and step["started_at"] == step["completed_at"]:
                               continue
-                          if (started is None or step["status"] not in ("in_progress", "completed")
-                                  or (step["status"] == "in_progress" and (step["conclusion"] is not None or finished is not None))
-                                  or (step["status"] == "completed" and (step["conclusion"] not in ("success", "failure", "cancelled", "timed_out")
-                                      or finished is None or times[1] < times[0]))):
-                              raise ValueError("Caddy build start/status evidence incomplete")
-                          spent.append((run, job, step))
-          if len(spent) > 4:
-              raise ValueError("Caddy closed recovery build allowance exceeded")
-          predecessors = [row for row in spent if row[0]["id"] == failed_run_id or row[1]["id"] == failed_job_id]
-          if len(predecessors) != 1:
-              raise ValueError("Caddy exact failed predecessor missing or ambiguous")
-          prior_run, prior_job, prior_step = predecessors[0]
-          runtime_steps = [row for row in prior_job["steps"] if row["name"] == "Decide exact Caddy D inventory and loaded isolated runtime"]
-          if (prior_run["id"] != failed_run_id or prior_run["run_attempt"] != 1
-                  or prior_run["head_sha"] != failed_head or prior_run["head_branch"] != branch
-                  or positive_id(prior_run["head_repository"]["id"]) != 1043311030
-                  or prior_run["event"] != "workflow_dispatch" or prior_run["status"] != "completed"
-                  or prior_run["conclusion"] != "failure" or prior_run["created_at"] != "2026-10-29T02:54:00Z"
-                  or prior_job["id"] != failed_job_id or prior_job["run_attempt"] != 1
-                  or prior_job["name"] != "caddy-contract" or prior_job["head_branch"] != branch
-                  or prior_job["status"] != "completed" or prior_job["conclusion"] != "failure"
-                  or prior_job["started_at"] != "2026-10-29T02:54:19Z" or prior_job["completed_at"] != "2026-10-29T03:02:11Z"
-                  or prior_step["number"] != 12 or prior_step["status"] != "completed" or prior_step["conclusion"] != "success"
-                  or prior_step["started_at"] != "2026-10-29T02:58:39Z" or prior_step["completed_at"] != "2026-10-29T03:00:55Z"
-                  or len(runtime_steps) != 1):
-              raise ValueError("Caddy exact failed predecessor differs")
-          runtime_step = runtime_steps[0]
-          if (runtime_step["number"] != 22 or runtime_step["status"] != "completed" or runtime_step["conclusion"] != "failure"
-                  or runtime_step["started_at"] != "2026-10-29T03:01:32Z" or runtime_step["completed_at"] != "2026-10-29T03:01:32Z"):
-              raise ValueError("Caddy exact failed predecessor runtime differs")
-          q_predecessors = [row for row in spent if row[0]["id"] == failed_q_run_id or row[1]["id"] == failed_q_job_id]
-          if len(q_predecessors) != 1:
-              raise ValueError("Caddy exact failed Q predecessor missing or ambiguous")
-          q_prior_run, q_prior_job, q_prior_step = q_predecessors[0]
-          q_runtime_steps = [row for row in q_prior_job["steps"] if row["name"] == "Decide exact Caddy D inventory and loaded isolated runtime"]
-          if (q_prior_run["id"] != failed_q_run_id or q_prior_run["run_attempt"] != 1
-                  or q_prior_run["head_sha"] != failed_q_head or q_prior_run["head_branch"] != branch
-                  or positive_id(q_prior_run["head_repository"]["id"]) != 1043311030
-                  or q_prior_run["event"] != "workflow_dispatch" or q_prior_run["status"] != "completed"
-                  or q_prior_run["conclusion"] != "failure" or q_prior_run["created_at"] != "2026-10-29T12:37:17Z"
-                  or q_prior_job["id"] != failed_q_job_id or q_prior_job["run_attempt"] != 1
-                  or q_prior_job["name"] != "caddy-contract" or q_prior_job["head_branch"] != branch
-                  or q_prior_job["status"] != "completed" or q_prior_job["conclusion"] != "failure"
-                  or q_prior_job["started_at"] != "2026-10-29T12:37:36Z" or q_prior_job["completed_at"] != "2026-10-29T12:41:19Z"
-                  or q_prior_step["number"] != 12 or q_prior_step["status"] != "completed" or q_prior_step["conclusion"] != "success"
-                  or q_prior_step["started_at"] != "2026-10-29T12:40:29Z" or q_prior_step["completed_at"] != "2026-10-29T12:40:40Z"
-                  or len(q_runtime_steps) != 1):
-              raise ValueError("Caddy exact failed Q predecessor differs")
-          q_runtime_step = q_runtime_steps[0]
-          if (q_runtime_step["number"] != 22 or q_runtime_step["status"] != "completed" or q_runtime_step["conclusion"] != "failure"
-                  or q_runtime_step["started_at"] != "2026-10-29T12:41:08Z" or q_runtime_step["completed_at"] != "2026-10-29T12:41:09Z"):
-              raise ValueError("Caddy exact failed Q predecessor runtime differs")
-          r_predecessors = [row for row in spent if row[0]["id"] == failed_r_run_id or row[1]["id"] == failed_r_job_id]
-          if len(r_predecessors) != 1:
-              raise ValueError("Caddy exact failed R predecessor missing or ambiguous")
-          r_prior_run, r_prior_job, r_prior_step = r_predecessors[0]
-          r_runtime_steps = [row for row in r_prior_job["steps"] if row["name"] == "Decide exact Caddy D inventory and loaded isolated runtime"]
-          if (r_prior_run["id"] != failed_r_run_id or r_prior_run["run_attempt"] != 1
-                  or r_prior_run["head_sha"] != failed_r_head or r_prior_run["head_branch"] != branch
-                  or positive_id(r_prior_run["head_repository"]["id"]) != 1043311030
-                  or r_prior_run["event"] != "workflow_dispatch" or r_prior_run["status"] != "completed"
-                  or r_prior_run["conclusion"] != "failure" or r_prior_run["created_at"] != "2026-10-29T23:15:07Z"
-                  or r_prior_job["id"] != failed_r_job_id or r_prior_job["run_attempt"] != 1
-                  or r_prior_job["name"] != "caddy-contract" or r_prior_job["head_branch"] != branch
-                  or r_prior_job["status"] != "completed" or r_prior_job["conclusion"] != "failure"
-                  or r_prior_job["started_at"] != "2026-10-29T23:15:28Z" or r_prior_job["completed_at"] != "2026-10-29T23:19:41Z"
-                  or r_prior_step["number"] != 12 or r_prior_step["status"] != "completed" or r_prior_step["conclusion"] != "success"
-                  or r_prior_step["started_at"] != "2026-10-29T23:18:59Z" or r_prior_step["completed_at"] != "2026-10-29T23:19:06Z"
-                  or len(r_runtime_steps) != 1):
-              raise ValueError("Caddy exact failed R predecessor differs")
-          r_runtime_step = r_runtime_steps[0]
-          if (r_runtime_step["number"] != 22 or r_runtime_step["status"] != "completed" or r_runtime_step["conclusion"] != "failure"
-                  or r_runtime_step["started_at"] != "2026-10-29T23:19:32Z" or r_runtime_step["completed_at"] != "2026-10-29T23:19:33Z"):
-              raise ValueError("Caddy exact failed R predecessor runtime differs")
-          if len(current_runs) != 1 or len(current_jobs) != 1:
-              raise ValueError("Caddy current native run/job missing or ambiguous")
-          current_run, current_job = current_runs[0], current_jobs[0]
-          if (current_run["head_sha"] != selected or current_run["event"] != event_name
-                  or current_run["head_branch"] != ("main" if event_name == "push" else branch)
-                  or positive_id(current_run["head_repository"]["id"]) != 1043311030
-                  or current_run["run_attempt"] != state["current_run_attempt"]
-                  or current_run["status"] != "in_progress" or current_run["conclusion"] is not None
-                  or current_job["status"] != "in_progress" or current_job["conclusion"] is not None):
-              raise ValueError("Caddy current native run/job differs")
-          current_builds = [row for row in current_job["steps"] if row["name"] == "Build accepted D Caddy candidate once"]
-          if (len(current_builds) != 1 or current_builds[0]["number"] != 12 or current_builds[0]["status"] not in ("pending", "queued")
-                  or current_builds[0]["conclusion"] is not None or current_builds[0]["started_at"] is not None
-                  or current_builds[0]["completed_at"] is not None):
-              raise ValueError("Caddy current prebuild observation differs")
-          # All three failed sources must remain genuine ancestors in the accepted PR graph.
-          prefix = "/repos/" + repo
-          proof_api = SimpleNamespace(json=lambda endpoint: api(endpoint.removeprefix(prefix)))
-          proof_api.pages = lambda endpoint, key, count: GitHubRead.pages(proof_api, endpoint, key, count)
-          authenticate_pr_source(proof_api, 2497, failed_head, pr["head"]["sha"], "refs/heads/" + branch)
-          authenticate_pr_source(proof_api, 2497, failed_q_head, pr["head"]["sha"], "refs/heads/" + branch)
-          authenticate_pr_source(proof_api, 2497, failed_r_head, pr["head"]["sha"], "refs/heads/" + branch)
-          replacements = [row for row in spent if row is not predecessors[0] and row is not q_predecessors[0] and row is not r_predecessors[0]]
-          if replacements:
-              run, job, step = replacements[0]
-              try:
-                  replacement_created = datetime.fromisoformat(run["created_at"])
-              except (TypeError, ValueError):
-                  raise ValueError("Caddy replacement producer chronology differs") from None
-              if (replacement_created.tzinfo != timezone.utc or replacement_created <= datetime.fromisoformat(r_prior_job["completed_at"])
-                      or replacement_created > datetime.fromisoformat(step["started_at"])):
-                  raise ValueError("Caddy replacement producer chronology differs")
-              if (run["event"] != "workflow_dispatch" or run["run_attempt"] != 1
-                      or run["head_sha"] in (failed_head, failed_q_head, failed_r_head) or run["status"] != "completed" or run["conclusion"] != "success"
-                      or job["run_attempt"] != 1 or job["name"] != "caddy-contract"
-                      or job["status"] != "completed" or job["conclusion"] != "success" or step["conclusion"] != "success"
-                      or job["head_branch"] != branch or step["number"] != 12
-                      or run["head_branch"] != branch or positive_id(run["head_repository"]["id"]) != 1043311030):
-                  raise ValueError("Caddy replacement consumed/failed/unknown; no fifth build")
-              accepted_steps = [row for row in job["steps"] if row["name"] == "Decide exact Caddy D inventory and loaded isolated runtime"]
-              if (len(accepted_steps) != 1 or accepted_steps[0]["number"] != 22
-                      or accepted_steps[0]["status"] != "completed" or accepted_steps[0]["conclusion"] != "success"):
-                  raise ValueError("Caddy replacement acceptance incomplete")
-              try:
-                  accepted_times = [datetime.fromisoformat(value) for value in (
-                      job["started_at"], step["started_at"], step["completed_at"],
-                      accepted_steps[0]["started_at"], accepted_steps[0]["completed_at"], job["completed_at"])]
-              except (KeyError, TypeError, ValueError):
-                  raise ValueError("Caddy replacement acceptance chronology differs") from None
-              if (any(value.tzinfo != timezone.utc for value in accepted_times)
-                      or accepted_times != sorted(accepted_times) or replacement_created > accepted_times[0]):
-                  raise ValueError("Caddy replacement acceptance chronology differs")
-          if action == "xnet060-metadata":
-              state["mode"] = "metadata"
-          elif replacements:
-              if action == "candidate-D":
-                  raise ValueError("Caddy replacement already spent; no fifth build")
-              authenticate_pr_source(proof_api, 2497, run["head_sha"], pr["head"]["sha"], "refs/heads/" + pr["head"]["ref"])
-              # Native Git resolves original regular blobs; no manifest-authored input claim is trusted.
-              git_env = {"PATH": os.environ["PATH"], "LANG": "C.UTF-8", "GIT_CONFIG_NOSYSTEM": "1",
-                         "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_NO_REPLACE_OBJECTS": "1"}
-              original_head = run["head_sha"]
-              subprocess.run([git, "--no-replace-objects", "fetch", "--no-tags", "--depth=1",
-                              "https://github.com/" + repo + ".git", original_head], env=git_env, check=True, timeout=120)
-              original_paths = subprocess.check_output([git, "--no-replace-objects", "ls-tree", "-r", "-z", "--name-only",
-                              original_head, "--", "frontend/", *fixed], env=git_env, timeout=60).decode().split("\0")[:-1]
-              if len(original_paths) != len(set(original_paths)) or set(original_paths) != set(inputs):
-                  raise ValueError("Caddy actual producer source inventory differs")
-              original_inputs = {}
-              for name in original_paths:
-                  row = subprocess.check_output([git, "--no-replace-objects", "ls-tree", "--format=%(objectmode) %(objecttype) %(objectname)",
-                              original_head, "--", name], env=git_env, timeout=30).decode().split()
-                  if len(row) != 3 or row[0] not in ("100644", "100755") or row[1] != "blob" or re.fullmatch(r"[0-9a-f]{40}", row[2]) is None:
-                      raise ValueError("Caddy original source is not one regular Git blob")
-                  raw = subprocess.check_output([git, "--no-replace-objects", "cat-file", "blob", row[2]], env=git_env, timeout=30)
-                  original_inputs[name] = {"mode": int(row[0], 8) & 0o777, "bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest()}
-              if original_inputs != inputs:
-                  raise ValueError("Caddy authenticated original Git source differs from current source")
-              artifacts = pages("/actions/runs/" + str(run["id"]) + "/artifacts", "artifacts")
-              for artifact in artifacts:
-                  relation = artifact["workflow_run"]
-                  if (positive_id(relation["id"]) != run["id"] or relation["head_sha"] != run["head_sha"]
-                          or positive_id(relation["repository_id"]) != 1043311030
-                          or positive_id(relation["head_repository_id"]) != 1043311030
-                          or relation["head_branch"] != run["head_branch"]):
-                      raise ValueError("Caddy native artifact/run relationship differs")
-              artifacts = [a for a in artifacts if a["name"] == "caddy-contract-evidence"]
-              if len(artifacts) != 1 or artifacts[0]["expired"] is not False:
-                  raise ValueError("Caddy original producer artifact unavailable")
-              if re.fullmatch(r"sha256:[0-9a-f]{64}", artifacts[0].get("digest", "")) is None:
-                  raise ValueError("Caddy native artifact digest unavailable")
-              state.update(mode="reuse", producer={"run_id": run["id"], "run_attempt": 1,
-                  "head": run["head_sha"], "job_id": job["id"], "artifact": artifacts[0], "git_inputs": original_inputs})
-          else:
-              if (event_name != "workflow_dispatch" or action != "candidate-D" or state["current_run_attempt"] != 1
-                      or state["current_run_id"] in (failed_run_id, failed_q_run_id, failed_r_run_id) or selected in (failed_head, failed_q_head, failed_r_head)):
-                  raise ValueError("Caddy exact predecessors only; fresh final replacement dispatch required, no automatic build")
-              try:
-                  current_created = datetime.fromisoformat(current_run["created_at"])
-              except (TypeError, ValueError):
-                  raise ValueError("Caddy replacement dispatch chronology differs") from None
-              if current_created.tzinfo != timezone.utc or current_created <= datetime.fromisoformat(r_prior_job["completed_at"]):
-                  raise ValueError("Caddy replacement dispatch chronology differs")
-              state["mode"] = "build"
-          (state_dir / "admission.json").write_text(json.dumps(state, indent=2))
-          with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
-              output.write("mode=" + state["mode"] + "\n")
-              if state["mode"] == "reuse":
-                  output.write("producer_run=" + str(state["producer"]["run_id"]) + "\nartifact_id=" + str(state["producer"]["artifact"]["id"]) + "\n")
+                          if step["started_at"] is None:
+                              raise ValueError("Caddy build start missing")
+                          spent.append({"run": run["id"], "attempt": job["run_attempt"], "job": job["id"],
+                                        "source": run["head_sha"], "branch": run["head_branch"], "step": step})
+                          if step["name"] != build_name or run["head_branch"] != branch:
+                              continue
+                          if run["id"] != state["current_run_id"] and job["status"] != "completed":
+                              raise ValueError("Caddy another producer still active")
+                          accepted = [value for value in job["steps"] if value["name"] == decision_name]
+                          if (run["event"] == "workflow_dispatch" and run["status"] == job["status"] == "completed"
+                                  and run["conclusion"] == job["conclusion"] == step["conclusion"] == "success"
+                                  and job["run_attempt"] == run["run_attempt"] == 1
+                                  and positive_id(run["head_repository"]["id"]) == 1043311030
+                                  and len(accepted) == 1 and accepted[0]["status"] == "completed" and accepted[0]["conclusion"] == "success"):
+                              candidates.append((run, job, step))
+              state["observed_build_history"] = spent
+              if len(current_runs) != 1 or len(current_jobs) != 1:
+                  raise ValueError("Caddy current native run/job missing or ambiguous")
+              current_run, current_job = current_runs[0], current_jobs[0]
+              current_id = state["current_run_id"]
+              attempt = state["current_run_attempt"]
+              job_id = positive_id(current_job["id"])
+              expected_branch = "main" if event_name == "push" else branch
+              active = "in_progress"
+              def current_run_status(run):
+                  if (positive_id(run["id"]) != current_id or positive_id(run["run_attempt"]) != attempt
+                          or run["head_sha"] != selected or run["head_branch"] != expected_branch
+                          or run["event"] != event_name or positive_id(run["workflow_id"]) != workflow_id
+                          or run["path"] != ".github/workflows/frontend-ci.yml"
+                          or any(positive_id(run[key]["id"]) != 1043311030 or run[key]["full_name"] != repo
+                                 for key in ("repository", "head_repository"))):
+                      raise ValueError("Caddy current native run identity differs")
+                  if run["status"] not in ("queued", active) or run["conclusion"] is not None:
+                      raise ValueError("Caddy current native run state invalid")
+                  return run["status"]
+
+              run_status = current_run_status(current_run)
+              prior_job_status = "queued"
+              prior_step = None
+              call_seconds = int(os.environ["CADDY_API_CALL_SECONDS"])
+              for sample in range(3):
+                  if (positive_id(current_job["id"]) != job_id or positive_id(current_job["run_attempt"]) != attempt
+                          or positive_id(current_job["run_id"]) != current_id or current_job["name"] != "caddy-contract"
+                          or current_job["head_sha"] != selected or current_job["head_branch"] != expected_branch):
+                      raise ValueError("Caddy current native job identity differs")
+                  job_status = current_job["status"]
+                  if (job_status not in ("queued", active) or current_job["conclusion"] is not None
+                          or current_job["completed_at"] is not None or (prior_job_status == active and job_status != active)):
+                      raise ValueError("Caddy current native job state invalid or regressed")
+                  steps = current_job["steps"]
+                  if (not isinstance(steps, list)
+                          or any(not isinstance(step, dict) or not isinstance(step.get("name"), str) or not step["name"] for step in steps)
+                          or len({positive_id(step["number"]) for step in steps}) != len(steps)):
+                      raise ValueError("Caddy current native step inventory differs")
+                  targets = [step for step in steps if step["name"] in (build_name, "Build accepted D Caddy candidate once")]
+                  if steps:
+                      if (len(targets) != 1 or targets[0]["name"] != build_name
+                              or targets[0]["status"] not in ("pending", "queued")
+                              or targets[0]["conclusion"] is not None or targets[0]["started_at"] is not None
+                              or targets[0]["completed_at"] is not None
+                              or (prior_step is not None and targets[0]["number"] != prior_step)):
+                          raise ValueError("Caddy current prebuild observation differs")
+                      prior_step = targets[0]["number"]
+                      if run_status == job_status == active:
+                          break
+                  elif job_status != "queued" or prior_step is not None:
+                      raise ValueError("Caddy current prebuild observation missing")
+                  if sample == 2 or remaining(float("inf")) < 2 * call_seconds:
+                      raise ValueError(f"Caddy current state unresolved: run={current_id} job={job_id} attempt={attempt} statuses={run_status}/{job_status}")
+                  prior_job_status = job_status
+                  refreshed_status = current_run_status(api(f"/actions/runs/{current_id}/attempts/{attempt}"))
+                  if run_status == active and refreshed_status != active:
+                      raise ValueError("Caddy current native run state regressed")
+                  run_status = refreshed_status
+                  if remaining(float("inf")) < call_seconds:
+                      raise ValueError(f"Caddy current job read budget exhausted: job={job_id} attempt={attempt}")
+                  current_job = api(f"/actions/jobs/{job_id}")
+              from scripts.ci.prometheus_source_image import authenticate_pr_source, GitHubRead
+              prefix = "/repos/" + repo
+              proof_api = SimpleNamespace(json=lambda endpoint: api(endpoint.removeprefix(prefix)))
+              proof_api.pages = lambda endpoint, key, count: GitHubRead.pages(proof_api, endpoint, key, count)
+              if action == "xnet060-metadata":
+                  state["mode"] = "metadata"
+              elif action == "candidate-D":
+                  if event_name != "workflow_dispatch" or state["current_run_attempt"] != 1:
+                      raise ValueError("Caddy build requires actual current PR manual invocation")
+                  state["mode"] = "build"
+              elif candidates:
+                  run, job, step = max(candidates, key=lambda row: (row[0]["created_at"], row[0]["id"]))
+                  authenticate_pr_source(proof_api, 2494, run["head_sha"], pr["head"]["sha"], "refs/heads/" + branch)
+                  # Native Git resolves original regular blobs; no manifest-authored input claim is trusted.
+                  git_env = {"PATH": os.environ["PATH"], "LANG": "C.UTF-8", "GIT_CONFIG_NOSYSTEM": "1",
+                             "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_NO_REPLACE_OBJECTS": "1"}
+                  original_head = run["head_sha"]
+                  subprocess.run([git, "--no-replace-objects", "fetch", "--no-tags", "--depth=1",
+                                  "https://github.com/" + repo + ".git", original_head], env=git_env, check=True, timeout=remaining(120))
+                  original_paths = subprocess.check_output([git, "--no-replace-objects", "ls-tree", "-r", "-z", "--name-only",
+                                  original_head, "--", "frontend/", *fixed], env=git_env, timeout=remaining(60)).decode().split("\0")[:-1]
+                  if len(original_paths) != len(set(original_paths)) or set(original_paths) != set(inputs):
+                      raise ValueError("Caddy actual producer source inventory differs")
+                  original_inputs = {}
+                  for name in original_paths:
+                      row = subprocess.check_output([git, "--no-replace-objects", "ls-tree", "--format=%(objectmode) %(objecttype) %(objectname)",
+                                  original_head, "--", name], env=git_env, timeout=remaining(30)).decode().split()
+                      if len(row) != 3 or row[0] not in ("100644", "100755") or row[1] != "blob" or re.fullmatch(r"[0-9a-f]{40}", row[2]) is None:
+                          raise ValueError("Caddy original source is not one regular Git blob")
+                      raw = subprocess.check_output([git, "--no-replace-objects", "cat-file", "blob", row[2]], env=git_env, timeout=remaining(30))
+                      original_inputs[name] = {"mode": int(row[0], 8) & 0o777, "bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest()}
+                  if original_inputs != inputs:
+                      raise ValueError("Caddy authenticated original Git source differs from current source")
+                  artifacts = pages("/actions/runs/" + str(run["id"]) + "/artifacts", "artifacts")
+                  for artifact in artifacts:
+                      relation = artifact["workflow_run"]
+                      if (positive_id(relation["id"]) != run["id"] or relation["head_sha"] != run["head_sha"]
+                              or positive_id(relation["repository_id"]) != 1043311030
+                              or positive_id(relation["head_repository_id"]) != 1043311030
+                              or relation["head_branch"] != run["head_branch"]):
+                          raise ValueError("Caddy native artifact/run relationship differs")
+                  artifacts = [a for a in artifacts if a["name"] == "caddy-contract-evidence"]
+                  if len(artifacts) != 1 or artifacts[0]["expired"] is not False:
+                      raise ValueError("Caddy original producer artifact unavailable")
+                  if re.fullmatch(r"sha256:[0-9a-f]{64}", artifacts[0].get("digest", "")) is None:
+                      raise ValueError("Caddy native artifact digest unavailable")
+                  state.update(mode="reuse", producer={"run_id": run["id"], "run_attempt": 1,
+                      "head": run["head_sha"], "job_id": job["id"], "artifact": artifacts[0], "git_inputs": original_inputs})
+              else:
+                  raise ValueError("Caddy requires a real successful same-source PR2494 producer; no automatic build")
+              (state_dir / "admission.json").write_text(json.dumps(state, indent=2))
+              with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
+                  output.write("mode=" + state["mode"] + "\n")
+                  if state["mode"] == "reuse":
+                      output.write("producer_run=" + str(state["producer"]["run_id"]) + "\nartifact_id=" + str(state["producer"]["artifact"]["id"]) + "\n")
+          PY
+
+      - name: Charge Download original retained Caddy candidate budget
+        if: ${{ steps.caddy-admission.outputs.mode == 'reuse' }}
+        run: |
+          python3 - <<'PY'
+          import os
+          from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_charge_action
+          caddy_ci_charge_action("BUILD", int(os.environ["CADDY_REUSE_DOWNLOAD_SECONDS"]))
           PY
 
       - name: Download original retained Caddy candidate
+        timeout-minutes: ${{ fromJSON(env.CADDY_ACTION_REUSE_DOWNLOAD_MINUTES) }}
         if: ${{ steps.caddy-admission.outputs.mode == 'reuse' }}
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1 / Node 24
         with:
@@ -906,48 +913,52 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import hashlib
-          import json
-          import os
-          from pathlib import Path
-          import shutil
-          import stat
-          import subprocess
+          from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_phase
+          with caddy_ci_phase("BUILD") as remaining:
+              import hashlib
+              import json
+              import os
+              from pathlib import Path
+              import shutil
+              import stat
+              import subprocess
 
-          work = Path(os.environ["RUNNER_TEMP"])
-          state = json.loads((work / "caddy-admission/admission.json").read_bytes())
-          retained = work / "caddy-original-producer"
-          manifest = retained / "candidate.json"
-          archive = retained / "candidate.docker.tar"
-          for path in (manifest, archive):
-              if path.is_symlink() or not stat.S_ISREG(path.stat().st_mode) or path.stat().st_size == 0:
-                  raise ValueError("Caddy retained candidate file unavailable")
-          original = json.loads(manifest.read_bytes())
-          expected = state["producer"]
-          if (original["producer_run_id"], original["producer_run_attempt"], original["producer_head"], original["inputs"]) != (
-                  expected["run_id"], expected["run_attempt"], expected["head"], expected["git_inputs"]):
-              raise ValueError("Caddy original producer/current input identity differs")
-          if expected["git_inputs"] != state["inputs"]:
-              raise ValueError("Caddy original producer/current input identity differs")
-          hash_value = hashlib.sha256()
-          with archive.open("rb") as stream:
-              for chunk in iter(lambda: stream.read(1048576), b""):
-                  hash_value.update(chunk)
-          if hash_value.hexdigest() != original["archive_sha256"] or archive.stat().st_size != original["archive_bytes"]:
-              raise ValueError("Caddy retained docker archive differs")
-          docker = shutil.which("docker")
-          if docker is None:
-              raise ValueError("docker unavailable")
-          subprocess.run([docker, "load", "--input", str(archive)], check=True, timeout=300)
-          inspected = json.loads(subprocess.check_output([docker, "image", "inspect", "pulseplate-caddy:contract"], timeout=60))[0]
-          if (inspected["Id"], inspected["Os"], inspected["Architecture"]) != (original["image_config_id"], "linux", "amd64"):
-              raise ValueError("Caddy imported image/config/platform differs")
-          binary = subprocess.check_output([docker, "run", "--rm", "--pull", "never", "--network", "none", "--read-only", "--cap-drop", "ALL",
-              "--entrypoint", "/bin/busybox", inspected["Id"], "sha256sum", "/usr/bin/caddy"], timeout=60).decode()
-          if binary != original["binary_sha256"] + "  /usr/bin/caddy\n":
-              raise ValueError("Caddy imported binary differs")
-          state["original_candidate"] = original
-          (work / "caddy-admission/admission.json").write_text(json.dumps(state, indent=2))
+              work = Path(os.environ["RUNNER_TEMP"])
+              state = json.loads((work / "caddy-admission/admission.json").read_bytes())
+              retained = work / "caddy-original-producer"
+              manifest = retained / "candidate.json"
+              archive = retained / "candidate.docker.tar"
+              for path in (manifest, archive):
+                  if path.is_symlink() or not stat.S_ISREG(path.stat().st_mode) or path.stat().st_size == 0:
+                      raise ValueError("Caddy retained candidate file unavailable")
+              original = json.loads(manifest.read_bytes())
+              if original.get("source_correction") != "CVE-2026-116587" or original.get("v3_scanner_comparability") != "UNKNOWN":
+                  raise ValueError("Caddy historical D artifact is not a source-qualified candidate")
+              expected = state["producer"]
+              if (original["producer_run_id"], original["producer_run_attempt"], original["producer_head"], original["inputs"]) != (
+                      expected["run_id"], expected["run_attempt"], expected["head"], expected["git_inputs"]):
+                  raise ValueError("Caddy original producer/current input identity differs")
+              if expected["git_inputs"] != state["inputs"]:
+                  raise ValueError("Caddy original producer/current input identity differs")
+              hash_value = hashlib.sha256()
+              with archive.open("rb") as stream:
+                  for chunk in iter(lambda: stream.read(1048576), b""):
+                      hash_value.update(chunk)
+              if hash_value.hexdigest() != original["archive_sha256"] or archive.stat().st_size != original["archive_bytes"]:
+                  raise ValueError("Caddy retained docker archive differs")
+              docker = shutil.which("docker")
+              if docker is None:
+                  raise ValueError("docker unavailable")
+              subprocess.run([docker, "load", "--input", str(archive)], check=True, timeout=remaining(300))
+              inspected = json.loads(subprocess.check_output([docker, "image", "inspect", "pulseplate-caddy:contract"], timeout=remaining(60)))[0]
+              if (inspected["Id"], inspected["Os"], inspected["Architecture"]) != (original["image_config_id"], "linux", "amd64"):
+                  raise ValueError("Caddy imported image/config/platform differs")
+              binary = subprocess.check_output([docker, "run", "--rm", "--pull", "never", "--network", "none", "--read-only", "--cap-drop", "ALL",
+                  "--entrypoint", "/bin/busybox", inspected["Id"], "sha256sum", "/usr/bin/caddy"], timeout=remaining(60)).decode()
+              if binary != original["binary_sha256"] + "  /usr/bin/caddy\n":
+                  raise ValueError("Caddy imported binary differs")
+              state["original_candidate"] = original
+              (work / "caddy-admission/admission.json").write_text(json.dumps(state, indent=2))
           PY
 
       # xnet060-metadata is the retained compatibility identifier for the current fixed recipe.
@@ -959,7 +970,17 @@ jobs:
           test "$GITHUB_REPOSITORY_ID" = '1043311030'
           test "$GITHUB_RUN_ATTEMPT" = '1'
 
+      - name: Charge Install pinned compiler metadata scanner and DB budget
+        if: ${{ steps.caddy-admission.outputs.mode == 'metadata' || steps.caddy-admission.outputs.mode == 'build' }}
+        run: |
+          python3 - <<'PY'
+          import os
+          from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_charge_action
+          caddy_ci_charge_action("COMPILER_BOOTSTRAP")
+          PY
+
       - name: Install pinned compiler metadata scanner and DB
+        timeout-minutes: ${{ fromJSON(env.CADDY_ACTION_COMPILER_BOOTSTRAP_MINUTES) }}
         if: ${{ steps.caddy-admission.outputs.mode == 'metadata' || steps.caddy-admission.outputs.mode == 'build' }}
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 / Node 24 cache path
         with:
@@ -971,13 +992,15 @@ jobs:
           exit-code: '0'
           cache-dir: /tmp/trivy-cache-caddy-metadata
 
-      - name: Qualify Caddy compiler and two counterfactual v4 derivations
+      - name: Qualify Caddy compiler and two independent root derivations
+        timeout-minutes: ${{ fromJSON(env.CADDY_ACTION_METADATA_MINUTES) }}
         id: caddy-metadata
         if: ${{ steps.caddy-admission.outputs.mode == 'metadata' || steps.caddy-admission.outputs.mode == 'build' }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
           import difflib
+          from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_phase
           import hashlib
           import json
           import os
@@ -1009,186 +1032,202 @@ jobs:
           recipe = (root / "frontend/Dockerfile.caddy-spa").read_bytes()
           gets = re.findall(rb"^    go get ([^;]+);", recipe, re.MULTILINE)
           baseline_gets = [b"github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.4", b"google.golang.org/grpc@v1.83.2", b"golang.org/x/crypto@v0.55.0", b"golang.org/x/net@v0.60.0", b"github.com/klauspost/compress@v1.18.7"]
-          require(gets == baseline_gets + [b"github.com/go-jose/go-jose/v4@v4.1.6"], "caddy_selected_six_gets")
+          baseline_gets += [b"github.com/go-jose/go-jose/v4@v4.1.6"]
+          require(gets == baseline_gets + [b"github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.9"], "caddy_selected_seed_then_root_get")
           report = {"purpose": "Counterfactual recipe baselines, not recovered historical ephemeral locks or a compiled candidate",
                     "compiler_index": compiler, "recipe_sha256": hashlib.sha256(recipe).hexdigest(),
                     "counterfactual_seed_gets": [value.decode() for value in baseline_gets],
                     "selected_recipe_gets": [value.decode() for value in gets],
-                    "authored_action": "github.com/go-jose/go-jose/v4@v4.1.6",
+                    "authored_action": "github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.9",
                     "run_id": int(os.environ["GITHUB_RUN_ID"]), "run_attempt": 1,
                     "source_head": json.loads((Path(os.environ["RUNNER_TEMP"]) / "caddy-admission/admission.json").read_bytes())["current_head"], "go_build_invocations": 0,
-                    "failure": None, "derivations": {}, "closure_admission": "exact authored v4 action only; additional solver closure is HOLD"}
+                    "failure": None, "derivations": {}, "closure_admission": "one Caddy authored action; complete independent replay and actual source/security admission remain required"}
           owned = []
           try:
-              raw = native.run([docker, "--config", str(config), "buildx", "imagetools", "inspect", "--raw", compiler], "compiler-index", environment, cwd=work)
-              require(hashlib.sha256(raw).hexdigest() == compiler.split("sha256:")[1], "compiler_raw_index_digest")
-              index = json.loads(raw)
-              targets = [row for row in index["manifests"] if row.get("platform") == {"architecture": "amd64", "os": "linux"}]
-              require(len(targets) == 1 and re.fullmatch(r"sha256:[0-9a-f]{64}", targets[0]["digest"]) is not None, "compiler_exact_platform")
-              selected = "golang@" + targets[0]["digest"]
-              native.run([docker, "--config", str(config), "pull", "--platform", "linux/amd64", selected], "compiler-pull", environment, cwd=work)
-              observed = json.loads(native.run([docker, "--config", str(config), "image", "inspect", selected], "compiler-config", environment, cwd=work))[0]
-              require((observed["Os"], observed["Architecture"]) == ("linux", "amd64"), "compiler_native_platform")
-              platform_raw = native.run([docker, "--config", str(config), "buildx", "imagetools", "inspect", "--raw", selected], "compiler-platform-raw", environment, cwd=work)
-              require("sha256:" + hashlib.sha256(platform_raw).hexdigest() == targets[0]["digest"]
-                      and json.loads(platform_raw)["config"]["digest"] == observed["Id"], "compiler_platform_config_binding")
-              report["compiler_platform"] = targets[0]
-              report["compiler_config"] = observed
-              version_name = "pulseplate-caddy-compiler-version-" + os.environ["GITHUB_RUN_ID"]
-              owned.append(version_name)
-              go_version = native.run([docker, "--config", str(config), "run", "--rm", "--pull", "never", "--name", version_name,
-                  "--label", "pulseplate.caddy-metadata=" + os.environ["GITHUB_RUN_ID"],
-                  "--user", "65532:65532", "--network", "none", "--read-only", "--cap-drop", "ALL",
-                  "--security-opt", "no-new-privileges", "--cpus", "2", "--memory", "2g", "--pids-limit", "128",
-                  "--env", "GOTOOLCHAIN=local", "--env", "GOENV=off", "--env", "GOWORK=off",
-                  "--entrypoint", "/usr/local/go/bin/go", observed["Id"], "version"], "compiler-native-version", environment, cwd=work)
-              require(go_version == b"go version go1.26.10 linux/amd64\n", "compiler_native_version")
-              report["compiler_go_version_sha256"] = hashlib.sha256(go_version).hexdigest()
-              scanner = shutil.which("trivy")
-              require(scanner is not None and Path(scanner).is_absolute(), "compiler_native_scanner_missing")
-              version = native.run([scanner, "--version"], "compiler-scanner-version", environment, cwd=work)
-              require(re.search(rb"^Version: 0\.74\.0$", version, re.MULTILINE) is not None, "compiler_pinned_scanner_version")
-              cache = Path("/tmp/trivy-cache-caddy-metadata")
-              db = {name: {"bytes": (cache / name).stat().st_size,
-                           "sha256": hashlib.sha256((cache / name).read_bytes()).hexdigest()}
-                    for name in ("db/trivy.db", "db/metadata.json")}
-              empty_config, empty_ignore = work / "empty-trivy.yaml", work / "empty.trivyignore"
-              empty_config.write_bytes(b"{}\n")
-              empty_ignore.write_bytes(b"")
-              scan = evidence / "compiler-full.raw.json"
-              native.run([scanner, "image", "--config", str(empty_config), "--cache-dir", str(cache),
-                          "--skip-db-update", "--skip-java-db-update", "--skip-vex-repo-update", "--offline-scan",
-                          "--skip-version-check", "--disable-telemetry", "--image-src", "docker", "--platform", "linux/amd64",
-                          "--scanners", "vuln,secret", "--pkg-types", "os,library", "--list-all-pkgs",
-                          "--severity", "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL", "--format", "json", "--exit-code", "0",
-                          "--ignore-unfixed=false", "--ignorefile", str(empty_ignore), "--timeout", "300s",
-                          "--output", str(scan), observed["Id"]], "compiler-full-scan", environment, cwd=work)
-              from scripts.ci.check_docker_runtime_dependency_surface import validate_trivy_image_report
-              validate_trivy_image_report(observed["Id"], scan)
-              full = json.loads(scan.read_bytes())
-              require(all("Secrets" not in row or (type(row["Secrets"]) is list and not row["Secrets"])
-                          for row in full["Results"]), "compiler_secret_HOLD")
-              require(all(finding.get("Severity") not in ("HIGH", "CRITICAL") for row in full["Results"]
-                          for finding in row.get("Vulnerabilities", [])), "compiler_native_HC_HOLD")
-              require({name: {"bytes": (cache / name).stat().st_size,
-                              "sha256": hashlib.sha256((cache / name).read_bytes()).hexdigest()} for name in db} == db,
-                      "compiler_scanner_DB_changed")
-              report["compiler_scan"] = {"report_sha256": hashlib.sha256(scan.read_bytes()).hexdigest(),
-                  "scanner_sha256": hashlib.sha256(Path(scanner).read_bytes()).hexdigest(), "DB": db,
-                  "Secrets_fields_absent": sum("Secrets" not in row for row in full["Results"]),
-                  "boundary": "Native vuln,secret command and listed inventory; omitted Secrets fields are not a forced zero claim"}
-              # Historical signed Alpine acquisitions remain at their original proof identity.
-              # This transition changes only go-jose/v4; do not reacquire old cutoff inputs.
-              for label in ("a", "b"):
-                  lane = work / label
-                  fresh_directory(lane)
-                  for name in ("work", "modules", "home", "cache", "tmp", "output"):
-                      fresh_directory(lane / name, 0o777)
-                      (lane / name).chmod(0o777)
-                  name = "pulseplate-caddy-metadata-" + os.environ["GITHUB_RUN_ID"] + "-" + label
-                  argv = [docker, "--config", str(config), "create", "--pull", "never", "--name", name,
-                          "--label", "pulseplate.caddy-metadata=" + os.environ["GITHUB_RUN_ID"],
-                          "--user", "65532:65532", "--workdir", "/work", "--read-only", "--cap-drop", "ALL",
-                          "--security-opt", "no-new-privileges", "--cpus", "2", "--memory", "2g", "--pids-limit", "128"]
-                  for directory in ("work", "modules", "home", "cache", "tmp", "output"):
-                      argv += ["--mount", f"type=bind,source={lane / directory},target=/{directory}"]
-                  for key, value in {"PATH": "/usr/local/go/bin:/usr/bin:/bin", "HOME": "/home", "TMPDIR": "/tmp",
-                                     "GOCACHE": "/cache", "GOMODCACHE": "/modules", "GOPATH": "/home/gopath",
-                                     "GOOS": "linux", "GOARCH": "amd64", "CGO_ENABLED": "0", "GOTOOLCHAIN": "local",
-                                     "GOWORK": "off", "GOENV": "off", "GOPROXY": "https://proxy.golang.org",
-                                     "GOSUMDB": "sum.golang.org", "GOMAXPROCS": "2"}.items():
-                      argv += ["--env", key + "=" + value]
-                  # The same fixed guest paths and canonical phases are used in both fresh lanes.
-                  script = '''set -eu
-          go version > /output/compiler-version.txt
-          test "$(cat /output/compiler-version.txt)" = "go version go1.26.10 linux/amd64"
-          cat /etc/alpine-release > /output/alpine-release.txt
-          go mod init pulseplate.local/caddy-build
-          go get github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.4
-          go get google.golang.org/grpc@v1.83.2
-          go get golang.org/x/crypto@v0.55.0
-          go get golang.org/x/net@v0.60.0
-          go get github.com/klauspost/compress@v1.18.7
-          go mod download all
-          go mod verify > /output/baseline-verify.txt
-          cp go.mod /output/baseline-go.mod
-          cp go.sum /output/baseline-go.sum
-          go list -mod=readonly -m -json all > /output/baseline-modules.json
-          go mod graph > /output/baseline-module-graph.txt
-          go list -mod=readonly -deps -json github.com/caddyserver/caddy/v2/cmd/caddy > /output/baseline-packages.json
-          cmp go.mod /output/baseline-go.mod
-          cmp go.sum /output/baseline-go.sum
-          go get github.com/go-jose/go-jose/v4@v4.1.6
-          cp go.mod /output/post-get-go.mod
-          cp go.sum /output/post-get-go.sum
-          go mod download all
-          go mod verify > /output/final-verify.txt
-          cp go.mod /output/final-go.mod
-          cp go.sum /output/final-go.sum
-          export GOPROXY=off GOSUMDB=off GOFLAGS=-mod=readonly
-          go list -mod=readonly -m -json all > /output/final-modules.json
-          go mod graph > /output/final-module-graph.txt
-          go list -mod=readonly -deps -json github.com/caddyserver/caddy/v2/cmd/caddy > /output/final-packages.json
-          cmp go.mod /output/final-go.mod
-          cmp go.sum /output/final-go.sum
-          '''
-                  owned.append(name)
-                  native.run(argv + ["--entrypoint", "/bin/sh", observed["Id"], "-c", script], label + "-create", environment, cwd=work)
-                  native.run([docker, "--config", str(config), "start", "--attach", name], label + "-native", environment, cwd=work)
-                  terminal = json.loads(native.run([docker, "--config", str(config), "inspect", name], label + "-terminal", environment, cwd=work))[0]
-                  require(terminal["State"]["ExitCode"] == 0 and terminal["State"]["OOMKilled"] is False, "caddy_metadata_native_terminal")
-                  require(terminal["Config"]["Labels"].get("pulseplate.caddy-metadata") == os.environ["GITHUB_RUN_ID"], "caddy_metadata_owned_identity")
-                  output = lane / "output"
-                  for phase in ("baseline", "final"):
-                      from scripts.ci.prometheus_source_image import decode_selected_modules, decode_objects
-                      modules = decode_selected_modules((output / (phase + "-modules.json")).read_bytes(), root_module="pulseplate.local/caddy-build")
-                      require(all("Replace" not in row for row in modules.values()), "caddy_no_module_replacement")
-                      packages = decode_objects((output / (phase + "-packages.json")).read_bytes())
-                      require(all(not row.get("Error") and not row.get("DepsErrors") and not row.get("Incomplete") for row in packages), "caddy_metadata_package_errors")
-                      indexed = {row["ImportPath"]: row for row in packages}
-                      require(len(indexed) == len(packages) and "github.com/caddyserver/caddy/v2/cmd/caddy" in indexed
-                              and indexed["github.com/caddyserver/caddy/v2/cmd/caddy"].get("Name") == "main", "caddy_complete_command_identity")
-                      for row in packages:
-                          mapping = row.get("ImportMap", {})
-                          require(all(mapping.get(path, path) in indexed for path in row.get("Imports", [])), "caddy_complete_native_import_graph")
-                      require(modules["github.com/caddyserver/caddy/v2"]["Version"] == "v2.11.4", "caddy_preserved_source_version")
-                      report["derivations"].setdefault(label, {})[phase] = {"modules": modules, "packages": len(packages)}
-                  before, after = report["derivations"][label]["baseline"]["modules"], report["derivations"][label]["final"]["modules"]
-                  target = "github.com/go-jose/go-jose/v4"
-                  require(before[target]["Version"] == "v4.1.4" and after[target]["Version"] == "v4.1.6"
-                          and after[target]["Sum"] == "h1:sNRkftxFJxwsILiQukqp5z83QBSmntVwmgRY7AqBDO4=", "caddy_exact_authored_v4_transition")
-                  delta = [{"path": path, "before": before.get(path), "after": after.get(path),
-                            "class": "I_R" if path == target else "C_R_candidate"}
-                           for path in sorted(set(before) | set(after)) if before.get(path) != after.get(path)]
-                  require([row["path"] for row in delta] == [target], "caddy_unexpected_solver_closure_HOLD")
-                  (output / "complete-delta.json").write_bytes(canonical_data(delta))
-                  patch = "".join("".join(difflib.unified_diff((output / ("baseline-" + name)).read_text().splitlines(True), (output / ("final-" + name)).read_text().splitlines(True), fromfile="a/" + name, tofile="b/" + name)) for name in ("go.mod", "go.sum"))
-                  (output / "module-derivation.patch").write_text(patch)
-                  report["derivations"][label]["native_terminal"] = terminal
-                  report["derivations"][label]["output_inventory"] = tree_inventory(output)
-              left, right = work / "a/output", work / "b/output"
-              require(tree_inventory(left) == tree_inventory(right), "caddy_independent_raw_output_equality")
-              report["status"] = "observed_counterfactual_metadata_only"
+              with caddy_ci_phase("COMPILER_WORK") as remaining:
+                  native.deadline = min(native.deadline, time.monotonic() + remaining(float("inf")))
+                  raw = native.run([docker, "--config", str(config), "buildx", "imagetools", "inspect", "--raw", compiler], "compiler-index", environment, cwd=work)
+                  require(hashlib.sha256(raw).hexdigest() == compiler.split("sha256:")[1], "compiler_raw_index_digest")
+                  index = json.loads(raw)
+                  targets = [row for row in index["manifests"] if row.get("platform") == {"architecture": "amd64", "os": "linux"}]
+                  require(len(targets) == 1 and re.fullmatch(r"sha256:[0-9a-f]{64}", targets[0]["digest"]) is not None, "compiler_exact_platform")
+                  selected = "golang@" + targets[0]["digest"]
+                  native.run([docker, "--config", str(config), "pull", "--platform", "linux/amd64", selected], "compiler-pull", environment, cwd=work)
+                  observed = json.loads(native.run([docker, "--config", str(config), "image", "inspect", selected], "compiler-config", environment, cwd=work))[0]
+                  require((observed["Os"], observed["Architecture"]) == ("linux", "amd64"), "compiler_native_platform")
+                  platform_raw = native.run([docker, "--config", str(config), "buildx", "imagetools", "inspect", "--raw", selected], "compiler-platform-raw", environment, cwd=work)
+                  require("sha256:" + hashlib.sha256(platform_raw).hexdigest() == targets[0]["digest"]
+                          and json.loads(platform_raw)["config"]["digest"] == observed["Id"], "compiler_platform_config_binding")
+                  report["compiler_platform"] = targets[0]
+                  report["compiler_config"] = observed
+                  version_name = "pulseplate-caddy-compiler-version-" + os.environ["GITHUB_RUN_ID"]
+                  owned.append(version_name)
+                  go_version = native.run([docker, "--config", str(config), "run", "--rm", "--pull", "never", "--name", version_name,
+                      "--label", "pulseplate.caddy-metadata=" + os.environ["GITHUB_RUN_ID"],
+                      "--user", "65532:65532", "--network", "none", "--read-only", "--cap-drop", "ALL",
+                      "--security-opt", "no-new-privileges", "--cpus", "2", "--memory", "2g", "--pids-limit", "128",
+                      "--env", "GOTOOLCHAIN=local", "--env", "GOENV=off", "--env", "GOWORK=off",
+                      "--entrypoint", "/usr/local/go/bin/go", observed["Id"], "version"], "compiler-native-version", environment, cwd=work)
+                  require(go_version == b"go version go1.26.10 linux/amd64\n", "compiler_native_version")
+                  report["compiler_go_version_sha256"] = hashlib.sha256(go_version).hexdigest()
+                  scanner = shutil.which("trivy")
+                  require(scanner is not None and Path(scanner).is_absolute(), "compiler_native_scanner_missing")
+                  version = native.run([scanner, "--version"], "compiler-scanner-version", environment, cwd=work)
+                  require(re.search(rb"^Version: 0\.74\.0$", version, re.MULTILINE) is not None, "compiler_pinned_scanner_version")
+                  cache = Path("/tmp/trivy-cache-caddy-metadata")
+                  db = {name: {"bytes": (cache / name).stat().st_size,
+                               "sha256": hashlib.sha256((cache / name).read_bytes()).hexdigest()}
+                        for name in ("db/trivy.db", "db/metadata.json")}
+                  empty_config, empty_ignore = work / "empty-trivy.yaml", work / "empty.trivyignore"
+                  empty_config.write_bytes(b"{}\n")
+                  empty_ignore.write_bytes(b"")
+                  scan = evidence / "compiler-full.raw.json"
+                  native.run([scanner, "image", "--config", str(empty_config), "--cache-dir", str(cache),
+                              "--skip-db-update", "--skip-java-db-update", "--skip-vex-repo-update", "--offline-scan",
+                              "--skip-version-check", "--disable-telemetry", "--image-src", "docker", "--platform", "linux/amd64",
+                              "--scanners", "vuln,secret", "--pkg-types", "os,library", "--list-all-pkgs",
+                              "--severity", "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL", "--format", "json", "--exit-code", "0",
+                              "--ignore-unfixed=false", "--ignorefile", str(empty_ignore), "--timeout", "300s",
+                              "--output", str(scan), observed["Id"]], "compiler-full-scan", environment, cwd=work)
+                  from scripts.ci.check_docker_runtime_dependency_surface import validate_trivy_image_report
+                  validate_trivy_image_report(observed["Id"], scan)
+                  full = json.loads(scan.read_bytes())
+                  require(all("Secrets" not in row or (type(row["Secrets"]) is list and not row["Secrets"])
+                              for row in full["Results"]), "compiler_secret_HOLD")
+                  require(all(finding.get("Severity") not in ("HIGH", "CRITICAL") for row in full["Results"]
+                              for finding in row.get("Vulnerabilities", [])), "compiler_native_HC_HOLD")
+                  require({name: {"bytes": (cache / name).stat().st_size,
+                                  "sha256": hashlib.sha256((cache / name).read_bytes()).hexdigest()} for name in db} == db,
+                          "compiler_scanner_DB_changed")
+                  report["compiler_scan"] = {"report_sha256": hashlib.sha256(scan.read_bytes()).hexdigest(),
+                      "scanner_sha256": hashlib.sha256(Path(scanner).read_bytes()).hexdigest(), "DB": db,
+                      "Secrets_fields_absent": sum("Secrets" not in row for row in full["Results"]),
+                      "boundary": "Native vuln,secret command and listed inventory; omitted Secrets fields are not a forced zero claim"}
+                  # Historical signed Alpine acquisitions remain at their original proof identity.
+                  # This transition changes only go-jose/v4; do not reacquire old cutoff inputs.
+                  for label in ("a", "b"):
+                      lane = work / label
+                      fresh_directory(lane)
+                      for name in ("work", "modules", "home", "cache", "tmp", "output"):
+                          fresh_directory(lane / name, 0o777)
+                          (lane / name).chmod(0o777)
+                      name = "pulseplate-caddy-metadata-" + os.environ["GITHUB_RUN_ID"] + "-" + label
+                      argv = [docker, "--config", str(config), "create", "--pull", "never", "--name", name,
+                              "--label", "pulseplate.caddy-metadata=" + os.environ["GITHUB_RUN_ID"],
+                              "--user", "65532:65532", "--workdir", "/work", "--read-only", "--cap-drop", "ALL",
+                              "--security-opt", "no-new-privileges", "--cpus", "2", "--memory", "2g", "--pids-limit", "128"]
+                      for directory in ("work", "modules", "home", "cache", "tmp", "output"):
+                          argv += ["--mount", f"type=bind,source={lane / directory},target=/{directory}"]
+                      for key, value in {"PATH": "/usr/local/go/bin:/usr/bin:/bin", "HOME": "/home", "TMPDIR": "/tmp",
+                                         "GOCACHE": "/cache", "GOMODCACHE": "/modules", "GOPATH": "/home/gopath",
+                                         "GOOS": "linux", "GOARCH": "amd64", "CGO_ENABLED": "0", "GOTOOLCHAIN": "local",
+                                         "GOWORK": "off", "GOENV": "off", "GOPROXY": "https://proxy.golang.org",
+                                         "GOSUMDB": "sum.golang.org", "GOMAXPROCS": "2"}.items():
+                          argv += ["--env", key + "=" + value]
+                      # The same fixed guest paths and canonical phases are used in both fresh lanes.
+                      script = '''set -eu
+              go version > /output/compiler-version.txt
+              test "$(cat /output/compiler-version.txt)" = "go version go1.26.10 linux/amd64"
+              cat /etc/alpine-release > /output/alpine-release.txt
+              go mod init pulseplate.local/caddy-build
+              go get github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.4
+              go get google.golang.org/grpc@v1.83.2
+              go get golang.org/x/crypto@v0.55.0
+              go get golang.org/x/net@v0.60.0
+              go get github.com/klauspost/compress@v1.18.7
+              go get github.com/go-jose/go-jose/v4@v4.1.6
+              go mod download all
+              go mod verify > /output/baseline-verify.txt
+              cp go.mod /output/baseline-go.mod
+              cp go.sum /output/baseline-go.sum
+              go list -mod=readonly -m -json all > /output/baseline-modules.json
+              go mod graph > /output/baseline-module-graph.txt
+              go list -mod=readonly -deps -json github.com/caddyserver/caddy/v2/cmd/caddy > /output/baseline-packages.json
+              cmp go.mod /output/baseline-go.mod
+              cmp go.sum /output/baseline-go.sum
+              go get github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.9
+              cp go.mod /output/post-get-go.mod
+              cp go.sum /output/post-get-go.sum
+              go mod download all
+              go mod verify > /output/final-verify.txt
+              cp go.mod /output/final-go.mod
+              cp go.sum /output/final-go.sum
+              export GOPROXY=off GOSUMDB=off GOFLAGS=-mod=readonly
+              go list -mod=readonly -m -json all > /output/final-modules.json
+              go mod graph > /output/final-module-graph.txt
+              go list -mod=readonly -deps -json github.com/caddyserver/caddy/v2/cmd/caddy > /output/final-packages.json
+              cmp go.mod /output/final-go.mod
+              cmp go.sum /output/final-go.sum
+              '''
+                      owned.append(name)
+                      native.run(argv + ["--entrypoint", "/bin/sh", observed["Id"], "-c", script], label + "-create", environment, cwd=work)
+                      native.run([docker, "--config", str(config), "start", "--attach", name], label + "-native", environment, cwd=work)
+                      terminal = json.loads(native.run([docker, "--config", str(config), "inspect", name], label + "-terminal", environment, cwd=work))[0]
+                      require(terminal["State"]["ExitCode"] == 0 and terminal["State"]["OOMKilled"] is False, "caddy_metadata_native_terminal")
+                      require(terminal["Config"]["Labels"].get("pulseplate.caddy-metadata") == os.environ["GITHUB_RUN_ID"], "caddy_metadata_owned_identity")
+                      output = lane / "output"
+                      for phase in ("baseline", "final"):
+                          from scripts.ci.prometheus_source_image import decode_selected_modules, decode_objects
+                          modules = decode_selected_modules((output / (phase + "-modules.json")).read_bytes(), root_module="pulseplate.local/caddy-build")
+                          require(all("Replace" not in row for row in modules.values()), "caddy_no_module_replacement")
+                          packages = decode_objects((output / (phase + "-packages.json")).read_bytes())
+                          require(all(not row.get("Error") and not row.get("DepsErrors") and not row.get("Incomplete") for row in packages), "caddy_metadata_package_errors")
+                          indexed = {row["ImportPath"]: row for row in packages}
+                          require(len(indexed) == len(packages) and "github.com/caddyserver/caddy/v2/cmd/caddy" in indexed
+                                  and indexed["github.com/caddyserver/caddy/v2/cmd/caddy"].get("Name") == "main", "caddy_complete_command_identity")
+                          for row in packages:
+                              mapping = row.get("ImportMap", {})
+                              require(all(mapping.get(path, path) in indexed for path in row.get("Imports", [])), "caddy_complete_native_import_graph")
+                          require(modules["github.com/caddyserver/caddy/v2"]["Version"] == ("v2.11.4" if phase == "baseline" else "v2.11.9"), "caddy_observed_root_transition")
+                          report["derivations"].setdefault(label, {})[phase] = {"modules": modules, "packages": len(packages)}
+                      before, after = report["derivations"][label]["baseline"]["modules"], report["derivations"][label]["final"]["modules"]
+                      target = "github.com/caddyserver/caddy/v2"
+                      require(before[target]["Version"] == "v2.11.4" and after[target]["Version"] == "v2.11.9"
+                              and after[target]["Sum"] == "h1:bhZtcRKQOq0fuLvEgCdPYvUxXyGn9kzjG4lh2332DTE=", "caddy_exact_authored_root_transition")
+                      delta = [{"path": path, "before": before.get(path), "after": after.get(path),
+                                "class": "I_R" if path == target else "C_R_candidate"}
+                               for path in sorted(set(before) | set(after)) if before.get(path) != after.get(path)]
+                      require(any(row["path"] == target for row in delta), "caddy_missing_authored_transition")
+                      (output / "complete-delta.json").write_bytes(canonical_data(delta))
+                      patch = "".join("".join(difflib.unified_diff((output / ("baseline-" + name)).read_text().splitlines(True), (output / ("final-" + name)).read_text().splitlines(True), fromfile="a/" + name, tofile="b/" + name)) for name in ("go.mod", "go.sum"))
+                      (output / "module-derivation.patch").write_text(patch)
+                      report["derivations"][label]["native_terminal"] = terminal
+                      report["derivations"][label]["output_inventory"] = tree_inventory(output)
+                  left, right = work / "a/output", work / "b/output"
+                  require(tree_inventory(left) == tree_inventory(right), "caddy_independent_raw_output_equality")
+                  report["status"] = "observed_counterfactual_metadata_only"
           except BaseException as error:
               report["failure"] = type(error).__name__
               raise
           finally:
-              native.begin_cleanup()
-              inventory = native.run([docker, "--config", str(config), "ps", "--all", "--format", "{{.Names}}"], "cleanup-inventory", environment, cwd=work, cleaning=True).decode().splitlines()
-              for name in owned:
-                  if name not in inventory:
-                      continue
-                  actual = json.loads(native.run([docker, "--config", str(config), "inspect", name], name + "-cleanup-inspect", environment, cwd=work, cleaning=True))[0]
-                  require(actual["Config"]["Labels"].get("pulseplate.caddy-metadata") == os.environ["GITHUB_RUN_ID"], "caddy_cleanup_ownership")
-                  native.run([docker, "--config", str(config), "rm", "--force", name], name + "-cleanup", environment, cwd=work, cleaning=True)
-              remaining = native.run([docker, "--config", str(config), "ps", "--all", "--format", "{{.Names}}"], "cleanup-absence", environment, cwd=work, cleaning=True).decode().splitlines()
-              require(not set(owned).intersection(remaining), "caddy_metadata_owned_container_survives")
-              report["native_commands"] = native.records
-              (evidence / "qualification.json").write_bytes(canonical_data(report))
+              with caddy_ci_phase("COMPILER_CLEANUP"):
+                  native.begin_cleanup()
+                  inventory = native.run([docker, "--config", str(config), "ps", "--all", "--format", "{{.Names}}"], "cleanup-inventory", environment, cwd=work, cleaning=True).decode().splitlines()
+                  for name in owned:
+                      if name not in inventory:
+                          continue
+                      actual = json.loads(native.run([docker, "--config", str(config), "inspect", name], name + "-cleanup-inspect", environment, cwd=work, cleaning=True))[0]
+                      require(actual["Config"]["Labels"].get("pulseplate.caddy-metadata") == os.environ["GITHUB_RUN_ID"], "caddy_cleanup_ownership")
+                      native.run([docker, "--config", str(config), "rm", "--force", name], name + "-cleanup", environment, cwd=work, cleaning=True)
+                  remaining = native.run([docker, "--config", str(config), "ps", "--all", "--format", "{{.Names}}"], "cleanup-absence", environment, cwd=work, cleaning=True).decode().splitlines()
+                  require(not set(owned).intersection(remaining), "caddy_metadata_owned_container_survives")
+                  report["native_commands"] = native.records
+                  (evidence / "qualification.json").write_bytes(canonical_data(report))
+          PY
+
+      - name: Charge Upload counterfactual Caddy metadata budget
+        id: caddy-metadata-upload-budget
+        if: ${{ always() && (steps.caddy-admission.outputs.mode == 'metadata' || steps.caddy-admission.outputs.mode == 'build') }}
+        run: |
+          python3 - <<'PY'
+          import os
+          from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_charge_action
+          caddy_ci_charge_action("METADATA_UPLOAD")
           PY
 
       - name: Upload counterfactual Caddy metadata
-        if: ${{ always() && (steps.caddy-admission.outputs.mode == 'metadata' || steps.caddy-admission.outputs.mode == 'build') }}
+        timeout-minutes: ${{ fromJSON(env.CADDY_ACTION_METADATA_UPLOAD_MINUTES) }}
+        if: ${{ always() && (steps.caddy-admission.outputs.mode == 'metadata' || steps.caddy-admission.outputs.mode == 'build') && steps.caddy-metadata-upload-budget.outcome == 'success' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
         with:
           name: caddy-xnet060-metadata-${{ github.run_id }}-${{ github.run_attempt }}
@@ -1199,20 +1238,25 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Recheck accepted Caddy dates immediately before build
-        id: caddy-build-window
+      - name: Charge Build source-patched Caddy candidate budget
         if: ${{ steps.caddy-admission.outputs.mode == 'build' && steps.caddy-metadata.outcome == 'success' }}
         run: |
-          set -euo pipefail
           python3 - <<'PY'
-          from datetime import datetime, timezone
+          import os
+          from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_charge_action
+          import json
           from pathlib import Path
-          from scripts.ci.check_docker_runtime_dependency_surface import validate_caddy_ci_window
-          validate_caddy_ci_window(Path("trivy/ignore-policy-caddy-go-jose-v3.rego"), today=datetime.now(timezone.utc).date())
+          from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_source_inventory, caddy_ci_phase
+          state = json.loads((Path(os.environ["RUNNER_TEMP"]) / "caddy-admission/admission.json").read_bytes())
+          with caddy_ci_phase("PROCESSING"):
+              if caddy_ci_source_inventory(Path.cwd(), list(state["inputs"])) != state["inputs"]:
+                  raise ValueError("Caddy source changed immediately before build")
+          caddy_ci_charge_action("BUILD")
           PY
 
-      - name: Build accepted D Caddy candidate once
-        if: ${{ steps.caddy-admission.outputs.mode == 'build' && steps.caddy-metadata.outcome == 'success' && steps.caddy-build-window.outcome == 'success' }}
+      - name: Build source-patched Caddy candidate
+        timeout-minutes: ${{ fromJSON(env.CADDY_ACTION_BUILD_MINUTES) }}
+        if: ${{ steps.caddy-admission.outputs.mode == 'build' && steps.caddy-metadata.outcome == 'success' }}
         id: caddy-build
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         with:
@@ -1222,6 +1266,7 @@ jobs:
           load: true
           push: false
           tags: pulseplate-caddy:contract
+          no-cache-filters: caddy-build
           cache-from: type=gha,scope=frontend-caddy-contract
           cache-to: type=gha,scope=frontend-caddy-contract,mode=min,ignore-error=true
 
@@ -1241,6 +1286,9 @@ jobs:
           import stat
           import subprocess
           import tempfile
+          import io
+          import tarfile
+          from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_phase, CADDY_BUILD_MEMBERS, CADDY_BUILD_EVIDENCE_PATH, CADDY_V3_BUILD_MEMBERS, CADDY_STDLIB_MEMBERS, CADDY_STDLIB_MEMBER_LIMITS, CADDY_SOURCE_TOTAL_BYTES, CADDY_SOURCE_TAR_BYTES, CADDY_V3_TOTAL_BYTES, CADDY_STDLIB_TOTAL_BYTES
 
           try:
               root = Path.cwd().resolve(strict=True)
@@ -1248,9 +1296,10 @@ jobs:
               if docker is None or not Path(docker).is_absolute():
                   raise ValueError("docker_unavailable")
 
-              def run(arguments):
-                  result = subprocess.run([docker, *arguments], capture_output=True, timeout=60, check=False)
-                  if result.returncode or len(result.stdout) > 1048576:
+              def run(arguments, maximum=1048576):
+                  with caddy_ci_phase("CAPTURE") as remaining:
+                      result = subprocess.run([docker, *arguments], capture_output=True, timeout=remaining(60), check=False)
+                  if result.returncode or len(result.stdout) > maximum:
                       raise ValueError("native_image_observation_failed")
                   return result.stdout
 
@@ -1313,10 +1362,51 @@ jobs:
                   projections[name] = {"image_config_id": image, "argv": [docker, *arguments],
                                        "exit_code": 0, "bytes": len(observed),
                                        "sha256": hashlib.sha256(observed).hexdigest()}
+              source_evidence = private / "build-evidence"
+              source_evidence.mkdir(mode=0o700)
+              source_name = "caddy-source-" + private.name
+              cidfile = private / "source-extract.cid"
+              with caddy_ci_phase("SOURCE16") as remaining:
+                  try:
+                      result = subprocess.run([docker, "run", "--rm", "--pull", "never", "--name", source_name,
+                          "--cidfile", str(cidfile), "--label", "pulseplate.caddy-source=" + source_name,
+                          "--network", "none", "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
+                          "--entrypoint", "/bin/busybox", image, "tar", "-C", CADDY_BUILD_EVIDENCE_PATH, "-cf", "-", "."],
+                          capture_output=True, timeout=remaining(60), check=True)
+                      if len(result.stdout) > CADDY_SOURCE_TAR_BYTES:
+                          raise ValueError("Caddy source tar bound")
+                      with tarfile.open(fileobj=io.BytesIO(result.stdout), mode="r:") as archive:
+                          members = archive.getmembers()
+                          files = [member for member in members if member.name not in (".", "./")]
+                          if (len(members) - len(files) > 1 or len(files) != len(CADDY_BUILD_MEMBERS) or
+                                  {member.name.removeprefix("./") for member in files} != CADDY_BUILD_MEMBERS or
+                                  any(not member.isdir() for member in members if member.name in (".", "./"))):
+                              raise ValueError("Caddy exact build evidence membership")
+                          if (sum(member.size for member in files) > CADDY_SOURCE_TOTAL_BYTES or
+                                  sum(member.size for member in files if member.name.removeprefix("./") in CADDY_V3_BUILD_MEMBERS) > CADDY_V3_TOTAL_BYTES or
+                                  sum(member.size for member in files if member.name.removeprefix("./") in CADDY_STDLIB_MEMBERS) > CADDY_STDLIB_TOTAL_BYTES):
+                              raise ValueError("Caddy source total bound")
+                          for member in files:
+                              if (not member.isfile() or member.linkname or member.pax_headers or
+                                      not 0 < member.size <= CADDY_STDLIB_MEMBER_LIMITS.get(member.name.removeprefix("./"), 2097152) or member.name not in (member.name.removeprefix("./"), "./" + member.name.removeprefix("./"))):
+                                  raise ValueError("Caddy source nonregular member")
+                              (source_evidence / member.name.removeprefix("./")).write_bytes(archive.extractfile(member).read())
+                  except BaseException:
+                      if cidfile.is_file() and not cidfile.is_symlink():
+                          cid = cidfile.read_text().strip()
+                          if re.fullmatch(r"[0-9a-f]{64}", cid) is None:
+                              raise ValueError("Caddy extraction CID malformed")
+                          inspected = subprocess.run([docker, "inspect", cid], capture_output=True, timeout=remaining(60), check=False)
+                          if inspected.returncode == 0:
+                              owned = json.loads(inspected.stdout)[0]
+                              if owned["Config"]["Labels"].get("pulseplate.caddy-source") != source_name or owned["Image"] != image:
+                                  raise ValueError("Caddy extraction cleanup ownership")
+                              subprocess.run([docker, "rm", "--force", cid], capture_output=True, timeout=remaining(60), check=True)
+                      raise
               state = private / "subject.json"
               state.write_text(json.dumps({"image_config_id": image, "platform": "linux/amd64",
                                            "binary_sha256": binary.split()[0], "sources": sources,
-                                           "native_projections": projections,
+                                           "native_projections": projections, "build_evidence": str(source_evidence),
                                            "root": str(root), "docker": docker,
                                            "observed_at_utc": datetime.now(timezone.utc).isoformat()}, sort_keys=True))
               state.chmod(0o600)
@@ -1335,113 +1425,154 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import hashlib
-          import json
-          import os
-          from pathlib import Path
-          import shutil
-          import subprocess
+          from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_phase
+          with caddy_ci_phase("RETENTION") as remaining:
+              import hashlib
+              import json
+              import os
+              from pathlib import Path
+              import shutil
+              import subprocess
 
-          work = Path(os.environ["RUNNER_TEMP"])
-          admission = json.loads((work / "caddy-admission/admission.json").read_bytes())
-          subject = json.loads(Path(os.environ["CADDY_OBSERVATION_STATE"]).read_bytes())
-          evidence = work / "caddy-contract"
-          evidence.mkdir(exist_ok=True)
-          (evidence / "admission.json").write_text(json.dumps(admission, indent=2))
-          if admission["mode"] == "build":
-              metadata_root = work / "caddy-xnet060-metadata"
-              qualification = json.loads((metadata_root / "evidence/qualification.json").read_bytes())
-              if (qualification["failure"] is not None or qualification["status"] != "observed_counterfactual_metadata_only"
-                      or qualification["source_head"] != admission["current_head"] or qualification["go_build_invocations"] != 0):
-                  raise ValueError("Caddy build metadata predecessor differs")
-              from scripts.ci.prometheus_source_image import decode_objects
-              modules = qualification["derivations"]["a"]["final"]["modules"]
-              packages = decode_objects((metadata_root / "a/output/final-packages.json").read_bytes())
-              command_modules = {package["Module"]["Path"] for package in packages if "Module" in package}
-              expected_modules = {name: (modules[name]["Version"], modules[name]["Sum"]) for name in command_modules}
-              binary_path = Path(os.environ["CADDY_OBSERVATION_STATE"]).parent / "native-projections/build-info.txt"
-              rows = [line.split() for line in binary_path.read_text().splitlines()]
-              selected_rows = [row for row in rows if row and row[0] in ("mod", "dep")]
-              if (any(row and row[0] == "=>" for row in rows)
-                      or any(len(row) != 4 for row in selected_rows)
-                      or len({row[1] for row in selected_rows}) != len(selected_rows)
-                      or {row[1]: (row[2], row[3]) for row in selected_rows} != expected_modules):
-                  raise ValueError("Caddy actual binary differs from complete qualified command module/sum projection")
-              private_candidate = Path(os.environ["CADDY_OBSERVATION_STATE"]).parent / "candidate"
-              private_candidate.mkdir(mode=0o700)
-              archive = private_candidate / "candidate.docker.tar"
-              if archive.exists():
-                  raise ValueError("Caddy export destination not fresh")
-              subprocess.run([subject["docker"], "save", "--output", str(archive), "pulseplate-caddy:contract"], check=True, timeout=300)
-              digest = hashlib.sha256()
-              with archive.open("rb") as stream:
-                  for chunk in iter(lambda: stream.read(1048576), b""):
-                      digest.update(chunk)
-              record = {"producer_run_id": admission["current_run_id"], "producer_run_attempt": admission["current_run_attempt"],
-                  "producer_head": admission["current_head"], "repository": admission["repository"],
-                  "inputs": admission["inputs"], "image_config_id": subject["image_config_id"],
-                  "binary_sha256": subject["binary_sha256"], "platform": "linux/amd64",
-                  "archive_sha256": digest.hexdigest(), "archive_bytes": archive.stat().st_size,
-                  "metadata_qualification_sha256": hashlib.sha256((metadata_root / "evidence/qualification.json").read_bytes()).hexdigest(),
-                  "build_action_invocations": 1, "actual_compiler_starts": "inspect original BuildKit raw log; cache is not assumed"}
-              (private_candidate / "candidate.json").write_text(json.dumps(record, indent=2))
-              for name in ("evidence", "a/output", "b/output"):
-                  shutil.copytree(metadata_root / name, evidence / "metadata" / name)
-          else:
-              original = admission["original_candidate"]
-              if (subject["image_config_id"], subject["binary_sha256"]) != (original["image_config_id"], original["binary_sha256"]):
-                  raise ValueError("Caddy reused native identity differs")
-              # Consumer artifacts retain references, never pretend to be a second producer.
-              (evidence / "original-producer.json").write_text(json.dumps(admission["producer"], indent=2))
+              work = Path(os.environ["RUNNER_TEMP"])
+              admission = json.loads((work / "caddy-admission/admission.json").read_bytes())
+              subject = json.loads(Path(os.environ["CADDY_OBSERVATION_STATE"]).read_bytes())
+              evidence = work / "caddy-contract"
+              evidence.mkdir(exist_ok=True)
+              (evidence / "admission.json").write_text(json.dumps(admission, indent=2))
+              if admission["mode"] == "build":
+                  metadata_root = work / "caddy-xnet060-metadata"
+                  qualification = json.loads((metadata_root / "evidence/qualification.json").read_bytes())
+                  if (qualification["failure"] is not None or qualification["status"] != "observed_counterfactual_metadata_only"
+                          or qualification["source_head"] != admission["current_head"] or qualification["go_build_invocations"] != 0):
+                      raise ValueError("Caddy build metadata predecessor differs")
+                  from scripts.ci.prometheus_source_image import decode_objects
+                  modules = qualification["derivations"]["a"]["final"]["modules"]
+                  packages = decode_objects((metadata_root / "a/output/final-packages.json").read_bytes())
+                  command_modules = {package["Module"]["Path"] for package in packages if "Module" in package}
+                  expected_modules = {name: (modules[name]["Version"], modules[name]["Sum"]) for name in command_modules}
+                  binary_path = Path(os.environ["CADDY_OBSERVATION_STATE"]).parent / "native-projections/build-info.txt"
+                  rows = [line.split() for line in binary_path.read_text().splitlines()]
+                  from scripts.ci.check_docker_runtime_dependency_surface import validate_caddy_source_evidence
+                  validate_caddy_source_evidence(Path(subject["build_evidence"]), binary_metadata=binary_path.read_bytes(),
+                      binary_sha256=subject["binary_sha256"], recipe=Path("frontend/Dockerfile.caddy-spa").read_bytes())
+                  original_v3 = "github.com/go-jose/go-jose/v3"
+                  selected_rows = [row for row in rows if row and row[0] in ("mod", "dep") and row[1] != original_v3]
+                  expected_modules.pop(original_v3)
+                  if (any(len(row) != 4 for row in selected_rows)
+                          or len({row[1] for row in selected_rows}) != len(selected_rows)
+                          or {row[1]: (row[2], row[3]) for row in selected_rows} != expected_modules):
+                      raise ValueError("Caddy actual ordinary modules differ from qualified projection")
+                  private_candidate = Path(os.environ["CADDY_OBSERVATION_STATE"]).parent / "candidate"
+                  private_candidate.mkdir(mode=0o700)
+                  archive = private_candidate / "candidate.docker.tar"
+                  if archive.exists():
+                      raise ValueError("Caddy export destination not fresh")
+                  subprocess.run([subject["docker"], "save", "--output", str(archive), "pulseplate-caddy:contract"], check=True, timeout=remaining(300))
+                  digest = hashlib.sha256()
+                  with archive.open("rb") as stream:
+                      for chunk in iter(lambda: stream.read(1048576), b""):
+                          digest.update(chunk)
+                  record = {"producer_run_id": admission["current_run_id"], "producer_run_attempt": admission["current_run_attempt"],
+                      "producer_head": admission["current_head"], "repository": admission["repository"],
+                      "inputs": admission["inputs"], "image_config_id": subject["image_config_id"],
+                      "binary_sha256": subject["binary_sha256"], "platform": "linux/amd64",
+                      "archive_sha256": digest.hexdigest(), "archive_bytes": archive.stat().st_size,
+                      "metadata_qualification_sha256": hashlib.sha256((metadata_root / "evidence/qualification.json").read_bytes()).hexdigest(),
+                      "build_action_invocations": 1, "actual_compiler_starts": "inspect original BuildKit raw log; cache is not assumed"}
+                  (private_candidate / "candidate.json").write_text(json.dumps(record, indent=2))
+                  for name in ("evidence", "a/output", "b/output"):
+                      shutil.copytree(metadata_root / name, evidence / "metadata" / name)
+              else:
+                  original = admission["original_candidate"]
+                  if (subject["image_config_id"], subject["binary_sha256"]) != (original["image_config_id"], original["binary_sha256"]):
+                      raise ValueError("Caddy reused native identity differs")
+                  # Consumer artifacts retain references, never pretend to be a second producer.
+                  (evidence / "original-producer.json").write_text(json.dumps(admission["producer"], indent=2))
+          PY
+
+      - name: Acquire pinned official Caddy control
+        if: ${{ steps.caddy-image.outcome == 'success' }}
+        env:
+          CADDY_OBSERVATION_STATE: ${{ steps.caddy-image.outputs.state }}
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_phase
+          state = Path(os.environ["CADDY_OBSERVATION_STATE"])
+          subject = json.loads(state.read_bytes())
+          home = state.parent / "official-home"
+          home.mkdir(mode=0o700)
+          environment = {"PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": str(home), "LANG": "C.UTF-8"}
+          with caddy_ci_phase("OFFICIAL_PULL") as remaining:
+              result = subprocess.run([subject["docker"], "pull", "--platform", "linux/amd64",
+                  "caddy:2.11.4-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648"],
+                  env=environment, capture_output=True, timeout=remaining(300), check=False)
+              if result.returncode:
+                  raise ValueError("Caddy pinned official control acquisition failed")
           PY
 
       - name: Verify hardened Caddy runtime and module parity
         if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata') }}
         run: |
           set -euo pipefail
-          evidence_dir="${RUNNER_TEMP}/caddy-contract"
-          mkdir -p "$evidence_dir"
-          docker run --rm --network none --read-only --cap-drop ALL --cap-add NET_BIND_SERVICE \
-            pulseplate-caddy:contract caddy version | tee "$evidence_dir/version.txt"
-          awk 'NR == 1 && $1 == "v2.11.4" { found=1 } END { exit found ? 0 : 1 }' \
-            "$evidence_dir/version.txt"
-          docker run --rm --network none --read-only --cap-drop ALL --cap-add NET_BIND_SERVICE \
-            pulseplate-caddy:contract caddy build-info | tee "$evidence_dir/build-info.txt"
-          awk -F '\t' '$1 == "go" && $2 == "go1.26.10" { found=1 } END { exit found ? 0 : 1 }' \
-            "$evidence_dir/build-info.txt"
-          docker run --rm --network none --read-only --cap-drop ALL --cap-add NET_BIND_SERVICE \
-            pulseplate-caddy:contract getcap /usr/bin/caddy | tee "$evidence_dir/capabilities.txt"
-          grep -F 'cap_net_bind_service=ep' "$evidence_dir/capabilities.txt"
-          official_caddy_ref="$(awk '/^FROM caddy:/ { print $2; exit }' frontend/Dockerfile.caddy-spa)"
-          [[ "$official_caddy_ref" =~ ^caddy:2\.11\.4-alpine@sha256:[0-9a-f]{64}$ ]]
-          docker run --rm --network none --read-only --cap-drop ALL --cap-add NET_BIND_SERVICE \
-            "$official_caddy_ref" \
-            caddy list-modules --packages \
-            | awk 'NF && $1 != "Standard" { print $1 }' \
-            | LC_ALL=C sort > "$evidence_dir/official-modules.txt"
-          docker run --rm --network none --read-only --cap-drop ALL --cap-add NET_BIND_SERVICE \
-            pulseplate-caddy:contract caddy list-modules --packages \
-            | awk 'NF && $1 != "Standard" { print $1 }' \
-            | LC_ALL=C sort > "$evidence_dir/rebuilt-modules.txt"
-          diff -u "$evidence_dir/official-modules.txt" "$evidence_dir/rebuilt-modules.txt"
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          import re
+          from scripts.ci.check_docker_runtime_dependency_surface import _run_docker, caddy_ci_phase
+
+          # Native caddy version, caddy build-info, capabilities and module parity.
+          evidence = Path(os.environ["RUNNER_TEMP"]) / "caddy-contract"
+          evidence.mkdir(exist_ok=True)
+          common = ["run", "--rm", "--pull", "never", "--network", "none", "--read-only", "--cap-drop", "ALL", "--cap-add", "NET_BIND_SERVICE"]
+          recipe = Path("frontend/Dockerfile.caddy-spa").read_text()
+          official_caddy_ref = re.findall(r"^FROM (caddy:2\.11\.9-alpine@sha256:[0-9a-f]{64})$", recipe, re.MULTILINE)
+          if len(official_caddy_ref) != 1:
+              raise ValueError("Caddy official runtime reference")
+          with caddy_ci_phase("RUNTIME_CONFIG"):
+              version = _run_docker([*common, "pulseplate-caddy:contract", "caddy", "version"]).stdout
+              if not version.split() or version.split()[0] != "v2.11.9":
+                  raise ValueError("Caddy version differs")
+              (evidence / "version.txt").write_text(version)
+              info = _run_docker([*common, "pulseplate-caddy:contract", "caddy", "build-info"]).stdout
+              if ["go", "go1.26.10"] not in [line.split() for line in info.splitlines()]:
+                  raise ValueError("Caddy compiler differs")
+              (evidence / "build-info.txt").write_text(info)
+              caps = _run_docker([*common, "pulseplate-caddy:contract", "getcap", "/usr/bin/caddy"]).stdout
+              if "cap_net_bind_service=ep" not in caps:
+                  raise ValueError("Caddy required capability missing")
+              (evidence / "capabilities.txt").write_text(caps)
+              native_modules = []
+              for name, image in (("official-modules.txt", official_caddy_ref[0]), ("rebuilt-modules.txt", "pulseplate-caddy:contract")):
+                  output = _run_docker([*common, image, "caddy", "list-modules", "--packages"]).stdout
+                  modules = sorted(line.split()[0] for line in output.splitlines() if line.split() and line.split()[0] != "Standard")
+                  (evidence / name).write_text("\n".join(modules) + "\n")
+                  native_modules.append(modules)
+              if native_modules[0] != native_modules[1]:
+                  raise ValueError("Caddy standard module parity differs")
+          PY
 
       - name: Validate staging and production Caddyfiles
         if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata') }}
         run: |
           set -euo pipefail
-          docker run --rm --network none --read-only --cap-drop ALL --cap-add NET_BIND_SERVICE \
-            --tmpfs /data --tmpfs /config \
-            -e STAGING_DOMAIN=staging.example.com \
-            -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" \
-            pulseplate-caddy:contract \
-            caddy validate --config /etc/caddy/Caddyfile
-          docker run --rm --network none --read-only --cap-drop ALL --cap-add NET_BIND_SERVICE \
-            --tmpfs /data --tmpfs /config \
-            -e PRODUCTION_DOMAIN=example.com \
-            -e STAGING_FALLBACK_DOMAIN=staging.example.com \
-            -v "$PWD/deploy/Caddyfile.production:/etc/caddy/Caddyfile:ro" \
-            pulseplate-caddy:contract \
-            caddy validate --config /etc/caddy/Caddyfile
+          python3 - <<'PY'
+          from pathlib import Path
+          from scripts.ci.check_docker_runtime_dependency_surface import _run_docker, caddy_ci_phase
+          # Native caddy validate calls retain the existing synthetic domains and mounts.
+          with caddy_ci_phase("RUNTIME_CONFIG"):
+              for config, values in (("Caddyfile", {"STAGING_DOMAIN": "staging.example.com"}),
+                                     ("Caddyfile.production", {"PRODUCTION_DOMAIN": "example.com", "STAGING_FALLBACK_DOMAIN": "staging.example.com"})):
+                  arguments = ["run", "--rm", "--pull", "never", "--network", "none", "--read-only", "--cap-drop", "ALL", "--cap-add", "NET_BIND_SERVICE",
+                               "--tmpfs", "/data", "--tmpfs", "/config"]
+                  for name, value in values.items():
+                      arguments += ["-e", name + "=" + value]
+                  arguments += ["-v", str(Path("deploy", config).resolve(strict=True)) + ":/etc/caddy/Caddyfile:ro",
+                                "pulseplate-caddy:contract", "caddy", "validate", "--config", "/etc/caddy/Caddyfile"]
+                  _run_docker(arguments)
+          PY
 
       - name: Verify Caddy route ordering and security headers
         if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata') }}
@@ -1500,7 +1631,17 @@ jobs:
           assert "reverse_proxy app:8000" in staging
           PY
 
+      - name: Charge Scan hardened Caddy shell image budget
+        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata') }}
+        run: |
+          python3 - <<'PY'
+          import os
+          from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_charge_action
+          caddy_ci_charge_action("SCANNER_BOOTSTRAP")
+          PY
+
       - name: Scan hardened Caddy shell image
+        timeout-minutes: ${{ fromJSON(env.CADDY_ACTION_SCANNER_BOOTSTRAP_MINUTES) }}
         if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata') }}
         id: caddy-security
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 / Node 24 cache path
@@ -1518,7 +1659,7 @@ jobs:
         if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata') && (!cancelled() && (steps.caddy-build.outcome == 'success' || steps.caddy-import.outcome == 'success') && steps.caddy-image.outcome == 'success' && (steps.caddy-security.outcome == 'success' || steps.caddy-security.outcome == 'failure')) }}
         env:
           CADDY_OBSERVATION_STATE: ${{ steps.caddy-image.outputs.state }}
-          CADDY_HC_OUTCOME: ${{ steps.caddy-security.outcome }}
+          CADDY_BOOTSTRAP_OUTCOME: ${{ steps.caddy-security.outcome }}
           CADDY_TRIVY_CACHE: /tmp/trivy-cache-caddy-contract
         run: |
           set -euo pipefail
@@ -1557,7 +1698,9 @@ jobs:
               # avoid cwd/HOME defaults without adding another configuration parser.
               clean = {"PATH": str(Path(subject["docker"]).parent) + ":/usr/local/bin:/usr/bin:/bin",
                        "HOME": str(home), "LANG": "C.UTF-8"}
-              version = subprocess.run([str(scanner), "--version"], env=clean, capture_output=True, timeout=30, check=False)
+              from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_phase
+              with caddy_ci_phase("FIXTURE") as remaining:
+                  version = subprocess.run([str(scanner), "--version"], env=clean, capture_output=True, timeout=remaining(30), check=False)
               if version.returncode or len(version.stdout) + len(version.stderr) > 65536 or re.search(rb"^Version: 0\.74\.0$", version.stdout, re.MULTILINE) is None:
                   raise ValueError("native_scanner_version_invalid")
               for name, raw in (("scanner-version.stdout", version.stdout), ("scanner-version.stderr", version.stderr)):
@@ -1569,7 +1712,7 @@ jobs:
               for name in ("db/trivy.db", "db/metadata.json"):
                   path = cache / name
                   if path.is_symlink() or not stat.S_ISREG(path.stat().st_mode) or path.stat().st_size == 0:
-                      raise ValueError("post_HC_DB_missing")
+                      raise ValueError("frozen_DB_missing")
                   digest = hashlib.sha256()
                   with path.open("rb") as stream:
                       for chunk in iter(lambda: stream.read(1048576), b""):
@@ -1577,7 +1720,7 @@ jobs:
                   db[name] = {"bytes": path.stat().st_size, "sha256": digest.hexdigest()}
               metadata = json.loads((cache / "db/metadata.json").read_text())
               if not isinstance(metadata, dict) or not metadata:
-                  raise ValueError("post_HC_DB_metadata_invalid")
+                  raise ValueError("frozen_DB_metadata_invalid")
               config = private / "empty-trivy.yaml"
               ignore = private / "empty.trivyignore"
               config.write_text("{}\n")
@@ -1589,10 +1732,10 @@ jobs:
                   raise ValueError("full_report_not_fresh")
               subject.update(scanner=str(scanner), scanner_sha256=hashlib.sha256(scanner.read_bytes()).hexdigest(),
                              scanner_version_stdout_sha256=hashlib.sha256(version.stdout).hexdigest(),
-                             post_HC_db=db, post_HC_db_metadata=metadata, clean_env=clean, cache=str(cache),
-                             original_HC_outcome=os.environ["CADDY_HC_OUTCOME"])
-              if subject["original_HC_outcome"] not in ("success", "failure"):
-                  raise ValueError("HC_was_not_attempted")
+                             frozen_db=db, frozen_db_metadata=metadata, clean_env=clean, cache=str(cache),
+                             scanner_bootstrap_outcome=os.environ["CADDY_BOOTSTRAP_OUTCOME"])
+              if subject["scanner_bootstrap_outcome"] not in ("success", "failure"):
+                  raise ValueError("scanner_bootstrap_was_not_attempted")
               subject["full_argv"] = [str(scanner), "image", "--config", str(config), "--cache-dir", str(cache),
                                       "--skip-db-update", "--skip-java-db-update", "--skip-vex-repo-update",
                                       "--offline-scan", "--skip-version-check", "--disable-telemetry",
@@ -1620,36 +1763,208 @@ jobs:
           import json
           import os
           from pathlib import Path
-          import stat
+          import re
+          import signal
           import subprocess
+          import time
+          import uuid
+          from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_phase
+
+          state_path = Path(os.environ["CADDY_OBSERVATION_STATE"])
+          subject = json.loads(state_path.read_bytes())
+          private = state_path.parent
+          control_dir = private / "controls"
+          control_dir.mkdir(mode=0o700)
+          owner = "caddy-controls-" + uuid.uuid4().hex
+          owned = []
+          records = []
+          scans = {}
+          control = {"scans": scans, "subjects": {"candidate": subject["image_config_id"]},
+                     "commands": records, "cleanup": False, "failure": None, "owner": owner}
+
+          def digest(path, remaining=None):
+              value = hashlib.sha256()
+              with path.open("rb") as stream:
+                  for chunk in iter(lambda: stream.read(1048576), b""):
+                      if remaining is not None:
+                          remaining(1)
+                      value.update(chunk)
+              return value.hexdigest()
+
+          def freeze():
+              with caddy_ci_phase("PROCESSING") as remaining:
+                  remaining(1)
+                  if (digest(Path(subject["scanner"]), remaining) != subject["scanner_sha256"] or
+                          (private / "empty-trivy.yaml").read_bytes() != b"{}\n" or
+                          (private / "empty.trivyignore").read_bytes() != b""):
+                      raise ValueError("Caddy frozen scanner/config changed")
+                  for name, expected in subject["frozen_db"].items():
+                      remaining(1)
+                      path = Path(subject["cache"]) / name
+                      if path.is_symlink() or not path.is_file() or {"bytes": path.stat().st_size, "sha256": digest(path, remaining)} != expected:
+                          raise ValueError("Caddy frozen DB changed")
+
+          def invoke(label, argv, phase, cap, scan=False):
+              stem = control_dir / (str(len(records)) + "-" + label)
+              with caddy_ci_phase(phase) as remaining:
+                  begin = time.monotonic()
+                  outer = remaining(cap)
+                  terminal = int(os.environ["CADDY_SCAN_TERM_SECONDS"])
+                  killed = int(os.environ["CADDY_SCAN_KILL_SECONDS"])
+                  book = int(os.environ["CADDY_SCAN_BOOKKEEPING_SECONDS"])
+                  if scan and outer < int(os.environ["CADDY_FULL_SCAN_TIMEOUT_SECONDS"]) + terminal + killed + book - 0.05:
+                      raise ValueError("Caddy insufficient inclusive scan envelope")
+                  end = begin + outer
+                  timed = False
+                  record = {"label": label, "argv": argv, "phase": phase, "exit": None, "timeout": None,
+                            "stdout": stem.with_suffix(".stdout.private").name,
+                            "stderr": stem.with_suffix(".stderr.private").name}
+                  records.append(record)
+                  with stem.with_suffix(".stdout.private").open("xb") as stdout, stem.with_suffix(".stderr.private").open("xb") as stderr:
+                      child = subprocess.Popen(argv, env=subject["clean_env"], cwd=private,
+                                               stdin=subprocess.DEVNULL, stdout=stdout, stderr=stderr, start_new_session=True)
+                      try:
+                          work_seconds = int(os.environ["CADDY_FULL_SCAN_TIMEOUT_SECONDS"]) if scan else outer - min(20, outer / 2)
+                          code = child.wait(timeout=work_seconds)
+                      except subprocess.TimeoutExpired:
+                          timed = True
+                          record["timeout"] = True
+                          os.killpg(child.pid, signal.SIGTERM)
+                          try:
+                              code = child.wait(timeout=min(terminal, max(0.01, end - time.monotonic())))
+                          except subprocess.TimeoutExpired:
+                              os.killpg(child.pid, signal.SIGKILL)
+                              code = child.wait(timeout=min(killed, max(0.01, end - time.monotonic())))
+                  record.update(exit=code, timeout=timed, seconds=time.monotonic() - begin,
+                                stdout_sha256=digest(stem.with_suffix(".stdout.private")),
+                                stderr_sha256=digest(stem.with_suffix(".stderr.private")))
+                  if time.monotonic() > end:
+                      raise ValueError("Caddy native call exceeded inclusive envelope")
+                  if scan:
+                      return code, timed
+                  if timed or code != 0 or stem.with_suffix(".stdout.private").stat().st_size > 1048576:
+                      raise ValueError("Caddy native control operation failed: " + label)
+                  return stem.with_suffix(".stdout.private").read_bytes()
+
+          def docker(label, arguments, cap=60, phase="FIXTURE"):
+              return invoke(label, [subject["docker"], *arguments], phase, cap)
+
+          def inspect(image, label, phase="FIXTURE", cap=60):
+              return json.loads(docker(label, ["inspect", image], cap, phase))[0]
+
+          def scan_pair(name, image):
+              for stage, severity, expected_exit in (("full", "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL", "0"), ("HC", "HIGH,CRITICAL", "1")):
+                  freeze()
+                  report = control_dir / (name + "-" + stage + ".raw.json")
+                  argv = list(subject["full_argv"])
+                  for flag, value in (("--output", str(report)), ("--severity", severity), ("--exit-code", expected_exit)):
+                      argv[argv.index(flag) + 1] = value
+                  argv[-1] = image
+                  cap = int(os.environ["CADDY_FULL_SCAN_TIMEOUT_SECONDS"]) + sum(int(os.environ[key]) for key in
+                      ("CADDY_SCAN_TERM_SECONDS", "CADDY_SCAN_KILL_SECONDS", "CADDY_SCAN_BOOKKEEPING_SECONDS"))
+                  code, timed = invoke(name + "-" + stage, argv, "SCANS", cap, scan=True)
+                  observation = {"exit": code, "timeout": timed, "file": report.name}
+                  if report.is_file() and not report.is_symlink() and 0 < report.stat().st_size <= 134217728:
+                      observation["sha256"] = digest(report)
+                  scans[name + "-" + stage] = observation
+                  freeze()
+                  # Collection/tool failures remain failures, but later technically available
+                  # controls are still observed. No missing report becomes an empty report.
 
           try:
-              state_path = Path(os.environ["CADDY_OBSERVATION_STATE"])
-              subject = json.loads(state_path.read_text())
-              scanner = Path(subject["scanner"])
-              if hashlib.sha256(scanner.read_bytes()).hexdigest() != subject["scanner_sha256"]:
-                  raise ValueError("scanner_changed_before_full_scan")
-              for name, expected in subject["post_HC_db"].items():
-                  path = Path(subject["cache"]) / name
-                  digest = hashlib.sha256()
-                  if path.is_symlink() or not stat.S_ISREG(path.stat().st_mode):
-                      raise ValueError("DB_changed_before_full_scan")
-                  with path.open("rb") as stream:
-                      for chunk in iter(lambda: stream.read(1048576), b""):
-                          digest.update(chunk)
-                  if {"bytes": path.stat().st_size, "sha256": digest.hexdigest()} != expected:
-                      raise ValueError("DB_changed_before_full_scan")
-              # The scanner writes raw output outside the always-upload tree. Never echo
-              # stdout/stderr or partial JSON, even if the native invocation fails.
-              with (state_path.parent / "scan.stdout.private").open("xb") as stdout, (state_path.parent / "scan.stderr.private").open("xb") as stderr:
-                  result = subprocess.run(subject["full_argv"], env=subject["clean_env"],
-                                          cwd=state_path.parent, stdout=stdout, stderr=stderr,
-                                          timeout=int(os.environ["CADDY_FULL_SCAN_TIMEOUT_SECONDS"]) + 30, check=False)
-              if result.returncode:
-                  raise ValueError("native_full_scan_failed")
-          except Exception as error:
-              print("Caddy full-scan observation failed: " + type(error).__name__)
-              raise SystemExit(1)
+              freeze()
+              candidate = inspect(subject["image_config_id"], "parent-image")
+              control["parent_layers"] = candidate["RootFS"]["Layers"]
+              official_ref = "caddy:2.11.4-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648"
+              official = inspect(official_ref, "official-image")
+              if (official["Os"], official["Architecture"]) != ("linux", "amd64"):
+                  raise ValueError("Caddy official control platform")
+              control["subjects"]["official"] = official["Id"]
+              name = owner + "-official"
+              cid = docker("official-create", ["create", "--pull", "never", "--name", name, "--label", "pulseplate.caddy-control=" + owner,
+                  "--network", "none", "--read-only", "--cap-drop", "ALL", "--cap-add", "NET_BIND_SERVICE",
+                  "--security-opt", "no-new-privileges", "--cpus", "1", "--memory", "256m", "--memory-swap", "256m",
+                  "--pids-limit", "64", "--entrypoint", "/usr/bin/caddy", official["Id"], "build-info"]).decode().strip()
+              owned.append((cid, name, official["Id"]))
+              row = inspect(cid, "official-created")
+              if row["Image"] != official["Id"] or row["Config"]["Labels"].get("pulseplate.caddy-control") != owner or row["State"]["Running"]:
+                  raise ValueError("Caddy official control ownership")
+              info = docker("official-build-info", ["start", "--attach", cid])
+              terminal = inspect(cid, "official-terminal")
+              if terminal["State"]["ExitCode"] != 0 or terminal["State"]["OOMKilled"]:
+                  raise ValueError("Caddy official metadata native failure")
+              lines = [line.split() for line in info.decode().splitlines() if line.strip()]
+              positions = [index for index, line in enumerate(lines) if line[:2] == ["dep", "github.com/go-jose/go-jose/v3"]]
+              if len(positions) != 1 or lines[positions[0]][2:] != ["v3.0.5", "h1:BLLJWbC4nMZOfuPVxoZIxeYsn6Nl2r1fITaJ78UQlVQ="] or (
+                      positions[0] + 1 < len(lines) and lines[positions[0] + 1][0] == "=>"):
+                  raise ValueError("Caddy official unreplaced v3 witness")
+              scan_pair("candidate", subject["image_config_id"])
+              scan_pair("official", official["Id"])
+              name = owner + "-secret"
+              cid = docker("secret-create", ["create", "--pull", "never", "--name", name, "--label", "pulseplate.caddy-control=" + owner,
+                  "--network", "none", subject["image_config_id"]]).decode().strip()
+              owned.append((cid, name, subject["image_config_id"]))
+              row = inspect(cid, "secret-created")
+              if row["Image"] != subject["image_config_id"] or row["State"]["Running"] or row["Config"]["Labels"].get("pulseplate.caddy-control") != owner:
+                  raise ValueError("Caddy stopped child ownership")
+              if docker("secret-initial-diff", ["diff", cid]).strip():
+                  raise ValueError("Caddy initial control filesystem not empty")
+              fixture = private / "credentials.txt"
+              fixture.write_text("GITHUB_PAT=" + "ghp_" + "012345678901234567890123456789abcdef" + "\n")
+              docker("secret-copy", ["cp", str(fixture), cid + ":/credentials.txt"])
+              delta = docker("secret-final-diff", ["diff", cid]).decode().splitlines()
+              if delta != ["A /credentials.txt"]:
+                  raise ValueError("Caddy control filesystem delta")
+              tag = "pulseplate-caddy-control:" + owner
+              control["child_tag"] = tag
+              docker("secret-commit", ["commit", "--pause=false", cid, tag], 180)
+              child = inspect(tag, "secret-image")
+              control["subjects"]["secret"] = child["Id"]
+              control["child_tag"] = tag
+              still_stopped = inspect(cid, "secret-still-stopped")
+              if still_stopped["State"]["Running"] or child["RootFS"]["Layers"][:-1] != candidate["RootFS"]["Layers"]:
+                  raise ValueError("Caddy secret child lineage or execution")
+              control.update(parent_layers=candidate["RootFS"]["Layers"], child_layers=child["RootFS"]["Layers"],
+                             filesystem_delta=delta, fixture_sha256=digest(fixture), child_was_started=False)
+              scan_pair("secret", child["Id"])
+              if inspect(subject["image_config_id"], "parent-final")["RootFS"] != candidate["RootFS"]:
+                  raise ValueError("Caddy parent changed during controls")
+              freeze()
+              # Existing private publication owner receives the actual candidate full report.
+              report = control_dir / "candidate-full.raw.json"
+              (private / "full.raw.json").write_bytes(report.read_bytes())
+              record = next(row for row in records if row["label"] == "candidate-full")
+              for channel in ("stdout", "stderr"):
+                  (private / ("scan." + channel + ".private")).write_bytes((control_dir / record[channel]).read_bytes())
+          except BaseException as error:
+              control["failure"] = type(error).__name__
+              raise
+          finally:
+              try:
+                  # Closed two-container inventory; no foreign or inherited resources touched.
+                  census = docker("cleanup-census", ["ps", "--all", "--no-trunc", "--filter", "label=pulseplate.caddy-control=" + owner,
+                                                    "--format", "{{.ID}}"], 20, "CONTROL_CLEANUP").decode().splitlines()
+                  if len(census) > 2 or len(set(census)) != len(census):
+                      raise ValueError("Caddy control cleanup inventory differs")
+                  for cid in census:
+                      row = inspect(cid, "cleanup-owned", "CONTROL_CLEANUP")
+                      expected_image = {"/" + owner + "-official": control["subjects"].get("official"),
+                                        "/" + owner + "-secret": subject["image_config_id"]}.get(row["Name"])
+                      if expected_image is None or row["Image"] != expected_image or row["Config"]["Labels"].get("pulseplate.caddy-control") != owner:
+                          raise ValueError("Caddy control cleanup ownership differs")
+                      if row["State"]["Running"]:
+                          docker("cleanup-stop", ["stop", "--time", "10", cid], 20, "CONTROL_CLEANUP")
+                      docker("cleanup-remove", ["rm", "--volumes", cid], 20, "CONTROL_CLEANUP")
+                  # Child image must remain available for the final report/image binding.
+                  # Its positively owned removal is performed by the final decision before release.
+                  control["container_cleanup"] = True
+              except BaseException as cleanup_error:
+                  control["cleanup_failure"] = type(cleanup_error).__name__
+                  raise
+              finally:
+                  subject["controls"] = control
+                  state_path.write_text(json.dumps(subject, sort_keys=True))
+                  (control_dir / "native-controls.json").write_text(json.dumps(control, indent=2))
           PY
 
       - name: Validate and publish full Caddy observation
@@ -1670,10 +1985,14 @@ jobs:
           import ssl
           import subprocess
           import sys
+          from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_phase
 
           try:
               state_path = Path(os.environ["CADDY_OBSERVATION_STATE"])
               subject = json.loads(state_path.read_text())
+              full_result = subject["controls"]["scans"]["candidate-full"]
+              if type(full_result["exit"]) is not int or full_result["exit"] != 0 or full_result["timeout"] is not False:
+                  raise ValueError("candidate full scan did not actually succeed")
               private = state_path.parent
               root = Path(subject["root"])
               report = private / "full.raw.json"
@@ -1688,7 +2007,7 @@ jobs:
               scanner = Path(subject["scanner"])
               if hashlib.sha256(scanner.read_bytes()).hexdigest() != subject["scanner_sha256"]:
                   raise ValueError("scanner_changed_after_full_scan")
-              for name, expected in subject["post_HC_db"].items():
+              for name, expected in subject["frozen_db"].items():
                   path = Path(subject["cache"]) / name
                   if path.is_symlink() or not stat.S_ISREG(path.stat().st_mode):
                       raise ValueError("DB_changed_after_full_scan")
@@ -1700,7 +2019,8 @@ jobs:
                       raise ValueError("DB_changed_after_full_scan")
 
               def run(arguments):
-                  result = subprocess.run([subject["docker"], *arguments], capture_output=True, timeout=60, check=False)
+                  with caddy_ci_phase("FINAL_SUBJECT") as remaining:
+                      result = subprocess.run([subject["docker"], *arguments], capture_output=True, timeout=remaining(60), check=False)
                   if result.returncode or len(result.stdout) > 1048576:
                       raise ValueError("native_subject_recheck_failed")
                   return result.stdout
@@ -1765,7 +2085,8 @@ jobs:
               if sorted(installed) != expected_CA_versions:
                   raise ValueError("native_Alpine_CA_versions_unreconciled")
               from scripts.ci.check_docker_runtime_dependency_surface import validate_trivy_image_report
-              validate_trivy_image_report(subject["image_config_id"], report)
+              with caddy_ci_phase("REPORT_BINDINGS"):
+                  validate_trivy_image_report(subject["image_config_id"], report)
               native = json.loads(report.read_text())
               missing_secrets = 0
               for result in native["Results"]:
@@ -1783,7 +2104,9 @@ jobs:
                   packages = result.get("Packages")
                   if not isinstance(packages, list) or not packages:
                       raise ValueError("listed_packages_missing")
-                  if not all(isinstance(package, dict) and all(isinstance(package.get(key), str) and package[key] for key in ("Name", "Version")) for package in packages):
+                  if not all(isinstance(package, dict) and isinstance(package.get("Name"), str) and package["Name"] and
+                      ((package["Name"] == "/opt/go-jose-v3.0.5-patched" and "Version" not in package and result is caddy_rows[0])
+                       or (isinstance(package.get("Version"), str) and package["Version"])) for package in packages):
                       raise ValueError("listed_package_identity_incomparable")
               for package_name in ("ca-certificates", "ca-certificates-bundle"):
                   versions = [package["Version"] for result in os_rows for package in result["Packages"]
@@ -1792,13 +2115,13 @@ jobs:
                       raise ValueError("native_CA_package_inventory_mismatch")
               metadata = {"observed_at_utc": datetime.now(timezone.utc).isoformat(),
                           "subject": subject, "full_report_sha256": hashlib.sha256(report.read_bytes()).hexdigest(),
-                          "full_scan_native_exit": 0, "capture_checks": "completed",
+                          "full_scan_native_exit": full_result["exit"], "capture_checks": "completed",
                           "default_CA": {"path": "/etc/ssl/certs/ca-certificates.crt", "bytes": len(ca),
                                          "sha256": hashlib.sha256(ca).hexdigest(), "roots": len(certificates),
                                          "installed_packages": installed, "named_removed_roots_absent": True},
                           "Results_Secrets_fields_absent": missing_secrets,
                           "Secrets_scope": "Present Results fields are empty arrays; absent fields retain native serialization omission, not forced zero.",
-                          "claim_boundary": "Next observed local config/image ID, not prior ephemeral image or OCI manifest. Post-HC DB pre/post binding is not retroactive HC DB proof. Full native package/advisory reconciliation remains separate; diagnostic capture does not pass the blocking HC gate."}
+                          "claim_boundary": "Next observed local config/image ID, not prior ephemeral image or OCI manifest. Frozen DB precedes the six governed scans; this capture alone does not supply their final acceptance. Full native package/advisory reconciliation remains separate; diagnostic capture does not pass the blocking HC gate."}
               payload = private / "validated-publication"
               payload.mkdir(mode=0o700)
               # Native diagnostics retain their original bytes. The report's omitted
@@ -1832,78 +2155,203 @@ jobs:
               raise SystemExit(1)
           PY
 
-      - name: Decide exact Caddy D inventory and loaded isolated runtime
-        id: caddy-D
+      - name: Decide source-qualified Caddy inventory and current native controls
+        id: caddy-source-decision
         if: ${{ (steps.caddy-build.outcome == 'success' || steps.caddy-import.outcome == 'success') && steps.caddy-full-publish.outcome == 'success' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CADDY_OBSERVATION_STATE: ${{ steps.caddy-image.outputs.state }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import re
+          import stat
+          import subprocess
+          import time
+          from scripts.ci.check_docker_runtime_dependency_surface import (
+              observe_caddy_ci_runtime, validate_caddy_ci_report, validate_caddy_policy_projection,
+              validate_caddy_control_reports, caddy_ci_phase, caddy_ci_source_inventory,
+          )
+
+          work = Path(os.environ["RUNNER_TEMP"])
+          evidence = work / "caddy-contract"
+          state_path = Path(os.environ["CADDY_OBSERVATION_STATE"])
+          subject = json.loads(state_path.read_bytes())
+          private = state_path.parent
+          observation = json.loads((evidence / "full-observation/observation.json").read_bytes())
+          image = subject["image_config_id"]
+          raw = evidence / "full-observation/full.raw.json"
+          binary = (evidence / "full-observation/native-projections/build-info.txt").read_bytes()
+          admission = json.loads((work / "caddy-admission/admission.json").read_bytes())
+          with caddy_ci_phase("REPORT_BINDINGS"):
+              decision = validate_caddy_ci_report(image, raw, binary_metadata=binary,
+                  source_evidence=Path(subject["build_evidence"]), binary_sha256=subject["binary_sha256"],
+                  recipe=Path("frontend/Dockerfile.caddy-spa").read_bytes(), native_exit=observation["full_scan_native_exit"],
+                  expected_report_sha256=observation["full_report_sha256"])
+              controls = subject["controls"]
+              if controls["failure"] is not None or controls.get("container_cleanup") is not True:
+                  raise ValueError("Caddy current native control execution incomplete")
+              decision["controls"] = validate_caddy_control_reports(json.loads(raw.read_bytes()), controls, private / "controls")
+          runtime_dir = evidence / "loaded-runtime"
+          runtime_dir.mkdir(mode=0o700)
+          with caddy_ci_phase("RUNTIME"):
+              loaded = observe_caddy_ci_runtime(image, runtime_dir)
+              upgrade_dir = runtime_dir / "upgrade"
+              upgrade_dir.mkdir(mode=0o700)
+              loaded["normal_upgrade"] = observe_caddy_ci_runtime(image, upgrade_dir, upgrade=True)
+              control_dir = runtime_dir / "vulnerable-upgrade-control"
+              control_dir.mkdir(mode=0o700)
+              loaded["vulnerable_upgrade_control"] = observe_caddy_ci_runtime(
+                  controls["subjects"]["official"], control_dir, upgrade=True, vulnerable_control=True)
+          (runtime_dir / "observation.json").write_text(json.dumps(loaded, indent=2))
+          output = evidence / "strict-control.raw.json"
+          argv = [subject["scanner"], "convert", "--quiet", "--format", "json", "--ignore-policy",
+                  str(Path("trivy/ignore-policy.rego").resolve(strict=True)), "--ignorefile", str(private / "empty.trivyignore"), str(raw)]
+          with caddy_ci_phase("CONVERSION") as remaining:
+              with output.open("xb") as stdout, (evidence / "strict-control.stderr").open("xb") as stderr:
+                  result = subprocess.run(argv, env=subject["clean_env"], stdout=stdout, stderr=stderr, timeout=remaining(60), check=False)
+              if result.returncode != 0:
+                  raise ValueError("Caddy native strict conversion failed")
+          with caddy_ci_phase("REPORT_BINDINGS"):
+              validate_caddy_policy_projection(image, raw, output)
+          decision["strict_conversion"] = {"native_exit": result.returncode, "sha256": hashlib.sha256(output.read_bytes()).hexdigest()}
+          with caddy_ci_phase("PROCESSING") as remaining:
+              if caddy_ci_source_inventory(Path.cwd(), list(admission["inputs"])) != admission["inputs"]:
+                  raise ValueError("Caddy complete source changed before release")
+              for name, expected in subject["frozen_db"].items():
+                  remaining(1)
+                  path = Path(subject["cache"]) / name
+                  digest = hashlib.sha256()
+                  with path.open("rb") as stream:
+                      for chunk in iter(lambda: stream.read(1048576), b""):
+                          remaining(1)
+                          digest.update(chunk)
+                  if path.is_symlink() or {"bytes": path.stat().st_size, "sha256": digest.hexdigest()} != expected:
+                      raise ValueError("Caddy control epoch drift before release")
+              if hashlib.sha256(Path(subject["scanner"]).read_bytes()).hexdigest() != subject["scanner_sha256"]:
+                  raise ValueError("Caddy scanner changed before release")
+          with caddy_ci_phase("ADMISSION") as remaining:
+              from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_api
+              pr = caddy_ci_api(Path.cwd(), private / "final-api", "/pulls/2494", remaining,
+                                admission["inputs"]["scripts/ci/prometheus_source_image.py"]["sha256"])
+              if (pr["number"] != 2494 or pr["head"]["repo"]["id"] != 1043311030 or
+                      (os.environ["GITHUB_EVENT_NAME"] != "push" and (pr["state"] != "open" or pr["head"]["sha"] != admission["current_head"])) or
+                      (os.environ["GITHUB_EVENT_NAME"] == "push" and (pr["merged"] is not True or pr["merge_commit_sha"] != admission["current_head"]))):
+                  raise ValueError("Caddy current authenticated PR source changed")
+          # Only positively owned control image is removed; candidate and official survive.
+          with caddy_ci_phase("CONTROL_CLEANUP") as remaining:
+              tag = controls["child_tag"]
+              child = json.loads(subprocess.check_output([subject["docker"], "image", "inspect", tag], timeout=remaining(60)))[0]
+              if (child["Id"] != controls["subjects"]["secret"] or child["RepoTags"] != [tag]
+                      or child["RootFS"]["Layers"] != controls["child_layers"]):
+                  raise ValueError("Caddy owned secret image changed before cleanup")
+              subprocess.run([subject["docker"], "image", "rm", tag], check=True, capture_output=True, timeout=remaining(60))
+              remaining_controls = subprocess.check_output([subject["docker"], "ps", "--all", "--filter",
+                  "label=pulseplate.caddy-control=" + tag.split(":", 1)[1], "--format", "{{.ID}}"], timeout=remaining(20))
+              if remaining_controls.strip():
+                  raise ValueError("Caddy control containers remain")
+              controls["cleanup"] = True
+              state_path.write_text(json.dumps(subject, sort_keys=True))
+          decision["runtime_observation_sha256"] = hashlib.sha256((runtime_dir / "observation.json").read_bytes()).hexdigest()
+          decision["current_head"] = admission["current_head"]
+          decision["policy_sha256"] = hashlib.sha256(Path("trivy/ignore-policy.rego").read_bytes()).hexdigest()
+          (evidence / "source-decision.json").write_text(json.dumps(decision, indent=2))
+          with caddy_ci_phase("PROCESSING") as remaining:
+              destination = evidence / "build-evidence"
+              destination.mkdir(mode=0o700)
+              for name, expected in decision["source"]["members"].items():
+                  remaining(1)
+                  value = (Path(subject["build_evidence"]) / name).read_bytes()
+                  if hashlib.sha256(value).hexdigest() != expected:
+                      raise ValueError("Caddy source evidence changed before retention")
+                  (destination / name).write_bytes(value)
+          (private / "controls/native-controls.json").write_text(json.dumps(controls, indent=2))
+          # Current native validation above authorizes only privacy-safe retained reports.
+          # Raw secret-bearing/unclassified failures remain private; no report is rewritten.
+          for source in (private / "controls").iterdir():
+              if source.name.endswith(".raw.json") or source.name == "native-controls.json":
+                  destination = evidence / "controls" / source.name
+                  destination.parent.mkdir(exist_ok=True)
+                  if source.is_symlink() or not source.is_file() or destination.exists():
+                      raise ValueError("Caddy control retention path")
+                  os.rename(source, destination)
+          with caddy_ci_phase("RETENTION") as remaining:
+              if admission["mode"] == "build":
+                  private_candidate = private / "candidate"
+                  for name in ("candidate.json", "candidate.docker.tar"):
+                      member = private_candidate / name
+                      if member.is_symlink() or not stat.S_ISREG(member.stat().st_mode) or member.stat().st_nlink != 1:
+                          raise ValueError("Caddy private candidate member changed type")
+                  record = json.loads((private_candidate / "candidate.json").read_bytes())
+                  archive = private_candidate / "candidate.docker.tar"
+                  digest = hashlib.sha256()
+                  with archive.open("rb") as stream:
+                      for chunk in iter(lambda: stream.read(1048576), b""):
+                          remaining(1)
+                          digest.update(chunk)
+                  if (archive.is_symlink() or archive.stat().st_size != record["archive_bytes"]
+                          or digest.hexdigest() != record["archive_sha256"]
+                          or record["image_config_id"] != image or record["binary_sha256"] != subject["binary_sha256"]
+                          or record["inputs"] != admission["inputs"]
+                          or (record["producer_run_id"], record["producer_run_attempt"], record["producer_head"]) !=
+                             (admission["current_run_id"], admission["current_run_attempt"], admission["current_head"])):
+                      raise ValueError("Caddy retained archive or producer binding changed before release")
+                  record.update(source_correction="CVE-2026-116587", v3_scanner_comparability="UNKNOWN",
+                                source_decision_sha256=hashlib.sha256((evidence / "source-decision.json").read_bytes()).hexdigest())
+                  (private_candidate / "candidate.json").write_text(json.dumps(record, indent=2))
+                  for name in ("candidate.docker.tar", "candidate.json"):
+                      source = private_candidate / name
+                      if source.is_symlink() or not stat.S_ISREG(source.stat().st_mode) or (evidence / name).exists():
+                          raise ValueError("Caddy source-qualified publication path invalid")
+                  remaining(1)
+                  for name in ("candidate.docker.tar", "candidate.json"):
+                      os.rename(private_candidate / name, evidence / name)
+          print("Caddy source correction is CVE-2026-116587-specific; native controls observed; Trivy v3 comparability UNKNOWN")
+          PY
+
+      - name: Clean unpublished Caddy control image on failure
+        if: ${{ always() && steps.caddy-image.outcome == 'success' && steps.caddy-source-decision.outcome != 'success' }}
         env:
           CADDY_OBSERVATION_STATE: ${{ steps.caddy-image.outputs.state }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          from datetime import datetime, timezone
-          import hashlib
-          import json
-          import os
+          import json, os, subprocess
           from pathlib import Path
-          import stat
-          import subprocess
-          from scripts.ci.check_docker_runtime_dependency_surface import (
-              observe_caddy_ci_runtime, validate_caddy_ci_report, validate_caddy_policy_projection, validate_caddy_ci_window,
-          )
+          from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_phase
+          path = Path(os.environ["CADDY_OBSERVATION_STATE"])
+          subject = json.loads(path.read_bytes())
+          control = subject.get("controls", {})
+          if control.get("child_tag") and not control.get("cleanup"):
+              with caddy_ci_phase("CONTROL_CLEANUP") as remaining:
+                  tag = control["child_tag"]
+                  result = subprocess.run([subject["docker"], "image", "inspect", tag], capture_output=True, timeout=remaining(60), check=True)
+                  image = json.loads(result.stdout)[0]
+                  if (image["RepoTags"] != [tag] or image["Config"]["Labels"].get("pulseplate.caddy-control") != control["owner"]
+                          or image["RootFS"]["Layers"][:-1] != control["parent_layers"]):
+                      raise ValueError("Caddy failure cleanup ownership")
+                  subprocess.run([subject["docker"], "image", "rm", tag], capture_output=True, timeout=remaining(60), check=True)
+                  control["cleanup"] = True
+                  path.write_text(json.dumps(subject, sort_keys=True))
+          PY
 
-          work = Path(os.environ["RUNNER_TEMP"])
-          evidence = work / "caddy-contract"
-          observation = json.loads((evidence / "full-observation/observation.json").read_bytes())
-          subject = observation["subject"]
-          image = subject["image_config_id"]
-          raw = evidence / "full-observation/full.raw.json"
-          binary = (evidence / "full-observation/native-projections/build-info.txt").read_bytes()
-          today = datetime.now(timezone.utc).date()
-          policy = Path("trivy/ignore-policy-caddy-go-jose-v3.rego").resolve(strict=True)
-          validate_caddy_ci_window(policy, today=today)
-          decision = validate_caddy_ci_report(image, raw, binary_metadata=binary, today=today,
-              native_exit=observation["full_scan_native_exit"], expected_report_sha256=observation["full_report_sha256"])
-          runtime_dir = evidence / "loaded-runtime"
-          runtime_dir.mkdir(mode=0o700)
-          loaded = observe_caddy_ci_runtime(image, runtime_dir)
-          (runtime_dir / "observation.json").write_text(json.dumps(loaded, indent=2))
-          # These are native conversions of the actual same successful full image scan.
-          # Rego receives the scanner's DetectedVulnerability object, never an invented envelope.
-          # Outer image/result/config checks above supply the fields unavailable to that input.
-          for label, selected_policy, accepted in (
-              ("strict-control", Path("trivy/ignore-policy.rego").resolve(strict=True), False),
-              ("D-policy", policy, True),
-          ):
-              output = evidence / (label + ".raw.json")
-              argv = [subject["scanner"], "convert", "--quiet", "--format", "json", "--ignore-policy", str(selected_policy),
-                      "--ignorefile", str(Path(os.environ["CADDY_OBSERVATION_STATE"]).parent / "empty.trivyignore"), str(raw)]
-              with output.open("xb") as stdout, (evidence / (label + ".stderr")).open("xb") as stderr:
-                  result = subprocess.run(argv, env=subject["clean_env"], stdout=stdout, stderr=stderr, timeout=60, check=False)
-              if result.returncode != 0:
-                  raise ValueError("Caddy native policy conversion failed: " + label)
-              validate_caddy_policy_projection(image, raw, output, accept_v3=accepted)
-              # No error exit can count as a successful strict-policy rejection.
-              decision[label] = {"native_exit": result.returncode, "sha256": hashlib.sha256(output.read_bytes()).hexdigest(),
-                                 "accepted_v3_rows": int(accepted), "strict_rejection": not accepted}
-          decision["runtime_observation_sha256"] = hashlib.sha256((runtime_dir / "observation.json").read_bytes()).hexdigest()
-          decision["current_head"] = json.loads((work / "caddy-admission/admission.json").read_bytes())["current_head"]
-          decision["policy_sha256"] = hashlib.sha256(policy.read_bytes()).hexdigest()
-          (evidence / "D-decision.json").write_text(json.dumps(decision, indent=2))
-          # Only the completed full secret/runtime/policy conjunction may expose image bytes.
-          admission = json.loads((work / "caddy-admission/admission.json").read_bytes())
-          if admission["mode"] == "build":
-              private_candidate = Path(os.environ["CADDY_OBSERVATION_STATE"]).parent / "candidate"
-              for name in ("candidate.docker.tar", "candidate.json"):
-                  source = private_candidate / name
-                  if source.is_symlink() or not stat.S_ISREG(source.stat().st_mode) or (evidence / name).exists():
-                      raise ValueError("Caddy accepted image publication path invalid")
-              for name in ("candidate.docker.tar", "candidate.json"):
-                  os.rename(private_candidate / name, evidence / name)
-          print("Caddy D: exactly one visible v3 HIGH temporarily accepted for isolated CI; v4 fixed; strict CD/release remains outstanding")
+      - name: Charge Upload Caddy contract evidence budget
+        id: caddy-upload-budget
+        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata') && (always()) }}
+        run: |
+          python3 - <<'PY'
+          import os
+          from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_charge_action
+          caddy_ci_charge_action("UPLOAD")
           PY
 
       - name: Upload Caddy contract evidence
-        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata') && (always()) }}
+        timeout-minutes: ${{ fromJSON(env.CADDY_ACTION_UPLOAD_MINUTES) }}
+        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata') && (always()) && steps.caddy-upload-budget.outcome == 'success' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
         with:
           name: caddy-contract-evidence

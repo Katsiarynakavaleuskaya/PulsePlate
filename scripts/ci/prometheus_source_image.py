@@ -27,7 +27,7 @@ import selectors
 import signal
 import ssl
 import stat
-import subprocess  # nosec B404: # fixed native Go/Docker metadata commands require subprocess (remove-by: 2026-10-28, ref: PR-2477)
+import subprocess  # nosec B404 # B404: native producer, kernel census and authenticated CLI owners require the process API (remove-by: 2026-11-11, ref: PR-2494)
 import sys
 import tarfile
 import time
@@ -1057,7 +1057,7 @@ class Native:
         with stdout.open("xb") as output, stderr.open("xb") as error:
             process = subprocess.Popen(
                 argv, cwd=cwd, env=env, stdout=output, stderr=error, start_new_session=True
-            )  # nosec B603: # closed absolute verified native metadata argv, no shell, bounded owned group (remove-by: 2026-10-28, ref: PR-2477)
+            )  # nosec B603 # B603: absolute owner-selected native argv, nonsecret recorded environment and bounded process group (remove-by: 2026-11-11, ref: PR-2494)
             try:
                 next_inventory = 0.0
                 while process.poll() is None:
@@ -2172,7 +2172,7 @@ def process_census(cap: float, known: tuple[bytes, ...]) -> dict[int, dict[str, 
         env={"PATH": "/usr/bin:/bin", "LC_ALL": "C"},
         timeout=min(1, max(0.001, cap - time.monotonic())),
         check=False,
-    )  # nosec B603 # B603: fixed absolute ps ownership census; closed env, bounded capture before credential inspection (remove-by: 2026-10-28, ref: PR-2477)
+    )  # nosec B603 # B603: fixed /bin/ps ownership census with closed argv, minimal environment and bounded timeout (remove-by: 2026-11-11, ref: PR-2494)
     require(
         observed.returncode == 0
         and len(observed.stdout) + len(observed.stderr) <= GHCR_OUTPUT_LIMIT,
@@ -2401,7 +2401,7 @@ def qualify_existing_ghcr_package(
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             start_new_session=True,
-        )  # nosec B603 # B603: fixed absolute gh auth/API argv; bounded memory before inspection (remove-by: 2026-10-28, ref: PR-2477)
+        )  # nosec B603 # B603: dedicated absolute gh qualification with fixed requests, private credentials and bounded capture (remove-by: 2026-11-11, ref: PR-2494)
         if process.stdout is None or process.stderr is None:
             raise QualificationError("GHCR_capture_streams_missing")
         witness_owned_process(process, seen, deadline, (known,))
@@ -3756,7 +3756,7 @@ class GitHubRead:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             start_new_session=True,
-        )  # nosec B603: # fixed absolute authenticated gh/native argv; bounded memory and stdin, secret reflection checked before retention (remove-by: 2026-10-28, ref: PR-2477)
+        )  # nosec B603 # B603: owner-bound native argv, private credential environment or stdin, bounded capture and owned cleanup (remove-by: 2026-11-11, ref: PR-2494)
         self.process = process
         streams = [bytearray(), bytearray()]
         primary: BaseException | None = None
@@ -4302,7 +4302,13 @@ def event_admission(
         manifest = read_image_manifest(root / MANIFEST_PATH)
         producer = manifest["candidate"]["producer"]
         change = classify_source_change(base_files, current_files)
-        if change == "historical_helper_change":
+        historical_candidate = change == "historical_helper_change"
+        if change == "unchanged_published" and base_files == current_files:
+            # Only a complete authenticated observation can select another proof class.
+            # API, identity and malformed-state errors propagate without a fallback.
+            _published, diagnostic = observe_publication_predecessor(api, base)
+            historical_candidate = diagnostic is not None
+        if historical_candidate:
             selected, _files = _historical_selected_files(api, manifest, base, head, current_files)
             return {
                 "mode": "historical_pr_candidate",
@@ -4389,8 +4395,10 @@ def event_admission(
     return {"mode": "unchanged_published", "head": head, "publisher_head": head}
 
 
-def require_publication_predecessor(api: GitHubRead, head: str) -> dict[str, Any]:
-    """Recognize one observed publisher attempt; terminal evidence never grants another poll."""
+def observe_publication_predecessor(
+    api: GitHubRead, head: str
+) -> tuple[dict[str, Any] | None, str | None]:
+    """Observe once; classified nonpositive states are distinct from evidence errors."""
     require(
         type(head) is str and re.fullmatch(r"[0-9a-f]{40}", head) is not None,
         "publication_predecessor_head",
@@ -4466,7 +4474,7 @@ def require_publication_predecessor(api: GitHubRead, head: str) -> dict[str, Any
         "publication_predecessor_run_inventory",
     )
     runs = api.pages(endpoint, "workflow_runs", first["total_count"])
-    eligible = []
+    eligible: list[dict[str, Any]] = []
     observed = []
     for run in runs:
         identity = run_identity(run)
@@ -4524,8 +4532,9 @@ def require_publication_predecessor(api: GitHubRead, head: str) -> dict[str, Any
             eligible.append({"run": current, "job": publisher_job})
         observed.append((current, run_state, job_state))
     if eligible:
-        return max(eligible, key=lambda value: value["run"]["id"])
-    require(bool(observed), "positive_publication_predecessor_missing")
+        return max(eligible, key=lambda value: value["run"]["id"]), None
+    if not observed:
+        return None, "positive_publication_predecessor_missing"
     _run, run_state, job_state = max(observed, key=lambda value: value[0]["id"])
     terminal = {
         "failure": "publication_predecessor_failed",
@@ -4535,13 +4544,22 @@ def require_publication_predecessor(api: GitHubRead, head: str) -> dict[str, Any
     for conclusion in (run_state[1], job_state[1] if job_state is not None else None):
         diagnostic = terminal.get(conclusion) if conclusion is not None else None
         if diagnostic is not None:
-            raise QualificationError(diagnostic)
-    require(
+            return None, diagnostic
+    if not (
         run_state[0] != "completed"
-        and (job_state is None or job_state[0] != "completed" or job_state[1] == "success"),
-        "publication_predecessor_not_published",
-    )
-    raise QualificationError("positive_publication_predecessor_active")
+        and (job_state is None or job_state[0] != "completed" or job_state[1] == "success")
+    ):
+        return None, "publication_predecessor_not_published"
+    return None, "positive_publication_predecessor_active"
+
+
+def require_publication_predecessor(api: GitHubRead, head: str) -> dict[str, Any]:
+    """Require the original positive publisher result and preserve every diagnostic."""
+    predecessor, diagnostic = observe_publication_predecessor(api, head)
+    if diagnostic is not None:
+        raise QualificationError(diagnostic)
+    require(predecessor is not None, "positive_publication_predecessor_missing")
+    return cast(dict[str, Any], predecessor)
 
 
 def authenticated_artifact(
@@ -7842,6 +7860,7 @@ def _require_consumer_current(
             and pr.get("state") == "open"
             and pr.get("head", {}).get("sha") == head
             and pr.get("base", {}).get("sha") == expected["base"]["sha"]
+            and pr.get("base", {}).get("ref") == "main"
             and pr.get("head", {}).get("repo", {}).get("id") == 1043311030
             and pr.get("base", {}).get("repo", {}).get("id") == 1043311030,
             "consumer_route_binding",
@@ -7849,6 +7868,26 @@ def _require_consumer_current(
     elif not (event_name == "push" and event.get("ref", "").startswith("refs/tags/v")):
         current = api.json(f"/repos/{GHCR_REPOSITORY}/git/ref/heads/main")
         require(current.get("object", {}).get("sha") == head, "consumer_current_main")
+
+
+def select_pr_evidence_route(api: GitHubRead, root: Path, event: dict[str, Any], head: str) -> str:
+    """Select a PR expectation with read credentials only; consume reauthenticates it."""
+    require(
+        not any(
+            os.environ.get(name)
+            for name in ("GHCR_READ_TOKEN", "GHCR_TOKEN", "DOCKER_CONFIG", "DOCKER_AUTH_CONFIG")
+        ),
+        "consumer_selection_registry_credentials",
+    )
+    admission = event_admission(api, root, event, "pull_request", head)
+    _require_consumer_current(api, event, "pull_request", head)
+    routes = {
+        "changed_pr_candidate": "changed_pr_candidate",
+        "historical_pr_candidate": "historical_pr_candidate",
+        "unchanged_published": "unchanged_pr_published",
+    }
+    require(admission["mode"] in routes, "consumer_route_binding")
+    return routes[admission["mode"]]
 
 
 def _bind_consumer_route(
@@ -7937,6 +7976,7 @@ def consume_image(work: Path, root: Path, seconds: int, cleanup: int) -> dict[st
             _require_consumer_current(api, event, os.environ["GITHUB_EVENT_NAME"], head)
             selected_root = candidate_source_root(api, root, work, admission)
             payload = candidate_payload(api, selected_root, work)
+            _require_consumer_current(api, event, os.environ["GITHUB_EVENT_NAME"], head)
         else:
             # No registry availability probe can substitute for a positive publisher.
             while True:

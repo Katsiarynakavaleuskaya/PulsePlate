@@ -83,7 +83,7 @@ class GitHubHttpError(CommitIdentityError):
     """Sanitized GitHub HTTP failure; response bodies are never exposed."""
 
     def __init__(self, status: int, message: str = "", api_message: str = "") -> None:
-        super().__init__(f"GitHub API request failed with HTTP {status}: {message}".rstrip())
+        super().__init__(f"GitHub API request failed with HTTP {status}")
         self.status = status
         self.api_message = api_message
 
@@ -263,16 +263,24 @@ def _reject_duplicate_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for key, value in pairs:
         if key in result:
-            raise CommitIdentityError(f"GitHub JSON contains duplicate key {key!r}")
+            raise CommitIdentityError("GitHub JSON contains a duplicate key")
         result[key] = value
     return result
 
 
 def _json_loads(raw: bytes) -> Any:
+    def reject_constant(_value: str) -> Any:
+        raise CommitIdentityError("GitHub API returned malformed JSON")
+
     try:
-        return json.loads(raw.decode("utf-8"), object_pairs_hook=_reject_duplicate_pairs)
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise CommitIdentityError("GitHub API returned malformed JSON") from exc
+        return json.loads(
+            raw.decode("utf-8"),
+            object_pairs_hook=_reject_duplicate_pairs,
+            parse_constant=reject_constant,
+        )
+    except (ValueError, RecursionError):
+        pass
+    raise CommitIdentityError("GitHub API returned malformed JSON")
 
 
 def github_api_request(
@@ -284,46 +292,80 @@ def github_api_request(
 ) -> Any:
     """Issue one bounded request to GitHub's API with sanitized failures."""
 
-    parsed = urllib.parse.urlparse(url)
-    if parsed.scheme != "https" or parsed.netloc != _API_HOST or parsed.fragment:
+    try:
+        parsed = urllib.parse.urlparse(url)
+    except ValueError:
+        parsed = None
+    if parsed is None or parsed.scheme != "https" or parsed.netloc != _API_HOST or parsed.fragment:
         raise CommitIdentityError("GitHub API URL must use https://api.github.com")
     if not token.strip():
         raise CommitIdentityError("GitHub API token is required")
 
-    body = None
     headers = {
         "Accept": "application/vnd.github+json",
         "Authorization": f"Bearer {token}",
         "User-Agent": "pulseplate-pr-commit-identity",
         "X-GitHub-Api-Version": "2022-11-28",
     }
-    if payload is not None:
-        body = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
-        headers["Content-Type"] = "application/json"
-
     path = parsed.path + (f"?{parsed.query}" if parsed.query else "")
-    connection = http.client.HTTPSConnection(_API_HOST, timeout=30)
+    connection = None
+    failure: BaseException | None = None
+    decoded = None
     try:
+        body = None
+        if payload is not None:
+            body = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+            headers["Content-Type"] = "application/json"
+        connection = http.client.HTTPSConnection(_API_HOST, timeout=30)
         connection.request(method=method, url=path, body=body, headers=headers)
         response = connection.getresponse()
+        status = response.status
+        if type(status) is not int or not 100 <= status <= 599:
+            raise CommitIdentityError("GitHub API returned an invalid status")
         raw = response.read(_MAX_RESPONSE_BYTES + 1)
         if len(raw) > _MAX_RESPONSE_BYTES:
             raise CommitIdentityError("GitHub API response exceeds size limit")
-        if response.status >= 400:
-            api_message = ""
-            try:
-                error_payload = _json_loads(raw)
-                if isinstance(error_payload, dict):
-                    api_message = str(error_payload.get("message") or "")
-            except CommitIdentityError:
-                pass
-            raise GitHubHttpError(response.status, response.reason or "error", api_message)
-        content_type = (response.getheader("Content-Type") or "").lower()
-        if "json" not in content_type:
+        if status not in (200, 422):
+            raise GitHubHttpError(status)
+        content_type = (response.getheader("Content-Type") or "").partition(";")[0].strip().lower()
+        json_type = (
+            content_type == "application/json"
+            or re.fullmatch(r"application/[a-z0-9!#$&^_.+-]+\+json", content_type) is not None
+        )
+        if status == 422:
+            message = ""
+            if json_type:
+                try:
+                    error_payload = _json_loads(raw)
+                except CommitIdentityError:
+                    pass
+                else:
+                    if isinstance(error_payload, dict) and isinstance(
+                        error_payload.get("message"), str
+                    ):
+                        message = error_payload["message"]
+            raise GitHubHttpError(status, api_message=message)
+        if not json_type:
             raise CommitIdentityError("GitHub API returned a non-JSON response")
-        return _json_loads(raw)
+        decoded = _json_loads(raw)
+    except CommitIdentityError as error:
+        failure = error
+    except Exception:
+        failure = CommitIdentityError("GitHub API request transport or encoding failed")
+    except BaseException as interruption:
+        failure = interruption
     finally:
-        connection.close()
+        if connection is not None:
+            try:
+                connection.close()
+            except Exception:
+                if failure is None:
+                    failure = CommitIdentityError("GitHub API connection cleanup failed")
+                else:
+                    failure.add_note("GitHub API connection cleanup failed")
+    if failure is not None:
+        raise failure from None
+    return decoded
 
 
 def _require_sha(value: str, *, field: str) -> str:

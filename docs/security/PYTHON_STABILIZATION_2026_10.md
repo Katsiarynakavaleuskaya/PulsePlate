@@ -947,6 +947,77 @@ pins together and restores the blocking warning/expiry condition; it never
 weakens a scanner or authorizes production action. Tracking remains in the
 existing checkpoint/OPS and AM ledger entries.
 
+### November 1 reassessment of the three Alertmanager helper sites
+
+PR #2494 maintains three individually reviewed annotations. The original nine-site
+decision, its missed October 30 review and its October 31 expiry remain historical.
+Security-auditor and dev-operator own the next manual review by **2026-11-20**,
+or earlier at the first actual current C/H integration or a change to the relevant
+control. The hard removal date is **2026-12-15 inclusive**. December 16 rejects
+under the calendar guard. The November checkpoint covers the pending integration,
+and the following 25 days bound any necessary repair and verification.
+
+| Material 23 helper site | Assessment and removal trigger |
+| --- | --- |
+| B105 at `scripts/ci/fetch_docker_source_artifacts.py:9214` | The public fixture satisfies required nonempty interpolation in three configuration-only Compose renders with explicitly synthetic inputs. Remove when interpolation is retired. Reassess immediately if a caller can start a service, authenticate or supply real credentials. |
+| B404 at `scripts/ci/fetch_docker_source_artifacts.py:12883` | The held-FD collector uses the stdlib import for bounded streaming and descendant cleanup. Remove on collector retirement or qualification of a smaller equivalent. Review any additional subprocess use. |
+| B603 at `scripts/ci/fetch_docker_source_artifacts.py:12938` (annotation at line 12945) | The trusted installed caller supplies an absolute Docker executable. Fixed no-shell argv and validated project, container and image operands restrict calls to Compose config, census and inspect. Private bounded captures and owned-group cleanup enforce the parent deadline. The child inherits the installed deployment environment, including Docker and Compose context. Reassess any change in callers, executable, operands, environment, capture or process ownership. |
+
+Material 23 helper SHA-256 was
+`a98e55ae7c512055b74c4d2f0e2866c4d2715edc67dd4ff571ab39e85d1008bb`.
+Whole-file Bandit 1.9.4 returned 1 with exactly three LOW findings when
+suppressions were disabled. Ordinary Bandit returned 0 with three suppressed
+tests. Both reports recorded zero scanner errors. Both policy suites passed all
+44 cases on the October 31 UTC guest. The November 1 Minsk guard failed with
+68 expiry rows, including these three. The other 65 rows retain their own scope.
+
+The 57 selected behavioral cases passed with exact expected, collected and JUnit
+membership and zero skips. Three cases rendered real Docker Compose templates
+without a daemon or socket. Historical C10 fixtures and controlled process/FD
+tests exercised bounded collector failure, cleanup and reread paths. Actual
+current C/H acceptance and image publication still require separate evidence.
+
+On a failed control or new finding, reopen the affected site immediately. Remove
+its comment when the operation is retired or a reviewed safer equivalent exists.
+Rollback restores the prior comments and corresponding helper pins, exposing
+the prior expiry failure. Recheck the actual final helper pins, both complete
+scanner modes and current-calendar guards after this comment change.
+
+### November 1 reassessment of the six checkpoint and OPS sites
+
+PR #2494 adopts the following six individual dispositions on material 26,
+tree `27f31348d794a97650bc1e578e8dd2b60b62f3e1`. Security-auditor and
+dev-operator own manual review by **2026-11-23** and hard removal by
+**2026-12-21 inclusive**. December 22 rejects under the guard’s local calendar.
+The October 30 missed review and October 31 expiry remain in the original
+nine-site history. The three Alertmanager helper sites retain their own terms.
+
+| Site | Reviewed operation and reason to retain the warning |
+| --- | --- |
+| Notifier B404, `scripts/ops/notify_premium_alias_checkpoint_failure.py:11` | The stdlib import supplies the synchronous manifest subprocess, streams and failure handling. |
+| Notifier B603, line 143 | Before sending, the fixed Python reader runs with `-I -S`, PATH/LANG only, closed stdin/stderr and a 10-second timeout. It validates the selected manifest and returns the canonical ref. The 512-byte check applies to captured output. |
+| Verifier B404, `scripts/verify_premium_alias_telemetry.py:16` | This import serves the synchronous canonical reader separately from the asynchronous Docker observer. |
+| Verifier B603, line 1030 | The first Compose read caches the validated ref. The isolated reader has a 30-second timeout and rejects malformed output before Docker work. The later Docker operation inherits the deployment environment. |
+| OPS B404, `scripts/ops/ops_context_report.py:11` | Native Git provides commit-object recognition and process errors. Reading HEAD text alone cannot establish that it resolves to a commit. |
+| OPS B603, line 229 | System Git runs the fixed commit query with explicit cwd/environment, closed stdin/stderr, a five-second timeout and exact SHA validation. The host Git installation and checkout remain trusted inputs. |
+
+The 56 scoped behavior cases passed with zero skips, including both real isolated
+reader startup controls, valid and invalid manifest selections, and native Git
+cases. The three complete files each contributed zero ordinary and two
+unsuppressed Bandit findings with zero scanner errors. The actual calendar/span
+snapshot matched 63 expiry rows, of which six belong to this decision and 57
+require separate outcomes. Post-change validation must establish the new result.
+
+Immediately review both deploy scripts’ notifier and verifier digest updates
+against the actual final source bytes and owning controls. Reassess on any
+subsequent pin, caller, interpreter/tool, timeout, environment, output or failure
+contract change, new finding or failed control. Remove a comment when its
+operation retires or a qualified smaller equivalent preserves the required
+behavior. Replacing imports or wrappers alone provides no mitigation. Rollback
+restores the prior comments and corresponding four pins together, exposing the
+original expiry failure. Validate both scanner modes, actual-calendar and
+absolute-binary guards, and the affected native controls on final material.
+
 Actual AM11 CA-qualified producer outputs are now selected as receiver data.
 Final C/H consumer admission, current-head gates and merged-main outcomes remain. See [AM11 vendor CA source preparation](CVE-2026-111943-go-trust-store.md#am11-vendor-ca-source-preparation)
 for the exact vendor delta, Q/S byte binding and remaining native proof.
@@ -1188,3 +1259,23 @@ review wait remain required. The inherited mapping is intentionally unchanged
 while genuine material is corrected; no prior seal or audit is claimed current
 for the corrected material. Existing October 30 source-review and October 31
 Bandit dates remain unchanged.
+
+## Isolated SDK setuptools producer follow-through
+
+The SDK producer selects its own closed build-tool inputs in
+`scripts/ci/install_locked_python_requirements.py:105`; application locks do not
+override that isolated build environment. The proposed source-builder replacement
+is setuptools 83.0.0 to 84.1.0, retaining wheel 0.47.0, packaging 25.0 and
+psycopg-c 3.3.4. Its six-candidate package cutoff retains
+GHSA-xmj3-9gf7-h52w as the one version-applicable SDK-base advisory; the five
+other candidates remain in the universal head comparison. Windows legacy-wheel
+trigger evidence is not a demonstrated Linux PEP517 exploit or a platform waiver.
+
+This subsection records the bounded proposal, not completed acquisition, build,
+ABI/runtime/security validation, full-repository scan, or policy/batch approval.
+The current-source transformation, exact artifact and current SDK receipt bindings
+must move together. Historical SDK99 evidence remains historical; no new legacy
+acceptor or rewriting of old producer receipts is permitted. The retained controller
+environment, pip seeds and missing selected Black environment remain independently
+reconciled. Actual content-specific authorization and validation evidence must be
+recorded before this proposal can support an achieved postcondition.

@@ -162,8 +162,8 @@ import sys
 
 project = Path(sys.argv[1])
 expected = {
-    'scripts/verify_premium_alias_telemetry.py': 'sha256:93e81ca3bbc63cef3d2b2cf7351d4fcb74cb8999373352600581915c1a58f05c',
-    'scripts/ops/notify_premium_alias_checkpoint_failure.py': 'sha256:2709f9c68d6bb728bf7804686c3aee5dd08758880392d2a185cfc3deed2e99eb',
+    'scripts/verify_premium_alias_telemetry.py': 'sha256:906db8d718e5818593f81b7a6a19585a2b273d9d5ff0af8d015d812e8102f829',
+    'scripts/ops/notify_premium_alias_checkpoint_failure.py': 'sha256:6d8ab4b1c0b94f7c067d753fd21d69ecde31f669456bdf8724e9435bef09b2cf',
     'systemd/pulseplate-premium-alias-checkpoint.service.example': 'sha256:a52742a89b87d02b3b75834b27db741b72a9c6c4a021711611db2a53b197a030',
     'systemd/pulseplate-premium-alias-checkpoint.timer.example': 'sha256:f6dd053b986cf68b133cf855208b86f44fc975e84dc7acbf490b35a6bb88c9cf',
     'systemd/pulseplate-premium-alias-checkpoint-failure.service.example': 'sha256:285c5e05bd72f4c99a22c9657a8443becfda4ff93975a21d70feb01812ed1b6d',
@@ -217,7 +217,7 @@ if [ "$secret_file_metadata" != "${EUID}:444" ]; then
 fi
 
 PROMETHEUS_CONTRACT_HELPER="${PROMETHEUS_CONTRACT_HELPER:-${PROJECT_DIR}/scripts/ci/prometheus_source_image.py}"
-PROMETHEUS_CONTRACT_HELPER_SHA256="d812e79fce6138426131f266e4f5fd8de03b72c9a56acea19bedb43a22f172f6" # pragma: allowlist secret - public source digest
+PROMETHEUS_CONTRACT_HELPER_SHA256="9b0b45595cc160c4761570857a4577dbf7ecf7161460a778417fbb6018567347" # pragma: allowlist secret - public source digest
 readonly PROMETHEUS_CONTRACT_HELPER PROMETHEUS_CONTRACT_HELPER_SHA256
 
 run_trusted_contract() {
@@ -253,7 +253,7 @@ os.execv(sys.executable, [sys.executable, "-I", "-S", "/dev/fd/" + str(fd), *sys
 }
 
 ALERTMANAGER_CONTRACT_HELPER="${ALERTMANAGER_CONTRACT_HELPER:-${PROJECT_DIR}/scripts/ci/fetch_docker_source_artifacts.py}"
-ALERTMANAGER_CONTRACT_HELPER_SHA256="b6797af91f752270722a940ef4029be17915980085d9d0650aae872772e9da56"
+ALERTMANAGER_CONTRACT_HELPER_SHA256="9335e7f6dde961e1f25345717af44785b23c7bf9e8636c82c32bb7de6c1498b2"
 readonly ALERTMANAGER_CONTRACT_HELPER ALERTMANAGER_CONTRACT_HELPER_SHA256
 
 run_prometheus_contract() {

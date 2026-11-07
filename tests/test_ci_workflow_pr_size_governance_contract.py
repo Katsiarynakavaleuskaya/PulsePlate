@@ -609,7 +609,10 @@ _CONCURRENCY_GROUP_BY_WORKFLOW = {
 _FRONTEND_CADDY_DISPATCH = {
     "inputs": {
         "caddy_action": {
-            "description": "Import retained candidate, qualify metadata, or spend the single accepted D CI build",
+            "description": (
+                "Import a qualified PR2494 candidate, inspect metadata, or explicitly build "
+                "the patched source"
+            ),
             "type": "choice",
             "default": "contract",
             "options": ["contract", "xnet060-metadata", "candidate-D"],
@@ -1353,13 +1356,16 @@ def _contract_suite_targets_by_group(
 
 
 NODE24_FRONTEND_BUILD_LINE = (
-    "FROM node:24.18.1-bookworm-slim@"
-    "sha256:235600a8101ab264e117b1768e925532262668dc9b581ef1dd7d96ced463b8e7"
+    "FROM node:24.22.1-bookworm-slim@"
+    "sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205"
     " AS frontend-build"
 )
 NODE24_FRONTEND_BUILD_RUN_LINE = "RUN npm run build"
 NODE24_FRONTEND_BUILD_COMMAND_ERROR = (
     "frontend-build must end with exactly one canonical npm run build"
+)
+NODE24_CADDY_EVIDENCE_COPY_LINE = (
+    "COPY --from=caddy-build /caddy-build-evidence /usr/share/pulseplate-caddy-build"
 )
 NODE24_CADDY_BINARY_COPY_LINE = (
     "COPY --from=caddy-build --chmod=0755 /go/bin/caddy /usr/bin/caddy.pulseplate"
@@ -1371,6 +1377,7 @@ NODE24_FRONTEND_ASSET_WRITE_LINES = (
     NODE24_FRONTEND_ASSET_COPY_LINE,
 )
 NODE24_FINAL_STAGE_COPY_ADD_LINES = (
+    NODE24_CADDY_EVIDENCE_COPY_LINE,
     NODE24_CADDY_BINARY_COPY_LINE,
     NODE24_FRONTEND_ASSET_COPY_LINE,
 )
@@ -1612,9 +1619,9 @@ def test_node24_runtime_baseline_surfaces_stay_coherent() -> None:
     public_readme = (REPO_ROOT / "README_V2_PUBLIC_DRAFT.md").read_text(encoding="utf-8")
     dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
 
-    assert nvmrc == "24.18.1"
-    assert "- Node `24.18.1` for the web client" in public_readme
-    assert "`nvm use` reads the repo-root `.nvmrc` and selects Node `24.18.1`." in public_readme
+    assert nvmrc == "24.22.1"
+    assert "- Node `24.22.1` for the web client" in public_readme
+    assert "`nvm use` reads the repo-root `.nvmrc` and selects Node `24.22.1`." in public_readme
     assert "24.16.0" not in public_readme
     assert frontend_package["engines"]["node"] == ">=24.0.0 <25.0.0"
     assert frontend_lock["packages"][""]["engines"]["node"] == ">=24.0.0 <25.0.0"
@@ -1886,13 +1893,47 @@ def test_node24_frontend_builder_guard_ignores_non_from_tokens() -> None:
     assert _node24_frontend_builder_contract_errors(non_instructions) == []
 
 
+@pytest.mark.parametrize(
+    "mutation", ("missing", "duplicate", "source-stage", "source-path", "destination", "order")
+)
+def test_node24_frontend_builder_guard_rejects_evidence_copy_drift(mutation: str) -> None:
+    """The admitted evidence handoff is one exact instruction, not arbitrary COPY allowance."""
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    assert _node24_frontend_builder_contract_errors(dockerfile) == []
+    line = NODE24_CADDY_EVIDENCE_COPY_LINE
+    assert dockerfile.count(line) == 1
+    replacements = {
+        "missing": "",
+        "duplicate": line + "\n" + line,
+        "source-stage": line.replace("--from=caddy-build", "--from=frontend-build", 1),
+        "source-path": line.replace(" /caddy-build-evidence ", " /unbound-evidence ", 1),
+        "destination": line.replace("/usr/share/pulseplate-caddy-build", "/srv/frontend"),
+    }
+    if mutation == "order":
+        candidate = dockerfile.replace(line + "\n", "", 1).replace(
+            NODE24_CADDY_BINARY_COPY_LINE,
+            NODE24_CADDY_BINARY_COPY_LINE + "\n" + line,
+            1,
+        )
+    else:
+        candidate = dockerfile.replace(line, replacements[mutation], 1)
+    assert candidate != dockerfile
+    errors = _node24_frontend_builder_contract_errors(candidate)
+    assert "final-stage COPY/ADD instructions must stay finite and ordered" in errors
+
+
 @pytest.mark.parametrize("escape_character", ("\\", "`"))
+@pytest.mark.parametrize(
+    "copy_line", (NODE24_CADDY_EVIDENCE_COPY_LINE, NODE24_CADDY_BINARY_COPY_LINE)
+)
 def test_node24_frontend_builder_guard_rejects_absorbed_caddy_copy(
     escape_character: str,
+    copy_line: str,
 ) -> None:
     """A preceding continuation cannot absorb the Caddy provenance COPY."""
 
     dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    assert _node24_frontend_builder_contract_errors(dockerfile) == []
     if escape_character == "`":
         dockerfile = dockerfile.replace(
             "# syntax=docker/dockerfile:1",
@@ -1900,8 +1941,8 @@ def test_node24_frontend_builder_guard_rejects_absorbed_caddy_copy(
             1,
         )
     absorbed = dockerfile.replace(
-        NODE24_CADDY_BINARY_COPY_LINE,
-        "\n".join((f"RUN : {escape_character}", NODE24_CADDY_BINARY_COPY_LINE)),
+        copy_line,
+        "\n".join((f"RUN : {escape_character}", copy_line)),
         1,
     )
 
@@ -2734,6 +2775,9 @@ def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
     [
         ("copy", "docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.json", "1"),
         ("copy", "docs/evidence/unrelated.json", "0"),
+        ("rename", "docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.json", "1"),
+        ("rename", "docs/evidence/unrelated.json", "0"),
+        ("modify", "scripts/ci/check_philosophy_source_corpus_index.py", "1"),
         ("modify", "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md", "1"),
         (
             "modify",
@@ -2744,26 +2788,57 @@ def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
     ],
 )
 def test_docs_phase1_corpus_input_discovery_executes_workflow_path_loop(
-    tmp_path: Path, operation: str, source_path: str, expected_trigger: str
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    operation: str,
+    source_path: str,
+    expected_trigger: str,
 ) -> None:
-    git = shutil.which("git")
-    bash = shutil.which("bash")
+    git = shutil.which("git", path=os.defpath)
+    bash = shutil.which("bash", path=os.defpath)
     assert git is not None and bash is not None
-    fixture_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
-    fixture_env.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1")
+    assert Path(git).is_absolute() and Path(bash).is_absolute()
+    repo = tmp_path / "repo"
+    home = tmp_path / "home"
+    repo.mkdir()
+    home.mkdir(mode=0o700)
+    startup = home / "hostile-bash-env"
+    marker = home / "startup-marker"
+    startup.write_text('printf "%s" "$GH_TOKEN" > "$HOME/startup-marker"\n')
+    monkeypatch.setenv("BASH_ENV", str(startup))
+    monkeypatch.setenv("GH_TOKEN", "synthetic-path-loop-credential")
+    fixture_env = {
+        "PATH": os.defpath,
+        "HOME": str(home),
+        "LC_ALL": "C",
+        "LANG": "C",
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_TERMINAL_PROMPT": "0",
+    }
 
     def run_git(*args: str) -> str:
-        result = subprocess.run(  # nosec B603: resolved Git in test-owned repository (remove-by: 2026-10-31, ref: PR-2446)
-            [git, "-C", str(tmp_path), *args],
+        result = subprocess.run(
+            [
+                git,
+                "-C",
+                str(repo),
+                "-c",
+                f"core.hooksPath={os.devnull}",
+                "-c",
+                "init.templateDir=",
+                *args,
+            ],
             check=True,
             capture_output=True,
             text=True,
             env=fixture_env,
+            timeout=30,
         )
         return result.stdout.strip()
 
     run_git("init", "--quiet")
-    source = tmp_path / source_path
+    source = repo / source_path
     source.parent.mkdir(parents=True)
     source.write_text("safe source corpus evidence\n", encoding="utf-8")
     run_git("add", ".")
@@ -2779,12 +2854,15 @@ def test_docs_phase1_corpus_input_discovery_executes_workflow_path_loop(
     )
     base_ref = run_git("rev-parse", "HEAD")
     destination_path: str | None = None
-    if operation == "copy":
+    if operation in {"copy", "rename"}:
         destination_path = "docs/evidence/copied.json"
-        destination = tmp_path / destination_path
+        destination = repo / destination_path
         destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_bytes(source.read_bytes())
-        run_git("add", destination_path)
+        if operation == "copy":
+            destination.write_bytes(source.read_bytes())
+            run_git("add", destination_path)
+        else:
+            run_git("mv", source_path, destination_path)
     else:
         source.write_text("safe updated corpus evidence\n", encoding="utf-8")
         run_git("add", source_path)
@@ -2806,22 +2884,55 @@ def test_docs_phase1_corpus_input_discovery_executes_workflow_path_loop(
     end = run_script.index("\n", run_script.index("done < <(git diff --name-status", start))
     path_loop = run_script[start:end]
     assert "--find-copies-harder" in path_loop
-    result = subprocess.run(  # nosec B603: resolved Bash runs extracted fixed workflow loop (remove-by: 2026-10-31, ref: PR-2446)
-        [
-            bash,
-            "-c",
-            "set -euo pipefail\n"
-            + path_loop
-            + "\nprintf 'FLAG=%s\\n' \"$PR5_SOURCE_CORPUS_CHANGED\"\n"
-            + "printf 'PATH=%s\\n' \"${ALL_CHANGED_FILES[@]}\"\n",
-        ],
-        cwd=tmp_path,
-        env={**fixture_env, "BASE_REF": base_ref},
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+    call_start = run_script.index('if [ "${PR5_SOURCE_CORPUS_CHANGED}" -eq 1 ]; then')
+    # YAML dedents the complete run body; locate the first standalone closing fi.
+    call_lines = run_script[call_start:].splitlines()
+    end_line = next(index for index, line in enumerate(call_lines) if line.strip() == "fi")
+    corpus_call = "\n".join(call_lines[: end_line + 1])
 
+    def run_shell(script: str, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [bash, "-c", script],
+            cwd=repo,
+            env=env,
+            timeout=30,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+    run_shell(
+        ":", {**fixture_env, "BASH_ENV": str(startup), "GH_TOKEN": "synthetic-path-loop-credential"}
+    )
+    assert marker.read_text() == "synthetic-path-loop-credential"
+    marker.unlink()
+    result = run_shell(
+        'test -z "${GH_TOKEN+x}" && test -z "${BASH_ENV+x}" || exit 71\n'
+        + "set -euo pipefail\n"
+        + path_loop
+        + "\npython() { printf 'ARG=%s\\n' \"$@\"; }\n"
+        + corpus_call
+        + "\nprintf 'FLAG=%s\\n' \"$PR5_SOURCE_CORPUS_CHANGED\"\n"
+        + "printf 'PATH=%s\\n' \"${ALL_CHANGED_FILES[@]}\"\n",
+        {**fixture_env, "BASE_REF": base_ref},
+    )
+    assert not marker.exists()
+
+    output_lines = result.stdout.splitlines()
+    paths = [line.removeprefix("PATH=") for line in output_lines if line.startswith("PATH=")]
+    arguments = [line.removeprefix("ARG=") for line in output_lines if line.startswith("ARG=")]
+    assert arguments == (
+        [
+            "scripts/ci/check_philosophy_source_corpus_index.py",
+            "--check",
+            "--base-ref",
+            base_ref,
+            "--files",
+            *paths,
+        ]
+        if expected_trigger == "1"
+        else []
+    )
     assert f"FLAG={expected_trigger}" in result.stdout.splitlines()
     assert f"PATH={source_path}" in result.stdout.splitlines()
     if destination_path is not None:
@@ -4887,6 +4998,47 @@ def test_contract_risk_suite_ignores_commented_db_target(job_id: str) -> None:
     assert target not in route_targets
 
 
+def _owned_darwin_zombie_leader(
+    row: dict[str, object], leader_pid: int, leader_start: str | None
+) -> bool:
+    return (
+        row["pid"] == leader_pid
+        and row["ppid"] == os.getpid()
+        and row["pgid"] == leader_pid
+        and row["uid"] == os.getuid()
+        and bool(leader_start)
+        and row["start"] == leader_start
+        and row["state"] == "Z"
+    )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        {},
+        {"pid": 19},
+        {"ppid": -1},
+        {"pgid": 19},
+        {"uid": -1},
+        {"start": "later"},
+        {"state": "S"},
+        {"state": "Z+"},
+    ],
+)
+def test_owned_darwin_zombie_leader_requires_complete_witness(mutation: dict[str, object]) -> None:
+    row: dict[str, object] = {
+        "pid": 17,
+        "ppid": os.getpid(),
+        "pgid": 17,
+        "uid": os.getuid(),
+        "start": "birth",
+        "state": "Z",
+    }
+    row.update(mutation)
+    assert _owned_darwin_zombie_leader(row, 17, "birth") is (not mutation)
+    assert not _owned_darwin_zombie_leader(row, 17, None)
+
+
 @pytest.mark.parametrize("job_id", ["test-pr", "test-feature"])
 @pytest.mark.parametrize(
     "failed_batch,missing_data,terminate_run,stale_data,residual_child,cleanup_failure",
@@ -4916,7 +5068,11 @@ def test_contract_batches_wait_all_statuses_and_combine_only_complete_isolated_i
     cleanup_failure: bool,
 ) -> None:
     """Run the actual paired shell steps with rendezvous, real SQLite and failure controls."""
+    import signal
     import sys
+    import time
+
+    from scripts.ci.prometheus_source_image import process_census, process_identity
 
     workflow = _load_ci_workflow()
     step = _job_step_by_name(workflow, job_id=job_id, step_name="Contract and risk suites")
@@ -4936,7 +5092,7 @@ def test_contract_batches_wait_all_statuses_and_combine_only_complete_isolated_i
         "#!"
         + sys.executable
         + "\n"
-        + "import json, os, signal, sqlite3, sys, time\nfrom pathlib import Path\n"
+        + "import atexit, json, os, signal, sqlite3, sys, time\nfrom pathlib import Path\n"
         + f"batch_count = {batch_count}\nfailed_batch = {failed_batch}\nmissing_data = {missing_data}\n"
         + f"terminate_run = {terminate_run!r}\nresidual_child = {residual_child!r}\n"
         + r"""
@@ -4944,6 +5100,31 @@ args = sys.argv[1:]
 if args[:1] == ["-"]:
     os.execv(sys.executable, [sys.executable, *args])
 events = Path("events")
+original_shell = int(os.environ["FIXTURE_ORIGINAL_SHELL"])
+absolute_limit = time.monotonic() + 65
+
+def stop_observer() -> None:
+    # Terminal interpreter cleanup only: leave active cancellation unchanged.
+    # Ignore any already-pending alarm before disabling the recurring timer.
+    signal.signal(signal.SIGALRM, signal.SIG_IGN)
+    signal.setitimer(signal.ITIMER_REAL, 0)
+
+atexit.register(stop_observer)
+
+def arm_observer():
+    def check_cancel(signum, frame):
+        if (events / "fixture-cancel").exists() or time.monotonic() >= absolute_limit:
+            os._exit(93)
+    signal.signal(signal.SIGALRM, check_cancel)
+    signal.setitimer(signal.ITIMER_REAL, 0.2, 0.2)
+
+def signal_parent(expected, sid, ppid, send):
+    if expected != sid or expected != ppid:
+        return False
+    send(expected, signal.SIGTERM)
+    return True
+
+arm_observer()
 if args[:5] == ["-W", "error", "-m", "coverage", "combine"]:
     assert [p.name for p in sorted(events.glob("done-*.json"))] == sorted(
         f"done-{i}.json" for i in range(1, batch_count + 1)
@@ -4967,16 +5148,25 @@ def stopped(signum, frame):
     raise SystemExit(143)
 signal.signal(signal.SIGTERM, signal.SIG_IGN if terminate_run == "ignore" else stopped)
 assert os.getpgid(0) == os.getpid(), "batch did not receive its own Bash job group"
-if terminate_run == "ignore" and index == 1:
+if terminate_run in ("ignore", "forced", "forced-readback") and index == 1:
     child = os.fork()
     if child == 0:
+        arm_observer()
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        if terminate_run in ("forced", "forced-readback"):
+            record = {"pid": os.getpid(), "pgid": os.getpgid(0), "sid": os.getsid(0),
+                      "ignores_term": signal.getsignal(signal.SIGTERM) == signal.SIG_IGN}
+            pending = events / ".resistant-ready.tmp"
+            pending.write_text(json.dumps(record))
+            pending.replace(events / "resistant-ready")
+
         while True:
             signal.pause()
     (events / "grandchild.json").write_text(json.dumps({"pid": child, "pgid": os.getpgid(0)}))
 if residual_child and index == 1:
     child = os.fork()
     if child == 0:
+        arm_observer()
         def child_stopped(signum, frame):
             (events / "residual-stopped").write_text("SIGTERM")
             os._exit(143)
@@ -5000,7 +5190,10 @@ start = {
     "database_url": os.environ["DATABASE_URL"],
     "fallback_url": os.environ["DB_FALLBACK_URL"],
 }
-(events / f"start-{index}.json").write_text(json.dumps(start))
+# Publish complete start metadata before the partner can trigger termination.
+pending_start = events / f".start-{index}.json.tmp"
+pending_start.write_text(json.dumps(start))
+pending_start.replace(events / f"start-{index}.json")
 assert len(list(events.glob("running-*"))) <= 2
 partner = index + 1 if index % 2 else index - 1
 if partner <= batch_count:
@@ -5009,10 +5202,13 @@ if partner <= batch_count:
         assert time.monotonic() < deadline, "paired batch never started"
         time.sleep(0.01)
 if terminate_run:
-    if index == 2:
-        os.kill(os.getppid(), signal.SIGTERM)
-    signal.pause()
-    raise SystemExit(92)
+    if index == 2 and terminate_run not in ("forced", "forced-readback"):
+        def forbidden_signal(*args):
+            raise AssertionError("parent mismatch attempted a signal")
+        assert not signal_parent(original_shell, original_shell, -1, forbidden_signal)
+        assert signal_parent(original_shell, os.getsid(0), os.getppid(), os.kill)
+    while True:
+        signal.pause()
 with sqlite3.connect(start["database"]) as db:
     db.execute("CREATE TABLE batch_identity (value INTEGER)")
     db.execute("INSERT INTO batch_identity VALUES (?)", (index,))
@@ -5043,21 +5239,166 @@ raise SystemExit(status)
   builtin kill "$@"
 }
 """ + run_script
-    result = subprocess.run(
-        [bash, "-c", run_script],
-        cwd=tmp_path,
-        env={
-            "PATH": str(tmp_path) + os.pathsep + os.defpath,
-            "RUNNER_TEMP": str(tmp_path / "runner-temp"),
-            "CONTRACT_RISK_CLEANUP_SECONDS": (
-                "1" if cleanup_failure else str(workflow["env"]["CONTRACT_RISK_CLEANUP_SECONDS"])
-            ),
-            "CONTRACT_RISK_GROUPS": ",".join(groups),
-        },
-        capture_output=True,
-        text=True,
-        timeout=60,
-        check=False,
+    environment = {
+        "PATH": str(tmp_path) + os.pathsep + os.defpath,
+        "RUNNER_TEMP": str(tmp_path / "runner-temp"),
+        "CONTRACT_RISK_CLEANUP_SECONDS": (
+            "1" if cleanup_failure else str(workflow["env"]["CONTRACT_RISK_CLEANUP_SECONDS"])
+        ),
+        "CONTRACT_RISK_GROUPS": ",".join(groups),
+    }
+    if signal.getsignal(signal.SIGCHLD) != signal.SIG_DFL:
+        pytest.fail("The fixture must own its Bash child's wait status")
+    command = [bash, "-c", "export FIXTURE_ORIGINAL_SHELL=$$\n" + run_script]
+    forced = terminate_run in ("forced", "forced-readback")
+    cancel = events / "fixture-cancel"
+    stdout_path, stderr_path = tmp_path / "shell.stdout", tmp_path / "shell.stderr"
+    deadline = time.monotonic() + 60
+
+    inject_readback_error = terminate_run == "forced-readback"
+
+    leader_start: str | None = None
+
+    def session_sample(session: int, until: float) -> dict[int, tuple[object, ...]] | None:
+        nonlocal inject_readback_error
+        if inject_readback_error and cancel.exists():
+            inject_readback_error = False
+            raise OSError("synthetic terminal readback failure")
+        rows = process_census(until, ())
+        witness = rows.get(os.getpid())
+        assert witness is not None and witness["uid"] == os.getuid()
+        members = {}
+        for pid, row in rows.items():
+            if row["uid"] != os.getuid():
+                continue
+            try:
+                sid = os.getsid(pid)
+            except ProcessLookupError:
+                if sys.platform == "darwin" and pid == session:
+                    # Darwin cannot report the SID of our unreaped zombie child.
+                    if not _owned_darwin_zombie_leader(row, session, leader_start):
+                        return None
+                    members[pid] = (*process_identity(row), True)
+                elif sys.platform == "darwin" and row["state"] != "Z":
+                    # A disappearing live row needs a fresh census before quiescence.
+                    return None
+                continue
+            if sid == session:
+                members[pid] = (*process_identity(row), row["state"] == "Z")
+        return members
+
+    def shell_exited(pid: int) -> bool:
+        if all(hasattr(os, key) for key in ("waitid", "P_PID", "WEXITED", "WNOHANG", "WNOWAIT")):
+            try:
+                observed = os.waitid(os.P_PID, pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+                return observed is not None and observed.si_pid == pid
+            except NotImplementedError:
+                pass
+        rows = process_census(deadline, ())
+        row = rows.get(pid)
+        assert row is not None and row["uid"] == os.getuid()
+        return bool(row["state"] == "Z")
+
+    with stdout_path.open("wb") as stdout, stderr_path.open("wb") as stderr:
+        process = subprocess.Popen(
+            command,
+            cwd=tmp_path,
+            env=environment,
+            stdout=stdout,
+            stderr=stderr,
+            start_new_session=True,
+        )
+        primary: BaseException | None = None
+        forced_deadline: float | None = None
+        try:
+            if sys.platform == "darwin":
+                leader = process_census(deadline, ())[process.pid]
+                assert leader["pid"] == leader["pgid"] == process.pid
+                assert leader["ppid"] == os.getpid() and leader["uid"] == os.getuid()
+                leader_start = leader["start"]
+            while time.monotonic() < deadline:
+                if forced_deadline is not None and time.monotonic() >= forced_deadline:
+                    raise subprocess.TimeoutExpired(command, 0.35)
+                ready = events / "resistant-ready"
+                if (
+                    forced
+                    and forced_deadline is None
+                    and ready.is_file()
+                    and (events / "start-2.json").is_file()
+                ):
+                    record = json.loads(ready.read_text())
+                    assert record["sid"] == process.pid and record["ignores_term"] is True
+                    first_sample = session_sample(process.pid, deadline)
+                    first = first_sample and first_sample.get(record["pid"])
+                    second_sample = session_sample(process.pid, deadline)
+                    second = second_sample and second_sample.get(record["pid"])
+                    if (
+                        first
+                        and second == first
+                        and first[-1] is False
+                        and first[1] == record["pgid"]
+                    ):
+                        (events / "forced-timeout-witness").write_text(json.dumps(record))
+                        forced_deadline = time.monotonic() + 0.35
+                if shell_exited(process.pid):
+                    break
+                time.sleep(0.12)
+            else:
+                raise subprocess.TimeoutExpired(command, 60)
+        except BaseException as error:
+            primary = error
+            raise
+        finally:
+            cleanup_deadline = time.monotonic() + 10
+            errors: list[BaseException] = []
+            if primary is not None:
+                try:
+                    cancel.touch()
+                except BaseException as error:
+                    errors.append(error)
+                try:
+                    os.kill(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                except BaseException as error:
+                    errors.append(error)
+            try:
+                previous = None
+                while time.monotonic() < cleanup_deadline:
+                    try:
+                        members = session_sample(process.pid, cleanup_deadline)
+                    except (OSError, RuntimeError) as error:
+                        if not errors:
+                            errors.append(error)
+                        previous = None
+                        time.sleep(0.12)
+                        continue
+                    if (
+                        members is not None
+                        and members.get(process.pid)
+                        and members == previous
+                        and all(row[-1] is True for row in members.values())
+                    ):
+                        (events / "terminal-session").write_text(json.dumps(members))
+                        break
+                    previous = members
+                    time.sleep(0.12)
+                else:
+                    raise TimeoutError("owned session quiescence unobserved")
+            except BaseException as error:
+                errors.append(error)
+            finally:
+                try:
+                    status = process.wait(timeout=max(0.01, cleanup_deadline - time.monotonic()))
+                except BaseException as error:
+                    errors.append(error)
+            if errors:
+                if primary is None:
+                    raise errors[0]
+                for error in errors:
+                    primary.add_note(f"fixture cleanup: {type(error).__name__}: {error}")
+    result = subprocess.CompletedProcess(
+        command, status, stdout_path.read_text(), stderr_path.read_text()
     )
     (tmp_path / "observed-shell-result.json").write_text(
         json.dumps({"exit": result.returncode, "stdout": result.stdout, "stderr": result.stderr})
@@ -5125,8 +5466,7 @@ raise SystemExit(status)
         assert result.stdout.count("Reaped owned contract/risk batch pid") == 2
         for index in (1, 2):
             child = json.loads((events / f"start-{index}.json").read_text())
-            with pytest.raises(ProcessLookupError):
-                os.kill(child["pid"], 0)
+            assert str(child["pid"]) not in json.loads((events / "terminal-session").read_text())
             observed = assert_native_process_inactive(child["pid"], child["pgid"])
             (events / f"batch-{index}-inactive-observation.json").write_text(json.dumps(observed))
         children = {
@@ -5204,8 +5544,7 @@ raise SystemExit(status)
         status = 7 if index == failed_batch else 0
         assert f"Contract/risk batch {index} exited {status}" in result.stdout
         assert json.loads((events / f"done-{index}.json").read_text())["status"] == status
-        with pytest.raises(ProcessLookupError):
-            os.kill(start["pid"], 0)
+        assert str(start["pid"]) not in json.loads((events / "terminal-session").read_text())
     assert len(databases) == batch_count and seen_targets == expected_targets
     assert (tmp_path / ".coverage").read_text() == "existing smoke coverage"
     combine = tmp_path / "observed-combine.json"
@@ -5229,6 +5568,32 @@ raise SystemExit(status)
                 )
             ],
         ]
+
+
+@pytest.mark.parametrize("control", ["forced", "forced-readback"])
+def test_contract_batch_driver_timeout_retains_primary_and_checks_owned_session(
+    tmp_path: Path, control: str
+) -> None:
+    with pytest.raises(subprocess.TimeoutExpired) as failure:
+        test_contract_batches_wait_all_statuses_and_combine_only_complete_isolated_inventory(
+            tmp_path, "test-pr", 0, 0, control, False, False, False
+        )
+    assert failure.value.timeout == 0.35
+    events = tmp_path / "events"
+    assert (events / "forced-timeout-witness").is_file()
+    assert (events / "fixture-cancel").exists()
+    members = json.loads((events / "terminal-session").read_text())
+    assert members and all(row[-1] is True for row in members.values())
+    leader = json.loads((events / "forced-timeout-witness").read_text())["sid"]
+    assert str(leader) in members
+    with pytest.raises(ChildProcessError):
+        os.waitpid(leader, os.WNOHANG)
+    notes = getattr(failure.value, "__notes__", [])
+    assert notes == (
+        ["fixture cleanup: OSError: synthetic terminal readback failure"]
+        if control == "forced-readback"
+        else []
+    )
 
 
 @pytest.mark.parametrize("job_id", ["test-pr", "test-feature"])
@@ -5384,15 +5749,27 @@ def test_test_pr_contract_capture_supports_real_ci_root_conftest(tmp_path: Path)
             "DB_FALLBACK_URL": "sqlite:///" + str(database),
             "TMPDIR": str(profile / "tmp"),
         }
-        result = subprocess.run(
-            command,
-            cwd=REPO_ROOT,
-            env=environment,
-            capture_output=True,
-            text=True,
-            timeout=30,
-            check=False,
-        )
+        try:
+            result = subprocess.run(
+                command,
+                cwd=REPO_ROOT,
+                env=environment,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as timeout:
+            for suffix, raw in (("stdout", timeout.stdout), ("stderr", timeout.stderr)):
+                path = tmp_path / f"ci-capture-{capture}.{suffix}.log"
+                try:
+                    path.write_bytes(raw if isinstance(raw, bytes) else (raw or "").encode())
+                    path.chmod(0o600)
+                except OSError as retention_error:
+                    timeout.add_note(
+                        f"Timeout evidence retention failed for {suffix}: {retention_error}"
+                    )
+            raise
         for suffix, raw in (("stdout", result.stdout), ("stderr", result.stderr)):
             path = tmp_path / f"ci-capture-{capture}.{suffix}.log"
             path.write_text(raw)
@@ -6926,7 +7303,7 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
     assert isinstance(matrix, list)
 
     timeouts = {entry["python-version"]: entry["timeout-minutes"] for entry in matrix}
-    assert timeouts == {"3.11": 120, "3.12": 120, "3.13": 120}
+    assert timeouts == {"3.11": 180, "3.12": 180, "3.13": 180}
 
     workflow_text = CI_WORKFLOW_PATH.read_text(encoding="utf-8")
     test_main_section = _extract_job_section(workflow_text, "  test-main:")
@@ -9005,3 +9382,110 @@ def test_fitchef_agent_structural_acceptance_still_requires_numeric_diff_coverag
     assert "No lines with coverage information" not in result.stdout
     assert f"Coverage: {0 if hits == 0 else 100}%" in result.stdout
     assert {path: path.read_bytes() for path in protected_paths} == parent_before
+
+
+@pytest.mark.parametrize(
+    ("partial_stdout", "partial_stderr"),
+    [
+        (b"partial-stdout\xff\n", b"partial-stderr\xfe\n"),
+        ("stdout é\n", "stderr é\n"),
+        (None, None),
+    ],
+    ids=["bytes", "text", "absent"],
+)
+@pytest.mark.parametrize("retention_failure", [False, True])
+def test_test_pr_contract_capture_preserves_timeout_output_and_primary_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    partial_stdout: bytes | str | None,
+    partial_stderr: bytes | str | None,
+    retention_failure: bool,
+) -> None:
+    import stat
+    import sys
+
+    timeout = subprocess.TimeoutExpired([], 30, output=partial_stdout, stderr=partial_stderr)
+    calls: list[str] = []
+
+    def observe_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        capture = "tee-sys" if not calls else "no"
+        profile = tmp_path / capture
+        database = profile / "batch.sqlite"
+        expected_environment = {
+            "PATH": os.defpath,
+            "HOME": str(profile / "home"),
+            "LANG": "C.UTF-8",
+            "CI": "true",
+            "TESTING": "true",
+            "APP_ENV": "test",
+            "ENVIRONMENT": "test",
+            "PYTHONUNBUFFERED": "1",
+            "PYTEST_FAULTHANDLER_TIMEOUT_S": "600",
+            "COVERAGE_FILE": str(profile / ".coverage"),
+            "COV_CORE_DATAFILE": str(profile / ".coverage"),
+            "TEST_DB_PATH": str(database),
+            "DATABASE_URL": "sqlite:///" + str(database),
+            "DB_FALLBACK_URL": "sqlite:///" + str(database),
+            "TMPDIR": str(profile / "tmp"),
+        }
+        assert command == [
+            sys.executable,
+            "-m",
+            "coverage",
+            "run",
+            "--append",
+            "-m",
+            "pytest",
+            "-q",
+            "--capture=" + capture,
+            "--verbosity=1",
+            "-p",
+            "no:xdist",
+            "tests/test_ci_workflow_pr_size_governance_contract.py::"
+            "test_contract_risk_suites_use_bounded_coverage_batches",
+            "--junitxml=" + str(profile / "result.xml"),
+            "--basetemp=" + str(profile / "pytest"),
+            "-o",
+            "junit_family=legacy",
+        ]
+        assert kwargs == {
+            "cwd": REPO_ROOT,
+            "env": expected_environment,
+            "capture_output": True,
+            "text": True,
+            "timeout": 30,
+            "check": False,
+        }
+        calls.append(capture)
+        if capture == "tee-sys":
+            return subprocess.CompletedProcess(
+                command,
+                4,
+                "",
+                "conftest.py:22: faulthandler.enable() io.UnsupportedOperation: fileno",
+            )
+        timeout.cmd = command
+        raise timeout
+
+    original_write_bytes = Path.write_bytes
+
+    def fail_stdout_retention(path: Path, data: bytes) -> int:
+        if path == tmp_path / "ci-capture-no.stdout.log":
+            raise OSError("synthetic timeout retention failure")
+        return original_write_bytes(path, data)
+
+    monkeypatch.setattr(subprocess, "run", observe_run)
+    if retention_failure:
+        monkeypatch.setattr(Path, "write_bytes", fail_stdout_retention)
+    with pytest.raises(subprocess.TimeoutExpired) as caught:
+        test_test_pr_contract_capture_supports_real_ci_root_conftest(tmp_path)
+    assert caught.value is timeout and calls == ["tee-sys", "no"]
+    for suffix, raw in (("stdout", partial_stdout), ("stderr", partial_stderr)):
+        path = tmp_path / f"ci-capture-no.{suffix}.log"
+        if retention_failure and suffix == "stdout":
+            assert not path.exists()
+            assert any("synthetic timeout retention failure" in note for note in timeout.__notes__)
+        else:
+            assert path.read_bytes() == (raw if isinstance(raw, bytes) else (raw or "").encode())
+            assert stat.S_IMODE(path.stat().st_mode) == 0o600
+    assert json.loads((tmp_path / "ci-capture-observed.json").read_text())[0]["native_exit"] == 4
