@@ -482,6 +482,15 @@ verifying its unchanged governed inputs. Preserve failed and pending consumers
 honestly; neither relabeling old success nor adding workflow needs or retries supplies
 missing producer evidence.
 
+Before pushing Caddy source changes, compare the complete canonical Caddy input
+inventory (paths, modes, byte counts and SHA-256) with the authenticated original
+producer. On a mismatch, record the stale producer head, exact input delta, and
+the next authorized same-source producer step and its owner in the existing
+coordinator handoff. If no producer step is admissible yet, record the blocking
+prerequisite and its owner. Keep source preparation on HOLD for Caddy until
+authenticated same-source native producer evidence is available, and recheck the
+handoff after any governed input change.
+
 - Keep source content identity separate from Docker's native identity: requested
   reference or index, selected platform manifest, raw config, compressed layer
   digests and uncompressed diffIDs have different roles. Bind image inspection,
