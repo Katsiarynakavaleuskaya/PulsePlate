@@ -4394,7 +4394,7 @@ def test_prometheus_cd_uses_authenticated_finite_consumer_and_retains_strict_sca
     assert "python3 -I -S" in consumer["run"]
     fixed = steps["Checkout fixed trusted Prometheus control"]
     assert fixed["with"] == {
-        "ref": "cf3488793e25dacc3aa7684696746a4a639c113c",  # pragma: allowlist secret - public trusted control commit
+        "ref": "847e08ff971f4f794e101f871e6a1c47a980d23d",  # pragma: allowlist secret - public trusted control commit
         "persist-credentials": False,
         "path": "artifacts/orchestration/prometheus-control",
         "sparse-checkout": "scripts/ci/prometheus_source_image.py",
@@ -4512,11 +4512,11 @@ def _prometheus_cd_python(step: dict[str, object]) -> str:
 # The real classification, publication observer, selector and fresh consume binding execute.
 _PROMETHEUS_SELECTOR_API_FIXTURE = """
 def read_image_manifest(path):
-    return {"candidate": {"producer": {"pr_number": 2477, "source_head": "1"*40, "source_ref": "synthetic"}}}
-def authenticate_pr_source(*args):
-    return {}
-def authenticate_producer_inputs(*args):
-    pass
+    producer = {"pr_number": 2477, "source_head": "1"*40, "source_ref": "synthetic"}
+    inputs = {"source": {"derived_locks": XNET060_INCUMBENT_LOCKS}}
+    return {"candidate": {"producer": producer}, "inputs": inputs}
+def authenticate_pr_source(*args): return {}
+def authenticate_producer_inputs(*args): pass
 def _historical_selected_files(api, manifest, base, head, current):
     return "3"*40, current
 class GitHubRead(GitHubRead):
