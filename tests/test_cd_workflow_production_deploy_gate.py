@@ -636,7 +636,7 @@ def test_prometheus_cd_registry_credential_route_preserves_base_execution_bounda
     assert (
         control["with"]["ref"]
         # pragma: allowlist nextline secret - public trusted control commit
-        == "847e08ff971f4f794e101f871e6a1c47a980d23d"
+        == "97040beecd327dccd5ddb1071bcc7aabd672c8d1"
     )
     assert control["with"]["persist-credentials"] is False
     assert control["with"]["sparse-checkout"] == "scripts/ci/prometheus_source_image.py"

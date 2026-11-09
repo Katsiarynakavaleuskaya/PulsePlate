@@ -4394,7 +4394,7 @@ def test_prometheus_cd_uses_authenticated_finite_consumer_and_retains_strict_sca
     assert "python3 -I -S" in consumer["run"]
     fixed = steps["Checkout fixed trusted Prometheus control"]
     assert fixed["with"] == {
-        "ref": "847e08ff971f4f794e101f871e6a1c47a980d23d",  # pragma: allowlist secret - public trusted control commit
+        "ref": "97040beecd327dccd5ddb1071bcc7aabd672c8d1",  # pragma: allowlist secret - public trusted control commit
         "persist-credentials": False,
         "path": "artifacts/orchestration/prometheus-control",
         "sparse-checkout": "scripts/ci/prometheus_source_image.py",
