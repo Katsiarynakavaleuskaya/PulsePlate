@@ -1354,17 +1354,21 @@ First-class repo wrappers:
 
 **Change detection order:**
 
-1. Native pre-commit sets `PRE_COMMIT=1` for hook execution, including its
-   pre-push stage. The `backend-tests-pre-push` entry clears that framework
-   marker in its child with `/usr/bin/env -u PRE_COMMIT`, so ordinary pre-push
-   discovery includes the committed upstream delta and the httpx2 canary.
-   The pre-commit entry keeps the marker and its intentional ci-lite selection.
-   Nonempty `PRE_COMMIT` takes precedence: the helper combines
-   staged paths with the branch diff from the first resolved merge-base against
-   `origin/main`, `origin/master`, `main`, or `master`.
-2. With `PRE_COMMIT` unset and `BRANCH_DIFF_MODE=1`, the helper uses that same
-   branch merge-base diff. An established empty branch selection exits without
-   the recent-commit fallback. `make validate-changed` selects this mode.
+1. Ordinary commits select the cached path delta only. Clean local default-stage
+   all-files runs the configured static/security hooks with zero backend tests.
+   Hosted lint explicitly selects its checked-out PR integration or push delta
+   using its ci-lite environment, including fast-fail and its canary exclusion.
+2. For an ordinary single feature-branch push, the installed pre-push stage
+   runs one full-profile `make validate-changed` against the fetched
+   `origin/${PR_SCOPE_BASE_REF:-main}` merge-base, including surviving changes
+   already published on the feature branch. Set `PR_SCOPE_BASE_REF` to the
+   established target name on a stacked PR. The checkout tested by the hook
+   must be clean and match the outgoing commit. Record its terminal result as
+   the required Make gate for that push. To capture a report, use
+   `PYTEST_ADDOPTS="--junitxml=/absolute/path/backend.xml" git push`. Supply one absolute output path without
+   whitespace. Other `PYTEST_ADDOPTS` values block this required stage.
+   Without the native hook, the
+   standalone Make target retains the main/master merge-base discovery.
 3. Otherwise, direct invocation checks the configured upstream diff, then
    `origin/<current-branch>` and the main/master merge-base when no paths were
    found. If no Python or governance targets are selected, the existing

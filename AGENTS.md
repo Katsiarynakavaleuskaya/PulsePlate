@@ -51,7 +51,8 @@ dead interpreter. Missing scripts are OK; see
 
 - `test-fast` is deterministic and does not use `.pytest_cache`/`--lf`.
 - `make validate-min` is the cheap deterministic local bundle: repo-policy guards + `make test-fast`.
-- `make validate-changed` runs branch-scoped Python test selection from the current branch merge-base through the repo `.venv`.
+- The installed pre-push backend hook runs `make validate-changed` once during each dispatched single feature-branch push. Its successful terminal result satisfies this push's local Make requirement. Run the other narrow gates before pushing. Standalone `make validate-changed` remains available for diagnosis.
+- Ordinary commits select backend tests from staged paths. A clean local `pre-commit run --all-files` runs the configured static/security hooks without replaying backend branch tests. Hosted lint explicitly selects its event delta under ci-lite.
 - `scripts/quick_check.sh` delegates to `make validate-min`, then adds staged-file format/import/syntax checks.
 - Use `. .venv/bin/activate` before direct local `pytest` runs outside Make targets.
 
@@ -561,7 +562,7 @@ The merge-readiness gate remains separate and still requires `GITHUB_TOKEN` for 
 - **Carryover rule:** If a PR intentionally carries over missed changes from a prior PR, the PR description MUST include a short **Carryover** note and the work MUST be tracked in `docs/roadmap/BACKLOG_LEDGER.md` (entry updated to point to that PR).
 - CI runs `pre-commit run --all-files` and will fail if hooks would modify files that aren't committed.
 - This is not optional: uncommitted hook modifications guarantee CI failure.
-- **One-time setup:** Run `pre-commit install` locally once to enable automatic hook execution on `git commit` (reduces CI noise).
+- **One-time setup:** Run `pre-commit install --hook-type pre-commit --hook-type pre-push` locally to install both stages.
 - **Async test marker rule for pre-commit-selected tests:** CI lint runs
   `pre-commit run --all-files`, and its `backend-tests` hook can execute changed
   tests in an environment where `pytest-asyncio` is not loaded even if the local

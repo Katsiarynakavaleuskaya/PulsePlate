@@ -616,7 +616,7 @@ as oracles. Documenting known-good behavior allows us to:
 | `guard_tests` | Codebase with no policy violations | All guards pass | `tests/test_repo_policy_guards.py:1` |
 
 **Verification commands:**
-- Local narrow bundle: `python3 scripts/orchestration/check_preflight.py && python3 scripts/orchestration/check_agent_consistency.py && make validate-changed && pre-commit run --all-files`
+- Local narrow bundle: `python3 scripts/orchestration/check_preflight.py && python3 scripts/orchestration/check_agent_consistency.py && pre-commit run --all-files`, focused tests, and the terminal `make validate-changed` from the installed pre-push hook
 - GitHub current-head full CI: use the latest PR head checks and strict merge-readiness wrapper
 - `merge_readiness_gate`: `python scripts/ci/check_pr_merge_readiness.py --pr-number <N>`
 - `dependency_security_guard`: `pytest -k dependency_security_guard -q`
@@ -838,7 +838,7 @@ Run from repo root before any push/PR:
 2. `git ls-files worktrees | wc -l` → must be `0`
 3. `git check-ignore -v worktrees/` → must show an ignore rule
 4. `pre-commit run --all-files`
-5. `make validate-changed`
+5. Record the native pre-push `make validate-changed` result during the ordinary single-branch push.
 
 ## PR operating lifecycle (mandatory for coordinator-led work)
 
@@ -876,7 +876,7 @@ Use this as the canonical operating loop from branch creation to merge window:
    - Run `pre-commit run --all-files`
    - Run the required local narrow gates for the touched scope:
      `check_preflight`, `check_agent_consistency`, focused tests, and
-     `make validate-changed`
+     the installed pre-push `make validate-changed` during the push
    - Do not run full local `make verify` unless a human explicitly overrides
      the local machine-budget rule for one invocation
    - Commit hook changes separately when hooks modify files
@@ -1200,8 +1200,8 @@ and deleted:
    `gh pr view <PARENT_PR> --json state,mergeCommit,mergedAt`
 2. Create a new branch from `origin/main` in its own worktree.
 3. Cherry-pick the child commits onto that new branch.
-4. Re-run `pre-commit run --all-files`, `make validate-changed`, and focused
-   tests on the replacement branch head before pushing. GitHub current-head CI
+4. Re-run `pre-commit run --all-files` and focused tests on the replacement
+   branch head. The native push hook runs `make validate-changed`. GitHub current-head CI
    supplies the full heavy signal after the replacement PR opens.
 5. Push the replacement branch and open a **replacement PR** on `main`.
 6. Create a new canonical artifact path for the replacement PR:
