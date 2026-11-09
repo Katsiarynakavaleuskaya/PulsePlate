@@ -7080,7 +7080,12 @@ def _assert_ci_lint_node24_frontend_hook_dependency_contract(
             "fi\n"
             'exit "$observation_status"\n'
         ),
-        "env": {"SKIP": "no-commit-to-branch"},
+        "env": {
+            "SKIP": "no-commit-to-branch",
+            "BACKEND_HOOK_CI_EVENT": "${{ github.event_name }}",
+            "BACKEND_HOOK_CI_BASE": "${{ github.event.pull_request.base.sha || github.event.before }}",
+            "BACKEND_HOOK_CI_HEAD": "${{ github.sha }}",
+        },
     }
 
     checkout_index = lint_steps.index(checkout_step)

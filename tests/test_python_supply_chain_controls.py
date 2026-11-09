@@ -785,7 +785,12 @@ def test_ci_pre_commit_seed_lifecycle_preserves_failures_and_observes_created_ho
     assert lint["env"]["ALERTMANAGER_LINT_CHECK_MINUTES"] == (
         "${{ vars.CI_LINT_CHECKS_TIMEOUT_MINUTES || '60' }}"
     )
-    assert step["env"] == {"SKIP": "no-commit-to-branch"}
+    assert step["env"] == {
+        "SKIP": "no-commit-to-branch",
+        "BACKEND_HOOK_CI_EVENT": "${{ github.event_name }}",
+        "BACKEND_HOOK_CI_BASE": "${{ github.event.pull_request.base.sha || github.event.before }}",
+        "BACKEND_HOOK_CI_HEAD": "${{ github.sha }}",
+    }
     assert "if" not in step and "continue-on-error" not in step
     script = step["run"]
     assert isinstance(script, str)

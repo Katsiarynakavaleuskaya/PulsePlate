@@ -1330,6 +1330,9 @@ jobs:
           exit "$observation_status"
         env:
           SKIP: no-commit-to-branch
+          BACKEND_HOOK_CI_EVENT: ${{ github.event_name }}
+          BACKEND_HOOK_CI_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          BACKEND_HOOK_CI_HEAD: ${{ github.sha }}
 
       - name: Native OBS2A checkpoint lifecycle and owned-task challenge
         id: checkpoint-native
