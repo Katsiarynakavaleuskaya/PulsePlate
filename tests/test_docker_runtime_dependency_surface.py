@@ -3203,7 +3203,7 @@ def test_caddy062_unadopted_profile_never_charges_or_reaches_build(
     monkeypatch.setattr(runtime_surface, "caddy_ci_charge_action", charges.append)
     program = hold["run"].split("<<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
     with pytest.raises(ValueError, match="output profile not adopted"):
-        exec(compile(program, "caddy-unadopted-profile", "exec"), {})
+        exec(compile(program, "<caddy-unadopted-profile>", "exec"), {})
     assert charges == []
 
 
@@ -3250,6 +3250,25 @@ def test_caddy_metadata_native_identity_delegates_without_config_ID_alias() -> N
         ("missing-key", "declared_data_keys"),
         ("reverse-transition", "declared_data_type"),
         ("short-id", "full container ID"),
+        ("mount-rotation", None),
+        ("mount-carrier", "Mounts must be a list"),
+        ("mount-row-before", "mount must be an object"),
+        ("mount-missing-key", "canonical absolute path"),
+        ("mount-key-type", "canonical absolute path"),
+        ("mount-relative", "canonical absolute path"),
+        ("mount-root", "canonical absolute path"),
+        ("mount-nul", "canonical absolute path"),
+        ("mount-double-leading", "canonical absolute path"),
+        ("mount-empty-component", "canonical absolute path"),
+        ("mount-trailing", "canonical absolute path"),
+        ("mount-dot", "canonical absolute path"),
+        ("mount-dot-dot", "canonical absolute path"),
+        ("mount-duplicate-before-self", "destination is duplicated"),
+        ("mount-duplicate-after", "destination is duplicated"),
+        ("mount-membership", "declared_data_keys"),
+        ("mount-source", "declared_data_value"),
+        ("mount-rw-type", "declared_data_type"),
+        ("mount-extra-field", "declared_data_keys"),
     ],
 )
 def test_caddy_metadata_custody_accepts_only_the_observed_typed_transition(
@@ -3302,6 +3321,61 @@ def test_caddy_metadata_custody_accepts_only_the_observed_typed_transition(
         actual["HostConfig"]["OomKillDisable"] = False
     elif fault == "short-id":
         before["Id"] = actual["Id"] = attempted = "a" * 12
+    elif fault is not None and fault.startswith("mount-"):
+        # The hosted resolver's last mount was reported first at terminal inspection.
+        mounts = [
+            {
+                "Type": "bind",
+                "Source": "/owned" + destination,
+                "Destination": destination,
+                "Mode": "",
+                "RW": True,
+                "Propagation": "rprivate",
+            }
+            for destination in ("/modules", "/home", "/cache", "/tmp", "/output", "/work")
+        ]
+        before["Mounts"] = mounts
+        actual["Mounts"] = deepcopy(mounts[-1:] + mounts[:-1])
+        row = actual["Mounts"][0]
+        match fault:
+            case "mount-carrier":
+                actual["Mounts"] = {}
+            case "mount-row-before":
+                before["Mounts"][0] = None
+            case "mount-missing-key":
+                del row["Destination"]
+            case "mount-key-type":
+                row["Destination"] = 1
+            case "mount-relative":
+                row["Destination"] = "work"
+            case "mount-root":
+                row["Destination"] = "/"
+            case "mount-nul":
+                row["Destination"] = "/work\0"
+            case "mount-double-leading":
+                row["Destination"] = "//work"
+            case "mount-empty-component":
+                row["Destination"] = "/work//cache"
+            case "mount-trailing":
+                row["Destination"] = "/work/"
+            case "mount-dot":
+                row["Destination"] = "/work/."
+            case "mount-dot-dot":
+                row["Destination"] = "/work/cache/.."
+            case "mount-duplicate-before-self":
+                before["Mounts"].append(deepcopy(mounts[0]))
+                actual = before
+                attempted = None
+            case "mount-duplicate-after":
+                actual["Mounts"].append(deepcopy(row))
+            case "mount-membership":
+                row["Destination"] = "/different"
+            case "mount-source":
+                row["Source"] = "/foreign/work"
+            case "mount-rw-type":
+                row["RW"] = 1
+            case "mount-extra-field":
+                row["Extra"] = True
     snapshot = json.dumps([before, actual], sort_keys=True)
     if message is None:
         runtime_surface.validate_caddy_metadata_custody(before, actual, started_id=attempted)

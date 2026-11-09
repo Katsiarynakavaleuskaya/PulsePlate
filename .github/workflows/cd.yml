@@ -104,7 +104,7 @@ env:
   IMAGE_NAME: ${{ github.repository }}
   # Phase values are workflow-owned. Code validates ceilings without fallback values.
   # ROOT creates C, independently reviews/designates it, then pins C before one normal C,H push.
-  ALERTMANAGER_CONTROLLER_SOURCE: '67337211177735c9b13fef55cd7be712dd8b648a' # Public immutable controller commit
+  ALERTMANAGER_CONTROLLER_SOURCE: '847e08ff971f4f794e101f871e6a1c47a980d23d' # Public immutable controller commit
   ALERTMANAGER_PREPARATION_MINUTES: '14'
   ALERTMANAGER_NATIVE_STEP_MINUTES: '42'
   ALERTMANAGER_LIVE_SECURITY_MINUTES: '32'

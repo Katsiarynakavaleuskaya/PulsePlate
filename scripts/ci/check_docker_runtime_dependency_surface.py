@@ -359,6 +359,28 @@ CADDY_XNET062_METADATA_SUCCESS = "observed_xnet062_metadata_only"
 _CADDY_METADATA_NEVER_STARTED = "0001-01-01T00:00:00Z"
 
 
+def _caddy_metadata_mounts_by_destination(mounts: Any) -> dict[str, dict[str, Any]]:
+    """Index the owned Caddy mounts without changing any row or path."""
+    if type(mounts) is not list:
+        raise ValueError("Caddy metadata Mounts must be a list")
+    by_destination: dict[str, dict[str, Any]] = {}
+    for row in mounts:
+        if type(row) is not dict:
+            raise ValueError("Caddy metadata mount must be an object")
+        destination = row.get("Destination")
+        if (
+            type(destination) is not str
+            or not destination.startswith("/")
+            or "\0" in destination
+            or any(part in ("", ".", "..") for part in destination[1:].split("/"))
+        ):
+            raise ValueError("Caddy metadata mount destination must be a canonical absolute path")
+        if destination in by_destination:
+            raise ValueError("Caddy metadata mount destination is duplicated")
+        by_destination[destination] = row
+    return by_destination
+
+
 def validate_caddy_metadata_custody(
     before: dict[str, Any], actual: dict[str, Any], *, started_id: str | None
 ) -> None:
@@ -370,8 +392,12 @@ def validate_caddy_metadata_custody(
         raise ValueError("Caddy metadata custody requires a full container ID")
     if started_id is not None and started_id != container_id:
         raise ValueError("Caddy metadata start belongs to another container")
-    for field in ("Id", "Name", "Image", "Config", "Mounts"):
+    for field in ("Id", "Name", "Image", "Config"):
         exact_data(actual[field], before[field])
+    exact_data(
+        _caddy_metadata_mounts_by_destination(actual.get("Mounts")),
+        _caddy_metadata_mounts_by_destination(before.get("Mounts")),
+    )
     original, state = before["State"], actual["State"]
     if (
         original.get("Status") != "created"
