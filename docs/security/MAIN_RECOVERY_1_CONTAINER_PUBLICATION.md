@@ -1163,15 +1163,32 @@ use exactly P1. B remains two serial image builds, containing four named binary
 compiler invocations in total. P2 is a later same-PR output selection using the
 actual B artifact; future commit, run, artifact and image identities are unknown.
 
-The immutable spent inventory retains seven tool jobs, five source-qualification
-jobs, four pair jobs and three package companions. Both failed and successful
-jobs remain spent. The final historical tool is run `40309564942`, job
-`121527061782`; the final historical Q and package companion are run
-`40379959203`, jobs `121773207468` and `121773207880`; the final historical pair
-is run `40384356149`, job `121788589461`. The code retains every earlier exact
-run/job/source/ref/status/time row. Omission, repetition, another attempt,
-unknown relevant work, incomplete pagination or another successor prefix rejects.
-Current action IDs are never inferred from that history.
+The immutable inventory contains 22 spent jobs: eight T, six Q, four B and
+four read-only package companions. Its first 19 rows retain all original
+identities, statuses and times, ending with pair run `40384356149`, job
+`121788589461`. The three appended rows record successful first attempts:
+
+| Spent stage | Run | Job | Source |
+| --- | --- | --- | --- |
+| T (ORAS) | [42510229545](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/42510229545) | 128821500270 | `4c4f18692e7b0f5d8e06aac3dd6c85bfe9ee43a9` |
+| Q read-only package companion | [42619126214](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/42619126214) | 129166421268 | `3ae68bd04a48a3f2a031b041e3bbf21696ed40b1` |
+| Q source qualification | [42619126214](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/42619126214) | 129166421471 | `3ae68bd04a48a3f2a031b041e3bbf21696ed40b1` |
+
+The previous Q completed with 171 ordered native records. Its source, Go
+and module mounts lived on that Q runner. The retained reader constructs
+the expected argv from authenticated run coordinates and fixed paths.
+All live callers still inspect each actual mount and its directory parents
+before container creation. This helper change requires fresh raw producer
+binding across the replacement P0 and P1.
+
+On 2026-11-09 the operator approved one replacement T (at most one new ORAS
+compiler start), one replacement Q with its read-only package companion,
+and transfer of the single unspent B pair to their actual P1. At approval
+zero replacement T compiles, replacement Q runs or B pairs had started.
+The new T must supply the retained coordinate before publishing P1.
+B requires successful replacement Q and companion on that exact P1.
+Every prior attempt remains spent. Each stage retains its own release gate;
+the decision grants no retry, extra B, registry publication or risk waiver.
 
 Current derived lock hashes are go.mod
 `6e2dfa8d25b5cd3da5513334134e63549aff7e70915958f98893893c825d609e`
@@ -1198,15 +1215,18 @@ read-only package capability. B requires aggregate Q-run success, so either
 companion failure prevents a pair.
 
 Budgets remain T 1800 seconds plus cleanup120 inside the 35-minute job;
-Q062 1800 plus cleanup120/default35 minutes; historical Q060 900/default20;
-and B two serial 3600-second image builds. Early T admission runs only on the exact PR #2494 ref and consumes a bounded
+Q062 1800 plus cleanup120/default35 minutes; its package companion has
+90 seconds plus cleanup30 inside 3 minutes. Historical Q060 keeps 900/default20.
+B is limited to two serial 3600-second image builds and four named binary
+compiler invocations in total. Early T admission runs only on the exact PR #2494 ref and consumes a bounded
 90-second API check plus cleanup30 within existing setup reserve. It does not
 claim a shared monotonic clock across workflow processes. Resource exhaustion,
 authentication cleanup failure or missing evidence cannot produce success.
 
-Source anchors: `scripts/ci/prometheus_source_image.py:5942`,
+Source anchors: `scripts/ci/prometheus_source_image.py:5967`,
+`scripts/ci/prometheus_source_image.py:6814`, `scripts/ci/prometheus_source_image.py:7126`,
 `.github/workflows/build.yml:1007`, `deploy/prometheus/image-manifest.json:1`.
-Actual hosted T/Q/B, real product native qualification, complete current-head
+Replacement hosted T/Q and the transferred B, real product native qualification, complete current-head
 CI/review, merge and trusted-main publication/pullback remain pending. The
 Product29 synthetic transport proof and Caddy observations do not supply those
 outcomes. Rollback is to hold further effects and preserve evidence; selecting

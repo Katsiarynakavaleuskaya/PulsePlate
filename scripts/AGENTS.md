@@ -337,7 +337,13 @@ phase budget, and its failure still blocks a successful cleanup result.
   cap, never a success token or renewed compiler allowance. Q closes its private
   API context before source acquisition/native subprocesses. Unknown hosted
   root correspondence stops B; archive paths cannot select trusted expectations.
-  Preserve the complete spent history and all original outcomes/deadlines.
+  For the 2026-11-09 replacement, preserve the first 19 spent rows plus T
+  `42510229545` and both jobs of Q `42619126214`. Authenticate one new T
+  (at most one ORAS compiler start) before selecting its output on P1, then
+  one new Q and its read-only companion before the single transferred B pair
+  on that exact P1. Keep the existing two serial image and four binary-compile
+  limits and every original deadline. The security owner records the exact
+  [spent rows and stage limits](../docs/security/MAIN_RECOVERY_1_CONTAINER_PUBLICATION.md#pr-2494-p062-protected-producer-preparation).
   A predicate match, fixture pass or source commit grants no external dispatch,
   registry write, retry, merge or release authority.
 - An explicitly selected `tool_prefetch_predecessor` is historical evidence,
