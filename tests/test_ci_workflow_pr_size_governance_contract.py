@@ -6894,9 +6894,47 @@ def test_ci_history_jobs_do_not_persist_checkout_credentials(job_id: str) -> Non
     checkout_step = _job_step_by_name(workflow, job_id=job_id, step_name="Checkout")
     assert checkout_step == {
         "name": "Checkout",
+        "id": "checkout",
         "uses": f"actions/checkout@{CHECKOUT_V7_SHA}",
         "with": {"fetch-depth": 0, "persist-credentials": False},
     }
+
+
+@pytest.mark.parametrize("job_id", PYTHON_TEST_JOB_NAMES)
+def test_ci_post_test_cache_cleanup_requires_successful_checkout(job_id: str) -> None:
+    workflow = _load_ci_workflow()
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    steps = jobs[job_id]["steps"]
+    step_names = [step["name"] for step in steps]
+
+    checkout_steps = [step for step in steps if step.get("id") == "checkout"]
+    assert len(checkout_steps) == 1
+    checkout = checkout_steps[0]
+    assert checkout["name"] == "Checkout"
+    assert checkout["uses"] == f"actions/checkout@{CHECKOUT_V7_SHA}"
+    cleanup_action = "./.github/actions/clean-python-cache"
+    cleanups = [step for step in steps if step.get("uses") == cleanup_action]
+    assert [step["name"] for step in cleanups] == [
+        "Clean Python cache",
+        "Clean Python cache (post-test)",
+    ]
+    pre_cleanup, post_cleanup = cleanups
+    assert post_cleanup["if"] == "always() && steps.checkout.outcome == 'success'"
+
+    producer = "Finalize coverage artifacts"
+    upload = "Upload coverage artifact (single coverage runtime)"
+    if job_id == "test-main":
+        producer = "Run tests with coverage"
+        upload = "Upload coverage artifact (all Python versions)"
+    assert (
+        step_names.index("Enforce prerequisite results")
+        < steps.index(checkout)
+        < steps.index(pre_cleanup)
+        < step_names.index(producer)
+        < steps.index(post_cleanup)
+        < step_names.index(upload)
+    )
 
 
 def test_ci_lint_all_files_pre_commit_uses_project_node_version() -> None:

@@ -1557,6 +1557,7 @@ jobs:
           fi
 
       - name: Checkout
+        id: checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: {fetch-depth: 0, persist-credentials: false}
 
@@ -2214,7 +2215,7 @@ jobs:
           python -m coverage xml
 
       - name: Clean Python cache (post-test)
-        if: always()
+        if: always() && steps.checkout.outcome == 'success'
         uses: ./.github/actions/clean-python-cache
 
       - name: Upload coverage artifact (single coverage runtime)
@@ -2372,6 +2373,7 @@ jobs:
           fi
 
       - name: Checkout
+        id: checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: {fetch-depth: 0, persist-credentials: false}
 
@@ -2904,7 +2906,7 @@ jobs:
           python -m coverage xml
 
       - name: Clean Python cache (post-test)
-        if: always()
+        if: always() && steps.checkout.outcome == 'success'
         uses: ./.github/actions/clean-python-cache
 
       - name: Upload coverage artifact (single coverage runtime)
@@ -3019,6 +3021,7 @@ jobs:
           fi
 
       - name: Checkout
+        id: checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
@@ -3242,7 +3245,7 @@ jobs:
           exit "$test_exit_code"
 
       - name: Clean Python cache (post-test)
-        if: always()
+        if: always() && steps.checkout.outcome == 'success'
         uses: ./.github/actions/clean-python-cache
 
       - name: Upload coverage artifact (all Python versions)
