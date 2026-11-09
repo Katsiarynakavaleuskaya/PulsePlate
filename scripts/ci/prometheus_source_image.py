@@ -974,6 +974,27 @@ def sandbox_arguments(
     modules: Path,
     output: Path | None = None,
 ) -> list[str]:
+    for host in (source, go, modules):
+        real_directory(host)
+    if output is not None:
+        real_directory(output)
+    return _expected_sandbox_arguments(
+        docker, config, image_id, name, owner, source, go, modules, output
+    )
+
+
+def _expected_sandbox_arguments(
+    docker: str,
+    config: Path,
+    image_id: str,
+    name: str,
+    owner: str,
+    source: Path,
+    go: Path,
+    modules: Path,
+    output: Path | None = None,
+) -> list[str]:
+    """Render the exact command for fixed mount coordinates without opening their paths."""
     environment = clean_environment(
         GUEST_TMP, GUEST_TMP, GUEST_TMP / "gocache", Path("/modules"), offline=True
     )
@@ -1014,12 +1035,16 @@ def sandbox_arguments(
         "--entrypoint",
         "/usr/local/go/bin/go",
     ]
-    for host, guest in ((source, "/src"), (go, "/usr/local/go"), (modules, "/modules")):
-        real_directory(host)
-        argv += ["--mount", f"type=bind,source={host},target={guest},readonly"]
+    mounts = [
+        (source, "/src", ",readonly"),
+        (go, "/usr/local/go", ",readonly"),
+        (modules, "/modules", ",readonly"),
+    ]
     if output is not None:
-        real_directory(output)
-        argv += ["--mount", f"type=bind,source={output},target=/output"]
+        mounts.append((output, "/output", ""))
+    for host, guest, mode in mounts:
+        require(host.is_absolute() and ".." not in host.parts, "unsafe_directory")
+        argv += ["--mount", f"type=bind,source={host},target={guest}{mode}"]
     for key, value in environment.items():
         argv += ["--env", key + "=" + value]
     return argv + [image_id]
@@ -6301,7 +6326,9 @@ def _qualification_xnet062(
                 require(name not in before_names, "p062_Q_owned_name_collision")
                 stage = label + "-offline-" + command
                 create_argv = (
-                    sandbox_arguments(docker, config, image["Id"], name, owner, source, go, modules)
+                    _expected_sandbox_arguments(
+                        docker, config, image["Id"], name, owner, source, go, modules
+                    )
                     + argv
                 )
                 identifier = (
@@ -7050,6 +7077,48 @@ P062_SPENT_HISTORY = (
         "success",
         "2026-10-26T19:10:37Z",
         "2026-10-26T19:28:29Z",
+    ),
+    (
+        42510229545,
+        128821500270,
+        "prometheus-oras-qualification",
+        "4c4f18692e7b0f5d8e06aac3dd6c85bfe9ee43a9",
+        "codex/dependency-alertmanager-remediation",
+        1,
+        "completed",
+        "success",
+        "completed",
+        "success",
+        "2026-11-08T18:29:12Z",
+        "2026-11-08T18:31:31Z",
+    ),
+    (
+        42619126214,
+        129166421268,
+        "prometheus-ghcr-package-qualification",
+        "3ae68bd04a48a3f2a031b041e3bbf21696ed40b1",
+        "codex/dependency-alertmanager-remediation",
+        1,
+        "completed",
+        "success",
+        "completed",
+        "success",
+        "2026-11-09T12:41:38Z",
+        "2026-11-09T12:41:55Z",
+    ),
+    (
+        42619126214,
+        129166421471,
+        "prometheus-source-qualification",
+        "3ae68bd04a48a3f2a031b041e3bbf21696ed40b1",
+        "codex/dependency-alertmanager-remediation",
+        1,
+        "completed",
+        "success",
+        "completed",
+        "success",
+        "2026-11-09T12:41:38Z",
+        "2026-11-09T12:56:02Z",
     ),
 )
 

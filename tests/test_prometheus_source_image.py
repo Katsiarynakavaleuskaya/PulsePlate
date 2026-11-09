@@ -12,6 +12,7 @@ import io
 import json
 from pathlib import Path
 import re
+import shutil
 import signal
 import stat
 import tarfile
@@ -1844,6 +1845,89 @@ def test_sandbox_is_fixed_rootless_readonly_and_credential_free(tmp_path: Path) 
     assert env["GOPROXY"] == env["GOSUMDB"] == "off"
     assert env["GOTOOLCHAIN"] == "local" and env["CGO_ENABLED"] == "0"
     assert not {"GITHUB_TOKEN", "GH_TOKEN", "NETRC", "PIP_INDEX_URL"}.intersection(env)
+
+
+@pytest.mark.parametrize("with_output", [False, True])
+def test_expected_sandbox_argv_preserves_checked_mount_order_and_modes(
+    tmp_path: Path, with_output: bool
+) -> None:
+    paths = [tmp_path / name for name in ("source", "go", "modules")]
+    output = tmp_path / "output" if with_output else None
+    args = ("/usr/bin/docker", tmp_path, "sha256:" + "1" * 64, "owned", "owner")
+    expected = source._expected_sandbox_arguments(*args, *paths, output=output)
+    mounts = [expected[i + 1] for i, arg in enumerate(expected) if arg == "--mount"]
+    assert mounts == [
+        f"type=bind,source={paths[0]},target=/src,readonly",
+        f"type=bind,source={paths[1]},target=/usr/local/go,readonly",
+        f"type=bind,source={paths[2]},target=/modules,readonly",
+    ] + ([f"type=bind,source={output},target=/output"] if output else [])
+    for path in [*paths, *([output] if output else [])]:
+        path.mkdir()
+    assert source.sandbox_arguments(*args, *paths, output=output) == expected
+
+
+@pytest.mark.parametrize("operand", ["source", "go", "modules", "output"])
+@pytest.mark.parametrize("unsafe", ["relative", "traversal"])
+def test_expected_sandbox_argv_rejects_unsafe_lexical_mounts(
+    tmp_path: Path, operand: str, unsafe: str
+) -> None:
+    paths = {name: tmp_path / name for name in ("source", "go", "modules", "output")}
+    paths[operand] = Path("relative") if unsafe == "relative" else tmp_path / ".." / "other"
+    with pytest.raises(source.QualificationError, match="^unsafe_directory$"):
+        source._expected_sandbox_arguments(
+            "/usr/bin/docker", tmp_path, "image", "owned", "owner", **paths
+        )
+
+
+@pytest.mark.parametrize("operand", ["source", "go", "modules", "output"])
+@pytest.mark.parametrize("fault", ["missing", "file", "symlink", "symlink-parent", "file-parent"])
+def test_live_sandbox_rejects_invalid_mount_before_container_create(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, operand: str, fault: str
+) -> None:
+    paths = {name: tmp_path / name for name in ("source", "go", "modules", "output")}
+    for name, path in paths.items():
+        if name != operand:
+            path.mkdir()
+    bad = paths[operand]
+    if fault in {"file", "file-parent"}:
+        bad.touch()
+    elif fault in {"symlink", "symlink-parent"}:
+        target = tmp_path / "actual"
+        target.mkdir()
+        (target / "child").mkdir()
+        bad.symlink_to(target, target_is_directory=True)
+    if fault in {"file-parent", "symlink-parent"}:
+        paths[operand] = bad / "child"
+
+    seen: list[str] = []
+
+    def inspect(argv: list[str], stage: str, *args: Any, **kwargs: Any) -> bytes:
+        assert argv[3:5] == ["image", "inspect"]
+        seen.append(stage)
+        return json.dumps(_native_fixed_base_image()).encode()
+
+    native = source.Native(tmp_path, time.monotonic() + 20, 10)
+    monkeypatch.setattr(native, "run", inspect)
+    error = {"missing": FileNotFoundError, "file-parent": NotADirectoryError}.get(
+        fault, source.QualificationError
+    )
+    message = "^nonreal_directory_chain$" if error is source.QualificationError else None
+    with pytest.raises(error, match=message):
+        source.finite_go(
+            native,
+            tmp_path,
+            "/usr/bin/docker",
+            tmp_path,
+            {},
+            paths["source"],
+            paths["go"],
+            paths["modules"],
+            {},
+            "probe",
+            ["version"],
+            output=paths["output"],
+        )
+    assert seen == ["probe-base"]
 
 
 def _xnet062_report_fixture(
@@ -10391,6 +10475,9 @@ def _p062_retained_q_fixture(
         "producer",
         "native-secret",
         "mount",
+        "rebound-path",
+        "rebound-mode",
+        "rebound-order",
         "resource",
         "full-ID",
         "raw-rehash",
@@ -10405,6 +10492,12 @@ def test_p062_independent_retained_reader_rejects_rebound_false_native_proof(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str | None
 ) -> None:
     files, root, qualified, work, vendor = _p062_retained_q_fixture(tmp_path, monkeypatch)
+    # A later runner receives the archive and its coordinates after Q's work tree is gone.
+    for path in work.rglob("*"):
+        if path.is_dir():
+            path.chmod(0o700)
+    shutil.rmtree(work)
+    assert not work.exists()
     report = source.one_object(files["qualification.json"])
     if fault == "fullF":
         report["module_derivation"]["closure_disposition"] = "remediated"
@@ -10435,6 +10528,30 @@ def test_p062_independent_retained_reader_rejects_rebound_false_native_proof(
         raw = source.canonical_data(rows) + b"\n"
         files[binding["member"]] = raw
         binding.update(bytes=len(raw), sha256=source.sha(raw))
+    elif fault in {"rebound-path", "rebound-mode", "rebound-order"}:
+        stage = "a-incumbent-offline-prometheus"
+        records = {Path(r["stdout"]).name: r for r in report["native_operations"]}
+        argv = records[stage + "-create.stdout"]["argv"]
+        slots = [i + 1 for i, item in enumerate(argv) if item == "--mount"]
+        foreign = str(tmp_path / "prometheus-source-999-1" / "source")
+        if fault == "rebound-path":
+            argv[slots[0]] = f"type=bind,source={foreign},target=/src,readonly"
+        elif fault == "rebound-mode":
+            argv[slots[0]] = argv[slots[0]].removesuffix(",readonly")
+        else:
+            argv[slots[0]], argv[slots[1]] = argv[slots[1]], argv[slots[0]]
+        for suffix in ("-inspect.stdout", "-completed-inspect.stdout"):
+            name = stage + suffix
+            objects = json.loads(files[name])
+            mounts = objects[0]["Mounts"]
+            if fault == "rebound-path":
+                mounts[0]["Source"] = foreign
+            elif fault == "rebound-mode":
+                mounts[0]["RW"] = True
+            else:
+                mounts[0], mounts[1] = mounts[1], mounts[0]
+            files[name] = json.dumps(objects).encode()
+            records[name]["stdout_sha256"] = source.sha(files[name])
     elif fault in ("mount", "resource", "full-ID", "raw-rehash"):
         name = (
             "a-incumbent-offline-prometheus-inspect.stdout"
@@ -10482,8 +10599,16 @@ def test_p062_independent_retained_reader_rejects_rebound_false_native_proof(
         assert locks == {n: ("v0.62.0 " + n + "\n").encode() for n in ("go.mod", "go.sum")}
         assert len(report["native_operations"]) == 171
     else:
-        with pytest.raises(source.QualificationError):
+        expected_error = "^declared_data_value$" if fault.startswith("rebound-") else None
+        with pytest.raises(source.QualificationError, match=expected_error):
             source.qualification_locks(archive, **args)
+
+
+_P062_PREVIOUS_CYCLE_JOBS = (
+    (42510229545, 128821500270),
+    (42619126214, 129166421268),
+    (42619126214, 129166421471),
+)
 
 
 def _p062_stage_fixture(
@@ -10607,8 +10732,8 @@ def _p062_stage_fixture(
                 "run_attempt": 1,
                 "status": "in_progress" if live else "completed",
                 "conclusion": None if live else "success",
-                "started_at": f"2026-11-07T0{rid - 500}:00:00Z",
-                "completed_at": None if live else f"2026-11-07T0{rid - 500}:01:00Z",
+                "started_at": f"2026-11-10T0{rid - 500}:00:00Z",
+                "completed_at": None if live else f"2026-11-10T0{rid - 500}:01:00Z",
             }
         ]
         if selected == "qualification":
@@ -10671,6 +10796,37 @@ def _p062_stage_fixture(
             return copy.deepcopy(rows)
 
     return API(), root
+
+
+@pytest.mark.parametrize(("run_id", "job_id"), _P062_PREVIOUS_CYCLE_JOBS)
+@pytest.mark.parametrize("fault", ["missing", "altered"])
+def test_p062_replacement_requires_each_previously_consumed_job(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, run_id: int, job_id: int, fault: str
+) -> None:
+    api, root = _p062_stage_fixture(tmp_path, monkeypatch, "tool")
+    jobs = api.jobs[run_id]
+    job = next(j for j in jobs if j["id"] == job_id)
+    if fault == "missing":
+        jobs.remove(job)
+    else:
+        job["completed_at"] = job["started_at"]
+    error = "declared_data_length" if fault == "missing" else "declared_data_value"
+    with pytest.raises(source.QualificationError, match=f"^{error}$"):
+        source.manual_hosted_admission(api, "tool", producer_root=root)
+
+
+@pytest.mark.parametrize(
+    ("purpose", "prior_run", "prior_job"),
+    [("qualification", 501, 701), ("pair", 501, 701), ("pair", 502, 702), ("pair", 502, 799)],
+)
+def test_p062_old_successes_cannot_replace_a_missing_new_predecessor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, purpose: str, prior_run: int, prior_job: int
+) -> None:
+    api, root = _p062_stage_fixture(tmp_path, monkeypatch, purpose)
+    jobs = api.jobs[prior_run]
+    jobs.remove(next(job for job in jobs if job["id"] == prior_job))
+    with pytest.raises(source.QualificationError, match="^p062_nonrenewable_stage_prefix$"):
+        source.manual_hosted_admission(api, purpose, producer_root=root)
 
 
 @pytest.mark.parametrize("purpose", ["tool", "qualification", "pair"])
@@ -10880,7 +11036,7 @@ def test_p062_epochs_and_prepared_manifest_have_no_future_outputs(tmp_path: Path
         "go.mod": "d85af091d5bf9ba19f98e4d92e24b368d3e5537af086521ef10c7dd669695fd7",
         "go.sum": "eaeb5e4f16a9edcab1aeeb2b1a90a0f85decbd0065b3bf63e03729d324f7fc1f",
     }
-    assert len(source.P062_SPENT_HISTORY) == 19
+    assert len(source.P062_SPENT_HISTORY) == 22
     assert {
         name: sum(row[2] == name for row in source.P062_SPENT_HISTORY)
         for name in (
@@ -10890,12 +11046,21 @@ def test_p062_epochs_and_prepared_manifest_have_no_future_outputs(tmp_path: Path
             source.P062_COMPANION,
         )
     } == {
-        "prometheus-oras-qualification": 7,
-        "prometheus-source-qualification": 5,
+        "prometheus-oras-qualification": 8,
+        "prometheus-source-qualification": 6,
         "prometheus-source-build-pair": 4,
-        source.P062_COMPANION: 3,
+        source.P062_COMPANION: 4,
     }
-    assert source.P062_SPENT_HISTORY[-1][:2] == (40384356149, 121788589461)
+    # Ordered, full-row digests bind every field, including times and outcomes.
+    original, consumed = source.P062_SPENT_HISTORY[:19], source.P062_SPENT_HISTORY[19:]
+    assert original[-1][:2] == (40384356149, 121788589461)
+    assert source.sha(source.canonical_data(original)) == (
+        "19346b66ab34d8ed0ef446aef5a3b101e8cb989c50356ec8f22b734a1761debd"
+    )
+    assert tuple(row[:2] for row in consumed) == _P062_PREVIOUS_CYCLE_JOBS
+    assert source.sha(source.canonical_data(consumed)) == (
+        "2c0f68627c0cbd438069b9ffe7093e9982ba362de74db90c24168244819d3cd9"
+    )
 
 
 @pytest.mark.parametrize(
