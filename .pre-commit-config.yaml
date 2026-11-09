@@ -189,11 +189,13 @@ repos:
         files: ^(?:(?!frontend/|\.claude/).+\.py|frontend/package(?:-lock)?\.json)$
       - id: backend-tests-pre-push
         name: backend tests (pytest, pre-push)
-        entry: /usr/bin/env -u PRE_COMMIT bash scripts/run-backend-tests-pre-commit.sh
+        entry: >-
+          /usr/bin/env -u PRE_COMMIT -u MAKEFLAGS -u GNUMAKEFLAGS -u MFLAGS -u MAKEFILES
+          BACKEND_HOOK_REQUIRED_PUSH=1 SKIP_TESTS=0 make validate-changed
         language: system
         pass_filenames: false
         stages: [pre-push]
-        # No files filter - script determines changed files itself
+        always_run: true  # Deletion-only pushes can supply no classified files.
 
       # ios syntax check — run on pre-commit if iOS files changed (macOS only)
       - id: ios-syntax-check
