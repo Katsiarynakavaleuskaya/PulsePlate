@@ -2361,6 +2361,145 @@ def _alertmanager_command_exit(
         raise RuntimeError("Actual Alertmanager container command exit is not successful.")
 
 
+def _alertmanager_metadata_custody(
+    before: dict[str, Any],
+    actual: dict[str, Any],
+    identifier: str,
+    *,
+    issued_start: str | None,
+    terminal: dict[str, Any] | None = None,
+) -> None:
+    """Compare the owned metadata container to its original prestart inspection."""
+    from datetime import datetime
+    from scripts.ci.prometheus_source_image import exact_data, require
+
+    def mounts(rows: object) -> dict[str, dict[str, Any]]:
+        require(type(rows) is list and len(rows) == 3, "AM_metadata_custody_mounts")
+        indexed = {}
+        for row in cast(list[dict[str, Any]], rows):
+            require(type(row) is dict, "AM_metadata_custody_mount")
+            destination = row.get("Destination")
+            require(
+                type(destination) is str
+                and destination.startswith("/")
+                and "\x00" not in destination
+                and all(part not in ("", ".", "..") for part in destination[1:].split("/"))
+                and destination not in indexed,
+                "AM_metadata_custody_mount_destination",
+            )
+            indexed[cast(str, destination)] = row
+        require(
+            set(indexed) == {"/toolchain", "/source", "/cache"},
+            "AM_metadata_custody_mount_destination",
+        )
+        return indexed
+
+    never_started = "0001-01-01T00:00:00Z"
+    require(
+        re.fullmatch(r"[0-9a-f]{64}", identifier)
+        and before["Id"] == identifier
+        and (issued_start is None or issued_start == identifier),
+        "AM_metadata_custody_id",
+    )
+    initial = before["State"]
+    require(
+        initial.get("Status") == "created"
+        and initial.get("Running") is False
+        and initial.get("StartedAt") == never_started,
+        "AM_metadata_custody_prestart",
+    )
+    old_host = before["HostConfig"]
+    require(
+        type(old_host) is dict
+        and "OomKillDisable" in old_host
+        and (old_host["OomKillDisable"] is None or type(old_host["OomKillDisable"]) is bool),
+        "AM_metadata_custody_oom_field",
+    )
+    old_mounts = mounts(before["Mounts"])
+    for observation in ((actual,) if terminal is None else (terminal, actual)):
+        for field in ("Id", "Name", "Image", "Config"):
+            exact_data(observation[field], before[field])
+        exact_data(mounts(observation["Mounts"]), old_mounts)
+        state = observation["State"]
+        require(
+            state.get("Restarting", False) is False and state.get("Dead", False) is False,
+            "AM_metadata_custody_state",
+        )
+        status, started_at = state.get("Status"), state.get("StartedAt")
+        started = (status == "running" and state.get("Running") is True) or (
+            status == "exited" and state.get("Running") is False
+        )
+        if started:
+            require(
+                issued_start == identifier
+                and type(started_at) is str
+                and re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z", started_at),
+                "AM_metadata_custody_start",
+            )
+            try:
+                when = datetime.fromisoformat(started_at)
+            except ValueError as exc:
+                raise ValueError("AM_metadata_custody_start") from exc
+            require(when.year > 1, "AM_metadata_custody_start")
+        else:
+            require(
+                status == "created"
+                and state.get("Running") is False
+                and started_at == never_started,
+                "AM_metadata_custody_state",
+            )
+        host = observation["HostConfig"]
+        require(type(host) is dict and "OomKillDisable" in host, "AM_metadata_custody_oom_field")
+        if started and old_host["OomKillDisable"] is False and host["OomKillDisable"] is None:
+            host = {**host, "OomKillDisable": False}
+        exact_data(host, old_host)
+        # A later cleanup cannot reverse a transition already observed at terminal.
+        old_host = observation["HostConfig"]
+    if terminal is not None:
+        require(
+            terminal["State"]["Status"] == actual["State"]["Status"] == "exited"
+            and terminal["State"]["StartedAt"] == actual["State"]["StartedAt"],
+            "AM_metadata_custody_terminal",
+        )
+        for field in ("ExitCode", "OOMKilled", "Error"):
+            exact_data(actual["State"][field], terminal["State"][field])
+
+
+def _alertmanager_start_metadata(
+    native: Native,
+    prefix: list[str],
+    identifier: str,
+    stage: str,
+    env: dict[str, str],
+    cwd: Path,
+    issued: set[str],
+) -> bytes:
+    """Record issuance even if attach fails after launch, but never before Popen."""
+    from scripts.ci.prometheus_source_image import require
+
+    require(
+        re.fullmatch(r"[0-9a-f]{64}", identifier) and identifier not in issued,
+        "AM_metadata_start_id",
+    )
+    argv = [*prefix, "start", "--attach", identifier]
+    offset = len(native.records)
+    try:
+        raw: bytes = native.run(argv, stage, env, cwd=cwd)
+    finally:
+        if len(native.records) == offset + 1:
+            row = native.records[offset]
+            if (
+                row.get("argv") == argv
+                and row.get("cwd") == str(cwd)
+                and row.get("environment") == env
+                and row.get("stdout") == str(native.evidence / (stage + ".stdout"))
+                and row.get("stderr") == str(native.evidence / (stage + ".stderr"))
+            ):
+                issued.add(identifier)
+    require(identifier in issued, "AM_metadata_start_record_missing")
+    return raw
+
+
 def _alertmanager_cleanup_member(
     native: Native,
     docker: str,
@@ -2376,6 +2515,8 @@ def _alertmanager_cleanup_member(
     image_relation: dict[str, Any] | None = None,
     expected_commands: dict[str, list[str]] | None = None,
     expected_profiles: dict[str, dict[str, Any]] | None = None,
+    issued_starts: set[str] | None = None,
+    terminal_profiles: dict[str, dict[str, Any]] | None = None,
 ) -> None:
     """Remove only a retained full create ID whose exact name and owner label still match."""
     from scripts.ci.prometheus_source_image import decode_objects
@@ -2421,11 +2562,16 @@ def _alertmanager_cleanup_member(
         require(
             expected_profiles is not None
             and identifier in expected_profiles
-            and all(
-                observed[0].get(key) == expected_profiles[identifier].get(key)
-                for key in ("Config", "HostConfig", "Mounts")
-            ),
+            and issued_starts is not None
+            and terminal_profiles is not None,
             "AM_metadata_cleanup_profile",
+        )
+        _alertmanager_metadata_custody(
+            cast(dict[str, dict[str, Any]], expected_profiles)[identifier],
+            observed[0],
+            identifier,
+            issued_start=identifier if identifier in cast(set[str], issued_starts) else None,
+            terminal=cast(dict[str, dict[str, Any]], terminal_profiles).get(identifier),
         )
     native.run(
         [docker, "--config", str(docker_config), "rm", "--force", identifier],
@@ -2871,6 +3017,8 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
     owned_ids: set[str] = set()
     expected_commands: dict[str, list[str]] = {}
     expected_profiles: dict[str, dict[str, Any]] = {}
+    issued_starts: set[str] = set()
+    terminal_profiles: dict[str, dict[str, Any]] = {}
     base_relation: dict[str, Any] | None = None
     primary: BaseException | None = None
     cleanup_error: BaseException | None = None
@@ -3212,7 +3360,7 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
                     .decode("ascii")
                     .strip()
                 )
-                if re.fullmatch(r"[0-9a-f]{64}", identifier) is None:
+                if re.fullmatch(r"[0-9a-f]{64}", identifier) is None or identifier in owned_ids:
                     raise RuntimeError("Owned Alertmanager metadata container identity malformed.")
                 owned_ids.add(identifier)
                 expected_commands[identifier] = args
@@ -3224,7 +3372,6 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
                         cwd=source,
                     )
                 )
-                expected_profiles[identifier] = before_start
                 require(base_relation is not None, "AM_metadata_base_relation")
                 native_container_image_identity(before_start, base_relation)
                 expected_env = dict(
@@ -3272,11 +3419,18 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
                     },
                     "AM_metadata_prestart_tmpfs",
                 )
-                raw = native.run(
-                    [*docker_prefix, "start", "--attach", identifier],
+                _alertmanager_metadata_custody(
+                    before_start, before_start, identifier, issued_start=None
+                )
+                expected_profiles[identifier] = before_start
+                raw = _alertmanager_start_metadata(
+                    native,
+                    docker_prefix,
+                    identifier,
                     "replay" + str(number) + "-offline-" + label,
                     {"PATH": "/usr/bin:/bin", "HOME": str(home)},
-                    cwd=source,
+                    source,
+                    issued_starts,
                 )
                 waited = native.run(
                     [*docker_prefix, "wait", identifier],
@@ -3294,13 +3448,11 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
                 )
                 if len(terminal) != 1:
                     raise RuntimeError("Owned Alertmanager terminal state ambiguous.")
+                terminal_profiles[identifier] = terminal[0]
                 _alertmanager_command_exit(terminal[0], identifier, name, owner_token, waited)
                 native_container_image_identity(terminal[0], base_relation)
-                require(
-                    terminal[0]["Config"] == before_start["Config"]
-                    and terminal[0]["HostConfig"] == before_start["HostConfig"]
-                    and terminal[0]["Mounts"] == before_start["Mounts"],
-                    "AM_metadata_terminal_profile_changed",
+                _alertmanager_metadata_custody(
+                    before_start, terminal[0], identifier, issued_start=identifier
                 )
                 offline[label] = raw
                 if label == "version" and raw != version:
@@ -3417,6 +3569,8 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
                         image_relation=base_relation,
                         expected_commands=expected_commands,
                         expected_profiles=expected_profiles,
+                        issued_starts=issued_starts,
+                        terminal_profiles=terminal_profiles,
                     )
                 absent = native.run(
                     [
@@ -5556,10 +5710,6 @@ def _alertmanager_xnet062_native_commands(
             cid = files[prefix + "create-" + cmd + ".stdout"].decode("ascii").strip()
             pre = one_object(files[prefix + "prestart-" + cmd + ".stdout"])
             post = one_object(files[prefix + "terminal-" + cmd + ".stdout"])
-            exact_data(
-                [post.get(k) for k in ("Id", "Name", "Config", "HostConfig", "Mounts")],
-                [pre.get(k) for k in ("Id", "Name", "Config", "HostConfig", "Mounts")],
-            )
             native_container_image_identity(pre, relation)
             native_container_image_identity(post, relation)
             cfg, hc = pre["Config"], pre["HostConfig"]
@@ -5611,7 +5761,6 @@ def _alertmanager_xnet062_native_commands(
                 "AM_062_container_owner",
             )
             owner_tokens.add(token)
-            profiles[cid] = post
             args_env = {"HOME": str(home), "PATH": "/usr/bin:/bin"}
             docker_record(
                 prefix + "create-" + cmd,
@@ -5639,6 +5788,8 @@ def _alertmanager_xnet062_native_commands(
                     source,
                     docker_env if stage == "prestart" else args_env,
                 )
+            _alertmanager_metadata_custody(pre, post, cid, issued_start=cid)
+            profiles[cid] = (pre, post)
             if cmd in ("version", "verify"):
                 expected = (
                     b"go version go1.27.3 linux/amd64\n"
@@ -5679,10 +5830,8 @@ def _alertmanager_xnet062_native_commands(
             "AM_062_cleanup_identity",
         )
         native_container_image_identity(clean, relation)
-        exact_data(
-            [clean.get(k) for k in ("Name", "Config", "HostConfig", "Mounts")],
-            [profiles[cid].get(k) for k in ("Name", "Config", "HostConfig", "Mounts")],
-        )
+        pre, post = profiles[cid]
+        _alertmanager_metadata_custody(pre, clean, cid, issued_start=cid, terminal=post)
         docker_record(
             f"cleanup-inspect-{i}", ["inspect", "--format", "{{json .}}", cid], evidence, docker_env
         )

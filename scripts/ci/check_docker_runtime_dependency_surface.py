@@ -1857,37 +1857,167 @@ sys.stdout.buffer.write(raw)
 """
 
 
-def caddy_ci_api(
-    root: Path, directory: Path, endpoint: str, remaining: Callable[[float], float], expected: str
-) -> Any:
-    """Use the incumbent process owner for the same finite no-redirect API GET."""
+def _caddy_api_source(root: Path, expected: str) -> None:
     source = root / "scripts/ci/prometheus_source_image.py"
-    if source.is_symlink() or not source.is_file():
-        raise ValueError("Caddy API source is not regular")
     if (
-        re.fullmatch(r"[0-9a-f]{64}", expected) is None
+        not root.is_absolute()
+        or source.resolve(strict=True) != source
+        or not source.is_file()
+        or re.fullmatch(r"[0-9a-f]{64}", expected) is None
         or hashlib.sha256(source.read_bytes()).hexdigest() != expected
     ):
-        raise ValueError("Caddy API helper differs from admitted source")
-    from scripts.ci.prometheus_source_image import GitHubRead, reject_constant, unique_object
+        raise ValueError("Caddy API source differs")
 
-    slot = min(int(os.environ["CADDY_API_CALL_SECONDS"]), remaining(float("inf")))
-    cleanup = int(os.environ["CADDY_API_CLEANUP_SECONDS"])
-    if not 0 < cleanup <= 10 or not cleanup < slot <= 30:
-        raise ValueError("Caddy API whole-call slot unavailable")
-    # Auth and HTTP child share this one work deadline; construction does not
-    # earn another slot. The existing close owner has only the reserved tail.
-    deadline = time.monotonic() + slot - cleanup
-    directory.mkdir(mode=0o700)
-    evidence = directory / "evidence"
-    evidence.mkdir(mode=0o700)
-    cache = directory / "pycache"
-    cache.mkdir(mode=0o700)
-    reader = GitHubRead(directory / "private", evidence, deadline, cleanup)
-    primary: BaseException | None = None
+
+def _caddy_api_failure(
+    stage: str,
+    ordinal: int,
+    endpoint_class: str,
+    started: float,
+    error: BaseException,
+    evidence: Path,
+    sequence: int,
+    argv: list[str] | None,
+    native_error: type[Exception] | None,
+) -> ValueError:
+    """Only project closed fields; raw native evidence remains private."""
+    is_native = native_error is not None and isinstance(error, native_error)
+    native_exit = None
+    category = "failure"
+    if isinstance(error, (TimeoutError, subprocess.TimeoutExpired)) or (
+        is_native and error.args == ("qualification_deadline",)
+    ):
+        category = "deadline"
+    elif is_native and error.args == ("GitHub_native_failed",):
+        category = "native_failure"
+        try:
+            receipt = evidence / f"GitHub-{sequence}.json"
+            if argv is not None and receipt.resolve(strict=True) == receipt and receipt.is_file():
+                with receipt.open("rb") as stream:
+                    raw = stream.read(32769)
+                if len(raw) <= 32768:
+                    record = json.loads(raw)
+                    code = record["exit"]
+                    if (
+                        set(record)
+                        == {"argv", "exit", "stdout_bytes", "stdout_sha256", "stderr_sha256"}
+                        and record["argv"] == argv
+                        and type(record["stdout_bytes"]) is int
+                        and 0 <= record["stdout_bytes"] <= 8388608
+                        and all(
+                            isinstance(record[key], str)
+                            and re.fullmatch(r"[0-9a-f]{64}", record[key])
+                            for key in ("stdout_sha256", "stderr_sha256")
+                        )
+                        and type(code) is int
+                        and -255 <= code <= 255
+                        and code != 0
+                    ):
+                        native_exit = code
+        except (OSError, ValueError, KeyError, TypeError, RecursionError):
+            native_exit = None
+    summary = json.dumps(
+        {
+            "stage": stage,
+            "ordinal": ordinal if 0 <= ordinal <= 9999999 else None,
+            "endpoint_class": endpoint_class,
+            "category": category,
+            "native_exit": native_exit,
+            "elapsed_ms": int(max(0, time.monotonic() - started) * 1000),
+        },
+        sort_keys=True,
+    )
+    # The log also covers metadata-only jobs whose artifact upload is gated off.
     try:
-        raw = reader._capture(
-            [
+        print("Caddy API failure " + summary, file=sys.stderr, flush=True)
+    except (OSError, ValueError):
+        pass
+    try:
+        runner = Path(os.environ["RUNNER_TEMP"])
+        directory = runner / "caddy-contract"
+        if (
+            runner.is_absolute()
+            and runner.resolve(strict=True) == runner
+            and not directory.is_symlink()
+        ):
+            directory.mkdir(mode=0o700, exist_ok=True)
+            with (directory / f"api-{stage}-failure.json").open("x", encoding="utf-8") as stream:
+                stream.write(summary + "\n")
+    except (OSError, ValueError, KeyError):
+        pass
+    return ValueError("Caddy API failure " + summary)
+
+
+@contextmanager
+def caddy_ci_reader(
+    root: Path, directory: Path, remaining: Callable[[float], float], expected: str
+) -> Iterator[Callable[[str], Any]]:
+    """One mandatory authenticated owner per admission. Every GET still uses a fresh worker."""
+    started = time.monotonic()
+    evidence = directory / "evidence"
+    native_error: type[Exception] | None = None
+    auth_argv = None
+    try:
+        _caddy_api_source(root, expected)
+        from scripts.ci.prometheus_source_image import (
+            GitHubRead,
+            QualificationError,
+            reject_constant,
+            unique_object,
+        )
+
+        native_error = QualificationError
+
+        call_cap = int(os.environ["CADDY_API_CALL_SECONDS"])
+        cleanup = int(os.environ["CADDY_API_CLEANUP_SECONDS"])
+        if not 0 < cleanup <= 10 or not cleanup < call_cap <= 30:
+            raise ValueError("Caddy API invalid call budget")
+        phase_work_end = started + remaining(float("inf")) - cleanup
+
+        def work_end() -> float:
+            now = time.monotonic()
+            limit = min(phase_work_end, now + min(call_cap, remaining(float("inf"))) - cleanup)
+            if limit <= now:
+                raise TimeoutError("Caddy API work slot expired")
+            return limit
+
+        first_deadline = min(started + call_cap - cleanup, work_end())
+        directory.mkdir(mode=0o700)
+        evidence.mkdir(mode=0o700)
+        gh = shutil.which("gh")
+        if gh is not None:
+            auth_argv = [gh, "auth", "status", "--hostname", "github.com"]
+        reader = GitHubRead(directory / "private", evidence, first_deadline, cleanup)
+    except Exception as exc:
+        raise _caddy_api_failure(
+            "auth", 0, "none", started, exc, evidence, 1, auth_argv, native_error
+        ) from None
+
+    ordinal = 0
+    usable = True
+    pending_cache: Path | None = None
+
+    def get(endpoint: str) -> Any:
+        nonlocal ordinal, usable, pending_cache
+        if not usable or reader.cleanup_deadline is not None or reader.process is not None:
+            raise ValueError("Caddy API reader unavailable")
+        usable = False
+        ordinal += 1
+        stage = "get"
+        family = endpoint.split("/", 2)[1] if endpoint.startswith("/") else ""
+        family = family if family in {"actions", "pulls", "git", "commits"} else "other"
+        argv = None
+        cache = directory / f"pycache-{ordinal}"
+        try:
+            if ordinal > 1:
+                reader.deadline = work_end()
+            _caddy_api_source(root, expected)
+            cache.mkdir(mode=0o700)
+            pending_cache = cache
+            seconds = reader.deadline - time.monotonic()
+            if seconds <= 0:
+                raise TimeoutError("Caddy API work slot expired")
+            argv = [
                 sys.executable,
                 "-E",
                 "-S",
@@ -1899,21 +2029,57 @@ def caddy_ci_api(
                 str(root),
                 expected,
                 endpoint,
-                str(slot - cleanup),
-            ],
-            8388608,
-        )
-        return json.loads(raw, object_pairs_hook=unique_object, parse_constant=reject_constant)
+                str(seconds),
+            ]
+            raw = reader._capture(argv, 8388608)
+            stage = "decode"
+            result = json.loads(
+                raw.decode("utf-8"), object_pairs_hook=unique_object, parse_constant=reject_constant
+            )
+            if time.monotonic() >= reader.deadline:
+                raise TimeoutError("Caddy API decode deadline expired")
+            stage = "cleanup"
+            cache.rmdir()
+            pending_cache = None
+            usable = True
+            return result
+        except Exception as exc:
+            failure = _caddy_api_failure(
+                stage, ordinal, family, started, exc, evidence, ordinal + 1, argv, native_error
+            )
+            raise failure from None
+
+    primary: BaseException | None = None
+    try:
+        yield get
+        if not usable:
+            raise ValueError("Caddy API failed reader")
     except BaseException as error:
         primary = error
         raise
     finally:
+        usable = False
         try:
+            if primary is None and reader.process is None and reader.cleanup_deadline is None:
+                reader.deadline = phase_work_end
             reader.close()
-        except BaseException as cleanup_error:
+            if pending_cache is not None and reader.process is None:
+                pending_cache.rmdir()
+        except Exception as exc:
+            close_error = _caddy_api_failure(
+                "cleanup", ordinal, "none", started, exc, evidence, 0, None, native_error
+            )
             if primary is None:
-                raise
-            primary.add_note("Caddy API cleanup also failed: " + type(cleanup_error).__name__)
+                raise close_error from None
+            primary.add_note(str(close_error))
+
+
+def caddy_ci_api(
+    root: Path, directory: Path, endpoint: str, remaining: Callable[[float], float], expected: str
+) -> Any:
+    """The final source reread independently authenticates and closes its owner."""
+    with caddy_ci_reader(root, directory, remaining, expected) as get:
+        return get(endpoint)
 
 
 def caddy_ci_charge_action(phase: str, seconds: int | None = None) -> int:

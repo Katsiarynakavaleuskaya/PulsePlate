@@ -7443,22 +7443,36 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
         now = ledger["budget"]["started"]
         monkeypatch.setattr(owner, "time", SimpleNamespace(monotonic=lambda: now))
 
-    def api_call(
-        selected_root: Path, directory: Path, endpoint: str, remaining: Any, expected: str
-    ) -> Any:
-        nonlocal now
+    from contextlib import contextmanager
+    from collections.abc import Iterator
+
+    reader_events = []
+
+    @contextmanager
+    def phase_reader(
+        selected_root: Path, directory: Path, remaining: Any, expected: str
+    ) -> Iterator[Callable[[str], Any]]:
+        reader_events.append("open")
         assert selected_root == root
         assert expected == hashlib.sha256(source_bytes).hexdigest()
-        request = Request(
-            "https://api.github.com/repos/" + repo + endpoint,
-            headers={"Authorization": "Bearer " + os.environ["GH_TOKEN"]},
-        )
-        response = json.loads(API().open(request, remaining(30)).read(8388609))
-        if refresh == "job-budget" and endpoint == "/actions/runs/11/attempts/1":
-            now += 33
-        return response
 
-    monkeypatch.setattr(owner, "caddy_ci_api", api_call)
+        def api_call(endpoint: str) -> Any:
+            nonlocal now
+            request = Request(
+                "https://api.github.com/repos/" + repo + endpoint,
+                headers={"Authorization": "Bearer " + os.environ["GH_TOKEN"]},
+            )
+            response = json.loads(API().open(request, remaining(30)).read(8388609))
+            if refresh == "job-budget" and endpoint == "/actions/runs/11/attempts/1":
+                now += 33
+            return response
+
+        try:
+            yield api_call
+        finally:
+            reader_events.append("closed")
+
+    monkeypatch.setattr(owner, "caddy_ci_reader", phase_reader)
     monkeypatch.setattr(transport, "authenticate_pr_source", lambda *args: lineage.append(args[1:]))
     monkeypatch.setattr(shutil, "which", lambda name: "/synthetic/" + name)
     monkeypatch.setattr(subprocess, "check_output", git_output)
@@ -7469,6 +7483,7 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
         result = json.loads((runner / "caddy-admission/admission.json").read_text())
         mode = "build" if refresh else case
         assert result["mode"] == mode
+        assert reader_events == ["open", "closed"]
         assert output.read_text().startswith("mode=" + mode)
         if case == "reuse":
             assert result["producer"]["git_inputs"] == result["inputs"]
@@ -7557,6 +7572,7 @@ def test_caddy_same_opener_child_binds_namespace_source_and_whole_call_deadline(
             word in key.upper() for word in ("TOKEN", "PASSWORD", "SECRET", "CREDENTIAL", "AUTH")
         ):
             monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
     token = "synthetic-only-token"
     monkeypatch.setenv("GH_TOKEN", token)
     monkeypatch.setenv("CADDY_API_CALL_SECONDS", "6")
@@ -7653,17 +7669,20 @@ urllib.request.HTTPSHandler.https_open = response
             root, directory, "/pulls/2494", lambda cap: min(cap, 6), expected
         ) == {"ok": True}
     elif fault == "slow-body":
-        with pytest.raises((transport.QualificationError, subprocess.TimeoutExpired)) as expired:
+        with pytest.raises(ValueError, match="Caddy API failure") as expired:
             owner.caddy_ci_api(root, directory, "/pulls/2494", lambda cap: min(cap, 6), expected)
-        if isinstance(expired.value, subprocess.TimeoutExpired):
-            assert expired.value.cmd == ["/bin/ps", "-axo", "pid,ppid,pgid,uid,lstart,state,comm"]
-            assert 0 < expired.value.timeout <= 1
-            assert time.monotonic() >= readers[0].deadline
+        assert (
+            json.loads(str(expired.value).removeprefix("Caddy API failure "))["category"]
+            == "deadline"
+        )
+        assert time.monotonic() >= deadlines[0]
     else:
         with pytest.raises((ValueError, transport.QualificationError)):
             owner.caddy_ci_api(root, directory, "/pulls/2494", lambda cap: min(cap, 6), expected)
-    if fault == "source":
+    if fault in ("source", "directory-alias"):
         assert deadlines == [] and not directory.exists()
+    elif fault == "source-after-auth":
+        assert len(deadlines) == 1 and readers[0].process is None
     else:
         assert (
             len(deadlines) == 2 and deadlines[0] == deadlines[1]
@@ -7694,6 +7713,224 @@ urllib.request.HTTPSHandler.https_open = response
         token.encode() not in path.read_bytes() for path in directory.rglob("*") if path.is_file()
     )
     assert not (tmp_path / "candidate.json").exists()
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "auth",
+        "auth-no-receipt",
+        "auth-wrong-identity",
+        "auth-bool-exit",
+        "auth-stale-path",
+        "diagnostic-sink",
+        "first-slot",
+        "second-get",
+        "second-get-cleanup",
+        "pending-child",
+        "source-drift",
+        "cache-collision",
+        "duplicate-json",
+        "nonfinite-json",
+        "decode-deadline",
+        "cleanup",
+    ],
+)
+def test_caddy_authenticated_reader_lifetime(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fault: str | None,
+) -> None:
+    from types import SimpleNamespace
+    from scripts.ci import prometheus_source_image as transport
+
+    for key in ("GH_TOKEN", "GITHUB_TOKEN", "GHCR_READ_TOKEN"):
+        monkeypatch.delenv(key, raising=False)
+    token = "synthetic." + "q" * 510 + ".suffix"
+    marker = "PRIVATE_UNTRUSTED_STREAM_SENTINEL"
+    monkeypatch.setenv("GH_TOKEN", token)
+    monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
+    monkeypatch.setenv("CADDY_API_CALL_SECONDS", "30")
+    monkeypatch.setenv("CADDY_API_CLEANUP_SECONDS", "10")
+    monkeypatch.setattr(shutil, "which", lambda name: "/synthetic/gh" if name == "gh" else None)
+    root = tmp_path / "repo"
+    source = root / "scripts/ci/prometheus_source_image.py"
+    source.parent.mkdir(parents=True)
+    source.write_bytes(b"# synthetic acquisition fixture\n")
+    expected = hashlib.sha256(source.read_bytes()).hexdigest()
+    directory = tmp_path / "admission"
+    now = caddy_surface.time.monotonic()
+    phase_end = now + 44
+    monkeypatch.setattr(caddy_surface, "time", SimpleNamespace(monotonic=lambda: now))
+
+    def remaining(cap: float) -> float:
+        return min(cap, phase_end - now)
+
+    events: list[str] = []
+    workers: list[tuple[str, float, float]] = []
+    owners: list[Any] = []
+    original_close = transport.GitHubRead.close
+    auth_failure = fault is not None and (fault.startswith("auth") or fault == "diagnostic-sink")
+
+    def capture(reader: Any, argv: list[str], maximum: int) -> bytes:
+        nonlocal now
+        reader.sequence += 1
+        auth = argv == ["/synthetic/gh", "auth", "status", "--hostname", "github.com"]
+        if auth:
+            owners.append(reader)
+            events.append("auth")
+            assert maximum == 1024**2
+            now += 21 if fault == "first-slot" else 2
+        else:
+            events.append("get")
+            assert maximum == 8388608
+            cache = Path(argv[argv.index("-X") + 1].removeprefix("pycache_prefix="))
+            assert cache.is_dir() and not list(cache.iterdir())
+            workers.append((str(cache), reader.deadline, float(argv[-1])))
+            if fault == "pending-child" and len(workers) == 2:
+                reader.process = object()  # Synthetic unresolved owned group.
+                reader.cleanup_deadline = now + 1
+                raise RuntimeError(marker)
+            now = reader.deadline if fault == "decode-deadline" else now + 9
+        if (auth and auth_failure) or (
+            not auth and fault in {"second-get", "second-get-cleanup"} and len(workers) == 2
+        ):
+            item = reader.evidence / f"GitHub-{reader.sequence}.json"
+            receipt = {
+                "argv": argv,
+                "exit": 42,
+                "stdout_bytes": 0,
+                "stdout_sha256": hashlib.sha256(b"").hexdigest(),
+                "stderr_sha256": hashlib.sha256((marker + token).encode()).hexdigest(),
+            }
+            if fault == "auth-wrong-identity":
+                receipt["argv"] = ["wrong", marker, token]
+            if fault == "auth-bool-exit":
+                receipt["exit"] = True
+            if fault == "auth-stale-path":
+                item = item.with_name("GitHub-2.json")
+            if fault != "auth-no-receipt":
+                item.write_text(json.dumps(receipt))
+            (reader.evidence / "private.stderr").write_text(marker + token)
+            raise transport.QualificationError("GitHub_native_failed")
+        if not auth and fault == "duplicate-json":
+            return b'{"field":1,"field":2}'
+        if not auth and fault == "nonfinite-json":
+            return b'{"field":NaN}'
+        return b'{"ok":true}'
+
+    def close(reader: Any) -> None:
+        events.append("close")
+        if fault == "pending-child":
+            assert reader.cleanup_deadline == now + 1 and reader.process is not None
+            raise RuntimeError(marker)
+        original_close(reader)
+        if fault in {"cleanup", "second-get-cleanup"}:
+            raise RuntimeError(marker + token)
+
+    monkeypatch.setattr(transport.GitHubRead, "_capture", capture)
+    monkeypatch.setattr(transport.GitHubRead, "close", close)
+    if fault == "diagnostic-sink":
+        (tmp_path / "caddy-contract").write_text("occupied")
+    endpoint = "/actions/jobs/1?private=" + marker
+
+    def use() -> None:
+        with caddy_surface.caddy_ci_reader(root, directory, remaining, expected) as get:
+            for index in range(2):
+                if index == 1 and fault == "source-drift":
+                    source.write_bytes(b"# drift\n")
+                if index == 1 and fault == "cache-collision":
+                    (directory / "pycache-2").mkdir()
+                try:
+                    value = get(endpoint)
+                except ValueError:
+                    with pytest.raises(ValueError, match="reader unavailable"):
+                        get(endpoint)
+                    raise
+                assert value == {"ok": True}
+
+    if fault is None:
+        use()
+        assert events == ["auth", "get", "get", "close"]
+        assert workers[0][0] != workers[1][0] and all(not Path(w[0]).exists() for w in workers)
+        assert [w[2] for w in workers] == [18, 20]
+        assert workers[1][1] <= phase_end - 10
+        assert caddy_surface.caddy_ci_api(
+            root, tmp_path / "final", "/pulls/2494", remaining, expected
+        ) == {"ok": True}
+        assert events == ["auth", "get", "get", "close", "auth", "get", "close"]
+        assert owners[0] is not owners[1] and not (tmp_path / "caddy-contract").exists()
+        return
+    with pytest.raises(ValueError, match="Caddy API failure") as caught:
+        use()
+    rendered = str(caught.value)
+    summary = json.loads(rendered.removeprefix("Caddy API failure "))
+    assert set(summary) == {
+        "stage",
+        "ordinal",
+        "endpoint_class",
+        "category",
+        "native_exit",
+        "elapsed_ms",
+    }
+    expected_stage = (
+        "auth"
+        if auth_failure
+        else (
+            "decode"
+            if fault in {"duplicate-json", "nonfinite-json", "decode-deadline"}
+            else "cleanup" if fault == "cleanup" else "get"
+        )
+    )
+    assert summary["stage"] == expected_stage
+    if fault in {"first-slot", "decode-deadline"}:
+        assert summary["category"] == "deadline"
+    assert summary["ordinal"] == (
+        0
+        if auth_failure
+        else (
+            1
+            if fault in {"first-slot", "duplicate-json", "nonfinite-json", "decode-deadline"}
+            else 2
+        )
+    )
+    assert summary["endpoint_class"] == (
+        "none" if expected_stage in {"auth", "cleanup"} else "actions"
+    )
+    assert summary["native_exit"] == (
+        42 if fault in {"auth", "diagnostic-sink", "second-get", "second-get-cleanup"} else None
+    )
+    assert events.count("auth") == 1 and events.count("close") == 1
+    assert events.count("get") == (
+        0
+        if auth_failure or fault == "first-slot"
+        else (
+            1
+            if fault
+            in {
+                "source-drift",
+                "cache-collision",
+                "duplicate-json",
+                "nonfinite-json",
+                "decode-deadline",
+            }
+            else 2
+        )
+    )
+    log = capsys.readouterr().err
+    assert rendered in log
+    if fault == "second-get-cleanup":
+        assert any('"stage": "cleanup"' in note for note in caught.value.__notes__)
+    if fault != "diagnostic-sink":
+        artifact = tmp_path / "caddy-contract" / f"api-{expected_stage}-failure.json"
+        assert json.loads(artifact.read_bytes()) == summary
+    assert marker not in log + rendered and token not in log + rendered
+    if fault == "pending-child":
+        assert (directory / "private").is_dir() and (directory / "pycache-2").is_dir()
+    else:
+        assert not (directory / "private").exists()
 
 
 def test_caddy_upstream_patch_has_exact_whitespace_hook_exclusion() -> None:

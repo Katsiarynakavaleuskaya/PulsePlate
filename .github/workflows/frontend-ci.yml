@@ -606,7 +606,8 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_phase
-          with caddy_ci_phase("ADMISSION") as remaining:
+          from contextlib import ExitStack
+          with caddy_ci_phase("ADMISSION") as remaining, ExitStack() as readers:
               from datetime import datetime, timezone
               import hashlib
               import json
@@ -653,14 +654,11 @@ jobs:
                   raise ValueError("Caddy build context is dirty")
               inputs = caddy_ci_source_inventory(root, tracked + fixed)
 
-              # The same no-redirect opener runs under its existing bounded process owner.
-              from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_api
-              api_sequence = 0
-              def api(path):
-                  global api_sequence
-                  api_sequence += 1
-                  directory = Path(os.environ["RUNNER_TEMP"]) / "caddy-admission" / ("api-" + str(api_sequence))
-                  return caddy_ci_api(root, directory, path, remaining, inputs["scripts/ci/prometheus_source_image.py"]["sha256"])
+              from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_reader
+              api = readers.enter_context(caddy_ci_reader(
+                  root, Path(os.environ["RUNNER_TEMP"]) / "caddy-admission" / "github",
+                  remaining, inputs["scripts/ci/prometheus_source_image.py"]["sha256"],
+              ))
 
               def positive_id(value):
                   if type(value) is not int or value <= 0:
@@ -878,11 +876,12 @@ jobs:
                       "head": run["head_sha"], "job_id": job["id"], "artifact": artifacts[0], "git_inputs": original_inputs})
               else:
                   raise ValueError("Caddy requires a real successful same-source PR2494 producer; no automatic build")
-              (state_dir / "admission.json").write_text(json.dumps(state, indent=2))
-              with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
-                  output.write("mode=" + state["mode"] + "\n")
-                  if state["mode"] == "reuse":
-                      output.write("producer_run=" + str(state["producer"]["run_id"]) + "\nartifact_id=" + str(state["producer"]["artifact"]["id"]) + "\n")
+          state["budget"] = json.loads((state_dir / "admission.json").read_bytes())["budget"]
+          (state_dir / "admission.json").write_text(json.dumps(state, indent=2))
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
+              output.write("mode=" + state["mode"] + "\n")
+              if state["mode"] == "reuse":
+                  output.write("producer_run=" + str(state["producer"]["run_id"]) + "\nartifact_id=" + str(state["producer"]["artifact"]["id"]) + "\n")
           PY
 
       - name: Charge Download original retained Caddy candidate budget

@@ -4487,6 +4487,291 @@ def test_alertmanager_oversized_cache_is_rejected_before_read_or_transport(
     assert cached.stat().st_size == docker_sources._ALERT_SIZES[artifact.name] + 1
 
 
+@pytest.mark.parametrize("where", ["success", "after-launch", "before-launch", "preopened-output"])
+def test_alertmanager_062_start_binds_only_real_launch_records(tmp_path: Path, where: str) -> None:
+    import time
+    from scripts.ci import prometheus_source_image as transport
+
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    native = transport.Native(evidence, time.monotonic() + 10, 45)
+    cid = "d" * 64
+    stage = "replay1-offline-version"
+    env = {"PATH": "/usr/bin:/bin", "HOME": str(tmp_path)}
+    prefix = [
+        sys.executable,
+        "-I",
+        "-c",
+        "raise SystemExit(17)" if where == "after-launch" else "print('synthetic')",
+    ]
+    if where == "preopened-output":
+        (evidence / (stage + ".stdout")).touch()
+    if where == "before-launch":
+        prefix = [str(tmp_path / "absent")]
+    issued: set[str] = set()
+
+    def launch() -> bytes:
+        return docker_sources._alertmanager_start_metadata(
+            native, prefix, cid, stage, env, tmp_path, issued
+        )
+
+    if where == "success":
+        assert launch() == b"synthetic\n"
+    elif where == "after-launch":
+        with pytest.raises(transport.QualificationError, match="native_failed"):
+            launch()
+    else:
+        with pytest.raises(OSError):
+            launch()
+    if where in ("success", "after-launch"):
+        assert issued == {cid} and len(native.records) == 1
+        assert native.records[0]["argv"] == [*prefix, "start", "--attach", cid]
+        assert native.records[0]["exit"] == (0 if where == "success" else 17)
+    else:
+        assert not issued and not native.records
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "no-start-clean",
+        "failed-attach-running",
+        "failed-attach-exited",
+        "created-after-attach",
+        "no-start-record",
+        "other-start-id",
+        "created-transition",
+        "restarted",
+        "dead",
+        "bad-timestamp",
+        "zero-start",
+        "inconsistent-state",
+        "missing-before",
+        "missing-after",
+        "absent-both",
+        "numeric-zero",
+        "reverse-transition",
+        "true",
+        "config-type",
+        "extra-host-field",
+        "alias",
+        "extra-mount",
+        "missing-mount",
+        "duplicate-mount",
+        "other-destination",
+        "rw",
+        "nested-field",
+        "image",
+        "name",
+        "id",
+        "label",
+        "command",
+        "different-start",
+        "different-exit",
+        "terminal-null-cleanup-false",
+        "terminal-false-cleanup-null",
+    ],
+)
+def test_alertmanager_062_owned_metadata_cleanup_requires_profile_and_proven_start(
+    tmp_path: Path, fault: str | None
+) -> None:
+    from scripts.ci import prometheus_source_image as transport
+    from tests.test_prometheus_source_image import _native_fixed_base_image
+
+    # Actual Q 42833861289 observed this CID, timestamp and order transition.
+    cid = "4aa388e096ec7771441e1b630dcc2da5cf264a49457da51d4a53647672081033"
+    started_at = "2026-11-10T14:26:00.919095131Z"
+    owner = "f" * 32
+    name = "pulseplate-alert-module-" + owner + "-1-version"
+    relation = transport.native_base_identity(_native_fixed_base_image(), current=True)
+    before = {
+        "Id": cid,
+        "Name": "/" + name,
+        "Image": relation["engine_id"],
+        "Config": {
+            "Image": relation["operand"],
+            "Labels": {"pulseplate.alertmanager-module": owner},
+            "Cmd": ["version"],
+            "Entrypoint": ["/toolchain/bin/go"],
+            "Tty": False,
+        },
+        "HostConfig": {"OomKillDisable": False, "Privileged": False},
+        "Mounts": [
+            {
+                "Destination": k,
+                "Source": str(tmp_path / k[1:]),
+                "Type": "bind",
+                "RW": False,
+                "Propagation": "rprivate",
+                "Mode": "",
+            }
+            for k in ("/toolchain", "/source", "/cache")
+        ],
+        "State": {
+            "Status": "created",
+            "Running": False,
+            "StartedAt": "0001-01-01T00:00:00Z",
+            "Restarting": False,
+            "Dead": False,
+        },
+    }
+    terminal = deepcopy(before)
+    terminal["Mounts"] = terminal["Mounts"][1:] + terminal["Mounts"][:1]
+    terminal["HostConfig"]["OomKillDisable"] = None
+    terminal["State"].update(
+        Status="exited", StartedAt=started_at, ExitCode=0, OOMKilled=False, Error=""
+    )
+    if fault is None:
+        docker_sources._alertmanager_command_exit(terminal, cid, name, owner, b"0\n")
+        docker_sources._alertmanager_metadata_custody(before, terminal, cid, issued_start=cid)
+    clean = deepcopy(terminal)
+    clean["Mounts"] = deepcopy(before["Mounts"])
+    issued = {cid}
+    previous = {cid: terminal}
+    if fault in (
+        "failed-attach-running",
+        "failed-attach-exited",
+        "no-start-record",
+        "other-start-id",
+        "no-start-clean",
+        "created-after-attach",
+        "created-transition",
+    ):
+        previous = {}
+    if fault in ("no-start-clean", "created-after-attach", "created-transition"):
+        clean = deepcopy(before)
+    if fault in ("no-start-record", "no-start-clean"):
+        issued.clear()
+    if fault == "other-start-id":
+        issued = {"a" * 64}
+    if fault == "created-transition":
+        clean["HostConfig"]["OomKillDisable"] = None
+    if fault == "failed-attach-running":
+        clean["State"].update(Status="running", Running=True)
+    if fault == "failed-attach-exited":
+        clean["State"].update(ExitCode=17)
+    if fault == "restarted":
+        clean["State"]["Restarting"] = True
+    if fault == "dead":
+        clean["State"]["Dead"] = True
+    if fault == "bad-timestamp":
+        clean["State"]["StartedAt"] = "2026-13-01T00:00:00Z"
+    if fault == "zero-start":
+        clean["State"]["StartedAt"] = before["State"]["StartedAt"]
+    if fault == "inconsistent-state":
+        clean["State"]["Running"] = True
+    if fault in ("missing-before", "absent-both"):
+        del before["HostConfig"]["OomKillDisable"]
+    if fault in ("missing-after", "absent-both"):
+        del clean["HostConfig"]["OomKillDisable"]
+    if fault == "numeric-zero":
+        clean["HostConfig"]["OomKillDisable"] = 0
+    if fault == "reverse-transition":
+        before["HostConfig"]["OomKillDisable"] = None
+        clean["HostConfig"]["OomKillDisable"] = False
+    if fault == "true":
+        clean["HostConfig"]["OomKillDisable"] = True
+    if fault == "config-type":
+        clean["Config"]["Tty"] = 0
+    if fault == "extra-host-field":
+        clean["HostConfig"]["unexpected"] = False
+    if fault == "alias":
+        clean["Mounts"][0]["Destination"] = "/./toolchain"
+    if fault == "extra-mount":
+        clean["Mounts"].append(deepcopy(clean["Mounts"][0]))
+    if fault == "missing-mount":
+        clean["Mounts"].pop()
+    if fault == "duplicate-mount":
+        clean["Mounts"][1]["Destination"] = "/toolchain"
+    if fault == "other-destination":
+        clean["Mounts"][1]["Destination"] = "/other"
+    if fault == "rw":
+        clean["Mounts"][0]["RW"] = 0
+    if fault == "nested-field":
+        clean["Mounts"][0]["Mode"] = "ro"
+    if fault == "image":
+        clean["Image"] = "sha256:" + "a" * 64
+    if fault == "name":
+        clean["Name"] = "/foreign"
+    if fault == "id":
+        clean["Id"] = "a" * 64
+    if fault == "label":
+        clean["Config"]["Labels"]["pulseplate.alertmanager-module"] = "b" * 32
+    if fault == "command":
+        clean["Config"]["Cmd"] = ["env"]
+    if fault == "terminal-null-cleanup-false":
+        clean["HostConfig"]["OomKillDisable"] = False
+    if fault == "terminal-false-cleanup-null":
+        terminal["HostConfig"]["OomKillDisable"] = False
+    if fault == "different-exit":
+        clean["State"]["ExitCode"] = 17
+    if fault == "different-start":
+        clean["State"]["StartedAt"] = "2026-11-10T14:26:01Z"
+    if fault in ("failed-attach-running", "failed-attach-exited"):
+        # Exercise real Native.run's post-Popen failure record before the cleanup inspector.
+        import time
+
+        evidence = tmp_path / "evidence"
+        evidence.mkdir()
+        issued.clear()
+        with pytest.raises(transport.QualificationError, match="native_failed"):
+            docker_sources._alertmanager_start_metadata(
+                transport.Native(evidence, time.monotonic() + 10, 45),
+                [sys.executable, "-I", "-c", "raise SystemExit(17)"],
+                cid,
+                "offline-version",
+                {"HOME": str(tmp_path), "PATH": "/usr/bin:/bin"},
+                tmp_path,
+                issued,
+            )
+        assert issued == {cid}
+
+    calls = []
+
+    class RecordingDocker:
+        def run(self, argv: list[str], *args: Any, **kwargs: Any) -> bytes:
+            calls.append(argv)
+            return json.dumps(clean).encode() if "inspect" in argv else b""
+
+    def cleanup() -> None:
+        docker_sources._alertmanager_cleanup_member(
+            RecordingDocker(),
+            "/docker",
+            cid,
+            {cid},
+            {name},
+            owner,
+            {},
+            tmp_path,
+            0,
+            tmp_path,
+            image_relation=relation,
+            expected_commands={cid: ["version"]},
+            expected_profiles={cid: before},
+            issued_starts=issued,
+            terminal_profiles=previous,
+        )
+
+    if fault in (
+        None,
+        "no-start-clean",
+        "failed-attach-running",
+        "failed-attach-exited",
+        "created-after-attach",
+        "terminal-false-cleanup-null",
+    ):
+        cleanup()
+        assert [argv[3:] for argv in calls] == [
+            ["inspect", "--format", "{{json .}}", cid],
+            ["rm", "--force", cid],
+        ]
+    else:
+        with pytest.raises((RuntimeError, ValueError)):
+            cleanup()
+        assert len(calls) == 1 and calls[0][3] == "inspect"
+
+
 @pytest.mark.parametrize("foreign", [False, True])
 def test_alertmanager_cleanup_requires_actual_create_id_before_any_remove(
     tmp_path: Path,
@@ -5276,6 +5561,13 @@ def _alertmanager_payload_zip(
         "compiler-sha256",
         "compiler-mode",
         "native-order",
+        "terminal-writable",
+        "terminal-host-type",
+        "terminal-missing-oom",
+        "cleanup-foreign-start",
+        "retained-terminal-null-cleanup-false",
+        "cleanup-duplicate-mount",
+        "start-wrong-id",
     ],
 )
 def test_alertmanager_062_authenticated_qualification_reader(
@@ -5579,6 +5871,7 @@ def test_alertmanager_062_authenticated_qualification_reader(
                     "Env": [k + "=" + v for k, v in base_vars.items()],
                 },
                 "HostConfig": {
+                    "OomKillDisable": False,
                     "NetworkMode": "none",
                     "ReadonlyRootfs": True,
                     "Privileged": False,
@@ -5599,7 +5892,12 @@ def test_alertmanager_062_authenticated_qualification_reader(
                         "/toolchain": toolchain,
                     }.items()
                 ],
-                "State": {"Status": "created", "ExitCode": 0},
+                "State": {
+                    "Status": "created",
+                    "ExitCode": 0,
+                    "Running": False,
+                    "StartedAt": "0001-01-01T00:00:00Z",
+                },
             }
             offline_env = {"PATH": "/usr/bin:/bin", "HOME": str(work / f"alertmanager-home-{n}")}
             offline_prefix, _ = docker_sources._alertmanager_go_container_prefix(
@@ -5641,7 +5939,17 @@ def test_alertmanager_062_authenticated_qualification_reader(
                 payload,
             )
             record(prefix + "wait-" + command, cli + ["wait", cid], source, offline_env, b"0\n")
+            obj["Mounts"].reverse()
+            obj["HostConfig"]["OomKillDisable"] = None
+            if n == 1 and command == "version":
+                if fault == "terminal-writable":
+                    obj["Mounts"][0]["RW"] = True
+                if fault == "terminal-host-type":
+                    obj["HostConfig"]["Privileged"] = 0
+                if fault == "terminal-missing-oom":
+                    del obj["HostConfig"]["OomKillDisable"]
             obj["State"] = {
+                "StartedAt": "2026-11-10T14:26:00.919095131Z",
                 "Status": "exited",
                 "Running": False,
                 "Restarting": False,
@@ -5657,6 +5965,14 @@ def test_alertmanager_062_authenticated_qualification_reader(
                 offline_env,
                 data(obj),
             )
+            obj["Mounts"].reverse()
+            if n == 1 and command == "version":
+                if fault == "retained-terminal-null-cleanup-false":
+                    obj["HostConfig"]["OomKillDisable"] = False
+                if fault == "cleanup-foreign-start":
+                    obj["State"]["StartedAt"] = "2026-11-10T14:26:01Z"
+                if fault == "cleanup-duplicate-mount":
+                    obj["Mounts"][1] = obj["Mounts"][0]
             containers.append(obj)
     if fault == "transitive":
         report["delta"] = report["delta"][1:]
@@ -5679,6 +5995,9 @@ def test_alertmanager_062_authenticated_qualification_reader(
         )
         record(f"cleanup-remove-{i}", cli + ["rm", "--force", obj["Id"]], evidence, base_env, b"")
     record("cleanup-absence", census, evidence, base_env, b"")
+    if fault == "start-wrong-id":
+        row = next(r for r in records if r["stdout"].endswith("/replay1-offline-version.stdout"))
+        row["argv"][-1] = "a" * 64
     if fault == "native-order":
         records[5], records[6] = records[6], records[5]
     report["native_records"] = records
@@ -5785,6 +6104,13 @@ def test_alertmanager_062_authenticated_qualification_reader(
             "compiler-sha256": "declared_data_value",
             "compiler-mode": "declared_data_value",
             "native-order": "declared_data_value",
+            "terminal-writable": "declared_data_value",
+            "terminal-host-type": "declared_data_type",
+            "terminal-missing-oom": "AM_metadata_custody_oom_field",
+            "cleanup-foreign-start": "AM_metadata_custody_terminal",
+            "retained-terminal-null-cleanup-false": "declared_data_type",
+            "cleanup-duplicate-mount": "AM_metadata_custody_mount_destination",
+            "start-wrong-id": "declared_data_value",
         }
         with pytest.raises(RuntimeError, match=diagnostics[fault]):
             inspect()
