@@ -3149,7 +3149,7 @@ def test_caddy062_recipe_and_workflow_preserve_seed_then_one_new_action() -> Non
     assert '"caddy_retained_incumbent_before_new_get"' in workflow
     assert '"caddy_metadata_offline_input_changed"' in workflow
     assert '"caddy_independent_raw_output_equality"' in workflow
-    assert 'raise ValueError("Caddy xnet062 output profile not adopted; metadata only")' in workflow
+    assert 'caddy_ci_charge_action("BUILD")' in workflow
     assert '"historical-caddy-delta.json"' in workflow
     seed = workflow.split("seed = '''", 1)[1].split("'''", 1)[0]
     advance = workflow.split("advance = '''", 1)[1].split("'''", 1)[0]
@@ -3168,43 +3168,298 @@ def test_caddy062_recipe_and_workflow_preserve_seed_then_one_new_action() -> Non
 
 
 @pytest.mark.parametrize(
-    "status",
-    [None, "unknown", "observed_caddy2119_module_replacement", "observed_xnet062_metadata_only"],
+    "fault",
+    [
+        None,
+        "metadata",
+        "dirty",
+        "omitted-input",
+        "head",
+        "attempt",
+        "recipe",
+        "status-only",
+        "cleanup",
+        "same-start",
+        "stale-binding",
+        "missing-lane",
+        "aliased-lane",
+        "partial-lock",
+        "extra-member",
+        "one-wrong",
+        "equal-wrong",
+        "equal-package-replacement",
+        "finish",
+        "charge",
+    ],
 )
-def test_caddy062_unadopted_profile_never_charges_or_reaches_build(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, status: str | None
+def test_caddy062_charge_step_requires_independently_reviewed_same_run_outputs(
+    caddy062_metadata: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str | None
 ) -> None:
-    from contextlib import nullcontext
+    from contextlib import contextmanager
+    import os
+    import shutil
+
     import yaml
 
+    from scripts.ci.prometheus_source_image import (
+        canonical_data,
+        tree_inventory,
+        QualificationError,
+    )
+    from scripts.orchestration.creative_code_patch_workspace import (
+        git_env_without_parent_state,
+        safe_git_config_args,
+    )
+
     root = Path(__file__).resolve().parents[1]
-    workflow = yaml.safe_load((root / ".github/workflows/frontend-ci.yml").read_text())
-    steps = workflow["jobs"]["caddy-contract"]["steps"]
-    hold = next(
-        step
-        for step in steps
-        if step["name"] == "Charge Build source-patched Caddy candidate budget"
+    steps = yaml.safe_load((root / ".github/workflows/frontend-ci.yml").read_text())["jobs"][
+        "caddy-contract"
+    ]["steps"]
+    charge_step = next(
+        s for s in steps if s["name"] == "Charge Build source-patched Caddy candidate budget"
     )
-    build = next(step for step in steps if step["name"] == "Build source-patched Caddy candidate")
-    assert steps.index(hold) < steps.index(build)
-    assert not hold.get("continue-on-error", False)
-    assert not any(token in build["if"] for token in ("always()", "failure()", "cancelled()"))
+    build = next(s for s in steps if s["name"] == "Build source-patched Caddy candidate")
+    assert steps.index(charge_step) + 1 == steps.index(build)
+    assert (
+        build["if"]
+        == charge_step["if"]
+        == "${{ steps.caddy-admission.outputs.mode == 'build' && steps.caddy-metadata.outcome == 'success' }}"
+    )
+    assert not charge_step.get("continue-on-error")
+    assert (
+        charge_step["env"]["CADDY_METADATA_BINDING"]
+        == "${{ steps.caddy-metadata.outputs.prebuild_binding }}"
+    )
+
+    checkout = tmp_path / "checkout"
+    checkout.mkdir()
+    selected = [
+        *sorted(runtime_surface.CADDY_CI_FIXED_SOURCES),
+        "frontend/Dockerfile.caddy-spa",
+        "frontend/.dockerignore",
+        "frontend/package-lock.json",
+        "frontend/another",
+    ]
+    for name in selected:
+        target = checkout / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(
+            (root / name).read_bytes() if name == "frontend/Dockerfile.caddy-spa" else b"fixture"
+        )
+    git = shutil.which("git")
+    assert git
+    env = git_env_without_parent_state()
+    for key in list(os.environ):
+        if key.startswith("GIT_"):
+            monkeypatch.delenv(key)
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
+    for args in (
+        ["init", "-q"],
+        ["add", "."],
+        [
+            "-c",
+            "user.name=Fixture",
+            "-c",
+            "user.email=fixture@example.invalid",
+            "commit",
+            "-qm",
+            "baseline",
+        ],
+    ):
+        subprocess.run([git, *safe_git_config_args(), *args], cwd=checkout, env=env, check=True)
+    head = subprocess.check_output(
+        [git, "rev-parse", "HEAD"], cwd=checkout, env=env, text=True
+    ).strip()
+    inputs = runtime_surface.caddy_ci_source_inventory(checkout, selected)
+    state = {
+        "mode": "build",
+        "repository": "Katsiarynakavaleuskaya/PulsePlate",
+        "repository_id": 1043311030,
+        "current_head": head,
+        "current_run_id": 73,
+        "current_run_attempt": 1,
+        "inputs": inputs,
+    }
+    if fault == "omitted-input":
+        del inputs["frontend/another"]
+    if fault == "dirty":
+        (checkout / "frontend/another").write_text("different")
+    if fault == "metadata":
+        state["mode"] = "metadata"
     (tmp_path / "caddy-admission").mkdir()
-    (tmp_path / "caddy-admission/admission.json").write_text(json.dumps({"inputs": []}))
-    metadata = tmp_path / "caddy-xnet062-metadata/evidence"
-    metadata.mkdir(parents=True)
-    (metadata / "qualification.json").write_text(
-        json.dumps({} if status is None else {"status": status})
+    (tmp_path / "caddy-admission/admission.json").write_bytes(canonical_data(state))
+    metadata = tmp_path / "caddy-xnet062-metadata"
+    for extra in (
+        "alpine-release.txt",
+        "compiler-version.txt",
+        "complete-delta.json",
+        "historical-caddy-delta.json",
+        "incumbent-postget-go.mod",
+        "incumbent-postget-go.sum",
+        "module-derivation.patch",
+        "post-get-go.mod",
+        "post-get-go.sum",
+    ):
+        (caddy062_metadata / extra).write_text(extra + "\n")
+    # Independently projected miniature policy for this synthetic scheduling fixture.
+    monkeypatch.setattr(
+        runtime_surface,
+        "CADDY_XNET062_PROFILE_SHA256",
+        "29a6fa2670dc8157f7cad1bd65c3de4465468387316f3e146ca454e49285b4c8",
     )
-    monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
-    monkeypatch.setattr(runtime_surface, "caddy_ci_source_inventory", lambda *_: [])
-    monkeypatch.setattr(runtime_surface, "caddy_ci_phase", lambda *_: nullcontext())
-    charges: list[str] = []
-    monkeypatch.setattr(runtime_surface, "caddy_ci_charge_action", charges.append)
-    program = hold["run"].split("<<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
-    with pytest.raises(ValueError, match="output profile not adopted"):
-        exec(compile(program, "<caddy-unadopted-profile>", "exec"), {})
-    assert charges == []
+    for lane in ("a", "b"):
+        output = metadata / lane / "output"
+        shutil.copytree(caddy062_metadata, output)
+        if fault == "equal-wrong" or (fault == "one-wrong" and lane == "b"):
+            for phase in ("final", "final-offline"):
+                path = output / (phase + "-modules.json")
+                path.write_bytes(path.read_bytes().replace(b"v1.0.0", b"v1.0.1"))
+        if fault == "equal-package-replacement":
+            for phase in ("final", "final-offline"):
+                path = output / (phase + "-packages.json")
+                rows = [json.loads(line) for line in path.read_text().splitlines()]
+                rows[0]["Module"] = {"Replace": {"Path": "example.test/unchecked"}}
+                path.write_text("".join(json.dumps(row) + "\n" for row in rows))
+    report = {
+        "status": runtime_surface.CADDY_XNET062_METADATA_SUCCESS,
+        "failure": None,
+        "go_build_invocations": 0,
+        "authored_action": "golang.org/x/net@v0.62.0",
+        "source_head": head,
+        "run_id": 73,
+        "run_attempt": 1,
+        "recipe_sha256": inputs["frontend/Dockerfile.caddy-spa"]["sha256"],
+        "compiler_platform": {
+            "digest": "sha256:9d1e2c4fda593efb2c405e1c855c75ec17fe42dc02f6b7142a5ea7af7f386bf4"
+        },
+        "compiler_go_version_sha256": "4e0b213cba780f63b02f3ab9001ee61e4101d254e0af1a8205574c19dad0f93b",
+        "compiler_scan": {"Secrets_fields_absent": 1},
+        "derivations": {
+            lane: runtime_surface.validate_caddy_xnet062_metadata(metadata / lane / "output")
+            for lane in ("a", "b")
+        },
+    }
+    records = [
+        {
+            "stdout": f"{lane}-{phase}-{network}-native.stdout",
+            "argv": ["docker", "--config", "config", "start", "--attach", f"{idx:064x}"],
+            "exit": 0,
+            "failure": None,
+        }
+        for idx, (lane, phase, network) in enumerate(
+            (
+                (lane, phase, network)
+                for lane in ("a", "b")
+                for phase in ("incumbent", "final")
+                for network in ("online", "offline")
+            ),
+            1,
+        )
+    ]
+    if fault == "same-start":
+        records[4]["argv"] = records[0]["argv"]
+    report["native_commands"] = [
+        {
+            "stdout": "compiler-native-version.stdout",
+            "argv": ["docker", "--config", "config", "start", "--attach", "f" * 64],
+            "exit": 0,
+            "failure": None,
+        },
+        *records,
+        {
+            "stdout": "cleanup-absence.stdout",
+            "argv": ["docker", "--config", "config", "ps"],
+            "exit": 0,
+            "failure": None,
+        },
+    ]
+    if fault == "status-only":
+        report = {"status": runtime_surface.CADDY_XNET062_METADATA_SUCCESS}
+    if fault == "head":
+        report["source_head"] = "1" * 40
+    if fault == "attempt":
+        report["run_attempt"] = True
+    if fault == "recipe":
+        report["recipe_sha256"] = "0" * 64
+    if fault == "cleanup":
+        report["cleanup_failure"] = "fixture failure"
+    (metadata / "evidence").mkdir()
+    (metadata / "evidence/qualification.json").write_bytes(canonical_data(report))
+    producer = next(s for s in steps if s.get("id") == "caddy-metadata")
+    marker = "# Only a completed producer"
+    emit = producer["run"][producer["run"].index(marker) :].rsplit("\nPY", 1)[0]
+    out = tmp_path / "step-output"
+    assert producer["env"]["CADDY_CAPTURE_MODE"] == "${{ steps.caddy-admission.outputs.mode }}"
+    monkeypatch.setenv("CADDY_CAPTURE_MODE", "build")
+    monkeypatch.setenv("GITHUB_OUTPUT", str(out))
+    exec(
+        compile(emit, "<caddy-metadata-output>", "exec"),
+        {
+            "hashlib": hashlib,
+            "canonical_data": canonical_data,
+            "report": report,
+            "output_inventory": tree_inventory(metadata / "a/output"),
+            "os": os,
+        },
+    )
+    key, binding = out.read_text().strip().split("=", 1)
+    assert key == "prebuild_binding"
+    for key, value in {
+        "GITHUB_SHA": head,
+        "GITHUB_REF": "refs/heads/codex/dependency-alertmanager-remediation",
+        "GITHUB_EVENT_NAME": "workflow_dispatch",
+        "GITHUB_REPOSITORY": "Katsiarynakavaleuskaya/PulsePlate",
+        "GITHUB_REPOSITORY_ID": "1043311030",
+        "GITHUB_RUN_ID": "73",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "RUNNER_TEMP": str(tmp_path),
+        "CADDY_ACTION": "candidate-D",
+        "CADDY_METADATA_BINDING": binding if fault != "stale-binding" else "0" * 64,
+    }.items():
+        monkeypatch.setenv(key, value)
+    right = metadata / "b/output"
+    if fault in ("missing-lane", "aliased-lane"):
+        shutil.rmtree(right)
+        if fault == "aliased-lane":
+            right.symlink_to(metadata / "a/output", target_is_directory=True)
+    if fault == "partial-lock":
+        (right / "final-go.sum").unlink()
+    if fault == "extra-member":
+        (right / "extra").touch()
+    order = []
+
+    @contextmanager
+    def processing(phase: str):
+        assert phase == "PROCESSING"
+        yield float
+        if fault == "finish":
+            raise ValueError("processing exit")
+        order.append("finished")
+
+    def charge(phase: str) -> None:
+        order.append(phase)
+        if fault == "charge":
+            raise ValueError("charge failed")
+
+    monkeypatch.setattr(runtime_surface, "caddy_ci_phase", processing)
+    monkeypatch.setattr(runtime_surface, "caddy_ci_charge_action", charge)
+    monkeypatch.chdir(checkout)
+    program = compile(
+        charge_step["run"].split("<<'PY'\n", 1)[1].rsplit("\nPY", 1)[0], "<caddy-prebuild>", "exec"
+    )
+    if fault is None:
+        exec(program, {})
+        assert order == ["finished", "BUILD"]
+    else:
+        message = (
+            "reviewed selected-source profile differs"
+            if fault in {"equal-wrong", "equal-package-replacement"}
+            else None
+        )
+        with pytest.raises((OSError, KeyError, ValueError, QualificationError), match=message):
+            exec(program, {})
+        assert order == (["finished", "BUILD"] if fault == "charge" else [])
 
 
 def test_caddy_metadata_native_identity_delegates_without_config_ID_alias() -> None:
@@ -3230,7 +3485,9 @@ def test_caddy_metadata_native_identity_delegates_without_config_ID_alias() -> N
     assert 'version_before["Config"]["Cmd"] == ["version"]' in workflow
     assert 'inspected["Config"]["Cmd"] == ["-c", script]' in workflow
     assert 'json.loads(platform_raw)["config"]["digest"] == observed["Id"]' not in workflow
-    assert 'raise ValueError("Caddy xnet062 output profile not adopted; metadata only")' in workflow
+    assert (
+        "CADDY_METADATA_BINDING: ${{ steps.caddy-metadata.outputs.prebuild_binding }}" in workflow
+    )
 
 
 @pytest.mark.parametrize(

@@ -646,10 +646,8 @@ jobs:
               elif event_name != "workflow_dispatch":
                   raise ValueError("Caddy source event not admitted")
 
-              fixed = [".github/workflows/frontend-ci.yml", "deploy/Caddyfile", "deploy/Caddyfile.production",
-                       "scripts/ci/check_docker_runtime_dependency_surface.py", "scripts/ci/prometheus_source_image.py",
-                       "scripts/ci/check_trivy_ignore_policy_expiry.py",
-                       "trivy/ignore-policy.rego"]
+              from scripts.ci.check_docker_runtime_dependency_surface import CADDY_CI_FIXED_SOURCES
+              fixed = sorted(CADDY_CI_FIXED_SOURCES)
               tracked = subprocess.check_output([git, "ls-files", "-z", "--", "frontend/"], timeout=remaining(60)).decode().split("\0")[:-1]
               if subprocess.check_output([git, "status", "--porcelain", "--", "frontend/", *fixed], timeout=remaining(60)):
                   raise ValueError("Caddy build context is dirty")
@@ -996,6 +994,8 @@ jobs:
         timeout-minutes: ${{ fromJSON(env.CADDY_ACTION_METADATA_MINUTES) }}
         id: caddy-metadata
         if: ${{ steps.caddy-admission.outputs.mode == 'metadata' || steps.caddy-admission.outputs.mode == 'build' }}
+        env:
+          CADDY_CAPTURE_MODE: ${{ steps.caddy-admission.outputs.mode }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -1338,8 +1338,8 @@ jobs:
                       patch = "".join("".join(difflib.unified_diff((output / ("incumbent-" + name)).read_text().splitlines(True), (output / ("final-" + name)).read_text().splitlines(True), fromfile="a/" + name, tofile="b/" + name)) for name in ("go.mod", "go.sum"))
                       (output / "module-derivation.patch").write_text(patch)
                   left, right = work / "a/output", work / "b/output"
-                  require(tree_inventory(left, deadline=native.deadline)
-                          == tree_inventory(right, deadline=native.deadline),
+                  output_inventory = tree_inventory(left, deadline=native.deadline)
+                  require(output_inventory == tree_inventory(right, deadline=native.deadline),
                           "caddy_independent_raw_output_equality")
           except BaseException as error:
               primary_error = error
@@ -1393,6 +1393,12 @@ jobs:
                       if primary_error is None:
                           raise
                       primary_error.add_note("Caddy report retention failed: " + type(retention_error).__name__)
+          # Only a completed producer, including cleanup and retention, reaches this output.
+          if os.environ.get("CADDY_CAPTURE_MODE") == "build":
+              report_hash = hashlib.sha256(canonical_data(report)).hexdigest()
+              binding = hashlib.sha256(canonical_data([report_hash, output_inventory])).hexdigest()
+              with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+                  print("prebuild_binding=" + binding, file=output)
           PY
 
       - name: Charge Upload counterfactual Caddy metadata budget
@@ -1420,17 +1426,33 @@ jobs:
 
       - name: Charge Build source-patched Caddy candidate budget
         if: ${{ steps.caddy-admission.outputs.mode == 'build' && steps.caddy-metadata.outcome == 'success' }}
+        env:
+          CADDY_ACTION: ${{ inputs.caddy_action }}
+          CADDY_METADATA_BINDING: ${{ steps.caddy-metadata.outputs.prebuild_binding }}
         run: |
           python3 - <<'PY'
           import os
-          import json
+          import shutil
+          import subprocess
+          import time
           from pathlib import Path
-          from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_source_inventory, caddy_ci_phase
-          state = json.loads((Path(os.environ["RUNNER_TEMP"]) / "caddy-admission/admission.json").read_bytes())
-          with caddy_ci_phase("PROCESSING"):
-              if caddy_ci_source_inventory(Path.cwd(), list(state["inputs"])) != state["inputs"]:
-                  raise ValueError("Caddy source changed immediately before build")
-          raise ValueError("Caddy xnet062 output profile not adopted; metadata only")
+          from scripts.ci.check_docker_runtime_dependency_surface import (
+              CADDY_CI_FIXED_SOURCES, caddy_ci_charge_action, caddy_ci_phase,
+              caddy_ci_source_inventory, validate_caddy_prebuild,
+          )
+          with caddy_ci_phase("PROCESSING") as remaining:
+              git = shutil.which("git")
+              if git is None:
+                  raise ValueError("git unavailable")
+              root = Path.cwd()
+              fixed = sorted(CADDY_CI_FIXED_SOURCES)
+              if subprocess.check_output([git, "status", "--porcelain", "--", "frontend/", *fixed], timeout=remaining(60)):
+                  raise ValueError("Caddy build context is dirty before build")
+              tracked = subprocess.check_output([git, "ls-files", "-z", "--", "frontend/"], timeout=remaining(60)).decode().split("\0")[:-1]
+              checked_head = subprocess.check_output([git, "rev-parse", "HEAD"], text=True, timeout=remaining(30)).strip()
+              validate_caddy_prebuild(Path(os.environ["RUNNER_TEMP"]), caddy_ci_source_inventory(root, tracked + fixed),
+                                      checked_head, time.monotonic() + remaining(300))
+          caddy_ci_charge_action("BUILD")
           PY
 
       - name: Build source-patched Caddy candidate

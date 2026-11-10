@@ -444,9 +444,15 @@ def validate_caddy_metadata_custody(
     exact_data(new_host, old_host)
 
 
-def validate_caddy_xnet062_metadata(output: Path) -> dict[str, Any]:
+def validate_caddy_xnet062_metadata(
+    output: Path, *, deadline: float | None = None
+) -> dict[str, Any]:
     """Inspect one complete new-action replay; no build/profile adoption or native call."""
-    from scripts.ci.prometheus_source_image import decode_objects, decode_selected_modules
+    from scripts.ci.prometheus_source_image import (
+        _xnet062_member,
+        decode_objects,
+        decode_selected_modules,
+    )
 
     if not stat.S_ISDIR(output.lstat().st_mode):
         raise ValueError("Caddy metadata output must be a real directory")
@@ -470,7 +476,7 @@ def validate_caddy_xnet062_metadata(output: Path) -> dict[str, Any]:
                 or not 0 < info.st_size <= 32 * 1024**2
             ):
                 raise ValueError("Caddy metadata member type/size differs")
-            data = path.read_bytes()
+            data = _xnet062_member(output, name, deadline)
             if len(data) != info.st_size:
                 raise ValueError("Caddy metadata member changed during read")
             raw[name] = data
@@ -554,6 +560,190 @@ def validate_caddy_xnet062_metadata(output: Path) -> dict[str, Any]:
         "complete_delta": delta,
         "build_profile_admission": "HOLD pending actual closure/fullF and output-profile adoption",
     }
+
+
+# Reviewed selected-source profile from metadata run 42614729223, artifact 13672158177.
+# Only stable member bytes, module/graph facts and command package identities cross runs.
+CADDY_XNET062_PROFILE_SHA256 = "872500ba864b9c4b5fc5e60686ba45465fd51a4f1d26d8560719d775410a3c94"
+
+
+def _caddy_xnet062_profile(
+    output: Path, inventory: list[dict[str, Any]], derivation: dict[str, Any], deadline: float
+) -> str:
+    from scripts.ci.prometheus_source_image import _xnet062_member, canonical_data, decode_objects
+
+    digests = {row["path"]: row["sha256"] for row in inventory}
+
+    def member(name: str) -> bytes:
+        raw: bytes = _xnet062_member(output, name, deadline)
+        if hashlib.sha256(raw).hexdigest() != digests[name]:
+            raise ValueError("Caddy semantic input changed after inventory")
+        return raw
+
+    stable = {
+        row["path"]: row["sha256"]
+        for row in inventory
+        if not row["path"].endswith(
+            ("-modules.json", "-packages.json", "-delta.json", "-module-graph.txt")
+        )
+    }
+
+    def facts(module: dict[str, Any]) -> dict[str, Any]:
+        return {k: v for k, v in module.items() if k not in ("Dir", "GoMod")}
+
+    phases = {}
+    for phase, data in derivation["phases"].items():
+        modules = {path: facts(module) for path, module in data["modules"].items()}
+        packages = {}
+        for row in decode_objects(member(phase + "-packages.json")):
+            module = row.get("Module", {})
+            packages[row["ImportPath"]] = [
+                row["Name"],
+                row.get("Standard", False),
+                facts(module),
+                sorted(row.get("Imports", [])),
+                row.get("ImportMap", {}),
+            ]
+        edges = sorted(member(phase + "-module-graph.txt").decode().splitlines())
+        phases[phase] = {"modules": modules, "edges": edges, "command_packages": packages}
+    profile = {"members": [row["path"] for row in inventory], "stable": stable, "phases": phases}
+    profile["transitions"] = {
+        kind: [[row["path"], row["class"]] for row in derivation[kind]]
+        for kind in ("complete_delta", "historical_caddy_delta")
+    }
+    return hashlib.sha256(canonical_data(profile)).hexdigest()
+
+
+def validate_caddy_prebuild(
+    work: Path, inputs: dict[str, dict[str, object]], checked_head: str, deadline: float
+) -> None:
+    """Bind the current metadata step's completed observation before a BUILD charge."""
+    from scripts.ci.prometheus_source_image import (
+        canonical_data,
+        exact_data,
+        _xnet062_member,
+        one_object,
+        real_directory,
+        tree_inventory,
+    )
+
+    def read_object(path: Path, limit: int) -> tuple[dict[str, Any], str]:
+        if path.lstat().st_size > limit:
+            raise ValueError("Caddy prebuild JSON exceeds size bound")
+        raw = _xnet062_member(path.parent, path.name, deadline)
+        if len(raw) > limit:
+            raise ValueError("Caddy prebuild JSON exceeds size bound")
+        return one_object(raw), hashlib.sha256(raw).hexdigest()
+
+    env = os.environ
+    repository = "Katsiarynakavaleuskaya/PulsePlate"
+    if (
+        env["GITHUB_EVENT_NAME"] != "workflow_dispatch"
+        or env["CADDY_ACTION"] != "candidate-D"
+        or env["GITHUB_REPOSITORY"] != repository
+        or env["GITHUB_REPOSITORY_ID"] != "1043311030"
+        or env["GITHUB_REF"] != "refs/heads/codex/dependency-alertmanager-remediation"
+        or not re.fullmatch(r"[0-9a-f]{40}", checked_head)
+        or env["GITHUB_SHA"] != checked_head
+        or env["GITHUB_RUN_ATTEMPT"] != "1"
+        or not re.fullmatch(r"[1-9][0-9]*", env["GITHUB_RUN_ID"])
+    ):
+        raise ValueError("Caddy prebuild event or source differs")
+    run_id = int(env["GITHUB_RUN_ID"])
+    state, _ = read_object(work / "caddy-admission/admission.json", 4 * 1024**2)
+    expected_state = {
+        "mode": "build",
+        "repository": repository,
+        "repository_id": 1043311030,
+        "current_head": checked_head,
+        "current_run_id": run_id,
+        "current_run_attempt": 1,
+        "inputs": inputs,
+    }
+    exact_data({key: state.get(key) for key in expected_state}, expected_state)
+    metadata = work / "caddy-xnet062-metadata"
+    report, report_hash = read_object(metadata / "evidence/qualification.json", 16 * 1024**2)
+    recipe = inputs["frontend/Dockerfile.caddy-spa"]["sha256"]
+    expected_report = {
+        "status": CADDY_XNET062_METADATA_SUCCESS,
+        "failure": None,
+        "go_build_invocations": 0,
+        "authored_action": "golang.org/x/net@v0.62.0",
+        "source_head": checked_head,
+        "run_id": run_id,
+        "run_attempt": 1,
+        "recipe_sha256": recipe,
+    }
+    exact_data({key: report[key] for key in expected_report}, expected_report)
+    if (
+        recipe != "0c78748dba55fceea2afbb62f4bd6693f3d784f613089c7a8fbc54b518344f92"
+        or report.get("cleanup_failure") is not None
+        or set(report["derivations"]) != {"a", "b"}
+        or report["compiler_platform"]["digest"]
+        != "sha256:9d1e2c4fda593efb2c405e1c855c75ec17fe42dc02f6b7142a5ea7af7f386bf4"
+        or report["compiler_go_version_sha256"]
+        != "4e0b213cba780f63b02f3ab9001ee61e4101d254e0af1a8205574c19dad0f93b"
+        or type(report["compiler_scan"]["Secrets_fields_absent"]) is not int
+        or report["compiler_scan"]["Secrets_fields_absent"] <= 0
+    ):
+        raise ValueError("Caddy qualification identity or cleanup differs")
+
+    # The current successful producer validates the native commands and cleanup, then
+    # exports its report/inventory binding. Require evidence of all eight distinct starts.
+    native = report["native_commands"]
+    if not isinstance(native, list) or not native:
+        raise ValueError("Caddy native evidence missing")
+    starts = [row for row in native if row["argv"][3:5] == ["start", "--attach"]]
+    channels = {
+        f"{lane}-{phase}-{network}-native.stdout"
+        for lane in ("a", "b")
+        for phase in ("incumbent", "final")
+        for network in ("online", "offline")
+    } | {"compiler-native-version.stdout"}
+    ids = {row["argv"][-1] for row in starts}
+    if (
+        not all(
+            type(row["exit"]) is int and row["exit"] == 0 and row["failure"] is None
+            for row in native
+        )
+        or {Path(row["stdout"]).name for row in starts} != channels
+        or len(starts) != len(ids)
+        or len(ids) != len(channels)
+        or not all(isinstance(cid, str) and re.fullmatch(r"[0-9a-f]{64}", cid) for cid in ids)
+        or Path(native[-1]["stdout"]).name != "cleanup-absence.stdout"
+    ):
+        raise ValueError("Caddy native replay or terminal cleanup evidence differs")
+
+    left, right = metadata / "a/output", metadata / "b/output"
+    real_directory(left)
+    real_directory(right)
+    if left.samefile(right):
+        raise ValueError("Caddy replay roots alias")
+    previous = None
+    for label, output in (("a", left), ("b", right)):
+        # The native capture emits exactly 39 flat, single-link regular files.
+        with os.scandir(output) as entries:
+            count = 0
+            for entry in entries:
+                count += 1
+                if count > 39 or not entry.is_file(follow_symlinks=False):
+                    raise ValueError("Caddy replay member inventory differs")
+        if count != 39:
+            raise ValueError("Caddy replay member inventory differs")
+        inventory = tree_inventory(output, maximum=64 * 1024**2, deadline=deadline)
+        if previous is not None:
+            exact_data(inventory, previous)
+        previous = inventory
+        binding = hashlib.sha256(canonical_data([report_hash, inventory])).hexdigest()
+        if binding != env["CADDY_METADATA_BINDING"]:
+            raise ValueError("Caddy metadata step binding differs")
+        result = validate_caddy_xnet062_metadata(output, deadline=deadline)
+        exact_data(result, report["derivations"][label])
+        if (
+            _caddy_xnet062_profile(output, inventory, result, deadline)
+            != CADDY_XNET062_PROFILE_SHA256
+        ):
+            raise ValueError("Caddy reviewed selected-source profile differs")
 
 
 # The original module checksum remains pre-replacement source evidence.
@@ -746,17 +936,20 @@ CADDY_IMPORT_CHAIN = (
 )
 
 
+CADDY_CI_FIXED_SOURCES = {
+    ".github/workflows/frontend-ci.yml",
+    "deploy/Caddyfile",
+    "deploy/Caddyfile.production",
+    "scripts/ci/check_docker_runtime_dependency_surface.py",
+    "scripts/ci/prometheus_source_image.py",
+    "scripts/ci/check_trivy_ignore_policy_expiry.py",
+    "trivy/ignore-policy.rego",
+}
+
+
 def caddy_ci_source_inventory(root: Path, paths: list[str]) -> dict[str, dict[str, object]]:
     """Hash the caller-enumerated complete tracked build context and fixed CI owners."""
-    fixed = {
-        ".github/workflows/frontend-ci.yml",
-        "deploy/Caddyfile",
-        "deploy/Caddyfile.production",
-        "scripts/ci/check_docker_runtime_dependency_surface.py",
-        "scripts/ci/prometheus_source_image.py",
-        "scripts/ci/check_trivy_ignore_policy_expiry.py",
-        "trivy/ignore-policy.rego",
-    }
+    fixed = CADDY_CI_FIXED_SOURCES
     selected = set(paths)
     if (
         len(selected) != len(paths)
