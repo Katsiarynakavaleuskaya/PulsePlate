@@ -1321,7 +1321,6 @@ def _assert_frontend_caddy_contract(workflow: dict[str, object]) -> None:
     assert "caddy build-info" in text
     assert "caddy validate" in text
     assert "official_caddy_ref =" in text
-    assert "^FROM (caddy:" in text
     assert '"--cap-drop", "ALL", "--cap-add", "NET_BIND_SERVICE"' in text
     assert "aquasecurity/trivy-action@" in text
 
@@ -5837,6 +5836,209 @@ def _caddy_inline(name: str) -> str:
     return source.split("python3 - <<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
 
 
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "release-fails",
+        "scanner-fails",
+        "release-times-out",
+        "scanner-times-out",
+        "phase-expires",
+        "unbound-recipe",
+        "missing",
+        "nonfinal",
+        "duplicate",
+        "mutable",
+        "different-version",
+        "different-digest",
+        "invalid-digest",
+    ],
+)
+def test_caddy_official_controls_use_one_bound_acquisition(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str | None
+) -> None:
+    from collections.abc import Iterator
+    from contextlib import contextmanager
+
+    scanner = "caddy:2.11.4-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648"
+    recipe_name = "frontend/Dockerfile.caddy-spa"
+    recipe = tmp_path / recipe_name
+    recipe.parent.mkdir()
+    final = f"FROM {CADDY_BASE}"
+    replacements = {
+        "missing": "",
+        "nonfinal": f"{final}\n  from scratch",
+        "duplicate": f"{final} AS earlier\n{final}",
+        "mutable": "FROM caddy:2.11.9-alpine",
+        "different-version": f"FROM {scanner}",
+        "different-digest": final.replace(CADDY_BASE[-64:], "1" * 64),
+        "invalid-digest": final[:-1],
+    }
+    raw = DOCKERFILE.read_text().replace(final, replacements.get(fault or "", final)).encode()
+    recipe.write_bytes(raw)
+    record = {"bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest()}
+    state = tmp_path / "state.json"
+    state.write_text(
+        json.dumps(
+            {"root": str(tmp_path), "docker": "/test/docker", "sources": {recipe_name: record}}
+        )
+    )
+    if fault == "unbound-recipe":
+        recipe.write_bytes(raw + b"\n")
+    output = tmp_path / "github-output"
+    monkeypatch.setenv("CADDY_OBSERVATION_STATE", str(state))
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+    monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
+
+    phases: list[str] = []
+    pulls: list[tuple[str, int]] = []
+    now = 0
+
+    @contextmanager
+    def phase(name: str) -> Iterator[Callable[[int], int]]:
+        phases.append(name)
+        deadline = now + 300
+
+        def remaining(cap: int) -> int:
+            assert cap == 300
+            if now >= deadline:
+                raise TimeoutError("synthetic remaining budget expired")
+            return min(cap, deadline - now)
+
+        yield remaining
+
+    def docker(
+        argv: list[str], *, env: dict[str, str], capture_output: bool, timeout: int, check: bool
+    ) -> subprocess.CompletedProcess[bytes]:
+        nonlocal now
+        assert argv[:-1] == ["/test/docker", "pull", "--platform", "linux/amd64"]
+        assert env == {
+            "PATH": "/usr/local/bin:/usr/bin:/bin",
+            "HOME": str(tmp_path / "official-home"),
+            "LANG": "C.UTF-8",
+        }
+        assert stat.S_IMODE((tmp_path / "official-home").stat().st_mode) == 0o700
+        assert capture_output and not check
+        pulls.append((argv[-1], timeout))
+        role = "release" if len(pulls) == 1 else "scanner"
+        if fault == f"{role}-times-out":
+            raise subprocess.TimeoutExpired(argv, timeout)
+        now += 300 if fault == "phase-expires" else 23
+        return subprocess.CompletedProcess(argv, int(fault == f"{role}-fails"))
+
+    monkeypatch.setattr(caddy_surface, "caddy_ci_phase", phase)
+    monkeypatch.setattr(subprocess, "run", docker)
+    script = compile(
+        _caddy_inline("Acquire pinned official Caddy control"), "<caddy-official-pull>", "exec"
+    )
+    if fault in replacements or fault == "unbound-recipe":
+        message = "recipe differs" if fault == "unbound-recipe" else "runtime reference"
+        with pytest.raises(ValueError, match=message):
+            exec(script, {})
+        assert not pulls
+    elif fault:
+        if fault == "phase-expires":
+            with pytest.raises(TimeoutError, match="remaining budget expired"):
+                exec(script, {})
+        elif fault.endswith("-times-out"):
+            with pytest.raises(subprocess.TimeoutExpired):
+                exec(script, {})
+        else:
+            with pytest.raises(
+                ValueError, match=f"official {fault.split('-')[0]} acquisition failed"
+            ):
+                exec(script, {})
+        expected = [(CADDY_BASE, 300)]
+        if fault.startswith("scanner-"):
+            expected.append((scanner, 277))
+        assert pulls == expected
+        assert phases == ["OFFICIAL_PULL"]
+    else:
+        exec(script, {})
+        assert pulls == [(CADDY_BASE, 300), (scanner, 277)]
+        assert phases == ["OFFICIAL_PULL"]
+        assert output.read_text().splitlines() == [f"release_ref={CADDY_BASE}"]
+        monkeypatch.setenv(
+            "CADDY_RELEASE_REF", output.read_text().strip().removeprefix("release_ref=")
+        )
+        module_images: list[str] = []
+
+        def offline(argv: list[str]) -> subprocess.CompletedProcess[str]:
+            assert argv[:11] == [
+                "run",
+                "--rm",
+                "--pull",
+                "never",
+                "--network",
+                "none",
+                "--read-only",
+                "--cap-drop",
+                "ALL",
+                "--cap-add",
+                "NET_BIND_SERVICE",
+            ]
+            if argv[-2:] == ["list-modules", "--packages"]:
+                module_images.append(argv[11])
+                stdout = "http.handlers.file_server github.com/caddyserver/caddy/v2\n"
+            else:
+                stdout = {
+                    "version": "v2.11.9",
+                    "build-info": "go go1.26.10",
+                    "/usr/bin/caddy": "cap_net_bind_service=ep",
+                }[argv[-1]]
+            return subprocess.CompletedProcess(argv, 0, stdout)
+
+        monkeypatch.setattr(caddy_surface, "_run_docker", offline)
+        exec(
+            compile(
+                _caddy_inline("Verify hardened Caddy runtime and module parity"),
+                "<caddy-official-parity>",
+                "exec",
+            ),
+            {},
+        )
+        assert module_images == [CADDY_BASE, "pulseplate-caddy:contract"]
+        assert phases == ["OFFICIAL_PULL", "RUNTIME_CONFIG"]
+    if fault:
+        assert not output.exists()
+
+
+def test_caddy_official_controls_bind_both_consumers_after_capture() -> None:
+    steps = _steps(_job(_workflow(FRONTEND_WORKFLOW), "caddy-contract"))
+    names = [step["name"] for step in steps]
+    capture = _named_step(steps, "Capture next loaded Caddy image identity")
+    acquire = _named_step(steps, "Acquire pinned official Caddy control")
+    parity = _named_step(steps, "Verify hardened Caddy runtime and module parity")
+    bootstrap = _named_step(steps, "Scan hardened Caddy shell image")
+    assert capture["id"] == "caddy-image"
+    assert acquire["if"] == "${{ steps.caddy-image.outcome == 'success' }}"
+    assert acquire["id"] == "caddy-official" and "continue-on-error" not in acquire
+    assert parity["env"]["CADDY_RELEASE_REF"] == "${{ steps.caddy-official.outputs.release_ref }}"
+    assert (
+        parity["if"]
+        == bootstrap["if"]
+        == "${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet062-metadata') }}"
+    )
+    assert (
+        max(
+            names.index("Import and bind exact retained Caddy candidate"),
+            names.index("Build source-patched Caddy candidate"),
+        )
+        < steps.index(capture)
+        < steps.index(acquire)
+        < steps.index(parity)
+        < steps.index(bootstrap)
+    )
+    observer = _caddy_inline("Observe all-severity Caddy native report")
+    assert (
+        'official_ref = "caddy:2.11.4-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648"'
+        in observer
+    )
+    assert 'official = inspect(official_ref, "official-image")' in observer
+    assert 'scan_pair("official", official["Id"])' in observer
+
+
 def _caddy_budget_fixture(runner: Path, monkeypatch: pytest.MonkeyPatch) -> dict:
     if sys.platform == "darwin":
         monkeypatch.setattr(Path, "read_text", _caddy_fixture_reader(str(uuid4())))
@@ -7686,11 +7888,13 @@ def test_am062_metadata_fixed_get_and_immediate_lock_capture_contract() -> None:
 
     phase = inspect.getsource(fetcher._alertmanager_module_phase)
     get = phase.index('["get", "golang.org/x/net@v0.62.0"]')
-    freeze = phase.index("derived_locks = {name: (source / name).read_bytes()", get)
-    retain = phase.index('"-derived-" + lock', freeze)
-    bind = phase.index("expected_locks = derived_locks", retain)
+    freeze = phase.index("post_get_locks = {name: (source / name).read_bytes()", get)
+    retain = phase.index('"-post-get-" + lock', freeze)
+    bind = phase.index("expected_locks = post_get_locks", retain)
     download = phase.index('command(["mod", "download", "-json"], "derived-download")', bind)
-    assert get < freeze < retain < bind < download
+    final = phase.index("derived_locks = {name: (source / name).read_bytes()", download)
+    assert phase.index('"baseline-" + cmd') < get < freeze < retain < bind < download < final
+    assert phase.index('"-derived-" + lock', final) > final
     assert phase.count('["get",') == 1
     assert '"xnet062-authored-get",\n                    solver=True,' in phase
     assert 'dict(env, GOFLAGS="") if solver else env' in phase
@@ -7709,8 +7913,3 @@ def test_am062_metadata_fixed_get_and_immediate_lock_capture_contract() -> None:
     assert '"derivation_epoch": _ALERT_XNET062_METADATA_EPOCH' in phase
     assert 'for cmd in ("alertmanager", "amtool")' in phase
     assert '["list", "-mod=readonly", "-tags=netgo", "-deps", "-json", "./cmd/" + cmd]' in phase
-    # New discovery report cannot silently enter the closed historical Q reader.
-    retained = inspect.getsource(fetcher._alertmanager_qualified_payload)
-    assert '"derivation_epoch"' not in retained
-    assert '"AM_upstream_noop_lock_replay"' in retained
-    assert '"AM_source_epoch_dependency_action"' in retained

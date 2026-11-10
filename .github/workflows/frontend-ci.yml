@@ -1712,45 +1712,62 @@ jobs:
           PY
 
       - name: Acquire pinned official Caddy control
+        id: caddy-official
         if: ${{ steps.caddy-image.outcome == 'success' }}
         env:
           CADDY_OBSERVATION_STATE: ${{ steps.caddy-image.outputs.state }}
         run: |
           python3 - <<'PY'
-          import json, os, subprocess
+          import hashlib, json, os, re, subprocess
           from pathlib import Path
           from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_phase
           state = Path(os.environ["CADDY_OBSERVATION_STATE"])
           subject = json.loads(state.read_bytes())
+          recipe_name = "frontend/Dockerfile.caddy-spa"
+          recipe = Path(subject["root"]) / recipe_name
+          if recipe.is_symlink() or not recipe.is_file():
+              raise ValueError("Caddy official runtime recipe differs")
+          raw = recipe.read_bytes()
+          if subject["sources"][recipe_name] != {"bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest()}:
+              raise ValueError("Caddy official runtime recipe differs")
+          stages = re.findall(r"(?im)^[ \t]*FROM\b[^\n]*", raw.decode("utf-8"))
+          if not stages:
+              raise ValueError("Caddy official runtime reference")
+          final = stages[-1].split()
+          if (len(final) != 2 or final[0] != "FROM" or final[1] != "caddy:2.11.9-alpine@sha256:0bbb055bda6793c999bde78b1b5ce3e89f829fb031af2cf50056ea1246559fee"
+                  or any(final[1] in stage.split() for stage in stages[:-1])):
+              raise ValueError("Caddy official runtime reference")
+          release_ref = final[1]
+          scanner_ref = "caddy:2.11.4-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648"
           home = state.parent / "official-home"
           home.mkdir(mode=0o700)
           environment = {"PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": str(home), "LANG": "C.UTF-8"}
           with caddy_ci_phase("OFFICIAL_PULL") as remaining:
-              result = subprocess.run([subject["docker"], "pull", "--platform", "linux/amd64",
-                  "caddy:2.11.4-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648"],
-                  env=environment, capture_output=True, timeout=remaining(300), check=False)
-              if result.returncode:
-                  raise ValueError("Caddy pinned official control acquisition failed")
+              for role, image in (("release", release_ref), ("scanner", scanner_ref)):
+                  result = subprocess.run([subject["docker"], "pull", "--platform", "linux/amd64", image],
+                      env=environment, capture_output=True, timeout=remaining(300), check=False)
+                  if result.returncode:
+                      raise ValueError(f"Caddy pinned official {role} acquisition failed")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              print(f"release_ref={release_ref}", file=output)
           PY
 
       - name: Verify hardened Caddy runtime and module parity
         if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet062-metadata') }}
+        env:
+          CADDY_RELEASE_REF: ${{ steps.caddy-official.outputs.release_ref }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
           import os
           from pathlib import Path
-          import re
           from scripts.ci.check_docker_runtime_dependency_surface import _run_docker, caddy_ci_phase
 
           # Native caddy version, caddy build-info, capabilities and module parity.
           evidence = Path(os.environ["RUNNER_TEMP"]) / "caddy-contract"
           evidence.mkdir(exist_ok=True)
           common = ["run", "--rm", "--pull", "never", "--network", "none", "--read-only", "--cap-drop", "ALL", "--cap-add", "NET_BIND_SERVICE"]
-          recipe = Path("frontend/Dockerfile.caddy-spa").read_text()
-          official_caddy_ref = re.findall(r"^FROM (caddy:2\.11\.9-alpine@sha256:[0-9a-f]{64})$", recipe, re.MULTILINE)
-          if len(official_caddy_ref) != 1:
-              raise ValueError("Caddy official runtime reference")
+          official_caddy_ref = os.environ["CADDY_RELEASE_REF"]
           with caddy_ci_phase("RUNTIME_CONFIG"):
               version = _run_docker([*common, "pulseplate-caddy:contract", "caddy", "version"]).stdout
               if not version.split() or version.split()[0] != "v2.11.9":
@@ -1765,7 +1782,7 @@ jobs:
                   raise ValueError("Caddy required capability missing")
               (evidence / "capabilities.txt").write_text(caps)
               native_modules = []
-              for name, image in (("official-modules.txt", official_caddy_ref[0]), ("rebuilt-modules.txt", "pulseplate-caddy:contract")):
+              for name, image in (("official-modules.txt", official_caddy_ref), ("rebuilt-modules.txt", "pulseplate-caddy:contract")):
                   output = _run_docker([*common, image, "caddy", "list-modules", "--packages"]).stdout
                   modules = sorted(line.split()[0] for line in output.splitlines() if line.split() and line.split()[0] != "Standard")
                   (evidence / name).write_text("\n".join(modules) + "\n")

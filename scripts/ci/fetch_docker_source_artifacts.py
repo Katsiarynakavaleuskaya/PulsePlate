@@ -19,7 +19,7 @@ import io
 import json
 from math import nextafter
 import os
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePath, PurePosixPath
 import posixpath
 import re
 import stat
@@ -2724,6 +2724,10 @@ def _alertmanager_readonly_go(toolchain: Path, deadline: float) -> dict[str, lis
 
 
 _ALERT_XNET062_METADATA_EPOCH = "alertmanager-0.34.2-xnet062"
+_ALERT_0342_ORIGINAL_LOCK_HASHES = {
+    "go.mod": "55a63e9214662673cdbf865dd859b2d62da89f6d5b32b2165ec80f5af3fc6139",
+    "go.sum": "4ab3b4e64e70b2cca7be33ac1d572e659595e17c98703a26efb5b32790ea1cbf",
+}
 
 
 def _alertmanager_xnet062_delta(
@@ -2783,6 +2787,61 @@ def _alertmanager_xnet062_delta(
         for path in sorted(set(before) | set(after))
         if before.get(path) != after.get(path)
     ]
+
+
+def _alertmanager_go_container_prefix(
+    docker_prefix: list[str],
+    source: PurePath,
+    cache: PurePath,
+    toolchain: PurePath,
+    base_id: str,
+) -> tuple[list[str], dict[str, str]]:
+    """The fixed offline Go sandbox shared by the live capture and the retained reader."""
+    prefix = [
+        *docker_prefix,
+        "create",
+        "--pull=never",
+        "--network=none",
+        "--read-only",
+        "--cap-drop=ALL",
+        "--security-opt=no-new-privileges",
+        "--cpus=2",
+        "--memory=4g",
+        "--pids-limit=128",
+        "--user=65534:65534",
+        "--tmpfs",
+        "/run/alertmanager-metadata:size=64m,noexec,nosuid,uid=65534,gid=65534,mode=0700",
+        "--mount",
+        "type=bind,source=" + str(source) + ",target=/source,readonly",
+        "--mount",
+        "type=bind,source=" + str(cache) + ",target=/cache,readonly",
+        "--mount",
+        "type=bind,source=" + str(toolchain) + ",target=/toolchain,readonly",
+        "--workdir=/source",
+    ]
+    guest_env = {
+        "HOME": "/run/alertmanager-metadata",
+        "GOPATH": "/cache",
+        "GOMODCACHE": "/cache/pkg/mod",
+        "GOCACHE": "/run/alertmanager-metadata/cache",
+        "TMPDIR": "/run/alertmanager-metadata",
+        "GOTOOLCHAIN": "local",
+        "GOENV": "off",
+        "GOWORK": "off",
+        "GOPROXY": "off",
+        "GOSUMDB": "off",
+        "CGO_ENABLED": "0",
+        "GOOS": "linux",
+        "GOARCH": "amd64",
+        "GOFLAGS": "-mod=readonly",
+    }
+    for key, value in guest_env.items():
+        prefix += ["--env", key + "=" + value]
+    prefix += [
+        "--entrypoint=/toolchain/bin/go",
+        base_id,
+    ]
+    return prefix, guest_env
 
 
 def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> None:
@@ -2995,6 +3054,13 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
                 or any("Error" in row or "Replace" in row for row in baseline)
             ):
                 raise RuntimeError("Alertmanager original selected module graph differs.")
+            baseline_packages = {
+                cmd: command(
+                    ["list", "-mod=readonly", "-tags=netgo", "-deps", "-json", "./cmd/" + cmd],
+                    "baseline-" + cmd,
+                )
+                for cmd in ("alertmanager", "amtool")
+            }
             try:
                 command(
                     ["get", "golang.org/x/net@v0.62.0"],
@@ -3013,12 +3079,12 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
                     )
                 raise
             # Capture immediately, before any download can modify checksum history.
-            derived_locks = {name: (source / name).read_bytes() for name in original_locks}
-            if derived_locks == original_locks:
+            post_get_locks = {name: (source / name).read_bytes() for name in original_locks}
+            if post_get_locks == original_locks:
                 raise RuntimeError("Alertmanager xnet062 derivation must change original locks.")
-            for lock, raw in derived_locks.items():
-                (evidence / ("replay" + str(number) + "-derived-" + lock)).write_bytes(raw)
-            expected_locks = derived_locks
+            for lock, raw in post_get_locks.items():
+                (evidence / ("replay" + str(number) + "-post-get-" + lock)).write_bytes(raw)
+            expected_locks = post_get_locks
             command(["mod", "download", "-json"], "derived-download")
             command(["mod", "verify"], "online-verify")
             modules_raw = command(["list", "-mod=readonly", "-m", "-json", "all"], "online-modules")
@@ -3043,110 +3109,23 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
                     raise RuntimeError("Alertmanager command graph has wrong main identity.")
                 package_graphs[cmd] = raw
 
-            def coordinate(raw: bytes) -> bytes:
-                return (
-                    raw.replace(str(source).encode(), b"/source")
-                    .replace(str(cache).encode(), b"/cache")
-                    .replace(str(toolchain).encode(), b"/toolchain")
-                )
-
-            def modules_projection(raw: bytes) -> list[dict[str, object]]:
-                rows = decode_objects(coordinate(raw))
-                paths = [row.get("Path") for row in rows]
-                if (
-                    not rows
-                    or any(not isinstance(path, str) for path in paths)
-                    or len(set(paths)) != len(paths)
-                    or any(row.get("Error") or row.get("Replace") for row in rows)
-                ):
-                    raise RuntimeError("Alertmanager selected modules incomplete or ambiguous.")
-                main = [row for row in rows if row.get("Main") is True]
-                versions = {row["Path"]: row.get("Version") for row in rows}
-                if (
-                    len(main) != 1
-                    or main[0]["Path"] != "github.com/prometheus/alertmanager"
-                    or versions.get("golang.org/x/net") != "v0.62.0"
-                ):
-                    raise RuntimeError("Alertmanager selected module identities differ.")
-                fields = ("Path", "Version", "Main", "GoVersion", "Sum", "GoModSum", "Indirect")
-                return sorted(
-                    ({key: row[key] for key in fields if key in row} for row in rows),
-                    key=lambda row: row["Path"],
-                )
-
-            def packages_projection(raw: bytes, cmd: str) -> list[dict[str, object]]:
-                rows = decode_objects(coordinate(raw))
-                names = [row.get("ImportPath") for row in rows]
-                if (
-                    not rows
-                    or any(not isinstance(name, str) for name in names)
-                    or len(set(names)) != len(names)
-                    or any(
-                        row.get("Error") or row.get("DepsErrors") or row.get("Incomplete")
-                        for row in rows
-                    )
-                ):
-                    raise RuntimeError("Alertmanager package closure incomplete or ambiguous.")
-                root = "github.com/prometheus/alertmanager/cmd/" + cmd
-                if (
-                    sum(
-                        row.get("ImportPath") == root
-                        and isinstance(row.get("Module"), dict)
-                        and row["Module"].get("Main") is True
-                        and row["Module"].get("Path") == "github.com/prometheus/alertmanager"
-                        for row in rows
-                    )
-                    != 1
-                ):
-                    raise RuntimeError("Alertmanager package root identity differs.")
-                if any(
-                    dependency not in names for row in rows for dependency in row.get("Deps", [])
-                ):
-                    raise RuntimeError(
-                        "Alertmanager package dependency missing from complete graph."
-                    )
-                fields = (
-                    "ImportPath",
-                    "Name",
-                    "Standard",
-                    "Imports",
-                    "Deps",
-                    "GoFiles",
-                    "IgnoredGoFiles",
-                    "CgoFiles",
-                    "EmbedPatterns",
-                    "EmbedFiles",
-                )
-                return sorted(
-                    ({key: row[key] for key in fields if key in row} for row in rows),
-                    key=lambda row: row["ImportPath"],
-                )
-
-            baseline_observations.append(
-                {
-                    "modules": sorted(
-                        decode_objects(coordinate(baseline_raw)), key=lambda row: row["Path"]
-                    ),
-                    "graph": sorted(baseline_graph.splitlines()),
-                }
-            )
-            online_modules = modules_projection(modules_raw)
-            online_packages = {
-                cmd: packages_projection(raw, cmd) for cmd, raw in package_graphs.items()
-            }
-            if (
-                not graph
-                or len(graph.splitlines()) != len(set(graph.splitlines()))
-                or any(len(line.split()) != 2 for line in graph.splitlines())
-            ):
-                raise RuntimeError("Alertmanager module graph malformed or duplicated.")
-            online_graph = sorted(graph.splitlines())
-            modules = decode_objects(modules_raw)
-            delta = _alertmanager_xnet062_delta(
-                baseline, modules, epoch=_ALERT_XNET062_METADATA_EPOCH
-            )
-            if {name: (source / name).read_bytes() for name in original_locks} != derived_locks:
+            derived_locks = {name: (source / name).read_bytes() for name in original_locks}
+            if derived_locks != post_get_locks:
                 raise RuntimeError("Alertmanager immediate post-get locks changed.")
+            for lock, raw in derived_locks.items():
+                (evidence / ("replay" + str(number) + "-derived-" + lock)).write_bytes(raw)
+            baseline_observations.append(
+                _alertmanager_xnet062_graph(
+                    baseline_raw, baseline_graph, baseline_packages, original_locks
+                )
+            )
+            online = _alertmanager_xnet062_graph(modules_raw, graph, package_graphs, derived_locks)
+            online_modules = online["selected_modules"]
+            online_packages = online["package_graphs"]
+            online_graph = online["module_edges"]
+            delta = _alertmanager_xnet062_delta(
+                baseline, online_modules, epoch=_ALERT_XNET062_METADATA_EPOCH
+            )
             cache_inventory = tree_inventory(cache, deadline=deadline)
             module_inventory = tree_inventory(cache / "pkg/mod", deadline=deadline)
             build_inventory = tree_inventory(cache / "build", deadline=deadline)
@@ -3178,7 +3157,7 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
                     {
                         "selected_modules": online_modules,
                         "package_graphs": online_packages,
-                        "module_edges": [line.decode("utf-8") for line in online_graph],
+                        "module_edges": online_graph,
                         "delta": delta,
                         "derivation_epoch": _ALERT_XNET062_METADATA_EPOCH,
                     },
@@ -3186,50 +3165,10 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
                 )
                 + "\n"
             )
-            prefix = [
-                *docker_prefix,
-                "create",
-                "--pull=never",
-                "--network=none",
-                "--read-only",
-                "--cap-drop=ALL",
-                "--security-opt=no-new-privileges",
-                "--cpus=2",
-                "--memory=4g",
-                "--pids-limit=128",
-                "--user=65534:65534",
-                "--tmpfs",
-                "/run/alertmanager-metadata:size=64m,noexec,nosuid,uid=65534,gid=65534,mode=0700",
-                "--mount",
-                "type=bind,source=" + str(source) + ",target=/source,readonly",
-                "--mount",
-                "type=bind,source=" + str(cache) + ",target=/cache,readonly",
-                "--mount",
-                "type=bind,source=" + str(toolchain) + ",target=/toolchain,readonly",
-                "--workdir=/source",
-            ]
-            guest_env = {
-                "HOME": "/run/alertmanager-metadata",
-                "GOPATH": "/cache",
-                "GOMODCACHE": "/cache/pkg/mod",
-                "GOCACHE": "/run/alertmanager-metadata/cache",
-                "TMPDIR": "/run/alertmanager-metadata",
-                "GOTOOLCHAIN": "local",
-                "GOENV": "off",
-                "GOWORK": "off",
-                "GOPROXY": "off",
-                "GOSUMDB": "off",
-                "CGO_ENABLED": "0",
-                "GOOS": "linux",
-                "GOARCH": "amd64",
-                "GOFLAGS": "-mod=readonly",
-            }
-            for key, value in guest_env.items():
-                prefix += ["--env", key + "=" + value]
-            prefix += [
-                "--entrypoint=/toolchain/bin/go",
-                base_id,
-            ]
+            prefix, guest_env = _alertmanager_go_container_prefix(
+                docker_prefix, source, cache, toolchain, base_id
+            )
+            offline: dict[str, bytes] = {}
             for label, args in (
                 ("version", ["version"]),
                 ("verify", ["mod", "verify"]),
@@ -3363,15 +3302,7 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
                     and terminal[0]["Mounts"] == before_start["Mounts"],
                     "AM_metadata_terminal_profile_changed",
                 )
-                if (
-                    label in package_graphs
-                    and packages_projection(raw, label) != online_packages[label]
-                ):
-                    raise RuntimeError("Offline Alertmanager package semantic graph differs.")
-                if label == "modules" and modules_projection(raw) != online_modules:
-                    raise RuntimeError("Offline Alertmanager selected module graph differs.")
-                if label == "graph" and sorted(raw.splitlines()) != online_graph:
-                    raise RuntimeError("Offline Alertmanager module edges differ.")
+                offline[label] = raw
                 if label == "version" and raw != version:
                     raise RuntimeError("Offline qualified Go version/platform differs.")
                 if (
@@ -3379,6 +3310,10 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
                     or tree_inventory(cache, deadline=deadline) != readonly_cache
                 ):
                     raise RuntimeError("Readonly offline source/cache changed.")
+            offline_graph = _alertmanager_xnet062_graph(
+                offline["modules"], offline["graph"], offline, derived_locks
+            )
+            require(offline_graph == online, "AM_062_native_offline_replay")
             if tree_inventory(toolchain, deadline=deadline) != go_tree_binding[
                 "after_files"
             ] or any(
@@ -4543,23 +4478,288 @@ def _alertmanager_package_read(api: GitHubRead) -> dict[str, Any]:
     }
 
 
+def _alertmanager_lock_sums(raw: bytes) -> dict[tuple[str, str], str]:
+    """Index exact Go module archive and go.mod checksums within one captured lock."""
+    from scripts.ci.prometheus_source_image import require
+
+    sums: dict[tuple[str, str], str] = {}
+    for line in raw.decode().splitlines():
+        fields = line.split()
+        require(len(fields) == 3, "AM_062_go_sum_row")
+        path, version, digest = fields
+        require(
+            (path, version) not in sums and re.fullmatch(r"h1:[A-Za-z0-9+/]{43}=", digest),
+            "AM_062_go_sum_identity",
+        )
+        sums[path, version] = digest
+
+    return sums
+
+
+def _alertmanager_xnet062_graph(
+    modules_raw: bytes, edges_raw: bytes, commands: dict[str, bytes], locks: dict[str, bytes]
+) -> dict[str, Any]:
+    """Reconstruct one command-specific source graph from raw Go streams and its own locks."""
+    from scripts.ci.prometheus_source_image import decode_objects, require
+
+    sums = _alertmanager_lock_sums(locks["go.sum"])
+    root = "github.com/prometheus/alertmanager"
+    modules: dict[str, dict[str, Any]] = {}
+    for row in decode_objects(modules_raw):
+        path, version = row.get("Path"), row.get("Version")
+        require(type(path) is str and bool(path) and path not in modules, "AM_062_module_path")
+        require("Error" not in row and "Replace" not in row, "AM_062_module_error_or_replace")
+        require(
+            type(row.get("Main", False)) is bool
+            and type(row.get("Indirect", False)) is bool
+            and type(row.get("GoVersion", "")) is str,
+            "AM_062_module_flags",
+        )
+        if path == root:
+            require(row.get("Main") is True and version is None, "AM_062_module_main")
+        else:
+            require(not row.get("Main") and type(version) is str and version, "AM_062_version")
+            for field, suffix in (("Sum", ""), ("GoModSum", "/go.mod")):
+                if field in row:
+                    require(
+                        type(row[field]) is str
+                        and sums.get((path, version + suffix)) == row[field],
+                        "AM_062_module_checksum",
+                    )
+        modules[path] = {
+            k: row[k]
+            for k in ("Path", "Version", "Main", "Indirect", "GoVersion", "Sum", "GoModSum")
+            if k in row
+        }
+    require(root in modules, "AM_062_missing_main")
+    edges = edges_raw.decode().splitlines()
+    endpoints = [edge.split() for edge in edges]
+    require(
+        bool(edges)
+        and len(edges) == len(set(edges))
+        and all(len(pair) == 2 and " ".join(pair) == edge for pair, edge in zip(endpoints, edges)),
+        "AM_062_module_edges",
+    )
+    require(any(pair[0] == root for pair in endpoints), "AM_062_module_graph_root")
+    nodes = {node for edge in endpoints for node in edge}
+    require(
+        all((path + "@" + row["Version"]) in nodes for path, row in modules.items() if path != root)
+        and all(node == root or ("@" in node and all(node.split("@", 1))) for node in nodes),
+        "AM_062_selected_module_edges",
+    )
+
+    package_graphs = {}
+    for command in ("alertmanager", "amtool"):
+        packages: dict[str, dict[str, Any]] = {}
+        for row in decode_objects(commands[command]):
+            path = row.get("ImportPath")
+            require(
+                type(path) is str
+                and path
+                and path not in packages
+                and type(row.get("Name")) is str
+                and row["Name"]
+                and not any(k in row for k in ("Error", "DepsErrors"))
+                and row.get("Incomplete", False) is False,
+                "AM_062_package_identity",
+            )
+            module = row.get("Module")
+            require(type(row.get("Standard", False)) is bool, "AM_062_package_standard")
+            if row.get("Standard"):
+                require(module is None, "AM_062_standard_module")
+            else:
+                require(type(module) is dict, "AM_062_package_module_missing")
+                mp = module.get("Path")
+                require(
+                    type(mp) is str and mp in modules and (path == mp or path.startswith(mp + "/")),
+                    "AM_062_package_module_path",
+                )
+                selected = modules[mp]
+                require(
+                    module.get("Version") == selected.get("Version")
+                    and module.get("Main", False) is (mp == root)
+                    and "Error" not in module
+                    and "Replace" not in module,
+                    "AM_062_package_module_identity",
+                )
+                if mp != root:
+                    mv = selected["Version"]
+                    require((mp, mv) in sums, "AM_062_imported_module_not_locked")
+                    for field, suffix in (("Sum", ""), ("GoModSum", "/go.mod")):
+                        if field in module:
+                            require(
+                                sums.get((mp, mv + suffix)) == module[field],
+                                "AM_062_package_module_checksum",
+                            )
+            names = (
+                "Imports",
+                "Deps",
+                "GoFiles",
+                "IgnoredGoFiles",
+                "CgoFiles",
+                "EmbedPatterns",
+                "EmbedFiles",
+            )
+            for key in names:
+                items = row.get(key, [])
+                require(
+                    type(items) is list
+                    and all(type(i) is str and i for i in items)
+                    and len(items) == len(set(items)),
+                    "AM_062_package_list",
+                )
+            mapping = row.get("ImportMap", {})
+            require(
+                type(mapping) is dict
+                and all(
+                    type(k) is str
+                    and k
+                    and type(v) is str
+                    and v
+                    and (k in row.get("Imports", []) or v in row.get("Imports", []))
+                    for k, v in mapping.items()
+                ),
+                "AM_062_package_import_map",
+            )
+            packages[path] = {
+                k: row[k]
+                for k in ("ImportPath", "Name", "Standard", "ImportMap", *names)
+                if k in row
+            }
+            if module is not None:
+                packages[path]["Module"] = {
+                    k: module[k]
+                    for k in ("Path", "Main", "Version", "GoVersion", "Sum", "GoModSum")
+                    if k in module
+                }
+        main = root + "/cmd/" + command
+        require(
+            main in packages
+            and packages[main]["Name"] == "main"
+            and packages[main].get("Module", {}).get("Main") is True,
+            "AM_062_command_root",
+        )
+        require(
+            set(packages[main].get("Deps", [])) == set(packages) - {main}, "AM_062_command_closure"
+        )
+        for row in packages.values():
+            mapping = row.get("ImportMap", {})
+            require(
+                all(d in packages for d in row.get("Deps", []))
+                and all(mapping.get(i, i) in packages or i == "C" for i in row.get("Imports", [])),
+                "AM_062_package_edge",
+            )
+        package_graphs[command] = [packages[k] for k in sorted(packages)]
+    return {
+        "selected_modules": [modules[k] for k in sorted(modules)],
+        "module_edges": sorted(edges),
+        "package_graphs": package_graphs,
+    }
+
+
+def _alertmanager_062_source_matches(
+    qualification: dict[str, Any], original_producer: tuple[str, dict[str, bytes]] | None
+) -> bool:
+    """Use the actual Q producer identity in its live checkout or authenticated retained snapshot."""
+    sources = qualification.get("source_files")
+    if not isinstance(sources, dict) or set(sources) != set(_ALERT_Q_SOURCE_FILES):
+        return False
+    if original_producer is not None:
+        revision, files = original_producer
+        return qualification.get("source") == revision and all(
+            name in files and sha256(files[name]).hexdigest() == digest
+            for name, digest in sources.items()
+        )
+    from scripts.ci.prometheus_source_image import file_hash
+
+    return qualification.get("source") == os.environ.get("GITHUB_SHA") and sources[
+        "scripts/ci/fetch_docker_source_artifacts.py"
+    ] == file_hash(Path(__file__))
+
+
+def _alertmanager_062_link_inputs(replay: dict[str, Any]) -> dict[str, dict[str, list[str]]]:
+    """Project each command's external module owners from the already reconciled final graph."""
+    from scripts.ci.prometheus_source_image import require
+
+    sums = _alertmanager_lock_sums(replay["derived"]["go.sum"])
+    selected = {row["Path"]: row for row in replay["modules"]}
+    result = {}
+    for binary in ("alertmanager", "amtool"):
+        dependencies: dict[str, list[str]] = {}
+        for package in replay["packages"][binary]:
+            if package.get("Standard") is True:
+                continue
+            module = package["Module"]
+            path = module["Path"]
+            if path == "github.com/prometheus/alertmanager":
+                require(module.get("Main") is True, "AM_062_link_main_owner")
+                continue
+            version = selected[path]["Version"]
+            digest = sums.get((path, version))
+            require(
+                module.get("Version") == version
+                and type(digest) is str
+                and module.get("Sum", digest) == selected[path].get("Sum", digest) == digest,
+                "AM_062_link_module_sum",
+            )
+            value = [version, cast(str, digest)]
+            require(dependencies.setdefault(path, value) == value, "AM_062_link_owner_conflict")
+        require(dependencies.get("golang.org/x/net", [])[:1] == ["v0.62.0"], "AM_062_link_xnet")
+        result[binary] = dependencies
+    return result
+
+
 def _alertmanager_qualified_payload(
     archive: Path,
     *,
     material_root: Path | None = None,
     current: bool = False,
     producer_recipe: bytes | None = None,
+    xnet062_qualification: dict[str, Any] | None = None,
+    original_producer: tuple[str, dict[str, bytes]] | None = None,
 ) -> dict[str, Any]:
     """Inspect complete retained AM inputs as data; no extraction or executable launch."""
     import zipfile
     from scripts.ci.prometheus_source_image import (
         MAX_CACHE_BYTES,
+        decode_modules,
+        exact_data,
+        unique_object,
+        reject_constant,
         _zip_members,
         one_object,
         require,
     )
 
     require(type(current) is bool, "AM_qualification_epoch_type")
+    require(
+        original_producer is None
+        or (
+            xnet062_qualification is not None
+            and producer_recipe is not None
+            and producer_recipe == original_producer[1].get("deploy/alertmanager/Containerfile")
+        ),
+        "AM_retained_Q_original_recipe",
+    )
+    xnet062 = xnet062_qualification is not None
+    if xnet062_qualification is not None:
+        from scripts.ci.prometheus_source_image import file_hash
+
+        q = xnet062_qualification
+        require(
+            current
+            and q.get("attempt") == 1
+            and type(q["attempt"]) is int
+            and all(type(q.get(k)) is int and q[k] > 0 for k in ("run", "artifact"))
+            and _alertmanager_062_source_matches(q, original_producer)
+            and type(q["source"]) is str
+            and re.fullmatch(r"[0-9a-f]{40}", q["source"])
+            and type(q.get("source_files")) is dict
+            and set(q["source_files"]) == set(_ALERT_Q_SOURCE_FILES)
+            and all(type(v) is str and _HEX_RE.fullmatch(v) for v in q["source_files"].values())
+            and file_hash(archive) == q.get("zip_sha256"),
+            "AM_062_current_qualification_source",
+        )
     files = _zip_members(archive)
 
     def canonical(path: object) -> str:
@@ -4679,6 +4879,14 @@ def _alertmanager_qualified_payload(
             "AM_retained_footer_mode",
         )
     report = one_object(files["module-qualification.json"])
+    if original_producer is not None:
+        # Only after the independent source files, recipe and archive digest have matched:
+        # absent epoch requires the full historical contract; present epoch requires all 062 evidence.
+        xnet062 = "derivation_epoch" in report
+    if xnet062:
+        require(
+            report.get("derivation_epoch") == _ALERT_XNET062_METADATA_EPOCH, "AM_062_report_epoch"
+        )
     require(
         set(report)
         == {
@@ -4698,6 +4906,7 @@ def _alertmanager_qualified_payload(
             "elapsed_limit_seconds",
             "qualification_requires_separate_fullF_and_build_admission",
         }
+        | ({"derivation_epoch"} if xnet062 else set())
         and report["metadata_only"] is True
         and type(report["compiler_starts"]) is int
         and report["compiler_starts"] == 0
@@ -4710,6 +4919,31 @@ def _alertmanager_qualified_payload(
         and report["qualification_requires_separate_fullF_and_build_admission"] is True,
         "AM_successful_metadata_footer",
     )
+    if xnet062:
+        extra = {"go-compiler-input-members.json", "artifact-payload-members.json"}
+        for number in (1, 2):
+            extra.update(
+                f"replay{number}-{name}"
+                for name in ("original-source.json", "post-get-go.mod", "post-get-go.sum")
+            )
+            require(
+                all(
+                    f"replay{number}-baseline-{cmd}.stdout" in files
+                    for cmd in ("alertmanager", "amtool")
+                ),
+                "AM_062_original_command_graph_missing",
+            )
+        records = report["native_records"]
+        require(
+            type(records) is list
+            and all(
+                type(r) is dict and all(type(r.get(k)) is str for k in ("stdout", "stderr"))
+                for r in records
+            ),
+            "AM_062_native_record_channels",
+        )
+        channels = {PurePosixPath(r[k]).name for r in records for k in ("stdout", "stderr")}
+        require(set(files) == required_files | extra | channels, "AM_062_closed_member_inventory")
     frozen = one_object(files["frozen-inputs-inventory.json"])
     require(
         set(frozen) == {"path", "bytes", "sha256", "members", "private_HTTP_and_HOME_excluded"}
@@ -4813,6 +5047,8 @@ def _alertmanager_qualified_payload(
         "AM_frozen_complete_readback",
     )
     upstream_version = _alertmanager_upstream_version(root_bytes, current=current)
+    require(not xnet062 or upstream_version == "0.34.2", "AM_062_source_epoch")
+    baseline_graphs = []
     replays = []
     for number in (1, 2):
         prefix = "replay" + str(number)
@@ -4861,7 +5097,9 @@ def _alertmanager_qualified_payload(
         )
         projection = one_object(files[prefix + "-projections.json"])
         require(
-            set(projection) == {"selected_modules", "package_graphs", "module_edges", "delta"}
+            set(projection)
+            == {"selected_modules", "package_graphs", "module_edges", "delta"}
+            | ({"derivation_epoch"} if xnet062 else set())
             and type(projection["selected_modules"]) is list
             and bool(projection["selected_modules"])
             and type(projection["package_graphs"]) is dict
@@ -4890,9 +5128,83 @@ def _alertmanager_qualified_payload(
             )
         original = {name: files[prefix + "-original-" + name] for name in ("go.mod", "go.sum")}
         derived = {name: files[prefix + "-derived-" + name] for name in original}
+        if xnet062:
+            require(
+                projection["derivation_epoch"] == _ALERT_XNET062_METADATA_EPOCH,
+                "AM_062_replay_epoch",
+            )
+            require(
+                original != derived
+                and all(files[prefix + "-post-get-" + lock] == derived[lock] for lock in derived),
+                "AM_062_immediate_final_locks",
+            )
+            original_sums, derived_sums = (
+                _alertmanager_lock_sums(value["go.sum"]) for value in (original, derived)
+            )
+            require(
+                all(
+                    original_sums[k] == derived_sums[k]
+                    for k in original_sums.keys() & derived_sums.keys()
+                ),
+                "AM_062_same_version_checksum_drift",
+            )
+            graphs = {}
+            for stage in ("baseline", "online", "offline"):
+                name = prefix + "-" + stage + "-"
+                graphs[stage] = _alertmanager_xnet062_graph(
+                    files[name + "modules.stdout"],
+                    files[name + "graph.stdout"],
+                    {cmd: files[name + cmd + ".stdout"] for cmd in ("alertmanager", "amtool")},
+                    original if stage == "baseline" else derived,
+                )
+                if stage != "offline":
+                    lock_sums = original_sums if stage == "baseline" else derived_sums
+                    download = prefix + (
+                        "-baseline-download.stdout"
+                        if stage == "baseline"
+                        else "-derived-download.stdout"
+                    )
+                    downloads = decode_modules(files[download])
+                    selected = {
+                        row["Path"]: row.get("Version") for row in graphs[stage]["selected_modules"]
+                    }
+                    for module in downloads:
+                        identity = module["Path"], module["Version"]
+                        require(
+                            selected.get(identity[0]) == identity[1]
+                            and "Replace" not in module
+                            and module.get("Sum") is not None
+                            and module["Sum"] == lock_sums.get(identity)
+                            and module.get("GoModSum") is not None
+                            and module["GoModSum"]
+                            == lock_sums.get((identity[0], identity[1] + "/go.mod")),
+                            "AM_062_download_lock_checksum",
+                        )
+            baseline_graphs.append(graphs["baseline"])
+            exact_data(graphs["online"], graphs["offline"])
+            exact_data({key: projection[key] for key in graphs["online"]}, graphs["online"])
+            exact_data(
+                projection["delta"],
+                _alertmanager_xnet062_delta(
+                    graphs["baseline"]["selected_modules"],
+                    graphs["online"]["selected_modules"],
+                    epoch=_ALERT_XNET062_METADATA_EPOCH,
+                ),
+            )
         before = {row["path"]: row for row in inventory["original_source"]}
         after = {row["path"]: row for row in inventory["derived_source"]}
         require(set(before) == set(after), "AM_replay_source_membership")
+        if xnet062:
+            require(set(original) <= set(before), "AM_062_source_lock_members")
+            exact_data(
+                json.loads(
+                    files[prefix + "-original-source.json"],
+                    object_pairs_hook=unique_object,
+                    parse_constant=reject_constant,
+                ),
+                inventory["original_source"],
+            )
+
         for path, row in before.items():
             if path in original:
                 require(
@@ -4939,49 +5251,51 @@ def _alertmanager_qualified_payload(
         "AM_retained_Go_version",
     )
     delta = report["delta"]
-    require(
-        type(delta) is list
-        and (bool(delta) if upstream_version == "0.34.1" else delta == [])
-        and all(
-            type(row) is dict
-            and set(row) == {"path", "before", "after", "class"}
-            and all(type(row[field]) is str and row[field] for field in row)
-            and row["before"] != row["after"]
-            and row["class"] in ("authored", "solver_closure_reproduced_by_fixed_get")
-            for row in delta
-        ),
-        "AM_complete_dependency_delta",
-    )
-    require(
-        len({row["path"] for row in delta}) == len(delta)
-        and {row["path"]: row["after"] for row in delta if row["class"] == "authored"}
-        == (
-            {"golang.org/x/net": "v0.60.0", "google.golang.org/grpc": "v1.83.2"}
-            if upstream_version == "0.34.1"
-            else {}
-        ),
-        "AM_source_epoch_dependency_action",
-    )
+    if xnet062:
+        exact_data(baseline_graphs[0], baseline_graphs[1])
+    else:
+        require(
+            type(delta) is list
+            and (bool(delta) if upstream_version == "0.34.1" else delta == [])
+            and all(
+                type(row) is dict
+                and set(row) == {"path", "before", "after", "class"}
+                and all(type(row[field]) is str and row[field] for field in row)
+                and row["before"] != row["after"]
+                and row["class"] in ("authored", "solver_closure_reproduced_by_fixed_get")
+                for row in delta
+            ),
+            "AM_complete_dependency_delta",
+        )
+        require(
+            len({row["path"] for row in delta}) == len(delta)
+            and {row["path"]: row["after"] for row in delta if row["class"] == "authored"}
+            == (
+                {"golang.org/x/net": "v0.60.0", "google.golang.org/grpc": "v1.83.2"}
+                if upstream_version == "0.34.1"
+                else {}
+            ),
+            "AM_source_epoch_dependency_action",
+        )
     if upstream_version == "0.34.2":
         for replay in replays:
+            if not xnet062:
+                require(
+                    replay["original"] == replay["derived"] and replay["delta"] == delta,
+                    "AM_upstream_noop_lock_replay",
+                )
+                modules = replay["modules"]
+                require(type(modules) is list, "AM_upstream_modules_shape")
+                selected_modules = {row["Path"]: row.get("Version") for row in modules}
+                require(
+                    len(selected_modules) == len(modules)
+                    and selected_modules.get("golang.org/x/net") == "v0.60.0"
+                    and selected_modules.get("google.golang.org/grpc") == "v1.83.2",
+                    "AM_upstream_existing_module_targets",
+                )
             require(
-                replay["original"] == replay["derived"] and replay["delta"] == delta,
-                "AM_upstream_noop_lock_replay",
-            )
-            modules = replay["modules"]
-            require(type(modules) is list, "AM_upstream_modules_shape")
-            selected_modules = {row["Path"]: row.get("Version") for row in modules}
-            require(
-                len(selected_modules) == len(modules)
-                and selected_modules.get("golang.org/x/net") == "v0.60.0"
-                and selected_modules.get("google.golang.org/grpc") == "v1.83.2",
-                "AM_upstream_existing_module_targets",
-            )
-            require(
-                sha256(replay["original"]["go.mod"]).hexdigest()
-                == "55a63e9214662673cdbf865dd859b2d62da89f6d5b32b2165ec80f5af3fc6139"
-                and sha256(replay["original"]["go.sum"]).hexdigest()
-                == "4ab3b4e64e70b2cca7be33ac1d572e659595e17c98703a26efb5b32790ea1cbf",
+                {name: sha256(raw).hexdigest() for name, raw in replay["original"].items()}
+                == _ALERT_0342_ORIGINAL_LOCK_HASHES,
                 "AM_upstream_original_lock_identity",
             )
     go_binding = one_object(files["go-readonly-input-binding.json"])
@@ -5019,7 +5333,40 @@ def _alertmanager_qualified_payload(
         path = "." if before["path"] == "." else canonical(before["path"])
         require(path not in seen_directories, "AM_Go_duplicate_directory")
         seen_directories.add(path)
-    _alertmanager_qualified_native(files, report, upstream_version=upstream_version)
+    _alertmanager_qualified_native(
+        files, report, upstream_version=upstream_version, xnet062=xnet062
+    )
+    if xnet062 and xnet062_qualification is not None:
+        _alertmanager_xnet062_native_commands(files, report, xnet062_qualification["run"])
+        # The producer records the complete original (pre-freeze) Go and source trees.
+        compiler_members = go_binding["before_files"]
+        compiler_inventory = json.loads(
+            files["go-compiler-input-members.json"],
+            object_pairs_hook=unique_object,
+            parse_constant=reject_constant,
+        )
+        # extract() sorts string paths; tree_inventory() sorts Path components.
+        # rows() above already verified uniqueness in the before_files inventory.
+        expected_go = {
+            row["path"]: {
+                "path": row["path"],
+                "size": row["size"],
+                "sha256": row["sha256"],
+                "git_mode": "100755" if row["mode"] & 0o111 else "100644",
+            }
+            for row in compiler_members
+        }
+        require(
+            type(compiler_inventory) is list and len(compiler_inventory) <= 250000,
+            "AM_062_compiler_inventory",
+        )
+        actual_go = {}
+        for member in compiler_inventory:
+            require(type(member) is dict, "AM_062_compiler_member")
+            member_path = canonical(member.get("path"))
+            require(member_path not in actual_go, "AM_062_compiler_duplicate_path")
+            actual_go[member_path] = member
+        exact_data(actual_go, expected_go)
     require(
         report["loaded_base_ID"]
         == _alertmanager_loaded_base(
@@ -5039,6 +5386,9 @@ def _alertmanager_qualified_payload(
         current=current,
         producer_recipe=producer_recipe,
     )
+    if xnet062:
+        plan["derivation_epoch"] = _ALERT_XNET062_METADATA_EPOCH
+        plan["command_module_inputs"] = _alertmanager_062_link_inputs(replays[0])
     from scripts.ci.prometheus_source_image import GO, CURRENT_GO
 
     require(
@@ -5047,6 +5397,7 @@ def _alertmanager_qualified_payload(
         "AM_retained_Go_archive",
     )
     return {
+        **({"derivation_epoch": _ALERT_XNET062_METADATA_EPOCH} if xnet062 else {}),
         "frozen_sha256": frozen["sha256"],
         "frozen_members": len(declared_members),
         "artifact_files": len(declared),
@@ -5066,8 +5417,284 @@ def _alertmanager_qualified_payload(
     }
 
 
+def _alertmanager_xnet062_native_commands(
+    files: dict[str, bytes], report: dict[str, Any], run_id: int
+) -> None:
+    """Bind retained command order, raw channels and replay identity to the actual Q."""
+    from scripts.ci.prometheus_source_image import (
+        BASE,
+        exact_data,
+        native_base_identity,
+        native_container_image_identity,
+        one_object,
+        require,
+    )
+
+    records = report["native_records"]
+    work = PurePosixPath(records[0]["cwd"])
+    require(
+        work.is_absolute()
+        and ".." not in work.parts
+        and work.name == f"alertmanager-module-{run_id}-1",
+        "AM_062_native_work",
+    )
+    evidence = work / "alertmanager-module-evidence"
+    base = one_object(files["public-base-inspect.stdout"])
+    relation = native_base_identity(base, current=True)
+    names: list[str] = []
+    by_name = {}
+    for record in records:
+        name = PurePosixPath(record["stdout"]).name.removesuffix(".stdout")
+        require(
+            record["stdout"] == str(evidence / (name + ".stdout"))
+            and record["stderr"] == str(evidence / (name + ".stderr")),
+            "AM_062_native_channels",
+        )
+        names.append(name)
+        by_name[name] = record
+    sequence = ["public-base-pull", "public-base-inspect", "retain-physical-base"]
+    package_args = {
+        cmd: ["list", "-mod=readonly", "-tags=netgo", "-deps", "-json", "./cmd/" + cmd]
+        for cmd in ("alertmanager", "amtool")
+    }
+    version, download, modules, graph, verify = (
+        ["version"],
+        ["mod", "download", "-json"],
+        ["list", "-mod=readonly", "-m", "-json", "all"],
+        ["mod", "graph"],
+        ["mod", "verify"],
+    )
+    host = {
+        "version": version,
+        "baseline-download": download,
+        "baseline-modules": modules,
+        "baseline-graph": graph,
+        **{"baseline-" + cmd: args for cmd, args in package_args.items()},
+        "xnet062-authored-get": ["get", "golang.org/x/net@v0.62.0"],
+        "derived-download": download,
+        "online-verify": verify,
+        "online-modules": modules,
+        "online-graph": graph,
+        **{"online-" + cmd: args for cmd, args in package_args.items()},
+    }
+    docker = by_name["public-base-pull"]["argv"][0]
+    require(
+        PurePosixPath(docker).is_absolute() and PurePosixPath(docker).name == "docker",
+        "AM_062_native_docker",
+    )
+    cli = [docker, "--config", str(work / "alertmanager-empty-docker-config")]
+    docker_env = {"HOME": str(work / "alertmanager-empty-docker-config"), "PATH": "/usr/bin:/bin"}
+
+    def docker_record(name: str, args: list[str], cwd: PurePosixPath, env: dict[str, str]) -> None:
+        record = by_name[name]
+        exact_data(record["argv"], [*cli, *args])
+        exact_data(record["cwd"], str(cwd))
+        exact_data(record["environment"], env)
+
+    docker_record("public-base-pull", ["pull", "--platform", "linux/amd64", BASE], work, docker_env)
+    docker_record(
+        "public-base-inspect",
+        ["image", "inspect", "--format", "{{json .}}", BASE],
+        work,
+        docker_env,
+    )
+    docker_record(
+        "retain-physical-base",
+        [
+            "image",
+            "save",
+            "--output",
+            str(evidence / "base-retention/base-image.tar"),
+            report["loaded_base_ID"],
+        ],
+        work,
+        docker_env,
+    )
+    profiles = {}
+    owner_tokens = set()
+    for number in (1, 2):
+        prefix = f"replay{number}-"
+        source = work / f"alertmanager-replay-{number}"
+        cache = work / f"alertmanager-cache-{number}"
+        toolchain = work / "alertmanager-go"
+        home = work / f"alertmanager-home-{number}"
+        for name, args in host.items():
+            sequence.append(prefix + name)
+            r = by_name[prefix + name]
+            exact_data(r["argv"], [str(toolchain / "bin/go"), *args])
+            require(r["cwd"] == str(source), "AM_062_native_cwd")
+            exact_data(
+                r["environment"],
+                {
+                    "PATH": str(toolchain / "bin") + ":/usr/bin:/bin",
+                    "HOME": str(home),
+                    "GOPATH": str(cache),
+                    "GOMODCACHE": str(cache / "pkg/mod"),
+                    "GOCACHE": str(cache / "build"),
+                    "GOTOOLCHAIN": "local",
+                    "GOENV": "off",
+                    "GOWORK": "off",
+                    "GOOS": "linux",
+                    "GOARCH": "amd64",
+                    "CGO_ENABLED": "0",
+                    "GOPROXY": "https://proxy.golang.org",
+                    "GOSUMDB": "sum.golang.org",
+                    "GOFLAGS": "" if name == "xnet062-authored-get" else "-mod=readonly",
+                },
+            )
+        for cmd, args in {
+            "version": version,
+            "verify": verify,
+            "modules": modules,
+            "graph": graph,
+            **package_args,
+        }.items():
+            sequence.extend(
+                prefix + phase + "-" + cmd
+                for phase in ("create", "prestart", "offline", "wait", "terminal")
+            )
+            cid = files[prefix + "create-" + cmd + ".stdout"].decode("ascii").strip()
+            pre = one_object(files[prefix + "prestart-" + cmd + ".stdout"])
+            post = one_object(files[prefix + "terminal-" + cmd + ".stdout"])
+            exact_data(
+                [post.get(k) for k in ("Id", "Name", "Config", "HostConfig", "Mounts")],
+                [pre.get(k) for k in ("Id", "Name", "Config", "HostConfig", "Mounts")],
+            )
+            native_container_image_identity(pre, relation)
+            native_container_image_identity(post, relation)
+            cfg, hc = pre["Config"], pre["HostConfig"]
+            require(
+                pre["Id"] == cid
+                and cfg["Cmd"] == args
+                and cfg["Entrypoint"] == ["/toolchain/bin/go"]
+                and cfg["User"] == "65534:65534"
+                and cfg["WorkingDir"] == "/source"
+                and hc["NetworkMode"] == "none"
+                and hc["ReadonlyRootfs"] is True
+                and hc["Privileged"] is False
+                and hc["CapDrop"] == ["ALL"],
+                "AM_062_native_container",
+            )
+            require(
+                hc.get("CapAdd") in (None, [])
+                and hc.get("SecurityOpt") in (["no-new-privileges"], ["no-new-privileges:true"])
+                and hc.get("NanoCpus") == 2000000000
+                and hc.get("Memory") == 4294967296
+                and hc.get("PidsLimit") == 128
+                and hc.get("Binds") in (None, [])
+                and hc.get("Tmpfs")
+                == {
+                    "/run/alertmanager-metadata": "size=64m,noexec,nosuid,uid=65534,gid=65534,mode=0700"
+                },
+                "AM_062_native_isolation",
+            )
+            expected_env = dict(v.split("=", 1) for v in base["Config"]["Env"])
+            expected_prefix, guest_env = _alertmanager_go_container_prefix(
+                cli, source, cache, toolchain, report["loaded_base_ID"]
+            )
+            expected_env.update(guest_env)
+            exact_data(dict(v.split("=", 1) for v in cfg["Env"]), expected_env)
+            mounts = pre["Mounts"]
+            require(
+                len(mounts) == 3
+                and all(m["Type"] == "bind" and m["RW"] is False for m in mounts)
+                and {m["Destination"]: m["Source"] for m in mounts}
+                == {"/source": str(source), "/cache": str(cache), "/toolchain": str(toolchain)},
+                "AM_062_native_mounts",
+            )
+            token = cfg["Labels"]["pulseplate.alertmanager-module"]
+            require(
+                type(token) is str
+                and re.fullmatch(r"[0-9a-f]{32}", token)
+                and pre["Name"] == f"/pulseplate-alert-module-{token}-{number}-{cmd}"
+                and pre["State"].get("Status") == "created",
+                "AM_062_container_owner",
+            )
+            owner_tokens.add(token)
+            profiles[cid] = post
+            args_env = {"HOME": str(home), "PATH": "/usr/bin:/bin"}
+            docker_record(
+                prefix + "create-" + cmd,
+                [
+                    "create",
+                    "--name",
+                    pre["Name"][1:],
+                    "--label",
+                    "pulseplate.alertmanager-module=" + token,
+                    *expected_prefix[4:],
+                    *args,
+                ],
+                source,
+                args_env,
+            )
+            for stage, native_args in (
+                ("prestart", ["inspect", "--format", "{{json .}}", cid]),
+                ("offline", ["start", "--attach", cid]),
+                ("wait", ["wait", cid]),
+                ("terminal", ["inspect", "--format", "{{json .}}", cid]),
+            ):
+                docker_record(
+                    prefix + stage + "-" + cmd,
+                    native_args,
+                    source,
+                    docker_env if stage == "prestart" else args_env,
+                )
+            if cmd in ("version", "verify"):
+                expected = (
+                    b"go version go1.27.3 linux/amd64\n"
+                    if cmd == "version"
+                    else b"all modules verified\n"
+                )
+                online = "version" if cmd == "version" else "online-verify"
+                require(
+                    files[prefix + "offline-" + cmd + ".stdout"]
+                    == files[prefix + online + ".stdout"]
+                    == expected,
+                    "AM_062_version_or_verify",
+                )
+    sequence += [
+        "cleanup-census",
+        *(f"cleanup-{step}-{i}" for i in range(12) for step in ("inspect", "remove")),
+        "cleanup-absence",
+    ]
+    exact_data(names, sequence)
+    owned = files["cleanup-census.stdout"].decode("ascii").splitlines()
+    exact_data(sorted(owned), report["owned_container_ids"])
+    require(len(owner_tokens) == 1, "AM_062_one_owner")
+    census = [
+        "ps",
+        "--all",
+        "--quiet",
+        "--no-trunc",
+        "--filter",
+        "label=pulseplate.alertmanager-module=" + owner_tokens.pop(),
+    ]
+    docker_record("cleanup-census", census, evidence, docker_env)
+    docker_record("cleanup-absence", census, evidence, docker_env)
+    for i, cid in enumerate(owned):
+        clean = one_object(files[f"cleanup-inspect-{i}.stdout"])
+        require(
+            clean["Id"] == cid
+            and clean["Name"].removeprefix("/") in report["owned_container_names"],
+            "AM_062_cleanup_identity",
+        )
+        native_container_image_identity(clean, relation)
+        exact_data(
+            [clean.get(k) for k in ("Name", "Config", "HostConfig", "Mounts")],
+            [profiles[cid].get(k) for k in ("Name", "Config", "HostConfig", "Mounts")],
+        )
+        docker_record(
+            f"cleanup-inspect-{i}", ["inspect", "--format", "{{json .}}", cid], evidence, docker_env
+        )
+        docker_record(f"cleanup-remove-{i}", ["rm", "--force", cid], evidence, docker_env)
+
+
 def _alertmanager_qualified_native(
-    files: dict[str, bytes], report: dict[str, Any], *, upstream_version: str = "0.34.1"
+    files: dict[str, bytes],
+    report: dict[str, Any],
+    *,
+    upstream_version: str = "0.34.1",
+    xnet062: bool = False,
 ) -> None:
     """Cross-bind the existing native protocol and every terminal output; no native call."""
     from scripts.ci.prometheus_source_image import one_object, require
@@ -5130,6 +5757,11 @@ def _alertmanager_qualified_native(
     names = set()
     for number in (1, 2):
         prefix = "replay" + str(number)
+        if xnet062:
+            expected.update(
+                prefix + "-" + name
+                for name in ("baseline-graph", "baseline-alertmanager", "baseline-amtool")
+            )
         expected |= {
             prefix + "-" + name
             for name in (
@@ -5137,9 +5769,13 @@ def _alertmanager_qualified_native(
                 "baseline-download",
                 "baseline-modules",
                 (
-                    "two-authored-replacements"
-                    if upstream_version == "0.34.1"
-                    else "upstream-target-replay"
+                    "xnet062-authored-get"
+                    if xnet062
+                    else (
+                        "two-authored-replacements"
+                        if upstream_version == "0.34.1"
+                        else "upstream-target-replay"
+                    )
                 ),
                 "derived-download",
                 "online-verify",
@@ -5154,6 +5790,8 @@ def _alertmanager_qualified_native(
                 prefix + "-" + stage + "-" + command
                 for stage in ("create", "offline", "wait", "terminal")
             }
+            if xnet062:
+                expected.add(prefix + "-prestart-" + command)
             identifier = files[prefix + "-create-" + command + ".stdout"].decode("ascii").strip()
             require(
                 re.fullmatch(r"[0-9a-f]{64}", identifier) is not None and identifier not in ids,
@@ -6857,6 +7495,7 @@ def _alertmanager_candidate_payload(
         observed_build = _alertmanager_build_information(
             files["pair-evidence/" + binary + "-buildinfo-attach.stdout"],
             binary,
+            qualification_plan=inspected["plan"],
             current=current,
             upstream_version=_alertmanager_upstream_identity(
                 inspected["root_inputs"], current=current
@@ -7017,6 +7656,7 @@ def _alertmanager_support_payload(
     qualification: dict[str, Any] | None = None,
     support_binding: dict[str, Any] | None = None,
     qualification_payload: dict[str, Any] | None = None,
+    original_producer: tuple[str, dict[str, bytes]] | None = None,
 ) -> dict[str, Any]:
     """Read the exact observed S artifact, with the incumbent native payload inventory."""
     import shutil
@@ -7042,6 +7682,17 @@ def _alertmanager_support_payload(
             ),
             "AM_support_current_upstream_binding",
         )
+        if (
+            qualification_payload is not None
+            and qualification_payload.get("derivation_epoch") == _ALERT_XNET062_METADATA_EPOCH
+        ):
+            require(
+                type(qualification.get("source_files")) is dict
+                and set(qualification["source_files"]) == set(_ALERT_Q_SOURCE_FILES)
+                and qualification["source_files"] == support_binding.get("source_files")
+                and _alertmanager_062_source_matches(qualification, original_producer),
+                "AM_062_support_source_identity",
+            )
         expected_zip = support_binding["zip_sha256"]
         expected_source = support_binding["source"]
         expected_q = qualification["zip_sha256"]
@@ -7182,6 +7833,24 @@ def _alertmanager_support_payload(
         _alertmanager_current_support_base(
             destination, report, cast(dict[str, Any], qualification_payload)
         )
+        if (
+            qualification_payload is not None
+            and qualification_payload.get("derivation_epoch") == _ALERT_XNET062_METADATA_EPOCH
+        ):
+            from scripts.ci.prometheus_source_image import exact_data
+
+            exact_data(inspected["upstream"], qualification)
+            for key in (
+                "derivation_epoch",
+                "delta",
+                "frozen_sha256",
+                "root_inputs",
+                "source_files",
+            ):
+                exact_data(inspected["inspection"][key], qualification_payload[key])
+            for key in ("derivation_epoch", "command_module_inputs"):
+                exact_data(inspected["inspection"]["plan"][key], qualification_payload["plan"][key])
+
     else:
         require(
             report.get("base", {}).get("config") == _ALERT_BASE_CONFIG
@@ -7296,7 +7965,12 @@ def _alertmanager_materialize(archive: Path, destination: Path, deadline: float)
 
 
 def _alertmanager_build_information(
-    raw: bytes, binary: str, *, current: bool = False, upstream_version: str = "0.34.1"
+    raw: bytes,
+    binary: str,
+    *,
+    current: bool = False,
+    upstream_version: str = "0.34.1",
+    qualification_plan: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Interpret native Go build-info for the required pair, including embedded stdlib."""
     from scripts.ci.prometheus_source_image import require
@@ -7311,6 +7985,20 @@ def _alertmanager_build_information(
     require(
         bool(lines) and lines[0] == "/out/" + binary + ": " + compiler, "AM_actual_Go_build_version"
     )
+    checked_062 = qualification_plan is not None and bool(
+        {"derivation_epoch", "command_module_inputs"}.intersection(qualification_plan)
+    )
+    if checked_062:
+        require(
+            current
+            and upstream_version == "0.34.2"
+            and qualification_plan is not None
+            and qualification_plan.get("derivation_epoch") == _ALERT_XNET062_METADATA_EPOCH
+            and set(qualification_plan.get("command_module_inputs", {}))
+            == {"alertmanager", "amtool"},
+            "AM_062_link_qualification",
+        )
+    linked: dict[str, list[str]] = {}
     dependencies, settings = {}, {}
     main: dict[str, str] = {}
     path = ""
@@ -7325,6 +8013,12 @@ def _alertmanager_build_information(
                 "AM_build_info_dependency",
             )
             dependencies[fields[1]] = fields[2]
+            if checked_062:
+                require(
+                    len(fields) == 4 and re.fullmatch(r"h1:[A-Za-z0-9+/]{43}=", fields[3]),
+                    "AM_062_native_module_sum",
+                )
+                linked[fields[1]] = fields[2:4]
         elif fields[0] == "path":
             require(len(fields) == 2 and not path, "AM_build_info_command_path")
             path = fields[1]
@@ -7344,8 +8038,8 @@ def _alertmanager_build_information(
         path == "github.com/prometheus/alertmanager/cmd/" + binary
         and main.get("Path") == "github.com/prometheus/alertmanager"
         and main.get("Version") in ("(devel)", upstream_version, "v" + upstream_version)
-        and dependencies.get("golang.org/x/net") == "v0.60.0"
-        and dependencies.get("google.golang.org/grpc") == "v1.83.2"
+        and dependencies.get("golang.org/x/net") == ("v0.62.0" if checked_062 else "v0.60.0")
+        and (checked_062 or dependencies.get("google.golang.org/grpc") == "v1.83.2")
         and all(
             settings.get(k) == v
             for k, v in {
@@ -7359,7 +8053,13 @@ def _alertmanager_build_information(
         and "-ldflags" not in settings,
         "AM_actual_pair_build_settings",
     )
+    if checked_062 and qualification_plan is not None:
+        require(
+            linked == qualification_plan["command_module_inputs"][binary],
+            "AM_062_native_command_module_join",
+        )
     return {
+        **({"linked_modules": linked} if checked_062 else {}),
         "Go": compiler,
         "dependencies": dependencies,
         "main": main,
@@ -7789,6 +8489,16 @@ def _alertmanager_candidate_inventory(
             "AM_candidate_authenticated_base_scan_subject",
         )
         _alertmanager_support_inventory(base_report)
+    xnet_links = {
+        binary
+        for binary, information in (build_information or {}).items()
+        if "linked_modules" in information
+    }
+    require(
+        not xnet_links
+        or (current and upstream_version == "0.34.2" and xnet_links == {"alertmanager", "amtool"}),
+        "AM_062_paired_link_evidence",
+    )
     inventory = _alertmanager_support_inventory(report)
     expected_os = _ALERT_CURRENT_SCAN_ORACLE["expected_OS"] if base_report is None else {}
     os_inventories = (
@@ -7854,6 +8564,11 @@ def _alertmanager_candidate_inventory(
             "AM_unclassified_package_bearing_target",
         )
         for finding in row.get("Vulnerabilities", []):
+            if xnet_links and finding.get("PkgName") == "golang.org/x/net":
+                require(
+                    finding["VulnerabilityID"] not in {"CVE-2026-78661", "CVE-2026-97045"},
+                    "AM_062_xnet_finding_persists",
+                )
             require(
                 finding["VulnerabilityID"]
                 not in {"CVE-2026-84445", "CVE-2026-78669", "CVE-2026-78667", "CVE-2026-97031"},
@@ -8377,6 +9092,7 @@ def _alertmanager_pair(
             result["build_information"][binary] = _alertmanager_build_information(
                 go(["version", "-m", "/out/" + binary], binary + "-buildinfo"),
                 binary,
+                qualification_plan=plan,
                 current=True,
                 upstream_version=upstream_version,
             )
@@ -10693,11 +11409,16 @@ def _alertmanager_prepare_candidate_body(
             expected_case="accepted",
             controller_templates=templates,
         )
+    original_producer = (
+        (authenticated["source"], source) if route["upstream_version"] == "0.34.2" else None
+    )
     inspected = _alertmanager_qualified_payload(
         output / "qualification.zip",
         material_root=args.material_root,
         current=accepted["source"] != _ALERT_HISTORICAL_C10["source"],
         producer_recipe=source["deploy/alertmanager/Containerfile"],
+        xnet062_qualification=qualification if original_producer is not None else None,
+        original_producer=original_producer,
     )
     support = output / "support"
     current = accepted["source"] != _ALERT_HISTORICAL_C10["source"]
@@ -10707,6 +11428,7 @@ def _alertmanager_prepare_candidate_body(
         qualification=qualification if current else None,
         support_binding=support_binding if current else None,
         qualification_payload=inspected if current else None,
+        original_producer=original_producer,
     )
     if current:
         _alertmanager_bind_current_plan(inspected["plan"], supported)
@@ -10986,10 +11708,13 @@ def _alertmanager_publish(
                 source_branch="main",
             )
         producer = dict(bindings["candidate"], merge_commit=merge)
+        original_producer = (producer["source"], source)
         inspected = _alertmanager_qualified_payload(
             directory / "qualification.zip",
             current=True,
             producer_recipe=source["deploy/alertmanager/Containerfile"],
+            xnet062_qualification=bindings["qualification"],
+            original_producer=original_producer,
         )
         require(
             _alertmanager_upstream_identity(inspected["root_inputs"], current=True) == "0.34.2",
@@ -11002,6 +11727,7 @@ def _alertmanager_publish(
             qualification=bindings["qualification"],
             support_binding=bindings["support"],
             qualification_payload=inspected,
+            original_producer=original_producer,
         )
         _alertmanager_bind_current_plan(inspected["plan"], supported)
         inspected["plan"]["probe"] = supported["probe"]
@@ -12443,7 +13169,9 @@ def _alertmanager_current_build(args: argparse.Namespace) -> None:
         prep_started = Fraction(time.monotonic())
         deadline = _alertmanager_clock_float(min(work_deadline, prep_started + prep_remaining))
         q, supported_binding = bindings["qualification"], bindings["support"]
-        inspected = _alertmanager_qualified_payload(output / "qualification.zip", current=True)
+        inspected = _alertmanager_qualified_payload(
+            output / "qualification.zip", current=True, xnet062_qualification=q
+        )
         require(
             _alertmanager_upstream_identity(inspected["root_inputs"], current=True) == "0.34.2",
             "AM_current_producer_upstream",
@@ -14103,7 +14831,9 @@ def _inspect_alertmanager_inputs(args: argparse.Namespace) -> None:
         not api.private.exists() and not api.private.is_symlink(),
         "AM_credentials_removed_before_native",
     )
-    inspected = _alertmanager_qualified_payload(output / "qualification.zip", current=True)
+    inspected = _alertmanager_qualified_payload(
+        output / "qualification.zip", current=True, xnet062_qualification=qualification
+    )
     result = {
         "asset_type": "Alertmanager retained-input inspection",
         "upstream": qualification,
