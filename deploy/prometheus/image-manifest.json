@@ -1,6 +1,6 @@
 {
   "schema": "pulseplate.prometheus_image_manifest.v3",
-  "phase": "source_prepared",
+  "phase": "candidate_selected",
   "inputs": {
     "source": {
       "version": "3.15.0",
@@ -356,6 +356,163 @@
       "automatic_retries": 0
     }
   },
-  "selection": null,
-  "candidate": null
+  "selection": {
+    "repository": "ghcr.io/katsiarynakavaleuskaya/pulseplate",
+    "platform": "linux/amd64",
+    "root_media_type": "application/vnd.oci.image.manifest.v1+json",
+    "manifest_digest": "sha256:89efae4a3cbfc65483f3d38cb62d00d95e3a013519aae67e4b217269d874a7a3",
+    "config_digest": "sha256:bfdfbffe895d063f816abaca85038bb367b8fe5a4cab842a3abea1104e4fcab6",
+    "layers": [
+      {
+        "digest": "sha256:2cc7ee286bf3a9e6af5f71756d7fc8e22e23ce65fec9047d774511ffcef79fa8",
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "size": 124525
+      },
+      {
+        "digest": "sha256:c172f21841dff4c8cf45cde46589c1c2616cefe7e819965e92e6d3475c428aa0",
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "size": 12675
+      },
+      {
+        "digest": "sha256:617b009a71d625ef77982b400cb9939dd5ed9809ebf50681a0520b7c08c0ca89",
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "size": 289427
+      },
+      {
+        "digest": "sha256:a99dd1dd5eaf3e2099256f1a75c8e4c02a1d3a81b8e2bfd1735b1dd166b68a12",
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "size": 256689
+      },
+      {
+        "digest": "sha256:d6b1b89eccacc15c2420b2776d72c1dae334a00805ed9af54bf2f71e4d536f28",
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "size": 32093
+      },
+      {
+        "digest": "sha256:2780920e5dbfbe103d03a583ed75345306e572ec5a48cb10361f046767d9f29a",
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "size": 67
+      },
+      {
+        "digest": "sha256:7c12895b777bcaa8ccae0605b4de635b68fc32d60fa08f421dc3818bf55ee212",
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "size": 188
+      },
+      {
+        "digest": "sha256:3214acf345c0cc6bbdb56b698a41ccdefc624a09d6beb0d38b5de0b2303ecaf4",
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "size": 123
+      },
+      {
+        "digest": "sha256:52630fc75a18675c530ed9eba5f55eca09b03e91bd5bc15307918bbc1a7e7296",
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "size": 162
+      },
+      {
+        "digest": "sha256:dd64bf2dd177757451a98fcdc999a339c35dee5d9872d8f4dc69c8f3c4dd0112",
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "size": 80
+      },
+      {
+        "digest": "sha256:b839dfae01f66e15c6a8b63520557ed315bdfe036342fa7a0c537259f10d7a9a",
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "size": 351
+      },
+      {
+        "digest": "sha256:ebddc55facdc6b1f7e0f30816a5fc7cc62f38abdf76c0a8b0a0ce52085754795",
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "size": 311
+      },
+      {
+        "digest": "sha256:ec1b04bf2eb2122e86781f791b03ea0cf6588694e0f4a88245250224c186cdf0",
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "size": 142002
+      },
+      {
+        "digest": "sha256:2cfd52597fb8b55f67d52ff6793a22e5f8d02dba20e68dcf2469ab206401ca35",
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "size": 111542211
+      }
+    ],
+    "diff_ids": [
+      "sha256:9486261b5a13f63ca6904b36721527ac8f19df53d300560138d69ae9b4c203de",
+      "sha256:621c35e751a51a9a9dc3e80aa0b7fe8be2a93402ea6ccd307d30852cd7776cda",
+      "sha256:92a3b02188b326c1b10a0a375d3c0019dff4ee8ff02a4b51a7e640bb9400932f",
+      "sha256:ef430e4865b6130e131d5777c1d072fdcc89478668d10ab41a18549e0fdc88b5",
+      "sha256:275a30dd8ce958b21daa9ad962c6fbc09f98306ee2f486b65c9075dc257b1412",
+      "sha256:4d049f83d9cf21d1f5cc0e11deaf36df02790d0e60c1a3829538fb4b61685368",
+      "sha256:af5aa97ebe6ce1604747ec1e21af7136ded391bcabe4acef882e718a87c86bcc",
+      "sha256:6f1cdceb6a3146f0ccb986521156bef8a422cdbb0863396f7f751f575ba308f4",
+      "sha256:bd3cdfae1d3fdd83a2231d608969b38b82349777c2fff9a7c12d54f8ac5c9b38",
+      "sha256:4cde6b0bb6f50a5f255eef7b2a42162c661cf776b803225dcac9a659e396bb6b",
+      "sha256:ad51d0769d16ba578106a177987dfe3d2e02c1668c852b795b2f6b024068242a",
+      "sha256:187cfc6d1e3e8a40a5e64653bcd3239c140807dcf1c09e48021178705a5a6139",
+      "sha256:0762a1f6557d1e88a761ab05aa7f65a10dc0e559913ea13befb873d907e1a396",
+      "sha256:0f173567d1211614a6371c9d7eecb196810d21d5aac431a5aed00a37f6e99319"
+    ],
+    "runtime_ref": "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:89efae4a3cbfc65483f3d38cb62d00d95e3a013519aae67e4b217269d874a7a3",
+    "binaries": {
+      "prometheus": {
+        "sha256": "401e49cc04706dab2c283bfcb1fbdcc706d4623f290cf0a321b6a4ffda6318ef",
+        "version": "3.15.0"
+      },
+      "promtool": {
+        "sha256": "692b7f43b40458a884d261d9ffdfcddc00aa09d2422a8066e84613ebb53c2100",
+        "version": "3.15.0"
+      }
+    },
+    "ui_inventory_sha256": "4b2cc436986f469e58640ef3a4cf61d0920bb0d28405e7289924bc5c81472fa3",
+    "source_revision": "5241a27fe3c6983549fccc32f6e65917408c63cd",
+    "version": "3.15.0"
+  },
+  "candidate": {
+    "repository": {
+      "id": 1043311030,
+      "full_name": "Katsiarynakavaleuskaya/PulsePlate"
+    },
+    "producer": {
+      "workflow_id": 199904435,
+      "workflow_path": ".github/workflows/build.yml",
+      "source_head": "af6ef77fd183753751a0043a72c6495ce708515c",
+      "source_ref": "refs/heads/codex/dependency-alertmanager-remediation",
+      "pr_number": 2494,
+      "run_id": 42734455562,
+      "run_attempt": 1,
+      "job_ids": [
+        129560137184
+      ],
+      "raw_producer": {
+        "scripts/ci/prometheus_source_image.py": {
+          "bytes": 475124,
+          "sha256": "9fc210a6c0b776c110636348e35e90be8fd040afdb9b9f140030a2a2506fd755"
+        },
+        ".github/workflows/build.yml": {
+          "bytes": 78123,
+          "sha256": "17deb9c904594c23ca20ecc88fc917c51bcb392aca108fff08358910e148bdf8"
+        },
+        "deploy/prometheus/Containerfile": {
+          "bytes": 587,
+          "sha256": "9608dfd00932fcec4c8be42bece02782aaf61936d957cb9b6c3eae6fa6273aa8"
+        }
+      },
+      "input_projection_sha256": "9c7a713940c2767a71034285d9b0dacf4ed20734153bebfe6f004925bb8f4a43"
+    },
+    "artifact": {
+      "id": 13726608898,
+      "name": "prometheus-source-candidate-42734455562-1",
+      "digest": "sha256:1f75e449d4412c68d66f2a2838a8d316dc78808d2707e114b197384016961643",
+      "size": 933387049,
+      "expires_at": "2027-02-08T01:15:17Z",
+      "archive_sha256": "1f75e449d4412c68d66f2a2838a8d316dc78808d2707e114b197384016961643"
+    },
+    "outputs": {
+      "oci_archive_sha256": "682d5077c3262c4069a2c770b7ba6620df9ff7b28edb2ab68c61054973f76ad1",
+      "docker_archive_sha256": "eecb732ad6608af52fdc447af24c38d931f8e65e8aa000df6a9d562d330cdc41",
+      "native_report_sha256": "d50d228a738686a3dc30ff9d71aefac3b6b912a03db58c286765bfa0488a1baa",
+      "pair_report_sha256": "1afa0523c2bc0e021937dcf80d5fa3df81f717d05419711f170dc4a60b2ae7c6",
+      "spdx_sha256": "15a2dc7f080b49958a099dc58df55da7955051a3660a4dc82763fead9ecbdfb6",
+      "provenance_bundle_sha256": "1690e87cf0ed94ee6c42e6d215ec1a2ad09e8fd2bb60e0af15ac36c5277e2409",
+      "sbom_bundle_sha256": "d729d642c35e1c3064c37e4ba45d734bcdf44aea79579d8aacb73fbb260ec314"
+    }
+  }
 }
