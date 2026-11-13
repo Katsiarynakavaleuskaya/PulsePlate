@@ -8,6 +8,8 @@ import io
 import json
 import os
 import re
+import ssl
+import threading
 import subprocess
 import struct
 import sys
@@ -15,9 +17,10 @@ import tempfile
 import types
 import zipfile
 from contextlib import contextmanager
-from collections.abc import Callable
-from datetime import datetime, timezone
+from collections.abc import Callable, Iterator
+from datetime import datetime, timedelta, timezone
 from email.utils import format_datetime
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from textwrap import dedent
 from typing import Any
@@ -523,13 +526,13 @@ def test_main_single_source_build_preserves_the_four_explicit_inputs(
 def test_psycopg_build_tools_include_only_the_actual_binary_closure() -> None:
     assert installer.PSYCOPG_C_BUILD_PINS == frozenset(
         {
-            ("setuptools", "83.0.0"),
+            ("setuptools", "84.1.0"),
             ("wheel", "0.47.0"),
             ("packaging", "25.0"),
         }
     )
     assert set(installer.PSYCOPG_C_BUILD_ARTIFACTS) == {
-        "setuptools-83.0.0-py3-none-any.whl",
+        "setuptools-84.1.0-py3-none-any.whl",
         "wheel-0.47.0-py3-none-any.whl",
         "packaging-25.0-py3-none-any.whl",
     }
@@ -1222,9 +1225,8 @@ def _minimum_requirement_version(contents: str, package: str) -> str | None:
 def _resolver_miss_runtimeerror_like_run_command(package: str, version: str) -> RuntimeError:
     """Shape like :func:`run_command` on pip failure (``exit 1`` plus stderr text)."""
     requirement = f"{package}=={version}"
-    return RuntimeError(
-        "Command failed: python -m pip download stub: exit 1\n"
-        f"No matching distribution found for {requirement}"
+    return installer._CompletedPipFailure(
+        1, "", f"No matching distribution found for {requirement}"
     )
 
 
@@ -1322,7 +1324,7 @@ def _allow_private_index_project_health(
     return observed_requests
 
 
-def test_private_index_project_health_honors_matching_trusted_host(
+def test_private_index_project_health_keeps_default_tls_for_matching_trusted_host(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     observed_contexts: list[object | None] = []
@@ -1364,8 +1366,7 @@ def test_private_index_project_health_honors_matching_trusted_host(
         trusted_host="packages.example.internal",
     )
 
-    assert len(observed_contexts) == 1
-    assert observed_contexts[0] is not None
+    assert observed_contexts == [None]
 
 
 def test_private_index_project_health_uses_default_tls_for_mismatched_trusted_host(
@@ -2428,12 +2429,22 @@ def test_main_netrc_failures_display_only_constant_and_class(
 
 
 @pytest.mark.parametrize(
-    "stage", ["constructor", "context", "request", "response", "read", "close", "request-and-close"]
+    "stage",
+    [
+        "constructor",
+        "tls",
+        "tls-close",
+        "request",
+        "response",
+        "read",
+        "close",
+        "request-and-close",
+    ],
 )
 def test_project_probe_failure_and_cleanup_share_sanitized_bounded_budget(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], stage: str
 ) -> None:
-    counts = {"constructed": 0, "closed": 0, "context": 0}
+    counts = {"constructed": 0, "closed": 0}
     sleeps: list[float] = []
 
     def fail() -> None:
@@ -2452,6 +2463,8 @@ def test_project_probe_failure_and_cleanup_share_sanitized_bounded_budget(
             counts["constructed"] += 1
             if stage == "constructor":
                 fail()
+            if stage == "tls":
+                raise installer.ssl.SSLError("synthetic-secret-exception-marker")
 
         def request(self, *_args: object, **_kwargs: object) -> None:
             if stage in {"request", "request-and-close"}:
@@ -2464,28 +2477,26 @@ def test_project_probe_failure_and_cleanup_share_sanitized_bounded_budget(
 
         def close(self) -> None:
             counts["closed"] += 1
+            if stage == "tls-close":
+                raise installer.ssl.SSLError("synthetic-secret-exception-marker")
             if stage in {"close", "request-and-close"}:
                 fail()
 
-    def failing_context() -> None:
-        counts["context"] += 1
-        fail()
-
     monkeypatch.setattr(installer.http.client, "HTTPSConnection", Connection)
-    monkeypatch.setattr(installer.ssl, "_create_unverified_context", failing_context)
     monkeypatch.setattr(installer.time, "sleep", sleeps.append)
-    trusted = "packages.example.internal" if stage == "context" else None
-    with pytest.raises(RuntimeError, match="OSError") as error:
+    trusted = "packages.example.internal" if stage == "tls" else None
+    with pytest.raises(
+        RuntimeError, match="SSLError" if stage in {"tls", "tls-close"} else "OSError"
+    ) as error:
         installer._read_private_index_project_page(
             index_url=APPROVED_PROXY_URL, package="pip", trusted_host=trusted
         )
     assert error.value.__suppress_context__ is True
     assert "synthetic-secret-exception-marker" not in str(error.value)
     assert len(sleeps) == installer.PIP_NETWORK_RETRIES - 1
-    expected_connections = 0 if stage == "context" else installer.PIP_NETWORK_RETRIES
+    expected_connections = installer.PIP_NETWORK_RETRIES
     assert counts["constructed"] == expected_connections
-    assert counts["closed"] == (0 if stage == "constructor" else expected_connections)
-    assert counts["context"] == (installer.PIP_NETWORK_RETRIES if stage == "context" else 0)
+    assert counts["closed"] == (0 if stage in {"constructor", "tls"} else expected_connections)
     monkeypatch.setattr(
         installer,
         "upgrade_pip",
@@ -2496,6 +2507,278 @@ def test_project_probe_failure_and_cleanup_share_sanitized_bounded_budget(
     assert installer.main(["--index-url", APPROVED_PROXY_URL, "--upgrade-pip-only"]) == 1
     output = capsys.readouterr()
     assert "synthetic-secret-exception-marker" not in output.out + output.err
+
+
+@pytest.fixture(scope="module")
+def project_page_tls_material(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Path]:
+    """Synthetic trust only: no committed key or production trust-store modification."""
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
+
+    directory = tmp_path_factory.mktemp("private-project-tls")
+    now = datetime.now(timezone.utc)
+    ca_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    ca_name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "Synthetic project-page CA")])
+    ca = (
+        x509.CertificateBuilder()
+        .subject_name(ca_name)
+        .issuer_name(ca_name)
+        .public_key(ca_key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - timedelta(days=1))
+        .not_valid_after(now + timedelta(days=1))
+        .add_extension(x509.BasicConstraints(ca=True, path_length=0), critical=True)
+        .add_extension(
+            x509.KeyUsage(
+                digital_signature=True,
+                content_commitment=False,
+                key_encipherment=False,
+                data_encipherment=False,
+                key_agreement=False,
+                key_cert_sign=True,
+                crl_sign=True,
+                encipher_only=None,
+                decipher_only=None,
+            ),
+            critical=True,
+        )
+        .add_extension(
+            x509.SubjectKeyIdentifier.from_public_key(ca_key.public_key()), critical=False
+        )
+        .add_extension(
+            x509.AuthorityKeyIdentifier.from_issuer_public_key(ca_key.public_key()), critical=False
+        )
+        .sign(ca_key, hashes.SHA256())
+    )
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    key_path = directory / "server.key"
+    key_path.write_bytes(
+        key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.PKCS8,
+            serialization.NoEncryption(),
+        )
+    )
+    key_path.chmod(0o600)
+    ca_path = directory / "ca.pem"
+    ca_path.write_bytes(ca.public_bytes(serialization.Encoding.PEM))
+    result = {"key": key_path, "ca": ca_path}
+    for label, start, end in (
+        ("valid", now - timedelta(hours=1), now + timedelta(hours=1)),
+        ("wheel-host", now - timedelta(hours=1), now + timedelta(hours=1)),
+        ("expired", now - timedelta(days=3), now - timedelta(days=2)),
+    ):
+        cert = (
+            x509.CertificateBuilder()
+            .subject_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "localhost")]))
+            .issuer_name(ca_name)
+            .public_key(key.public_key())
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(start)
+            .not_valid_after(end)
+            .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
+            .add_extension(
+                x509.SubjectAlternativeName(
+                    [
+                        x509.DNSName(
+                            "files.pythonhosted.org" if label == "wheel-host" else "localhost"
+                        )
+                    ]
+                ),
+                critical=False,
+            )
+            .add_extension(x509.ExtendedKeyUsage([ExtendedKeyUsageOID.SERVER_AUTH]), critical=False)
+            .add_extension(
+                x509.KeyUsage(
+                    digital_signature=True,
+                    content_commitment=False,
+                    key_encipherment=True,
+                    data_encipherment=False,
+                    key_agreement=False,
+                    key_cert_sign=False,
+                    crl_sign=False,
+                    encipher_only=None,
+                    decipher_only=None,
+                ),
+                critical=True,
+            )
+            .add_extension(
+                x509.SubjectKeyIdentifier.from_public_key(key.public_key()), critical=False
+            )
+            .add_extension(
+                x509.AuthorityKeyIdentifier.from_issuer_public_key(ca_key.public_key()),
+                critical=False,
+            )
+            .sign(ca_key, hashes.SHA256())
+        )
+        path = directory / (label + ".pem")
+        path.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
+        result[label] = path
+    return result
+
+
+@contextmanager
+def _project_page_tls_server(cert: Path, key: Path) -> Iterator[tuple[int, list[str]]]:
+    requests: list[str] = []
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain(cert, key)
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:
+            requests.append(self.path)
+            body = b'<a href="mako-1.4.2-py3-none-any.whl">mako wheel</a>'
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, format: str, *args: object) -> None:
+            return None
+
+    class Server(HTTPServer):
+        def get_request(self) -> tuple[ssl.SSLSocket, tuple[str, int]]:
+            connection, address = super().get_request()
+            connection.settimeout(2)
+            try:
+                secured = context.wrap_socket(connection, server_side=True)
+            except BaseException:
+                connection.close()
+                raise
+            return secured, address
+
+    server = Server(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01})
+    try:
+        thread.start()
+        try:
+            yield server.server_port, requests
+        finally:
+            server.shutdown()
+    finally:
+        server.server_close()
+        if thread.ident is not None:
+            thread.join(5)
+            assert not thread.is_alive(), "synthetic TLS server did not terminate"
+
+
+@pytest.mark.parametrize("consumer", ("health", "version", "floor"))
+@pytest.mark.parametrize("trusted", (None, "matching", "other"))
+@pytest.mark.parametrize(
+    "certificate", ("trusted", "untrusted", "hostname", "expired", "missing-ca", "broken-ca")
+)
+def test_private_project_real_tls_is_verified_and_terminal_before_fallback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    project_page_tls_material: dict[str, Path],
+    consumer: str,
+    trusted: str | None,
+    certificate: str,
+) -> None:
+    material = project_page_tls_material
+    trust_directory = tmp_path / "trust-directory"
+    trust_directory.mkdir()
+    monkeypatch.setenv("SSL_CERT_DIR", str(trust_directory))
+    monkeypatch.delenv("NETRC", raising=False)
+    for name in ("REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE"):
+        monkeypatch.delenv(name, raising=False)
+    if certificate == "untrusted":
+        monkeypatch.setenv("SSL_CERT_FILE", os.devnull)
+    elif certificate in {"missing-ca", "broken-ca"}:
+        ca = tmp_path / "unusable-ca.pem"
+        if certificate == "broken-ca":
+            ca.write_text("synthetic-invalid-certificate")
+        monkeypatch.setenv("SSL_CERT_FILE", str(ca))
+    else:
+        monkeypatch.setenv("SSL_CERT_FILE", str(material["ca"]))
+    monkeypatch.setattr(installer, "PIP_NETWORK_RETRIES", 2)
+    monkeypatch.setattr(installer, "PRIVATE_INDEX_HEALTH_TIMEOUT_SECONDS", 2)
+    monkeypatch.setattr(installer, "_sleep_before_private_index_retry", lambda _attempt: None)
+
+    def forbidden(*_args: object, **_kwargs: object) -> None:
+        pytest.fail("TLS failure or a verified present version must not reach fallback")
+
+    monkeypatch.setattr(ssl, "_create_unverified_context", forbidden)
+    monkeypatch.setattr(installer.http.client, "HTTPConnection", forbidden)
+    monkeypatch.setattr(installer, "verify_emergency_artifact_for_floor", forbidden)
+    monkeypatch.setattr(installer, "_download_with_sha256", forbidden)
+    monkeypatch.setattr(installer, "load_dependency_security_floors", lambda: {"mako": "1.4.2"})
+    emergency = tmp_path / "emergency.json"
+    emergency.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "mako",
+                        "version": "1.4.2",
+                        "filename": "mako-1.4.2.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/mako-1.4.2.whl",
+                        "sha256": "a" * 64,
+                    }
+                ],
+            }
+        )
+    )
+    leaf = material["expired"] if certificate == "expired" else material["valid"]
+    with _project_page_tls_server(leaf, material["key"]) as (port, requests):
+        hostname = "127.0.0.1" if certificate == "hostname" else "localhost"
+        index = f"https://{hostname}:{port}/simple/"
+        trusted_host = hostname if trusted == "matching" else "other.invalid" if trusted else None
+
+        def consume() -> object:
+            if consumer == "health":
+                return installer._require_private_index_project_health(
+                    index_url=index, package="mako", trusted_host=trusted_host
+                )
+            if consumer == "version":
+                return installer._private_index_project_has_version(
+                    index_url=index, package="mako", version="1.4.2", trusted_host=trusted_host
+                )
+            return installer.run_dependency_floor_preflight(
+                python_executable=sys.executable,
+                index_url=index,
+                trusted_host=trusted_host,
+                emergency_wheel_manifest=emergency,
+            )
+
+        if certificate == "trusted":
+            assert consume() is (True if consumer == "version" else None)
+            assert requests == ["/simple/mako/"]
+        else:
+            with pytest.raises(installer._PrivateIndexTLSRejected) as error:
+                consume()
+            assert error.value.__suppress_context__ is True
+            assert "TLS verification failed before emergency fallback" in str(error.value)
+            assert "synthetic-invalid-certificate" not in str(error.value)
+            assert requests == []
+
+
+def test_private_project_tls_failure_is_not_downgraded_by_later_transport_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attempts = 0
+
+    def connection(*_args: object, **_kwargs: object) -> None:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise ssl.SSLCertVerificationError("synthetic-secret-first-error")
+        raise OSError("synthetic-secret-last-error")
+
+    monkeypatch.setattr(installer.http.client, "HTTPSConnection", connection)
+    monkeypatch.setattr(installer, "PIP_NETWORK_RETRIES", 2)
+    monkeypatch.setattr(installer, "_sleep_before_private_index_retry", lambda _attempt: None)
+    with pytest.raises(installer._PrivateIndexTLSRejected) as error:
+        installer._private_index_project_has_version(
+            index_url=APPROVED_PROXY_URL, package="mako", version="1.4.2", trusted_host=None
+        )
+    assert attempts == 2
+    assert "SSLCertVerificationError" in str(error.value)
+    assert "synthetic-secret" not in str(error.value)
 
 
 def test_repo_emergency_manifest_is_retired_empty_compatibility_marker() -> None:
@@ -2543,40 +2826,30 @@ def test_repo_ci_lite_retired_manifest_selects_no_emergency_wheels(
     assert observed_by_filename == {}
 
 
-@pytest.mark.parametrize(
-    ("python_tag", "expected_fragment"),
-    [
-        ("cp311", "pydantic_core-2.46.4-cp311-cp311-manylinux_2_17_x86_64"),
-        ("cp312", "pydantic_core-2.46.4-cp312-cp312-manylinux_2_17_x86_64"),
-        ("cp313", "pydantic_core-2.46.4-cp313-cp313-manylinux_2_17_x86_64"),
-    ],
-)
+@pytest.mark.parametrize("python_tag", ["cp311", "cp312", "cp313"])
 def test_repo_pydantic_core_emergency_fallback_is_retired_for_main_python_matrix(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
     python_tag: str,
-    expected_fragment: str,
 ) -> None:
-    monkeypatch.setattr(
-        installer,
-        "_supported_wheel_tags_for_python",
-        lambda _python_executable: {
-            f"{python_tag}-{python_tag}-manylinux_2_17_x86_64",
-            f"{python_tag}-{python_tag}-manylinux2014_x86_64",
-        },
-    )
+    # Matrix names label paths only; each alias uses the current test interpreter.
+    invocation = tmp_path / python_tag / "bin" / "python"
+    invocation.parent.mkdir(parents=True)
+    invocation.symlink_to(sys.executable)
+    assert installer.resolve_python_executable(str(invocation)) == str(invocation)
+    assert invocation.is_symlink()
 
+    def unexpected_tag_probe(_python_executable: str | None) -> set[str]:
+        pytest.fail("Retired empty manifest must not query a wheel-tag provider")
+
+    monkeypatch.setattr(installer, "_supported_wheel_tags_for_python", unexpected_tag_probe)
     artifacts = installer.emergency_artifacts_requested_by_surfaces(
         requirement_files=[REPO_ROOT / "requirements-ci-lite.txt"],
         constraints_file=REPO_ROOT / "constraints.txt",
         manifest_path=_repo_emergency_manifest_path(),
-        python_executable=f"/opt/python/{python_tag}/bin/python",
+        python_executable=str(invocation),
     )
-    pydantic_core_artifacts = [
-        artifact for artifact in artifacts if artifact["package"] == "pydantic-core"
-    ]
-
-    assert pydantic_core_artifacts == []
-    assert "2.46.4" in expected_fragment
+    assert artifacts == []
 
 
 def test_emergency_artifacts_requested_by_surfaces_filters_incompatible_wheel_tags(
@@ -2598,14 +2871,14 @@ def test_emergency_artifacts_requested_by_surfaces_filters_incompatible_wheel_ta
                         "package": "jiter",
                         "version": "0.12.0",
                         "filename": incompatible_filename,
-                        "url": "https://files.pythonhosted.org/packages/example/jiter-cp312.whl",
+                        "url": f"https://files.pythonhosted.org/packages/example/{incompatible_filename}",
                         "sha256": "a" * 64,
                     },
                     {
                         "package": "jiter",
                         "version": "0.12.0",
                         "filename": compatible_filename,
-                        "url": "https://files.pythonhosted.org/packages/example/jiter-cp313.whl",
+                        "url": f"https://files.pythonhosted.org/packages/example/{compatible_filename}",
                         "sha256": "b" * 64,
                     },
                 ],
@@ -2647,14 +2920,14 @@ def test_emergency_artifacts_requested_by_surfaces_uses_target_python_tags(
                         "package": "jiter",
                         "version": "0.12.0",
                         "filename": cp312_filename,
-                        "url": "https://files.pythonhosted.org/packages/example/jiter-cp312.whl",
+                        "url": f"https://files.pythonhosted.org/packages/example/{cp312_filename}",
                         "sha256": "a" * 64,
                     },
                     {
                         "package": "jiter",
                         "version": "0.12.0",
                         "filename": cp313_filename,
-                        "url": "https://files.pythonhosted.org/packages/example/jiter-cp313.whl",
+                        "url": f"https://files.pythonhosted.org/packages/example/{cp313_filename}",
                         "sha256": "b" * 64,
                     },
                 ],
@@ -2741,38 +3014,21 @@ def test_resolve_python_executable_rejects_invalid_targets(tmp_path: Path) -> No
 def test_supported_wheel_tags_resolves_current_python_alias_through_which(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Resolve the Python alias while preserving the canonical invocation path."""
-    observed_commands: list[list[str]] = []
+    """A command resolving to this invocation uses this runtime's supported tags."""
     observed_names: list[str] = []
 
-    def fake_subprocess_run(
-        command: list[str],
-        **_kwargs: object,
-    ) -> subprocess.CompletedProcess[str]:
-        """Capture probe arguments and return wheel tags without launching Python."""
-        observed_commands.append(command)
-        payload = {
-            "tags": ["py3-none-any"],
-            "major": sys.version_info.major,
-            "minor": sys.version_info.minor,
-            "implementation_name": "cpython",
-            "platform_name": "linux",
-            "sysconfig_platform": "linux-x86_64",
-            "machine_name": "x86_64",
-        }
-        return subprocess.CompletedProcess(command, 0, stdout=json.dumps(payload), stderr="")
-
     def fake_which(name: str) -> str:
-        """Record the requested alias and expose the current interpreter spelling."""
         observed_names.append(name)
         return sys.executable
 
-    monkeypatch.setattr(installer.shutil, "which", fake_which)
-    monkeypatch.setattr(installer.subprocess, "run", fake_subprocess_run)
+    def reject_external_probe(*args: object, **kwargs: object) -> None:
+        raise AssertionError("the current interpreter must not use an external probe")
 
-    assert installer._supported_wheel_tags_for_python("python") == {"py3-none-any"}
-    expected_python = Path(sys.executable).parent.resolve() / Path(sys.executable).name
-    assert observed_commands[0][0] == str(expected_python)
+    monkeypatch.setattr(installer.shutil, "which", fake_which)
+    monkeypatch.setattr(installer.subprocess, "run", reject_external_probe)
+    expected = installer._supported_wheel_tags_for_python(None)
+
+    assert installer._supported_wheel_tags_for_python("python") == expected
     assert observed_names == ["python"]
 
 
@@ -2801,9 +3057,10 @@ def test_supported_wheel_tags_normalizes_path_qualified_relative_python(
         command: list[str],
         **_kwargs: object,
     ) -> subprocess.CompletedProcess[str]:
+        assert 0 < _kwargs["timeout"] <= 30
         observed_commands.append(command)
         payload = {
-            "tags": ["py3-none-any"],
+            "tags": None,
             "major": 3,
             "minor": 13,
             "implementation_name": "cpython",
@@ -2815,9 +3072,12 @@ def test_supported_wheel_tags_normalizes_path_qualified_relative_python(
 
     executable = _write_executable(tmp_path / ".venv" / "bin" / "python")
     monkeypatch.chdir(tmp_path)
+    for key in tuple(os.environ):
+        if key.startswith("PYTHON") or key == "__PYVENV_LAUNCHER__":
+            monkeypatch.delenv(key)
     monkeypatch.setattr(installer.subprocess, "run", fake_subprocess_run)
 
-    assert installer._supported_wheel_tags_for_python(".venv/bin/python") == {"py3-none-any"}
+    assert "py3-none-any" in installer._supported_wheel_tags_for_python(".venv/bin/python")
     assert observed_commands[0][0] == str(executable)
 
 
@@ -2831,14 +3091,14 @@ def test_stage_emergency_artifacts_skips_incompatible_parseable_wheels(
             "package": "jiter",
             "version": "0.12.0",
             "filename": "jiter-0.12.0-cp312-cp312-manylinux2014_x86_64.whl",
-            "url": "https://files.pythonhosted.org/packages/example/jiter-cp312.whl",
+            "url": "https://files.pythonhosted.org/packages/example/jiter-0.12.0-cp312-cp312-manylinux2014_x86_64.whl",
             "sha256": "a" * 64,
         },
         {
             "package": "jiter",
             "version": "0.12.0",
             "filename": compatible_filename,
-            "url": "https://files.pythonhosted.org/packages/example/jiter-cp313.whl",
+            "url": f"https://files.pythonhosted.org/packages/example/{compatible_filename}",
             "sha256": "b" * 64,
         },
     ]
@@ -2876,7 +3136,7 @@ def test_emergency_artifact_filter_dedupes_exact_filename_digest_and_rejects_con
         "package": "jiter",
         "version": "0.12.0",
         "filename": filename,
-        "url": "https://files.pythonhosted.org/packages/example/jiter-cp313.whl",
+        "url": f"https://files.pythonhosted.org/packages/example/{filename}",
     }
     manifest.write_text(
         json.dumps(
@@ -3123,8 +3383,9 @@ def _assert_uses_default_constraints(command: list[str]) -> None:
 def _pip26_no_candidate_runtimeerror_like_run_command(package: str, version: str) -> RuntimeError:
     """Shape like pip 26 when a private index lacks the exact requested artifact."""
     requirement = f"{package}=={version}"
-    return RuntimeError(
-        "Command failed: python -m pip install stub: exit 1\n"
+    return installer._CompletedPipFailure(
+        1,
+        "",
         f"ERROR: Cannot install {requirement} because these package versions have "
         "conflicting dependencies.\n"
         "ERROR: ResolutionImpossible: for help visit "
@@ -3134,7 +3395,7 @@ def _pip26_no_candidate_runtimeerror_like_run_command(package: str, version: str
         f"    The user requested (constraint) {package}>={version}\n"
         "Additionally, some packages in these conflicts have no matching distributions "
         "available for your environment:\n"
-        f"    {package}\n"
+        f"    {package}\n",
     )
 
 
@@ -4075,7 +4336,7 @@ def test_run_command_redacts_url_credentials_from_failure_output(
     assert token_with_at_sign not in message
     assert "tok@en" not in message
     assert "ci-reader" not in message
-    assert "https://packages.pulseplate.app/root/pulseplate/+simple/" in message
+    assert "packages.pulseplate.app" not in message
 
 
 def test_load_emergency_wheel_manifest_rejects_expired_file(tmp_path: Path) -> None:
@@ -4726,76 +4987,172 @@ def test_stage_emergency_wheels_reads_constraints_surface_once_for_multiple_arti
     assert constraint_reads == 1
 
 
-def test_download_with_sha256_cleans_partial_temp_files_on_stream_failure(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "connect",
+        "stream",
+        "redirect",
+        "digest",
+        "partial",
+        "late",
+        "temp-gone",
+        "temp-foreign",
+        "destination-gone",
+        "destination-foreign",
+    ],
+)
+def test_emergency_download_verifies_direct_stream_and_cleans_partial_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str | None
 ) -> None:
-    class BrokenResponse:
-        def __init__(self) -> None:
-            self._read_count = 0
+    filename = "fixture-1+local-py3-none-any.whl"
+    destination = tmp_path / "wheelhouse" / filename
+    content = b"verified wheel bytes"
+    events: list[str] = []
+    now = 100.0
+    monkeypatch.setattr(installer.time, "monotonic", lambda: now)
 
-        def __enter__(self) -> BrokenResponse:
-            return self
+    class Response(io.BytesIO):
+        status = 302 if fault == "redirect" else 200
+        chunked = False
 
-        def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
-            return None
+        def isclosed(self) -> bool:
+            return False
 
-        def read(self, size: int) -> bytes:
-            self._read_count += 1
-            if self._read_count == 1:
-                return b"partial-wheel"
-            raise OSError("network dropped")
+        def getheader(self, name: str) -> str | None:
+            return str(len(content) + (fault == "partial")) if name == "Content-Length" else None
 
-    monkeypatch.setattr(installer, "urlopen", lambda *args, **kwargs: BrokenResponse())
+        def read1(self, size: int = -1) -> bytes:
+            nonlocal now
+            assert size == 1024**2
+            if fault in ("temp-gone", "temp-foreign"):
+                (temp,) = destination.parent.glob(".*.tmp")
+                temp.unlink()
+                if fault == "temp-foreign":
+                    temp.write_bytes(b"foreign")
+                raise OSError("original transfer failure")
+            if self.tell() and fault == "stream":
+                raise OSError("network dropped")
+            if fault == "late":
+                now += 61
+            return super().read1(size)
 
-    destination = tmp_path / "wheelhouse" / "cryptography-46.0.7.whl"
+    class Connection:
+        sock = types.SimpleNamespace(settimeout=lambda remaining: None)
 
-    with pytest.raises(OSError, match="network dropped"):
-        installer._download_with_sha256(
-            url="https://files.pythonhosted.org/packages/example/cryptography-46.0.7.whl",
-            destination=destination,
-            expected_sha256="a" * 64,
-        )
+        def __init__(self, host: str, *, timeout: float) -> None:
+            assert host == "files.pythonhosted.org" and 0 < timeout <= 60
 
-    assert destination.exists() is False
-    assert list((tmp_path / "wheelhouse").iterdir()) == []
+        def request(self, method: str, path: str) -> None:
+            assert method == "GET" and path == "/packages/example/" + filename.replace("+", "%2B")
+            events.append(method)
+            if fault == "connect":
+                raise OSError("connect failed")
 
+        def getresponse(self) -> Response:
+            return Response(content)
 
-def test_download_with_sha256_closes_temp_fd_when_urlopen_fails_immediately(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    observed_fdopen_calls: list[int] = []
+        def close(self) -> None:
+            events.append("closed")
+
+    monkeypatch.setattr(installer.http.client, "HTTPSConnection", Connection)
+    descriptors = []
     original_fdopen = installer.os.fdopen
 
-    def tracking_fdopen(fd: int, mode: str, *args: object, **kwargs: object) -> object:
-        observed_fdopen_calls.append(fd)
+    def observe_fd(fd: int, mode: str, *args: Any, **kwargs: Any) -> Any:
+        descriptors.append(fd)
         return original_fdopen(fd, mode, *args, **kwargs)
 
-    def raise_urlopen(*args: object, **kwargs: object) -> object:
-        raise OSError("connect failed")
+    monkeypatch.setattr(installer.os, "fdopen", observe_fd)
+    url = "https://files.pythonhosted.org/packages/example/" + filename.replace("+", "%2B")
+    digest = installer.hashlib.sha256(content).hexdigest() if fault != "digest" else "0" * 64
+    if fault in ("destination-gone", "destination-foreign"):
+        link = os.link
 
-    monkeypatch.setattr(installer.os, "fdopen", tracking_fdopen)
-    monkeypatch.setattr(installer, "urlopen", raise_urlopen)
+        def publish_then_change(src: str, dst: str, **kwargs: Any) -> None:
+            link(src, dst, **kwargs)
+            destination.unlink()
+            if fault == "destination-foreign":
+                destination.write_bytes(b"foreign")
 
-    destination = tmp_path / "wheelhouse" / "cryptography-46.0.7.whl"
+        monkeypatch.setattr(installer.os, "link", publish_then_change)
+    if fault is None:
+        installer._download_with_sha256(url=url, destination=destination, expected_sha256=digest)
+        assert destination.read_bytes() == content
+        assert installer._cached_emergency_sha256(destination) == digest
+    else:
+        with pytest.raises((OSError, RuntimeError)) as failure:
+            installer._download_with_sha256(
+                url=url, destination=destination, expected_sha256=digest
+            )
+        if fault in ("temp-gone", "temp-foreign"):
+            assert str(failure.value) == "original transfer failure"
+        if fault in ("temp-foreign", "destination-foreign"):
+            (foreign,) = destination.parent.iterdir()
+            assert foreign.read_bytes() == b"foreign"
+            assert any("cleanup" in note for note in failure.value.__notes__)
+        else:
+            assert list(destination.parent.iterdir()) == []
+    assert events == ["GET", "closed"]
+    assert descriptors
+    for descriptor in descriptors:
+        with pytest.raises(OSError):
+            os.fstat(descriptor)
 
-    with pytest.raises(OSError, match="connect failed"):
-        installer._download_with_sha256(
-            url="https://files.pythonhosted.org/packages/example/cryptography-46.0.7.whl",
-            destination=destination,
-            expected_sha256="a" * 64,
-        )
 
-    assert observed_fdopen_calls
-    assert destination.exists() is False
-    assert list((tmp_path / "wheelhouse").iterdir()) == []
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://files.pythonhosted.org/packages/f.whl",
+        "https://example.invalid/packages/f.whl",
+        "https://name@files.pythonhosted.org/packages/f.whl",
+        "https://files.pythonhosted.org:443/packages/f.whl",
+        "https://files.pythonhosted.org/packages/../f.whl",
+        "https://files.pythonhosted.org/packages/%2e%2e/f.whl",
+        "https://files.pythonhosted.org/packages/%2fx/f.whl",
+        "https://files.pythonhosted.org/packages/other.whl",
+        "https://files.pythonhosted.org/packages/f.whl?",
+        "https://files.pythonhosted.org/packages/f.whl#",
+    ],
+)
+def test_emergency_artifact_rejects_unbound_route_before_effect(tmp_path: Path, url: str) -> None:
+    target = tmp_path / "unused" / "f.whl"
+    with pytest.raises(RuntimeError):
+        installer._download_with_sha256(url=url, destination=target, expected_sha256="0" * 64)
+    assert not target.parent.exists()
+
+
+@pytest.mark.parametrize("kind", ["symlink", "dangling", "hardlink", "fifo", "directory"])
+def test_emergency_cache_rejects_nonregular_or_aliased_leaf(tmp_path: Path, kind: str) -> None:
+    source = tmp_path / "source"
+    source.write_bytes(b"private")
+    leaf = tmp_path / "f.whl"
+    if kind == "symlink":
+        leaf.symlink_to(source)
+    elif kind == "dangling":
+        leaf.symlink_to(tmp_path / "missing")
+    elif kind == "hardlink":
+        os.link(source, leaf)
+    elif kind == "fifo":
+        os.mkfifo(leaf)
+    else:
+        leaf.mkdir()
+    with pytest.raises((OSError, RuntimeError)):
+        installer._cached_emergency_sha256(leaf)
+    assert source.read_bytes() == b"private"
 
 
 def test_build_wheelhouse_with_emergency_fallback_retries_only_after_proxy_failure(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    shadow_python = _write_executable(tmp_path / "bin" / "python")
+    monkeypatch.setenv("PATH", str(shadow_python.parent))
+    monkeypatch.setenv("PYTHONPATH", str(tmp_path / "untrusted-import-root"))
+    assert installer.resolve_python_executable("python") == str(shadow_python)
+    assert installer.resolve_python_executable(sys.executable) != str(shadow_python)
+
     requirements = tmp_path / "requirements.txt"
     requirements.write_text("cryptography==46.0.7\n", encoding="utf-8")
     manifest = tmp_path / "emergency.json"
@@ -4822,6 +5179,7 @@ def test_build_wheelhouse_with_emergency_fallback_retries_only_after_proxy_failu
     build_attempts = {"count": 0}
 
     def fake_build_wheelhouse(**kwargs: object) -> None:
+        assert kwargs["python_executable"] == sys.executable
         build_attempts["count"] += 1
         observed_calls.append(Path(kwargs["wheelhouse_dir"]))
         if build_attempts["count"] == 1:
@@ -4833,6 +5191,7 @@ def test_build_wheelhouse_with_emergency_fallback_retries_only_after_proxy_failu
         assert trusted_host is None
 
     def fake_stage_emergency_artifacts(**kwargs: object) -> list[Path]:
+        assert kwargs["python_executable"] == sys.executable
         assert [artifact["package"] for artifact in kwargs["artifacts"]] == ["cryptography"]
         wheelhouse_dir = Path(kwargs["wheelhouse_dir"])
         destination = wheelhouse_dir / "cryptography-46.0.7.whl"
@@ -4845,7 +5204,7 @@ def test_build_wheelhouse_with_emergency_fallback_retries_only_after_proxy_failu
     monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
 
     installer.build_wheelhouse_with_emergency_fallback(
-        python_executable="python",
+        python_executable=sys.executable,
         requirement_files=[requirements],
         constraints_file=None,
         wheelhouse_dir=tmp_path / "wheelhouse",
@@ -4917,7 +5276,7 @@ def test_build_wheelhouse_with_emergency_fallback_stages_only_resolver_miss_arti
     monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
 
     installer.build_wheelhouse_with_emergency_fallback(
-        python_executable="python",
+        python_executable=sys.executable,
         requirement_files=[requirements],
         constraints_file=None,
         wheelhouse_dir=tmp_path / "wheelhouse",
@@ -4994,7 +5353,7 @@ def test_build_wheelhouse_with_emergency_fallback_continues_for_second_requested
     monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
 
     installer.build_wheelhouse_with_emergency_fallback(
-        python_executable="python",
+        python_executable=sys.executable,
         requirement_files=[requirements],
         constraints_file=None,
         wheelhouse_dir=tmp_path / "wheelhouse",
@@ -5249,15 +5608,16 @@ def test_install_from_proxy_with_emergency_fallback_accepts_package_scoped_retry
         find_links_dir = kwargs["find_links_dir"]
         observed_find_links.append(None if find_links_dir is None else Path(find_links_dir))
         if find_links_dir is None:
-            raise RuntimeError(
-                "Command failed: python -m pip install stub: exit 1\n"
+            raise installer._CompletedPipFailure(
+                1,
+                "",
                 "WARNING: Retrying after CONNECTION BROKEN by "
                 "'MaxRetriesExceeded(\"HTTPSConnectionPool(host='packages.pulseplate.app', "
                 "port=443)\")': "
                 "/root/pulseplate/+simple/aiosqlite/\n"
                 "ERROR: Could not find a version that satisfies the requirement "
                 "aiosqlite==0.22.1 (from versions: none)\n"
-                "ERROR: No matching distribution found for aiosqlite==0.22.1"
+                "ERROR: No matching distribution found for aiosqlite==0.22.1",
             )
 
     def allow_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
@@ -5340,7 +5700,7 @@ def test_install_from_proxy_with_emergency_fallback_keeps_health_gate_for_plain_
 
     with pytest.raises(RuntimeError, match="proxy health check failed"):
         installer.install_from_proxy_with_emergency_fallback(
-            python_executable="python",
+            python_executable=sys.executable,
             requirement_files=[requirements],
             constraints_file=None,
             index_url=APPROVED_PROXY_URL,
@@ -5409,7 +5769,7 @@ def test_install_from_proxy_with_emergency_fallback_rejects_failed_health_probe(
 
     with pytest.raises(RuntimeError, match=re.escape(health_detail)):
         installer.install_from_proxy_with_emergency_fallback(
-            python_executable="python",
+            python_executable=sys.executable,
             requirement_files=[requirements],
             constraints_file=None,
             index_url=APPROVED_PROXY_URL,
@@ -5422,7 +5782,7 @@ def test_install_from_proxy_with_emergency_fallback_rejects_failed_health_probe(
     assert stage_calls["count"] == 0
 
 
-def test_install_from_proxy_with_emergency_fallback_rejects_same_line_network_resolver_failure(
+def test_install_from_proxy_with_emergency_fallback_rejects_same_line_server_error_resolver_failure(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -5452,10 +5812,11 @@ def test_install_from_proxy_with_emergency_fallback_rejects_same_line_network_re
 
     def fail_same_line_network_resolver(**kwargs: object) -> None:
         assert kwargs["find_links_dir"] is None
-        raise RuntimeError(
-            "Command failed: python -m pip install: exit 1\n"
+        raise installer._CompletedPipFailure(
+            1,
+            "",
             "ERROR: 521 Server Error while resolving requests==2.33.0; "
-            "No matching distribution found for requests==2.33.0"
+            "No matching distribution found for requests==2.33.0",
         )
 
     def fake_stage_emergency_artifacts(**_kwargs: object) -> list[Path]:
@@ -5465,9 +5826,9 @@ def test_install_from_proxy_with_emergency_fallback_rejects_same_line_network_re
     monkeypatch.setattr(installer, "install_from_proxy", fail_same_line_network_resolver)
     monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
 
-    with pytest.raises(RuntimeError, match="521 Server Error"):
+    with pytest.raises(RuntimeError, match="pip exited with status 1"):
         installer.install_from_proxy_with_emergency_fallback(
-            python_executable="python",
+            python_executable=sys.executable,
             requirement_files=[requirements],
             constraints_file=None,
             index_url=APPROVED_PROXY_URL,
@@ -5534,7 +5895,7 @@ def test_install_from_proxy_with_emergency_fallback_does_not_treat_package_name_
     monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
 
     installer.install_from_proxy_with_emergency_fallback(
-        python_executable="python",
+        python_executable=sys.executable,
         requirement_files=[requirements],
         constraints_file=None,
         index_url=APPROVED_PROXY_URL,
@@ -5614,7 +5975,7 @@ def test_install_from_proxy_with_emergency_fallback_continues_for_second_request
     monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
 
     installer.install_from_proxy_with_emergency_fallback(
-        python_executable="python",
+        python_executable=sys.executable,
         requirement_files=[requirements],
         constraints_file=None,
         index_url=APPROVED_PROXY_URL,
@@ -5672,24 +6033,26 @@ def test_install_from_proxy_with_emergency_fallback_ignores_staged_package_retry
         find_links_dir = kwargs["find_links_dir"]
         observed_find_links.append(None if find_links_dir is None else Path(find_links_dir))
         if install_attempts["count"] == 1:
-            raise RuntimeError(
-                "Command failed: python -m pip install stub: exit 1\n"
+            raise installer._CompletedPipFailure(
+                1,
+                "",
                 "WARNING: Retrying after connection broken by "
                 "'ReadTimeoutError(\"HTTPSConnectionPool(host='packages.pulseplate.app', "
                 "port=443): Read timed out\")': /root/pulseplate/+simple/aiosqlite/\n"
                 "ERROR: Could not find a version that satisfies the requirement "
                 "aiosqlite==0.22.1 (from versions: none)\n"
-                "ERROR: No matching distribution found for aiosqlite==0.22.1"
+                "ERROR: No matching distribution found for aiosqlite==0.22.1",
             )
         if install_attempts["count"] == 2:
-            raise RuntimeError(
-                "Command failed: python -m pip install stub: exit 1\n"
+            raise installer._CompletedPipFailure(
+                1,
+                "",
                 "WARNING: Retrying after connection broken by "
                 "'ReadTimeoutError(\"HTTPSConnectionPool(host='packages.pulseplate.app', "
                 "port=443): Read timed out\")': /root/pulseplate/+simple/aiosqlite/\n"
                 "ERROR: Could not find a version that satisfies the requirement "
                 "alembic==1.18.4 (from versions: none)\n"
-                "ERROR: No matching distribution found for alembic==1.18.4"
+                "ERROR: No matching distribution found for alembic==1.18.4",
             )
 
     def allow_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
@@ -5712,7 +6075,7 @@ def test_install_from_proxy_with_emergency_fallback_ignores_staged_package_retry
     monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
 
     installer.install_from_proxy_with_emergency_fallback(
-        python_executable="python",
+        python_executable=sys.executable,
         requirement_files=[requirements],
         constraints_file=None,
         index_url=APPROVED_PROXY_URL,
@@ -5771,7 +6134,7 @@ def test_repo_ci_lite_direct_proxy_retry_rejects_retired_emergency_manifest(
         lambda _python_executable: _ci_linux_cp313_tags(),
     )
 
-    with pytest.raises(RuntimeError, match="protobuf"):
+    with pytest.raises(RuntimeError, match="pip exited with status 1"):
         installer.install_from_proxy_with_emergency_fallback(
             python_executable="python",
             requirement_files=[REPO_ROOT / "requirements-ci-lite.txt"],
@@ -5818,11 +6181,12 @@ def test_install_from_proxy_with_emergency_fallback_rejects_mixed_network_resolv
 
     def fail_mixed_network_resolver(**kwargs: object) -> None:
         assert kwargs["find_links_dir"] is None
-        raise RuntimeError(
-            "Command failed: python -m pip install: exit 1\n"
+        raise installer._CompletedPipFailure(
+            1,
+            "",
             "WARNING: Retrying after Cloudflare 521 connection timed out\n"
             "ERROR: Could not find a version that satisfies the requirement requests==2.33.0\n"
-            "ERROR: No matching distribution found for requests==2.33.0"
+            "ERROR: No matching distribution found for requests==2.33.0",
         )
 
     def fake_stage_emergency_artifacts(**_kwargs: object) -> list[Path]:
@@ -5832,9 +6196,9 @@ def test_install_from_proxy_with_emergency_fallback_rejects_mixed_network_resolv
     monkeypatch.setattr(installer, "install_from_proxy", fail_mixed_network_resolver)
     monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
 
-    with pytest.raises(RuntimeError, match="Cloudflare 521"):
+    with pytest.raises(RuntimeError, match="pip exited with status 1"):
         installer.install_from_proxy_with_emergency_fallback(
-            python_executable="python",
+            python_executable=sys.executable,
             requirement_files=[requirements],
             constraints_file=None,
             index_url=APPROVED_PROXY_URL,
@@ -5876,10 +6240,11 @@ def test_install_from_proxy_with_emergency_fallback_rejects_same_line_network_re
 
     def fail_same_line_mixed_network_resolver(**kwargs: object) -> None:
         assert kwargs["find_links_dir"] is None
-        raise RuntimeError(
-            "Command failed: python -m pip install: exit 1\n"
+        raise installer._CompletedPipFailure(
+            1,
+            "",
             "ERROR: Cloudflare 521 while resolving requests==2.33.0; "
-            "No matching distribution found for requests==2.33.0"
+            "No matching distribution found for requests==2.33.0",
         )
 
     def fake_stage_emergency_artifacts(**_kwargs: object) -> list[Path]:
@@ -5889,7 +6254,7 @@ def test_install_from_proxy_with_emergency_fallback_rejects_same_line_network_re
     monkeypatch.setattr(installer, "install_from_proxy", fail_same_line_mixed_network_resolver)
     monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
 
-    with pytest.raises(RuntimeError, match="Cloudflare 521"):
+    with pytest.raises(RuntimeError, match="pip exited with status 1"):
         installer.install_from_proxy_with_emergency_fallback(
             python_executable=sys.executable,
             requirement_files=[requirements],
@@ -5933,7 +6298,7 @@ def test_install_from_proxy_with_emergency_fallback_rejects_non_resolver_failure
 
     def fail_transport(**kwargs: object) -> None:
         assert kwargs["find_links_dir"] is None
-        raise RuntimeError("Command failed: python -m pip install: connection timed out")
+        raise installer._CompletedPipFailure(1, "", "connection timed out")
 
     def fake_stage_emergency_artifacts(**_kwargs: object) -> list[Path]:
         stage_calls["count"] += 1
@@ -5942,9 +6307,9 @@ def test_install_from_proxy_with_emergency_fallback_rejects_non_resolver_failure
     monkeypatch.setattr(installer, "install_from_proxy", fail_transport)
     monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
 
-    with pytest.raises(RuntimeError, match="connection timed out"):
+    with pytest.raises(RuntimeError, match="pip exited with status 1"):
         installer.install_from_proxy_with_emergency_fallback(
-            python_executable="python",
+            python_executable=sys.executable,
             requirement_files=[requirements],
             constraints_file=None,
             index_url=APPROVED_PROXY_URL,
@@ -5971,7 +6336,7 @@ def test_upgrade_pip_uses_emergency_wheel_after_proxy_resolver_miss(
                         "package": "pip",
                         "version": "26.1.1",
                         "filename": "pip-26.1.1-py3-none-any.whl",
-                        "url": "https://files.pythonhosted.org/packages/example/pip-26.1.1.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/pip-26.1.1-py3-none-any.whl",
                         "sha256": "b" * 64,
                     }
                 ],
@@ -5983,12 +6348,12 @@ def test_upgrade_pip_uses_emergency_wheel_after_proxy_resolver_miss(
     observed_downloads: list[tuple[str, str, Path]] = []
     observed_index_health_urls = _allow_private_index_project_health(monkeypatch)
 
-    def fake_run_command(command: list[str]) -> None:
+    def fake_run_command(command: list[str], *, timeout: int) -> None:
+        assert timeout == (120 if "--no-index" in command else 300)
         observed_commands.append(command)
         if "--index-url" in command:
-            raise RuntimeError(
-                "Command failed: python -m pip install stub: exit 1\n"
-                "No matching distribution found for pip<27.0,>=26.0"
+            raise installer._CompletedPipFailure(
+                1, "", "No matching distribution found for pip<27.0,>=26.0"
             )
 
     def fake_download(*, url: str, destination: Path, expected_sha256: str) -> None:
@@ -5999,7 +6364,7 @@ def test_upgrade_pip_uses_emergency_wheel_after_proxy_resolver_miss(
     monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
 
     installer.upgrade_pip(
-        "python",
+        sys.executable,
         pip_spec="pip>=26.0,<27.0",
         index_url=APPROVED_PROXY_URL,
         trusted_host=None,
@@ -6022,7 +6387,7 @@ def test_upgrade_pip_uses_emergency_wheel_after_proxy_resolver_miss(
     ]
     assert observed_downloads == [
         (
-            "https://files.pythonhosted.org/packages/example/pip-26.1.1.whl",
+            "https://files.pythonhosted.org/packages/example/pip-26.1.1-py3-none-any.whl",
             "b" * 64,
             observed_downloads[0][2],
         )
@@ -6045,7 +6410,7 @@ def test_upgrade_pip_does_not_use_emergency_wheel_for_non_resolver_failure(
                         "package": "pip",
                         "version": "26.1.1",
                         "filename": "pip-26.1.1-py3-none-any.whl",
-                        "url": "https://files.pythonhosted.org/packages/example/pip-26.1.1.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/pip-26.1.1-py3-none-any.whl",
                         "sha256": "b" * 64,
                     }
                 ],
@@ -6055,8 +6420,8 @@ def test_upgrade_pip_does_not_use_emergency_wheel_for_non_resolver_failure(
     )
     downloads = {"count": 0}
 
-    def proxy_outage(_command: list[str]) -> None:
-        raise RuntimeError("Command failed: python -m pip install: TLS handshake timed out")
+    def proxy_outage(_command: list[str], *, timeout: int) -> None:
+        raise installer._CompletedPipFailure(1, "", "TLS handshake timed out")
 
     def fake_download(**_kwargs: object) -> None:
         downloads["count"] += 1
@@ -6064,7 +6429,7 @@ def test_upgrade_pip_does_not_use_emergency_wheel_for_non_resolver_failure(
     monkeypatch.setattr(installer, "run_command", proxy_outage)
     monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
 
-    with pytest.raises(RuntimeError, match="TLS handshake timed out"):
+    with pytest.raises(RuntimeError, match="pip exited with status 1"):
         installer.upgrade_pip(
             "python",
             pip_spec="pip>=26.0,<27.0",
@@ -6091,7 +6456,7 @@ def test_upgrade_pip_does_not_use_emergency_wheel_for_mixed_network_failure(
                         "package": "pip",
                         "version": "26.1.1",
                         "filename": "pip-26.1.1-py3-none-any.whl",
-                        "url": "https://files.pythonhosted.org/packages/example/pip-26.1.1.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/pip-26.1.1-py3-none-any.whl",
                         "sha256": "b" * 64,
                     }
                 ],
@@ -6101,12 +6466,13 @@ def test_upgrade_pip_does_not_use_emergency_wheel_for_mixed_network_failure(
     )
     downloads = {"count": 0}
 
-    def proxy_outage_with_final_resolver_text(_command: list[str]) -> None:
-        raise RuntimeError(
-            "Command failed: python -m pip install: exit 1\n"
+    def proxy_outage_with_final_resolver_text(_command: list[str], *, timeout: int) -> None:
+        raise installer._CompletedPipFailure(
+            1,
+            "",
             "WARNING: Retrying after connection error: TLS handshake timed out\n"
             "ERROR: Could not find a version that satisfies the requirement pip<27.0,>=26.0\n"
-            "ERROR: No matching distribution found for pip<27.0,>=26.0"
+            "ERROR: No matching distribution found for pip<27.0,>=26.0",
         )
 
     def fake_download(**_kwargs: object) -> None:
@@ -6115,7 +6481,7 @@ def test_upgrade_pip_does_not_use_emergency_wheel_for_mixed_network_failure(
     monkeypatch.setattr(installer, "run_command", proxy_outage_with_final_resolver_text)
     monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
 
-    with pytest.raises(RuntimeError, match="TLS handshake timed out"):
+    with pytest.raises(RuntimeError, match="pip exited with status 1"):
         installer.upgrade_pip(
             "python",
             pip_spec="pip>=26.0,<27.0",
@@ -6142,7 +6508,7 @@ def test_upgrade_pip_does_not_use_emergency_wheel_for_521_failure(
                         "package": "pip",
                         "version": "26.1.1",
                         "filename": "pip-26.1.1-py3-none-any.whl",
-                        "url": "https://files.pythonhosted.org/packages/example/pip-26.1.1.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/pip-26.1.1-py3-none-any.whl",
                         "sha256": "b" * 64,
                     }
                 ],
@@ -6152,12 +6518,13 @@ def test_upgrade_pip_does_not_use_emergency_wheel_for_521_failure(
     )
     downloads = {"count": 0}
 
-    def cloudflare_521_with_final_resolver_text(_command: list[str]) -> None:
-        raise RuntimeError(
-            "Command failed: python -m pip install: exit 1\n"
+    def cloudflare_521_with_final_resolver_text(_command: list[str], *, timeout: int) -> None:
+        raise installer._CompletedPipFailure(
+            1,
+            "",
             "ERROR: 521 Server Error: Web Server Is Down for url\n"
             "ERROR: Could not find a version that satisfies the requirement pip<27.0,>=26.0\n"
-            "ERROR: No matching distribution found for pip<27.0,>=26.0"
+            "ERROR: No matching distribution found for pip<27.0,>=26.0",
         )
 
     def fake_download(**_kwargs: object) -> None:
@@ -6166,7 +6533,7 @@ def test_upgrade_pip_does_not_use_emergency_wheel_for_521_failure(
     monkeypatch.setattr(installer, "run_command", cloudflare_521_with_final_resolver_text)
     monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
 
-    with pytest.raises(RuntimeError, match="521 Server Error"):
+    with pytest.raises(RuntimeError, match="pip exited with status 1"):
         installer.upgrade_pip(
             "python",
             pip_spec="pip>=26.0,<27.0",
@@ -6193,7 +6560,7 @@ def test_upgrade_pip_does_not_use_emergency_wheel_when_proxy_521_is_suppressed(
                         "package": "pip",
                         "version": "26.1.1",
                         "filename": "pip-26.1.1-py3-none-any.whl",
-                        "url": "https://files.pythonhosted.org/packages/example/pip-26.1.1.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/pip-26.1.1-py3-none-any.whl",
                         "sha256": "b" * 64,
                     }
                 ],
@@ -6203,11 +6570,12 @@ def test_upgrade_pip_does_not_use_emergency_wheel_when_proxy_521_is_suppressed(
     )
     downloads = {"count": 0}
 
-    def generic_resolver_miss_from_proxy_outage(_command: list[str]) -> None:
-        raise RuntimeError(
-            "Command failed: python -m pip install: exit 1\n"
+    def generic_resolver_miss_from_proxy_outage(_command: list[str], *, timeout: int) -> None:
+        raise installer._CompletedPipFailure(
+            1,
+            "",
             "ERROR: Could not find a version that satisfies the requirement pip<27.0,>=26.0\n"
-            "ERROR: No matching distribution found for pip<27.0,>=26.0"
+            "ERROR: No matching distribution found for pip<27.0,>=26.0",
         )
 
     class Cloudflare521Connection:
@@ -6257,7 +6625,7 @@ def test_upgrade_pip_rejects_emergency_artifact_outside_requested_range(
                         "package": "pip",
                         "version": "25.3.0",
                         "filename": "pip-25.3.0-py3-none-any.whl",
-                        "url": "https://files.pythonhosted.org/packages/example/pip-25.3.0.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/pip-25.3.0-py3-none-any.whl",
                         "sha256": "b" * 64,
                     }
                 ],
@@ -6266,10 +6634,9 @@ def test_upgrade_pip_rejects_emergency_artifact_outside_requested_range(
         encoding="utf-8",
     )
 
-    def resolver_miss(_command: list[str]) -> None:
-        raise RuntimeError(
-            "Command failed: python -m pip install stub: exit 1\n"
-            "Could not find a version that satisfies the requirement pip<27.0,>=26.0"
+    def resolver_miss(_command: list[str], *, timeout: int) -> None:
+        raise installer._CompletedPipFailure(
+            1, "", "Could not find a version that satisfies the requirement pip<27.0,>=26.0"
         )
 
     _allow_private_index_project_health(monkeypatch)
@@ -6305,12 +6672,14 @@ def test_is_virtualenv_python_detects_virtualenv(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     class Result:
-        stdout = json.dumps({"prefix": "/tmp/.venv", "base_prefix": "/usr/local"})
+        stdout = json.dumps(
+            {"executable": sys.executable, "prefix": "/tmp/.venv", "base_prefix": "/usr/local"}
+        )
 
     monkeypatch.setattr(installer, "resolve_python_executable", lambda value: value)
     monkeypatch.setattr(installer.subprocess, "run", lambda *a, **k: Result())
 
-    assert installer.is_virtualenv_python("python") is True
+    assert installer.is_virtualenv_python(sys.executable) is True
 
 
 def test_is_virtualenv_python_wraps_probe_errors(
@@ -6323,7 +6692,7 @@ def test_is_virtualenv_python_wraps_probe_errors(
     monkeypatch.setattr(installer.subprocess, "run", raise_called_process_error)
 
     with pytest.raises(RuntimeError, match="Unable to probe virtualenv state"):
-        installer.is_virtualenv_python("python")
+        installer.is_virtualenv_python(sys.executable)
 
 
 def test_run_command_wraps_subprocess_failures(
@@ -6340,9 +6709,9 @@ def test_run_command_wraps_subprocess_failures(
     monkeypatch.setattr(installer, "resolve_python_executable", lambda value: value)
     monkeypatch.setattr(installer.subprocess, "run", fake_run)
 
-    with pytest.raises(RuntimeError, match="Command failed: python -m pip") as excinfo:
+    with pytest.raises(RuntimeError, match="Command failed: pip exited with status 1") as excinfo:
         installer.run_command(["python", "-m", "pip"])
-    assert "pip stderr here" in str(excinfo.value)
+    assert "pip stderr here" not in str(excinfo.value)
 
 
 def test_python_subprocess_sinks_reject_invalid_interpreter_before_subprocess(
@@ -6381,7 +6750,7 @@ def test_is_virtualenv_python_uses_absolute_symlink_invocation(
 
     def fake_run(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
         observed_commands.append(command)
-        payload = {"prefix": "/tmp/.venv", "base_prefix": "/usr/local"}
+        payload = {"executable": command[0], "prefix": "/tmp/.venv", "base_prefix": "/usr/local"}
         return subprocess.CompletedProcess(command, 0, stdout=json.dumps(payload), stderr="")
 
     monkeypatch.setattr(installer.subprocess, "run", fake_run)
@@ -6488,39 +6857,89 @@ def test_main_fails_when_virtualenv_is_required(
     )
 
 
+@pytest.mark.parametrize(
+    "case",
+    [
+        "clean",
+        "finding",
+        "mixed",
+        "empty-findings",
+        "missing-clean",
+        "extra-clean",
+        "bad-bytes",
+        "failure",
+        "timeout",
+        "launch",
+    ],
+)
 def test_collect_startup_hook_failure_lines_uses_guard_subprocess(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, case: str
 ) -> None:
-    observed_command: list[str] = []
-
-    class Result:
-        returncode = 1
-        stdout = "ERROR: unexpected executable Python startup hook (.pth) detected.\n- /tmp/hook.pth:1 :: import os\n"
-        stderr = ""
-
-    def fake_run(command: list[str], **kwargs: object) -> Result:
-        observed_command[:] = command
-        return Result()
-
-    monkeypatch.setattr(installer, "resolve_python_executable", lambda _value: "/resolved/python")
-    monkeypatch.setattr(installer.subprocess, "run", fake_run)
-
-    failure_lines = installer.collect_startup_hook_failure_lines(
-        guard_script=Path("/tmp/check_python_startup_hooks.py"),
-        python_executable="python",
+    secret = "private-installer-guard-canary"
+    for name in (
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "PYTHONPATH",
+        "PYTHONSTARTUP",
+        "PIP_INDEX_URL",
+        "HTTPS_PROXY",
+        "NODE_OPTIONS",
+        "LD_PRELOAD",
+        "DYLD_INSERT_LIBRARIES",
+    ):
+        monkeypatch.setenv(name, secret)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("PYTHONUSERBASE", "relative-userbase")
+    monkeypatch.setenv("PYTHONNOUSERSITE", "1")
+    guard = Path(installer.__file__).resolve().with_name("check_python_startup_hooks.py")
+    python = installer.resolve_python_executable(sys.executable)
+    clean = (
+        b"startup-hook-guard: no unexpected executable .pth files detected." + os.linesep.encode()
     )
 
-    assert observed_command == [
-        "/resolved/python",
-        "-S",
-        "/tmp/check_python_startup_hooks.py",
-        "--python-executable",
-        "/resolved/python",
-    ]
-    assert failure_lines == [
-        "ERROR: unexpected executable Python startup hook (.pth) detected.",
-        "- /tmp/hook.pth:1 :: import os",
-    ]
+    def fake_run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[bytes]:
+        assert argv == [python, "-P", "-S", str(guard), "--python-executable", python]
+        assert kwargs["timeout"] == 60 and kwargs["stdin"] == kwargs["stderr"] == subprocess.DEVNULL
+        env = kwargs["env"]
+        assert env["HOME"] == str(tmp_path) and env["PYTHONUSERBASE"] == "relative-userbase"
+        assert env["PYTHONNOUSERSITE"] == "1" and secret not in env.values()
+        if case == "timeout":
+            raise subprocess.TimeoutExpired([secret], 60, output=secret, stderr=secret)
+        if case == "launch":
+            raise OSError(secret)
+        data = {
+            "clean": clean,
+            "finding": b"unexpected: " + secret.encode(),
+            "mixed": b"- /fixture.pth:1 :: import private\n" + secret.encode(),
+            "empty-findings": b"",
+            "missing-clean": b"",
+            "extra-clean": clean + secret.encode(),
+            "bad-bytes": b"\xff",
+            "failure": secret.encode(),
+        }[case]
+        code = (
+            1 if case in {"finding", "mixed", "empty-findings"} else 2 if case == "failure" else 0
+        )
+        return subprocess.CompletedProcess(argv, code, stdout=data, stderr=secret.encode())
+
+    monkeypatch.setattr(installer.subprocess, "run", fake_run)
+
+    def check() -> list[str]:
+        return installer.collect_startup_hook_failure_lines(
+            guard_script=guard, python_executable=python
+        )
+
+    if case == "clean":
+        assert check() == []
+    elif case in {"finding", "mixed", "empty-findings"}:
+        assert check() == [
+            "ERROR: startup-hook guard reported findings or an incomplete finding response."
+        ]
+    else:
+        with pytest.raises(RuntimeError) as failed:
+            check()
+        assert secret not in str(failed.value) + repr(failed.value.args)
+        assert failed.value.__cause__ is None and failed.value.__context__ is None
 
 
 def test_collect_startup_hook_failure_lines_uses_resolved_python_for_both_argv_fields(
@@ -6531,6 +6950,7 @@ def test_collect_startup_hook_failure_lines_uses_resolved_python_for_both_argv_f
     invocation = tmp_path / "bin" / "python-link"
     invocation.parent.mkdir(parents=True)
     _symlink_or_skip(invocation, target)
+    (tmp_path / "check_python_startup_hooks.py").write_text("# custom fixture")
     observed_commands: list[list[str]] = []
 
     def fake_run(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
@@ -6568,7 +6988,7 @@ def test_main_runs_download_install_and_static_guard_without_pip_self_upgrade(
         yield "staging-python"
 
     monkeypatch.setattr(
-        installer, "run_command", lambda command: observed_commands.append(list(command))
+        installer, "run_command", lambda command, **kwargs: observed_commands.append(list(command))
     )
     monkeypatch.setattr(
         installer,
@@ -6640,7 +7060,7 @@ def test_main_runs_optional_pip_upgrade_only_when_requested(
         yield "staging-python"
 
     monkeypatch.setattr(
-        installer, "run_command", lambda command: observed_commands.append(list(command))
+        installer, "run_command", lambda command, **kwargs: observed_commands.append(list(command))
     )
     monkeypatch.setattr(installer, "collect_startup_hook_failure_lines", lambda **kwargs: [])
     monkeypatch.setattr(installer, "staged_python_environment", fake_staging_environment)
@@ -6740,14 +7160,13 @@ def test_main_fails_when_static_startup_hook_scan_finds_malicious_pth(
         yield "staging-python"
 
     monkeypatch.setattr(
-        installer, "run_command", lambda command: observed_commands.append(list(command))
+        installer, "run_command", lambda command, **kwargs: observed_commands.append(list(command))
     )
     monkeypatch.setattr(
         installer,
         "collect_startup_hook_failure_lines",
         lambda **kwargs: [
-            "ERROR: unexpected executable Python startup hook (.pth) detected.",
-            "- /tmp/litellm_init.pth:1 :: import os",
+            "ERROR: startup-hook guard reported findings or an incomplete finding response.",
         ],
     )
     monkeypatch.setattr(installer, "staged_python_environment", fake_staging_environment)
@@ -6767,7 +7186,10 @@ def test_main_fails_when_static_startup_hook_scan_finds_malicious_pth(
     )
 
     assert result == 1
-    assert "litellm_init.pth:1 :: import os" in capsys.readouterr().out
+    assert (
+        "startup-hook guard reported findings or an incomplete finding response"
+        in capsys.readouterr().out
+    )
     assert observed_commands[0][:4] == ["python", "-m", "pip", "download"]
     assert observed_commands[1][:4] == ["staging-python", "-m", "pip", "install"]
     assert not any(
@@ -6833,7 +7255,7 @@ def test_main_reports_guard_runtime_error_cleanly(
     wheelhouse_dir = tmp_path / "wheelhouse"
     guard_script = tmp_path / "missing-guard.py"
 
-    monkeypatch.setattr(installer, "run_command", lambda command: None)
+    monkeypatch.setattr(installer, "run_command", lambda command, **kwargs: None)
     monkeypatch.setattr(
         installer,
         "collect_startup_hook_failure_lines",
@@ -6875,7 +7297,7 @@ def test_main_runs_direct_proxy_install_and_static_guard(
         yield "staging-python"
 
     monkeypatch.setattr(
-        installer, "run_command", lambda command: observed_commands.append(list(command))
+        installer, "run_command", lambda command, **kwargs: observed_commands.append(list(command))
     )
     monkeypatch.setattr(
         installer,
@@ -6941,13 +7363,12 @@ def test_main_direct_proxy_mode_fails_when_target_guard_finds_startup_hook(
         observed_guard_python.append(python_executable)
         if python_executable == "python":
             return [
-                "ERROR: unexpected executable Python startup hook (.pth) detected.",
-                "- /tmp/final_install_hook.pth:1 :: import os",
+                "ERROR: startup-hook guard reported findings or an incomplete finding response.",
             ]
         return []
 
     monkeypatch.setattr(
-        installer, "run_command", lambda command: observed_commands.append(list(command))
+        installer, "run_command", lambda command, **kwargs: observed_commands.append(list(command))
     )
     monkeypatch.setattr(
         installer,
@@ -6971,7 +7392,10 @@ def test_main_direct_proxy_mode_fails_when_target_guard_finds_startup_hook(
     )
 
     assert result == 1
-    assert "final_install_hook.pth:1 :: import os" in capsys.readouterr().out
+    assert (
+        "startup-hook guard reported findings or an incomplete finding response"
+        in capsys.readouterr().out
+    )
     assert len(observed_commands) == 2
     assert observed_commands[0][:4] == ["staging-python", "-m", "pip", "install"]
     assert observed_commands[1][:4] == ["python", "-m", "pip", "install"]
@@ -6993,7 +7417,7 @@ def test_main_direct_proxy_docker_layer_cache_skips_no_cache_dir_on_target_only(
         yield "staging-python"
 
     monkeypatch.setattr(
-        installer, "run_command", lambda command: observed_commands.append(list(command))
+        installer, "run_command", lambda command, **kwargs: observed_commands.append(list(command))
     )
     monkeypatch.setattr(
         installer,
@@ -7035,7 +7459,7 @@ def test_main_direct_proxy_docker_single_pass_runs_one_target_install_and_guard(
     observed_guard_python: list[str] = []
 
     monkeypatch.setattr(
-        installer, "run_command", lambda command: observed_commands.append(list(command))
+        installer, "run_command", lambda command, **kwargs: observed_commands.append(list(command))
     )
     monkeypatch.setattr(
         installer,
@@ -7122,14 +7546,13 @@ def test_main_direct_proxy_mode_stops_before_target_install_when_guard_fails(
         yield "staging-python"
 
     monkeypatch.setattr(
-        installer, "run_command", lambda command: observed_commands.append(list(command))
+        installer, "run_command", lambda command, **kwargs: observed_commands.append(list(command))
     )
     monkeypatch.setattr(
         installer,
         "collect_startup_hook_failure_lines",
         lambda **kwargs: [
-            "ERROR: unexpected executable Python startup hook (.pth) detected.",
-            "- /tmp/litellm_init.pth:1 :: import os",
+            "ERROR: startup-hook guard reported findings or an incomplete finding response.",
         ],
     )
     monkeypatch.setattr(installer, "staged_python_environment", fake_staging_environment)
@@ -7149,7 +7572,10 @@ def test_main_direct_proxy_mode_stops_before_target_install_when_guard_fails(
     )
 
     assert result == 1
-    assert "litellm_init.pth:1 :: import os" in capsys.readouterr().out
+    assert (
+        "startup-hook guard reported findings or an incomplete finding response"
+        in capsys.readouterr().out
+    )
     assert len(observed_commands) == 1
     assert observed_commands[0][:4] == ["staging-python", "-m", "pip", "install"]
 
@@ -7274,7 +7700,7 @@ def test_run_dependency_floor_preflight_allows_exact_emergency_artifact(
     monkeypatch.setattr(installer, "_private_index_project_has_version", exact_version_missing)
 
     installer.run_dependency_floor_preflight(
-        python_executable="python",
+        python_executable=sys.executable,
         index_url=APPROVED_PROXY_URL,
         trusted_host=None,
         emergency_wheel_manifest=manifest,
@@ -7336,7 +7762,7 @@ def test_run_dependency_floor_preflight_allows_exact_emergency_artifact_after_pr
     monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
 
     installer.run_dependency_floor_preflight(
-        python_executable="python",
+        python_executable=sys.executable,
         index_url=APPROVED_PROXY_URL,
         trusted_host=None,
         emergency_wheel_manifest=manifest,
@@ -7536,7 +7962,7 @@ def test_run_dependency_floor_preflight_verifies_emergency_artifact_download(
     monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
 
     installer.run_dependency_floor_preflight(
-        python_executable="python",
+        python_executable=sys.executable,
         index_url=APPROVED_PROXY_URL,
         trusted_host=None,
         emergency_wheel_manifest=manifest,
@@ -8731,3 +9157,785 @@ def test_black_installer_profile_rejects_ambiguous_or_incompatible_inputs(
         path.write_text(path.read_text().replace("black~=26.10.1", "black~=26.11.0"))
     with pytest.raises(AssertionError):
         _assert_black_install_profile(future_black_profile_repo)
+
+
+@pytest.mark.parametrize("route", ["upgrade", "wheelhouse", "direct"])
+def test_installer_process_timeout_is_terminal_before_emergency_fallback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, route: str
+) -> None:
+    requirement = tmp_path / "requirements.txt"
+    requirement.write_text("mako==1.4.2\n")
+    calls = []
+
+    def timeout(argv: list[str], **kwargs: object) -> None:
+        assert kwargs.get("timeout") == (300 if route == "upgrade" else None)
+        calls.append(kwargs.get("timeout"))
+        raise subprocess.TimeoutExpired(
+            ["synthetic-private"],
+            1,
+            output="Could not find a version that satisfies the requirement mako==1.4.2",
+            stderr="No matching distribution found for mako==1.4.2",
+        )
+
+    monkeypatch.setattr(installer.subprocess, "run", timeout)
+    for name in (
+        "emergency_artifacts_requested_by_surfaces",
+        "_pip_upgrade_resolver_miss",
+        "_require_private_index_project_health",
+        "_stage_emergency_artifacts",
+    ):
+        monkeypatch.setattr(
+            installer, name, lambda *a, **kw: pytest.fail("fallback reached after timeout")
+        )
+    common = dict(
+        python_executable=sys.executable,
+        index_url=APPROVED_PROXY_URL,
+        trusted_host=None,
+        emergency_wheel_manifest=tmp_path / "emergency.json",
+    )
+    with pytest.raises(RuntimeError, match="^Installer subprocess timed out$"):
+        if route == "upgrade":
+            installer.upgrade_pip(pip_spec="pip>=26,<27", **common)
+        elif route == "wheelhouse":
+            installer.build_wheelhouse_with_emergency_fallback(
+                requirement_files=[requirement],
+                constraints_file=None,
+                wheelhouse_dir=tmp_path / "wheels",
+                **common,
+            )
+        else:
+            installer.install_from_proxy_with_emergency_fallback(
+                requirement_files=[requirement],
+                constraints_file=None,
+                emergency_wheelhouse_dir=tmp_path / "emergency",
+                **common,
+            )
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("certificate", ["wheel-host", "valid"])
+def test_emergency_wheel_real_tls_keeps_fixed_hostname(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    project_page_tls_material: dict[str, Path],
+    certificate: str,
+) -> None:
+    material = project_page_tls_material
+    monkeypatch.setenv("SSL_CERT_FILE", str(material["ca"]))
+    dest = tmp_path / "f.whl"
+    path = "/packages/fixture/f.whl"
+    url = "https://files.pythonhosted.org" + path
+    body = b'<a href="mako-1.4.2-py3-none-any.whl">mako wheel</a>'
+    digest = installer.hashlib.sha256(body).hexdigest()
+    original_connect = installer.socket.create_connection
+    with _project_page_tls_server(material[certificate], material["key"]) as (port, seen):
+
+        def loopback(address: tuple[str, int], *args: Any, **kwargs: Any) -> Any:
+            assert address == ("files.pythonhosted.org", 443)
+            return original_connect(("127.0.0.1", port), *args, **kwargs)
+
+        monkeypatch.setattr(installer.socket, "create_connection", loopback)
+        if certificate == "wheel-host":
+            installer._download_with_sha256(url=url, destination=dest, expected_sha256=digest)
+            assert seen == [path] and dest.read_bytes() == body
+        else:
+            with pytest.raises(ssl.SSLCertVerificationError):
+                installer._download_with_sha256(url=url, destination=dest, expected_sha256=digest)
+            assert not seen and not dest.exists()
+
+
+@pytest.mark.parametrize("operation,expected", [("tags", 30), ("venv", 30), ("guard", 60)])
+def test_interpreter_probe_timeout_is_terminal_and_sanitized(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, operation: str, expected: int
+) -> None:
+    observed = []
+    for key in tuple(os.environ):
+        if key.startswith("PYTHON") or key == "__PYVENV_LAUNCHER__":
+            monkeypatch.delenv(key)
+
+    def timed_out(argv: list[str], **kwargs: Any) -> None:
+        observed.append(kwargs["timeout"])
+        raise subprocess.TimeoutExpired(
+            ["synthetic-private"], expected, output="No matching distribution found"
+        )
+
+    monkeypatch.setattr(installer.subprocess, "run", timed_out)
+    (tmp_path / "guard").write_text("# fixture")
+    with pytest.raises(RuntimeError, match="^Installer interpreter check timed out$") as failed:
+        if operation == "tags":
+            installer._target_python_wheel_tag_payload(sys.executable)
+        elif operation == "venv":
+            installer.is_virtualenv_python(sys.executable)
+        else:
+            installer.collect_startup_hook_failure_lines(
+                guard_script=tmp_path / "guard", python_executable=sys.executable
+            )
+    assert len(observed) == 1 and 0 < observed[0] <= expected
+    assert "synthetic-private" not in str(failed.value)
+
+
+def test_emergency_transfer_absolute_clock_interrupts_stalled_headers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class StalledConnection:
+        sock = types.SimpleNamespace(settimeout=lambda remaining: None)
+
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            pass
+
+        def request(self, method: str, path: str) -> None:
+            assert method == "GET"
+
+        def getresponse(self) -> None:
+            installer.time.sleep(2)
+            pytest.fail("stalled header read exceeded the absolute timer")
+
+        def close(self) -> None:
+            pass
+
+    monkeypatch.setattr(installer, "EMERGENCY_WHEEL_OPERATION_SECONDS", 0.15)
+    monkeypatch.setattr(installer.http.client, "HTTPSConnection", StalledConnection)
+    wheelhouse = tmp_path / "wheels"
+    with pytest.raises(RuntimeError, match="Emergency wheel operation timed out"):
+        installer._download_with_sha256(
+            url="https://files.pythonhosted.org/packages/f.whl",
+            destination=wheelhouse / "f.whl",
+            expected_sha256="a" * 64,
+        )
+    assert list(wheelhouse.iterdir()) == []
+
+
+def test_emergency_artifact_refuses_nested_alias_without_creating_external_file(
+    tmp_path: Path,
+) -> None:
+    external = tmp_path / "external"
+    external.mkdir()
+    alias = tmp_path / "alias"
+    alias.symlink_to(external, target_is_directory=True)
+    with pytest.raises(OSError):
+        installer._cached_emergency_sha256(alias / "new" / "f.whl")
+    assert list(external.iterdir()) == []
+
+
+def test_emergency_cache_rejects_leaf_replaced_between_chunks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    leaf = tmp_path / "f.whl"
+    leaf.write_bytes(b"original")
+    replacement = tmp_path / "replacement"
+    replacement.write_bytes(b"original")
+    original_remaining = installer._wheel_remaining
+    observed = 0
+
+    def remaining(deadline: float) -> float:
+        nonlocal observed
+        value = original_remaining(deadline)
+        observed += 1
+        if observed == 2:
+            replacement.replace(leaf)
+        return value
+
+    monkeypatch.setattr(installer, "_wheel_remaining", remaining)
+    with pytest.raises(RuntimeError, match="Cached emergency wheel changed during read"):
+        installer._cached_emergency_sha256(leaf)
+
+
+def test_staging_venv_creation_has_sdk_equivalent_bound_and_cleans_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    paths: list[Path] = []
+
+    def timed_out(command: list[str], *, timeout: int) -> None:
+        assert command[:3] == [sys.executable, "-m", "venv"] and timeout == 120
+        paths.append(Path(command[3]))
+        raise installer._InstallProcessTimeout("Installer subprocess timed out")
+
+    monkeypatch.setattr(installer, "run_command", timed_out)
+    with pytest.raises(RuntimeError, match="Installer subprocess timed out"):
+        with installer.staged_python_environment(sys.executable):
+            pytest.fail("timed-out staging environment must not become an install target")
+    assert len(paths) == 1 and not paths[0].exists()
+
+
+@pytest.mark.parametrize("parent", ["/tmp", None])
+def test_emergency_cache_accepts_real_platform_tmpdir(parent: str | None) -> None:
+    with tempfile.TemporaryDirectory(prefix="wheel-cache-control-", dir=parent) as work:
+        leaf = Path(work) / "f.whl"
+        leaf.write_bytes(b"fixture")
+        assert (
+            installer._cached_emergency_sha256(leaf)
+            == installer.hashlib.sha256(b"fixture").hexdigest()
+        )
+
+
+@pytest.mark.parametrize(
+    "fault", ["pip", "isolated-pip", "nonpip", "signal", "timeout", "launch", "decode", "resolve"]
+)
+def test_run_command_exposes_only_completed_pip_evidence_to_private_classifiers(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], fault: str
+) -> None:
+    secret = "private-process-diagnostic-canary"
+    miss = "No matching distribution found for pip==26.2.2"
+
+    def resolve(_name: str) -> str:
+        if fault == "resolve":
+            raise RuntimeError(secret)
+        return sys.executable
+
+    def child(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        assert secret in argv
+        if fault == "timeout":
+            raise subprocess.TimeoutExpired([secret], 5, output=miss, stderr=secret)
+        if fault == "launch":
+            raise PermissionError(secret)
+        if fault == "decode":
+            raise UnicodeDecodeError("utf-8", secret.encode(), 0, 1, secret)
+        return subprocess.CompletedProcess(
+            argv, -15 if fault == "signal" else 7, stdout=secret, stderr=miss + "\n" + secret
+        )
+
+    monkeypatch.setattr(installer, "resolve_python_executable", resolve)
+    monkeypatch.setattr(installer.subprocess, "run", child)
+    argv = [sys.executable]
+    if fault == "isolated-pip":
+        argv.append("-I")
+    argv.extend(["-m", "venv" if fault == "nonpip" else "pip", secret])
+    with pytest.raises(RuntimeError) as failed:
+        installer.run_command(argv, timeout=5)
+    exc = failed.value
+    eligible = fault in ("pip", "isolated-pip")
+    assert isinstance(exc, installer._CompletedPipFailure) is eligible
+    assert installer._pip_upgrade_resolver_miss(exc) is eligible
+    assert installer._resolver_miss_error(exc, package="pip", version="26.2.2") is eligible
+    assert secret not in str(exc) + repr(exc) + repr(exc.args)
+    assert miss not in str(exc) and exc.__cause__ is None and exc.__context__ is None
+    assert not getattr(exc, "__notes__", ())
+    assert capsys.readouterr() == ("", "")
+
+
+@pytest.mark.parametrize("route", ["upgrade", "wheelhouse", "direct"])
+def test_generic_resolver_text_never_acquires_emergency_artifacts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, route: str
+) -> None:
+    marker = "No matching distribution found for pip==26.2.2"
+
+    def fail(*args: object, **kwargs: object) -> None:
+        raise RuntimeError(marker)
+
+    def forbidden(*args: object, **kwargs: object) -> None:
+        pytest.fail("generic exception acquired emergency inputs")
+
+    monkeypatch.setattr(installer, "run_command", fail)
+    monkeypatch.setattr(installer, "build_wheelhouse", fail)
+    monkeypatch.setattr(installer, "install_from_proxy", fail)
+    for name in (
+        "_require_private_index_project_health",
+        "emergency_artifacts_requested_by_surfaces",
+        "_stage_emergency_artifacts",
+        "_stage_pip_upgrade_emergency_wheel",
+    ):
+        monkeypatch.setattr(installer, name, forbidden)
+    common = dict(
+        python_executable=sys.executable,
+        index_url=APPROVED_PROXY_URL,
+        trusted_host=None,
+        emergency_wheel_manifest=tmp_path / "manifest.json",
+    )
+    with pytest.raises(RuntimeError, match="No matching distribution"):
+        if route == "upgrade":
+            installer.upgrade_pip(pip_spec="pip>=26,<27", **common)
+        elif route == "wheelhouse":
+            installer.build_wheelhouse_with_emergency_fallback(
+                requirement_files=[],
+                constraints_file=None,
+                wheelhouse_dir=tmp_path / "wheels",
+                **common,
+            )
+        else:
+            installer.install_from_proxy_with_emergency_fallback(
+                requirement_files=[],
+                constraints_file=None,
+                emergency_wheelhouse_dir=tmp_path / "wheels",
+                **common,
+            )
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        None,
+        [],
+        {},
+        {"prefix": 1, "base_prefix": 2},
+        {"prefix": "/v"},
+        {"prefix": "relative", "base_prefix": "/base"},
+        {"prefix": "/v", "base_prefix": ""},
+        {"prefix": "/v\x00hidden", "base_prefix": "/base"},
+    ],
+)
+def test_virtualenv_probe_rejects_malformed_prefix_envelope(
+    monkeypatch: pytest.MonkeyPatch, payload: object
+) -> None:
+    monkeypatch.setattr(
+        installer.subprocess,
+        "run",
+        lambda argv, **kwargs: subprocess.CompletedProcess(
+            argv, 0, stdout=json.dumps(payload), stderr=""
+        ),
+    )
+    with pytest.raises(
+        RuntimeError, match="^Unable to probe virtualenv state: invalid prefix metadata$"
+    ):
+        installer.is_virtualenv_python(sys.executable)
+
+
+@pytest.mark.parametrize("miss", [False, True])
+def test_completed_pip_failure_cli_and_admitted_recovery_keep_output_private(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], miss: bool
+) -> None:
+    secret = "standalone-secret-from-pip-output"
+    attempts = []
+    actions = []
+
+    def run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        assert installer.PIP_CHILD_SELECTOR in argv
+        attempts.append(kwargs["timeout"])
+        if "--no-index" in argv:
+            return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+        diagnostic = "No matching distribution found for pip==26.2.2" if miss else "package error"
+        return subprocess.CompletedProcess(
+            argv, 9, stdout=secret, stderr=diagnostic + "\n" + secret
+        )
+
+    def stage(**kwargs: object) -> Path:
+        actions.append("stage")
+        return tmp_path / "synthetic.whl"
+
+    monkeypatch.setattr(installer.subprocess, "run", run)
+    monkeypatch.setattr(
+        installer, "resolve_private_proxy_settings", lambda **kwargs: (APPROVED_PROXY_URL, None)
+    )
+    monkeypatch.setattr(
+        installer,
+        "_require_private_index_project_health",
+        lambda **kwargs: actions.append("health"),
+    )
+    monkeypatch.setattr(installer, "_stage_pip_upgrade_emergency_wheel", stage)
+    status = installer.main(["--index-url", APPROVED_PROXY_URL, "--upgrade-pip-only"])
+    assert status == (0 if miss else 1)
+    assert attempts == ([300, 120] if miss else [300])
+    assert actions == (["health", "stage"] if miss else [])
+    output = capsys.readouterr()
+    assert secret not in output.out + output.err
+    if not miss:
+        assert "Command failed: pip exited with status 9" in output.out
+
+
+@pytest.mark.parametrize(
+    "delta,framing",
+    [
+        (-1, "declared"),
+        (0, "declared"),
+        (1, "declared"),
+        (0, "none"),
+        (1, "none"),
+        (0, "chunked"),
+        (1, "chunked"),
+        (1, "lying-small"),
+        (-1, "conflicting"),
+        (1, "chunked-with-length"),
+        (-1, "duplicate-length"),
+    ],
+)
+def test_emergency_wheel_16_mib_wire_boundary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, delta: int, framing: str
+) -> None:
+    cap = installer.MAX_EMERGENCY_WHEEL_BYTES
+    assert cap == 16 * 1024**2
+    payload = b"x" * (cap + delta)
+    # Even a correct digest cannot authorize the extra byte.
+    expected = installer.hashlib.sha256(payload).hexdigest()
+    destination = tmp_path / "test.whl"
+    rejected = delta > 0 or framing in {"conflicting", "duplicate-length"}
+    if rejected:
+        destination.write_bytes(b"prior destination")
+    reads = []
+
+    class Response(io.BytesIO):
+        status = 200
+        chunked = framing in {"chunked", "conflicting", "chunked-with-length"}
+
+        def getheader(self, name: str) -> str | None:
+            assert name == "Content-Length"
+            if framing in {"none", "chunked"}:
+                return None
+            if framing == "duplicate-length":
+                return "12, 12"
+            return str(cap if framing == "lying-small" else len(payload))
+
+        def isclosed(self) -> bool:
+            return False
+
+        def read1(self, size: int = -1) -> bytes:
+            remaining = cap - self.tell()
+            assert size == min(1024**2, remaining + 1)
+            reads.append(size)
+            return super().read1(size)
+
+    class Connection:
+        sock = types.SimpleNamespace(settimeout=lambda _remaining: None)
+
+        def __init__(self, host: str, *, timeout: float) -> None:
+            assert host == "files.pythonhosted.org" and 0 < timeout <= 60
+
+        def request(self, method: str, path: str) -> None:
+            assert (method, path) == ("GET", "/packages/test.whl")
+
+        def getresponse(self) -> Response:
+            return Response(payload)
+
+        def close(self) -> None:
+            pass
+
+    monkeypatch.setattr(installer.http.client, "HTTPSConnection", Connection)
+
+    def acquire() -> None:
+        installer._download_with_sha256(
+            url="https://files.pythonhosted.org/packages/test.whl",
+            destination=destination,
+            expected_sha256=expected,
+        )
+
+    if rejected:
+        reason = (
+            "Ambiguous"
+            if framing == "conflicting"
+            else "Invalid" if framing == "duplicate-length" else "exceeds byte limit"
+        )
+        with pytest.raises(RuntimeError, match=reason):
+            acquire()
+        assert destination.read_bytes() == b"prior destination"
+        if framing in {"declared", "conflicting", "chunked-with-length", "duplicate-length"}:
+            assert reads == []
+        else:
+            assert reads[-1] == 1
+    else:
+        acquire()
+        assert destination.stat().st_size == len(payload)
+        assert installer._cached_emergency_sha256(destination) == expected
+        if delta == 0:
+            assert reads[-1] == 1
+    assert list(tmp_path.iterdir()) == [destination]
+
+
+@pytest.mark.parametrize("delta", [-1, 0, 1])
+def test_emergency_wheel_cache_limit_uses_real_descriptor_before_hashing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, delta: int
+) -> None:
+    cap = installer.MAX_EMERGENCY_WHEEL_BYTES
+    leaf = tmp_path / "test.whl"
+    payload = b"c" * (cap + delta)
+    leaf.write_bytes(payload)
+    if delta > 0:
+        monkeypatch.setattr(
+            installer.os, "fdopen", lambda *_a, **_kw: pytest.fail("oversized cache read")
+        )
+        with pytest.raises(RuntimeError, match="Cached emergency wheel exceeds byte limit"):
+            installer._cached_emergency_sha256(leaf)
+    else:
+        assert (
+            installer._cached_emergency_sha256(leaf)
+            == installer.hashlib.sha256(payload).hexdigest()
+        )
+    assert leaf.stat().st_size == len(payload)
+
+
+def test_emergency_cache_growing_past_limit_is_rejected_midstream(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    leaf = tmp_path / "test.whl"
+    with leaf.open("wb") as stream:
+        stream.truncate(installer.MAX_EMERGENCY_WHEEL_BYTES)
+    fdopen = os.fdopen
+
+    def grow(fd: int, *args: Any, **kwargs: Any) -> Any:
+        with leaf.open("ab") as stream:
+            stream.write(b"!")
+        return fdopen(fd, *args, **kwargs)
+
+    monkeypatch.setattr(installer.os, "fdopen", grow)
+    with pytest.raises(RuntimeError, match="Cached emergency wheel exceeds byte limit"):
+        installer._cached_emergency_sha256(leaf)
+    assert leaf.stat().st_size == installer.MAX_EMERGENCY_WHEEL_BYTES + 1
+
+
+@pytest.mark.parametrize("layout", ["flat", "tooling", "standalone-custom"])
+def test_real_outer_guard_uses_copied_layout_and_preserves_custom_sibling_imports(
+    tmp_path: Path, layout: str
+) -> None:
+    import venv
+
+    copied = (
+        tmp_path
+        / {
+            "flat": "pulseplate-ci",
+            "tooling": "tooling/scripts/ci",
+            "standalone-custom": "standalone/scripts/ci",
+        }[layout]
+    )
+    copied.mkdir(parents=True)
+    installer_path = Path(installer.__file__).resolve()
+    (copied / installer_path.name).write_bytes(installer_path.read_bytes())
+    guard = copied / "check_python_startup_hooks.py"
+    custom = layout == "standalone-custom"
+    marker = tmp_path / "startup-marker"
+    if custom:
+        custom_root = tmp_path / "explicit-custom"
+        custom_root.mkdir()
+        guard = custom_root / "guard.py"
+        (custom_root / "report_support.py").write_text("def outcome(): return 0\n")
+        guard.write_text(
+            "import os, sys\nfrom report_support import outcome\n"
+            "assert len(sys.argv) == 3 and sys.argv[1] == '--python-executable'\n"
+            "assert sys.executable == sys.argv[2] and sys.flags.no_site\n"
+            "assert os.environ['PYTHONUSERBASE'] == 'relative-userbase'\n"
+            "assert os.environ.get('GH_TOKEN') is None\nraise SystemExit(outcome())\n"
+        )
+    else:
+        guard.write_bytes(installer_path.with_name(guard.name).read_bytes())
+
+    env_root = tmp_path / "venv"
+    venv.EnvBuilder(with_pip=False, symlinks=True).create(env_root)
+    python = env_root / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    hostile = tmp_path / "imports"
+    hostile.mkdir()
+    (hostile / "json.py").write_text(
+        f"from pathlib import Path\nPath({str(marker)!r}).write_text('hostile import')\nraise SystemExit(76)\n"
+    )
+    clean = {
+        "PATH": os.defpath,
+        "LC_ALL": "C",
+        "HOME": str(tmp_path),
+        "PYTHONUSERBASE": "relative-userbase",
+        "PYTHONNOUSERSITE": "1",
+    }
+    positive = subprocess.run(
+        [str(python), "-P", "-S", "-c", "import json"],
+        cwd=copied,
+        env={**clean, "PYTHONPATH": str(hostile)},
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        timeout=10,
+        check=False,
+    )
+    assert positive.returncode == 76 and marker.read_text() == "hostile import"
+    marker.unlink()
+    driver = (
+        "import json,os,sys\nfrom pathlib import Path\nimport install_locked_python_requirements as target\n"
+        "os.environ.update(PYTHONPATH=sys.argv[3], GH_TOKEN='synthetic-private', HTTPS_PROXY='synthetic-private')\n"
+        "print(json.dumps(target.collect_startup_hook_failure_lines(guard_script=Path(sys.argv[1]),python_executable=sys.argv[2])))"
+    )
+
+    def inspect() -> list[str]:
+        result = subprocess.run(
+            [sys.executable, "-S", "-c", driver, str(guard), str(python), str(hostile)],
+            cwd=copied,
+            env=clean,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            timeout=75,
+            check=True,
+        )
+        assert "synthetic-private" not in result.stdout + result.stderr
+        return json.loads(result.stdout)
+
+    assert inspect() == [] and not marker.exists()
+    if custom:
+        guard.write_text("import sys\nprint('synthetic-private',file=sys.stderr)\nsys.exit(1)\n")
+    else:
+        site = (
+            env_root / "Lib/site-packages"
+            if os.name == "nt"
+            else next((env_root / "lib").glob("python*/site-packages"))
+        )
+        (site / "synthetic-private.pth").write_text(
+            f"import pathlib; pathlib.Path({str(marker)!r}).write_text('executed hook')\n"
+        )
+    assert inspect() == [
+        "ERROR: startup-hook guard reported findings or an incomplete finding response."
+    ]
+    assert not marker.exists()
+
+
+@pytest.mark.parametrize("kind", ["missing", "directory", "stock-symlink", "retargeted-custom"])
+def test_outer_guard_unavailable_or_changed_input_never_launches(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, kind: str
+) -> None:
+    locator = tmp_path / "installer.py"
+    locator.write_text("# selected installer placement")
+    monkeypatch.setattr(installer, "__file__", str(locator))
+    guard = tmp_path / "check_python_startup_hooks.py"
+    other = tmp_path / "synthetic-secret"
+    other.write_text("raise SystemExit(0)")
+    if kind == "directory":
+        guard.mkdir()
+    elif kind == "stock-symlink":
+        guard.symlink_to(other)
+    elif kind == "retargeted-custom":
+        guard = tmp_path / "chosen.py"
+        first = tmp_path / "first.py"
+        first.write_text("# original")
+        guard.symlink_to(first)
+        original_resolve = Path.resolve
+        observations = []
+
+        def resolve(path: Path, *args: object, **kwargs: Any) -> Path:
+            if path == guard:
+                observations.append(path)
+                if len(observations) == 2:
+                    guard.unlink()
+                    guard.symlink_to(other)
+            return original_resolve(path, **kwargs)
+
+        monkeypatch.setattr(Path, "resolve", resolve)
+    monkeypatch.setattr(
+        installer.subprocess, "run", lambda *a, **kw: pytest.fail("unexpected guard launch")
+    )
+    with pytest.raises(RuntimeError) as failure:
+        installer.collect_startup_hook_failure_lines(
+            guard_script=guard, python_executable=sys.executable
+        )
+    assert str(tmp_path) not in str(failure.value) and "synthetic-secret" not in str(failure.value)
+
+
+def test_empty_selection_validates_requested_python_without_loading_tags(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        installer,
+        "_supported_wheel_tags_for_python",
+        lambda *_: pytest.fail("empty selection queried wheel tags"),
+    )
+    assert (
+        installer._filter_runtime_compatible_artifacts([], python_executable=sys.executable) == []
+    )
+    with pytest.raises(RuntimeError, match="Python executable"):
+        installer._filter_runtime_compatible_artifacts(
+            [], python_executable=str(tmp_path / "missing")
+        )
+    with pytest.raises(RuntimeError, match="No active emergency pip artifact"):
+        installer._select_pip_emergency_artifact(manifest_path=None, pip_spec="pip>=24")
+
+
+@pytest.mark.parametrize("system_sites", [False, True])
+def test_prefix_probe_uses_selected_venv_without_activating_startup_hooks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, system_sites: bool
+) -> None:
+    import venv
+
+    env_root = tmp_path / "target"
+    venv.EnvBuilder(with_pip=False, symlinks=True, system_site_packages=system_sites).create(
+        env_root
+    )
+    python = env_root / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    (site_dir,) = [path for path in env_root.rglob("site-packages") if path.is_dir()]
+    marker = tmp_path / "startup"
+    (site_dir / "proof.pth").write_text(f"import pathlib; pathlib.Path({str(marker)!r}).touch()\n")
+    subprocess.run(
+        [str(python), "-I", "-c", "pass"],
+        check=True,
+        timeout=10,
+        env=installer._isolated_probe_environment(),
+    )
+    assert marker.is_file()
+    marker.unlink()
+    monkeypatch.setenv("PYTHONPATH", str(site_dir))
+    assert installer.is_virtualenv_python(str(python))
+    assert not marker.exists()
+    assert not installer.is_virtualenv_python(sys._base_executable)
+
+
+def test_clean_target_uses_metadata_only_for_actual_absence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import venv
+
+    root = tmp_path / "clean"
+    venv.EnvBuilder(with_pip=False, symlinks=True).create(root)
+    python = root / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    monkeypatch.chdir(tmp_path)
+    for key in tuple(os.environ):
+        if key.startswith("PYTHON") or key == "__PYVENV_LAUNCHER__":
+            monkeypatch.delenv(key)
+    payload = installer._target_python_wheel_tag_payload(str(python))
+    assert payload["tags"] is None
+    assert "py3-none-any" in installer._supported_wheel_tags_for_python(str(python))
+    (site_dir,) = [path for path in root.rglob("site-packages") if path.is_dir()]
+    (site_dir / "packaging").mkdir()
+    (site_dir / "packaging" / "__init__.py").write_text("raise ImportError('synthetic-private')\n")
+    with pytest.raises(RuntimeError, match="independent provider qualification"):
+        installer._supported_wheel_tags_for_python(str(python))
+
+
+def test_virtualenv_probe_rejects_another_invocation_on_same_binary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    alias = tmp_path / "other-venv-python"
+    alias.symlink_to(sys.executable)
+    monkeypatch.setattr(
+        installer.subprocess,
+        "run",
+        lambda argv, **kwargs: subprocess.CompletedProcess(
+            argv,
+            0,
+            stdout=json.dumps(
+                {"executable": sys.executable, "prefix": "/venv", "base_prefix": "/base"}
+            ),
+        ),
+    )
+    with pytest.raises(RuntimeError, match="invalid prefix metadata"):
+        installer.is_virtualenv_python(str(alias))
+
+
+@pytest.mark.parametrize("tags", [[], [""], ["not a tag"], False, 0])
+def test_invalid_present_provider_tags_never_enter_metadata_fallback(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, tags: object
+) -> None:
+    monkeypatch.setattr(
+        installer, "_target_python_wheel_tag_payload", lambda selected: {"tags": tags}
+    )
+    target = _write_executable(tmp_path / "target-python")
+    with pytest.raises(RuntimeError, match="Invalid wheel-tag probe payload"):
+        installer._supported_wheel_tags_for_python(str(target))
+
+
+@pytest.mark.parametrize("surface", ["provider", "pth", "sitecustomize", "pythonpath"])
+def test_external_tag_target_rejects_before_import_or_emergency_download(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, surface: str
+) -> None:
+    import venv
+
+    target = tmp_path / "target"
+    venv.EnvBuilder(with_pip=False, symlinks=True).create(target)
+    python = target / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    (site_dir,) = [p for p in target.rglob("site-packages") if p.is_dir()]
+    marker = tmp_path / "executed"
+    code = f"import pathlib; pathlib.Path({str(marker)!r}).touch()\n"
+    monkeypatch.chdir(tmp_path)
+    for key in tuple(os.environ):
+        if key.startswith("PYTHON") or key == "__PYVENV_LAUNCHER__":
+            monkeypatch.delenv(key)
+    if surface == "provider":
+        package = site_dir / "packaging"
+        package.mkdir()
+        (package / "__init__.py").write_text(code, encoding="utf-8")
+    elif surface == "pth":
+        (site_dir / "controlled.pth").write_text(code, encoding="utf-8")
+    elif surface == "sitecustomize":
+        (site_dir / "sitecustomize.py").write_text(code, encoding="utf-8")
+    else:
+        monkeypatch.setenv("PYTHONPATH", str(site_dir))
+    with pytest.raises(RuntimeError, match="External wheel-tag target requires"):
+        installer._supported_wheel_tags_for_python(str(python))
+    assert not marker.exists()

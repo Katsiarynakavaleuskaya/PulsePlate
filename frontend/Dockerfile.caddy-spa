@@ -9,8 +9,66 @@ FROM golang:1.26.10-alpine3.23@sha256:0525c952defebc693cdaf62cdf43afa32be5a7f377
 
 ENV CGO_ENABLED=0 \
     GOTOOLCHAIN=local \
-    GOPROXY=https://proxy.golang.org,direct \
+    GOENV=off \
+    GOWORK=off \
+    GOFLAGS="" \
+    GOEXPERIMENT="" \
+    GOMAXPROCS=2 \
+    GOPROXY=https://proxy.golang.org \
     GOSUMDB=sum.golang.org
+
+# The stock builder has no patch tool. Install only in this build stage.
+RUN apk add --no-cache git
+COPY patches/go-jose-v3.0.5-CVE-2026-116587.patch /opt/go-jose-v3.patch
+COPY patches/caddy_v3_compat_test.go /opt/caddy_v3_compat_test.go
+
+COPY patches/go1.26.10-http-connection-nominations.patch /opt/go1.26.10-http-connection-nominations.patch
+COPY patches/go_http_connection_nominations_test.go /opt/go_http_connection_nominations_test.go
+
+RUN --network=none set -eux; \
+    set -o pipefail; \
+    evidence=/caddy-build-evidence; \
+    mkdir "$evidence"; \
+    test "$(sha256sum /usr/local/go/bin/go | cut -d' ' -f1)" = 9c2a37ae5b21ba1d5a004bb9ab4d0c64de6fc5778e9d30487adccea62678b8b5; \
+    echo '9beb880c561244794fda6176ac17f3f9c1690ae31fc26ac069afbf452e1c3f22  /opt/go1.26.10-http-connection-nominations.patch' | sha256sum -c -; \
+    echo '2dc6f44b2e7a95a1b970cdbbcf70ddc532c35921c4b83ff80ca6e48b20a1c32e  /opt/go_http_connection_nominations_test.go' | sha256sum -c -; \
+    verify_stdlib() { ( test ! -L "$1"; test -d "$1"; cd "$1"; test -z "$(find . -mindepth 1 ! -type d ! -type f -print)"; find . -type f -exec sha256sum {} + | LC_ALL=C sort > "$evidence/$2"; test "$(sha256sum "$evidence/$2" | cut -d' ' -f1)" = "$3"; ); }; \
+    verify_stdlib /usr/local/go stdlib-original-tree.sha256 e54472503fcedc70793baefd53d9ae2eee748610e190f99f533ae6ef7c3ecf64; \
+    test ! -e /opt/go1.26.10-http-baseline; \
+    test ! -L /opt/go1.26.10-http-baseline; \
+    cp -R /usr/local/go /opt/go1.26.10-http-baseline; \
+    cp /opt/go_http_connection_nominations_test.go /opt/go1.26.10-http-baseline/src/net/http/go_http_connection_nominations_test.go; \
+    test ! -e /opt/go1.26.10-http-patched; \
+    test ! -L /opt/go1.26.10-http-patched; \
+    cp -R /usr/local/go /opt/go1.26.10-http-patched; \
+    cp /opt/go_http_connection_nominations_test.go /opt/go1.26.10-http-patched/src/net/http/go_http_connection_nominations_test.go; \
+    verify_stdlib /opt/go1.26.10-http-baseline stdlib-baseline-tree.sha256 aed4cf1ca75d78f74118dc8686cd0bdd6d017c1b8bb98e0f46c2ed859ad72a26; \
+    echo '3e04744176d3cf5bef2827ab158b10aaeec3981ac5f4e7fb86e3dbf5f592eed7  /opt/go1.26.10-http-patched/src/net/http/transfer.go' | sha256sum -c -; \
+    (cd /opt/go1.26.10-http-patched; env -i PATH=/usr/bin:/bin GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_CEILING_DIRECTORIES=/opt /usr/bin/git apply --no-index --check --whitespace=error-all /opt/go1.26.10-http-connection-nominations.patch; env -i PATH=/usr/bin:/bin GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_CEILING_DIRECTORIES=/opt /usr/bin/git apply --no-index --whitespace=error-all /opt/go1.26.10-http-connection-nominations.patch); \
+    echo '0a19c32dab21d8c906795189b5c35da22551e0c2932a07b1fe64ac4559e70a01  /opt/go1.26.10-http-patched/src/net/http/transfer.go' | sha256sum -c -; \
+    verify_stdlib /opt/go1.26.10-http-patched stdlib-patched-tree.sha256 afce6dcef776fcfe337fff1c5d4a3c68cd4729be7c27463d07e09fc7fafaa3f5; \
+    sha256sum /opt/go1.26.10-http-connection-nominations.patch /opt/go_http_connection_nominations_test.go /usr/local/go/bin/go /usr/local/go/src/net/http/transfer.go /opt/go1.26.10-http-patched/src/net/http/transfer.go /usr/local/go/src/net/http/internal/ascii/print.go /usr/local/go/src/net/http/server.go /usr/local/go/src/net/textproto/reader.go /usr/local/go/src/net/textproto/textproto.go /usr/local/go/src/vendor/golang.org/x/net/http/httpguts/httplex.go | LC_ALL=C sort > "$evidence/stdlib-inputs.sha256"; \
+    : > "$evidence/stdlib-test-commands.txt"; \
+    : > "$evidence/stdlib-test-inventory.txt"; \
+    test ! -e /opt/caddy-stdlib-baseline-cache; \
+    mkdir -m 700 /opt/caddy-stdlib-baseline-cache; \
+    test ! -e /opt/caddy-stdlib-patched-cache; \
+    mkdir -m 700 /opt/caddy-stdlib-patched-cache; \
+    printf 'BASELINE_NATIVE_LIST\n' >> "$evidence/stdlib-test-inventory.txt"; \
+    ( export GOROOT=/opt/go1.26.10-http-baseline GOCACHE=/opt/caddy-stdlib-baseline-cache GOPROXY=off GOSUMDB=off; test "$(go env GOROOT)" = "$GOROOT"; test "$(go env GOCACHE)" = "$GOCACHE"; if /usr/local/go/bin/go test -count=1 -p=2 -list '^(TestReadResponse|TestWriteResponse|TestReadResponseErrors|TestResponseWritesOnlySingleConnectionClose|TestReadResponseCloseInMiddle|TestResponseContentLengthShortBody|TestTransportConnectionCloseOnResponse|TestTransportConnectionCloseOnRequest|TestTransportRespectRequestWantsClose|TestTransportReadToEndReusesConn|TestIssue3644|TestTransportResponseBodyWritableOnProtocolSwitch|TestPPHTTPConnectionBaseline|TestPPHTTPConnectionSurvivors|TestPPHTTPConnectionFieldNameCase|TestPPHTTPBoundaryControls|TestPPHTTPFramingControls|TestPPHTTPMalformedReaderControls|TestPPHTTPMalformedAcceptedParity|TestPPHTTPResponseWriteRoundTrip|TestPPHTTPTransportCloseNominees|TestPPHTTPTransportPersistenceOptions|TestPPHTTPPersistenceOptions|TestPPHTTPPersistenceBoundaryControls|TestPPHTTPPersistenceWriteRoundTrip|TestReverseProxyStripHeadersPresentInConnection)$' net/http net/http/httputil >> "$evidence/stdlib-test-inventory.txt" 2>&1; then native_status=0; else native_status=$?; fi; printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' baseline-list "$native_status" "$GOROOT" "$GOCACHE" "$GOPROXY" "$GOSUMDB" '["/usr/local/go/bin/go","test","-count=1","-p=2","-list","^(TestReadResponse|TestWriteResponse|TestReadResponseErrors|TestResponseWritesOnlySingleConnectionClose|TestReadResponseCloseInMiddle|TestResponseContentLengthShortBody|TestTransportConnectionCloseOnResponse|TestTransportConnectionCloseOnRequest|TestTransportRespectRequestWantsClose|TestTransportReadToEndReusesConn|TestIssue3644|TestTransportResponseBodyWritableOnProtocolSwitch|TestPPHTTPConnectionBaseline|TestPPHTTPConnectionSurvivors|TestPPHTTPConnectionFieldNameCase|TestPPHTTPBoundaryControls|TestPPHTTPFramingControls|TestPPHTTPMalformedReaderControls|TestPPHTTPMalformedAcceptedParity|TestPPHTTPResponseWriteRoundTrip|TestPPHTTPTransportCloseNominees|TestPPHTTPTransportPersistenceOptions|TestPPHTTPPersistenceOptions|TestPPHTTPPersistenceBoundaryControls|TestPPHTTPPersistenceWriteRoundTrip|TestReverseProxyStripHeadersPresentInConnection)$","net/http","net/http/httputil"]' >> "$evidence/stdlib-test-commands.txt"; if test "$native_status" != 0; then cat "$evidence/stdlib-test-inventory.txt"; exit 1; fi; ); \
+    ( export GOROOT=/opt/go1.26.10-http-baseline GOCACHE=/opt/caddy-stdlib-baseline-cache GOPROXY=off GOSUMDB=off; test "$(go env GOROOT)" = "$GOROOT"; test "$(go env GOCACHE)" = "$GOCACHE"; if /usr/local/go/bin/go test -count=1 -p=2 -parallel=2 -timeout=90s -json -run '^(TestReadResponse|TestWriteResponse|TestReadResponseErrors|TestResponseWritesOnlySingleConnectionClose|TestReadResponseCloseInMiddle|TestResponseContentLengthShortBody|TestTransportConnectionCloseOnResponse|TestTransportConnectionCloseOnRequest|TestTransportRespectRequestWantsClose|TestTransportReadToEndReusesConn|TestIssue3644|TestTransportResponseBodyWritableOnProtocolSwitch|TestPPHTTPBoundaryControls|TestPPHTTPMalformedAcceptedParity|TestPPHTTPMalformedReaderControls|TestPPHTTPPersistenceBoundaryControls|TestReverseProxyStripHeadersPresentInConnection)$' net/http net/http/httputil > "$evidence/stdlib-baseline-controls.jsonl" 2>&1; then native_status=0; else native_status=$?; fi; printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' baseline-controls "$native_status" "$GOROOT" "$GOCACHE" "$GOPROXY" "$GOSUMDB" '["/usr/local/go/bin/go","test","-count=1","-p=2","-parallel=2","-timeout=90s","-json","-run","^(TestReadResponse|TestWriteResponse|TestReadResponseErrors|TestResponseWritesOnlySingleConnectionClose|TestReadResponseCloseInMiddle|TestResponseContentLengthShortBody|TestTransportConnectionCloseOnResponse|TestTransportConnectionCloseOnRequest|TestTransportRespectRequestWantsClose|TestTransportReadToEndReusesConn|TestIssue3644|TestTransportResponseBodyWritableOnProtocolSwitch|TestPPHTTPBoundaryControls|TestPPHTTPMalformedAcceptedParity|TestPPHTTPMalformedReaderControls|TestPPHTTPPersistenceBoundaryControls|TestReverseProxyStripHeadersPresentInConnection)$","net/http","net/http/httputil"]' >> "$evidence/stdlib-test-commands.txt"; if test "$native_status" != 0; then cat "$evidence/stdlib-baseline-controls.jsonl"; exit 1; fi; ); \
+    ( export GOROOT=/opt/go1.26.10-http-baseline GOCACHE=/opt/caddy-stdlib-baseline-cache GOPROXY=off GOSUMDB=off; test "$(go env GOROOT)" = "$GOROOT"; test "$(go env GOCACHE)" = "$GOCACHE"; if /usr/local/go/bin/go test -count=1 -p=2 -parallel=2 -timeout=90s -json -run '^(TestPPHTTPConnectionBaseline)$' net/http > "$evidence/stdlib-baseline-red.jsonl" 2>&1; then native_status=0; else native_status=$?; fi; printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' baseline-red "$native_status" "$GOROOT" "$GOCACHE" "$GOPROXY" "$GOSUMDB" '["/usr/local/go/bin/go","test","-count=1","-p=2","-parallel=2","-timeout=90s","-json","-run","^(TestPPHTTPConnectionBaseline)$","net/http"]' >> "$evidence/stdlib-test-commands.txt"; if test "$native_status" != 1; then cat "$evidence/stdlib-baseline-red.jsonl"; exit 1; fi; ); \
+    grep -F 'PP_BASELINE_SETUP_BODY_CLOSE_OK' "$evidence/stdlib-baseline-red.jsonl"; \
+    grep -F 'PP_EXPECTED_NOMINATION_MISMATCH' "$evidence/stdlib-baseline-red.jsonl"; \
+    printf 'PATCHED_NATIVE_LIST\n' >> "$evidence/stdlib-test-inventory.txt"; \
+    ( export GOROOT=/opt/go1.26.10-http-patched GOCACHE=/opt/caddy-stdlib-patched-cache GOPROXY=off GOSUMDB=off; test "$(go env GOROOT)" = "$GOROOT"; test "$(go env GOCACHE)" = "$GOCACHE"; if /usr/local/go/bin/go test -count=1 -p=2 -list '^(TestReadResponse|TestWriteResponse|TestReadResponseErrors|TestResponseWritesOnlySingleConnectionClose|TestReadResponseCloseInMiddle|TestResponseContentLengthShortBody|TestTransportConnectionCloseOnResponse|TestTransportConnectionCloseOnRequest|TestTransportRespectRequestWantsClose|TestTransportReadToEndReusesConn|TestIssue3644|TestTransportResponseBodyWritableOnProtocolSwitch|TestPPHTTPConnectionBaseline|TestPPHTTPConnectionSurvivors|TestPPHTTPConnectionFieldNameCase|TestPPHTTPBoundaryControls|TestPPHTTPFramingControls|TestPPHTTPMalformedReaderControls|TestPPHTTPMalformedAcceptedParity|TestPPHTTPResponseWriteRoundTrip|TestPPHTTPTransportCloseNominees|TestPPHTTPTransportPersistenceOptions|TestPPHTTPPersistenceOptions|TestPPHTTPPersistenceBoundaryControls|TestPPHTTPPersistenceWriteRoundTrip|TestReverseProxyStripHeadersPresentInConnection)$' net/http net/http/httputil >> "$evidence/stdlib-test-inventory.txt" 2>&1; then native_status=0; else native_status=$?; fi; printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' patched-list "$native_status" "$GOROOT" "$GOCACHE" "$GOPROXY" "$GOSUMDB" '["/usr/local/go/bin/go","test","-count=1","-p=2","-list","^(TestReadResponse|TestWriteResponse|TestReadResponseErrors|TestResponseWritesOnlySingleConnectionClose|TestReadResponseCloseInMiddle|TestResponseContentLengthShortBody|TestTransportConnectionCloseOnResponse|TestTransportConnectionCloseOnRequest|TestTransportRespectRequestWantsClose|TestTransportReadToEndReusesConn|TestIssue3644|TestTransportResponseBodyWritableOnProtocolSwitch|TestPPHTTPConnectionBaseline|TestPPHTTPConnectionSurvivors|TestPPHTTPConnectionFieldNameCase|TestPPHTTPBoundaryControls|TestPPHTTPFramingControls|TestPPHTTPMalformedReaderControls|TestPPHTTPMalformedAcceptedParity|TestPPHTTPResponseWriteRoundTrip|TestPPHTTPTransportCloseNominees|TestPPHTTPTransportPersistenceOptions|TestPPHTTPPersistenceOptions|TestPPHTTPPersistenceBoundaryControls|TestPPHTTPPersistenceWriteRoundTrip|TestReverseProxyStripHeadersPresentInConnection)$","net/http","net/http/httputil"]' >> "$evidence/stdlib-test-commands.txt"; if test "$native_status" != 0; then cat "$evidence/stdlib-test-inventory.txt"; exit 1; fi; ); \
+    ( export GOROOT=/opt/go1.26.10-http-patched GOCACHE=/opt/caddy-stdlib-patched-cache GOPROXY=off GOSUMDB=off; test "$(go env GOROOT)" = "$GOROOT"; test "$(go env GOCACHE)" = "$GOCACHE"; if /usr/local/go/bin/go test -count=1 -p=2 -parallel=2 -timeout=90s -json -run '^(TestReadResponse|TestWriteResponse|TestReadResponseErrors|TestResponseWritesOnlySingleConnectionClose|TestReadResponseCloseInMiddle|TestResponseContentLengthShortBody|TestTransportConnectionCloseOnResponse|TestTransportConnectionCloseOnRequest|TestTransportRespectRequestWantsClose|TestTransportReadToEndReusesConn|TestIssue3644|TestTransportResponseBodyWritableOnProtocolSwitch|TestPPHTTPConnectionBaseline|TestPPHTTPConnectionSurvivors|TestPPHTTPConnectionFieldNameCase|TestPPHTTPBoundaryControls|TestPPHTTPFramingControls|TestPPHTTPMalformedReaderControls|TestPPHTTPMalformedAcceptedParity|TestPPHTTPResponseWriteRoundTrip|TestPPHTTPTransportCloseNominees|TestPPHTTPTransportPersistenceOptions|TestPPHTTPPersistenceOptions|TestPPHTTPPersistenceBoundaryControls|TestPPHTTPPersistenceWriteRoundTrip|TestReverseProxyStripHeadersPresentInConnection)$' net/http net/http/httputil > "$evidence/stdlib-patched-tests.jsonl" 2>&1; then native_status=0; else native_status=$?; fi; printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' patched-tests "$native_status" "$GOROOT" "$GOCACHE" "$GOPROXY" "$GOSUMDB" '["/usr/local/go/bin/go","test","-count=1","-p=2","-parallel=2","-timeout=90s","-json","-run","^(TestReadResponse|TestWriteResponse|TestReadResponseErrors|TestResponseWritesOnlySingleConnectionClose|TestReadResponseCloseInMiddle|TestResponseContentLengthShortBody|TestTransportConnectionCloseOnResponse|TestTransportConnectionCloseOnRequest|TestTransportRespectRequestWantsClose|TestTransportReadToEndReusesConn|TestIssue3644|TestTransportResponseBodyWritableOnProtocolSwitch|TestPPHTTPConnectionBaseline|TestPPHTTPConnectionSurvivors|TestPPHTTPConnectionFieldNameCase|TestPPHTTPBoundaryControls|TestPPHTTPFramingControls|TestPPHTTPMalformedReaderControls|TestPPHTTPMalformedAcceptedParity|TestPPHTTPResponseWriteRoundTrip|TestPPHTTPTransportCloseNominees|TestPPHTTPTransportPersistenceOptions|TestPPHTTPPersistenceOptions|TestPPHTTPPersistenceBoundaryControls|TestPPHTTPPersistenceWriteRoundTrip|TestReverseProxyStripHeadersPresentInConnection)$","net/http","net/http/httputil"]' >> "$evidence/stdlib-test-commands.txt"; if test "$native_status" != 0; then cat "$evidence/stdlib-patched-tests.jsonl"; exit 1; fi; ); \
+    verify_stdlib /opt/go1.26.10-http-baseline stdlib-baseline-tree.sha256 aed4cf1ca75d78f74118dc8686cd0bdd6d017c1b8bb98e0f46c2ed859ad72a26; \
+    verify_stdlib /opt/go1.26.10-http-patched stdlib-post-tests-tree.sha256 afce6dcef776fcfe337fff1c5d4a3c68cd4729be7c27463d07e09fc7fafaa3f5; \
+    rm -rf /opt/go1.26.10-http-baseline /opt/caddy-stdlib-baseline-cache
+
+ENV GOROOT=/opt/go1.26.10-http-patched \
+    GOCACHE=/opt/caddy-stdlib-patched-cache
 
 RUN set -eux; \
     set -o pipefail; \
@@ -25,53 +83,144 @@ RUN set -eux; \
     go get github.com/go-jose/go-jose/v4@v4.1.6; \
     go mod download all; \
     go mod verify; \
+    go get github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.9; \
+    go mod download all; \
+    go mod verify; \
+    echo '40a8c29bde80ddaaf323030a9631453d905b1deafc4eb909c0b2b1c43bd2965d  go.mod' | sha256sum -c -; \
+    echo 'bc1def232f1f0a8d205b39c38fa9b0159d481c05f90933bc975659ec0c0317c8  go.sum' | sha256sum -c -; \
+    go get golang.org/x/net@v0.62.0; \
+    cp go.mod /tmp/caddy-xnet062-postget.mod; \
+    cp go.sum /tmp/caddy-xnet062-postget.sum; \
+    go mod download all; \
+    go mod verify; \
+    cmp go.mod /tmp/caddy-xnet062-postget.mod; \
+    echo 'f5d9289fa0e27604a936ed5e35368db876398dac62154b9a6af9d0d2a891f7d9  /tmp/caddy-xnet062-postget.sum' | sha256sum -c -; \
+    echo 'f06331d8fba11ae7ac7ba36f80198bb9ca7c5ac22df4deb7011ab91a4d52f596  go.mod' | sha256sum -c -; \
+    echo 'be8f44f7e591bcaa54412fe5f3061235596be2faf9bd3f5fdece0106fea45338  go.sum' | sha256sum -c -; \
     test -z "$(go list -m -f '{{if .Replace}}{{.Path}} => {{.Replace.Path}}{{end}}' all)"; \
+    evidence=/caddy-build-evidence; \
+    test -d "$evidence"; \
+    git_bin="$(command -v git)"; \
+    test "$git_bin" = /usr/bin/git; \
+    "$git_bin" --version > "$evidence/patch-tool.txt"; \
+    sha256sum "$git_bin" >> "$evidence/patch-tool.txt"; \
+    sha256sum /opt/go-jose-v3.patch /opt/caddy_v3_compat_test.go > "$evidence/inputs.sha256"; \
+    echo '628d25c62a2141fb35bea13003483a22f277b3b2c9ba319ff5a53b7b591e7de6  /opt/caddy_v3_compat_test.go' | sha256sum -c -; \
+    echo 'f0e1b6f4791089dfebbc9a742533af650268e87bffec09847190e59da04aad27  /opt/go-jose-v3.patch' | sha256sum -c -; \
+    verify_jose_source() { ( \
+      if test -L "$1" || test ! -d "$1"; then echo caddy_source_root >&2; exit 1; fi; \
+      cd "$1"; \
+      if test -n "$(find . -mindepth 1 ! -type d ! -type f -print)"; then echo caddy_source_nonregular >&2; exit 1; fi; \
+      if test -n "$(find . -mindepth 1 -print | LC_ALL=C awk '$0 !~ /^\.\/[A-Za-z0-9_.\/-]+$/ { print }')"; then echo caddy_source_path >&2; exit 1; fi; \
+      if test "$(find . -type f | wc -l | tr -d '[:space:]')" != "$2"; then echo caddy_source_count >&2; exit 1; fi; \
+      find . -type f -exec sha256sum {} + | LC_ALL=C sort > "$evidence/$4-tree.sha256"; \
+      if test "$(sha256sum "$evidence/$4-tree.sha256" | cut -d' ' -f1)" != "$3"; then echo caddy_source_digest >&2; exit 1; fi; \
+    ); }; \
+    echo '4e7e6b60541ab03bd402e573fc2c1264297e661726c5f53529ca14ae58625a27  '$(go env GOMODCACHE)'/cache/download/github.com/go-jose/go-jose/v3/@v/v3.0.5.zip' | sha256sum -c -; \
+    original_tree=1c0d532bafdf2a7de4fea465082117f97e6e8bcf31e1704203f838a873901ce1; \
+    patched_tree=e71a63d7a08abecf4c3f2f72c41c1f469c097d853eafe854fdb6e782a70e1065; \
+    test "$(go list -m -f '{{.Version}}' github.com/go-jose/go-jose/v3)" = v3.0.5; \
+    test "$(go list -m -f '{{.Sum}}' github.com/go-jose/go-jose/v3)" = 'h1:BLLJWbC4nMZOfuPVxoZIxeYsn6Nl2r1fITaJ78UQlVQ='; \
+    original_dir="$(go list -m -f '{{.Dir}}' github.com/go-jose/go-jose/v3)"; \
+    verify_jose_source "$original_dir" 71 "$original_tree" original; \
+    test ! -e /opt/go-jose-v3.0.5-patched; test ! -L /opt/go-jose-v3.0.5-patched; \
+    cp -R "$original_dir" /opt/go-jose-v3.0.5-patched; \
+    chmod -R u+w /opt/go-jose-v3.0.5-patched; \
+    verify_jose_source /opt/go-jose-v3.0.5-patched 71 "$original_tree" copied; \
+    (cd /opt/go-jose-v3.0.5-patched; \
+      env -i PATH=/usr/bin:/bin GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_CEILING_DIRECTORIES=/opt "$git_bin" apply --no-index --check --whitespace=error-all /opt/go-jose-v3.patch; \
+      env -i PATH=/usr/bin:/bin GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_CEILING_DIRECTORIES=/opt "$git_bin" apply --no-index --whitespace=error-all /opt/go-jose-v3.patch); \
+    verify_jose_source /opt/go-jose-v3.0.5-patched 72 "$patched_tree" patched; \
+    (cd /opt/go-jose-v3.0.5-patched; \
+      go mod download; \
+      go mod verify; \
+      if go test -mod=readonly -count=1 -parallel=2 -timeout=300s -json ./... > "$evidence/jose-tests.jsonl" 2>&1; then :; else cat "$evidence/jose-tests.jsonl"; exit 1; fi); \
+    verify_jose_source /opt/go-jose-v3.0.5-patched 72 "$patched_tree" post-unit; \
+    go mod edit -replace=github.com/go-jose/go-jose/v3@v3.0.5=/opt/go-jose-v3.0.5-patched; \
+    go list -mod=readonly -m -json all > "$evidence/modules.json"; \
+    go mod graph > "$evidence/module-graph.txt"; \
+    test "$(go list -mod=readonly -m -f '{{if .Replace}}{{.Path}}@{{.Version}}=>{{.Replace.Path}}@{{.Replace.Version}}{{end}}' all | awk 'NF')" = 'github.com/go-jose/go-jose/v3@v3.0.5=>/opt/go-jose-v3.0.5-patched@'; \
+    test "$(go list -mod=readonly -m -f '{{.Version}}' go.step.sm/crypto)" = v0.91.0; \
+    test "$(go list -mod=readonly -m -f '{{.Version}}' github.com/smallstep/certificates)" = v0.30.2; \
+    mkdir compat; \
+    cp /opt/caddy_v3_compat_test.go compat/caddy_v3_compat_test.go; \
+    sha256sum go.mod go.sum > "$evidence/build-module.sha256"; \
+    if go test -mod=readonly -count=1 -parallel=2 -timeout=300s -json ./compat > "$evidence/compat-tests.jsonl" 2>&1; then :; else cat "$evidence/compat-tests.jsonl"; exit 1; fi; \
+    go list -mod=readonly -deps -json github.com/caddyserver/caddy/v2/cmd/caddy > "$evidence/packages.json"; \
+    go list -mod=readonly -deps -f '{{.ImportPath}}|{{.Dir}}|{{join .Imports " "}}' github.com/caddyserver/caddy/v2/cmd/caddy > "$evidence/import-graph.txt"; \
+    test "$(go list -mod=readonly -deps -f '{{if eq .ImportPath "github.com/go-jose/go-jose/v3"}}{{.Dir}}{{end}}' github.com/caddyserver/caddy/v2/cmd/caddy | awk 'NF')" = /opt/go-jose-v3.0.5-patched; \
     go list -m -f '{{if or (eq .Path "github.com/caddyserver/caddy/v2") (eq .Path "github.com/go-jose/go-jose/v3") (eq .Path "github.com/go-jose/go-jose/v4") (eq .Path "github.com/klauspost/compress") (eq .Path "google.golang.org/grpc") (eq .Path "golang.org/x/crypto") (eq .Path "golang.org/x/mod") (eq .Path "golang.org/x/net") (eq .Path "golang.org/x/sync") (eq .Path "golang.org/x/sys") (eq .Path "golang.org/x/telemetry") (eq .Path "golang.org/x/term") (eq .Path "golang.org/x/text") (eq .Path "golang.org/x/tools")}}{{.Path}} {{.Version}}{{end}}' all \
       | awk 'NF' \
       | LC_ALL=C sort > /tmp/caddy-governed-graph; \
     printf '%s\n' \
-      'github.com/caddyserver/caddy/v2 v2.11.4' \
+      'github.com/caddyserver/caddy/v2 v2.11.9' \
       'github.com/go-jose/go-jose/v3 v3.0.5' \
       'github.com/go-jose/go-jose/v4 v4.1.6' \
-      'github.com/klauspost/compress v1.18.7' \
-      'golang.org/x/crypto v0.57.0' \
+      'github.com/klauspost/compress v1.20.1' \
+      'golang.org/x/crypto v0.58.0' \
       'golang.org/x/mod v0.41.0' \
-      'golang.org/x/net v0.60.0' \
-      'golang.org/x/sync v0.23.0' \
-      'golang.org/x/sys v0.48.0' \
-      'golang.org/x/telemetry v0.0.0-20260811182544-a038080d80e5' \
-      'golang.org/x/term v0.46.0' \
-      'golang.org/x/text v0.42.0' \
-      'golang.org/x/tools v0.49.0' \
+      'golang.org/x/net v0.62.0' \
+      'golang.org/x/sync v0.24.0' \
+      'golang.org/x/sys v0.49.0' \
+      'golang.org/x/telemetry v0.0.0-20260924152758-ed294f943157' \
+      'golang.org/x/term v0.47.0' \
+      'golang.org/x/text v0.43.0' \
+      'golang.org/x/tools v0.51.0' \
       'google.golang.org/grpc v1.83.2' \
       | LC_ALL=C sort > /tmp/caddy-expected-graph; \
     test "$(wc -l < /tmp/caddy-governed-graph | tr -d '[:space:]')" = '14'; \
     cmp /tmp/caddy-expected-graph /tmp/caddy-governed-graph; \
     go build -mod=readonly -trimpath \
-      -ldflags '-X github.com/caddyserver/caddy/v2.CustomVersion=v2.11.4' \
+      -ldflags '-X github.com/caddyserver/caddy/v2.CustomVersion=v2.11.9' \
       -o /go/bin/caddy \
       github.com/caddyserver/caddy/v2/cmd/caddy; \
     /go/bin/caddy version; \
     go version -m /go/bin/caddy > /tmp/caddy-binary-metadata; \
     cat /tmp/caddy-binary-metadata; \
-    test "$(awk '$1 == "=>" { count++ } END { print count + 0 }' /tmp/caddy-binary-metadata)" = '0'; \
+    test "$(awk '$1 == "dep" { dependency=$2 "@" $3 } $1 == "=>" { print dependency "=>" $2 "@" $3 }' /tmp/caddy-binary-metadata)" = 'github.com/go-jose/go-jose/v3@v3.0.5=>/opt/go-jose-v3.0.5-patched@(devel)'; \
     awk '$1 == "mod" && $2 == "github.com/caddyserver/caddy/v2" { print $1, $2, $3 } $1 == "dep" && ($2 == "github.com/go-jose/go-jose/v3" || $2 == "github.com/go-jose/go-jose/v4" || $2 == "github.com/klauspost/compress" || $2 == "google.golang.org/grpc" || $2 == "golang.org/x/crypto" || $2 == "golang.org/x/net" || $2 == "golang.org/x/sync" || $2 == "golang.org/x/sys" || $2 == "golang.org/x/term" || $2 == "golang.org/x/text") { print $1, $2, $3 }' /tmp/caddy-binary-metadata \
       | LC_ALL=C sort > /tmp/caddy-governed-binary; \
     printf '%s\n' \
-      'mod github.com/caddyserver/caddy/v2 v2.11.4' \
+      'mod github.com/caddyserver/caddy/v2 v2.11.9' \
       'dep github.com/go-jose/go-jose/v3 v3.0.5' \
       'dep github.com/go-jose/go-jose/v4 v4.1.6' \
-      'dep github.com/klauspost/compress v1.18.7' \
-      'dep golang.org/x/crypto v0.57.0' \
-      'dep golang.org/x/net v0.60.0' \
-      'dep golang.org/x/sync v0.23.0' \
-      'dep golang.org/x/sys v0.48.0' \
-      'dep golang.org/x/term v0.46.0' \
-      'dep golang.org/x/text v0.42.0' \
+      'dep github.com/klauspost/compress v1.20.1' \
+      'dep golang.org/x/crypto v0.58.0' \
+      'dep golang.org/x/net v0.62.0' \
+      'dep golang.org/x/sync v0.24.0' \
+      'dep golang.org/x/sys v0.49.0' \
+      'dep golang.org/x/term v0.47.0' \
+      'dep golang.org/x/text v0.43.0' \
       'dep google.golang.org/grpc v1.83.2' \
       | LC_ALL=C sort > /tmp/caddy-expected-binary; \
     test "$(wc -l < /tmp/caddy-governed-binary | tr -d '[:space:]')" = '11'; \
     cmp /tmp/caddy-expected-binary /tmp/caddy-governed-binary; \
+    sha256sum -c "$evidence/build-module.sha256"; \
+    verify_jose_source /opt/go-jose-v3.0.5-patched 72 "$patched_tree" post-build; \
+    verify_jose_source "$original_dir" 71 "$original_tree" original-post-build; \
+    verify_stdlib() { ( test ! -L "$1"; test -d "$1"; cd "$1"; test -z "$(find . -mindepth 1 ! -type d ! -type f -print)"; find . -type f -exec sha256sum {} + | LC_ALL=C sort > "$evidence/$2"; test "$(sha256sum "$evidence/$2" | cut -d' ' -f1)" = "$3"; ); }; \
+    verify_stdlib "$GOROOT" stdlib-post-build-tree.sha256 afce6dcef776fcfe337fff1c5d4a3c68cd4729be7c27463d07e09fc7fafaa3f5; \
+    verify_stdlib /usr/local/go stdlib-original-post-build-tree.sha256 e54472503fcedc70793baefd53d9ae2eee748610e190f99f533ae6ef7c3ecf64; \
+    cp /tmp/caddy-binary-metadata "$evidence/build-info.txt"; \
+    sha256sum /go/bin/caddy > "$evidence/binary.sha256"; \
+    rm "$evidence/packages.json"; \
+    total_bytes=0; \
+    for name in patch-tool.txt inputs.sha256 original-tree.sha256 copied-tree.sha256 patched-tree.sha256 post-unit-tree.sha256 post-build-tree.sha256 original-post-build-tree.sha256 jose-tests.jsonl compat-tests.jsonl modules.json module-graph.txt import-graph.txt build-module.sha256 build-info.txt binary.sha256; do \
+      test -f "$evidence/$name"; \
+      bytes="$(wc -c < "$evidence/$name")"; \
+      test "$bytes" -gt 0; test "$bytes" -le 2097152; \
+      total_bytes=$((total_bytes + bytes)); \
+    done; \
+    test "$total_bytes" -le 8388608; \
+    stdlib_bytes=0; \
+    for name in stdlib-inputs.sha256 stdlib-original-tree.sha256 stdlib-baseline-tree.sha256 stdlib-patched-tree.sha256 stdlib-post-tests-tree.sha256 stdlib-post-build-tree.sha256 stdlib-original-post-build-tree.sha256 stdlib-baseline-red.jsonl stdlib-baseline-controls.jsonl stdlib-patched-tests.jsonl stdlib-test-inventory.txt stdlib-test-commands.txt; do \
+      test -f "$evidence/$name"; bytes="$(wc -c < "$evidence/$name")"; limit=2097152; \
+      case "$name" in stdlib-inputs.sha256) limit=4096 ;; stdlib-test-inventory.txt) limit=65536 ;; stdlib-test-commands.txt) limit=16384 ;; esac; \
+      test "$bytes" -gt 0; test "$bytes" -le "$limit"; stdlib_bytes=$((stdlib_bytes + bytes)); \
+    done; \
+    test "$stdlib_bytes" -le 16777216; test "$((total_bytes + stdlib_bytes))" -le 25165824; \
+    test "$(find "$evidence" -type f | wc -l | tr -d '[:space:]')" = 28; \
+    rm -rf /opt/caddy-stdlib-patched-cache; \
     rm -f \
       /tmp/caddy-binary-metadata \
       /tmp/caddy-expected-binary \
@@ -80,12 +229,14 @@ RUN set -eux; \
       /tmp/caddy-governed-graph; \
     rm -rf "$build_dir"
 
-FROM node:24.18.1-bookworm-slim@sha256:235600a8101ab264e117b1768e925532262668dc9b581ef1dd7d96ced463b8e7 AS frontend-build
+FROM node:24.22.1-bookworm-slim@sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205 AS frontend-build
 
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci
+COPY scripts/check-redocly-compat.mjs ./scripts/check-redocly-compat.mjs
+COPY patches/redocly-1.34.15-minimatch11.patch patches/redocly-1.34.15-minimatch11.inventory.json ./patches/
+RUN npm ci && node scripts/check-redocly-compat.mjs apply
 
 COPY . .
 
@@ -95,13 +246,15 @@ ENV VITE_API_BASE=${VITE_API_BASE}
 
 RUN npm run build
 
-FROM caddy:2.11.4-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
+FROM caddy:2.11.9-alpine@sha256:0bbb055bda6793c999bde78b1b5ce3e89f829fb031af2cf50056ea1246559fee
 
 LABEL org.opencontainers.image.title="PulsePlate Caddy SPA shell" \
-      org.opencontainers.image.description="Caddy 2.11.4 rebuilt with Go 1.26.10 and PulsePlate frontend assets"
+      org.opencontainers.image.description="Caddy 2.11.9 rebuilt with Go 1.26.10 and PulsePlate frontend assets"
 
 # Compare the standard module surface before replacing the upstream binary.
 # Package versions and build metadata are intentionally excluded from parity.
+# Public synthetic build evidence; cached-stage output is not fresh test execution.
+COPY --from=caddy-build /caddy-build-evidence /usr/share/pulseplate-caddy-build
 COPY --from=caddy-build --chmod=0755 /go/bin/caddy /usr/bin/caddy.pulseplate
 RUN set -eux; \
     set -o pipefail; \
@@ -109,6 +262,8 @@ RUN set -eux; \
     /usr/bin/caddy.pulseplate list-modules --packages | awk 'NF && $1 != "Standard" { print $1 }' | LC_ALL=C sort > /tmp/caddy-rebuilt-modules; \
     diff -u /tmp/caddy-official-modules /tmp/caddy-rebuilt-modules; \
     apk add --no-cache \
+      "musl>=1.2.6-r3" \
+      "musl-utils>=1.2.6-r3" \
       "ca-certificates>=20261020-r0" \
       "ca-certificates-bundle>=20261020-r0" \
       "brotli-libs>=1.2.1-r0" \
@@ -121,7 +276,7 @@ RUN set -eux; \
     mv /usr/bin/caddy.pulseplate /usr/bin/caddy; \
     setcap cap_net_bind_service=+ep /usr/bin/caddy; \
     getcap /usr/bin/caddy | grep -F 'cap_net_bind_service=ep'; \
-    caddy version | awk 'NR == 1 && $1 == "v2.11.4" { found=1 } END { exit found ? 0 : 1 }'; \
+    caddy version | awk 'NR == 1 && $1 == "v2.11.9" { found=1 } END { exit found ? 0 : 1 }'; \
     caddy build-info | awk -F '\t' '$1 == "go" && $2 == "go1.26.10" { found=1 } END { exit found ? 0 : 1 }'; \
     rm -f /tmp/caddy-official-modules /tmp/caddy-rebuilt-modules
 

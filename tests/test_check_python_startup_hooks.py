@@ -286,7 +286,10 @@ def test_external_interpreter_site_packages_uses_startup_safe_probe(
     assert "site.addpackage = _skip_addpackage" in observed_command[4]
     assert "site.execsitecustomize = lambda: None" in observed_command[4]
     assert observed_kwargs.get("check") is True
-    assert observed_kwargs.get("capture_output") is True
+    assert observed_kwargs.get("stdin") == subprocess.DEVNULL
+    assert observed_kwargs.get("stdout") == subprocess.PIPE
+    assert observed_kwargs.get("stderr") == subprocess.DEVNULL
+    assert observed_kwargs.get("encoding") == "utf-8"
     observed_env = observed_kwargs.get("env")
     assert isinstance(observed_env, dict)
     assert observed_env["PYTHONUSERBASE"] == "relative-userbase"
@@ -597,3 +600,107 @@ def test_external_interpreter_discovers_venv_without_running_startup_hooks(
     assert not pth_marker.exists()
     assert not sitecustomize_marker.exists()
     assert not usercustomize_marker.exists()
+
+
+def test_probe_environment_preserves_home_and_excludes_hostile_parent_inputs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home, userbase = tmp_path / "actual-selected-home", tmp_path / "custom-user"
+    home.mkdir()
+    for key in (
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "PIP_INDEX_URL",
+        "PIP_TRUSTED_HOST",
+        "HTTPS_PROXY",
+        "NETRC",
+        "LD_PRELOAD",
+        "DYLD_INSERT_LIBRARIES",
+        "PYTHONPATH",
+        "PYTHONHOME",
+        "PYTHONSTARTUP",
+        "BASH_ENV",
+    ):
+        monkeypatch.setenv(key, "synthetic-startup-secret")
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("PYTHONUSERBASE", str(userbase))
+    monkeypatch.delenv("PYTHONNOUSERSITE", raising=False)
+    env = hook_guard._startup_probe_environment()
+    assert env["HOME"] == str(home) and env["PYTHONUSERBASE"] == str(userbase)
+    assert "synthetic-startup-secret" not in env.values()
+    assert env["LC_ALL"] == "C"
+    if os.name != "nt":
+        assert set(env) == {"HOME", "PYTHONUSERBASE", "PATH", "LANG", "LC_ALL"}
+
+
+@pytest.mark.parametrize(
+    "fault", ["timeout", "oserror", "nonzero", "decode", "json", "reported-path"]
+)
+def test_probe_error_hides_synthetic_child_and_transport_details(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], fault: str
+) -> None:
+    secret = "synthetic-private-probe-marker"
+    for key in ("GH_TOKEN", "GITHUB_TOKEN", "PIP_INDEX_URL", "HTTPS_PROXY"):
+        monkeypatch.setenv(key, secret)
+
+    def run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        assert secret not in repr(kwargs["env"])
+        if fault == "timeout":
+            raise subprocess.TimeoutExpired([secret], 30, output=secret, stderr=secret)
+        if fault == "oserror":
+            raise OSError(secret)
+        if fault == "nonzero":
+            raise subprocess.CalledProcessError(2, [secret], output=secret, stderr=secret)
+        if fault == "decode":
+            raise UnicodeDecodeError("utf-8", secret.encode() + b"\xff", 0, 1, secret)
+        if fault == "reported-path":
+            raw = json.dumps(
+                {
+                    "executable": "/" + secret + "/missing/python",
+                    "prefix": "/x",
+                    "base_prefix": "/x",
+                    "site_packages": ["/x"],
+                }
+            )
+        else:
+            raw = secret
+        return subprocess.CompletedProcess(argv, 0, stdout=raw, stderr=secret)
+
+    monkeypatch.setattr(hook_guard.subprocess, "run", run)
+    with pytest.raises(RuntimeError) as rejected:
+        hook_guard.external_interpreter_site_packages(sys.executable)
+    assert rejected.value.__cause__ is None and rejected.value.__context__ is None
+    assert secret not in str(rejected.value)
+    captured = capsys.readouterr()
+    assert secret not in captured.out + captured.err
+
+
+def test_real_probe_excludes_hostile_import_path_and_reflected_credential(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    marker = tmp_path / "hostile-json-ran"
+    hostile = tmp_path / "imports"
+    hostile.mkdir()
+    (hostile / "json.py").write_text(
+        "import os\nfrom pathlib import Path\n"
+        f"Path({str(marker)!r}).write_text(os.environ['GH_TOKEN'])\nraise SystemExit(76)\n"
+    )
+    for key in ("GH_TOKEN", "GITHUB_TOKEN", "PIP_INDEX_URL", "HTTPS_PROXY"):
+        monkeypatch.setenv(key, "synthetic-probe-value")
+    monkeypatch.setenv("PYTHONPATH", str(hostile))
+    control_env = hook_guard._startup_probe_environment()
+    control_env.update(PYTHONPATH=str(hostile), GH_TOKEN="synthetic-probe-value")
+    control = subprocess.run(
+        [sys.executable, "-P", "-S", "-c", hook_guard.STARTUP_SAFE_SITE_PACKAGES_PROBE],
+        cwd=tmp_path,
+        env=control_env,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        timeout=30,
+        check=False,
+    )
+    assert control.returncode == 76 and marker.read_text() == "synthetic-probe-value"
+    marker.unlink()
+    discovered = hook_guard.external_interpreter_site_packages(sys.executable)
+    assert discovered and all(path.is_absolute() for path in discovered)
+    assert not marker.exists()

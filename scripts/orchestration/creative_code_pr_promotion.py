@@ -15,7 +15,7 @@ import os
 from pathlib import Path
 import re
 import shutil
-import subprocess  # nosec B404: fixed git/gh subprocess wrappers only (remove-by: 2026-10-31, ref: PR-3)
+import subprocess  # nosec B404: fixed git/gh subprocess wrappers only (remove-by: 2027-01-01, ref: PR-3)
 import sys
 import tempfile
 import uuid
@@ -343,20 +343,32 @@ def _run_process(
     timeout_seconds: int = 600,
     check: bool = True,
 ) -> subprocess.CompletedProcess[str]:
-    process = subprocess.run(  # nosec B603: absolute binaries with bounded argv only (remove-by: 2026-10-31, ref: PR-3)
-        argv,
-        cwd=str(cwd),
-        env=env,
-        input=input_text,
-        capture_output=True,
-        text=True,
-        check=False,
-        timeout=timeout_seconds,
-    )
-    if check and process.returncode != 0:
-        stderr = process.stderr.strip() or process.stdout.strip() or "unknown command failure"
-        raise CreativeCodePRPromotionError(f"{Path(argv[0]).name} command failed: {stderr}")
-    return process
+    try:
+        process = subprocess.run(  # nosec B603: absolute binaries with bounded argv only (remove-by: 2027-01-01, ref: PR-3)
+            argv,
+            cwd=str(cwd),
+            env=env,
+            input=input_text,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired:
+        failure: Exception = subprocess.TimeoutExpired("promotion operation", timeout_seconds)
+    except OSError:
+        failure = OSError("Promotion subprocess could not start.")
+    except UnicodeDecodeError:
+        failure = UnicodeDecodeError("utf-8", b"", 0, 0, "promotion output decoding failed")
+    except UnicodeEncodeError:
+        failure = UnicodeEncodeError("utf-8", "", 0, 0, "promotion input encoding failed")
+    else:
+        if not check or process.returncode == 0:
+            return process
+        failure = CreativeCodePRPromotionError(
+            f"Promotion command failed (exit {process.returncode})"
+        )
+    raise failure
 
 
 def _reject_non_human_git_identity(*, name: str, email: str) -> None:
@@ -446,8 +458,9 @@ class GitTransport:
             return True
         if process.returncode == 2:
             return False
-        stderr = process.stderr.strip() or process.stdout.strip()
-        raise CreativeCodePRPromotionError(f"remote branch lookup failed: {stderr}")
+        raise CreativeCodePRPromotionError(
+            f"remote branch lookup failed (exit {process.returncode})"
+        )
 
     def local_branch_exists(self, branch: str, *, cwd: Path = REPO_ROOT) -> bool:
         process = self.run(["show-ref", "--verify", f"refs/heads/{branch}"], cwd=cwd, check=False)

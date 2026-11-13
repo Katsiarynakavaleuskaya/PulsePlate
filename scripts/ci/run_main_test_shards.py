@@ -5,12 +5,14 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import errno
 import hashlib
 import importlib.util
 import math
 import os
 import signal
-import subprocess  # nosec B404: subprocess is required for bounded local shard isolation without shell (remove-by: 2026-10-31, ref: PR-1748)
+import shutil
+import subprocess  # nosec B404: subprocess is required for bounded local shard isolation without shell (remove-by: 2027-01-25, ref: PR-1748)
 import sys
 import tempfile
 import time
@@ -22,6 +24,7 @@ DEFAULT_SHARD_COUNT = 2
 DEFAULT_MAX_PARALLEL = 2
 DEFAULT_FAULTHANDLER_TIMEOUT_SECONDS = 300
 DEFAULT_SHARD_TIMEOUT_SECONDS = 1800
+_CLEANUP_POLL_INTERVAL = 0.1
 DEFAULT_COVERAGE_TIMEOUT_SECONDS = 1200
 DEFAULT_ARTIFACT_LABEL = "pymain"
 JUNIT_FAMILY = "legacy"
@@ -75,6 +78,7 @@ class RunningShard:
     process: subprocess.Popen[bytes]
     started_at: float
     timeout_seconds: int
+    custody_lost: bool = False
 
 
 def build_test_file(repo_root: Path, test_path: Path) -> TestFile:
@@ -437,18 +441,28 @@ def run_shard(
     marker_expression: str = DEFAULT_MARK_EXPRESSION,
     durations_min: str = DEFAULT_DURATIONS_MIN_SECONDS,
     report_chars: str | None = None,
+    *,
+    pending_signal: list[int] | None = None,
 ) -> int:
     """Run one pytest shard in a child interpreter and return its exit code."""
 
-    running_shard = start_shard_process(
-        repo_root,
-        shard,
-        base_env,
-        marker_expression,
-        durations_min,
-        report_chars,
-    )
-    return wait_for_shard_process(running_shard)
+    pending = [] if pending_signal is None else pending_signal
+    previous = _install_shard_handlers(pending) if pending_signal is None else {}
+    try:
+        if pending:
+            raise SystemExit(128 + pending[0])
+        running_shard = start_shard_process(
+            repo_root,
+            shard,
+            base_env,
+            marker_expression,
+            durations_min,
+            report_chars,
+        )
+        return wait_for_shard_process(running_shard, pending)
+    finally:
+        for signum, handler in previous.items():
+            signal.signal(signum, handler)
 
 
 def build_shard_command(
@@ -509,7 +523,7 @@ def start_shard_process(
         report_chars,
     )
     timeout = shard_timeout_seconds(base_env)
-    process = subprocess.Popen(  # nosec B603: argv uses the current Python interpreter and explicit repo-local shard runner without shell (remove-by: 2026-10-31, ref: PR-1748)
+    process = subprocess.Popen(  # nosec B603: argv uses the current Python interpreter and explicit repo-local shard runner without shell (remove-by: 2027-01-25, ref: PR-1748)
         command,
         cwd=repo_root,
         env=env,
@@ -523,34 +537,150 @@ def start_shard_process(
     )
 
 
-def wait_for_shard_process(running_shard: RunningShard) -> int:
-    """Wait for one shard subprocess with timeout diagnostics."""
-
-    process: subprocess.Popen[bytes] | None = None
-    previous_handlers: dict[signal.Signals, Any] = {}
-    shard = running_shard.shard
-    timeout = running_shard.timeout_seconds
-
-    def terminate_child_for_signal(signum: int, _frame: Any) -> None:
-        if process is not None:
-            _terminate_process_group(process)
-        raise SystemExit(128 + signum)
-
+def _install_shard_handlers(pending: list[int]) -> dict[signal.Signals, Any]:
+    previous = {}
     if os.name == "posix":
-        for signum in (signal.SIGTERM, signal.SIGINT):
-            previous_handlers[signum] = signal.getsignal(signum)
-            signal.signal(signum, terminate_child_for_signal)
+        if signal.getsignal(signal.SIGCHLD) != signal.SIG_DFL:
+            raise RuntimeError("Shard child wait ownership unavailable")
+
+        def record(signum: int, _frame: Any) -> None:
+            if not pending:
+                pending.append(signum)
+
+        try:
+            for signum in (signal.SIGTERM, signal.SIGINT):
+                previous[signum] = signal.signal(signum, record)
+        except BaseException:
+            for signum, handler in previous.items():
+                signal.signal(signum, handler)
+            raise
+    return previous
+
+
+class _ShardCensusNotStarted(RuntimeError):
+    """The census deadline elapsed before any native query was started."""
+
+
+class _TermPollDeferred(Exception):
+    """Only a fraction of an optional repeat poll remains before escalation."""
+
+
+def _shard_ps(
+    pid: int, selector: str, deadline: float, *, repeat_term_poll: bool = False
+) -> list[tuple[int, int, int, str]]:
+    """Query only the reserved leader or its group/session; require its direct-child witness."""
+    ps = shutil.which("ps", path=os.defpath)
+    if not ps or not os.path.isabs(ps):
+        raise RuntimeError("Shard group census unavailable")
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise _ShardCensusNotStarted("Shard group census unavailable")
+    if repeat_term_poll and remaining < _CLEANUP_POLL_INTERVAL:
+        raise _TermPollDeferred
+    observed = subprocess.run(  # nosec B603: system ps inspects the owned shard group with fixed fields and remaining deadline (remove-by: 2027-01-25, ref: PR-2494)
+        [ps, selector, str(pid), "-o", "pid=,ppid=,pgid=,stat="],
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        timeout=remaining,
+        check=False,
+        env={"PATH": os.defpath, "LC_ALL": "C"},
+    )
+    if observed.returncode or observed.stderr:
+        raise RuntimeError("Shard group census failed")
+    rows = []
+    for line in observed.stdout.splitlines():
+        parts = line.split()
+        if len(parts) != 4 or not all(v.isdigit() for v in parts[:3]) or not parts[3][:1].isalpha():
+            raise RuntimeError("Shard group census malformed")
+        rows.append((int(parts[0]), int(parts[1]), int(parts[2]), parts[3].decode("ascii")))
+    leaders = [r for r in rows if r[0] == pid]
+    if len(leaders) != 1:
+        raise RuntimeError("Shard leader custody unavailable")
+    if leaders[0][1:3] != (os.getpid(), pid):
+        raise ChildProcessError("Shard leader custody lost")
+    return rows
+
+
+def _terminal_ready(process: subprocess.Popen[bytes], deadline: float) -> bool:
+    if os.name != "posix":
+        return process.poll() is not None
+    if process.returncode is not None or signal.getsignal(signal.SIGCHLD) != signal.SIG_DFL:
+        raise ChildProcessError("Shard wait ownership lost")
+    if all(hasattr(os, name) for name in ("waitid", "P_PID", "WEXITED", "WNOHANG", "WNOWAIT")):
+        try:
+            result = os.waitid(os.P_PID, process.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+        except NotImplementedError:
+            pass
+        except OSError as exc:
+            if exc.errno not in (errno.ENOSYS, errno.ENOTSUP):
+                raise
+        else:
+            if result is not None and result.si_pid != process.pid:
+                raise ChildProcessError("Shard wait identity mismatch")
+            return result is not None
+    if deadline <= time.monotonic():
+        # A BSD point query needs time; do not start one beyond the watchdog.
+        return False
+    return _shard_ps(process.pid, "-p", deadline)[0][3].startswith("Z")
+
+
+def _ready_at_watchdog(shard: RunningShard, deadline: float) -> bool:
+    process = shard.process
     try:
-        process = running_shard.process
-        return int(process.wait(timeout=timeout))
-    except subprocess.TimeoutExpired:
-        if process is not None:
-            _terminate_process_group(process)
-        log_shard_timeout(shard, timeout)
-        return 124
+        return _terminal_ready(process, deadline)
+    except ChildProcessError:
+        shard.custody_lost = True
+        print(
+            f"MAIN_TEST_SHARD_CLEANUP_FAILED pid={process.pid} type=ChildProcessError",
+            file=sys.stderr,
+            flush=True,
+        )
+        raise
+    except (OSError, RuntimeError, subprocess.SubprocessError, ValueError) as error:
+        if time.monotonic() < deadline:
+            raise
+        print(
+            f"MAIN_TEST_SHARD_OBSERVATION_FAILED pid={process.pid} type={type(error).__name__}",
+            file=sys.stderr,
+            flush=True,
+        )
+        return False
+
+
+def _cancel_shard(process: subprocess.Popen[bytes]) -> None:
+    try:
+        _terminate_process_group(process)
+    except (RuntimeError, OSError, subprocess.SubprocessError, ValueError) as exc:
+        print(
+            f"MAIN_TEST_SHARD_CLEANUP_FAILED pid={process.pid} type={type(exc).__name__}",
+            file=sys.stderr,
+            flush=True,
+        )
+
+
+def wait_for_shard_process(running_shard: RunningShard, pending: list[int]) -> int:
+    process = running_shard.process
+    deadline = running_shard.started_at + running_shard.timeout_seconds
+    settled = False
+    try:
+        while True:
+            if pending:
+                raise SystemExit(128 + pending[0])
+            if _ready_at_watchdog(running_shard, deadline) and not pending:
+                # Settlement selects the terminal status before the single consuming wait.
+                status = process.wait(timeout=max(0, deadline - time.monotonic()))
+                settled = True
+                return status
+            if pending:
+                raise SystemExit(128 + pending[0])
+            now = time.monotonic()
+            if now >= deadline:
+                log_shard_timeout(running_shard.shard, running_shard.timeout_seconds)
+                return 124
+            time.sleep(min(0.1, deadline - now))
     finally:
-        for signum, previous_handler in previous_handlers.items():
-            signal.signal(signum, previous_handler)
+        if not settled and not running_shard.custody_lost:
+            _cancel_shard(process)
 
 
 def log_shard_timeout(shard: TestShard, timeout: int) -> None:
@@ -574,22 +704,92 @@ def log_shard_timeout(shard: TestShard, timeout: int) -> None:
 def _terminate_process_group(process: subprocess.Popen[bytes]) -> None:
     """Terminate a shard subprocess and its descendants without waiting for timeout."""
 
-    if process.poll() is not None:
-        return
-    try:
-        if os.name == "posix":
-            os.killpg(process.pid, signal.SIGTERM)
-        else:
+    if os.name != "posix":
+        if process.poll() is None:
             process.terminate()
-        process.wait(timeout=10)
-    except ProcessLookupError:
+            try:
+                process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=10)
         return
-    except subprocess.TimeoutExpired:
-        if os.name == "posix":
-            os.killpg(process.pid, signal.SIGKILL)
-        else:
-            process.kill()
-        process.wait(timeout=10)
+    if process.returncode is not None:
+        return
+    first_failure: RuntimeError | None = None
+
+    def record_failure(operation: str, error: Exception) -> None:
+        nonlocal first_failure
+        if first_failure is None:
+            first_failure = RuntimeError(f"Shard {sig.name} {operation}: {type(error).__name__}")
+
+    def readiness(deadline: float, operation: str) -> bool | None:
+        try:
+            return _terminal_ready(process, deadline)
+        except ChildProcessError:
+            raise  # ECHILD or a conflicting wait identity prohibits every later signal.
+        except (OSError, RuntimeError, subprocess.SubprocessError, ValueError) as error:
+            record_failure(operation, error)
+            return None
+
+    for sig in (signal.SIGTERM, signal.SIGKILL):
+        repeat_term_poll = False
+        started = time.monotonic()
+        deadline = started + 10
+        # Reserve room for the signal even when the optional ps probe stalls.
+        ready = readiness(min(deadline, started + 0.25), "initial readiness")
+        try:
+            if os.getpgid(process.pid) != process.pid or os.getsid(process.pid) != process.pid:
+                raise RuntimeError("Shard session identity mismatch")
+        except ProcessLookupError:
+            # Some kernels hide an exited leader. Only a positive direct-child
+            # witness can supplement the still-unreaped, originally isolated PID.
+            try:
+                _shard_ps(process.pid, "-p", min(deadline, time.monotonic() + 0.25))
+            except ChildProcessError:
+                raise
+            except (OSError, RuntimeError, subprocess.SubprocessError, ValueError):
+                process.wait(timeout=max(0, deadline - time.monotonic()))
+                raise RuntimeError("Shard group custody unconfirmed") from None
+        except (RuntimeError, OSError):
+            process.wait(timeout=max(0, deadline - time.monotonic()))
+            raise RuntimeError("Shard group custody unconfirmed") from None
+        try:
+            os.killpg(process.pid, sig)
+        except (ProcessLookupError, PermissionError) as error:
+            if not ready:
+                record_failure("signal", error)
+        while time.monotonic() < deadline:
+            ready = readiness(deadline, "readiness")
+            if ready is not False:
+                if time.monotonic() >= deadline:
+                    break
+                try:
+                    rows = _shard_ps(process.pid, "-g", deadline, repeat_term_poll=repeat_term_poll)
+                except ChildProcessError:
+                    raise
+                except _TermPollDeferred:
+                    time.sleep(max(0, deadline - time.monotonic()))
+                    continue
+                except _ShardCensusNotStarted as error:
+                    if time.monotonic() >= deadline:
+                        break  # Same whole-phase transition as the pre-query deadline check.
+                    record_failure("group census", error)
+                except (OSError, RuntimeError, subprocess.SubprocessError, ValueError) as error:
+                    record_failure("group census", error)
+                else:
+                    if all(
+                        state.startswith("Z") for _, _, group, state in rows if group == process.pid
+                    ):
+                        process.wait(timeout=max(0, deadline - time.monotonic()))
+                        if first_failure is not None:
+                            raise RuntimeError(
+                                "Shard cleanup observation was incomplete"
+                            ) from first_failure
+                        return
+                    repeat_term_poll = sig == signal.SIGTERM
+            time.sleep(min(_CLEANUP_POLL_INTERVAL, max(0, deadline - time.monotonic())))
+    process.wait(timeout=0)
+    raise RuntimeError("Shard group cleanup not verified within TERM/KILL limits")
 
 
 def _build_explicit_shard(args: argparse.Namespace, artifact_label: str) -> TestShard:
@@ -626,7 +826,7 @@ def run_coverage_command(
         env.pop("COVERAGE_FILE", None)
         env.pop("COV_CORE_DATAFILE", None)
         try:
-            result = subprocess.run(  # nosec B603: argv uses sys.executable and coverage module without shell (remove-by: 2026-10-31, ref: PR-2020)
+            result = subprocess.run(  # nosec B603: argv uses sys.executable and coverage module without shell (remove-by: 2027-01-25, ref: PR-2020)
                 [sys.executable, "-m", "coverage", *args],
                 cwd=repo_root,
                 env=env,
@@ -773,22 +973,13 @@ def run_all_shards(
     pending_shards = iter(shards)
     failure_seen = False
     running_shards: dict[int, RunningShard] = {}
-    previous_handlers: dict[signal.Signals, Any] = {}
+    pending: list[int] = []
+    previous_handlers = _install_shard_handlers(pending)
     poll_interval_seconds = 0.25
     try:
 
-        def terminate_running_for_signal(signum: int, _frame: Any) -> None:
-            for running_shard in running_shards.values():
-                _terminate_process_group(running_shard.process)
-            raise SystemExit(128 + signum)
-
-        if os.name == "posix":
-            for signum in (signal.SIGTERM, signal.SIGINT):
-                previous_handlers[signum] = signal.getsignal(signum)
-                signal.signal(signum, terminate_running_for_signal)
-
         def submit_until_full() -> None:
-            while len(running_shards) < max_parallel:
+            while not pending and len(running_shards) < max_parallel:
                 try:
                     shard = next(pending_shards)
                 except StopIteration:
@@ -806,8 +997,13 @@ def run_all_shards(
         while running_shards:
             now = time.monotonic()
             for shard_index, running_shard in list(running_shards.items()):
-                exit_code = running_shard.process.poll()
-                if exit_code is not None:
+                if pending:
+                    raise SystemExit(128 + pending[0])
+                deadline = running_shard.started_at + running_shard.timeout_seconds
+                if _ready_at_watchdog(running_shard, deadline) and not pending:
+                    exit_code = running_shard.process.wait(
+                        timeout=max(0, deadline - time.monotonic())
+                    )
                     print(
                         f"MAIN_TEST_SHARD_PROCESS_EXIT label={running_shard.shard.artifact_label} "
                         f"index={shard_index} pid={running_shard.process.pid} "
@@ -820,15 +1016,21 @@ def run_all_shards(
                     del running_shards[shard_index]
                     if exit_code != 0:
                         failure_seen = True
+                        break
                     continue
-                elapsed = now - running_shard.started_at
+                if pending:
+                    raise SystemExit(128 + pending[0])
+                elapsed = time.monotonic() - running_shard.started_at
                 if elapsed >= running_shard.timeout_seconds:
-                    _terminate_process_group(running_shard.process)
+                    _cancel_shard(running_shard.process)
                     log_shard_timeout(running_shard.shard, running_shard.timeout_seconds)
                     results[shard_index] = 124
                     del running_shards[shard_index]
                     failure_seen = True
+                    break
 
+            if pending and not failure_seen:
+                raise SystemExit(128 + pending[0])
             if failure_seen:
                 for shard_index, running_shard in sorted(running_shards.items()):
                     print(
@@ -836,7 +1038,8 @@ def run_all_shards(
                         file=sys.stderr,
                         flush=True,
                     )
-                    _terminate_process_group(running_shard.process)
+                    del running_shards[shard_index]
+                    _cancel_shard(running_shard.process)
                 running_shards.clear()
                 break
 
@@ -845,11 +1048,14 @@ def run_all_shards(
                 time.sleep(poll_interval_seconds)
     finally:
         for running_shard in running_shards.values():
-            _terminate_process_group(running_shard.process)
+            if not running_shard.custody_lost:
+                _cancel_shard(running_shard.process)
         running_shards.clear()
         for signum, previous_handler in previous_handlers.items():
             signal.signal(signum, previous_handler)
 
+    if pending and not failure_seen:
+        raise SystemExit(128 + pending[0])
     failing_shards = [
         shard_index for shard_index, exit_code in sorted(results.items()) if exit_code != 0
     ]
@@ -894,24 +1100,35 @@ def run_serial_shards(
 
     marker_expression = validate_marker_expression(marker_expression)
     durations_min = validate_durations_min(durations_min)
-    for shard in serial_shards:
-        exit_code = run_shard(
-            repo_root,
-            shard,
-            base_env,
-            marker_expression,
-            durations_min,
-            report_chars,
-        )
-        if exit_code != 0:
-            print(
-                f"MAIN_TEST_SERIAL_SHARD_FAILED label={shard.artifact_label} "
-                f"index={shard.index} exit_code={exit_code}",
-                file=sys.stderr,
-                flush=True,
+    pending: list[int] = []
+    previous = _install_shard_handlers(pending)
+    try:
+        for shard in serial_shards:
+            if pending:
+                raise SystemExit(128 + pending[0])
+            exit_code = run_shard(
+                repo_root,
+                shard,
+                base_env,
+                marker_expression,
+                durations_min,
+                report_chars,
+                pending_signal=pending,
             )
-            return exit_code
-    return 0
+            if exit_code != 0:
+                print(
+                    f"MAIN_TEST_SERIAL_SHARD_FAILED label={shard.artifact_label} "
+                    f"index={shard.index} exit_code={exit_code}",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                return exit_code
+        if pending:
+            raise SystemExit(128 + pending[0])
+        return 0
+    finally:
+        for signum, handler in previous.items():
+            signal.signal(signum, handler)
 
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:

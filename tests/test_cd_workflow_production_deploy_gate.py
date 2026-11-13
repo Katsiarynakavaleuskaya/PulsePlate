@@ -2,19 +2,24 @@
 
 from __future__ import annotations
 
+import ast
 import hashlib
+import json
 import os
 import re
+import runpy
 import shutil
 import stat
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 import yaml
 
 from scripts import verify_premium_alias_telemetry as verifier
+from tests.helpers.prometheus_control import pinned_prometheus_control_bytes
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CD_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "cd.yml"
@@ -61,7 +66,7 @@ def test_build_workflow_keeps_only_ordinary_fail_closed_topology() -> None:
             "type": "choice",
             "required": True,
             "default": "unchanged",
-            "options": ["unchanged", "xnet060-replay"],
+            "options": ["unchanged", "xnet060-replay", "xnet062-replay"],
         },
         "tool_prefetch_predecessor": {
             "description": "Exact failed precompile run:artifact evidence selector; no dispatch authorization",
@@ -103,7 +108,7 @@ def test_build_workflow_keeps_only_ordinary_fail_closed_topology() -> None:
         "github.repository == 'Katsiarynakavaleuskaya/PulsePlate'"
     )
     for name, permissions in (
-        ("prometheus-source-qualification", {"contents": "read"}),
+        ("prometheus-source-qualification", {"contents": "read", "actions": "read"}),
         ("prometheus-ghcr-package-qualification", {"contents": "read", "packages": "read"}),
     ):
         job = jobs[name]
@@ -129,7 +134,18 @@ def test_build_workflow_keeps_only_ordinary_fail_closed_topology() -> None:
         ):
             assert forbidden not in str(job)
     source_steps = jobs["prometheus-source-qualification"]["steps"]
-    assert "secrets." not in str(source_steps)
+    metadata_step = next(
+        step for step in source_steps if step["name"] == "Qualify Prometheus package metadata only"
+    )
+    assert metadata_step["env"] == {
+        "GH_TOKEN": (
+            "${{ inputs.prometheus_module_action == 'xnet062-replay' && secrets.GITHUB_TOKEN || '' }}"
+        ),
+        "PROMETHEUS_MODULE_ACTION": "${{ inputs.prometheus_module_action }}",
+    }
+    assert all(
+        str(step).count("secrets.") == (1 if step is metadata_step else 0) for step in source_steps
+    )
     package_steps = jobs["prometheus-ghcr-package-qualification"]["steps"]
     package = next(step for step in package_steps if step.get("id") == "package")
     assert package["env"] == {"GH_TOKEN": "${{ secrets.GITHUB_TOKEN }}"}
@@ -607,7 +623,7 @@ def test_prometheus_cd_registry_credential_route_preserves_base_execution_bounda
     consumer = steps["Admit retained PR candidate or published immutable subject"]
     assert consumer["id"] == "prometheus-image"
     assert consumer["env"]["GHCR_READ_TOKEN"] == (
-        "${{ github.event_name == 'pull_request' && steps.prometheus-route.outputs.mode == 'unchanged_pr_published' && secrets.GITHUB_TOKEN || github.event_name != 'pull_request' && steps.prometheus-route.outputs.mode == 'trusted_published' && secrets.GHCR_READ_TOKEN || '' }}"
+        "${{ github.event_name == 'pull_request' && steps.prometheus-evidence.outcome == 'success' && steps.prometheus-evidence.outputs.mode == 'unchanged_pr_published' && secrets.GITHUB_TOKEN || github.event_name != 'pull_request' && steps.prometheus-route.outputs.mode == 'trusted_published' && secrets.GHCR_READ_TOKEN || '' }}"
     )
     assert "changed_pr_candidate | historical_pr_candidate)" in consumer["run"]
     assert "Prometheus_candidate_registry_HOLD" in consumer["run"]
@@ -620,7 +636,7 @@ def test_prometheus_cd_registry_credential_route_preserves_base_execution_bounda
     assert (
         control["with"]["ref"]
         # pragma: allowlist nextline secret - public trusted control commit
-        == "dab47fc6153f87e35233e20aa255d97e68a5ed93"
+        == "97040beecd327dccd5ddb1071bcc7aabd672c8d1"
     )
     assert control["with"]["persist-credentials"] is False
     assert control["with"]["sparse-checkout"] == "scripts/ci/prometheus_source_image.py"
@@ -630,17 +646,14 @@ def test_prometheus_cd_registry_credential_route_preserves_base_execution_bounda
         "(steps.prometheus-control-checkout.outcome == 'success' || "
         "steps.prometheus-control-checkout.outcome == 'failure') }}"
     )
-    control_bytes = (REPO_ROOT / "scripts/ci/prometheus_source_image.py").read_bytes()
-    control_blob = hashlib.sha1(
-        b"blob " + str(len(control_bytes)).encode("ascii") + b"\0" + control_bytes,
-        usedforsecurity=False,
-    ).hexdigest()
-    control_object = f"100644 blob {control_blob}\\tscripts/ci/prometheus_source_image.py\\0"
-    for script in (route["run"], consumer["run"]):
+    control_bytes = pinned_prometheus_control_bytes(REPO_ROOT, control["with"]["ref"])
+    for script in (
+        route["run"],
+        steps["Select authenticated Prometheus PR evidence"]["run"],
+        consumer["run"],
+    ):
         assert "Prometheus_control_interface_HOLD" in script
-        assert str(len(control_bytes)) in script
-        assert control_object in script
-        assert hashlib.sha256(control_bytes).hexdigest() in script
+        _assert_prometheus_control_tuple(script, control["with"]["ref"], control_bytes)
     assert 'trusted["consume_image"](work, material' in consumer["run"]
     assert 'trusted["one_object"](raw).get("admission")' in consumer["run"]
     assert 'admission != result["admission"]' in consumer["run"]
@@ -654,6 +667,7 @@ def test_prometheus_cd_registry_credential_route_preserves_base_execution_bounda
         initial_published["name"],
         control["name"],
         route["name"],
+        "Select authenticated Prometheus PR evidence",
         "Wait for the exact trusted Prometheus publisher",
         consumer["name"],
         cleanup["name"],
@@ -762,7 +776,7 @@ def test_checkpoint_native_consumer_precedes_secret_free_child(
         consumer = next(s for s in selected["steps"] if s.get("id") == "checkpoint-image")
         assert consumer["env"]["GH_TOKEN"] == consumer["env"]["GITHUB_TOKEN"] == credential
         assert consumer["env"]["GHCR_READ_TOKEN"] == (
-            "${{ steps.checkpoint-route.outputs.mode == 'unchanged_pr_published' && secrets.GITHUB_TOKEN || '' }}"
+            "${{ steps.checkpoint-evidence.outcome == 'success' && steps.checkpoint-evidence.outputs.mode == 'unchanged_pr_published' && secrets.GITHUB_TOKEN || '' }}"
         )
         assert 'trusted["consume_image"](work, material' in consumer["run"]
         setup = next(
@@ -941,3 +955,350 @@ else:
         assert stat.S_IMODE(target.stat().st_mode) == 0o640
         assert all(stat.S_IMODE(path.stat().st_mode) == 0o640 for path in files)
         assert target.read_bytes() == contents[symlink_position]
+
+
+def test_am_current_Q_S_producer_have_closed_sources_and_complete_owned_budgets() -> None:
+    """This is producer qualification; the separate publisher retains its own admission."""
+    workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    jobs = workflow["jobs"]
+    for name in (
+        "alertmanager-module-qualification",
+        "alertmanager-input-inspection",
+        "alertmanager-candidate-build",
+    ):
+        job = jobs[name]
+        assert "github.event_name == 'workflow_dispatch'" in job["if"]
+        assert "github.run_attempt == 1" in job["if"]
+        assert "refs/heads/codex/dependency-alertmanager-remediation" in job["if"]
+        assert "refs/heads/main" in job["if"]
+        assert "refs/heads/codex/python-setup-security-stabilization" not in job["if"]
+        clean = next(
+            step
+            for step in job["steps"]
+            if step["name"] == "Require clean AM source before executable imports"
+        )
+        assert "--others --ignored --exclude-standard" in clean["run"]
+        assert "--others --exclude-standard" in clean["run"]
+        assert "git clean" not in clean["run"]
+    qualification = jobs["alertmanager-module-qualification"]
+    assert qualification["timeout-minutes"] == 25
+    assert sum(step["timeout-minutes"] for step in qualification["steps"]) == 24
+    assert (
+        int(qualification["env"]["ALERTMANAGER_QUALIFY_SECONDS"])
+        + int(workflow["env"]["ALERTMANAGER_CLEANUP_SECONDS"])
+        <= 16 * 60
+    )
+    qualifier = next(
+        step for step in qualification["steps"] if "metadata-only clock" in step["name"]
+    )
+    assert '--output-dir "$RUNNER_TEMP/alertmanager-module-' in qualifier["run"]
+    assert "build/docker-sources" not in qualifier["run"]
+    support = jobs["alertmanager-input-inspection"]
+    assert support["timeout-minutes"] == 60
+    assert sum(step["timeout-minutes"] for step in support["steps"]) == 59
+    producer = jobs["alertmanager-candidate-build"]
+    assert (
+        producer["timeout-minutes"]
+        == "${{ fromJSON(vars.ALERTMANAGER_PRODUCER_JOB_MINUTES || '180') }}"
+    )
+    assert producer["env"]["ALERTMANAGER_PRODUCER_JOB_MINUTES"] == producer["timeout-minutes"]
+    limits = {**workflow["env"], **producer["env"]}
+    phases = sum(
+        int(limits["ALERTMANAGER_" + part])
+        for part in (
+            "PREP_SECONDS",
+            "PAIR_SECONDS",
+            "SECURITY_SECONDS",
+            "NATIVE_SECONDS",
+            "NATIVE_CLEANUP_SECONDS",
+        )
+    )
+    helper = (
+        phases
+        + int(limits["ALERTMANAGER_PRODUCER_MATERIAL_SECONDS"])
+        + int(limits["ALERTMANAGER_PRODUCER_OTHER_CLEANUP_SECONDS"])
+    )
+    assert helper == int(limits["ALERTMANAGER_PRODUCER_SECONDS"]) == 136 * 60
+    assert helper + 120 == int(limits["ALERTMANAGER_PRODUCER_STEP_MINUTES"]) * 60
+    assert 4 * int(limits["ALERTMANAGER_CLEANUP_SECONDS"]) + int(
+        limits["ALERTMANAGER_PRODUCER_FAILURE_SECONDS"]
+    ) + int(limits["ALERTMANAGER_PRODUCER_RETENTION_SECONDS"]) + 75 == int(
+        limits["ALERTMANAGER_PRODUCER_OTHER_CLEANUP_SECONDS"]
+    )
+    assert helper // 60 + 1 + 10 + 5 + 12 + 16 == 180
+    checkout = producer["steps"][0]
+    assert checkout["with"]["ref"] == "${{ github.sha }}"
+    assert checkout["with"]["fetch-depth"] == 0
+    assert checkout["with"]["persist-credentials"] is False
+    install = next(
+        step
+        for step in producer["steps"]
+        if step["name"] == "Select AM Python without dependency or SDK installation"
+    )
+    assert install["with"]["skip-base-install"] == "true"
+    assert producer["permissions"] == {"contents": "read", "actions": "read", "packages": "read"}
+
+
+def test_alertmanager_publication_owns_complete_budget_without_other_job_changes() -> None:
+    workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text())
+    job = workflow["jobs"]["alertmanager-main-publication"]
+    env = {**workflow["env"], **job["env"]}
+    assert (
+        job["timeout-minutes"]
+        == "${{ fromJSON(vars.ALERTMANAGER_PUBLISHER_JOB_MINUTES || '240') }}"
+    )
+    assert env["ALERTMANAGER_PUBLISHER_JOB_MINUTES"] == job["timeout-minutes"]
+    native = int(env["ALERTMANAGER_NATIVE_SECONDS"]) + int(
+        env["ALERTMANAGER_NATIVE_CLEANUP_SECONDS"]
+    )
+    helper = (
+        int(env["ALERTMANAGER_PREP_SECONDS"])
+        + int(env["ALERTMANAGER_SECURITY_SECONDS"])
+        + 2 * native
+        + int(env["ALERTMANAGER_PUBLISHER_REBIND_SECONDS"])
+        + int(env["ALERTMANAGER_PUBLICATION_SECONDS"])
+        + int(env["ALERTMANAGER_PUBLISHER_OTHER_CLEANUP_SECONDS"])
+    )
+    assert helper == int(env["ALERTMANAGER_PUBLISHER_SECONDS"])
+    other = (
+        3 * int(env["ALERTMANAGER_CLEANUP_SECONDS"])
+        + int(env["ALERTMANAGER_PUBLISHER_API_CLEANUP_SECONDS"])
+        + int(env["ALERTMANAGER_PUBLISHER_FAILURE_SECONDS"])
+        + int(env["ALERTMANAGER_PUBLISHER_RETENTION_SECONDS"])
+    )
+    assert other == int(env["ALERTMANAGER_PUBLISHER_OTHER_CLEANUP_SECONDS"])
+    steps = {step["name"]: step for step in job["steps"]}
+    assert (
+        steps[
+            "Publish the accepted AM bytes after canonical merged-main package and tag admission"
+        ]["timeout-minutes"]
+        == "${{ fromJSON(env.ALERTMANAGER_PUBLISHER_STEP_MINUTES) }}"
+    )
+    assert int(env["ALERTMANAGER_PUBLISHER_STEP_MINUTES"]) * 60 >= helper + 120
+    assert job["permissions"] == {"contents": "read", "actions": "read", "packages": "write"}
+    assert workflow["jobs"]["alertmanager-retained-candidate"]["timeout-minutes"] == 80
+
+
+def _assert_prometheus_control_tuple(script: str, revision: str, raw: bytes) -> None:
+    """Every fixed execution identity must agree with the actual pinned regular blob."""
+    blob = hashlib.sha1(
+        b"blob " + str(len(raw)).encode("ascii") + b"\0" + raw, usedforsecurity=False
+    ).hexdigest()
+    assert f"len(raw) != {len(raw)}" in script
+    assert hashlib.sha256(raw).hexdigest() in script
+    assert f"100644 blob {blob}\\tscripts/ci/prometheus_source_image.py\\0" in script
+    assert revision in script
+
+
+@pytest.mark.parametrize(
+    "filename,job_name", [("cd.yml", "prometheus-image-security-pr"), ("ci.yml", "lint")]
+)
+@pytest.mark.parametrize("phase", ("classify", "select", "consume"))
+@pytest.mark.parametrize("field", ("length", "digest", "blob", "revision", "mode"))
+def test_fixed_prometheus_controller_tuple_rejects_one_stale_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    filename: str,
+    job_name: str,
+    field: str,
+    phase: str,
+) -> None:
+    """Execute each fixed caller's real checks; correct text elsewhere cannot rescue a stale pin."""
+    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows" / filename).read_text())
+    steps = {step["name"]: step for step in workflow["jobs"][job_name]["steps"] if "name" in step}
+    revision = steps["Checkout fixed trusted Prometheus control"]["with"]["ref"]
+    raw = pinned_prometheus_control_bytes(REPO_ROOT, revision)
+    step_name = {
+        "classify": "Classify the fixed regular Prometheus source blobs",
+        "select": "Select authenticated Prometheus PR evidence",
+        "consume": (
+            "Consume exact Prometheus subject before PR startup"
+            if filename == "ci.yml"
+            else "Admit retained PR candidate or published immutable subject"
+        ),
+    }[phase]
+    run_script = steps[step_name]["run"]
+    program = run_script.split("python3 -I -S - <<'PY'\n", 1)[1].split("\nPY", 1)[0]
+    material = tmp_path / "material"
+    control = material / "artifacts/orchestration/prometheus-control"
+    helper = control / "scripts/ci/prometheus_source_image.py"
+    helper.parent.mkdir(parents=True)
+    helper.write_bytes(raw)
+    helper.chmod(0o644)
+    head, base = "a" * 40, "b" * 40
+    event = tmp_path / "event.json"
+    event.write_text(json.dumps({"pull_request": {"head": {"sha": head}, "base": {"sha": base}}}))
+    output = tmp_path / "output"
+    sources = {
+        "scripts/ci/prometheus_source_image.py": raw,
+        ".github/workflows/build.yml": b"synthetic producer workflow data\n",
+        "deploy/prometheus/Containerfile": b"synthetic recipe data\n",
+        "deploy/prometheus/image-manifest.json": b"{}\n",
+    }
+
+    def blob(data: bytes) -> str:
+        return hashlib.sha1(
+            b"blob " + str(len(data)).encode() + b"\0" + data, usedforsecurity=False
+        ).hexdigest()
+
+    objects = {blob(data): data for data in sources.values()}
+    trace: list[str] = []
+
+    def git(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[bytes]:
+        assert argv[0] == "/usr/bin/git" and "--no-replace-objects" in argv
+        assert kwargs["env"]["GIT_CONFIG_GLOBAL"] == "/dev/null"
+        assert kwargs["env"]["GIT_CONFIG_COUNT"] == "0"
+        if "-C" in argv:
+            assert argv[argv.index("-C") + 1] == str(control)
+            if argv[-2:] == ["rev-parse", "HEAD"]:
+                result = revision.encode() + b"\n"
+            else:
+                assert argv[-5:] == [
+                    "ls-tree",
+                    "-z",
+                    "HEAD",
+                    "--",
+                    "scripts/ci/prometheus_source_image.py",
+                ]
+                result = (
+                    "100644 blob " + blob(raw) + "\tscripts/ci/prometheus_source_image.py\0"
+                ).encode()
+        elif "ls-tree" in argv:
+            assert argv[-3] in (head, base) and argv[-2] == "--" and argv[-1] in sources
+            name = argv[-1]
+            result = ("100644 blob " + blob(sources[name]) + "\t" + name + "\0").encode()
+        elif argv[-2:] == ["rev-parse", "HEAD"]:
+            result = head.encode() + b"\n"
+        elif argv[-3:-1] == ["cat-file", "-t"]:
+            assert argv[-1] in (head, base)
+            result = b"commit\n"
+        elif argv[-3:-1] == ["cat-file", "-s"]:
+            result = str(len(objects[argv[-1]])).encode() + b"\n"
+        else:
+            assert argv[-3:-1] == ["cat-file", "blob"]
+            result = objects[argv[-1]]
+        return subprocess.CompletedProcess(argv, 0, result, b"")
+
+    actual_run_path = runpy.run_path
+
+    def namespace(path: str) -> dict[str, Any]:
+        assert path == str(helper)
+        trace.append("namespace")
+        if phase != "classify":
+            raise SystemExit("valid_tuple_before_import")
+        loaded = actual_run_path(path)
+        classify = loaded["classify_source_change"]
+
+        def classify_sources(previous: dict[str, bytes], current: dict[str, bytes]) -> str:
+            assert previous == current == sources
+            trace.append("classification")
+            return cast(str, classify(previous, current))
+
+        loaded["classify_source_change"] = classify_sources
+        return loaded
+
+    for name in (
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "GHCR_READ_TOKEN",
+        "GHCR_TOKEN",
+        "GH_ENTERPRISE_TOKEN",
+        "GITHUB_ENTERPRISE_TOKEN",
+        "DOCKER_CONFIG",
+        "DOCKER_AUTH_CONFIG",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    for name, value in {
+        "GITHUB_WORKSPACE": str(material),
+        "GITHUB_EVENT_NAME": "pull_request",
+        "GITHUB_EVENT_PATH": str(event),
+        "PROMETHEUS_EVENT_HEAD": head,
+        "PROMETHEUS_EVENT_BASE": base,
+        "GITHUB_OUTPUT": str(output),
+    }.items():
+        monkeypatch.setenv(name, value)
+    if phase == "select":
+        monkeypatch.setenv("GH_TOKEN", "synthetic.selector.reader")
+        monkeypatch.setenv("GITHUB_TOKEN", "synthetic.selector.reader")
+    monkeypatch.setattr(subprocess, "run", git)
+    monkeypatch.setattr(runpy, "run_path", namespace)
+    label = "<fixed-prometheus-classification>"
+    if phase != "classify":
+        with pytest.raises(SystemExit, match="^valid_tuple_before_import$"):
+            exec(compile(program, label, "exec"), {})
+        assert trace == ["namespace"] and not output.exists()
+    else:
+        exec(compile(program, label, "exec"), {})
+        assert trace == ["namespace", "classification"]
+        assert output.read_text() == (
+            "mode=unchanged_pr_published\nhead=" + head + "\nbase=" + base + "\n"
+        )
+        output.unlink()
+    trace.clear()
+
+    values: dict[str, str | bytes | int] = {
+        "length": len(raw),
+        "digest": hashlib.sha256(raw).hexdigest(),
+        "blob": ("100644 blob " + blob(raw) + "\tscripts/ci/prometheus_source_image.py\0").encode(),
+        "revision": revision.encode(),
+        "mode": 0o644,
+    }
+    selected = values[field]
+    if isinstance(selected, int):
+        stale: str | bytes | int = selected + 1
+    elif isinstance(selected, bytes):
+        stale = b"stale-" + selected
+    else:
+        stale = "stale-" + selected
+    changed = 0
+
+    class StalePin(ast.NodeTransformer):
+        def visit_Constant(self, node: ast.Constant) -> ast.AST:
+            nonlocal changed
+            if type(node.value) is type(selected) and node.value == selected:
+                changed += 1
+                return ast.copy_location(ast.Constant(value=stale), node)
+            return node
+
+    # Unrelated correct tokens remain in an executed string, not just a comment.
+    with_decoy = "unrelated_pin_text = " + repr(repr(values)) + "\n" + program
+    poisoned = StalePin().visit(ast.parse(with_decoy))
+    assert changed == 1
+    diagnostic = {
+        "length": "Prometheus_control_bytes_HOLD",
+        "digest": "Prometheus_control_bytes_HOLD",
+        "blob": "Prometheus_control_object_HOLD",
+        "revision": "Prometheus_control_revision_HOLD",
+        "mode": "Prometheus_control_mode_HOLD",
+    }[field]
+    with pytest.raises(SystemExit, match="^" + diagnostic + "$"):
+        exec(compile(ast.fix_missing_locations(poisoned), label, "exec"), {})
+    assert trace == [] and not output.exists()
+
+
+@pytest.mark.parametrize("fault", ("stderr", "ambiguous", "wrong-resolved"))
+def test_pinned_prometheus_git_read_rejects_uncertain_native_identity(
+    monkeypatch: pytest.MonkeyPatch, fault: str
+) -> None:
+    workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text())
+    steps = {
+        step["name"]: step for step in workflow["jobs"]["prometheus-image-security-pr"]["steps"]
+    }
+    revision = steps["Checkout fixed trusted Prometheus control"]["with"]["ref"]
+    assert pinned_prometheus_control_bytes(REPO_ROOT, revision)
+    original_run = subprocess.run
+
+    def run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[bytes]:
+        result = original_run(argv, **kwargs)
+        if "--disambiguate=" + revision in argv:
+            if fault == "stderr":
+                result.stderr = b"synthetic ambiguous native warning"
+            elif fault == "ambiguous":
+                result.stdout += b"f" * 40 + b"\n"
+        elif fault == "wrong-resolved" and "--verify" in argv:
+            result.stdout = b"f" * 40 + b"\n"
+        return result
+
+    monkeypatch.setattr(subprocess, "run", run)
+    with pytest.raises(AssertionError, match="Pinned controller"):
+        pinned_prometheus_control_bytes(REPO_ROOT, revision)

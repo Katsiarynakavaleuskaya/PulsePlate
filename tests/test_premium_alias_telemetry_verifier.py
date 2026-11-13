@@ -2749,7 +2749,8 @@ def test_verifier_reader_failure_precedes_compose(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str
 ) -> None:
     def reader(argv: list[str], **kwargs: object) -> verifier.subprocess.CompletedProcess[bytes]:
-        assert argv[0] == sys.executable
+        assert argv[:3] == [sys.executable, "-I", "-S"]
+        assert kwargs["stdin"] == verifier.subprocess.DEVNULL
         assert kwargs["timeout"] == verifier.COMMAND_TIMEOUT_SECONDS
         assert kwargs["env"] == {"PATH": os.defpath, "LANG": "C.UTF-8"}
         assert kwargs["stderr"] == verifier.subprocess.DEVNULL

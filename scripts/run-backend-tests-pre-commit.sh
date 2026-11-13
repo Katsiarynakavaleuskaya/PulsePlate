@@ -5,7 +5,7 @@
 # Pre-push backend tests (smart diff runner):
 # The pre-push hook runs backend pytest for changed Python files plus explicitly mapped cross-surface governance triggers.
 #
-# Change detection order:
+# Direct invocation without a selected stage:
 # 1) If upstream exists: diff `upstream..HEAD`
 # 2) Else: diff from merge-base against (origin/main|origin/master|main|master)
 # 3) If base cannot be resolved: fallback to last N commits (diagnostic mode)
@@ -38,6 +38,7 @@ log_debug() {
 # against the nearest main/master merge-base instead of the pushed/unpushed delta.
 declare -a CHANGED_FILES=()
 declare -a PYTHON_CHANGES=()
+declare -a PYTEST_ARGS=("-q" "--tb=short")
 BRANCH_DIFF_MODE="${BRANCH_DIFF_MODE:-0}"
 BRANCH_DIFF_BASE_RESOLVED=0
 CHANGED_DIFF_MAX_BYTES=4194304
@@ -101,19 +102,9 @@ record_changed_files() {
     refresh_python_changes
 }
 
-append_changed_files() {
-    local incoming
-    while IFS= read -r -d '' incoming; do
-        add_changed_file "$incoming"
-    done
-    refresh_python_changes
-}
-
 collect_git_diff() {
-    local mode="$1"
     local diff_status
     local diff_output_bytes
-    shift
 
     if DIFF_OUTPUT_FILE="$(mktemp "${TMPDIR:-/tmp}/pulseplate-backend-diff.XXXXXX")"; then
         :
@@ -147,11 +138,7 @@ collect_git_diff() {
         fail_discovery 1
     fi
 
-    if [ "$mode" = "append" ]; then
-        append_changed_files < "$DIFF_OUTPUT_FILE"
-    else
-        record_changed_files < "$DIFF_OUTPUT_FILE"
-    fi
+    record_changed_files < "$DIFF_OUTPUT_FILE"
     cleanup_diff_output
 }
 
@@ -170,7 +157,6 @@ reference_exists() {
 }
 
 resolve_branch_diff_from_base() {
-    local mode="${1:-replace}"
     local base_branch
     local base_sha=""
     local discovery_status
@@ -195,7 +181,7 @@ resolve_branch_diff_from_base() {
         if [ -n "$base_sha" ]; then
             BRANCH_DIFF_BASE_RESOLVED=1
             log_debug "Merge-base with $base_branch: $base_sha"
-            collect_git_diff "$mode" "$base_sha" HEAD
+            collect_git_diff "$base_sha" HEAD
             if [ ${#PYTHON_CHANGES[@]} -gt 0 ]; then
                 log_debug "Python change count (via branch diff $base_branch): ${#PYTHON_CHANGES[@]}"
             fi
@@ -208,16 +194,68 @@ resolve_branch_diff_from_base() {
     return 0
 }
 
-if [ -n "${PRE_COMMIT:-}" ]; then
-    # Pre-commit hook: check staged files. For `pre-commit run --all-files`,
-    # pass_filenames=false means there may be no staged diff, so fall back to
-    # the branch diff to keep manifest governance from going false-green.
-    collect_git_diff replace --cached
-    if [ ${#CHANGED_FILES[@]} -eq 0 ]; then
-        resolve_branch_diff_from_base
-    else
-        resolve_branch_diff_from_base append
+required_target_merge_base() {
+    local target_name="${PR_SCOPE_BASE_REF:-main}"
+    local target="refs/remotes/origin/$target_name"
+    if [ "$1" = "refs/heads/$target_name" ]; then
+        echo "The branch being published cannot serve as its own comparison target." >&2
+        return 1
     fi
+    git check-ref-format "$target" || return $?
+    git show-ref --verify --quiet "$target" || {
+        echo "Required fetched target is unavailable: $target" >&2
+        return 1
+    }
+    git merge-base "$target" HEAD
+}
+
+if [ -n "${PRE_COMMIT:-}" ]; then
+    if [ -z "${BACKEND_HOOK_CI_EVENT:-}" ]; then
+        collect_git_diff --cached
+    else
+        # Hosted lint uses the integration checkout on PRs and the event delta on pushes.
+        tested_head=$(git rev-parse --verify HEAD)
+        event_base=${BACKEND_HOOK_CI_BASE:?Missing hosted base SHA}
+        if [[ "$tested_head" != "${BACKEND_HOOK_CI_HEAD:?Missing hosted head SHA}" ||
+              ! "$event_base" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Hosted hook range does not match the checked-out event." >&2
+            exit 1
+        fi
+        case "$BACKEND_HOOK_CI_EVENT" in
+            pull_request) base_sha=$(git merge-base "$event_base" "$tested_head") ;;
+            push)
+                if [[ "$event_base" == 0000000000000000000000000000000000000000 ]]; then
+                    base_sha=$(required_target_merge_base "${GITHUB_REF:?Missing created branch ref}")
+                else
+                    base_sha=$(git rev-parse --verify "${event_base}^{commit}")
+                fi
+                ;;
+            *) echo "Unsupported hosted hook event." >&2; exit 1 ;;
+        esac
+        collect_git_diff "$base_sha" "$tested_head"
+    fi
+elif [ "${BACKEND_HOOK_REQUIRED_PUSH:-0}" = 1 ]; then
+    # Only the owned JUnit report option may augment this required invocation.
+    if [[ -n "${PYTEST_ADDOPTS:-}" ]]; then
+        if ! [[ "$PYTEST_ADDOPTS" =~ ^--junitxml=/[^[:space:]]+$ ]]; then
+            echo "Required push accepts only a single absolute --junitxml= report in PYTEST_ADDOPTS." >&2
+            exit 1
+        fi
+        PYTEST_ARGS+=("$PYTEST_ADDOPTS")
+        unset PYTEST_ADDOPTS
+    fi
+    # The framework may provide only the local source on its initial all-files push.
+    source_ref=${PRE_COMMIT_TO_REF:-${PRE_COMMIT_LOCAL_BRANCH:?Missing outgoing Git source}}
+    outgoing=$(git rev-parse --verify --end-of-options "${source_ref}^{commit}")
+    checkout=$(git rev-parse --verify HEAD)
+    dirty=$(git status --porcelain=v1 --untracked-files=normal --ignore-submodules=none)
+    if [[ "$outgoing" != "$checkout" || -n "$dirty" ]]; then
+        echo "Required push validation needs the clean checkout of the outgoing commit." >&2
+        exit 1
+    fi
+    base_sha=$(required_target_merge_base "${PRE_COMMIT_REMOTE_BRANCH:?Missing destination ref}")
+    collect_git_diff "$base_sha" "$outgoing"
+    BRANCH_DIFF_BASE_RESOLVED=1
 elif [ "$BRANCH_DIFF_MODE" = "1" ]; then
     # Local validation command: diff the current branch against main/master merge-base.
     resolve_branch_diff_from_base
@@ -245,7 +283,7 @@ else
             fail_discovery "$?"
         fi
         log_debug "Upstream SHA: $REMOTE_SHA"
-        collect_git_diff replace "$REMOTE_SHA" HEAD
+        collect_git_diff "$REMOTE_SHA" HEAD
         log_debug "Python change count (via upstream): ${#PYTHON_CHANGES[@]}"
     fi
 
@@ -262,7 +300,7 @@ else
                 fail_discovery "$?"
             fi
             log_debug "Fallback remote branch: $REMOTE_BRANCH (SHA: $REMOTE_SHA)"
-            collect_git_diff replace "$REMOTE_SHA" HEAD
+            collect_git_diff "$REMOTE_SHA" HEAD
             log_debug "Python change count (via fallback remote): ${#PYTHON_CHANGES[@]}"
         fi
     fi
@@ -358,6 +396,10 @@ add_extra_tests_for_changed_files() {
                 EXTRA_TEST_FILES+=("tests/test_private_python_proxy_workflow_contract.py")
                 EXTRA_TEST_FILES+=("tests/test_ci_workflow_pr_size_governance_contract.py")
                 EXTRA_TEST_FILES+=("tests/test_pr_merge_readiness_gate.py")
+                ;;
+            .github/workflows/cd.yml)
+                EXTRA_TEST_FILES+=("tests/test_pgvector_compat.py::test_cd_exact_pgvector_image_proves_fresh_and_legacy_volume_contracts")
+                EXTRA_TEST_FILES+=("tests/test_pgvector_attestations.py::test_pg_scan_loop_retains_later_available_subjects_and_rejects_aggregate")
                 ;;
             scripts/run-backend-tests-pre-commit.sh)
                 EXTRA_TEST_FILES+=("tests/test_pre_commit_hook_python_resolver.py")
@@ -456,7 +498,7 @@ if [ ${#PYTHON_CHANGES[@]} -eq 0 ] && [ ${#EXTRA_TEST_FILES[@]} -eq 0 ]; then
         fi
 
         echo "⚠️  Could not determine changed Python files via upstream/base, checking last ${FALLBACK_DEPTH} commits as safety measure..."
-        collect_git_diff replace "HEAD~${FALLBACK_DEPTH}" HEAD
+        collect_git_diff "HEAD~${FALLBACK_DEPTH}" HEAD
         EXTRA_TEST_FILES=()
         add_extra_tests_for_changed_files
         log_debug "Python change count (via recent commits fallback, n=${FALLBACK_DEPTH}): ${#PYTHON_CHANGES[@]}"
@@ -565,7 +607,6 @@ if [ ${#TEST_FILES[@]} -gt 0 ]; then
     log_debug "Test files to run: ${TEST_FILES[*]}"
 
     # Pre-commit: fast feedback is preferred; pre-push: report all failures.
-    declare -a PYTEST_ARGS=("-q" "--tb=short")
     if [ -n "${PRE_COMMIT:-}" ]; then
         PYTEST_ARGS+=("-x")
         log_debug "pytest fast-fail enabled (-x) for pre-commit"

@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import sys
 import textwrap
+from xml.etree import ElementTree
 
 import pytest
 import yaml
@@ -1215,8 +1216,10 @@ def test_backend_hook_maps_frontend_lockfile_changes_to_governance_tests(
     assert "Backend tests passed" in output
 
 
-def test_backend_hook_maps_all_files_frontend_package_delta_to_governance_tests(
+@pytest.mark.parametrize("event", ["pull_request", "push", "new-push"])
+def test_backend_hosted_hook_maps_frontend_package_delta_to_governance_tests(
     tmp_path: Path,
+    event: str,
 ) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -1242,7 +1245,8 @@ def test_backend_hook_maps_all_files_frontend_package_delta_to_governance_tests(
     (repo / "frontend" / "package-lock.json").write_text(
         '{"lockfileVersion":3,"allFiles":1}\n', encoding="utf-8"
     )
-    _git(repo, "add", "frontend/package-lock.json")
+    (repo / "requirements-test.in").write_text("# change dependency input\n")
+    _git(repo, "add", "frontend/package-lock.json", "requirements-test.in")
     _git(repo, "commit", "--quiet", "-m", "update frontend lockfile")
     calls_file = tmp_path / "pytest-all-files-args.txt"
     fake_python = tmp_path / "fake-python-all-files"
@@ -1251,16 +1255,29 @@ def test_backend_hook_maps_all_files_frontend_package_delta_to_governance_tests(
     env["VENV_PYTHON"] = str(fake_python)
     env["PRE_COMMIT"] = "1"
 
+    base = _git(repo, "rev-parse", "main").stdout.strip()
+    head = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    _git(repo, "update-ref", "refs/remotes/origin/main", base if event == "new-push" else head)
+    env.update(
+        BACKEND_HOOK_CI_EVENT="push" if event == "new-push" else event,
+        BACKEND_HOOK_CI_BASE="0" * 40 if event == "new-push" else base,
+        BACKEND_HOOK_CI_HEAD=head,
+        GITHUB_REF="refs/heads/feature",
+    )
+
     output = _bash("bash scripts/run-backend-tests-pre-commit.sh", cwd=repo, env=env)
 
     called_args = calls_file.read_text(encoding="utf-8").splitlines()
     assert "tests/test_ci_workflow_pr_size_governance_contract.py" in called_args
     assert "tests/test_frontend_dependency_guards.py" in called_args
     assert "tests/test_python_supply_chain_controls.py" in called_args
+    assert "-x" in called_args
+    assert "tests/test_dependency_security_guard.py" in called_args
+    assert "tests/compat/test_starlette_httpx2_testclient_compat.py" not in called_args
     assert "Backend tests passed" in output
 
 
-def test_backend_hook_all_files_keeps_branch_manifest_delta_with_unrelated_staged_file(
+def test_backend_hook_ignores_branch_manifest_delta_with_unrelated_staged_file(
     tmp_path: Path,
 ) -> None:
     repo = tmp_path / "repo"
@@ -1300,11 +1317,8 @@ def test_backend_hook_all_files_keeps_branch_manifest_delta_with_unrelated_stage
 
     output = _bash("bash scripts/run-backend-tests-pre-commit.sh", cwd=repo, env=env)
 
-    called_args = calls_file.read_text(encoding="utf-8").splitlines()
-    assert "tests/test_ci_workflow_pr_size_governance_contract.py" in called_args
-    assert "tests/test_frontend_dependency_guards.py" in called_args
-    assert "tests/test_python_supply_chain_controls.py" in called_args
-    assert "Backend tests passed" in output
+    assert not calls_file.exists()
+    assert "No Python or cross-surface governance files changed" in output
 
 
 def test_backend_hook_preserves_upstream_frontend_package_delta(
@@ -1989,7 +2003,7 @@ def test_backend_branch_diff_maps_python_dependency_surface_to_testclient_canary
 
 
 @pytest.mark.parametrize("pytest_exit", [0, 37])
-def test_backend_pre_push_configured_entry_clears_framework_marker_and_selects_upstream_canary(
+def test_backend_pre_push_configured_entry_clears_framework_marker_and_selects_full_branch_canary(
     tmp_path: Path, pytest_exit: int, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     config = yaml.safe_load((REPO_ROOT / ".pre-commit-config.yaml").read_text())
@@ -1999,9 +2013,8 @@ def test_backend_pre_push_configured_entry_clears_framework_marker_and_selects_u
         for hook in repository["hooks"]
         if hook["id"] == "backend-tests-pre-push"
     )
-    assert hook["entry"] == (
-        "/usr/bin/env -u PRE_COMMIT bash scripts/run-backend-tests-pre-commit.sh"
-    )
+    assert shlex.split(hook["entry"])[-2:] == ["make", "validate-changed"]
+    assert hook["always_run"] is True
     assert hook["stages"] == ["pre-push"] and hook["pass_filenames"] is False
     parent = tmp_path / "synthetic-parent"
     parent.mkdir()
@@ -2045,10 +2058,12 @@ def test_backend_pre_push_configured_entry_clears_framework_marker_and_selects_u
         REPO_ROOT / "scripts" / "run-backend-tests-pre-commit.sh",
         repo / "scripts" / "run-backend-tests-pre-commit.sh",
     )
+    shutil.copy2(REPO_ROOT / "Makefile", repo / "Makefile")
     (repo / "requirements-test.in").write_text("pytest~=9.1.1\n")
     (repo / "README.md").write_text("initial\n")
     _git(repo, "add", ".")
     _git(repo, "commit", "--quiet", "-m", "initial")
+    _git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
     _git(repo, "switch", "--quiet", "-c", "dependency")
     _git(repo, "update-ref", "refs/remotes/origin/dependency", "HEAD")
     _git(repo, "config", "branch.dependency.remote", "origin")
@@ -2056,8 +2071,7 @@ def test_backend_pre_push_configured_entry_clears_framework_marker_and_selects_u
     (repo / "requirements-test.in").write_text("httpx2>=2.3.0,<2.4.0\npytest~=9.1.1\n")
     _git(repo, "add", "requirements-test.in")
     _git(repo, "commit", "--quiet", "-m", "committed dependency change")
-    (repo / "README.md").write_text("unrelated staged change\n")
-    _git(repo, "add", "README.md")
+    _git(repo, "update-ref", "refs/remotes/origin/dependency", "HEAD")
     calls_file = tmp_path / "pre-push-args.txt"
     fake_python = tmp_path / "fake-python"
     _write_fake_pytest_python(fake_python, calls_file, pytest_exit=pytest_exit)
@@ -2068,6 +2082,11 @@ def test_backend_pre_push_configured_entry_clears_framework_marker_and_selects_u
         "HOME": str(tmp_path),
         "LANG": "C",
         "PRE_COMMIT": "1",
+        "PRE_COMMIT_LOCAL_BRANCH": "refs/heads/dependency",
+        "PRE_COMMIT_REMOTE_BRANCH": "refs/heads/dependency",
+        "SKIP_TESTS": "1",
+        "MAKEFLAGS": "-n",
+        "BACKEND_HOOK_CI_EVENT": "pull_request",
         "VENV_PYTHON": str(fake_python),
     }
     completed = subprocess.run(
@@ -2078,7 +2097,7 @@ def test_backend_pre_push_configured_entry_clears_framework_marker_and_selects_u
         text=True,
         check=False,
     )
-    assert completed.returncode == (1 if pytest_exit else 0), completed.stderr
+    assert completed.returncode == (2 if pytest_exit else 0), completed.stderr
     called_args = calls_file.read_text().splitlines()
     assert "tests/compat/test_starlette_httpx2_testclient_compat.py" in called_args
     assert "tests/test_python_dependency_surfaces.py" in called_args
@@ -2420,7 +2439,7 @@ def test_backend_hook_only_change_selects_its_behavioral_tests(
 
 
 @pytest.mark.parametrize(
-    "mode", ("append", "staged_empty", "upstream", "origin_fallback", "recent_fallback")
+    "mode", ("staged", "staged_empty", "upstream", "origin_fallback", "recent_fallback")
 )
 def test_backend_hook_supported_shell_conserves_paths(
     tmp_path: Path, backend_shell: str, mode: str
@@ -2442,9 +2461,9 @@ def test_backend_hook_supported_shell_conserves_paths(
     _git(repo, "commit", "--quiet", "-m", "add selected target")
     env, calls = _backend_selection_env(tmp_path, backend_shell)
     expected = [target]
-    if mode in {"append", "staged_empty"}:
+    if mode in {"staged", "staged_empty"}:
         env["PRE_COMMIT"] = "1"
-    if mode == "append":
+    if mode == "staged":
         (repo / target).write_text("# staged target overlap\n", encoding="utf-8")
         (repo / ".github/dependabot.yml").write_text("version: 3\n", encoding="utf-8")
         _git(repo, "add", target, ".github/dependabot.yml")
@@ -2461,7 +2480,10 @@ def test_backend_hook_supported_shell_conserves_paths(
 
     assert result.returncode == 0, result.stderr
     flags = ["-q", "--tb=short"] + (["-x"] if "PRE_COMMIT" in env else [])
-    assert _recorded_pytest_arguments(calls) == flags + expected
+    if mode == "staged_empty":
+        assert not calls.exists()
+    else:
+        assert _recorded_pytest_arguments(calls) == flags + expected
     assert result.stderr == ""
     assert list(Path(env["TMPDIR"]).iterdir()) == []
 
@@ -2672,6 +2694,11 @@ def test_backend_merge_base_operational_failure_cannot_become_empty_success(
 
     result = subprocess.run(command, cwd=repo, env=env, text=True, capture_output=True, check=False)
 
+    if mode == "staged":
+        assert result.returncode == 0, result.stderr
+        assert not calls.exists()
+        assert "No Python or cross-surface" in result.stdout
+        return
     assert result.returncode == (2 if mode == "make" else failure_status), (
         result.stdout + result.stderr
     )
@@ -3100,3 +3127,298 @@ def test_backend_hook_reaches_actual_guard_on_isolated_surface(
     else:
         assert "1 passed" in result.stdout
         assert "Backend tests passed" in result.stdout
+
+
+@pytest.mark.parametrize("mode", ("branch", "staged", "prepush", "make"))
+@pytest.mark.parametrize("changed", ("cd", "unrelated"))
+@pytest.mark.parametrize("pytest_exit", (0, 7))
+def test_backend_hook_cd_only_selects_exact_pure_pgvector_contracts(
+    tmp_path: Path, backend_shell: str, mode: str, changed: str, pytest_exit: int
+) -> None:
+    """Keep native DB integration separate while exercising actual selected pytest argv."""
+    repo = _prepare_dependabot_policy_hook_repo(tmp_path)
+    shutil.copy2(REPO_ROOT / "Makefile", repo / "Makefile")
+    base = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    _git(repo, "switch", "--quiet", "-c", "cd-selection")
+    _git(repo, "update-ref", "refs/remotes/origin/cd-selection", base)
+    _git(repo, "config", "branch.cd-selection.remote", "origin")
+    _git(repo, "config", "branch.cd-selection.merge", "refs/heads/cd-selection")
+    name = ".github/workflows/" + ("cd.yml" if changed == "cd" else "unrelated.yml")
+    path = repo / name
+    path.parent.mkdir(parents=True)
+    path.write_text("# committed workflow change\n", encoding="utf-8")
+    _git(repo, "add", name)
+    _git(repo, "commit", "--quiet", "-m", "change workflow only")
+    if mode == "staged":
+        # The same CD path occurs in both staged and branch inventories.
+        path.write_text("# staged workflow change\n", encoding="utf-8")
+        _git(repo, "add", name)
+    env, calls = _backend_selection_env(tmp_path, backend_shell, pytest_exit=pytest_exit)
+    if mode == "staged":
+        env["PRE_COMMIT"] = "1"
+    elif mode in ("branch", "make"):
+        env["BRANCH_DIFF_MODE"] = "1"
+    command = [backend_shell, "scripts/run-backend-tests-pre-commit.sh"]
+    if mode == "make":
+        make = shutil.which("make")
+        assert make is not None
+        command = [make, "--no-print-directory", "validate-changed"]
+    result = subprocess.run(command, cwd=repo, env=env, capture_output=True, text=True, check=False)
+    if changed == "unrelated":
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert not calls.exists()
+    else:
+        expected = [
+            "tests/test_pgvector_compat.py"
+            "::test_cd_exact_pgvector_image_proves_fresh_and_legacy_volume_contracts",
+            "tests/test_pgvector_attestations.py"
+            "::test_pg_scan_loop_retains_later_available_subjects_and_rejects_aggregate",
+        ]
+        flags = ["-q", "--tb=short"] + (["-x"] if mode == "staged" else [])
+        assert _recorded_pytest_arguments(calls) == flags + expected
+        assert result.returncode == (0 if pytest_exit == 0 else 2 if mode == "make" else 1)
+        if pytest_exit:
+            assert "Backend tests passed" not in result.stdout
+            assert "Diff-based validation completed" not in result.stdout
+    assert list(Path(env["TMPDIR"]).iterdir()) == []
+
+
+def test_native_commit_all_files_and_single_ref_push_select_each_required_test(
+    tmp_path: Path,
+    backend_shell: str,
+) -> None:
+    """Observe both installed stage entries, actual Make and pytest, and the bare remote."""
+    git = shutil.which("git")
+    make = shutil.which("make")
+    assert git and make
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    bare = tmp_path / "remote.git"
+    home = tmp_path / "home"
+    home.mkdir()
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    (tools / "bash").symlink_to(backend_shell)
+    make_calls = tmp_path / "make-calls"
+    make_proxy = tools / "make"
+    make_proxy.write_text(
+        "#!/bin/sh\n"
+        f"printf '%s\\n' \"$@\" >> {shlex.quote(str(make_calls))}\n"
+        f'exec {shlex.quote(make)} "$@"\n'
+    )
+    make_proxy.chmod(0o755)
+    tests_run = tmp_path / "tests-run"
+    fail_test = tmp_path / "fail-test"
+    env = {
+        "PATH": f"{tools}{os.pathsep}{os.environ['PATH']}",
+        "HOME": str(home),
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "PRE_COMMIT_HOME": str(tmp_path / "hook-cache"),
+        "VENV_PYTHON": sys.executable,
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+        "PR_SCOPE_BASE_REF": "feat/base",
+        "HOOK_TEST_LOG": str(tests_run),
+        "HOOK_TEST_FAILURE": str(fail_test),
+    }
+
+    def run(*args: str, success: bool = True) -> subprocess.CompletedProcess[str]:
+        result = subprocess.run(
+            args, cwd=repo, env=env, text=True, capture_output=True, timeout=90, check=False
+        )
+        assert (result.returncode == 0) == success, result.stdout + result.stderr
+        return result
+
+    def tested() -> list[str]:
+        if not tests_run.exists():
+            return []
+        names = tests_run.read_text().splitlines()
+        tests_run.unlink()
+        return names
+
+    def remote_head() -> str:
+        return run(git, "--git-dir", str(bare), "rev-parse", "refs/heads/feature").stdout.strip()
+
+    run(git, "init", "--quiet", "-b", "main")
+    run(git, "init", "--bare", "--quiet", str(bare))
+    run(git, "config", "user.name", "Hook Fixture")
+    run(git, "config", "user.email", "fixture@example.invalid")
+    for name in (
+        "scripts/run-backend-tests-pre-commit.sh",
+        "scripts/hooks/repo_python.sh",
+        "Makefile",
+    ):
+        dest = repo / name
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(REPO_ROOT / name, dest)
+    config = yaml.safe_load((REPO_ROOT / ".pre-commit-config.yaml").read_text())
+    hooks = [
+        hook
+        for entry in config["repos"]
+        if entry["repo"] == "local"
+        for hook in entry["hooks"]
+        if hook["id"] in {"backend-tests", "backend-tests-pre-push"}
+    ]
+    assert len(hooks) == 2
+    (repo / ".pre-commit-config.yaml").write_text(
+        yaml.safe_dump({"repos": [{"repo": "local", "hooks": hooks}]})
+    )
+    (repo / "tests").mkdir()
+    (repo / "retired.py").write_text("# remove later\n")
+    for name in ("a", "b", "earlier", "retired", "target_only"):
+        (repo / f"tests/test_{name}.py").write_text(
+            "from pathlib import Path\nimport os\n\n"
+            f"def test_{name}():\n"
+            "    with Path(os.environ['HOOK_TEST_LOG']).open('a') as log:\n"
+            f"        log.write('{name}\\n')\n"
+            "    assert not Path(os.environ['HOOK_TEST_FAILURE']).exists()\n"
+        )
+    run(git, "add", ".")
+    run(git, "commit", "--quiet", "-m", "base")
+    run(git, "remote", "add", "origin", str(bare))
+    run(git, "push", "--quiet", "origin", "main")
+
+    def change_test(name: str) -> None:
+        with (repo / f"tests/test_{name}.py").open("a") as stream:
+            stream.write("# change\n")
+
+    run(git, "switch", "--quiet", "-c", "feat/base")
+    change_test("target_only")
+    run(git, "commit", "--quiet", "-am", "stacked target")
+    run(git, "push", "--quiet", "origin", "feat/base")
+    run(git, "switch", "--quiet", "-c", "feature")
+    change_test("earlier")
+    run(git, "commit", "--quiet", "-am", "earlier branch change")
+    run(git, "push", "--quiet", "--set-upstream", "origin", "feature")
+    original = remote_head()
+    run(sys.executable, "-m", "pre_commit", "install", "-t", "pre-commit", "-t", "pre-push")
+
+    change_test("a")
+    run(git, "add", "tests/test_a.py")
+    change_test("b")
+    run(git, "commit", "--quiet", "-m", "A with unstaged B")
+    assert tested() == ["a"]
+    run(git, "add", "tests/test_b.py")
+    run(git, "commit", "--quiet", "-m", "B")
+    assert tested() == ["b"]
+    run(sys.executable, "-m", "pre_commit", "run", "--all-files")
+    assert tested() == [] and not make_calls.exists()
+
+    fail_test.touch()
+    env["MAKEFLAGS"] = "-n"
+    env["SKIP_TESTS"] = "1"
+    report = tmp_path / "backend.xml"
+    for addopts in ("--collect-only", f"--junitxml={report} --collect-only"):
+        env["PYTEST_ADDOPTS"] = addopts
+        blocked = run(git, "push", "origin", "feature", success=False)
+        assert "only a single absolute --junitxml=" in blocked.stdout + blocked.stderr
+        assert tested() == [] and remote_head() == original and not report.exists()
+    env["PYTEST_ADDOPTS"] = f"--junitxml={report}"
+    run(git, "push", "origin", "feature", success=False)
+    assert tested() == ["a", "b", "earlier"]
+    assert remote_head() == original
+    suite = ElementTree.parse(report).find("testsuite")
+    assert suite is not None and suite.attrib["failures"] == "3"
+    report.unlink()
+    fail_test.unlink()
+    run(git, "push", "origin", "feature")
+    assert tested() == ["a", "b", "earlier"]
+    assert remote_head() == run(git, "rev-parse", "HEAD").stdout.strip()
+    suite = ElementTree.parse(report).find("testsuite")
+    assert suite is not None and suite.attrib["tests"] == "3" and suite.attrib["failures"] == "0"
+
+    env.pop("SKIP_TESTS")
+    env.pop("PYTEST_ADDOPTS")
+    run(git, "rm", "retired.py")
+    run(git, "commit", "--quiet", "-m", "remove module")
+    assert tested() == ["retired"]
+    run(git, "push", "origin", "feature")
+    assert sorted(tested()) == ["a", "b", "earlier", "retired"]
+    assert make_calls.read_text().splitlines() == ["validate-changed"] * 5
+    assert remote_head() == run(git, "rev-parse", "HEAD").stdout.strip()
+
+    run(git, "switch", "--quiet", "-c", "docs-only", "feat/base")
+    (repo / "README.md").write_text("Only root documentation changed.\n")
+    run(git, "add", "README.md")
+    run(git, "commit", "--quiet", "-m", "documentation")
+    assert tested() == []
+    run(git, "push", "origin", "docs-only")
+    assert tested() == []
+    assert make_calls.read_text().splitlines() == ["validate-changed"] * 6
+    assert (
+        run(git, "--git-dir", str(bare), "rev-parse", "refs/heads/docs-only").stdout
+        == run(git, "rev-parse", "HEAD").stdout
+    )
+
+
+@pytest.mark.parametrize(
+    "fault",
+    (
+        "different-source",
+        "missing-source",
+        "staged",
+        "missing-target",
+        "self-target",
+        "created-target",
+        "hosted-head",
+        "hosted-base",
+    ),
+)
+def test_required_hook_range_errors_cannot_establish_an_empty_success(
+    tmp_path: Path, backend_shell: str, fault: str
+) -> None:
+    repo = _prepare_dependabot_policy_hook_repo(tmp_path)
+    base = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    _git(repo, "update-ref", "refs/remotes/origin/main", base)
+    _git(repo, "switch", "--quiet", "-c", "feature")
+    (repo / "README.md").write_text("a real, unselected change\n")
+    _git(repo, "add", "README.md")
+    _git(repo, "commit", "--quiet", "-m", "docs")
+    head = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    env, calls = _backend_selection_env(tmp_path, backend_shell)
+    env.update(
+        BRANCH_DIFF_MODE="1",
+        BACKEND_HOOK_REQUIRED_PUSH="1",
+        PRE_COMMIT_TO_REF=head,
+        PRE_COMMIT_REMOTE_BRANCH="refs/heads/feature",
+    )
+    if fault == "different-source":
+        env["PRE_COMMIT_TO_REF"] = base
+    elif fault == "missing-source":
+        env.pop("PRE_COMMIT_TO_REF")
+    elif fault == "staged":
+        (repo / "README.md").write_text("staged but unpublished\n")
+        _git(repo, "add", "README.md")
+    elif fault == "missing-target":
+        env["PR_SCOPE_BASE_REF"] = "missing"
+    elif fault == "self-target":
+        env["PR_SCOPE_BASE_REF"] = "feature"
+        _git(repo, "update-ref", "refs/remotes/origin/feature", head)
+    elif fault == "created-target":
+        _git(repo, "update-ref", "refs/remotes/origin/main", head)
+        env.update(
+            PRE_COMMIT="1",
+            BACKEND_HOOK_CI_EVENT="push",
+            BACKEND_HOOK_CI_BASE="0" * 40,
+            BACKEND_HOOK_CI_HEAD=head,
+            GITHUB_REF="refs/heads/main",
+        )
+    else:
+        env.update(
+            PRE_COMMIT="1",
+            BACKEND_HOOK_CI_EVENT="pull_request",
+            BACKEND_HOOK_CI_HEAD=base if fault == "hosted-head" else head,
+            BACKEND_HOOK_CI_BASE="f" * 40 if fault == "hosted-base" else base,
+        )
+    result = subprocess.run(
+        [backend_shell, "scripts/run-backend-tests-pre-commit.sh"],
+        cwd=repo,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert not calls.exists()
+    assert "No Python or cross-surface" not in result.stdout

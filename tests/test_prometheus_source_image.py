@@ -12,7 +12,9 @@ import io
 import json
 from pathlib import Path
 import re
+import shutil
 import signal
+import stat
 import tarfile
 import time
 from typing import Any, cast
@@ -1124,7 +1126,9 @@ def _publication_wait_observations(
         ("completed", "future-conclusion", None, None, "publication_predecessor_state"),
     ],
 )
+@pytest.mark.parametrize("observer", [False, True])
 def test_publication_predecessor_recognizes_bound_native_state(
+    observer: bool,
     run_status: str,
     run_conclusion: str | None,
     job_status: str | None,
@@ -1138,6 +1142,25 @@ def test_publication_predecessor_recognizes_bound_native_state(
         else [_publication_job(status=job_status, conclusion=job_conclusion)]
     )
     api = _PublicationPredecessorAPI([run], {12: jobs})
+    known = {
+        "positive_publication_predecessor_active",
+        "publication_predecessor_failed",
+        "publication_predecessor_cancelled",
+        "publication_predecessor_timed_out",
+        "publication_predecessor_not_published",
+    }
+    if observer:
+        if diagnostic is None:
+            assert source.observe_publication_predecessor(api, "1" * 40) == (
+                {"run": run, "job": jobs[0]},
+                None,
+            )
+        elif diagnostic in known:
+            assert source.observe_publication_predecessor(api, "1" * 40) == (None, diagnostic)
+        else:
+            with pytest.raises(source.QualificationError, match="^" + diagnostic + "$"):
+                source.observe_publication_predecessor(api, "1" * 40)
+        return
     if diagnostic is None:
         assert source.require_publication_predecessor(api, "1" * 40) == {"run": run, "job": jobs[0]}
     else:
@@ -1278,7 +1301,9 @@ def test_publication_predecessor_does_not_rescue_latest_failure_with_older_activ
         ("api-error", "GitHub_native_failed"),
     ],
 )
+@pytest.mark.parametrize("observer", [False, True])
 def test_publication_predecessor_uncertainty_never_becomes_pending(
+    observer: bool,
     fault: str,
     diagnostic: str,
 ) -> None:
@@ -1337,7 +1362,10 @@ def test_publication_predecessor_uncertainty_never_becomes_pending(
         ]
         api.overrides[f"/repos/{source.GHCR_REPOSITORY}/actions/runs/12"] = changed
     with pytest.raises(source.QualificationError, match="^" + diagnostic + "$"):
-        source.require_publication_predecessor(api, "1" * 40)
+        if observer:
+            source.observe_publication_predecessor(api, "1" * 40)
+        else:
+            source.require_publication_predecessor(api, "1" * 40)
 
 
 def test_publication_predecessor_uses_terminal_detail_observed_during_active_run() -> None:
@@ -1819,6 +1847,866 @@ def test_sandbox_is_fixed_rootless_readonly_and_credential_free(tmp_path: Path) 
     assert not {"GITHUB_TOKEN", "GH_TOKEN", "NETRC", "PIP_INDEX_URL"}.intersection(env)
 
 
+@pytest.mark.parametrize("with_output", [False, True])
+def test_expected_sandbox_argv_preserves_checked_mount_order_and_modes(
+    tmp_path: Path, with_output: bool
+) -> None:
+    paths = [tmp_path / name for name in ("source", "go", "modules")]
+    output = tmp_path / "output" if with_output else None
+    args = ("/usr/bin/docker", tmp_path, "sha256:" + "1" * 64, "owned", "owner")
+    expected = source._expected_sandbox_arguments(*args, *paths, output=output)
+    mounts = [expected[i + 1] for i, arg in enumerate(expected) if arg == "--mount"]
+    assert mounts == [
+        f"type=bind,source={paths[0]},target=/src,readonly",
+        f"type=bind,source={paths[1]},target=/usr/local/go,readonly",
+        f"type=bind,source={paths[2]},target=/modules,readonly",
+    ] + ([f"type=bind,source={output},target=/output"] if output else [])
+    for path in [*paths, *([output] if output else [])]:
+        path.mkdir()
+    assert source.sandbox_arguments(*args, *paths, output=output) == expected
+
+
+@pytest.mark.parametrize("operand", ["source", "go", "modules", "output"])
+@pytest.mark.parametrize("unsafe", ["relative", "traversal"])
+def test_expected_sandbox_argv_rejects_unsafe_lexical_mounts(
+    tmp_path: Path, operand: str, unsafe: str
+) -> None:
+    paths = {name: tmp_path / name for name in ("source", "go", "modules", "output")}
+    paths[operand] = Path("relative") if unsafe == "relative" else tmp_path / ".." / "other"
+    with pytest.raises(source.QualificationError, match="^unsafe_directory$"):
+        source._expected_sandbox_arguments(
+            "/usr/bin/docker", tmp_path, "image", "owned", "owner", **paths
+        )
+
+
+@pytest.mark.parametrize("operand", ["source", "go", "modules", "output"])
+@pytest.mark.parametrize("fault", ["missing", "file", "symlink", "symlink-parent", "file-parent"])
+def test_live_sandbox_rejects_invalid_mount_before_container_create(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, operand: str, fault: str
+) -> None:
+    paths = {name: tmp_path / name for name in ("source", "go", "modules", "output")}
+    for name, path in paths.items():
+        if name != operand:
+            path.mkdir()
+    bad = paths[operand]
+    if fault in {"file", "file-parent"}:
+        bad.touch()
+    elif fault in {"symlink", "symlink-parent"}:
+        target = tmp_path / "actual"
+        target.mkdir()
+        (target / "child").mkdir()
+        bad.symlink_to(target, target_is_directory=True)
+    if fault in {"file-parent", "symlink-parent"}:
+        paths[operand] = bad / "child"
+
+    seen: list[str] = []
+
+    def inspect(argv: list[str], stage: str, *args: Any, **kwargs: Any) -> bytes:
+        assert argv[3:5] == ["image", "inspect"]
+        seen.append(stage)
+        return json.dumps(_native_fixed_base_image()).encode()
+
+    native = source.Native(tmp_path, time.monotonic() + 20, 10)
+    monkeypatch.setattr(native, "run", inspect)
+    error = {"missing": FileNotFoundError, "file-parent": NotADirectoryError}.get(
+        fault, source.QualificationError
+    )
+    message = "^nonreal_directory_chain$" if error is source.QualificationError else None
+    with pytest.raises(error, match=message):
+        source.finite_go(
+            native,
+            tmp_path,
+            "/usr/bin/docker",
+            tmp_path,
+            {},
+            paths["source"],
+            paths["go"],
+            paths["modules"],
+            {},
+            "probe",
+            ["version"],
+            output=paths["output"],
+        )
+    assert seen == ["probe-base"]
+
+
+def _xnet062_report_fixture(
+    work: Path,
+    lanes: tuple[str, ...] = ("a", "b"),
+) -> tuple[dict[str, Any], source.Native, dict[str, dict[str, Any]], Path]:
+    """Real offline collectors with synthetic Docker transcripts, never native proof."""
+    evidence, config, go = work / "evidence", work / "docker-config", work / "go"
+    for directory in (evidence, config, go / "bin"):
+        directory.mkdir(parents=True, exist_ok=True)
+    (go / "bin/go").write_bytes(b"inert compiler fixture")
+    image = _native_fixed_base_image()
+    owned: dict[str, dict[str, Any]] = {}
+
+    class Transcript(source.Native):
+        def run(
+            self, argv: list[str], name: str, env: dict[str, str], *, cwd: Path, **kwargs: Any
+        ) -> bytes:
+            if argv[3] == "create":
+                raw = hashlib.sha256(name.encode()).hexdigest().encode() + b"\n"
+            else:
+                selected = next(
+                    (key, value)
+                    for key, value in owned.items()
+                    if key == argv[-1] or value.get("container_id") == argv[-1]
+                )
+                container_name, expected = selected
+                if argv[3] == "start":
+                    command = expected["command"]
+                    raw = (
+                        source.CURRENT_GO_VERSION.encode()
+                        if command == ["version"]
+                        else (
+                            b"all modules verified\n"
+                            if command == ["mod", "verify"]
+                            else package_stream(command[-1].rsplit("/", 1)[-1])
+                        )
+                    )
+                else:
+                    assert argv[3] == "inspect"
+                    actual = {
+                        "Id": expected["container_id"],
+                        "Name": "/" + container_name,
+                        "Image": image["Id"],
+                        "Config": {
+                            "Image": image["Id"],
+                            "Labels": {source.LABEL: expected["owner"]},
+                            "User": "65532:65532",
+                            "WorkingDir": "/src",
+                            "Entrypoint": ["/usr/local/go/bin/go"],
+                            "Cmd": expected["command"],
+                            "Env": [
+                                key + "=" + value for key, value in expected["environment"].items()
+                            ],
+                        },
+                        "HostConfig": {
+                            "NetworkMode": "none",
+                            "ReadonlyRootfs": True,
+                            "Privileged": False,
+                            "NanoCpus": 2000000000,
+                            "Memory": 4294967296,
+                            "PidsLimit": 128,
+                            "CapDrop": ["ALL"],
+                            "CapAdd": None,
+                            "SecurityOpt": ["no-new-privileges"],
+                            "Tmpfs": {str(source.GUEST_TMP): source.GUEST_TMPFS},
+                        },
+                        "Mounts": [
+                            {"Type": "bind", "RW": False, "Destination": key, "Source": value}
+                            for key, value in expected["mounts"].items()
+                        ],
+                        "State": {
+                            "Running": False,
+                            "ExitCode": 0,
+                            "OOMKilled": False,
+                            "FinishedAt": "synthetic-time",
+                        },
+                    }
+                    raw = json.dumps([actual]).encode()
+            (evidence / (name + ".stdout")).write_bytes(raw)
+            (evidence / (name + ".stderr")).write_bytes(b"")
+            self.records.append(
+                {
+                    "argv": list(argv),
+                    "environment": dict(env),
+                    "cwd": str(cwd),
+                    "exit": 0,
+                    "failure": None,
+                    "stdout": str(evidence / (name + ".stdout")),
+                    "stderr": str(evidence / (name + ".stderr")),
+                    "stdout_sha256": source.sha(raw),
+                    "stderr_sha256": source.sha(b""),
+                }
+            )
+            return raw
+
+    native = Transcript(evidence, time.monotonic() + 900, 120)
+    report: dict[str, Any] = {
+        "purpose": "synthetic serialization only",
+        "module_action": "xnet062-replay",
+        "module_derivation": {"authored_action": "golang.org/x/net@v0.62.0", "replays": []},
+        "failure": None,
+        "interruptions": [],
+        "retained_unknown": {"value": [True, 1, "α"]},
+        "heavy_build_invocations": 0,
+    }
+    for lane in lanes:
+        root, modules = work / ("source-" + lane), work / ("modules-" + lane)
+        root.mkdir()
+        modules.mkdir()
+        (modules / "cache").write_bytes(b"original cached bytes")
+        (modules / "empty-directory").mkdir(mode=0o750)
+        for name, raw in {"go.mod": b"frozen mod", "go.sum": b"frozen sums"}.items():
+            (root / name).write_bytes(raw)
+        locks = source._derivation_locks(root)
+        remainder = source._derivation_nonlocks(root, native.deadline)
+        arguments = (
+            native,
+            root,
+            go,
+            modules,
+            locks,
+            remainder,
+            source.file_hash(go / "bin/go"),
+            lane,
+            "/usr/bin/docker",
+            config,
+            image,
+            "synthetic-owner",
+            [],
+            owned,
+            {},
+            work,
+        )
+        incumbent = source._derivation_offline(
+            *arguments[:7], lane + "-incumbent", *arguments[8:], restore_cache_modes=True
+        )
+        source._retain_xnet062_arrays(native, lane, incumbent)
+        final = source._derivation_offline(*arguments)
+        report["module_derivation"]["replays"].append(
+            {
+                "replay": lane,
+                "offline": final,
+                "incumbent_reconstruction": {"offline": incumbent, "preserve": ["unchanged"]},
+                "complete_module_transitions": [
+                    {"Path": "synthetic", "before": None, "after": {"x": 1}}
+                ],
+            }
+        )
+    report["native_operations"] = native.records
+    report["cleanup"] = [{"name": name, "native_absent": True} for name in owned]
+    native.begin_cleanup()
+    return report, native, owned, config
+
+
+def test_xnet062_report_finalizer_preserves_every_value_and_archive_roundtrip(
+    tmp_path: Path,
+) -> None:
+    report, native, owned, config = _xnet062_report_fixture(tmp_path)
+    report["status"] = "failed_or_unknown"
+    before = copy.deepcopy(report)
+    view = source._finalize_xnet062_report(
+        report, native, owned, "/usr/bin/docker", config, derive_completed=True
+    )
+    assert report == before
+    assert view["status"] == "observed_package_metadata_only"
+    raw = (native.evidence / "qualification.json").read_bytes()
+    assert len(raw) < source.MAX_NATIVE_OUTPUT and source.one_object(raw) == view
+    assert not (native.evidence / ".qualification.json.pending").exists()
+    references = []
+    for lane in view["module_derivation"]["replays"]:
+        for offline in (lane["offline"], lane["incumbent_reconstruction"]["offline"]):
+            references.extend(offline["full_native_package_members"].values())
+            references.append(offline["module_inventory_member"])
+            if "cache_mode_restoration" in offline:
+                restoration = offline["cache_mode_restoration"]
+                references.extend(
+                    restoration[key]
+                    for key in (
+                        "files_before_member",
+                        "files_restored_member",
+                        "physical_members_member",
+                    )
+                )
+                assert "files_frozen" not in restoration
+    assert len(references) == len({value["member"] for value in references}) == 18
+    assert len(list(native.evidence.glob("*-incumbent-cache-*.json"))) == 6
+    archive = tmp_path / "transport.zip"
+    with zipfile.ZipFile(archive, "w") as stream:
+        for member in native.evidence.iterdir():
+            stream.write(member, member.name)
+    files = source._zip_members(archive)
+    # Status records finalization; the transport check compares the original
+    # pre-publication view, without treating either fixture as native evidence.
+    transported = source.one_object(files["qualification.json"])
+    transported["status"] = before["status"]
+    source._check_xnet062_report(
+        before, transported, native, owned, "/usr/bin/docker", config, complete=True, files=files
+    )
+    assert source.DERIVED_LOCKS != source.XNET060_INCUMBENT_LOCKS
+
+
+@pytest.mark.parametrize(
+    "fault,diagnostic",
+    [
+        ("missing-b", "xnet062_replay_slots"),
+        ("duplicate-a", "xnet062_replay_slots"),
+        ("action", "xnet062_report_action"),
+        ("target", "xnet062_report_action"),
+        ("native-duplicate", "xnet062_native_record_cardinality"),
+        ("native-exit-bool", "xnet062_native_terminal"),
+        ("native-create-argv", "declared_data_value"),
+        ("native-start-ID", "declared_data_value"),
+        ("native-path", "xnet062_native_record_cardinality"),
+        ("native-hash", "xnet062_native_raw_binding"),
+        ("binding-alias", "declared_data_value"),
+        ("binding-size-bool", "declared_data_type"),
+        ("binding-extra", "declared_data_keys"),
+        ("unknown-field-lost", "declared_data_keys"),
+    ],
+)
+def test_xnet062_report_rejects_exact_binding_and_record_faults(
+    tmp_path: Path,
+    fault: str,
+    diagnostic: str,
+) -> None:
+    report, native, owned, config = _xnet062_report_fixture(tmp_path)
+    view = source._xnet062_report_view(
+        report, native, owned, "/usr/bin/docker", config, complete=True
+    )
+    if fault == "missing-b":
+        report["module_derivation"]["replays"].pop()
+    elif fault == "duplicate-a":
+        report["module_derivation"]["replays"][1]["replay"] = "a"
+    elif fault == "action":
+        report["module_action"] = "xnet060-replay"
+    elif fault == "target":
+        report["module_derivation"]["authored_action"] = "golang.org/x/net@v0.60.0"
+    elif fault.startswith("native-"):
+        stage = "a-offline-prometheus-" + ("create" if fault == "native-create-argv" else "native")
+        record = next(row for row in native.records if row["stdout"].endswith(stage + ".stdout"))
+        if fault == "native-duplicate":
+            native.records.append(copy.deepcopy(record))
+        elif fault == "native-exit-bool":
+            record["exit"] = False
+        elif fault in ("native-create-argv", "native-start-ID"):
+            record["argv"][-1] = "wrong"
+        elif fault == "native-path":
+            record["stdout"] = str(tmp_path / "foreign.stdout")
+        else:
+            record["stdout_sha256"] = "0" * 64
+    elif fault == "unknown-field-lost":
+        del view["retained_unknown"]
+    else:
+        binding = view["module_derivation"]["replays"][0]["offline"]["full_native_package_members"][
+            "prometheus"
+        ]
+        if fault == "binding-alias":
+            binding["member"] = "./" + binding["member"]
+        elif fault == "binding-size-bool":
+            binding["bytes"] = True
+        else:
+            binding["extra"] = "unbound"
+    with pytest.raises(source.QualificationError, match=diagnostic):
+        source._check_xnet062_report(
+            report, view, native, owned, "/usr/bin/docker", config, complete=True
+        )
+
+
+@pytest.mark.parametrize(
+    "fault,diagnostic",
+    [
+        ("root-object", "xnet062_array_root"),
+        ("NaN", "nonfinite_JSON"),
+        ("duplicate-key", "duplicate_JSON_key"),
+        ("missing-LF", "xnet062_array_encoding"),
+        ("bool-mode", "declared_data_type"),
+        ("missing-empty-directory", "declared_data_length"),
+        ("missing-root", "declared_data_length"),
+        ("duplicate-root", "declared_data_length"),
+        ("identity-key", "declared_data_keys"),
+        ("parent-file", "declared_data_value"),
+        ("order", "declared_data_value"),
+        ("mode", "declared_data_value"),
+        ("frozen-content", "xnet062_frozen_semantic_hash"),
+    ],
+)
+def test_xnet062_report_array_roundtrip_rejects_loss_even_with_rebound_raw_hash(
+    tmp_path: Path,
+    fault: str,
+    diagnostic: str,
+) -> None:
+    report, native, owned, config = _xnet062_report_fixture(tmp_path)
+    view = source._xnet062_report_view(
+        report, native, owned, "/usr/bin/docker", config, complete=True
+    )
+    offline = view["module_derivation"]["replays"][0]["incumbent_reconstruction"]["offline"]
+    restoration = offline["cache_mode_restoration"]
+    binding = (
+        offline["module_inventory_member"]
+        if fault == "frozen-content"
+        else (
+            restoration["files_before_member"]
+            if fault in ("bool-mode", "mode")
+            else restoration["physical_members_member"]
+        )
+    )
+    path = native.evidence / binding["member"]
+    value = json.loads(path.read_bytes())
+    if fault == "root-object":
+        raw = b"{}\n"
+    elif fault == "NaN":
+        raw = b"[NaN]\n"
+    elif fault == "duplicate-key":
+        raw = b'[{"path":".","path":"."}]\n'
+    elif fault == "missing-LF":
+        raw = path.read_bytes()[:-1]
+    else:
+        if fault == "bool-mode":
+            value[0]["mode"] = True
+        elif fault == "missing-empty-directory":
+            value = [row for row in value if row["path"] != "empty-directory"]
+        elif fault == "missing-root":
+            value.pop(0)
+        elif fault == "duplicate-root":
+            value.append(value[0])
+        elif fault == "identity-key":
+            del value[0]["identity"]["st_ino"]
+        elif fault == "parent-file":
+            value[-1]["path"] = "cache/child"
+        elif fault == "order":
+            value.reverse()
+        elif fault == "mode":
+            value[0]["mode"] += 1
+        else:
+            value[0]["sha256"] = "0" * 64
+        raw = (
+            (json.dumps(value, sort_keys=True) + "\n").encode()
+            if fault == "frozen-content"
+            else source._xnet062_json_bytes(value, native.cleanup_deadline)
+        )
+    path.write_bytes(raw)
+    binding.update(bytes=len(raw), sha256=source.sha(raw))
+    with pytest.raises(source.QualificationError, match=diagnostic):
+        source._check_xnet062_report(
+            report, view, native, owned, "/usr/bin/docker", config, complete=True
+        )
+
+
+@pytest.mark.parametrize("fault", ["missing", "symlink", "hardlink", "directory", "oversize"])
+def test_xnet062_report_member_read_is_bounded_and_nofollow(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fault: str,
+) -> None:
+    member = tmp_path / "a-incumbent-cache-before.json"
+    if fault == "symlink":
+        target = tmp_path / "target"
+        target.write_bytes(b"[]\n")
+        member.symlink_to(target)
+    elif fault == "hardlink":
+        target = tmp_path / "target"
+        target.write_bytes(b"[]\n")
+        member.hardlink_to(target)
+    elif fault == "directory":
+        member.mkdir()
+    elif fault == "oversize":
+        member.write_bytes(b"12345")
+        monkeypatch.setattr(source, "MAX_NATIVE_OUTPUT", 4)
+    with pytest.raises(
+        (source.QualificationError, FileNotFoundError), match="xnet062_member_|No such file"
+    ):
+        source._xnet062_member(tmp_path, member.name, time.monotonic() + 30)
+
+
+def test_xnet062_report_write_collision_and_size_preserve_existing_bytes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "a-incumbent-cache-before.json"
+    path.write_bytes(b"original")
+    with pytest.raises(FileExistsError):
+        source._xnet062_write(tmp_path, path.name, b"[]\n", time.monotonic() + 30)
+    assert path.read_bytes() == b"original"
+    monkeypatch.setattr(source, "MAX_NATIVE_OUTPUT", 8)
+    with pytest.raises(source.QualificationError, match="xnet062_report_size"):
+        source._xnet062_json_bytes({"large": "123456789"}, time.monotonic() + 30)
+    assert not (tmp_path / "qualification.json").exists()
+
+
+@pytest.mark.parametrize(
+    "completed,failure,cleanup,interrupted",
+    [
+        (False, None, False, False),
+        (True, {"class": "TimeoutError"}, False, False),
+        (True, None, True, False),
+        (True, None, False, True),
+    ],
+)
+def test_xnet062_report_cannot_publish_success_from_partial_or_failed_outcome(
+    tmp_path: Path,
+    completed: bool,
+    failure: Any,
+    cleanup: bool,
+    interrupted: bool,
+) -> None:
+    report, native, owned, config = _xnet062_report_fixture(tmp_path)
+    report["failure"] = failure
+    if cleanup:
+        report["cleanup"][0]["failure"] = "TimeoutError"
+    if interrupted:
+        report["interruptions"] = [15]
+    view = source._finalize_xnet062_report(
+        report, native, owned, "/usr/bin/docker", config, derive_completed=completed
+    )
+    assert view["status"] == "failed_or_unknown"
+    assert (
+        source.one_object((native.evidence / "qualification.json").read_bytes())["status"]
+        == "failed_or_unknown"
+    )
+
+
+@pytest.mark.parametrize(
+    "fault,diagnostic",
+    [
+        ("command", "container_command"),
+        ("entrypoint", "container_command"),
+        ("image", "native_container"),
+        ("terminal", "declared_data_value"),
+        ("package-field", "declared_data_value"),
+    ],
+)
+def test_xnet062_report_rejects_rebound_native_data_using_existing_owners(
+    tmp_path: Path,
+    fault: str,
+    diagnostic: str,
+) -> None:
+    report, native, owned, config = _xnet062_report_fixture(tmp_path)
+    view = source._xnet062_report_view(
+        report, native, owned, "/usr/bin/docker", config, complete=True
+    )
+    stage = "a-offline-prometheus-" + (
+        "native" if fault == "package-field" else "completed-inspect"
+    )
+    record = next(row for row in native.records if row["stdout"].endswith(stage + ".stdout"))
+    path = native.evidence / (stage + ".stdout")
+    if fault == "package-field":
+        values = source.decode_objects(path.read_bytes())
+        values[0]["Name"] = "changed_name_same_count"
+        raw = b"\n".join(json.dumps(value).encode() for value in values)
+        binding = view["module_derivation"]["replays"][0]["offline"]["full_native_package_members"][
+            "prometheus"
+        ]
+        binding.update(bytes=len(raw), sha256=source.sha(raw))
+    else:
+        value = json.loads(path.read_bytes())
+        actual = value[0]
+        if fault == "command":
+            actual["Config"]["Cmd"] = ["version"]
+        elif fault == "entrypoint":
+            actual["Config"]["Entrypoint"] = ["/unexpected"]
+        elif fault == "image":
+            actual["Config"]["Image"] = "sha256:" + "0" * 64
+        else:
+            actual["State"]["ExitCode"] = 1
+        raw = json.dumps(value).encode()
+    path.write_bytes(raw)
+    record["stdout_sha256"] = source.sha(raw)
+    with pytest.raises(source.QualificationError, match=diagnostic):
+        source._check_xnet062_report(
+            report, view, native, owned, "/usr/bin/docker", config, complete=True
+        )
+
+
+def test_xnet062_report_invalid_utf8_and_member_change_fail_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    report, native, owned, config = _xnet062_report_fixture(tmp_path)
+    view = source._xnet062_report_view(
+        report, native, owned, "/usr/bin/docker", config, complete=True
+    )
+    binding = view["module_derivation"]["replays"][0]["offline"]["module_inventory_member"]
+    path = native.evidence / binding["member"]
+    path.write_bytes(b"[\xff]\n")
+    binding.update(bytes=4, sha256=source.sha(b"[\xff]\n"))
+    with pytest.raises(UnicodeDecodeError):
+        source._check_xnet062_report(
+            report, view, native, owned, "/usr/bin/docker", config, complete=True
+        )
+    stat_fd = source.os.fstat
+    calls = 0
+
+    def changed(descriptor: int) -> Any:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            path.write_bytes(b"changed while open")
+        return stat_fd(descriptor)
+
+    monkeypatch.setattr(source.os, "fstat", changed)
+    with pytest.raises(source.QualificationError, match="xnet062_member_changed"):
+        source._xnet062_member(native.evidence, path.name, native.cleanup_deadline)
+
+
+def test_xnet062_report_failed_partial_incumbent_is_visible_without_complete_replay(
+    tmp_path: Path,
+) -> None:
+    report, native, owned, config = _xnet062_report_fixture(tmp_path, ("a",))
+    report["module_derivation"]["replays"] = []
+    report["failure"] = {"class": "QualificationError", "code": "synthetic_get_failure"}
+    view = source._finalize_xnet062_report(
+        report, native, owned, "/usr/bin/docker", config, derive_completed=False
+    )
+    assert view["status"] == "failed_or_unknown"
+    assert set(view["partial_incumbent_members"]) == {
+        "a-incumbent-cache-" + suffix + ".json"
+        for suffix in ("before", "restored", "physical-members")
+    }
+    assert view["module_derivation"]["replays"] == []
+
+
+def test_xnet062_report_preservation_does_not_recheck_historical_filesystem(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    report, native, owned, config = _xnet062_report_fixture(tmp_path)
+    replays = report["module_derivation"]["replays"]
+    identities = [
+        row["incumbent_reconstruction"]["offline"]["cache_mode_restoration"]["members"][0][
+            "identity"
+        ]
+        for row in replays
+    ]
+    assert identities[0]["st_ino"] != identities[1]["st_ino"]
+    # A subsequent get legitimately changes source/cache; preserved original
+    # observations, not these later paths, are the serialization oracle.
+    (tmp_path / "source-a/go.mod").write_bytes(b"later authored get")
+
+    def forbidden(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("historical live state was revalidated")
+
+    monkeypatch.setattr(source, "sandbox_arguments", forbidden)
+    monkeypatch.setattr(source, "_derivation_guard", forbidden)
+    monkeypatch.setattr(source, "tree_inventory", forbidden)
+    view = source._finalize_xnet062_report(
+        report, native, owned, "/usr/bin/docker", config, derive_completed=True
+    )
+    assert view["status"] == "observed_package_metadata_only"
+
+
+def _xnet062_qualify_inputs(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Replace acquisition only; the real qualifier/finalizer remains under test."""
+    monkeypatch.setattr(source.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(source.platform, "machine", lambda: "x86_64")
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setenv("RUNNER_OS", "Linux")
+    monkeypatch.setattr(source.shutil, "which", lambda name: "/usr/bin/docker")
+    monkeypatch.setattr(
+        source,
+        "LOCKS",
+        {
+            key: source.sha(raw)
+            for key, raw in {"go.mod": b"frozen mod", "go.sum": b"frozen sums"}.items()
+        },
+    )
+    monkeypatch.setattr(source, "GO_LICENSE", source.sha(b"fixture license"))
+    monkeypatch.setattr(source, "SOURCE_LICENSES", {"LICENSE": source.sha(b"fixture license")})
+
+    def acquire(artifact: source.Artifact, target: Path, deadline: float) -> dict[str, Any]:
+        target.write_text(source.UI.digest + "  prometheus-web-ui-3.15.0.tar.gz\n")
+        return {"synthetic": artifact.name}
+
+    def extract(
+        artifact: source.Artifact, archive: Path, target: Path, deadline: float
+    ) -> list[dict[str, Any]]:
+        target.mkdir()
+        (target / "LICENSE").write_bytes(b"fixture license")
+        (target / "VERSION").write_bytes(
+            source.CURRENT_GO_VERSION_FILE if artifact == source.CURRENT_GO else b"3.15.0\n"
+        )
+        if artifact == source.SOURCE:
+            (target / "go.mod").write_bytes(b"frozen mod")
+            (target / "go.sum").write_bytes(b"frozen sums")
+        return []
+
+    monkeypatch.setattr(source, "acquire", acquire)
+    monkeypatch.setattr(source, "extract", extract)
+    monkeypatch.setattr(source, "stage_ui", lambda *args: {"synthetic": True})
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [None, "before-b", "secondary-encode", "secondary-write", "expired-cleanup", "cleanup", "view"],
+)
+def test_xnet062_report_actual_qualify_finalization_and_primary_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fault: str | None,
+) -> None:
+    _xnet062_qualify_inputs(monkeypatch)
+    primary = source.QualificationError("synthetic_primary_deadline")
+    saved: dict[str, Any] = {}
+
+    def derive(
+        native: source.Native,
+        work: Path,
+        downloads: Path,
+        original_source: Path,
+        go: Path,
+        ui: Path,
+        owned: dict[str, dict[str, Any]],
+        *args: Any,
+        target_version: str,
+    ) -> None:
+        assert target_version == "v0.62.0"
+        original_report = args[-1]
+        fixture, transcript, expected, _ = _xnet062_report_fixture(
+            work,
+            (
+                ("a",)
+                if fault in ("before-b", "secondary-encode", "secondary-write", "expired-cleanup")
+                else ("a", "b")
+            ),
+        )
+        native.records.extend(transcript.records)
+        owned.update(expected)
+        original_report.update(
+            {
+                key: value
+                for key, value in fixture.items()
+                if key not in ("native_operations", "cleanup")
+            }
+        )
+        saved["original"] = original_report
+        saved["derivation"] = copy.deepcopy(original_report["module_derivation"])
+        if fault == "secondary-encode":
+
+            def failed_encode(*args: Any, **kwargs: Any) -> bytes:
+                raise source.QualificationError("synthetic_secondary_encode")
+
+            monkeypatch.setattr(source, "_xnet062_json_bytes", failed_encode)
+        if fault == "secondary-write":
+
+            def failed_write(*args: Any, **kwargs: Any) -> None:
+                raise OSError("synthetic storage failure")
+
+            monkeypatch.setattr(source, "_xnet062_write", failed_write)
+        if fault == "expired-cleanup":
+            begin = source.Native.begin_cleanup
+
+            def expired_cleanup(instance: source.Native) -> None:
+                begin(instance)
+                instance.cleanup_deadline = 0
+
+            monkeypatch.setattr(source.Native, "begin_cleanup", expired_cleanup)
+        if fault == "view":
+            (native.evidence / "b-offline-promtool-native.stdout").unlink()
+        if fault in ("before-b", "secondary-encode", "secondary-write", "expired-cleanup"):
+            raise primary
+
+    def cleanup(
+        native: source.Native,
+        docker: str,
+        config: Path,
+        owned: dict[str, dict[str, Any]],
+        *args: Any,
+        **kwargs: Any,
+    ) -> list[dict[str, Any]]:
+        return (
+            [{"failure": "synthetic cleanup failure"}]
+            if fault == "cleanup"
+            else [{"name": name, "native_absent": True} for name in owned]
+        )
+
+    monkeypatch.setattr(source, "derive_xnet_observe", derive)
+    monkeypatch.setattr(source, "cleanup_owned", cleanup)
+    monkeypatch.setattr(source, "INTERRUPTIONS", [])
+    work = tmp_path / "qualify"
+    if fault is None:
+        result = source.qualify(work, 1800, 120, derive_xnet062=True)
+        assert result["status"] == "observed_package_metadata_only"
+        assert "full_native_package_members" in result["module_derivation"]["replays"][0]["offline"]
+    elif fault in ("before-b", "secondary-encode", "secondary-write", "expired-cleanup"):
+        with pytest.raises(source.QualificationError, match="synthetic_primary_deadline") as caught:
+            source.qualify(work, 1800, 120, derive_xnet062=True)
+        assert caught.value is primary
+        assert (work / "evidence/a-incumbent-cache-physical-members.json").is_file()
+        assert not (work / "evidence/b-incumbent-cache-physical-members.json").exists()
+    elif fault == "cleanup":
+        with pytest.raises(source.QualificationError, match="qualification_or_cleanup_failed"):
+            source.qualify(work, 1800, 120, derive_xnet062=True)
+    else:
+        with pytest.raises(FileNotFoundError):
+            source.qualify(work, 1800, 120, derive_xnet062=True)
+        diagnostic = source.one_object((work / "evidence/qualification.json").read_bytes())
+        assert diagnostic["incomplete_diagnostic"] is True
+        assert diagnostic["status"] == "failed_or_unknown"
+        assert diagnostic["report_failure"]["class"] == "FileNotFoundError"
+    assert source.CLEANING is False
+    assert saved["original"]["module_derivation"] == saved["derivation"]
+    assert (work / "evidence/a-offline-prometheus-native.stdout").is_file()
+
+
+def test_xnet062_report_keeps_060_serialization_and_return_contract(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _xnet062_qualify_inputs(monkeypatch)
+
+    def observed(*args: Any, target_version: str) -> None:
+        assert target_version == "v0.60.0"
+        args[-1]["module_action"] = "xnet060-replay"
+        args[-1]["module_derivation"] = {"original_field": [1, "legacy"]}
+
+    monkeypatch.setattr(source, "derive_xnet_observe", observed)
+    monkeypatch.setattr(source, "cleanup_owned", lambda *args: [])
+    monkeypatch.setattr(source, "INTERRUPTIONS", [])
+    work = tmp_path / "qualify"
+    report = source.qualify(work, 900, 120, derive_xnet060=True)
+    assert (work / "evidence/qualification.json").read_bytes() == (
+        json.dumps(report, indent=2, sort_keys=True) + "\n"
+    ).encode()
+    assert report["module_derivation"] == {"original_field": [1, "legacy"]}
+    assert not list((work / "evidence").glob("*-incumbent-cache-*.json"))
+
+
+@pytest.mark.parametrize(
+    "mode,seconds,cleanup,allowed",
+    [
+        (mode, seconds, cleanup, allowed)
+        for mode in ("unchanged", "060", "062")
+        for seconds, cleanup, allowed in (
+            (900, 120, True),
+            (901, 120, mode == "062"),
+            (1800, 120, mode == "062"),
+            (1801, 120, False),
+            (0, 120, False),
+            (-1, 120, False),
+            (True, 120, False),
+            (900.0, 120, False),
+            ("900", 120, False),
+            (900, 121, False),
+            (900, True, False),
+        )
+    ],
+)
+def test_xnet062_report_budget_is_mode_specific_before_effects(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mode: str,
+    seconds: Any,
+    cleanup: Any,
+    allowed: bool,
+) -> None:
+    _xnet062_qualify_inputs(monkeypatch)
+    effects = []
+
+    def first_effect(path: Path, *args: Any) -> None:
+        effects.append(path)
+        raise RuntimeError("budget admitted before first effect")
+
+    monkeypatch.setattr(source, "fresh_directory", first_effect)
+    selectors = {"derive_xnet060": mode == "060", "derive_xnet062": mode == "062"}
+    with pytest.raises(
+        RuntimeError if allowed else source.QualificationError,
+        match="budget admitted" if allowed else "qualification_budget",
+    ):
+        source.qualify(tmp_path / "uncreated", seconds, cleanup, **selectors)
+    assert bool(effects) is allowed
+
+
+@pytest.mark.parametrize("value", [1, 0, None, "true", [], {}])
+def test_xnet062_report_rejects_nonboolean_selectors(tmp_path: Path, value: Any) -> None:
+    with pytest.raises(source.QualificationError, match="xnet_derivation_selector_type"):
+        source.qualify(tmp_path / "uncreated", 900, 120, derive_xnet062=value)
+    assert not (tmp_path / "uncreated").exists()
+
+
 def test_local_Mac_is_rejected_before_network_or_native_operations(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -1906,9 +2794,11 @@ def test_create_timeout_retains_ownership_and_raw_status_for_cleanup(
         )
     monkeypatch.setattr(source, "validate_container", lambda actual, name, record: None)
     result = source.cleanup_owned(fake, "/usr/bin/docker", tmp_path, owned, {}, tmp_path)
-    assert result == [{"name": "owned", "native_absent": True}]
+    assert result[0]["name"] == "owned" and result[0].get("failure")
     assert fake.records[0]["failure"] == "TimeoutExpired"
-    assert any("rm" in argv for argv in calls)
+    # A timed-out create supplied no full ID: do not delete a name-only candidate.
+    assert not any("rm" in argv for argv in calls)
+    assert state["exists"] is True
 
 
 def test_never_created_resource_needs_positive_inventory_without_delete(tmp_path: Path) -> None:
@@ -2026,7 +2916,14 @@ def test_attached_CLI_success_requires_native_container_completion(
     )
     with pytest.raises(source.QualificationError, match="container_native_completion"):
         source.start_owned(
-            FakeNative(), "/usr/bin/docker", tmp_path, "owned", {}, "case", {}, tmp_path
+            FakeNative(),
+            "/usr/bin/docker",
+            tmp_path,
+            "owned",
+            {"container_id": "a" * 64},
+            "case",
+            {},
+            tmp_path,
         )
     assert checked == ["owned"]
 
@@ -2046,7 +2943,14 @@ def test_completed_container_inspection_retains_actual_native_state(
 
     monkeypatch.setattr(source, "validate_container", lambda actual, name, expected: None)
     raw, observed = source.start_owned(
-        FakeNative(), "/usr/bin/docker", tmp_path, "owned", {}, "case", {}, tmp_path
+        FakeNative(),
+        "/usr/bin/docker",
+        tmp_path,
+        "owned",
+        {"container_id": "a" * 64},
+        "case",
+        {},
+        tmp_path,
     )
     assert raw == b"native metadata" and observed == state
     assert "start" in operations[0] and "inspect" in operations[1]
@@ -3926,7 +4830,7 @@ def test_promote_known_writer_order_has_frozen_acyclic_workflow() -> None:
     assert (
         hashlib.sha256(raw).hexdigest()
         # Public frozen build workflow digest
-        == "31860b30580c3b389380d7f88722d150fa0ac14ab3c9b773e29f9113d43422e7"
+        == "17deb9c904594c23ca20ecc88fc917c51bcb392aca108fff08358910e148bdf8"
     )
     jobs = yaml.safe_load(raw)["jobs"]
     assert jobs["publish"]["needs"] == ["build", "security-scan"]
@@ -4488,16 +5392,19 @@ def test_replay_coordinate_correspondence_retains_every_other_native_field(tmp_p
             source.replay_coordinates({"Dir": path}, a / "source", a / "modules", download=False)
 
 
+@pytest.mark.parametrize("selector", ["--derive-xnet060", "--derive-xnet062"])
 @pytest.mark.parametrize(
     "extra",
     [
         ["--qualify-existing-ghcr-package", "--public-output", "public.json"],
         ["--public-output", "public.json"],
         ["--derive-xnet06"],
+        ["--derive-xnet060", "--derive-xnet062"],
+        ["--operation", "pair"],
     ],
 )
 def test_fixed_derivation_selector_rejects_mixed_or_abbreviated_modes_before_effects(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, extra: list[str]
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, extra: list[str], selector: str
 ) -> None:
     def forbidden(*args: Any, **kwargs: Any) -> None:
         raise AssertionError("Selector rejected after protected effect")
@@ -4515,7 +5422,7 @@ def test_fixed_derivation_selector_rejects_mixed_or_abbreviated_modes_before_eff
         "120",
     ]
     if extra != ["--derive-xnet06"]:
-        args.append("--derive-xnet060")
+        args.append(selector)
     monkeypatch.setattr(source.sys, "argv", args + extra)
     with pytest.raises(SystemExit) as error:
         source.main()
@@ -4523,12 +5430,76 @@ def test_fixed_derivation_selector_rejects_mixed_or_abbreviated_modes_before_eff
     assert not (tmp_path / "uncreated").exists()
 
 
+@pytest.mark.parametrize("selector", ["xnet060", "xnet062"])
+def test_derivation_selector_dispatches_only_the_selected_metadata_action(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, selector: str
+) -> None:
+    calls: list[dict[str, Any]] = []
+
+    def observed(work: Path, seconds: int, cleanup: int, **kwargs: Any) -> None:
+        assert work == tmp_path / "uncreated" and (seconds, cleanup) == (900, 120)
+        calls.append(kwargs)
+
+    monkeypatch.setattr(source, "qualify", observed)
+    monkeypatch.setattr(source.signal, "signal", lambda *args: None)
+    monkeypatch.setattr(
+        source.sys,
+        "argv",
+        [
+            "qualifier",
+            "--derive-" + selector,
+            "--work-dir",
+            str(tmp_path / "uncreated"),
+            "--timeout-seconds",
+            "900",
+            "--cleanup-seconds",
+            "120",
+        ],
+    )
+    assert source.main() == 0
+    assert calls == [{"derive_" + selector: True}]
+    assert not (tmp_path / "uncreated").exists()
+
+
+def test_derivation_rejects_unbound_or_conflicting_targets_before_effects(tmp_path: Path) -> None:
+    with pytest.raises(source.QualificationError, match="conflicting_xnet_derivation_targets"):
+        source.qualify(tmp_path / "uncreated", 900, 120, derive_xnet060=True, derive_xnet062=True)
+    with pytest.raises(source.QualificationError, match="unsupported_xnet_derivation_target"):
+        source.derive_xnet_observe(
+            cast(Any, None),
+            tmp_path,
+            tmp_path,
+            tmp_path,
+            tmp_path,
+            tmp_path,
+            {},
+            "/usr/bin/docker",
+            tmp_path,
+            {},
+            {},
+            target_version="v0.63.0",
+        )
+    assert not (tmp_path / "uncreated").exists()
+
+
 @pytest.mark.parametrize(
-    "fault",
-    ["none", "base-lock", "get-error", "derived-download-sum", "b-lock-mismatch", "get-nonlock"],
+    "target_version,fault",
+    [
+        (target, fault)
+        for target in ("v0.60.0", "v0.62.0")
+        for fault in (
+            "none",
+            "base-lock",
+            "get-error",
+            "derived-download-sum",
+            "b-lock-mismatch",
+            "get-nonlock",
+        )
+    ]
+    + [("v0.62.0", "incumbent-lock"), ("v0.62.0", "incumbent-get-error")],
 )
 def test_derivation_controller_uses_two_clean_original_fixed_get_replays_or_stops(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fault: str
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fault: str, target_version: str
 ) -> None:
     """Synthetic native transcript only; it cannot qualify Go, source or closure."""
     work = tmp_path / "work"
@@ -4537,6 +5508,12 @@ def test_derivation_controller_uses_two_clean_original_fixed_get_replays_or_stop
     evidence.mkdir()
     original = {"go.mod": b"original module\n", "go.sum": b"original sums\n"}
     derived = {"go.mod": b"derived module\n", "go.sum": b"derived sums\n"}
+    incumbent = {"go.mod": b"incumbent module\n", "go.sum": b"incumbent sums\n"}
+    monkeypatch.setattr(
+        source,
+        "XNET060_INCUMBENT_LOCKS",
+        {name: source.sha(raw) for name, raw in incumbent.items()},
+    )
     monkeypatch.setattr(source, "LOCKS", {name: source.sha(raw) for name, raw in original.items()})
     go = work / "go"
     (go / "bin").mkdir(parents=True)
@@ -4582,22 +5559,35 @@ def test_derivation_controller_uses_two_clean_original_fixed_get_replays_or_stop
                     return b""
                 if "pull" in argv:
                     return b""
-                return json.dumps(
-                    [
-                        {
-                            "Id": source.BASE_CONFIG,
-                            "Os": "linux",
-                            "Architecture": "amd64",
-                            "RepoDigests": [source.BASE],
-                            "Config": {"Env": []},
-                        }
-                    ]
-                ).encode()
+                return json.dumps([_native_fixed_base_image()]).encode()
             command = argv[1:]
             changed = (cwd / "go.mod").read_bytes() != original["go.mod"]
-            version = "v0.60.0" if changed else "v0.58.0"
-            if command == ["get", "golang.org/x/net@v0.60.0"]:
+            current_mod = (cwd / "go.mod").read_bytes()
+            version = (
+                target_version
+                if current_mod == derived["go.mod"]
+                else "v0.60.0" if changed else "v0.58.0"
+            )
+            if target_version == "v0.62.0" and command == ["get", "golang.org/x/net@v0.60.0"]:
                 assert env["GOFLAGS"] == "" and not changed
+                for file, raw in incumbent.items():
+                    (cwd / file).write_bytes(
+                        raw + (b"wrong" if fault == "incumbent-lock" and file == "go.sum" else b"")
+                    )
+                if fault == "incumbent-get-error":
+                    raise source.QualificationError("synthetic_incumbent_get_failure")
+                return b""
+            if command == ["get", "golang.org/x/net@" + target_version]:
+                assert env["GOFLAGS"] == ""
+                if target_version == "v0.62.0":
+                    lane = "b" if cwd.name == "source-b" else "a"
+                    for suffix in ("before", "restored", "physical-members"):
+                        assert (
+                            evidence / (lane + "-incumbent-cache-" + suffix + ".json")
+                        ).is_file()
+                assert current_mod == (
+                    incumbent["go.mod"] if target_version == "v0.62.0" else original["go.mod"]
+                )
                 if fault == "get-error":
                     raise source.QualificationError("synthetic_get_failure")
                 for file, raw in derived.items():
@@ -4631,7 +5621,7 @@ def test_derivation_controller_uses_two_clean_original_fixed_get_replays_or_stop
                 directory = Path(env["GOMODCACHE"]) / ("xnet@" + version)
                 directory.mkdir(exist_ok=True)
                 (directory / "go.mod").write_bytes(b"inert cache")
-                if changed and fault == "derived-download-sum":
+                if version == target_version and fault == "derived-download-sum":
                     (cwd / "go.sum").write_bytes(b"late sum write")
                 return json.dumps(
                     {
@@ -4665,40 +5655,106 @@ def test_derivation_controller_uses_two_clean_original_fixed_get_replays_or_stop
     offline: list[tuple[str, Path]] = []
 
     def observed(
-        native: Any, root: Path, tool: Path, modules: Path, expected: dict[str, bytes], *args: Any
+        native: Any,
+        root: Path,
+        tool: Path,
+        modules: Path,
+        expected: dict[str, bytes],
+        *args: Any,
+        **kwargs: Any,
     ) -> dict[str, Any]:
         assert source._derivation_locks(root) == expected
+        if kwargs.get("restore_cache_modes"):
+            assert target_version == "v0.62.0" and expected == incumbent
+        else:
+            assert expected == derived or fault == "b-lock-mismatch"
         offline.append((root.name, modules))
         return {
             "full_native_package_objects": {
                 "prometheus": {"p": {"ImportPath": "p"}},
                 "promtool": {"t": {"ImportPath": "t"}},
-            }
+            },
+            # This controller stub exercises early retention, not cache validity.
+            "cache_mode_restoration": {"files_before": [], "files_restored": [], "members": []},
         }
 
     monkeypatch.setattr(source, "_derivation_offline", observed)
     report: dict[str, Any] = {"UI_transform": {"synthetic": True}}
     native = FakeNative()
     if fault == "none":
-        source.derive_xnet060_observe(
-            native, work, downloads, a, go, ui, {}, "/usr/bin/docker", work, {}, report
+        source.derive_xnet_observe(
+            native,
+            work,
+            downloads,
+            a,
+            go,
+            ui,
+            {},
+            "/usr/bin/docker",
+            work,
+            {},
+            report,
+            target_version=target_version,
         )
         assert len(report["module_derivation"]["replays"]) == 2
-        assert len(offline) == 2 and offline[0][1] != offline[1][1]
+        assert len(offline) == (4 if target_version == "v0.62.0" else 2)
+        assert offline[0][1] != offline[-1][1]
+        assert report["module_action"] == (
+            "xnet062-replay" if target_version == "v0.62.0" else "xnet060-replay"
+        )
+        for replay in report["module_derivation"]["replays"]:
+            assert replay["before"]["selected"]["golang.org/x/net"]["Version"] == (
+                "v0.60.0" if target_version == "v0.62.0" else "v0.58.0"
+            )
+            assert replay["after"]["selected"]["golang.org/x/net"]["Version"] == target_version
+            if target_version == "v0.62.0":
+                assert (
+                    replay["incumbent_reconstruction"]["original_before"]["selected"][
+                        "golang.org/x/net"
+                    ]["Version"]
+                    == "v0.58.0"
+                )
+                assert replay["incumbent_reconstruction"]["locks"] == source.XNET060_INCUMBENT_LOCKS
         assert (evidence / "a-module-derivation.patch").read_bytes() == (
             evidence / "b-module-derivation.patch"
         ).read_bytes()
     else:
         with pytest.raises(source.QualificationError):
-            source.derive_xnet060_observe(
-                native, work, downloads, a, go, ui, {}, "/usr/bin/docker", work, {}, report
+            source.derive_xnet_observe(
+                native,
+                work,
+                downloads,
+                a,
+                go,
+                ui,
+                {},
+                "/usr/bin/docker",
+                work,
+                {},
+                report,
+                target_version=target_version,
             )
+    if fault == "incumbent-get-error":
+        for name, raw in incumbent.items():
+            assert (evidence / ("a-failed-incumbent-" + name)).read_bytes() == raw
     gets = [(argv, env, cwd) for argv, env, cwd in transcript if argv[1:2] == ["get"]]
-    assert len(gets) == (
-        2 if fault in ("none", "b-lock-mismatch") else 0 if fault == "base-lock" else 1
+    final_gets = [
+        (argv, env, cwd)
+        for argv, env, cwd in gets
+        if argv[2] == "golang.org/x/net@" + target_version
+    ]
+    assert len(final_gets) == (
+        2
+        if fault in ("none", "b-lock-mismatch")
+        else 0 if fault in ("base-lock", "incumbent-lock", "incumbent-get-error") else 1
     )
     for argv, env, cwd in gets:
-        assert argv[1:] == ["get", "golang.org/x/net@v0.60.0"] and env["GOFLAGS"] == ""
+        assert argv[1] == "get" and env["GOFLAGS"] == ""
+        assert argv[2] in ("golang.org/x/net@v0.60.0", "golang.org/x/net@" + target_version)
+    if target_version == "v0.62.0":
+        assert len(gets) - len(final_gets) == (
+            2 if fault in ("none", "b-lock-mismatch") else 0 if fault == "base-lock" else 1
+        )
     for argv, env, cwd in transcript:
         if argv[0] != "/usr/bin/docker" and argv[1:2] != ["get"]:
             assert env["GOFLAGS"] == "-mod=readonly"
@@ -4706,9 +5762,24 @@ def test_derivation_controller_uses_two_clean_original_fixed_get_replays_or_stop
             assert argv[1:] == ["mod", "download", "-json"]
 
 
-@pytest.mark.parametrize("missing", [False, True])
+@pytest.mark.parametrize(
+    "missing,restore_cache_modes,cache_fault",
+    [
+        (False, False, None),
+        (True, False, None),
+        (False, True, None),
+        (True, True, None),
+        (False, True, "new-directory"),
+        (False, True, "replacement"),
+        (False, True, "changed-bytes"),
+    ],
+)
 def test_derivation_offline_keeps_both_production_graphs_and_existing_sandbox_contract(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, missing: bool
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    missing: bool,
+    restore_cache_modes: bool,
+    cache_fault: str | None,
 ) -> None:
     """Synthetic owned-container outcomes; no native executable is started."""
     root, go, modules, evidence = [
@@ -4720,6 +5791,8 @@ def test_derivation_offline_keeps_both_production_graphs_and_existing_sandbox_co
     (root / "go.sum").write_bytes(b"frozen sum")
     (go / "bin/go").write_bytes(b"inert tool")
     (modules / "cache").write_bytes(b"inert cache")
+    (modules / "empty-directory").mkdir(mode=0o750)
+    modes_before = {path: path.stat().st_mode for path in (modules, *modules.rglob("*"))}
     frozen = source._derivation_locks(root)
     remainder = source._derivation_nonlocks(root, source.time.monotonic() + 900)
     created: list[list[str]] = []
@@ -4733,7 +5806,7 @@ def test_derivation_offline_keeps_both_production_graphs_and_existing_sandbox_co
         def run(self, argv: list[str], *args: Any, **kwargs: Any) -> bytes:
             if "create" in argv:
                 created.append(argv)
-                return b"owned"
+                return b"a" * 64 + b"\n"
             return b"[{}]"
 
     monkeypatch.setattr(source, "validate_container", lambda *args: None)
@@ -4755,6 +5828,19 @@ def test_derivation_offline_keeps_both_production_graphs_and_existing_sandbox_co
         else:
             selected = command[-1].rsplit("/", 1)[-1]
             raw = package_stream("prometheus" if missing and selected == "promtool" else selected)
+            if selected == "promtool" and cache_fault:
+                modules.chmod(0o755)
+                if cache_fault == "new-directory":
+                    (modules / "unexpected-empty").mkdir()
+                elif cache_fault == "replacement":
+                    (modules / "cache").rename(modules / "old-cache")
+                    (modules / "cache").write_bytes(b"inert cache")
+                    (modules / "old-cache").unlink()
+                else:
+                    (modules / "cache").chmod(0o644)
+                    (modules / "cache").write_bytes(b"changed bytes")
+                (modules / "cache").chmod(0o444)
+                modules.chmod(0o555)
         return raw, {"Running": False, "ExitCode": 0, "OOMKilled": False}
 
     monkeypatch.setattr(source, "start_owned", completed)
@@ -4769,21 +5855,33 @@ def test_derivation_offline_keeps_both_production_graphs_and_existing_sandbox_co
         "a",
         "/usr/bin/docker",
         tmp_path,
-        {"Id": source.BASE_CONFIG, "Config": {"Env": []}},
+        _native_fixed_base_image(),
         "synthetic-owner",
         [],
         {},
         {},
         tmp_path,
     )
-    if missing:
+    if missing or cache_fault:
         with pytest.raises(source.QualificationError):
-            source._derivation_offline(*arguments)
+            source._derivation_offline(*arguments, restore_cache_modes=restore_cache_modes)
+        assert stat.S_IMODE(modules.stat().st_mode) == 0o555
     else:
-        result = source._derivation_offline(*arguments)
+        result = source._derivation_offline(*arguments, restore_cache_modes=restore_cache_modes)
         assert set(result["command_observations"]) == {"prometheus", "promtool"}
         assert set(result["full_native_package_objects"]) == {"prometheus", "promtool"}
         assert len(result["container_completion"]) == 4
+        if restore_cache_modes:
+            assert {path: path.stat().st_mode for path in modes_before} == modes_before
+            assert (
+                result["cache_mode_restoration"]["files_before"]
+                == result["cache_mode_restoration"]["files_restored"]
+            )
+            assert {row["path"] for row in result["cache_mode_restoration"]["members"]} == {
+                ".",
+                "cache",
+                "empty-directory",
+            }
     assert len(created) == 4
     for argv in created:
         assert argv[argv.index("--network") + 1] == "none"
@@ -4926,7 +6024,7 @@ def _consumer_fixture(
             return {
                 "state": "open",
                 "head": {"sha": "a" * 40, "repo": {"id": 1043311030}},
-                "base": {"sha": "b" * 40, "repo": {"id": 1043311030}},
+                "base": {"ref": "main", "sha": "b" * 40, "repo": {"id": 1043311030}},
             }
 
         def _capture(self, argv: list[str], maximum: int, **kwargs: Any) -> bytes:
@@ -5847,13 +6945,9 @@ def _two_tool_prefetch_recovery_fixture(
         )
     ):
         name, owner = "synthetic-owned-" + kind, "synthetic-owner-" + kind
-        image = {
-            "Id": source.HISTORICAL_BASE_CONFIG,
-            "Os": "linux",
-            "Architecture": "amd64",
-            "RepoDigests": [source.HISTORICAL_BASE],
-            "Config": {"Env": []},
-        }
+        image = _native_fixed_base_image(current=False)
+        if variant == "base-relation" and index == 0:
+            image["RootFS"]["Layers"] = []
         native(
             f"tool-{kind}-base",
             [*docker, "image", "inspect", source.HISTORICAL_BASE],
@@ -5870,17 +6964,29 @@ def _two_tool_prefetch_recovery_fixture(
             source.HISTORICAL_BASE_CONFIG,
             *command,
         ]
-        native(f"tool-{kind}-create", create, name.encode())
+        identifier = source.sha(name.encode())
+        create_output = identifier.encode()
+        if index == 0 and variant in ("create-short-ID", "create-empty-ID"):
+            create_output = name.encode() if variant == "create-short-ID" else b""
+        native(
+            f"tool-{kind}-create",
+            create,
+            create_output,
+        )
+        environment = dict(value.split("=", 1) for value in image["Config"]["Env"])
+        environment.update(offline)
         container = {
+            "Id": "e" * 64 if variant == "container-ID" and index == 0 else identifier,
             "Name": "/" + name,
             "Image": source.HISTORICAL_BASE_CONFIG,
             "Config": {
+                "Image": source.HISTORICAL_BASE_CONFIG,
                 "Labels": {source.LABEL: owner},
                 "User": "65532:65532",
                 "WorkingDir": "/src",
                 "Entrypoint": ["/usr/local/go/bin/go"],
                 "Cmd": command,
-                "Env": [key + "=" + value for key, value in offline.items()],
+                "Env": [key + "=" + value for key, value in environment.items()],
             },
             "HostConfig": {
                 "NetworkMode": "none",
@@ -6080,6 +7186,10 @@ def _two_tool_prefetch_recovery_fixture(
     (
         ("valid", None),
         ("false-counter", "tool_prefetch_second_before_compile"),
+        ("create-short-ID", "tool_prefetch_second_create_ID"),
+        ("create-empty-ID", "tool_prefetch_second_create_ID"),
+        ("container-ID", "container_full_identity"),
+        ("base-relation", "declared_data_length"),
         ("compiled", "tool_prefetch_second_before_compile"),
         ("extra-command", "tool_prefetch_second_native_records"),
         ("native-exit", "tool_prefetch_second_native_records"),
@@ -6281,13 +7391,9 @@ def _three_tool_failure_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     containers = []
     for number, (name, command, raw) in enumerate(commands):
         container, owner = "synthetic-third-" + name, "synthetic-owner-" + name
-        image = {
-            "Id": source.HISTORICAL_BASE_CONFIG,
-            "Os": "linux",
-            "Architecture": "amd64",
-            "RepoDigests": [source.HISTORICAL_BASE],
-            "Config": {"Env": []},
-        }
+        image = _native_fixed_base_image(current=False)
+        if fault == "base-relation" and number == 0:
+            image["RootFS"]["Layers"] = []
         native(
             "tool-" + name + "-base",
             [*docker, "image", "inspect", source.HISTORICAL_BASE],
@@ -6303,13 +7409,24 @@ def _three_tool_failure_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
             source.HISTORICAL_BASE_CONFIG,
             *command,
         ]
-        native("tool-" + name + "-create", create, container.encode())
-        environment = source.clean_environment(
-            source.GUEST_TMP,
-            source.GUEST_TMP,
-            source.GUEST_TMP / "gocache",
-            Path("/modules"),
-            offline=True,
+        identifier = source.sha(container.encode())
+        create_output = identifier.encode()
+        if number == 0 and fault in ("create-short-ID", "create-empty-ID"):
+            create_output = container.encode() if fault == "create-short-ID" else b""
+        native(
+            "tool-" + name + "-create",
+            create,
+            create_output,
+        )
+        environment = dict(value.split("=", 1) for value in image["Config"]["Env"])
+        environment.update(
+            source.clean_environment(
+                source.GUEST_TMP,
+                source.GUEST_TMP,
+                source.GUEST_TMP / "gocache",
+                Path("/modules"),
+                offline=True,
+            )
         )
         mounts = [
             {"Type": "bind", "RW": False, "Destination": guest, "Source": str(work / local)}
@@ -6330,9 +7447,11 @@ def _three_tool_failure_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
                 }
             )
         value = {
+            "Id": "e" * 64 if fault == "container-ID" and number == 0 else identifier,
             "Name": "/" + container,
             "Image": source.HISTORICAL_BASE_CONFIG,
             "Config": {
+                "Image": source.HISTORICAL_BASE_CONFIG,
                 "Labels": {source.LABEL: owner},
                 "User": "65532:65532",
                 "WorkingDir": "/src",
@@ -6554,6 +7673,10 @@ def _three_tool_failure_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     [
         ("valid", None),
         ("false-counter", "tool_third_actual_compiler_consumed"),
+        ("create-short-ID", "tool_third_create_ID"),
+        ("create-empty-ID", "tool_third_create_ID"),
+        ("container-ID", "container_full_identity"),
+        ("base-relation", "declared_data_length"),
         ("zero-counter", "tool_third_actual_compiler_consumed"),
         ("start-zero", "tool_third_actual_compiler_consumed"),
         ("historical-budget", "declared_data_value"),
@@ -6760,6 +7883,9 @@ class _HistoricalAPI:
         self.private = private
         self.deadline = time.monotonic() + 30
         self.calls: list[str] = []
+        run, job = _publication_run(), _publication_job()
+        run["head_sha"] = job["head_sha"] = "4" * 40
+        self.publication = _PublicationPredecessorAPI([run], {12: [job]})
         self.current: dict[str, Any] = {
             "number": 2493,
             "state": "open",
@@ -6792,6 +7918,8 @@ class _HistoricalAPI:
         """Return one declared synthetic native response, never make an HTTP request."""
         self.calls.append(endpoint)
         prefix = "/repos/" + source.GHCR_REPOSITORY
+        if endpoint.startswith(prefix + "/actions/"):
+            return cast(dict[str, Any], self.publication.json(endpoint))
         if endpoint == prefix + "/pulls/2493":
             return self.current
         if endpoint == prefix + "/pulls/2477":
@@ -6807,8 +7935,10 @@ class _HistoricalAPI:
             return self.comparisons[(pair[0], pair[1])]
         raise AssertionError("Unexpected synthetic native endpoint: " + endpoint)
 
-    def pages(self, endpoint: str, key: None, count: int) -> list[dict[str, Any]]:
-        """Return the complete original producer PR graph fixture."""
+    def pages(self, endpoint: str, key: str | None, count: int) -> list[dict[str, Any]]:
+        """Use real bounded publication pages or the declared original PR graph."""
+        if key is not None:
+            return self.publication.pages(endpoint, key, count)
         assert endpoint == "/repos/" + source.GHCR_REPOSITORY + "/pulls/2477/commits"
         assert key is None and count == 2
         self.calls.append(endpoint)
@@ -6852,6 +7982,7 @@ def _historical_fixture(tmp_path: Path) -> tuple[Path, _HistoricalAPI, dict[str,
         _HISTORICAL_SOURCE_PATHS[2]: source.finite_recipe(),
     }
     manifest = cast(dict[str, Any], _synthetic_prometheus_manifest())
+    manifest["inputs"]["source"]["derived_locks"] = dict(source.XNET060_INCUMBENT_LOCKS)
     manifest["candidate"]["producer"]["raw_producer"] = {
         name: {"bytes": len(raw), "sha256": source.sha(raw)} for name, raw in old.items()
     }
@@ -7502,3 +8633,2528 @@ def test_current_default_CA_recognizer_binds_bytes_and_closed_DER_inventory(
             source.validate_default_ca(candidate)
         if fault in ("bytes", "length"):
             assert calls == []
+
+
+def _unchanged_pr_fixture(tmp_path: Path) -> tuple[Path, _HistoricalAPI, dict[str, Any]]:
+    """Make all four B/H blobs equal while retaining real historical-source checks."""
+    root, api, event = _historical_fixture(tmp_path)
+    same = api.files["4" * 40][_HISTORICAL_SOURCE_PATHS[0]]
+    api.files["5" * 40][_HISTORICAL_SOURCE_PATHS[0]] = same
+    (root / _HISTORICAL_SOURCE_PATHS[0]).write_bytes(same)
+    return root, api, event
+
+
+@pytest.mark.parametrize(
+    "state,diagnostic",
+    [
+        ("missing", "positive_publication_predecessor_missing"),
+        ("active", "positive_publication_predecessor_active"),
+        ("failure", "publication_predecessor_failed"),
+        ("cancelled", "publication_predecessor_cancelled"),
+        ("timed_out", "publication_predecessor_timed_out"),
+        ("neutral", "publication_predecessor_not_published"),
+        ("success", None),
+    ],
+)
+def test_unchanged_pr_evidence_uses_complete_publication_observation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, state: str, diagnostic: str | None
+) -> None:
+    """Known nonpositive publication selects independent candidate proof, never success."""
+    root, api, event = _unchanged_pr_fixture(tmp_path)
+    for name in ("GHCR_READ_TOKEN", "GHCR_TOKEN", "DOCKER_CONFIG", "DOCKER_AUTH_CONFIG"):
+        monkeypatch.delenv(name, raising=False)
+    run = _publication_run(
+        status="in_progress" if state == "active" else "completed",
+        conclusion=None if state == "active" else state,
+    )
+    job = _publication_job(
+        status="in_progress" if state == "active" else "completed",
+        conclusion=None if state == "active" else state,
+    )
+    run["head_sha"] = job["head_sha"] = "4" * 40
+    api.publication = _PublicationPredecessorAPI(
+        [] if state == "missing" else [run], {} if state == "missing" else {12: [job]}
+    )
+    predecessor, observed = source.observe_publication_predecessor(api, "4" * 40)
+    assert observed == diagnostic
+    assert (predecessor is None) == (diagnostic is not None)
+    expected = "unchanged_pr_published" if state == "success" else "historical_pr_candidate"
+    assert source.select_pr_evidence_route(api, root, event, "5" * 40) == expected
+    admission = source.event_admission(api, root, event, "pull_request", "5" * 40)
+    assert admission["mode"] == (
+        "unchanged_published" if state == "success" else "historical_pr_candidate"
+    )
+    if diagnostic is not None:
+        with pytest.raises(source.QualificationError, match="^" + diagnostic + "$"):
+            source.require_publication_predecessor(api, "4" * 40)
+        assert admission["publisher_head"] is None
+        assert admission["historical_source_head"] == "3" * 40
+    else:
+        assert admission["publisher_head"] == "4" * 40
+        assert not any("/compare/" in call for call in api.calls)
+
+
+@pytest.mark.parametrize("path", _HISTORICAL_SOURCE_PATHS[1:3])
+def test_unchanged_label_with_recipe_delta_keeps_strict_published_mode(
+    tmp_path: Path, path: str
+) -> None:
+    """Legacy source classification is not four-blob equality or candidate permission."""
+    root, api, event = _unchanged_pr_fixture(tmp_path)
+    api.publication = _PublicationPredecessorAPI([], {})
+    api.files["5" * 40][path] += b"changed recipe"
+    (root / path).write_bytes(api.files["5" * 40][path])
+    assert source.classify_source_change(api.files["4" * 40], api.files["5" * 40]) == (
+        "unchanged_published"
+    )
+    admission = source.event_admission(api, root, event, "pull_request", "5" * 40)
+    assert admission["mode"] == "unchanged_published"
+    assert api.publication.requests == []
+
+
+@pytest.mark.parametrize(
+    "failure", ["transport", "malformed", "drift", "ambiguous", "contradiction"]
+)
+def test_unchanged_pr_publication_uncertainty_cannot_select_candidate(
+    tmp_path: Path, failure: str
+) -> None:
+    """The same complete success baseline reaches each independent evidence failure."""
+    root, api, event = _unchanged_pr_fixture(tmp_path)
+    assert source.event_admission(api, root, event, "pull_request", "5" * 40)["mode"] == (
+        "unchanged_published"
+    )
+    run = {**_publication_run(), "head_sha": "4" * 40}
+    job = {**_publication_job(), "head_sha": "4" * 40}
+    api.publication = _PublicationPredecessorAPI([run], {12: [job]})
+    prefix = "/repos/" + source.GHCR_REPOSITORY + "/actions/"
+    endpoint = prefix + "workflows/build.yml/runs?event=push&head_sha=" + "4" * 40
+    if failure == "transport":
+        api.publication.overrides[endpoint + "&per_page=100&page=1"] = source.QualificationError(
+            "GitHub_native_failed"
+        )
+        diagnostic = "GitHub_native_failed"
+    elif failure == "malformed":
+        api.publication.overrides[endpoint + "&per_page=100&page=1"] = {}
+        diagnostic = "publication_predecessor_run_inventory"
+    elif failure == "drift":
+        api.publication.overrides[prefix + "runs/12"] = {**run, "run_attempt": 2}
+        diagnostic = "publication_predecessor_run_drift"
+    elif failure == "ambiguous":
+        api.publication = _PublicationPredecessorAPI([run], {12: [job, {**job, "id": 121}]})
+        diagnostic = "publication_predecessor_publisher_ambiguous"
+    else:
+        api.publication = _PublicationPredecessorAPI(
+            [run], {12: [{**job, "conclusion": "failure"}]}
+        )
+        diagnostic = "publication_predecessor_run_job_contradiction"
+    api.calls.clear()
+    with pytest.raises(source.QualificationError, match="^" + diagnostic + "$"):
+        source.event_admission(api, root, event, "pull_request", "5" * 40)
+    assert not any("/pulls/2477" in call or "/compare/" in call for call in api.calls)
+
+
+def test_unchanged_pr_healthy_publication_ignores_expired_candidate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An expired retained artifact cannot block an independently published subject."""
+    root, api, event = _unchanged_pr_fixture(tmp_path)
+    manifest = source.read_image_manifest(root / source.MANIFEST_PATH)
+    manifest["candidate"]["artifact"]["expires_at"] = "2000-01-01T00:00:00Z"
+    raw = source.canonical_data(manifest)
+    (root / source.MANIFEST_PATH).write_bytes(raw)
+    for files in api.files.values():
+        files[source.MANIFEST_PATH] = raw
+    admission = source.event_admission(api, root, event, "pull_request", "5" * 40)
+    assert admission["mode"] == "unchanged_published"
+    assert not any("/artifacts/" in call or "/pulls/2477" in call for call in api.calls)
+    # The actual consumer likewise must not acquire a candidate in published mode.
+    material, work, _reader, trace = _consumer_fixture(
+        monkeypatch, tmp_path / "consume", published=True
+    )
+    assert source.consume_image(work, material, 30, 2)["component_consumption"] == "published"
+    assert "candidate" not in trace and "load" not in trace
+
+
+@pytest.mark.parametrize(
+    "credential", ["GHCR_READ_TOKEN", "GHCR_TOKEN", "DOCKER_CONFIG", "DOCKER_AUTH_CONFIG"]
+)
+def test_pr_evidence_selection_rejects_registry_environment_before_api(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, credential: str
+) -> None:
+    root, api, event = _unchanged_pr_fixture(tmp_path)
+    for name in ("GHCR_READ_TOKEN", "GHCR_TOKEN", "DOCKER_CONFIG", "DOCKER_AUTH_CONFIG"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv(credential, "synthetic-forbidden")
+    with pytest.raises(
+        source.QualificationError, match="^consumer_selection_registry_credentials$"
+    ):
+        source.select_pr_evidence_route(api, root, event, "5" * 40)
+    assert api.calls == [] and api.publication.requests == []
+
+
+@pytest.mark.parametrize("fault", ["head", "base", "state"])
+def test_candidate_acquisition_rechecks_current_pr_before_native_load(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str
+) -> None:
+    root, work, reader, trace = _consumer_fixture(
+        monkeypatch, tmp_path, published=False, mode="historical_pr_candidate"
+    )
+    original = source.candidate_payload
+
+    def acquire(api: Any, selected: Path, destination: Path) -> dict[str, Any]:
+        result = original(api, selected, destination)
+        native_json = api.json
+
+        def changed(endpoint: str) -> dict[str, Any]:
+            value = native_json(endpoint)
+            if fault == "state":
+                value["state"] = "closed"
+            else:
+                value[fault]["sha"] = "f" * 40
+            return value
+
+        api.json = changed
+        return result
+
+    monkeypatch.setattr(source, "candidate_payload", acquire)
+    with pytest.raises(source.QualificationError, match="^consumer_route_binding$"):
+        source.consume_image(work, root, 30, 2)
+    assert trace == ["event", "source-root", "candidate", "cleanup"]
+    assert not reader.exists() and not (work / "evidence/consumer.json").exists()
+
+
+@pytest.mark.parametrize("published", [False, True])
+@pytest.mark.parametrize("retarget", [False, True])
+def test_consumer_rechecks_main_base_ref_after_acquisition_before_effect(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, published: bool, retarget: bool
+) -> None:
+    root, work, reader, trace = _consumer_fixture(
+        monkeypatch,
+        tmp_path,
+        published=published,
+        mode="unchanged_published" if published else "historical_pr_candidate",
+    )
+    original_json = source.GitHubRead.json
+    boundary = "public-package" if published else "candidate"
+    observed: list[str] = []
+
+    def live_pr(api: Any, endpoint: str) -> dict[str, Any]:
+        value = original_json(api, endpoint)
+        assert endpoint.endswith("/pulls/2493")
+        if boundary in trace:
+            assert value["base"]["sha"] == "b" * 40 and value["base"]["ref"] == "main"
+            if retarget:
+                value["base"]["ref"] = "release"
+            observed.append(value["base"]["ref"])
+        return value
+
+    monkeypatch.setattr(source.GitHubRead, "json", live_pr)
+    before_effect = (
+        ["event", "predecessor", "public-package"]
+        if published
+        else ["event", "source-root", "candidate"]
+    )
+    if retarget:
+        with pytest.raises(source.QualificationError, match="^consumer_route_binding$"):
+            source.consume_image(work, root, 30, 2)
+        assert observed == ["release"] and trace == [*before_effect, "cleanup"]
+        assert not (work / "evidence/consumer.json").exists()
+    else:
+        source.consume_image(work, root, 30, 2)
+        effects = (
+            ["login", "pull", "raw", "cleanup", "inspect"]
+            if published
+            else ["cleanup", "load", "inspect"]
+        )
+        assert observed == ["main"] and trace == [*before_effect, *effects]
+    assert not reader.exists() and not (work / "GitHub-private").exists()
+
+
+def test_pr_selection_change_before_consumption_rejects_expected_route(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A positive publisher arriving between observations cannot silently change classes."""
+    root, api, event = _unchanged_pr_fixture(tmp_path)
+    for name in ("GHCR_READ_TOKEN", "GHCR_TOKEN", "DOCKER_CONFIG", "DOCKER_AUTH_CONFIG"):
+        monkeypatch.delenv(name, raising=False)
+    success = api.publication
+    api.publication = _PublicationPredecessorAPI([], {})
+    selected = source.select_pr_evidence_route(api, root, event, "5" * 40)
+    assert selected == "historical_pr_candidate"
+    api.publication = success
+    fresh = source.event_admission(api, root, event, "pull_request", "5" * 40)
+    assert fresh["mode"] == "unchanged_published"
+    monkeypatch.setenv("PROMETHEUS_CREDENTIAL_ROUTE", selected)
+    with pytest.raises(source.QualificationError, match="^consumer_route_binding$"):
+        source._bind_consumer_route(event, "pull_request", "5" * 40, fresh)
+
+
+@pytest.mark.parametrize(
+    "fault,diagnostic",
+    [
+        ("original-unmerged", "historical_original_merged_PR"),
+        ("selected-manifest", "historical_selected_manifest"),
+        ("selected-recipe", "historical_recipe_drift"),
+    ],
+)
+def test_unchanged_nonpositive_publication_still_requires_original_source(
+    tmp_path: Path, fault: str, diagnostic: str
+) -> None:
+    root, api, event = _unchanged_pr_fixture(tmp_path)
+    api.publication = _PublicationPredecessorAPI([], {})
+    assert source.event_admission(api, root, event, "pull_request", "5" * 40)["mode"] == (
+        "historical_pr_candidate"
+    )
+    if fault == "original-unmerged":
+        api.original["merged"] = False
+    elif fault == "selected-manifest":
+        api.files["3" * 40][source.MANIFEST_PATH] += b" "
+    else:
+        api.files["3" * 40][_HISTORICAL_SOURCE_PATHS[2]] += b"drift"
+    with pytest.raises(source.QualificationError, match="^" + diagnostic + "$"):
+        source.event_admission(api, root, event, "pull_request", "5" * 40)
+
+
+def _native_fixed_base_image(*, modern: bool = False, current: bool = True) -> dict[str, Any]:
+    assert current or not modern
+    base = source.BASE if current else source.HISTORICAL_BASE
+    config = source.BASE_CONFIG if current else source.HISTORICAL_BASE_CONFIG
+    diff_ids = (
+        [r["diff_id"] for r in source.BASE_LAYER_CONTRACTS]
+        if current
+        else source._NATIVE_HISTORICAL_BASE_DIFF_IDS
+    )
+    image: dict[str, Any] = {
+        "Id": base.split("@", 1)[1] if modern else config,
+        "Os": "linux",
+        "Architecture": "amd64",
+        "RepoDigests": [base],
+        "RootFS": {"Type": "layers", "Layers": diff_ids},
+        "Config": {
+            "User": "65532",
+            "WorkingDir": "/home/nonroot",
+            "Env": [
+                "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt",
+            ],
+        },
+    }
+    if modern:
+        image["Descriptor"] = {
+            "mediaType": source.OCI_MANIFEST,
+            "digest": source.BASE.split("@", 1)[1],
+            "size": 2864,
+        }
+    return image
+
+
+@pytest.mark.parametrize("modern", [False, True])
+def test_native_base_identity_keeps_config_and_engine_roles(modern: bool) -> None:
+    image = _native_fixed_base_image(modern=modern)
+    relation = source.native_base_identity(image)
+    assert relation["config_digest"] == source.BASE_CONFIG
+    assert relation["operand"] == relation["engine_id"] == image["Id"]
+    actual = {"Image": image["Id"], "Config": {"Image": image["Id"]}}
+    if modern:
+        actual["ImageManifestDescriptor"] = {
+            **image["Descriptor"],
+            "platform": {"architecture": "amd64", "os": "linux"},
+        }
+    source.native_container_image_identity(actual, relation)
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "wrong-id",
+        "rootfs-order",
+        "repo",
+        "volumes",
+        "onbuild",
+        "descriptor-size-bool",
+        "descriptor-extra",
+        "descriptor-platform",
+    ],
+)
+def test_native_base_identity_rejects_cross_field_contradictions(fault: str) -> None:
+    image = _native_fixed_base_image(modern=True)
+    if fault == "wrong-id":
+        image["Id"] = "sha256:" + "f" * 64
+    elif fault == "rootfs-order":
+        image["RootFS"]["Layers"].reverse()
+    elif fault == "repo":
+        image["RepoDigests"] = []
+    elif fault == "volumes":
+        image["Config"]["Volumes"] = {"/unexpected": {}}
+    elif fault == "onbuild":
+        image["Config"]["OnBuild"] = ["RUN false"]
+    elif fault == "descriptor-size-bool":
+        image["Descriptor"]["size"] = True
+    elif fault == "descriptor-extra":
+        image["Descriptor"]["extra"] = "ignored?"
+    else:
+        image["Descriptor"]["platform"] = {"os": "linux", "architecture": "amd64"}
+    with pytest.raises(source.QualificationError):
+        source.native_base_identity(image)
+
+
+@pytest.mark.parametrize("fault", ["K", "Q", "missing-D", "platform", "extra-D", "annotations"])
+def test_native_base_container_descriptor_is_role_specific_and_fail_closed(fault: str) -> None:
+    image = _native_fixed_base_image(modern=True)
+    relation = source.native_base_identity(image)
+    actual = {
+        "Image": image["Id"],
+        "Config": {"Image": image["Id"]},
+        "ImageManifestDescriptor": {
+            **image["Descriptor"],
+            "platform": {"architecture": "amd64", "os": "linux"},
+        },
+    }
+    if fault == "K":
+        actual["Image"] = source.BASE_CONFIG
+    elif fault == "Q":
+        actual["Config"]["Image"] = source.BASE
+    elif fault == "missing-D":
+        del actual["ImageManifestDescriptor"]
+    elif fault == "platform":
+        actual["ImageManifestDescriptor"]["platform"]["architecture"] = "arm64"
+    elif fault == "extra-D":
+        actual["ImageManifestDescriptor"]["urls"] = []
+    else:
+        actual["ImageManifestDescriptor"]["annotations"] = {}
+    with pytest.raises(source.QualificationError):
+        source.native_container_image_identity(actual, relation)
+
+
+@pytest.mark.parametrize(
+    "raw", [b"[]", b"[{},{}]", b"{}", b'[{"Id":"a","Id":"b"}]', b'[{"size":NaN}]', b"[{}] {}"]
+)
+def test_native_one_image_rejects_nonunique_or_incomplete_carriers(raw: bytes) -> None:
+    with pytest.raises((ValueError, source.QualificationError)):
+        source.native_one_image(raw)
+
+
+def test_native_BASE20_uses_shared_content_without_weakening_canonical_grammar(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    layout = _finite_vendor_input(tmp_path, monkeypatch)
+    root_digest = source.BASE.split("@", 1)[1]
+    root_size = (layout / "blobs/sha256" / root_digest[7:]).stat().st_size
+    monkeypatch.setattr(source, "_NATIVE_BASE_MANIFEST_SIZE", root_size)
+    index = json.loads((layout / "index.json").read_bytes())
+    index["manifests"][0]["annotations"] = {
+        "containerd.io/distribution.source.gcr.io": "distroless/static-debian13"
+    }
+    (layout / "index.json").write_text(json.dumps(index))
+    (layout / "manifest.json").write_text(
+        json.dumps(
+            [
+                {
+                    "Config": "blobs/sha256/" + source.BASE_CONFIG[7:],
+                    "RepoTags": None,
+                    "Layers": [
+                        "blobs/sha256/" + row["descriptor"]["digest"][7:]
+                        for row in source.BASE_LAYER_CONTRACTS
+                    ],
+                }
+            ]
+        )
+    )
+    assert source.native_base_export_graph(layout) == {
+        "mediaType": source.OCI_MANIFEST,
+        "digest": root_digest,
+        "size": root_size,
+    }
+    with pytest.raises(source.QualificationError, match="layout_transport_annotation"):
+        source._layout_root(layout)
+    (layout / "extra").write_bytes(b"unaccounted")
+    with pytest.raises(source.QualificationError):
+        source.native_base_export_graph(layout)
+
+
+def _native_go_inputs(
+    monkeypatch: pytest.MonkeyPatch, *, indexed: bool
+) -> tuple[dict[str, Any], bytes, bytes]:
+    manifest = {
+        "schemaVersion": 2,
+        "mediaType": source.OCI_MANIFEST,
+        "config": {"mediaType": source.OCI_CONFIG, "size": 10, "digest": source._NATIVE_GO_CONFIG},
+        "layers": [
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "size": 10,
+                "digest": "sha256:" + str(i) * 64,
+            }
+            for i in range(5)
+        ],
+    }
+    manifest_raw = json.dumps(manifest).encode()
+    manifest_raw += b" " * (1922 - len(manifest_raw))
+    assert len(manifest_raw) == 1922
+    digest = "sha256:" + source.sha(manifest_raw)
+    monkeypatch.setattr(source, "_NATIVE_GO_MANIFEST", digest)
+    descriptor = {
+        "mediaType": source.OCI_MANIFEST,
+        "digest": digest,
+        "size": 1922,
+        "platform": {"architecture": "amd64", "os": "linux"},
+        "annotations": dict(source._NATIVE_GO_ANNOTATIONS),
+    }
+    index_raw = json.dumps(
+        {
+            "schemaVersion": 2,
+            "mediaType": "application/vnd.oci.image.index.v1+json",
+            "manifests": [descriptor],
+        }
+    ).encode()
+    monkeypatch.setattr(source, "_NATIVE_GO_INDEX", "sha256:" + source.sha(index_raw))
+    image = {
+        "Id": digest,
+        "Os": "linux",
+        "Architecture": "amd64",
+        "Descriptor": (
+            descriptor if indexed else {k: descriptor[k] for k in ("mediaType", "digest", "size")}
+        ),
+        "RepoDigests": ["golang@" + (source._NATIVE_GO_INDEX if indexed else digest)],
+        "RootFS": {"Type": "layers", "Layers": list(source._NATIVE_GO_DIFF_IDS)},
+        "Config": {
+            "WorkingDir": "/go",
+            "Cmd": ["/bin/sh"],
+            "Env": [
+                "PATH=/go/bin:/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "GOLANG_VERSION=1.26.10",
+                "GOTOOLCHAIN=local",
+                "GOPATH=/go",
+            ],
+        },
+    }
+    return image, index_raw, manifest_raw
+
+
+@pytest.mark.parametrize("indexed", [False, True])
+def test_native_go_profile_binds_actual_index_or_manifest_operand(
+    monkeypatch: pytest.MonkeyPatch, indexed: bool
+) -> None:
+    image, index, manifest = _native_go_inputs(monkeypatch, indexed=indexed)
+    relation = source.native_go_identity(image, index, manifest, indexed=indexed)
+    descriptor = {**relation["manifest"], "platform": {"architecture": "amd64", "os": "linux"}}
+    if indexed:
+        descriptor["annotations"] = dict(source._NATIVE_GO_ANNOTATIONS)
+    actual = {
+        "Image": source._NATIVE_GO_INDEX if indexed else source._NATIVE_GO_MANIFEST,
+        "Config": {"Image": relation["operand"]},
+        "ImageManifestDescriptor": descriptor,
+    }
+    source.native_container_image_identity(actual, relation)
+    actual["Config"]["Image"] = source._NATIVE_GO_CONFIG
+    with pytest.raises(source.QualificationError):
+        source.native_container_image_identity(actual, relation)
+
+
+@pytest.mark.parametrize("annotations", [None, {}, {"unexpected": "value"}])
+def test_native_go_present_descriptor_annotations_cannot_be_ignored(
+    monkeypatch: pytest.MonkeyPatch, annotations: object
+) -> None:
+    image, index, manifest = _native_go_inputs(monkeypatch, indexed=False)
+    relation = source.native_go_identity(image, index, manifest)
+    actual = {
+        "Image": relation["operand"],
+        "Config": {"Image": relation["operand"]},
+        "ImageManifestDescriptor": {
+            **relation["manifest"],
+            "platform": {"architecture": "amd64", "os": "linux"},
+            "annotations": annotations,
+        },
+    }
+    with pytest.raises(source.QualificationError):
+        source.native_container_image_identity(actual, relation)
+
+
+@pytest.mark.parametrize(
+    "fault", [None, "ID", "command-null", "operand", "descriptor", "owner", "network"]
+)
+def test_native_metadata_custody_keeps_explicit_command_and_full_ID(fault: str | None) -> None:
+    image = _native_fixed_base_image(modern=True)
+    relation = source.native_base_identity(image)
+    environment = source.clean_environment(
+        source.GUEST_TMP,
+        source.GUEST_TMP,
+        source.GUEST_TMP / "gocache",
+        Path("/modules"),
+        offline=True,
+    )
+    mounts = {"/src": "/owned/source", "/usr/local/go": "/owned/go", "/modules": "/owned/modules"}
+    expected = {
+        "container_id": "a" * 64,
+        "image": image["Id"],
+        "image_relation": relation,
+        "owner": "synthetic-owner",
+        "command": ["version"],
+        "environment": environment,
+        "mounts": mounts,
+    }
+    actual = {
+        "Id": "a" * 64,
+        "Name": "/synthetic",
+        "Image": image["Id"],
+        "ImageManifestDescriptor": {
+            **relation["manifest"],
+            "platform": {"architecture": "amd64", "os": "linux"},
+        },
+        "Config": {
+            "Image": image["Id"],
+            "Labels": {source.LABEL: "synthetic-owner"},
+            "User": "65532:65532",
+            "WorkingDir": "/src",
+            "Entrypoint": ["/usr/local/go/bin/go"],
+            "Cmd": ["version"],
+            "Env": [key + "=" + value for key, value in environment.items()],
+        },
+        "HostConfig": {
+            "NetworkMode": "none",
+            "ReadonlyRootfs": True,
+            "Privileged": False,
+            "NanoCpus": 2000000000,
+            "Memory": 4294967296,
+            "PidsLimit": 128,
+            "CapDrop": ["ALL"],
+            "CapAdd": None,
+            "SecurityOpt": ["no-new-privileges"],
+            "Tmpfs": {str(source.GUEST_TMP): source.GUEST_TMPFS},
+        },
+        "Mounts": [
+            {"Type": "bind", "RW": False, "Destination": key, "Source": value}
+            for key, value in mounts.items()
+        ],
+    }
+    if fault == "ID":
+        actual["Id"] = "b" * 64
+    elif fault == "command-null":
+        actual["Config"]["Cmd"] = None
+    elif fault == "operand":
+        actual["Config"]["Image"] = source.BASE_CONFIG
+    elif fault == "descriptor":
+        actual["ImageManifestDescriptor"]["platform"]["os"] = "other"
+    elif fault == "owner":
+        actual["Config"]["Labels"][source.LABEL] = "foreign"
+    elif fault == "network":
+        actual["HostConfig"]["NetworkMode"] = "bridge"
+    if fault is None:
+        source.validate_container(actual, "synthetic", expected)
+    else:
+        with pytest.raises(source.QualificationError):
+            source.validate_container(actual, "synthetic", expected)
+
+
+def test_native_BASE20_reaches_F_current_support_without_relabeling_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from scripts.ci import fetch_docker_source_artifacts as fetcher
+
+    layout = _finite_vendor_input(tmp_path, monkeypatch)
+    destination = tmp_path / "support"
+    destination.mkdir()
+    layout.rename(destination / "base-layout")
+    layout = destination / "base-layout"
+    core = {
+        "mediaType": source.OCI_MANIFEST,
+        "digest": source.BASE.split("@", 1)[1],
+        "size": (layout / "blobs/sha256" / source.BASE.split(":")[-1]).stat().st_size,
+    }
+    monkeypatch.setattr(source, "_NATIVE_BASE_MANIFEST_SIZE", core["size"])
+    (layout / "index.json").write_text(
+        json.dumps(
+            {
+                "schemaVersion": 2,
+                "mediaType": "application/vnd.oci.image.index.v1+json",
+                "manifests": [
+                    {
+                        **core,
+                        "annotations": {
+                            "containerd.io/distribution.source.gcr.io": "distroless/static-debian13"
+                        },
+                    }
+                ],
+            }
+        )
+    )
+    (layout / "manifest.json").write_text(
+        json.dumps(
+            [
+                {
+                    "Config": "blobs/sha256/" + source.BASE_CONFIG[7:],
+                    "RepoTags": None,
+                    "Layers": [
+                        "blobs/sha256/" + row["descriptor"]["digest"][7:]
+                        for row in source.BASE_LAYER_CONTRACTS
+                    ],
+                }
+            ]
+        )
+    )
+    for path in layout.rglob("*"):
+        path.chmod(0o700 if path.is_dir() else 0o600)
+    archive = destination / "base-image.tar"
+    with tarfile.open(archive, "w") as saved:
+        for path in sorted(layout.rglob("*")):
+            info = tarfile.TarInfo(path.relative_to(layout).as_posix())
+            info.mode = 0o700 if path.is_dir() else 0o600
+            if path.is_dir():
+                info.type = tarfile.DIRTYPE
+                saved.addfile(info)
+            else:
+                raw = path.read_bytes()
+                info.size = len(raw)
+                saved.addfile(info, io.BytesIO(raw))
+    rows, _ = fetcher._alertmanager_base_export_inventory(archive)
+    rootfs = {"Type": "layers", "Layers": [r["diff_id"] for r in source.BASE_LAYER_CONTRACTS]}
+    report = {
+        "base": {
+            "archive_sha256": source.file_hash(archive),
+            "config": source.BASE_CONFIG,
+            "RootFS": rootfs,
+            "actual_local_OCI_descriptor": core,
+            "complete_export_file_inventory": rows,
+        }
+    }
+    qualification = {
+        "root_inputs": {"base-image.tar": source.file_hash(archive)},
+        "loaded_base": {"RootFS": rootfs},
+    }
+    assert len(rows) == 18  # 20 total members including the two directories.
+    assert fetcher._alertmanager_current_base_graph(layout) == core
+    fetcher._alertmanager_current_support_base(destination, report, qualification)
+    report["base"]["config"] = core["digest"]
+    with pytest.raises(source.QualificationError):
+        fetcher._alertmanager_current_support_base(destination, report, qualification)
+
+
+class _ProductImportNative(source.Native):
+    """Offline transport shaped by retained Docker product create/save observations."""
+
+    def __init__(self, tmp_path: Path, graph: dict[str, Any], modern: bool) -> None:
+        evidence = tmp_path / "native-evidence"
+        evidence.mkdir()
+        super().__init__(evidence, time.monotonic() + 600, 45)
+        self.graph = graph
+        self.calls: list[tuple[list[str], str, dict[str, Any]]] = []
+        self.loaded = False
+        self.preexisting = False
+        self.tag_collision = False
+        self.fail_label = ""
+        self.fail_after_effect = False
+        self.error = TimeoutError("synthetic operation timeout")
+        self.cleanup_error = False
+        self.survive = False
+        self.bad_id = False
+        self.bad_version = False
+        self.bad_terminal = False
+        self.custody_fault = ""
+        self.archive_fault = ""
+        self.extra_tag = False
+        self.inventory_fault = ""
+        self.image_inventory_prefix = b""
+        self.container_inventory_prefix = b""
+        self.save_file_fault = ""
+        self.start_running_timeout = False
+        self.containers: dict[str, dict[str, Any]] = {}
+        self.created_count = 0
+        self.cleanup_starts = 0
+        self.manifest = {
+            "schemaVersion": 2,
+            "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
+            "config": {
+                "mediaType": "application/vnd.docker.container.image.v1+json",
+                "digest": graph["config_digest"],
+                "size": len(graph["config_raw"]),
+            },
+            "layers": [
+                {
+                    "mediaType": "application/vnd.docker.image.rootfs.diff.tar",
+                    "digest": digest,
+                    "size": len(raw),
+                }
+                for digest, raw in zip(graph["diff_ids"], graph["expanded_layers"], strict=True)
+            ],
+        }
+        self.manifest_raw = json.dumps(self.manifest, separators=(",", ":")).encode()
+        self.engine = (
+            "sha256:" + source.sha(self.manifest_raw) if modern else graph["config_digest"]
+        )
+        self.descriptor = {
+            "mediaType": self.manifest["mediaType"],
+            "digest": self.engine,
+            "size": len(self.manifest_raw),
+            "annotations": {
+                "io.containerd.image.name": "docker.io/library/pulseplate-prometheus:candidate",
+                "org.opencontainers.image.ref.name": "candidate",
+            },
+        }
+        self.image = {
+            "Id": self.engine,
+            "Os": "linux",
+            "Architecture": "amd64",
+            "RootFS": {"Type": "layers", "Layers": graph["diff_ids"]},
+            "Config": json.loads(graph["config_raw"])["config"],
+            "RepoTags": ["pulseplate-prometheus:candidate"],
+            "RepoDigests": ["pulseplate-prometheus@" + self.engine] if modern else [],
+        }
+        if modern:
+            self.image["Descriptor"] = self.descriptor
+        self.modern = modern
+
+    def begin_cleanup(self) -> None:
+        self.cleanup_starts += 1
+        super().begin_cleanup()
+
+    def archive_bytes(self) -> bytes:
+        content = {"blobs/sha256/" + self.graph["config_digest"][7:]: self.graph["config_raw"]}
+        content.update(
+            ("blobs/sha256/" + digest[7:], raw)
+            for digest, raw in zip(
+                self.graph["diff_ids"], self.graph["expanded_layers"], strict=True
+            )
+        )
+        native_manifest = copy.deepcopy(self.manifest)
+        if self.archive_fault == "layer-order":
+            native_manifest["layers"].reverse()
+        raw = json.dumps(native_manifest, separators=(",", ":")).encode()
+        content["blobs/sha256/" + self.engine[7:]] = raw
+        index = {
+            "schemaVersion": 2,
+            "mediaType": "application/vnd.oci.image.index.v1+json",
+            "manifests": [{key: self.descriptor[key] for key in ("mediaType", "digest", "size")}],
+        }
+        if self.archive_fault == "index-bool":
+            index["schemaVersion"] = True
+        elif self.archive_fault == "tagged-index":
+            index["manifests"] = [self.descriptor]
+        elif self.archive_fault == "empty-index-annotations":
+            index["manifests"][0]["annotations"] = {}
+        compatibility = [
+            {
+                "Config": "blobs/sha256/" + self.graph["config_digest"][7:],
+                "RepoTags": None,
+                "Layers": ["blobs/sha256/" + d[7:] for d in self.graph["diff_ids"]],
+            }
+        ]
+        if self.archive_fault == "compat-tag":
+            compatibility[0]["RepoTags"] = ["foreign:tag"]
+        elif self.archive_fault == "compat-empty-tags":
+            compatibility[0]["RepoTags"] = []
+        elif self.archive_fault == "compat-candidate":
+            compatibility[0]["RepoTags"] = ["pulseplate-prometheus:candidate"]
+        content.update(
+            {
+                "index.json": json.dumps(index).encode(),
+                "manifest.json": json.dumps(compatibility).encode(),
+                "oci-layout": b'{"imageLayoutVersion":"1.0.0"}',
+            }
+        )
+        if self.archive_fault == "duplicate-json":
+            content["oci-layout"] = b'{"imageLayoutVersion":"1.0.0","imageLayoutVersion":"1.0.0"}'
+        if self.archive_fault == "layer-bytes":
+            key = "blobs/sha256/" + self.graph["diff_ids"][0][7:]
+            content[key] = b"x" + content[key][1:]
+        if self.archive_fault == "config-bytes":
+            key = "blobs/sha256/" + self.graph["config_digest"][7:]
+            content[key] = b"x" + content[key][1:]
+        if self.archive_fault == "extra":
+            content["foreign"] = b"x"
+        if self.archive_fault == "missing":
+            del content["oci-layout"]
+        stream = io.BytesIO()
+        with tarfile.open(fileobj=stream, mode="w", format=tarfile.PAX_FORMAT) as archive:
+            for name in ("blobs", "blobs/sha256"):
+                member = tarfile.TarInfo(name)
+                member.type, member.mode = tarfile.DIRTYPE, 0o755
+                archive.addfile(member)
+            for name, data in sorted(content.items()):
+                member = tarfile.TarInfo(name)
+                member.size = len(data)
+                member.mode = 0o644 if name in ("index.json", "manifest.json") else 0o444
+                if name == "oci-layout":
+                    if self.archive_fault == "mode":
+                        member.mode = 0o777
+                    if self.archive_fault == "pax":
+                        member.pax_headers = {"comment": "unqualified"}
+                    if self.archive_fault == "symlink":
+                        member.type, member.linkname, member.size = tarfile.SYMTYPE, "index.json", 0
+                archive.addfile(member, io.BytesIO(data))
+                if self.archive_fault == "duplicate" and name == "oci-layout":
+                    archive.addfile(member, io.BytesIO(data))
+        raw = stream.getvalue()
+        if self.archive_fault == "trailer":
+            raw = raw[:-1] + b"x"
+        return raw
+
+    def run(self, argv: list[str], name: str, env: dict[str, str], **kwargs: Any) -> bytes:
+        self.calls.append((argv, name, kwargs))
+        assert argv[:3] == ["/usr/bin/docker", "--config", str(self.evidence.parent / "config")]
+        if kwargs.get("cleaning"):
+            assert self.cleanup_deadline is not None
+        if name == self.fail_label and not self.fail_after_effect:
+            raise self.error
+        args = argv[3:]
+        raw = b""
+        if args[:2] == ["image", "ls"]:
+            assert args[2:] == [
+                "--all",
+                "--no-trunc",
+                "--format",
+                "{{.ID}}\t{{.Repository}}:{{.Tag}}",
+            ]
+            rows = []
+            if self.preexisting:
+                rows.append(self.engine + "\t<none>:<none>")
+            if self.loaded or self.tag_collision:
+                rows.append(self.engine + "\tpulseplate-prometheus:candidate")
+            if self.extra_tag and self.loaded:
+                rows.append(self.engine + "\tforeign:tag")
+            raw = ("\n".join(rows) + ("\n" if rows else "")).encode()
+            raw = self.image_inventory_prefix + raw
+            if self.inventory_fault and name == self.inventory_fault:
+                raw = b"incomplete"
+        elif args[0] == "load":
+            self.loaded = True
+        elif args[:2] == ["image", "inspect"]:
+            raw = json.dumps(self.image).encode()
+        elif args[:2] == ["image", "save"]:
+            assert args[2] == "--output" and args[-1] == self.engine
+            target = Path(args[3])
+            assert kwargs["watched_output"] == target.parent
+            target.write_bytes(self.archive_bytes())
+            if self.save_file_fault == "symlink":
+                other = target.parent.parent / "untrusted-native.tar"
+                target.rename(other)
+                target.symlink_to(other)
+            elif self.save_file_fault == "extra":
+                (target.parent / "unexpected").write_bytes(b"extra")
+        elif args[0] == "ps":
+            assert args[1:] == ["--all", "--no-trunc", "--format", "{{.ID}}\t{{.Names}}"]
+            raw = "".join(
+                k + "\t" + v["Name"][1:] + "\n" for k, v in self.containers.items()
+            ).encode()
+            raw = self.container_inventory_prefix + raw
+        elif args[0] == "create":
+            assert all(
+                flag in args for flag in ("--pull", "--read-only", "--cap-drop", "--security-opt")
+            )
+            for flag, value in (
+                ("--pull", "never"),
+                ("--user", "65532:65532"),
+                ("--network", "none"),
+                ("--cap-drop", "ALL"),
+                ("--cpus", "2"),
+                ("--memory", "4g"),
+                ("--pids-limit", "128"),
+            ):
+                assert args[args.index(flag) + 1] == value
+            self.created_count += 1
+            identifier = f"{self.created_count:064x}"
+            config = copy.deepcopy(self.image["Config"])
+            label_key, label_value = args[args.index("--label") + 1].split("=", 1)
+            config["Labels"][label_key] = label_value
+            config["Image"] = self.engine
+            config["Volumes"] = None
+            if "--entrypoint" in args:
+                config["Entrypoint"] = [args[args.index("--entrypoint") + 1]]
+                config["Cmd"] = ["--version"]
+                assert args[-2:] == [self.engine, "--version"]
+            else:
+                assert args[-1] == self.engine
+            actual = {
+                "Id": identifier,
+                "Name": "/" + args[args.index("--name") + 1],
+                "Image": self.engine,
+                "Config": config,
+                "Path": config["Entrypoint"][0],
+                "Args": config["Cmd"],
+                "Mounts": [],
+                "State": {
+                    "Status": "created",
+                    "Running": False,
+                    "Paused": False,
+                    "Restarting": False,
+                    "OOMKilled": False,
+                    "Dead": False,
+                    "Pid": 0,
+                    "ExitCode": 0,
+                    "Error": "",
+                    "StartedAt": "0001-01-01T00:00:00Z",
+                },
+                "HostConfig": {
+                    "NetworkMode": "none",
+                    "ReadonlyRootfs": True,
+                    "Privileged": False,
+                    "NanoCpus": 2000000000,
+                    "Memory": 4294967296,
+                    "PidsLimit": 128,
+                    "CapDrop": ["ALL"],
+                    "CapAdd": None,
+                    "SecurityOpt": ["no-new-privileges"],
+                    "AutoRemove": False,
+                    "RestartPolicy": {"Name": "no", "MaximumRetryCount": 0},
+                    "Binds": None,
+                    "VolumesFrom": None,
+                    "Tmpfs": None,
+                    "Devices": [],
+                    "DeviceRequests": None,
+                    "PidMode": "",
+                    "UTSMode": "",
+                    "IpcMode": "private",
+                },
+            }
+            if self.modern:
+                actual["ImageManifestDescriptor"] = {
+                    **self.descriptor,
+                    "platform": {"os": "linux", "architecture": "amd64"},
+                }
+            self.containers[identifier] = actual
+            raw = ("short" if self.bad_id else identifier).encode() + b"\n"
+        elif args[0] == "inspect":
+            assert re.fullmatch(r"[0-9a-f]{64}", args[-1])
+            actual = copy.deepcopy(self.containers[args[-1]])
+            if self.custody_fault:
+                if self.custody_fault == "ID":
+                    actual["Id"] = "f" * 64
+                elif self.custody_fault == "operand":
+                    actual["Config"]["Image"] = "sha256:" + "f" * 64
+                elif self.custody_fault == "owner":
+                    actual["Config"]["Labels"][source.LABEL] = "foreign"
+                elif self.custody_fault == "mount":
+                    actual["Mounts"] = [{"Destination": "/host"}]
+                elif self.custody_fault == "network":
+                    actual["HostConfig"]["NetworkMode"] = "host"
+                elif self.custody_fault == "descriptor":
+                    actual["ImageManifestDescriptor"]["platform"]["os"] = "foreign"
+                elif self.custody_fault == "command":
+                    actual["Config"]["Cmd"] = ["foreign"]
+            raw = json.dumps(actual).encode()
+        elif args[0] == "cp":
+            identifier, path = args[1].split(":", 1)
+            assert identifier in self.containers and args[2] == "-"
+            filename = Path(path).name
+            data = self.graph["files"][filename]
+            member = tarfile.TarInfo(filename)
+            member.size = len(data)
+            member.mode = 0o755 if filename in ("prometheus", "promtool") else 0o644
+            stream = io.BytesIO()
+            with tarfile.open(fileobj=stream, mode="w") as archive:
+                archive.addfile(member, io.BytesIO(data))
+            raw = stream.getvalue()
+        elif args[0] == "start":
+            assert args[1] == "--attach" and args[2] in self.containers
+            actual = self.containers[args[2]]
+            actual["State"].update(
+                Status="exited",
+                Running=False,
+                OOMKilled=self.bad_terminal,
+                StartedAt="2026-11-07T00:00:00Z",
+            )
+            raw = ("version 3.15.0 " + source.REVISION + " go1.27.3").encode()
+            if self.bad_version:
+                raw = b"wrong version"
+            if self.start_running_timeout:
+                actual["State"].update(Status="running", Running=True, Pid=123)
+                raise self.error
+        elif args[0] == "rm":
+            assert args[-1] in self.containers
+            if self.cleanup_error:
+                raise RuntimeError("synthetic cleanup failure")
+            if not self.survive:
+                del self.containers[args[-1]]
+        elif args[:2] == ["image", "rm"]:
+            assert args[2:] == [self.engine] and not self.containers and not self.preexisting
+            self.loaded = False
+        else:
+            raise AssertionError(argv)
+        stdout = self.evidence / (name + ".stdout")
+        stdout.write_bytes(raw)
+        self.records.append({"argv": argv, "stdout": str(stdout), "exit": 0})
+        if name == self.fail_label:
+            raise self.error
+        return raw
+
+
+def _product_import_fixture(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, modern: bool = True
+) -> tuple[_ProductImportNative, Path, dict[str, Any]]:
+    base, layout, archive, _ = _finite_constructed(tmp_path, monkeypatch)
+    graph = source.validate_oci_graph(layout, base, synthetic=True)
+    return _ProductImportNative(tmp_path, graph, modern), archive, graph
+
+
+def _run_product_import(
+    native: _ProductImportNative, archive: Path, graph: dict[str, Any], *, synthetic: bool = True
+) -> dict[str, Any]:
+    return source.native_import(
+        native,
+        native.evidence.parent,
+        "/usr/bin/docker",
+        native.evidence.parent / "config",
+        {},
+        archive,
+        graph,
+        synthetic=synthetic,
+    )
+
+
+@pytest.mark.parametrize("modern", [False, True])
+@pytest.mark.parametrize("synthetic", [False, True])
+def test_native_import_complete_product_lifecycle(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, modern: bool, synthetic: bool
+) -> None:
+    native, archive, graph = _product_import_fixture(tmp_path, monkeypatch, modern)
+    result = _run_product_import(native, archive, graph, synthetic=synthetic)
+    assert result["image_config_id"] == graph["config_digest"]
+    assert result["status"] == (
+        "observed_synthetic_format_only" if synthetic else "observed_real_native_import"
+    )
+    assert result["synthetic_executed"] is False and len(result["copies"]) == 7
+    assert native.created_count == (1 if synthetic else 3)
+    starts = [argv for argv, _, _ in native.calls if argv[3] == "start"]
+    assert len(starts) == (0 if synthetic else 2)
+    assert not native.containers and not native.loaded and native.cleanup_starts == 1
+    assert not any(argv[3] == "run" for argv, _, _ in native.calls)
+    assert len([argv for argv, _, _ in native.calls if argv[3:5] == ["image", "save"]]) == int(
+        modern
+    )
+    for capture in result["copies"].values():
+        assert "retained_tar_gzip_sha256" in capture
+
+
+@pytest.mark.parametrize(
+    "fault,diagnostic",
+    [
+        ("layer-bytes", "product_save_content_bytes"),
+        ("config-bytes", "product_save_content_bytes"),
+        ("layer-order", "product_save_manifest_digest"),
+        ("index-bool", "declared_data_type"),
+        ("compat-tag", "declared_data_type"),
+        ("duplicate-json", "duplicate_JSON_key"),
+        ("extra", "product_save_inventory"),
+        ("missing", "product_save_inventory"),
+        ("duplicate", "product_save_inventory"),
+        ("mode", "product_save_regular"),
+        ("pax", "product_save_header"),
+        ("symlink", "product_save_header"),
+        ("trailer", "product_save_trailer"),
+    ],
+)
+def test_native_import_rejects_saved_graph_drift(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str, diagnostic: str
+) -> None:
+    native, archive, graph = _product_import_fixture(tmp_path, monkeypatch)
+    native.archive_fault = fault
+    with pytest.raises(source.QualificationError, match=diagnostic):
+        _run_product_import(native, archive, graph)
+    assert native.created_count == 0 and native.loaded
+    assert not any(argv[3:5] == ["image", "rm"] for argv, _, _ in native.calls)
+
+
+@pytest.mark.parametrize(
+    "fault,diagnostic",
+    [
+        ("ID", "product_container_identity"),
+        ("operand", "product_container_operand_mounts"),
+        ("owner", "declared_data_value"),
+        ("mount", "product_container_operand_mounts"),
+        ("network", "declared_data_value"),
+        ("descriptor", "declared_data_value"),
+        ("command", "declared_data_length"),
+    ],
+)
+def test_native_import_rejects_container_custody_drift(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str, diagnostic: str
+) -> None:
+    native, archive, graph = _product_import_fixture(tmp_path, monkeypatch)
+    native.custody_fault = fault
+    with pytest.raises(source.QualificationError, match=diagnostic):
+        _run_product_import(native, archive, graph)
+    assert not any(argv[3] in ("cp", "start", "rm") for argv, _, _ in native.calls)
+    assert native.containers and native.loaded
+
+
+@pytest.mark.parametrize(
+    "label,after",
+    [
+        ("import-load", True),
+        ("import-image", False),
+        ("import-save", False),
+        ("import-copy-create", True),
+        ("import-copy-0", False),
+        ("import-prometheus-version", True),
+        ("import-promtool-version", True),
+    ],
+)
+def test_native_import_preserves_primary_timeout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, label: str, after: bool
+) -> None:
+    native, archive, graph = _product_import_fixture(tmp_path, monkeypatch)
+    native.fail_label, native.fail_after_effect = label, after
+    with pytest.raises(TimeoutError) as caught:
+        _run_product_import(native, archive, graph, synthetic=False)
+    assert caught.value is native.error and native.cleanup_starts == 1
+    assert getattr(caught.value, "native_import_cleanup")
+    if label in {"import-load", "import-image", "import-save", "import-copy-create"}:
+        assert native.loaded
+        assert not any(argv[3:5] == ["image", "rm"] for argv, _, _ in native.calls)
+    else:
+        assert not native.containers and not native.loaded
+
+
+@pytest.mark.parametrize("primary", [False, True])
+def test_native_import_cleanup_error_never_creates_success(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, primary: bool
+) -> None:
+    native, archive, graph = _product_import_fixture(tmp_path, monkeypatch)
+    native.cleanup_error = True
+    if primary:
+        native.fail_label = "import-copy-0"
+        with pytest.raises(TimeoutError) as caught:
+            _run_product_import(native, archive, graph)
+        assert caught.value is native.error
+        assert any("failure" in row for row in caught.value.native_import_cleanup)
+    else:
+        with pytest.raises(source.QualificationError, match="product_import_cleanup_failed"):
+            _run_product_import(native, archive, graph)
+    assert native.containers and native.loaded
+
+
+@pytest.mark.parametrize(
+    "fault,diagnostic",
+    [
+        ("preexisting", "product_preexisting_image_HOLD"),
+        ("tag_collision", "native_import_tag_collision"),
+        ("bad_id", "owned_create_full_ID"),
+        ("bad_version", "native_candidate_version_revision_compiler"),
+        ("bad_terminal", "product_container_completion"),
+        ("survive", "product_import_cleanup_failed"),
+        ("extra_tag", "product_import_cleanup_failed"),
+    ],
+)
+def test_native_import_failed_lifecycle_states(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str, diagnostic: str
+) -> None:
+    native, archive, graph = _product_import_fixture(tmp_path, monkeypatch)
+    setattr(native, fault, True)
+    with pytest.raises(source.QualificationError, match=diagnostic):
+        _run_product_import(native, archive, graph, synthetic=False)
+    if fault in {"preexisting", "tag_collision", "bad_id", "survive", "extra_tag"}:
+        assert not any(argv[3:5] == ["image", "rm"] for argv, _, _ in native.calls)
+
+
+@pytest.mark.parametrize("maximum", [0, -1, True, 4 * 1024**3 + 1])
+def test_product_file_hash_rejects_invalid_explicit_maximum(tmp_path: Path, maximum: int) -> None:
+    with pytest.raises(source.QualificationError, match="file_maximum_bound"):
+        source.file_hash(tmp_path / "absent", maximum_bytes=maximum)
+
+
+def test_product_file_hash_retains_default_bound_and_streams_explicit_cap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "saved"
+    path.write_bytes(b"12345678")
+    monkeypatch.setattr(source, "MAX_CACHE_BYTES", 4)
+    with pytest.raises(source.QualificationError, match="file_byte_bound"):
+        source.file_hash(path)
+    assert source.file_hash(path, maximum_bytes=8) == source.sha(b"12345678")
+
+
+@pytest.mark.parametrize(
+    "label", ["import-inventory", "import-image-cleanup-inventory", "import-image-absence"]
+)
+def test_native_import_incomplete_inventory_is_not_absence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, label: str
+) -> None:
+    native, archive, graph = _product_import_fixture(tmp_path, monkeypatch)
+    native.inventory_fault = label
+    diagnostic = (
+        "product_inventory_terminal"
+        if label == "import-inventory"
+        else "product_import_cleanup_failed"
+    )
+    with pytest.raises(source.QualificationError, match=diagnostic):
+        _run_product_import(native, archive, graph)
+    if label == "import-inventory":
+        assert not native.loaded and native.created_count == 0
+
+
+@pytest.mark.parametrize(
+    "fault,diagnostic",
+    [("symlink", "nonregular_or_multilink_file"), ("extra", "product_save_output_inventory")],
+)
+def test_native_import_private_save_file_cannot_be_substituted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str, diagnostic: str
+) -> None:
+    native, archive, graph = _product_import_fixture(tmp_path, monkeypatch)
+    native.save_file_fault = fault
+    with pytest.raises(source.QualificationError, match=diagnostic):
+        _run_product_import(native, archive, graph)
+    assert native.created_count == 0 and native.loaded
+
+
+def test_native_import_save_is_streamed_not_returned_as_stdout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    native, archive, graph = _product_import_fixture(tmp_path, monkeypatch)
+    original = Path.read_bytes
+
+    def bounded_read(path: Path) -> bytes:
+        assert path.name != "native.tar", "native save must not be read as a whole-image buffer"
+        return original(path)
+
+    monkeypatch.setattr(Path, "read_bytes", bounded_read)
+    _run_product_import(native, archive, graph)
+    save_call = next(row for row in native.calls if row[1] == "import-save")
+    assert "watched_output" in save_call[2] and "output_bound" not in save_call[2]
+    assert (native.evidence / "import-save.stdout").stat().st_size == 0
+    assert (native.evidence / "import-save/native.tar").stat().st_size > 0
+
+
+def test_native_import_running_version_timeout_removes_only_proven_full_ID(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    native, archive, graph = _product_import_fixture(tmp_path, monkeypatch)
+    native.start_running_timeout = True
+    with pytest.raises(TimeoutError) as caught:
+        _run_product_import(native, archive, graph, synthetic=False)
+    assert caught.value is native.error and not native.containers and not native.loaded
+    forced = [argv for argv, _, _ in native.calls if argv[3:5] == ["rm", "--force"]]
+    assert len(forced) == 1 and re.fullmatch(r"[0-9a-f]{64}", forced[0][-1])
+
+
+def test_native_import_free_space_failure_precedes_save_and_create(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    native, archive, graph = _product_import_fixture(tmp_path, monkeypatch)
+    observed = source.shutil.disk_usage(tmp_path)
+    monkeypatch.setattr(source.shutil, "disk_usage", lambda path: observed._replace(free=0))
+    with pytest.raises(source.QualificationError, match="product_save_free_space_HOLD"):
+        _run_product_import(native, archive, graph)
+    assert native.created_count == 0
+    assert not any(argv[3:5] == ["image", "save"] for argv, _, _ in native.calls)
+
+
+@pytest.mark.parametrize(
+    "fault,diagnostic",
+    [
+        ("config", "declared_data_value"),
+        ("layer-order", "declared_data_value"),
+        ("layer-size", "declared_data_value"),
+        ("bool-size", "declared_data_type"),
+        ("layer-count", "declared_data_length"),
+        ("media", "declared_data_value"),
+        ("extra-key", "declared_data_keys"),
+    ],
+)
+def test_native_import_hash_correct_manifest_must_still_bind_source_graph(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str, diagnostic: str
+) -> None:
+    native, archive, graph = _product_import_fixture(tmp_path, monkeypatch)
+    if fault == "config":
+        native.manifest["config"]["digest"] = "sha256:" + "f" * 64
+    elif fault == "layer-order":
+        native.manifest["layers"].reverse()
+    elif fault == "layer-size":
+        native.manifest["layers"][0]["size"] += 1
+    elif fault == "bool-size":
+        native.manifest["config"]["size"] = True
+    elif fault == "layer-count":
+        native.manifest["layers"].pop()
+    elif fault == "media":
+        native.manifest["mediaType"] = source.OCI_MANIFEST
+    else:
+        native.manifest["unknown"] = "not admitted"
+    native.manifest_raw = json.dumps(native.manifest, separators=(",", ":")).encode()
+    native.engine = "sha256:" + source.sha(native.manifest_raw)
+    native.descriptor.update(digest=native.engine, size=len(native.manifest_raw))
+    native.image.update(Id=native.engine, RepoDigests=["pulseplate-prometheus@" + native.engine])
+    # The raw manifest hashes to the observed engine and descriptor; source relation alone rejects.
+    with pytest.raises(source.QualificationError, match=diagnostic):
+        _run_product_import(native, archive, graph)
+    assert native.created_count == 0 and native.loaded
+
+
+@pytest.mark.parametrize("field", ["RootFS", "Descriptor"])
+def test_native_import_inspect_cross_links_cannot_be_ignored(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, field: str
+) -> None:
+    native, archive, graph = _product_import_fixture(tmp_path, monkeypatch)
+    if field == "RootFS":
+        native.image[field] = {"Type": "layers", "Layers": []}
+        diagnostic = "declared_data_length"
+    else:
+        native.descriptor["annotations"]["org.opencontainers.image.ref.name"] = "foreign"
+        diagnostic = "declared_data_value"
+    with pytest.raises(source.QualificationError, match=diagnostic):
+        _run_product_import(native, archive, graph)
+    assert native.created_count == 0
+
+
+@pytest.mark.parametrize("repository", ["caddy", "registry.invalid:5000/caddy", "<none>"])
+@pytest.mark.parametrize("modern", [False, True])
+def test_native_import_image_census_keeps_untagged_repository_rows(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, repository: str, modern: bool
+) -> None:
+    native, archive, graph = _product_import_fixture(tmp_path, monkeypatch, modern)
+    # Docker29 emits repo:<none> for distinct IDs; the last field is its display sentinel.
+    prefix = (
+        "sha256:"
+        + "c" * 64
+        + "\t"
+        + repository
+        + ":<none>\n"
+        + "sha256:"
+        + "d" * 64
+        + "\t"
+        + repository
+        + ":<none>\n"
+    ).encode()
+    native.image_inventory_prefix = prefix
+    result = _run_product_import(native, archive, graph)
+    assert result["image_config_id"] == graph["config_digest"]
+    assert native.image_inventory_prefix == prefix and not native.loaded
+    removals = [argv for argv, _, _ in native.calls if argv[3:5] == ["image", "rm"]]
+    assert removals == [
+        ["/usr/bin/docker", "--config", str(tmp_path / "config"), "image", "rm", native.engine]
+    ]
+
+
+@pytest.mark.parametrize(
+    "fault,diagnostic",
+    [
+        ("named-tag", "product_inventory_ambiguous_names"),
+        ("sentinel-lookalike", "product_inventory_ambiguous_names"),
+        ("duplicate-row", "product_inventory_rows"),
+        ("short-id", "product_inventory_rows"),
+    ],
+)
+def test_native_import_image_census_still_rejects_ambiguous_or_incomplete_rows(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str, diagnostic: str
+) -> None:
+    native, archive, graph = _product_import_fixture(tmp_path, monkeypatch)
+    tag = (
+        "latest"
+        if fault == "named-tag"
+        else "<none>-other" if fault == "sentinel-lookalike" else "<none>"
+    )
+    first = "sha256:" + "c" * 64 + "\tcaddy:" + tag + "\n"
+    second = "sha256:" + "d" * 64 + "\tcaddy:" + tag + "\n"
+    if fault == "duplicate-row":
+        second = first
+    elif fault == "short-id":
+        second = "sha256:short\tcaddy:<none>\n"
+    native.image_inventory_prefix = (first + second).encode()
+    with pytest.raises(source.QualificationError, match=diagnostic):
+        _run_product_import(native, archive, graph)
+    assert not any(
+        argv[3] in ("load", "create", "cp", "start", "rm") for argv, _, _ in native.calls
+    )
+
+
+def test_native_import_image_census_retains_exact_candidate_collision(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    native, archive, graph = _product_import_fixture(tmp_path, monkeypatch)
+    native.image_inventory_prefix = (
+        "sha256:"
+        + "c" * 64
+        + "\tpulseplate-prometheus:<none>\n"
+        + "sha256:"
+        + "d" * 64
+        + "\tpulseplate-prometheus:<none>\n"
+        + "sha256:"
+        + "e" * 64
+        + "\tpulseplate-prometheus:candidate\n"
+    ).encode()
+    with pytest.raises(source.QualificationError, match="native_import_tag_collision"):
+        _run_product_import(native, archive, graph)
+    assert not native.loaded and native.created_count == 0
+
+
+def test_native_import_image_census_untagged_ID_remains_preexisting(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    native, archive, graph = _product_import_fixture(tmp_path, monkeypatch)
+    native.image_inventory_prefix = (
+        native.engine + "\tcaddy:<none>\n" + "sha256:" + "d" * 64 + "\tcaddy:<none>\n"
+    ).encode()
+    with pytest.raises(source.QualificationError, match="product_preexisting_image_HOLD"):
+        _run_product_import(native, archive, graph)
+    assert native.created_count == 0 and native.loaded
+    assert not any(argv[3:5] == ["image", "rm"] for argv, _, _ in native.calls)
+
+
+def test_native_import_image_census_does_not_relax_container_name_uniqueness(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    native, archive, graph = _product_import_fixture(tmp_path, monkeypatch)
+    native.container_inventory_prefix = (
+        "c" * 64 + "\tforeign-container\n" + "d" * 64 + "\tforeign-container\n"
+    ).encode()
+    with pytest.raises(source.QualificationError, match="product_inventory_ambiguous_names"):
+        _run_product_import(native, archive, graph)
+    assert native.created_count == 0
+
+
+def test_native_import_full_ID_export_separates_tagged_live_custody(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    native, archive, graph = _product_import_fixture(tmp_path, monkeypatch)
+    with tarfile.open(fileobj=io.BytesIO(native.archive_bytes()), mode="r:") as exported:
+        index_file = exported.extractfile("index.json")
+        manifest_file = exported.extractfile("manifest.json")
+        assert index_file is not None and manifest_file is not None
+        index = json.loads(index_file.read())
+        compatibility = json.loads(manifest_file.read())
+        assert index["manifests"] == [
+            {key: native.descriptor[key] for key in ("mediaType", "digest", "size")}
+        ]
+        assert compatibility[0]["RepoTags"] is None
+    result = _run_product_import(native, archive, graph, synthetic=False)
+    assert result["image_config_id"] == graph["config_digest"]
+    for role in ("copy", "prometheus", "promtool"):
+        actual = json.loads(
+            (native.evidence / ("import-" + role + "-prestart.stdout")).read_bytes()
+        )
+        assert actual["ImageManifestDescriptor"] == {
+            **native.descriptor,
+            "platform": {"architecture": "amd64", "os": "linux"},
+        }
+        assert actual["Image"] == actual["Config"]["Image"] == native.engine
+    saves = [argv for argv, _, _ in native.calls if argv[3:5] == ["image", "save"]]
+    assert len(saves) == 1 and saves[0][-1] == native.engine
+
+
+@pytest.mark.parametrize(
+    "fault,diagnostic",
+    [
+        ("tagged-index", "declared_data_keys"),
+        ("empty-index-annotations", "declared_data_keys"),
+        ("compat-empty-tags", "declared_data_type"),
+        ("compat-candidate", "declared_data_type"),
+    ],
+)
+def test_native_import_full_ID_export_rejects_tagged_or_mixed_shapes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str, diagnostic: str
+) -> None:
+    native, archive, graph = _product_import_fixture(tmp_path, monkeypatch)
+    native.archive_fault = fault
+    with pytest.raises(source.QualificationError, match=diagnostic):
+        _run_product_import(native, archive, graph)
+    assert native.created_count == 0 and native.loaded
+
+
+def test_native_import_full_ID_export_does_not_relax_tagged_live_descriptor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    native, archive, graph = _product_import_fixture(tmp_path, monkeypatch)
+    native.image["Descriptor"] = {
+        key: native.descriptor[key] for key in ("mediaType", "digest", "size")
+    }
+    with pytest.raises(source.QualificationError, match="declared_data_keys"):
+        _run_product_import(native, archive, graph)
+    assert native.created_count == 0 and native.loaded
+
+
+def _p062_retained_q_fixture(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> tuple[dict[str, bytes], Path, dict[str, Any], Path, dict[str, Any]]:
+    """Exercise the real two-replay producer with inert native transport, then its reader.
+
+    The independent reader never receives this producer's in-memory report or
+    owned-container mapping. Small fixture locks replace content parameters only.
+    """
+    import difflib
+
+    root, work = tmp_path / "checkout", tmp_path / "prometheus-source-502-1"
+    root.mkdir()
+    work.mkdir()
+    evidence, go, config = work / "evidence", work / "go", work / "docker-config"
+    for path in (evidence, go / "bin", config):
+        path.mkdir(parents=True)
+    (go / "bin/go").write_bytes(b"inert compiler")
+    epochs = {
+        version: {name: (version + " " + name + "\n").encode() for name in ("go.mod", "go.sum")}
+        for version in ("v0.58.0", "v0.60.0", "v0.62.0")
+    }
+    for constant, version in (
+        ("LOCKS", "v0.58.0"),
+        ("XNET060_INCUMBENT_LOCKS", "v0.60.0"),
+        ("DERIVED_LOCKS", "v0.62.0"),
+    ):
+        monkeypatch.setattr(
+            source, constant, {key: source.sha(raw) for key, raw in epochs[version].items()}
+        )
+    patch = b"".join(
+        b"".join(
+            difflib.diff_bytes(
+                difflib.unified_diff,
+                epochs["v0.58.0"][name].splitlines(keepends=True),
+                epochs["v0.62.0"][name].splitlines(keepends=True),
+                fromfile=("a/" + name).encode(),
+                tofile=("b/" + name).encode(),
+            )
+        )
+        for name in ("go.mod", "go.sum")
+    )
+    monkeypatch.setattr(source, "XNET062_PATCH_SHA256", source.sha(patch))
+    coordinates = {
+        "source_head": "a" * 40,
+        "run_id": 501,
+        "artifact_id": 601,
+        "artifact_name": "prometheus-oras-501-1",
+        "artifact_digest": "sha256:" + "1" * 64,
+        "binary_sha256": "2" * 64,
+        "binary_bytes": 10,
+        "input_digest": "sha256:" + "3" * 64,
+    }
+    manifest = {
+        "schema": source.IMAGE_SCHEMA,
+        "phase": "source_prepared",
+        "inputs": source.declared_inputs(),
+        "selection": None,
+        "candidate": None,
+    }
+    manifest["inputs"]["oras"]["retained"] = coordinates
+    for name in source.PRODUCER_FILES:
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(
+            source.finite_recipe() if name.endswith("Containerfile") else b"inert producer bytes"
+        )
+    (root / source.MANIFEST_PATH).write_bytes(source.canonical_data(manifest))
+    ui = {
+        "generated_paths": [name + ".gz" for name in sorted(source.UI_FILES)],
+        "embed_sha256": "e" * 64,
+        "gzip_source_sha256": "f" * 64,
+        "python": "synthetic interpreter",
+        "zlib_build": "synthetic",
+        "zlib_runtime": "synthetic",
+        "algorithm": "Python GzipFile filename-empty mtime0 level6 OS255; not GNU gzip byte equality",
+    }
+
+    def populate(path: Path) -> None:
+        path.mkdir()
+        for name, raw in epochs["v0.58.0"].items():
+            (path / name).write_bytes(raw)
+        (path / "fixed.go").write_bytes(b"inert source\n")
+
+    def extract(artifact: Any, archive: Path, target: Path, deadline: float) -> list[Any]:
+        populate(target)
+        return []
+
+    monkeypatch.setattr(source, "extract", extract)
+    monkeypatch.setattr(source, "stage_ui", lambda *args: copy.deepcopy(ui))
+    populate(work / "source")
+    owned: dict[str, dict[str, Any]] = {}
+    removed: set[str] = set()
+    image = _native_fixed_base_image()
+
+    class Transcript(source.Native):
+        def run(
+            self, argv: list[str], name: str, env: dict[str, str], *, cwd: Path, **kwargs: Any
+        ) -> bytes:
+            if argv[0] == "/usr/bin/docker":
+                command = argv[3]
+                if command == "ps":
+                    raw = "".join(n + "\n" for n in owned if n not in removed).encode()
+                elif command == "pull":
+                    raw = b"synthetic pull\n"
+                elif command == "image":
+                    raw = json.dumps([image]).encode()
+                elif command == "create":
+                    raw = source.sha(name.encode()).encode() + b"\n"
+                else:
+                    container_name, expected = next(
+                        (n, v)
+                        for n, v in owned.items()
+                        if n == argv[-1] or v.get("container_id") == argv[-1]
+                    )
+                    if command == "rm":
+                        removed.add(container_name)
+                        raw = expected["container_id"].encode() + b"\n"
+                    elif command == "start":
+                        guest = expected["command"]
+                        raw = (
+                            source.CURRENT_GO_VERSION.encode()
+                            if guest == ["version"]
+                            else (
+                                b"all modules verified\n"
+                                if guest == ["mod", "verify"]
+                                else package_stream(guest[-1].split("/")[-1])
+                            )
+                        )
+                    else:
+                        assert command == "inspect"
+                        actual = {
+                            "Id": expected["container_id"],
+                            "Name": "/" + container_name,
+                            "Image": image["Id"],
+                            "Config": {
+                                "Image": image["Id"],
+                                "Labels": {source.LABEL: expected["owner"]},
+                                "User": "65532:65532",
+                                "WorkingDir": "/src",
+                                "Entrypoint": ["/usr/local/go/bin/go"],
+                                "Cmd": expected["command"],
+                                "Env": [k + "=" + v for k, v in expected["environment"].items()],
+                            },
+                            "HostConfig": {
+                                "NetworkMode": "none",
+                                "ReadonlyRootfs": True,
+                                "Privileged": False,
+                                "NanoCpus": 2000000000,
+                                "Memory": 4294967296,
+                                "PidsLimit": 128,
+                                "CapDrop": ["ALL"],
+                                "CapAdd": None,
+                                "SecurityOpt": ["no-new-privileges"],
+                                "Tmpfs": {str(source.GUEST_TMP): source.GUEST_TMPFS},
+                            },
+                            "Mounts": [
+                                {"Type": "bind", "RW": False, "Destination": k, "Source": v}
+                                for k, v in expected["mounts"].items()
+                            ],
+                            "State": {"Running": False, "ExitCode": 0, "OOMKilled": False},
+                        }
+                        raw = json.dumps([actual]).encode()
+            else:
+                command = argv[1:]
+                version = (cwd / "go.mod").read_text().split()[0]
+                modules = Path(env["GOMODCACHE"])
+                directory = modules / ("xnet@" + version)
+                if command[0] == "get":
+                    version = command[-1].split("@")[-1]
+                    for key, data in epochs[version].items():
+                        (cwd / key).write_bytes(data)
+                    raw = b""
+                elif command == ["version"]:
+                    raw = source.CURRENT_GO_VERSION.encode()
+                elif command == ["mod", "edit", "-json"]:
+                    raw = json.dumps(
+                        {"Module": {"Path": source.ROOT_MODULE}, "Go": "1.26.0"}
+                    ).encode()
+                elif command == ["mod", "download", "-json"]:
+                    directory.mkdir(exist_ok=True)
+                    (directory / "go.mod").write_bytes(b"inert cache")
+                    raw = json.dumps(
+                        {
+                            "Path": "golang.org/x/net",
+                            "Version": version,
+                            "Dir": str(directory),
+                            "GoMod": str(directory / "go.mod"),
+                        }
+                    ).encode()
+                elif command == ["mod", "verify"]:
+                    raw = b"all modules verified\n"
+                elif command == ["list", "-m", "-json", "all"]:
+                    values = [
+                        {
+                            "Path": source.ROOT_MODULE,
+                            "Main": True,
+                            "Dir": str(cwd),
+                            "GoMod": str(cwd / "go.mod"),
+                        },
+                        {"Path": "golang.org/x/net", "Version": version, "Dir": str(directory)},
+                    ]
+                    raw = b"\n".join(json.dumps(v).encode() for v in values)
+                else:
+                    assert command == ["mod", "graph"]
+                    raw = (source.ROOT_MODULE + " golang.org/x/net@" + version + "\n").encode()
+            (evidence / (name + ".stdout")).write_bytes(raw)
+            (evidence / (name + ".stderr")).write_bytes(b"")
+            self.records.append(
+                {
+                    "argv": list(argv),
+                    "environment": dict(env),
+                    "cwd": str(cwd),
+                    "exit": 0,
+                    "failure": None,
+                    "stdout": str(evidence / (name + ".stdout")),
+                    "stderr": str(evidence / (name + ".stderr")),
+                    "stdout_sha256": source.sha(raw),
+                    "stderr_sha256": source.sha(b""),
+                }
+            )
+            return raw
+
+    native = Transcript(evidence, time.monotonic() + 900, 120)
+    docker_env = {
+        "PATH": "/usr/bin:/bin",
+        "HOME": str(work),
+        "DOCKER_CONFIG": str(config),
+        "LANG": "C.UTF-8",
+    }
+    qualified = {
+        "run": {
+            "id": 502,
+            "head_sha": "b" * 40,
+            "head_branch": source.P062_REF[11:],
+            "run_attempt": 1,
+            "status": "completed",
+            "conclusion": "success",
+        },
+        "job": {"id": 702},
+    }
+    report = {
+        "source_revision": source.REVISION,
+        "source_tree": source.TREE,
+        "UI_transform": ui,
+        "heavy_build_invocations": 0,
+        "publication_commands": 0,
+        "automatic_retries": 0,
+        "failure": None,
+        "interruptions": [],
+        "retained_tool": coordinates,
+        "admission": {
+            "run_id": 502,
+            "head": "b" * 40,
+            "ref": source.P062_REF,
+            "workflow_id": 199904435,
+            "job": "prometheus-source-qualification",
+            "job_id": 702,
+            "pr_number": 2494,
+            "producer_epoch": "xnet062",
+        },
+        "producer": {
+            str(root / n): source.file_hash(root / n)
+            for n in (source.PRODUCER_FILES[0], source.PRODUCER_FILES[1])
+        },
+        "acquisition": [
+            {
+                "artifact": v.name,
+                "public_source": v.url,
+                "bytes": v.size,
+                "sha256": v.digest,
+                "explicit_release_handoff": v.release,
+                "final_redirects": 0,
+            }
+            for v in (source.SOURCE, source.CURRENT_GO, source.UI, source.CHECKSUMS)
+        ],
+    }
+    source.derive_xnet_observe(
+        native,
+        work,
+        work / "downloads",
+        work / "source",
+        go,
+        work / "ui",
+        owned,
+        "/usr/bin/docker",
+        config,
+        docker_env,
+        report,
+        target_version="v0.62.0",
+    )
+    native.begin_cleanup()
+    report["cleanup"] = source.cleanup_owned(
+        native, "/usr/bin/docker", config, owned, docker_env, work
+    )
+    report["native_operations"] = native.records
+    source._finalize_xnet062_report(
+        report, native, owned, "/usr/bin/docker", config, derive_completed=True
+    )
+    return (
+        {p.name: p.read_bytes() for p in evidence.iterdir()},
+        root,
+        qualified,
+        work,
+        {"config": {"config": image["Config"]}},
+    )
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "fullF",
+        "job",
+        "retained",
+        "producer",
+        "native-secret",
+        "mount",
+        "rebound-path",
+        "rebound-mode",
+        "rebound-order",
+        "resource",
+        "full-ID",
+        "raw-rehash",
+        "cache-mode",
+        "missing-slot",
+        "cleanup",
+        "extra-command",
+        "path",
+    ],
+)
+def test_p062_independent_retained_reader_rejects_rebound_false_native_proof(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str | None
+) -> None:
+    files, root, qualified, work, vendor = _p062_retained_q_fixture(tmp_path, monkeypatch)
+    # A later runner receives the archive and its coordinates after Q's work tree is gone.
+    for path in work.rglob("*"):
+        if path.is_dir():
+            path.chmod(0o700)
+    shutil.rmtree(work)
+    assert not work.exists()
+    report = source.one_object(files["qualification.json"])
+    if fault == "fullF":
+        report["module_derivation"]["closure_disposition"] = "remediated"
+    elif fault == "job":
+        report["admission"]["job_id"] += 1
+    elif fault == "retained":
+        report["retained_tool"]["run_id"] += 1
+    elif fault == "producer":
+        report["producer"][str(root / source.PRODUCER_FILES[0])] = "e" * 64
+    elif fault == "native-secret":
+        report["native_operations"][0]["environment"]["GH_TOKEN"] = "synthetic-secret"
+    elif fault == "path":
+        work = work.parent / "prometheus-source-999-1"
+    elif fault == "extra-command":
+        report["native_operations"].append(copy.deepcopy(report["native_operations"][-1]))
+    elif fault == "cleanup":
+        report["cleanup"][-1]["native_absent"] = False
+    elif fault == "missing-slot":
+        report["module_derivation"]["replays"][1]["offline"]["full_native_package_members"].pop(
+            "promtool"
+        )
+    elif fault == "cache-mode":
+        binding = report["module_derivation"]["replays"][0]["incumbent_reconstruction"]["offline"][
+            "cache_mode_restoration"
+        ]["files_restored_member"]
+        rows = json.loads(files[binding["member"]])
+        rows[0]["mode"] ^= 0o200
+        raw = source.canonical_data(rows) + b"\n"
+        files[binding["member"]] = raw
+        binding.update(bytes=len(raw), sha256=source.sha(raw))
+    elif fault in {"rebound-path", "rebound-mode", "rebound-order"}:
+        stage = "a-incumbent-offline-prometheus"
+        records = {Path(r["stdout"]).name: r for r in report["native_operations"]}
+        argv = records[stage + "-create.stdout"]["argv"]
+        slots = [i + 1 for i, item in enumerate(argv) if item == "--mount"]
+        foreign = str(tmp_path / "prometheus-source-999-1" / "source")
+        if fault == "rebound-path":
+            argv[slots[0]] = f"type=bind,source={foreign},target=/src,readonly"
+        elif fault == "rebound-mode":
+            argv[slots[0]] = argv[slots[0]].removesuffix(",readonly")
+        else:
+            argv[slots[0]], argv[slots[1]] = argv[slots[1]], argv[slots[0]]
+        for suffix in ("-inspect.stdout", "-completed-inspect.stdout"):
+            name = stage + suffix
+            objects = json.loads(files[name])
+            mounts = objects[0]["Mounts"]
+            if fault == "rebound-path":
+                mounts[0]["Source"] = foreign
+            elif fault == "rebound-mode":
+                mounts[0]["RW"] = True
+            else:
+                mounts[0], mounts[1] = mounts[1], mounts[0]
+            files[name] = json.dumps(objects).encode()
+            records[name]["stdout_sha256"] = source.sha(files[name])
+    elif fault in ("mount", "resource", "full-ID", "raw-rehash"):
+        name = (
+            "a-incumbent-offline-prometheus-inspect.stdout"
+            if fault != "raw-rehash"
+            else "a-derived-selected.stdout"
+        )
+        objects = (
+            source.decode_objects(files[name]) if fault == "raw-rehash" else json.loads(files[name])
+        )
+        if fault == "mount":
+            objects[0]["Mounts"][0]["Source"] = "/foreign"
+        elif fault == "resource":
+            objects[0]["HostConfig"]["Memory"] = 0
+        elif fault == "full-ID":
+            objects[0]["Id"] = objects[0]["Id"][:12]
+        else:
+            objects[1]["Version"] = "v0.60.0"
+        raw = (
+            json.dumps(objects).encode()
+            if fault != "raw-rehash"
+            else b"\n".join(json.dumps(v).encode() for v in objects)
+        )
+        files[name] = raw
+        next(r for r in report["native_operations"] if r["stdout"].endswith("/" + name))[
+            "stdout_sha256"
+        ] = source.sha(raw)
+    files["qualification.json"] = source.canonical_data(report)
+    archive = tmp_path / "Q.zip"
+    with zipfile.ZipFile(archive, "w") as output:
+        for name, raw in files.items():
+            output.writestr(name, raw)
+    # Deliberately replace the serializer checker with a trap: it cannot supply admission.
+    monkeypatch.setattr(
+        source, "_check_xnet062_report", lambda *args, **kwargs: pytest.fail("circular reader")
+    )
+    args = {
+        "producer_root": root,
+        "artifact_digest": "sha256:" + source.file_hash(archive),
+        "qualified": qualified,
+        "qualification_root": work,
+        "vendor_base": vendor,
+    }
+    if fault is None:
+        locks = source.qualification_locks(archive, **args)
+        assert locks == {n: ("v0.62.0 " + n + "\n").encode() for n in ("go.mod", "go.sum")}
+        assert len(report["native_operations"]) == 171
+    else:
+        expected_error = "^declared_data_value$" if fault.startswith("rebound-") else None
+        with pytest.raises(source.QualificationError, match=expected_error):
+            source.qualification_locks(archive, **args)
+
+
+_P062_PREVIOUS_CYCLE_JOBS = (
+    (42510229545, 128821500270),
+    (42619126214, 129166421268),
+    (42619126214, 129166421471),
+)
+
+
+def _p062_stage_fixture(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, purpose: str
+) -> tuple[Any, Path]:
+    """API-only native boundary fixtures; no actual GitHub call or producer action."""
+    root = tmp_path / "checkout"
+    root.mkdir()
+    head = ("a" if purpose == "tool" else "b") * 40
+    current_id = {"tool": 501, "qualification": 502, "pair": 503}[purpose]
+    for key in ("GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN"):
+        monkeypatch.delenv(key, raising=False)
+    for key, value in {
+        "GITHUB_ACTIONS": "true",
+        "GITHUB_EVENT_NAME": "workflow_dispatch",
+        "GITHUB_REPOSITORY": source.GHCR_REPOSITORY,
+        "GITHUB_REPOSITORY_ID": "1043311030",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "GITHUB_RUN_ID": str(current_id),
+        "GITHUB_REF": source.P062_REF,
+        "GITHUB_SHA": head,
+        "RUNNER_OS": "Linux",
+    }.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.setattr(source.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(source.platform, "machine", lambda: "x86_64")
+    manifest = {
+        "schema": source.IMAGE_SCHEMA,
+        "phase": "source_prepared",
+        "inputs": source.declared_inputs(),
+        "selection": None,
+        "candidate": None,
+    }
+    p0 = source.canonical_data(manifest)
+    if purpose != "tool":
+        manifest["inputs"]["oras"]["retained"] = {
+            "source_head": "a" * 40,
+            "run_id": 501,
+            "artifact_id": 601,
+            "artifact_name": "prometheus-oras-501-1",
+            "artifact_digest": "sha256:" + "1" * 64,
+            "binary_sha256": "2" * 64,
+            "binary_bytes": 10,
+            "input_digest": "sha256:" + "3" * 64,
+        }
+    files = {
+        name: source.finite_recipe() if name.endswith("Containerfile") else b"inert exact source\n"
+        for name in source.PRODUCER_FILES
+    }
+    files[source.MANIFEST_PATH] = source.canonical_data(manifest)
+    for name, raw in files.items():
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(raw)
+    originals = dict(files, **{source.MANIFEST_PATH: p0})
+    runs, jobs = {}, {}
+    for row in source.P062_SPENT_HISTORY:
+        (
+            rid,
+            jid,
+            name,
+            revision,
+            branch,
+            attempt,
+            run_status,
+            run_end,
+            job_status,
+            job_end,
+            start,
+            end,
+        ) = row
+        runs[rid] = {
+            "id": rid,
+            "head_sha": revision,
+            "head_branch": branch,
+            "run_attempt": attempt,
+            "status": run_status,
+            "conclusion": run_end,
+            "event": "workflow_dispatch",
+            "workflow_id": 199904435,
+            "repository": {"id": 1043311030},
+            "head_repository": {"id": 1043311030},
+        }
+        jobs.setdefault(rid, []).append(
+            {
+                "id": jid,
+                "name": name,
+                "head_sha": revision,
+                "run_attempt": attempt,
+                "run_id": rid,
+                "status": job_status,
+                "conclusion": job_end,
+                "started_at": start,
+                "completed_at": end,
+            }
+        )
+    for selected in ("tool", "qualification", "pair"):
+        rid = {"tool": 501, "qualification": 502, "pair": 503}[selected]
+        if rid > current_id:
+            continue
+        revision = ("a" if selected == "tool" else "b") * 40
+        live = rid == current_id
+        runs[rid] = {
+            "id": rid,
+            "head_sha": revision,
+            "head_branch": source.P062_REF[11:],
+            "run_attempt": 1,
+            "status": "in_progress" if live else "completed",
+            "conclusion": None if live else "success",
+            "event": "workflow_dispatch",
+            "workflow_id": 199904435,
+            "repository": {"id": 1043311030},
+            "head_repository": {"id": 1043311030},
+        }
+        jobs[rid] = [
+            {
+                "id": rid + 200,
+                "run_id": rid,
+                "head_sha": revision,
+                "name": source.P062_JOB_NAMES[selected],
+                "run_attempt": 1,
+                "status": "in_progress" if live else "completed",
+                "conclusion": None if live else "success",
+                "started_at": f"2026-11-10T0{rid - 500}:00:00Z",
+                "completed_at": None if live else f"2026-11-10T0{rid - 500}:01:00Z",
+            }
+        ]
+        if selected == "qualification":
+            jobs[rid].append({**jobs[rid][0], "id": 799, "name": source.P062_COMPANION})
+
+    class API:
+        deadline = time.monotonic() + 60
+
+        def __init__(self) -> None:
+            self.runs, self.jobs, self.files, self.originals = runs, jobs, files, originals
+            self.pr = {
+                "number": 2494,
+                "state": "open",
+                "merged": False,
+                "commits": 2,
+                "head": {"sha": head, "ref": source.P062_REF[11:], "repo": {"id": 1043311030}},
+                "base": {"sha": "c" * 40, "ref": "main", "repo": {"id": 1043311030}},
+            }
+            self.graph = [
+                {"sha": "a" * 40, "parents": []},
+                {"sha": "b" * 40, "parents": [{"sha": "a" * 40}]},
+            ]
+
+        def source_files(self, revision: str, names: tuple[str, ...]) -> dict[str, bytes]:
+            return dict(
+                self.originals if revision == "a" * 40 and purpose != "tool" else self.files
+            )
+
+        def json(self, endpoint: str) -> dict[str, Any]:
+            if endpoint.endswith("/pulls/2494"):
+                return copy.deepcopy(self.pr)
+            if "/compare/" in endpoint:
+                return {
+                    "base_commit": {"sha": "a" * 40},
+                    "merge_base_commit": {"sha": "a" * 40},
+                    "status": "ahead",
+                    "behind_by": 0,
+                    "total_commits": 1,
+                    "ahead_by": 1,
+                    "commits": [self.graph[1]],
+                }
+            if endpoint.endswith("/actions/workflows/build.yml"):
+                return {"id": 199904435, "path": ".github/workflows/build.yml"}
+            if "/jobs?" in endpoint:
+                return {
+                    "total_count": len(self.jobs[int(endpoint.split("/runs/")[1].split("/")[0])])
+                }
+            if "workflow_dispatch" in endpoint:
+                return {"total_count": len(self.runs)}
+            return copy.deepcopy(self.runs[int(endpoint.rsplit("/", 1)[-1])])
+
+        def pages(self, endpoint: str, key: str | None, total: int) -> list[dict[str, Any]]:
+            if endpoint.endswith("/commits"):
+                rows = self.graph
+            elif key == "workflow_runs":
+                rows = list(self.runs.values())
+            else:
+                rows = self.jobs[int(endpoint.split("/runs/")[1].split("/")[0])]
+            assert len(rows) == total
+            return copy.deepcopy(rows)
+
+    return API(), root
+
+
+@pytest.mark.parametrize(("run_id", "job_id"), _P062_PREVIOUS_CYCLE_JOBS)
+@pytest.mark.parametrize("fault", ["missing", "altered"])
+def test_p062_replacement_requires_each_previously_consumed_job(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, run_id: int, job_id: int, fault: str
+) -> None:
+    api, root = _p062_stage_fixture(tmp_path, monkeypatch, "tool")
+    jobs = api.jobs[run_id]
+    job = next(j for j in jobs if j["id"] == job_id)
+    if fault == "missing":
+        jobs.remove(job)
+    else:
+        job["completed_at"] = job["started_at"]
+    error = "declared_data_length" if fault == "missing" else "declared_data_value"
+    with pytest.raises(source.QualificationError, match=f"^{error}$"):
+        source.manual_hosted_admission(api, "tool", producer_root=root)
+
+
+@pytest.mark.parametrize(
+    ("purpose", "prior_run", "prior_job"),
+    [("qualification", 501, 701), ("pair", 501, 701), ("pair", 502, 702), ("pair", 502, 799)],
+)
+def test_p062_old_successes_cannot_replace_a_missing_new_predecessor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, purpose: str, prior_run: int, prior_job: int
+) -> None:
+    api, root = _p062_stage_fixture(tmp_path, monkeypatch, purpose)
+    jobs = api.jobs[prior_run]
+    jobs.remove(next(job for job in jobs if job["id"] == prior_job))
+    with pytest.raises(source.QualificationError, match="^p062_nonrenewable_stage_prefix$"):
+        source.manual_hosted_admission(api, purpose, producer_root=root)
+
+
+@pytest.mark.parametrize("purpose", ["tool", "qualification", "pair"])
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "missing-history",
+        "changed-history",
+        "duplicate-job",
+        "extra-spent",
+        "retry",
+        "foreign",
+        "source-drift",
+        "phase",
+        "prior-output",
+        "same-P0",
+        "graph",
+        "raw-P0",
+        "inputs-P0",
+        "chronology",
+        "failed-companion",
+    ],
+)
+def test_p062_stage_prefix_is_finite_authenticated_and_nonrenewable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, purpose: str, fault: str | None
+) -> None:
+    api, root = _p062_stage_fixture(tmp_path, monkeypatch, purpose)
+    current_id = int(source.os.environ["GITHUB_RUN_ID"])
+    if fault == "missing-history":
+        api.jobs[38170923494].clear()
+    elif fault == "changed-history":
+        api.jobs[38170923494][0]["conclusion"] = "success"
+    elif fault == "duplicate-job":
+        api.jobs[current_id].append(copy.deepcopy(api.jobs[current_id][0]))
+    elif fault == "extra-spent":
+        api.runs[600] = {
+            **api.runs[current_id],
+            "id": 600,
+            "status": "completed",
+            "conclusion": "success",
+        }
+        api.jobs[600] = [
+            {
+                **api.jobs[current_id][0],
+                "id": 900,
+                "run_id": 600,
+                "status": "completed",
+                "conclusion": "success",
+            }
+        ]
+    elif fault == "retry":
+        monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "2")
+    elif fault == "foreign":
+        api.pr["head"]["repo"]["id"] = 1
+    elif fault == "source-drift":
+        api.files[source.PRODUCER_FILES[0]] += b" drift"
+    elif fault == "phase":
+        value = json.loads(api.files[source.MANIFEST_PATH])
+        value["phase"] = "candidate_selected"
+        api.files[source.MANIFEST_PATH] = source.canonical_data(value)
+        (root / source.MANIFEST_PATH).write_bytes(api.files[source.MANIFEST_PATH])
+    elif fault == "prior-output":
+        value = json.loads(api.files[source.MANIFEST_PATH])
+        value["selection"] = {"guessed": True}
+        api.files[source.MANIFEST_PATH] = source.canonical_data(value)
+        (root / source.MANIFEST_PATH).write_bytes(api.files[source.MANIFEST_PATH])
+    elif fault in ("same-P0", "graph", "raw-P0", "inputs-P0", "chronology") and purpose != "tool":
+        if fault == "same-P0":
+            api.runs[501]["head_sha"] = "b" * 40
+            api.jobs[501][0]["head_sha"] = "b" * 40
+        elif fault == "graph":
+            api.graph[1]["parents"] = []
+        elif fault == "raw-P0":
+            api.originals[source.PRODUCER_FILES[1]] += b" changed"
+        elif fault == "inputs-P0":
+            value = json.loads(api.originals[source.MANIFEST_PATH])
+            value["inputs"]["source"]["version"] = "other"
+            api.originals[source.MANIFEST_PATH] = source.canonical_data(value)
+        else:
+            api.jobs[501][0]["completed_at"] = "2027-11-07T01:01:00Z"
+    elif fault == "failed-companion" and purpose == "pair":
+        api.jobs[502][1]["conclusion"] = "failure"
+    elif fault is not None:
+        # These are meaningful predecessor checks only after the first T stage.
+        with pytest.raises(
+            source.QualificationError, match="p062_explicit_owner_no_retry_selector"
+        ):
+            source.manual_hosted_admission(
+                api, purpose, producer_root=root, prefetch_predecessor="spent"
+            )
+        return
+    if fault is None:
+        result = source.manual_hosted_admission(api, purpose, producer_root=root)
+        assert result["run_id"] == current_id and result["producer_epoch"] == "xnet062"
+        assert result["pr_number"] == 2494 and result["budget"] == (2 if purpose == "pair" else 1)
+    else:
+        with pytest.raises(source.QualificationError):
+            source.manual_hosted_admission(api, purpose, producer_root=root)
+
+
+@pytest.mark.parametrize(
+    "fault", ["stop-after-close", "admission", "retained", "close", "primary-and-close"]
+)
+def test_p062_qualification_authentication_finishes_before_native_or_acquisition(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str
+) -> None:
+    api, root = _p062_stage_fixture(tmp_path, monkeypatch, "qualification")
+    work = tmp_path / "Q"
+    trace: list[str] = []
+    monkeypatch.setattr(
+        source,
+        "producer_paths",
+        lambda: (root / source.PRODUCER_FILES[0], root / source.PRODUCER_FILES[1]),
+    )
+    monkeypatch.setattr(source.shutil, "which", lambda name: "/usr/bin/docker")
+    if fault == "admission":
+        api.jobs[38170923494].clear()
+
+    class PrivateAPI:
+        def __init__(self, private: Path, evidence: Path, deadline: float, cleanup: int) -> None:
+            trace.append("open")
+            private.mkdir()
+            self.private = private
+            self.deadline = deadline
+
+        def json(self, path: str) -> dict[str, Any]:
+            return api.json(path)
+
+        def pages(self, path: str, key: str | None, count: int) -> list[dict[str, Any]]:
+            return api.pages(path, key, count)
+
+        def source_files(self, revision: str, names: tuple[str, ...]) -> dict[str, bytes]:
+            return api.source_files(revision, names)
+
+        def close(self) -> None:
+            trace.append("close")
+            self.private.rmdir()
+            if fault in ("close", "primary-and-close"):
+                raise source.QualificationError("synthetic_cleanup_error")
+
+    def retained(reader: Any, producer: Path, destination: Path) -> tuple[Path, dict[str, Any]]:
+        trace.append("retained")
+        assert reader.private.is_dir() and producer == root and destination == work
+        if fault in ("retained", "primary-and-close"):
+            raise source.QualificationError("synthetic_retained_error")
+        return work / "oras", {
+            "coordinates": source.read_image_manifest(
+                root / source.MANIFEST_PATH, preparation=True
+            )["inputs"]["oras"]["retained"]
+        }
+
+    def acquire(*args: Any, **kwargs: Any) -> None:
+        trace.append("acquire")
+        assert trace == ["open", "retained", "close", "acquire"]
+        assert not (work / "GitHub-private").exists()
+        raise source.QualificationError("synthetic_post_auth_stop")
+
+    monkeypatch.setattr(source, "GitHubRead", PrivateAPI)
+    monkeypatch.setattr(source, "retained_tool", retained)
+    monkeypatch.setattr(source, "acquire", acquire)
+    monkeypatch.setattr(source, "CLEANING", False)
+    monkeypatch.setattr(source, "INTERRUPTIONS", [])
+    expected = {
+        "stop-after-close": "synthetic_post_auth_stop",
+        "admission": "declared_data_length",
+        "retained": "synthetic_retained_error",
+        "close": "synthetic_cleanup_error",
+        "primary-and-close": "synthetic_retained_error",
+    }[fault]
+    with pytest.raises(source.QualificationError, match=expected):
+        source.qualify(work, 1800, 120, derive_xnet062=True)
+    assert "close" in trace and ("acquire" in trace) == (fault == "stop-after-close")
+    assert not (work / "GitHub-private").exists()
+    report = source.one_object((work / "evidence/qualification.json").read_bytes())
+    assert report["failure"]["code"] == expected
+    assert report["native_operations"] == [] and report["heavy_build_invocations"] == 0
+    if fault in ("close", "primary-and-close"):
+        assert report["authentication_cleanup_failure"]["code"] == "synthetic_cleanup_error"
+
+
+def test_p062_epochs_and_prepared_manifest_have_no_future_outputs(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[1]
+    # The checked-out manifest may later be the valid P1 or P2 successor.
+    source.read_image_manifest(root / source.MANIFEST_PATH, preparation=True)
+    p0 = tmp_path / "manifest.json"
+    p0.write_bytes(
+        source.canonical_data(
+            {
+                "schema": source.IMAGE_SCHEMA,
+                "phase": "source_prepared",
+                "inputs": source.declared_inputs(),
+                "selection": None,
+                "candidate": None,
+            }
+        )
+    )
+    manifest = source.read_image_manifest(p0, preparation=True)
+    assert manifest["phase"] == "source_prepared"
+    assert manifest["selection"] is None and manifest["candidate"] is None
+    assert manifest["inputs"]["oras"]["retained"] is None
+    assert manifest["inputs"]["source"]["derived_locks"] == {
+        "go.mod": "6e2dfa8d25b5cd3da5513334134e63549aff7e70915958f98893893c825d609e",
+        "go.sum": "673bf9d73e667b94aa125f5ac3987bfb4a26b7ccbe1b0e51e7de030bc45fcce5",
+    }
+    assert source.declared_inputs(historical_xnet060=True)["source"]["derived_locks"] == {
+        "go.mod": "d85af091d5bf9ba19f98e4d92e24b368d3e5537af086521ef10c7dd669695fd7",
+        "go.sum": "eaeb5e4f16a9edcab1aeeb2b1a90a0f85decbd0065b3bf63e03729d324f7fc1f",
+    }
+    assert len(source.P062_SPENT_HISTORY) == 22
+    assert {
+        name: sum(row[2] == name for row in source.P062_SPENT_HISTORY)
+        for name in (
+            "prometheus-oras-qualification",
+            "prometheus-source-qualification",
+            "prometheus-source-build-pair",
+            source.P062_COMPANION,
+        )
+    } == {
+        "prometheus-oras-qualification": 8,
+        "prometheus-source-qualification": 6,
+        "prometheus-source-build-pair": 4,
+        source.P062_COMPANION: 4,
+    }
+    # Ordered, full-row digests bind every field, including times and outcomes.
+    original, consumed = source.P062_SPENT_HISTORY[:19], source.P062_SPENT_HISTORY[19:]
+    assert original[-1][:2] == (40384356149, 121788589461)
+    assert source.sha(source.canonical_data(original)) == (
+        "19346b66ab34d8ed0ef446aef5a3b101e8cb989c50356ec8f22b734a1761debd"
+    )
+    assert tuple(row[:2] for row in consumed) == _P062_PREVIOUS_CYCLE_JOBS
+    assert source.sha(source.canonical_data(consumed)) == (
+        "2c0f68627c0cbd438069b9ffe7093e9982ba362de74db90c24168244819d3cd9"
+    )
+
+
+@pytest.mark.parametrize(
+    "fault", [None, "failed-run", "duplicate-Q", "wrong-head", "expired-context"]
+)
+def test_p062_pair_resolves_exact_successful_Q_on_same_P1(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str | None
+) -> None:
+    api, root = _p062_stage_fixture(tmp_path, monkeypatch, "pair")
+    original_json, original_pages = api.json, api.pages
+    calls: list[int] = []
+    if fault == "failed-run":
+        api.runs[502]["conclusion"] = "failure"
+    elif fault == "duplicate-Q":
+        api.runs[504] = {**api.runs[502], "id": 504}
+        api.jobs[504] = [{**api.jobs[502][0], "id": 704, "run_id": 504}]
+    elif fault == "wrong-head":
+        api.runs[502]["head_sha"] = "c" * 40
+    elif fault == "expired-context":
+        api.runs[502]["status"] = "in_progress"
+    artifacts = {
+        502: [{"id": 602, "name": "prometheus-source-qualification-502-1"}],
+        504: [{"id": 604, "name": "prometheus-source-qualification-504-1"}],
+    }
+
+    def json_api(endpoint: str) -> dict[str, Any]:
+        if endpoint.split("?", 1)[0].endswith("/artifacts"):
+            return {"total_count": 1}
+        return original_json(endpoint)
+
+    def pages(endpoint: str, key: str | None, count: int) -> list[dict[str, Any]]:
+        if key == "artifacts":
+            return artifacts[int(endpoint.split("/runs/")[1].split("/")[0])]
+        return original_pages(endpoint, key, count)
+
+    def acquire(reader: Any, artifact: int, destination: Path, **kwargs: Any) -> dict[str, Any]:
+        assert reader is api and artifact == 602
+        assert kwargs == {
+            "expected_run": 502,
+            "expected_job": "prometheus-source-qualification",
+            "expected_head": "b" * 40,
+        }
+        calls.append(artifact)
+        return {"run": api.runs[502], "artifact": artifacts[502][0], "job": api.jobs[502][0]}
+
+    api.json, api.pages = json_api, pages
+    monkeypatch.setattr(source, "authenticated_artifact", acquire)
+    admission = {
+        "ref": source.P062_REF,
+        "head": "b" * 40,
+        "run_id": 503,
+        "producer_epoch": "xnet062",
+    }
+    if fault is None:
+        assert (
+            source._current_qualification_artifact(api, root, admission, tmp_path / "q.zip")["run"][
+                "id"
+            ]
+            == 502
+        )
+        assert calls == [602]
+    else:
+        with pytest.raises(source.QualificationError):
+            source._current_qualification_artifact(api, root, admission, tmp_path / "q.zip")
+        assert not calls
+
+
+@pytest.mark.parametrize(
+    "fault", [None, "source-selected", "source-output", "source-input", "raw-workflow"]
+)
+def test_p062_output_receiver_requires_prepared_P1_and_equal_inputs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str | None
+) -> None:
+    from tests.test_deploy_contract_scripts import _synthetic_prometheus_manifest
+
+    api, root = _p062_stage_fixture(tmp_path, monkeypatch, "qualification")
+    prepared = json.loads(api.files[source.MANIFEST_PATH])
+    selected = _synthetic_prometheus_manifest()
+    selected["inputs"] = copy.deepcopy(prepared["inputs"])
+    selected["candidate"]["producer"]["pr_number"] = 2494
+    selected["candidate"]["producer"]["source_ref"] = source.P062_REF
+    selected["candidate"]["producer"]["source_head"] = "b" * 40
+    (root / source.MANIFEST_PATH).write_bytes(source.canonical_data(selected))
+    if fault == "source-selected":
+        prepared["phase"] = "candidate_selected"
+    elif fault == "source-output":
+        prepared["selection"] = {"unproved": True}
+    elif fault == "source-input":
+        prepared["inputs"]["source"]["derived_locks"] = dict(source.XNET060_INCUMBENT_LOCKS)
+    elif fault == "raw-workflow":
+        api.files[source.PRODUCER_FILES[1]] += b" drift"
+    api.files[source.MANIFEST_PATH] = source.canonical_data(prepared)
+    if fault is None:
+        assert source.authenticate_producer_inputs(api, root, "b" * 40)
+    else:
+        with pytest.raises(source.QualificationError):
+            source.authenticate_producer_inputs(api, root, "b" * 40)

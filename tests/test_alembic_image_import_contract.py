@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import ast
 import configparser
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from dataclasses import dataclass, field
 from hashlib import sha256
 import inspect
@@ -1113,6 +1113,7 @@ def test_fresh_sqlite_upgrade_current_and_second_upgrade_are_deterministic(
     database_url = f"sqlite:///{database_path.as_posix()}"
     env = _controlled_env(pythonpath=None)
     env["DATABASE_URL"] = database_url
+    env["MPLCONFIGDIR"] = str(tmp_path / "matplotlib")
     command_prefix = ["-m", "alembic", "-c", str(ALEMBIC_INI)]
 
     _run_python([*command_prefix, "upgrade", "head"], cwd=REPO_ROOT, env=env)
@@ -1229,3 +1230,180 @@ def test_docker_context_excludes_python_bytecode_after_allowlists() -> None:
 
     for pattern in ("**/__pycache__/", "**/*.pyc", "**/*.pyo"):
         assert lines.index(pattern) > allowlist_end
+
+
+@pytest.fixture
+def disposable_revision_template(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
+    """Copy the actual template; never execute env.py or mutate repository revisions."""
+    # Mako resolves synthetic module filenames relative to the working directory.
+    monkeypatch.chdir(tmp_path.resolve(strict=True))
+    versions = REPO_ROOT / "alembic/versions"
+    before = {path.name: sha256(path.read_bytes()).hexdigest() for path in versions.glob("*.py")}
+    root = tmp_path / "script-directory"
+    (root / "versions").mkdir(parents=True)
+    template = (REPO_ROOT / "alembic/script.py.mako").read_bytes()
+    (root / "script.py.mako").write_bytes(template)
+    try:
+        yield root
+    finally:
+        assert (root / "script.py.mako").read_bytes() == template
+        assert {
+            path.name: sha256(path.read_bytes()).hexdigest() for path in versions.glob("*.py")
+        } == before
+
+
+def test_revision_template_base_generates_and_fresh_directory_loads_metadata(
+    disposable_revision_template: Path,
+) -> None:
+    root = disposable_revision_template
+    generated = ScriptDirectory(str(root)).generate_revision(
+        "a24940000001", "template base", head="base", upgrades="", downgrades=""
+    )
+    assert generated is not None
+    assert Path(generated.path).is_relative_to(root / "versions")
+    assert (
+        Path(generated.path).stem != "a24940000001"
+    ), "Do not exercise the legacy filename fallback"
+    scripts = ScriptDirectory(str(root))
+    loaded = scripts.get_revision("a24940000001")
+    assert loaded is not None
+    assert loaded.module.revision == loaded.revision == "a24940000001"
+    assert loaded.module.down_revision is None
+    assert loaded.module.branch_labels is None
+    assert loaded.module.depends_on is None
+    assert scripts.get_heads() == ["a24940000001"]
+    assert callable(loaded.module.upgrade) and callable(loaded.module.downgrade)
+    tree = ast.parse(Path(loaded.path).read_text(encoding="utf-8"))
+    bodies = {node.name: node.body for node in tree.body if isinstance(node, ast.FunctionDef)}
+    for name in ("upgrade", "downgrade"):
+        assert isinstance(bodies[name][0], ast.Expr)
+        assert isinstance(bodies[name][-1], ast.Pass)
+
+
+def test_revision_template_child_preserves_real_parent_on_fresh_reload(
+    disposable_revision_template: Path,
+) -> None:
+    root = disposable_revision_template
+    scripts = ScriptDirectory(str(root))
+    scripts.generate_revision("a24940000001", "parent", head="base", upgrades="", downgrades="")
+    scripts.generate_revision(
+        "a24940000002", "child", head="a24940000001", upgrades="", downgrades=""
+    )
+    fresh = ScriptDirectory(str(root))
+    child = fresh.get_revision("a24940000002")
+    assert child is not None
+    assert child.module.revision == "a24940000002"
+    assert child.module.down_revision == child.down_revision == "a24940000001"
+    assert child.module.branch_labels is child.module.depends_on is None
+    parent = fresh.get_revision(child.down_revision)
+    assert parent is not None and parent.revision == "a24940000001"
+    assert fresh.get_heads() == ["a24940000002"]
+
+
+@pytest.mark.parametrize("labels", ["feature", ("feature", "reporting")])
+@pytest.mark.parametrize("dependency_count", [1, 2])
+def test_revision_template_preserves_framework_optional_metadata(
+    disposable_revision_template: Path, labels: str | tuple[str, ...], dependency_count: int
+) -> None:
+    root = disposable_revision_template
+    scripts = ScriptDirectory(str(root))
+    scripts.generate_revision("a24940000001", "parent", head="base", upgrades="", downgrades="")
+    dependencies = ("a24940000003", "a24940000004")[:dependency_count]
+    for revision_id in dependencies:
+        scripts.generate_revision(
+            revision_id, "dependency", head="base", upgrades="", downgrades=""
+        )
+    supplied_dependencies = dependencies[0] if dependency_count == 1 else dependencies
+    scripts.generate_revision(
+        "a24940000002",
+        "optional metadata",
+        head="a24940000001",
+        branch_labels=labels,
+        depends_on=supplied_dependencies,
+        upgrades="",
+        downgrades="",
+    )
+    fresh = ScriptDirectory(str(root))
+    loaded = fresh.get_revision("a24940000002")
+    assert loaded is not None
+    expected_labels = (labels,) if isinstance(labels, str) else labels
+    assert loaded.module.branch_labels == expected_labels
+    assert loaded.branch_labels == set(expected_labels)
+    expected_dependencies = dependencies[0] if dependency_count == 1 else list(dependencies)
+    assert loaded.module.depends_on == expected_dependencies
+    assert {revision.revision for revision in fresh.get_revisions(loaded.dependencies)} == set(
+        dependencies
+    )
+    assert loaded.module.down_revision == "a24940000001"
+    assert {revision.revision for revision in fresh.get_revisions(dependencies)} == set(
+        dependencies
+    )
+
+
+def test_revision_template_merge_preserves_parent_tuple_order_on_fresh_reload(
+    disposable_revision_template: Path,
+) -> None:
+    root = disposable_revision_template
+    scripts = ScriptDirectory(str(root))
+    scripts.generate_revision("a24940000001", "base", head="base", upgrades="", downgrades="")
+    scripts.generate_revision(
+        "a24940000002", "left", head="a24940000001", upgrades="", downgrades=""
+    )
+    scripts.generate_revision(
+        "a24940000003", "right", head="a24940000001", splice=True, upgrades="", downgrades=""
+    )
+    parents = ("a24940000003", "a24940000002")
+    scripts.generate_revision("a24940000004", "merge", head=parents, upgrades="", downgrades="")
+    fresh = ScriptDirectory(str(root))
+    merged = fresh.get_revision("a24940000004")
+    assert merged is not None
+    assert merged.module.down_revision == merged.down_revision == parents
+    assert merged.module.branch_labels is merged.module.depends_on is None
+    assert fresh.get_heads() == ["a24940000004"]
+
+
+def test_revision_template_metadata_is_literal_and_existing_bodies_are_preserved(
+    disposable_revision_template: Path,
+) -> None:
+    from mako.template import Template
+
+    root = disposable_revision_template
+    context = {
+        "up_revision": "quote'\\value\nnot_a_statement",
+        "down_revision": ("second\\parent", "first'parent"),
+        "branch_labels": ("label'\\value",),
+        "depends_on": None,
+        "upgrades": "sentinel = 'upgrade-body'",
+        "downgrades": "sentinel = 'downgrade-body'",
+    }
+    rendered = Template(filename=str(root / "script.py.mako")).render(**context)
+    tree = ast.parse(rendered)
+    metadata = {
+        node.targets[0].id: ast.literal_eval(node.value)
+        for node in tree.body
+        if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name)
+    }
+    assert metadata == {
+        "revision": context["up_revision"],
+        "down_revision": context["down_revision"],
+        "branch_labels": context["branch_labels"],
+        "depends_on": None,
+    }
+    generated = ScriptDirectory(str(root)).generate_revision(
+        "a24940000001",
+        "body preservation",
+        head="base",
+        upgrades=context["upgrades"],
+        downgrades=context["downgrades"],
+    )
+    assert generated is not None
+    loaded = ScriptDirectory(str(root)).get_revision("a24940000001")
+    assert loaded is not None
+    generated_tree = ast.parse(Path(loaded.path).read_text(encoding="utf-8"))
+    bodies = {
+        node.name: node.body for node in generated_tree.body if isinstance(node, ast.FunctionDef)
+    }
+    for name, expected in (("upgrade", "upgrade-body"), ("downgrade", "downgrade-body")):
+        statement = bodies[name][-1]
+        assert isinstance(statement, ast.Assign)
+        assert ast.literal_eval(statement.value) == expected

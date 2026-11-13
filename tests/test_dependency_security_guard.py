@@ -131,6 +131,7 @@ CURRENT_ENFORCED_RUNTIME_FLOORS = {
 }
 
 REMEDIATION_FIXED_FLOORS = {
+    "mako": Version("1.4.2"),
     "anyio": Version("4.14.2"),
     "black": Version("26.10.1"),
     "certifi": Version("2026.10.19"),
@@ -4311,3 +4312,155 @@ def test_late_python_stabilization_rejects_nonregular_carriers(
         path.mkdir()
     with pytest.raises(AssertionError, match="regular non-symlink"):
         _assert_remediated_dependency_surface(path, package=package, required=True, pinned=True)
+
+
+@pytest.mark.parametrize("package", ["certifi"])
+def test_october_dependency_floors_cover_current_governed_surfaces(package: str) -> None:
+    """Prevent regression of certifi remediation across current governed surfaces."""
+    registered = registered_dependabot_requirement_carriers()
+    assert discover_dependabot_requirement_carriers(REPO_ROOT) == registered
+    affected_profiles = {
+        "runtime",
+        "docker-runtime",
+        "ci-lite",
+        "dev",
+        "rag-vector",
+        "rag-vector-cpu",
+        "aggregate",
+    }
+    compiled = compiled_dependency_surfaces()
+    assert affected_profiles <= {surface.compile_profile for surface in compiled}
+    required = {"requirements.in", "constraints.txt"} | {
+        surface.lockfile for surface in compiled if surface.compile_profile in affected_profiles
+    }
+    locks = {surface.lockfile for surface in compiled}
+    for name in sorted(registered):
+        _assert_remediated_dependency_surface(
+            REPO_ROOT / name,
+            required=name in required,
+            pinned=name in locks,
+            package=package,
+        )
+
+
+@pytest.mark.parametrize(
+    ("package", "requirement"),
+    [
+        ("certifi", "certifi==2026.1.4"),
+        ("certifi", "certifi==2026.10.18"),
+        ("certifi", "certifi==2026.10.19rc1"),
+        ("certifi", "certifi==2026.10.19\ncertifi==2026.10.19"),
+    ],
+)
+def test_october_dependency_floors_reject_affected_or_ambiguous_occurrences(
+    tmp_path: Path, package: str, requirement: str
+) -> None:
+    surface = tmp_path / "requirements.txt"
+    surface.write_text(requirement + "\n", encoding="utf-8")
+    with pytest.raises(AssertionError):
+        _assert_remediated_dependency_surface(surface, required=True, pinned=True, package=package)
+
+
+MAKO_F_CUTOFF = {
+    "GHSA-v92g-xgxw-vvmm": "<=1.3.10",
+    "GHSA-2h4p-vjrc-8xpq": "<=1.3.11",
+    "GHSA-5639-2j2p-m4mx": "<=1.4.1",
+    "GHSA-v973-fxgf-6xhp": "<1.2.2",
+    "GHSA-7q8x-38mc-p84f": "<0.3.4",
+}
+
+
+def test_mako_current_governed_surfaces_are_safe() -> None:
+    """Reuse the finite per-identity recognizer across the complete current registry."""
+    registered = registered_dependabot_requirement_carriers()
+    discovered = discover_dependabot_requirement_carriers(REPO_ROOT)
+    assert discovered and discovered == registered, "Mako carrier inventory differs from registry"
+    compiled = compiled_dependency_surfaces()
+    profiles = {"runtime", "docker-runtime", "ci-lite", "dev", "aggregate"}
+    assert profiles <= {surface.compile_profile for surface in compiled}
+    required = {
+        "requirements.in",
+        "requirements-docker-runtime.in",
+        "requirements-ci-lite.in",
+        "requirements-dev.in",
+        "constraints.txt",
+    } | {surface.lockfile for surface in compiled if surface.compile_profile in profiles}
+    assert required <= discovered, "Mako required carrier is missing"
+    schema = _load_schema(SCHEMA_PATH)
+    assert schema["min_versions"]["mako"] == str(REMEDIATION_FIXED_FLOORS["mako"])
+    assert set(schema["blocked_versions"]["mako"]) == set(MAKO_F_CUTOFF.values())
+    locks = {surface.lockfile for surface in compiled}
+    for name in sorted(discovered):
+        _assert_remediated_dependency_surface(
+            REPO_ROOT / name, package="mako", required=name in required, pinned=name in locks
+        )
+
+
+@pytest.mark.parametrize(
+    "advisory,affected",
+    [
+        ("GHSA-v92g-xgxw-vvmm", "1.3.10"),
+        ("GHSA-2h4p-vjrc-8xpq", "1.3.11"),
+        ("GHSA-5639-2j2p-m4mx", "1.4.1"),
+        ("GHSA-v973-fxgf-6xhp", "1.2.1"),
+        ("GHSA-7q8x-38mc-p84f", "0.3.3"),
+    ],
+)
+def test_mako_each_primary_advisory_remains_rejected(
+    tmp_path: Path, advisory: str, affected: str
+) -> None:
+    assert SpecifierSet(MAKO_F_CUTOFF[advisory]).contains(affected, prereleases=True)
+    assert not SpecifierSet(MAKO_F_CUTOFF[advisory]).contains("1.4.2", prereleases=True)
+    path = tmp_path / "requirements.txt"
+    path.write_text(f"mako=={affected}\n")
+    with pytest.raises(AssertionError, match="matches blocked range"):
+        _assert_remediated_dependency_surface(path, package="mako", required=True, pinned=True)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "mako==1.3.12\n",
+        "mako==1.4.1\n",
+        "# omitted\n",
+        "mako==1.4.2\nMako==1.4.2\n",
+        "mako>=1.4.2\n",
+        "mako===1.4.2\n",
+        "mako==1.*\n",
+        'mako==1.4.2; python_version < "0"\n',
+        "mako[extra]==1.4.2\n",
+        "mako==1.4.2rc1\n",
+    ],
+)
+def test_mako_rejects_affected_missing_ambiguous_or_unconditional_lock_drift(
+    tmp_path: Path, text: str
+) -> None:
+    path = tmp_path / "requirements.txt"
+    path.write_text(text)
+    with pytest.raises((AssertionError, InvalidVersion)):
+        _assert_remediated_dependency_surface(path, package="mako", required=True, pinned=True)
+
+
+@pytest.mark.parametrize("text", ["mako==1..4.2\n", "mako @ https://example.invalid/mako.whl\n"])
+def test_mako_rejects_malformed_or_uncomparable_carriers(tmp_path: Path, text: str) -> None:
+    path = tmp_path / "requirements.txt"
+    path.write_text(text)
+    with pytest.raises(pytest.fail.Exception):
+        _assert_remediated_dependency_surface(path, package="mako", required=True, pinned=True)
+
+
+@pytest.mark.parametrize(
+    "name,text,required,pinned",
+    [
+        ("requirements.txt", "mako==1.4.2\n", True, True),
+        ("requirements.txt", "Mako==1.5.0\n", True, True),
+        ("requirements.in", "mako>=1.4.2,<2.0.0\n", True, False),
+        ("requirements-evals.txt", "# optional absence\n", False, True),
+    ],
+)
+def test_mako_accepts_safe_current_future_and_optional_carriers(
+    tmp_path: Path, name: str, text: str, required: bool, pinned: bool
+) -> None:
+    path = tmp_path / name
+    path.write_text(text)
+    _assert_remediated_dependency_surface(path, package="mako", required=required, pinned=pinned)
