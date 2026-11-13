@@ -6,7 +6,7 @@ name: CI
 
 env:
   # ROOT creates C, independently reviews/designates it, then pins C before one normal C,H push.
-  ALERTMANAGER_CONTROLLER_SOURCE: 'c9b39d5ba33d3c416e4200663962a3e959e1b0ca' # Public immutable controller commit
+  ALERTMANAGER_CONTROLLER_SOURCE: 'e27e5e7c11dc871fd6ddc22da94ce968e47494b8' # Public immutable controller commit
   ALERTMANAGER_PREPARATION_MINUTES: '14'
   ALERTMANAGER_PREP_SECONDS: '600'
   ALERTMANAGER_PAIR_SECONDS: '1800'
