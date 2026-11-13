@@ -67,6 +67,19 @@ Classify the result before choosing the next action:
 | Tool/service invocation fails | Preserve the error and diagnose its own prerequisite. A service HTTP 403 does not authorize model switching or a retry loop. |
 | Required CI is pending | Record pending and wait for current-head evidence; pending is neither pass nor failure. |
 
+**Attempt scope:** A one-attempt allowance applies to the specific agreed operation
+for the current problem, not to the lifetime of a PR. A distinct new problem,
+or a necessary invocation after correcting the observed cause, has its own
+scoped first attempt. Preserve earlier results and resource charges; they do
+not create a permanent prohibition on required follow-through. The coordinator
+uses the owner's continuing authorization, identifies the actual problem,
+material and operation, and applies the relevant per-invocation budget without
+asking again for permission already granted. Do not duplicate active or healthy
+work for context, blindly repeat an unchanged unresolved cause, or relabel an
+old invocation to reuse its exclusive claim. Source/evidence checks, workload
+limits, protected-operation ownership, and separate merge/release/deployment
+authority remain in force.
+
 For a failed required command:
 
 1. Paste raw output lines showing the failure

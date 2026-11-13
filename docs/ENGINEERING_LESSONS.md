@@ -1089,6 +1089,36 @@ or unrelated deletion is never closure and remains forbidden.
 
 ---
 
+## 34) Scope attempt bounds to the current problem and operation
+
+### Problem
+
+A coordinator treated the consumed attempt for an earlier operation as a
+PR-wide lifetime limit. When a distinct failure needed investigation or a
+corrected gate needed another run, agents stopped and requested permission
+that the owner had already given. Historical accounting was mistaken for a
+continuing prohibition.
+
+### Lesson
+
+[Root AGENTS.md](../AGENTS.md) under **Command results and failure scope** owns the canonical
+attempt-scope rule. Preserve the old invocation and its result, then identify
+the current problem, actual material, required operation and existing owner
+authorization in the lane's existing notes. A new problem starts its own
+bounded attempt; it does not erase an earlier failure.
+
+For example, a corrected inventory comparison needs its own required test
+run; a later independent workflow failure needs its own diagnosis and first
+bounded execution. An already successful producer does not need another build
+to recover context. Re-read its retained evidence instead.
+
+Keep operation limits separate from human authority and source validity.
+Attempt accounting cannot supply a missing source binding or authorize merge,
+publication, production changes, or a provider invocation. Conversely, a
+consumed historical attempt cannot by itself block necessary authorized work.
+Use the existing checkpoint and invocation records; no new counter, receipt
+schema, approval loop or orchestration framework is needed.
+
 ## Repo Commands Reference
 
 ```bash
