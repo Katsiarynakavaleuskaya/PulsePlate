@@ -660,6 +660,8 @@ jobs:
                   remaining, inputs["scripts/ci/prometheus_source_image.py"]["sha256"],
               ))
 
+              from scripts.ci.prometheus_source_image import QualificationError, exact_data
+
               def positive_id(value):
                   if type(value) is not int or value <= 0:
                       raise ValueError("Caddy native positive ID required")
@@ -693,8 +695,10 @@ jobs:
                               break
                       else:
                           raise ValueError("Caddy API pagination bound")
-                  if observations[0] != observations[1]:
-                      raise ValueError("Caddy API same-count inventory replacement")
+                  try:
+                      exact_data(observations[0], observations[1])
+                  except QualificationError:
+                      raise ValueError("Caddy API same-count inventory replacement") from None
                   return observations[0]
 
               pr = api("/pulls/2494")
@@ -2474,8 +2478,12 @@ jobs:
               from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_api
               pr = caddy_ci_api(Path.cwd(), private / "final-api", "/pulls/2494", remaining,
                                 admission["inputs"]["scripts/ci/prometheus_source_image.py"]["sha256"])
-              if (pr["number"] != 2494 or pr["head"]["repo"]["id"] != 1043311030 or
-                      (os.environ["GITHUB_EVENT_NAME"] != "push" and (pr["state"] != "open" or pr["head"]["sha"] != admission["current_head"])) or
+              from scripts.ci.prometheus_source_image import QualificationError, exact_data
+              try:
+                  exact_data([pr["number"], pr["head"]["repo"]["id"]], [2494, 1043311030])
+              except QualificationError:
+                  raise ValueError("Caddy current authenticated PR source changed") from None
+              if ((os.environ["GITHUB_EVENT_NAME"] != "push" and (pr["state"] != "open" or pr["head"]["sha"] != admission["current_head"])) or
                       (os.environ["GITHUB_EVENT_NAME"] == "push" and (pr["merged"] is not True or pr["merge_commit_sha"] != admission["current_head"]))):
                   raise ValueError("Caddy current authenticated PR source changed")
           # Only positively owned control image is removed; candidate and official survive.

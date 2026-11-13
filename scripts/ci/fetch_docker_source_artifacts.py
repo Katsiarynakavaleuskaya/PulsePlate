@@ -2416,7 +2416,13 @@ def _alertmanager_metadata_custody(
         "AM_metadata_custody_oom_field",
     )
     old_mounts = mounts(before["Mounts"])
-    for observation in ((actual,) if terminal is None else (terminal, actual)):
+    observations = (actual,) if terminal is None else (terminal, actual)
+    for profile in (before, *observations):
+        restart_count = profile.get("RestartCount")
+        require(
+            type(restart_count) is int and restart_count == 0, "AM_metadata_custody_restart_count"
+        )
+    for observation in observations:
         for field in ("Id", "Name", "Image", "Config"):
             exact_data(observation[field], before[field])
         exact_data(mounts(observation["Mounts"]), old_mounts)

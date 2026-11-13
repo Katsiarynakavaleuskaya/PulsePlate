@@ -4531,6 +4531,95 @@ def test_alertmanager_062_start_binds_only_real_launch_records(tmp_path: Path, w
         assert not issued and not native.records
 
 
+@pytest.fixture
+def alertmanager_062_profiles(tmp_path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    from scripts.ci import prometheus_source_image as transport
+    from tests.test_prometheus_source_image import _native_fixed_base_image
+
+    # Actual Q 42833861289 observed this CID, timestamp and order transition.
+    cid = "4aa388e096ec7771441e1b630dcc2da5cf264a49457da51d4a53647672081033"
+    started_at = "2026-11-10T14:26:00.919095131Z"
+    owner = "f" * 32
+    name = "pulseplate-alert-module-" + owner + "-1-version"
+    relation = transport.native_base_identity(_native_fixed_base_image(), current=True)
+    before: dict[str, Any] = {
+        "Id": cid,
+        "RestartCount": 0,
+        "Name": "/" + name,
+        "Image": relation["engine_id"],
+        "Config": {
+            "Image": relation["operand"],
+            "Labels": {"pulseplate.alertmanager-module": owner},
+            "Cmd": ["version"],
+            "Entrypoint": ["/toolchain/bin/go"],
+            "Tty": False,
+        },
+        "HostConfig": {"OomKillDisable": False, "Privileged": False},
+        "Mounts": [
+            {
+                "Destination": k,
+                "Source": str(tmp_path / k[1:]),
+                "Type": "bind",
+                "RW": False,
+                "Propagation": "rprivate",
+                "Mode": "",
+            }
+            for k in ("/toolchain", "/source", "/cache")
+        ],
+        "State": {
+            "Status": "created",
+            "Running": False,
+            "StartedAt": "0001-01-01T00:00:00Z",
+            "Restarting": False,
+            "Dead": False,
+        },
+    }
+    terminal = deepcopy(before)
+    terminal["Mounts"] = terminal["Mounts"][1:] + terminal["Mounts"][:1]
+    terminal["HostConfig"]["OomKillDisable"] = None
+    terminal["State"].update(
+        Status="exited", StartedAt=started_at, ExitCode=0, OOMKilled=False, Error=""
+    )
+    return before, terminal
+
+
+@pytest.mark.parametrize(
+    ("prestart_count", "terminal_count"),
+    [
+        pytest.param(1, 0, id="prestart-positive"),
+        pytest.param(0, 1, id="terminal-positive"),
+        pytest.param(1, 1, id="equal-positive"),
+        pytest.param(..., 0, id="prestart-missing"),
+        pytest.param(0, ..., id="terminal-missing"),
+        pytest.param(0, None, id="null"),
+        pytest.param(False, 0, id="false"),
+        pytest.param(0, True, id="true"),
+        pytest.param(0, 0.0, id="float-zero"),
+        pytest.param(0, "0", id="string-zero"),
+        pytest.param(0, -1, id="negative"),
+    ],
+)
+def test_alertmanager_062_terminal_requires_zero_restarts(
+    alertmanager_062_profiles: tuple[dict[str, Any], dict[str, Any]],
+    prestart_count: object,
+    terminal_count: object,
+) -> None:
+    from scripts.ci.prometheus_source_image import QualificationError
+
+    before, terminal = alertmanager_062_profiles
+    for profile, count in ((before, prestart_count), (terminal, terminal_count)):
+        if count is ...:
+            del profile["RestartCount"]
+        else:
+            profile["RestartCount"] = count
+    cid = before["Id"]
+    name = before["Name"].removeprefix("/")
+    owner = before["Config"]["Labels"]["pulseplate.alertmanager-module"]
+    docker_sources._alertmanager_command_exit(terminal, cid, name, owner, b"0\n")
+    with pytest.raises(QualificationError, match="^AM_metadata_custody_restart_count$"):
+        docker_sources._alertmanager_metadata_custody(before, terminal, cid, issued_start=cid)
+
+
 @pytest.mark.parametrize(
     "fault",
     [
@@ -4538,6 +4627,8 @@ def test_alertmanager_062_start_binds_only_real_launch_records(tmp_path: Path, w
         "no-start-clean",
         "failed-attach-running",
         "failed-attach-exited",
+        "failed-attach-restart-count",
+        "previous-terminal-restart-count",
         "created-after-attach",
         "no-start-record",
         "other-start-id",
@@ -4574,54 +4665,18 @@ def test_alertmanager_062_start_binds_only_real_launch_records(tmp_path: Path, w
     ],
 )
 def test_alertmanager_062_owned_metadata_cleanup_requires_profile_and_proven_start(
-    tmp_path: Path, fault: str | None
+    tmp_path: Path,
+    fault: str | None,
+    alertmanager_062_profiles: tuple[dict[str, Any], dict[str, Any]],
 ) -> None:
     from scripts.ci import prometheus_source_image as transport
     from tests.test_prometheus_source_image import _native_fixed_base_image
 
-    # Actual Q 42833861289 observed this CID, timestamp and order transition.
-    cid = "4aa388e096ec7771441e1b630dcc2da5cf264a49457da51d4a53647672081033"
-    started_at = "2026-11-10T14:26:00.919095131Z"
-    owner = "f" * 32
-    name = "pulseplate-alert-module-" + owner + "-1-version"
+    before, terminal = alertmanager_062_profiles
+    cid = before["Id"]
+    name = before["Name"].removeprefix("/")
+    owner = before["Config"]["Labels"]["pulseplate.alertmanager-module"]
     relation = transport.native_base_identity(_native_fixed_base_image(), current=True)
-    before = {
-        "Id": cid,
-        "Name": "/" + name,
-        "Image": relation["engine_id"],
-        "Config": {
-            "Image": relation["operand"],
-            "Labels": {"pulseplate.alertmanager-module": owner},
-            "Cmd": ["version"],
-            "Entrypoint": ["/toolchain/bin/go"],
-            "Tty": False,
-        },
-        "HostConfig": {"OomKillDisable": False, "Privileged": False},
-        "Mounts": [
-            {
-                "Destination": k,
-                "Source": str(tmp_path / k[1:]),
-                "Type": "bind",
-                "RW": False,
-                "Propagation": "rprivate",
-                "Mode": "",
-            }
-            for k in ("/toolchain", "/source", "/cache")
-        ],
-        "State": {
-            "Status": "created",
-            "Running": False,
-            "StartedAt": "0001-01-01T00:00:00Z",
-            "Restarting": False,
-            "Dead": False,
-        },
-    }
-    terminal = deepcopy(before)
-    terminal["Mounts"] = terminal["Mounts"][1:] + terminal["Mounts"][:1]
-    terminal["HostConfig"]["OomKillDisable"] = None
-    terminal["State"].update(
-        Status="exited", StartedAt=started_at, ExitCode=0, OOMKilled=False, Error=""
-    )
     if fault is None:
         docker_sources._alertmanager_command_exit(terminal, cid, name, owner, b"0\n")
         docker_sources._alertmanager_metadata_custody(before, terminal, cid, issued_start=cid)
@@ -4632,6 +4687,7 @@ def test_alertmanager_062_owned_metadata_cleanup_requires_profile_and_proven_sta
     if fault in (
         "failed-attach-running",
         "failed-attach-exited",
+        "failed-attach-restart-count",
         "no-start-record",
         "other-start-id",
         "no-start-clean",
@@ -4651,6 +4707,10 @@ def test_alertmanager_062_owned_metadata_cleanup_requires_profile_and_proven_sta
         clean["State"].update(Status="running", Running=True)
     if fault == "failed-attach-exited":
         clean["State"].update(ExitCode=17)
+    if fault == "failed-attach-restart-count":
+        clean["RestartCount"] = 1
+    if fault == "previous-terminal-restart-count":
+        terminal["RestartCount"] = 1
     if fault == "restarted":
         clean["State"]["Restarting"] = True
     if fault == "dead":
@@ -4708,16 +4768,17 @@ def test_alertmanager_062_owned_metadata_cleanup_requires_profile_and_proven_sta
         clean["State"]["ExitCode"] = 17
     if fault == "different-start":
         clean["State"]["StartedAt"] = "2026-11-10T14:26:01Z"
-    if fault in ("failed-attach-running", "failed-attach-exited"):
+    if fault in ("failed-attach-running", "failed-attach-exited", "failed-attach-restart-count"):
         # Exercise real Native.run's post-Popen failure record before the cleanup inspector.
         import time
 
         evidence = tmp_path / "evidence"
         evidence.mkdir()
         issued.clear()
+        native = transport.Native(evidence, time.monotonic() + 10, 45)
         with pytest.raises(transport.QualificationError, match="native_failed"):
             docker_sources._alertmanager_start_metadata(
-                transport.Native(evidence, time.monotonic() + 10, 45),
+                native,
                 [sys.executable, "-I", "-c", "raise SystemExit(17)"],
                 cid,
                 "offline-version",
@@ -4725,7 +4786,7 @@ def test_alertmanager_062_owned_metadata_cleanup_requires_profile_and_proven_sta
                 tmp_path,
                 issued,
             )
-        assert issued == {cid}
+        assert issued == {cid} and native.records[-1]["exit"] == 17
 
     calls = []
 
@@ -4767,7 +4828,12 @@ def test_alertmanager_062_owned_metadata_cleanup_requires_profile_and_proven_sta
             ["rm", "--force", cid],
         ]
     else:
-        with pytest.raises((RuntimeError, ValueError)):
+        diagnostic = (
+            "^AM_metadata_custody_restart_count$"
+            if fault in ("failed-attach-restart-count", "previous-terminal-restart-count")
+            else None
+        )
+        with pytest.raises((RuntimeError, ValueError), match=diagnostic):
             cleanup()
         assert len(calls) == 1 and calls[0][3] == "inspect"
 
@@ -5564,6 +5630,8 @@ def _alertmanager_payload_zip(
         "terminal-writable",
         "terminal-host-type",
         "terminal-missing-oom",
+        "terminal-restart-count",
+        "cleanup-restart-count",
         "cleanup-foreign-start",
         "retained-terminal-null-cleanup-false",
         "cleanup-duplicate-mount",
@@ -5861,6 +5929,7 @@ def test_alertmanager_062_authenticated_qualification_reader(
                 "Id": cid,
                 "Image": base["Id"],
                 "Name": "/" + name,
+                "RestartCount": 0,
                 "Config": {
                     "Labels": {"pulseplate.alertmanager-module": owner},
                     "Image": base["Id"],
@@ -5963,12 +6032,18 @@ def test_alertmanager_062_authenticated_qualification_reader(
                 cli + ["inspect", "--format", "{{json .}}", cid],
                 source,
                 offline_env,
-                data(obj),
+                data(
+                    {**obj, "RestartCount": 1}
+                    if n == 1 and command == "version" and fault == "terminal-restart-count"
+                    else obj
+                ),
             )
             obj["Mounts"].reverse()
             if n == 1 and command == "version":
                 if fault == "retained-terminal-null-cleanup-false":
                     obj["HostConfig"]["OomKillDisable"] = False
+                if fault == "cleanup-restart-count":
+                    obj["RestartCount"] = 1
                 if fault == "cleanup-foreign-start":
                     obj["State"]["StartedAt"] = "2026-11-10T14:26:01Z"
                 if fault == "cleanup-duplicate-mount":
@@ -6107,6 +6182,8 @@ def test_alertmanager_062_authenticated_qualification_reader(
             "terminal-writable": "declared_data_value",
             "terminal-host-type": "declared_data_type",
             "terminal-missing-oom": "AM_metadata_custody_oom_field",
+            "terminal-restart-count": "AM_metadata_custody_restart_count",
+            "cleanup-restart-count": "AM_metadata_custody_restart_count",
             "cleanup-foreign-start": "AM_metadata_custody_terminal",
             "retained-terminal-null-cleanup-false": "declared_data_type",
             "cleanup-duplicate-mount": "AM_metadata_custody_mount_destination",

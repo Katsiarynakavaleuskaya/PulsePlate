@@ -6841,6 +6841,8 @@ def test_caddy_actual_scan_runner_contains_work_term_kill_in_one_envelope(
         "epoch",
         "cleanup",
         "API",
+        "float-pr-number",
+        "float-repo-id",
         "policy",
         "runtime",
         "archive",
@@ -7026,10 +7028,10 @@ def test_caddy_candidate_release_requires_current_source_control_and_cleanup_con
             assert bound == 8388609
             return json.dumps(
                 {
-                    "number": 2494,
+                    "number": 2494.0 if fault == "float-pr-number" else 2494,
                     "state": "open",
                     "head": {
-                        "repo": {"id": 1043311030},
+                        "repo": {"id": 1043311030.0 if fault == "float-repo-id" else 1043311030},
                         "sha": "2" * 40 if fault == "API" else head,
                     },
                 }
@@ -7059,7 +7061,12 @@ def test_caddy_candidate_release_requires_current_source_control_and_cleanup_con
         assert len(list((evidence / "build-evidence").iterdir())) == 28
         assert len(list((evidence / "controls").glob("*.raw.json"))) == 6
     else:
-        with pytest.raises(ValueError):
+        identity_error = (
+            "Caddy current authenticated PR source changed"
+            if fault in {"API", "float-pr-number", "float-repo-id"}
+            else None
+        )
+        with pytest.raises(ValueError, match=identity_error):
             exec(compile(script, "<actual-current-Caddy-release>", "exec"), {})
         assert not (evidence / "candidate.docker.tar").exists()
         assert not (evidence / "candidate.json").exists()
@@ -7079,6 +7086,8 @@ def test_caddy_candidate_release_requires_current_source_control_and_cleanup_con
         "missing-job",
         "duplicate-run",
         "inventory-drift",
+        "inventory-bool-attempt",
+        "inventory-float-attempt",
         "active-producer",
         "source-alias",
         "expired-artifact",
@@ -7338,8 +7347,13 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
                 value = {"id": 196310935}
             elif "/actions/workflows/frontend-ci.yml/runs?" in url:
                 observed = deepcopy(runs)
-                if case == "inventory-drift" and calls.count(url) > 1:
-                    observed[0]["created_at"] = "2026-10-31T01:00:01Z"
+                if calls.count(url) == 2:
+                    if case == "inventory-drift":
+                        observed[0]["created_at"] = "2026-10-31T01:00:01Z"
+                    elif case == "inventory-bool-attempt":
+                        observed[0]["run_attempt"] = True
+                    elif case == "inventory-float-attempt":
+                        observed[0]["run_attempt"] = 1.0
                 value = {"total_count": len(observed), "workflow_runs": observed}
             elif "/jobs?filter=all" in url:
                 run_id = int(url.split("/runs/", 1)[1].split("/", 1)[0])
@@ -7499,6 +7513,8 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
             "missing-job": "current native run/job missing or ambiguous",
             "duplicate-run": "duplicate API identity",
             "inventory-drift": "same-count inventory replacement",
+            "inventory-bool-attempt": "same-count inventory replacement",
+            "inventory-float-attempt": "same-count inventory replacement",
             "active-producer": "another producer still active",
             "source-alias": "relevant source path alias",
             "expired-artifact": "original producer artifact unavailable",
@@ -7513,6 +7529,10 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
         with pytest.raises(ValueError, match=expected_error):
             exec(compile(code, "<actual-Caddy-current-admission>", "exec"), {})
         assert output.read_text() == ""
+        if case in {"inventory-drift", "inventory-bool-attempt", "inventory-float-attempt"}:
+            assert sum("/actions/workflows/frontend-ci.yml/runs?" in url for url in calls) == 2
+            assert not any("/jobs?filter=all" in url for url in calls)
+            assert reader_events == ["open", "closed"]
     if refresh:
         expected_pairs = (
             0
