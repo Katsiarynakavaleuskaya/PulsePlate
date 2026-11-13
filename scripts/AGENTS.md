@@ -17,6 +17,13 @@
   hooks. This early check supplements, and never replaces, the required all-files
   and ordinary pre-push gates.
 
+- Before an expensive validation or producer operation on a path with a known
+  dated exception, run its existing owning cheap guard on the actual current
+  date. Preserve a failure and fix or explicitly disposition its cause before
+  dependent work; selected branch tests do not establish that this guard ran.
+  This ordering supplements the required gates and grants no expiry renewal
+  or additional native attempt.
+
 - Keep protected-helper commit, regular path/mode, byte length, SHA-256 and Git
   blob pins synchronized. Before synthetic rebinding, regression tests must
   derive byte/object identities from the actual helper bytes and reject a stale
