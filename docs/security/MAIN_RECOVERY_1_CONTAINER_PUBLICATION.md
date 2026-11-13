@@ -422,6 +422,136 @@ their separate current-main operational receipts.
 
 ## Native command security dispositions
 
+<a id="native-nosec-renewal-20261113"></a>
+
+### November 13 prospective renewal — PR2494.N7-retirement.v3
+
+On **2026-11-13**, Katsiaryna Kovaleuskaya (@katsiaryna_kavaleuskaya)
+directly instructed the existing PR #2494 lane to extend the dispositions by
+one month if no supported option removes the suppression, then continue the
+PR through its required merge, main synchronization, sanity and documentation
+and dependency outcomes. The completed six-role assessment found no qualified
+unsuppressed equivalent for the exact fifteen current sites below. This is a
+bounded result for these callers and platforms, not universal impossibility
+or an attestation that the human read every source line. A later question about
+changing native operations did not withdraw the renewal; a genuinely supported
+replacement preserving the required outcomes remains eligible for normal review.
+
+This new prospective decision covers **two distinct cohorts**, each owned by
+@katsiaryna_kavaleuskaya with security-auditor: the separate eight native-CLI
+sites and the seven N7 sites assigned to the existing PR #2494 coordinator and
+scoped backend engineer for retirement. Exactly fifteen current comment
+coordinates use the existing TTL fixture, with **ref PR-2494** and inclusive
+hard remove-by **2026-12-13**, one calendar month from November 13. The
+coordinator schedules manual review for **2026-12-06**; that review date is a
+planning choice, not a quotation from the owner. No automatic renewal follows.
+
+The November 11 window expired before this decision. The November 13 real-date
+guard failed on all fifteen sites at `tests/guards/test_nosec_policy_guard.py:223`.
+Original October 12/27 misses and unproved October 20/November 4 reviews remain
+as recorded below. Commit `b54477dc8` removed the original seven PR-2497 fixture
+rows on November 5 on this branch. The seven successor inline dispositions
+kept November 11; the new rows are a distinct renewal, not that historical
+removal or elimination of native risk.
+
+The exact reviewed starting material is
+`e1ffe8e0effbe064f1246692b8a08b0f2a76068e`, based on
+`d20922f741f431b6eb3e47386ae944ca441a971e`. These six complete regular source
+files, their inline comments/dates and native operations remain unchanged:
+
+| Source | Bytes | SHA-256 |
+| --- | --- | --- |
+| `scripts/ci/check_pgvector_attestations.py` | 31435 | `157cbcc285d3f3573f889bf963387fe2e05595bea130b190154a205196ea6e00` |
+| `scripts/ci/check_scheduler_worker_runtime.py` | 28032 | `80238736bef058e050d1bb717feee63503d6cd59bc0db8a2e68b61a019a3c3ed` |
+| `scripts/ci/check_staging_postgres_runtime.py` | 51139 | `74348785ddea03bf16973bd7c82333b12b786cb251fc748713c50396c9ca4ae5` |
+| `scripts/ci/check_trivy_ignore_policy_native.py` | 15174 | `b25fc3d614665cfb33818bab85a8b1c170c624ca2929fac81c2fbdb59fa98e74` |
+| `scripts/ci/prometheus_source_image.py` | 475124 | `9fc210a6c0b776c110636348e35e90be8fd040afdb9b9f140030a2a2506fd755` |
+| `scripts/ops/check_staging_security.py` | 30705 | `1186c3e43434e525fd181e9de971a05cc149f33ab04339849e62d29bd9bd975d` |
+
+The actual same-source all-severity Bandit **1.9.4** pair used unchanged
+`.bandit.yaml` (SHA-256
+`5296ddcb4999367f5961f7adba6630dbfb9d0a362d4abf7ca8fec636ed28602c`).
+Both reports have all six positive target metrics, 14,799 LOC and no errors.
+Ordinary execution exited **0**, reported no issues and `skipped_tests=15`;
+ignoring nosec exited **1**, exposing **six B404 and nine B603** findings,
+all LOW severity/HIGH confidence, with zero MEDIUM/HIGH findings. The zero
+`nosec` metric does not cancel the fifteen skipped rule tests. These unchanged
+source/configuration observations are reused, not rerun for fixture/docs edits.
+They are neither exploitability evidence, full-hook approval, new-head CI nor
+native acceptance. The prior eight-site ordinary exit gap remains historical.
+
+The following anchors identify the inline suppression comment itself, rather
+than assuming it equals Bandit's multiline call start. Each row retains its
+current caller and individual removal/reassessment obligation.
+
+| Cohort | Current source comment / rule | Required control and earlier removal or reassessment trigger |
+| --- | --- | --- |
+| Separate eight | `scripts/ci/check_pgvector_attestations.py:15` B404 | All native Git calls and exception uses must retire or move to a qualified equivalent. |
+| Separate eight | `scripts/ci/check_pgvector_attestations.py:444` B603 | Preserve native tracked-tree/object, NUL, no-replacement and failure semantics; reject tool/input drift. |
+| Separate eight | `scripts/ci/check_scheduler_worker_runtime.py:14` B404 | Retire only after every Docker capture and process use has a qualified equivalent. |
+| Separate eight | `scripts/ci/check_scheduler_worker_runtime.py:73` B603 | Preserve binary tar, complete bounded streams, both runtime smokes and owned Docker cleanup. |
+| Separate eight | `scripts/ci/check_staging_postgres_runtime.py:17` B404 | Account for every binary result/type/error use and the separately owned PR #2491 consumers. |
+| Separate eight | `scripts/ci/check_staging_postgres_runtime.py:59` B603 | Preserve binary SQL/dump input, TLS negatives, native restore/errors and owned cleanup. |
+| Separate eight | `scripts/ops/check_staging_security.py:18` B404 | Retire only after all installed-host native recognizers have qualified supported replacements. |
+| Separate eight | `scripts/ops/check_staging_security.py:107` B603 | Preserve actual mount/device, TLS/key, typed systemd and Docker observations and status-only failures. |
+| N7 seven | `scripts/ci/check_trivy_ignore_policy_native.py:13` B404 | Retire when all native version/convert operations and process uses retire or qualify elsewhere. |
+| N7 seven | `scripts/ci/check_trivy_ignore_policy_native.py:77` B603 | Retain pinned executable/version, private environment, policy-copy and all 122 native decoder/conversion controls. |
+| N7 seven | `scripts/ci/prometheus_source_image.py:30` B404 | Retire only after all four native primitives and their process/type/error uses qualify elsewhere. |
+| N7 seven | `scripts/ci/prometheus_source_image.py:1095` B603 | Keep recorded argv/environment nonsecret; preserve native output/watch/deadline and group cleanup. |
+| N7 seven | `scripts/ci/prometheus_source_image.py:2882` B603 | Preserve Darwin/Linux identity, uncertainty and custody; a snapshot is not permanent physical absence. |
+| N7 seven | `scripts/ci/prometheus_source_image.py:3111` B603 | Preserve fixed hosted gh auth/GETs, private credentials, bounded output/reflection and child cleanup. |
+| N7 seven | `scripts/ci/prometheus_source_image.py:4935` B603 | Preserve all gh/Git/Docker/ORAS/Caddy modes, binary stdin, bounded streams, reflection and custody. |
+
+The unchanged loader at `tests/guards/test_nosec_policy_guard.py:46` admits
+path plus integer line while its remove-by is not earlier than `date.today()`.
+It skips inline metadata validation only for those coordinates. It does not
+validate code hashes, rule identity, ref or manual review; those remain explicit
+source/caller review duties. December 14 is therefore the expected first expired
+day in the executing host calendar, not an observed future test result.
+The fifteen inline November 11 dates and original references stay untouched.
+Bandit configuration, severities, hooks and the guard mechanism do not change.
+
+Native tool/PATH/OS/Docker trust, caller/environment discipline and native
+option/source semantics remain residual risks. Git/Postgres/ops and Trivy can
+buffer output; direct-child timeout does not prove all descendant or daemon
+cleanup. Kernel census is a bounded snapshot. The nonsecret native recorder
+must never receive credential-bearing argv/environment; credentialed readers
+retain their separate binary-stdin, output/reflection and custody boundaries.
+A conservative B404/B603 match is not an exploit demonstration, and this
+acceptance does not establish arbitrary external, computed or future-call safety.
+Reassess earlier on source/line/rule/caller, executable/tool/context, input,
+stdout/stderr, credential handling, native behavior or source-binding drift,
+a new finding, missing positive scanner inventory, or a failed required gate.
+Remove earlier when a supported safer equivalent or native-requirement
+retirement is proved, and otherwise by December 13 inclusive.
+
+The existing source-preserving carrier keeps P/build/recipe/manifest, the five
+AM Q files plus separately bound P, controller/workflow/deploy pins and all
+395 Caddy inputs unchanged. That equality preserves input identity only; it
+supplies no fresh Q/S/D/native result, registry action or duplicate Prometheus
+T/Q/B budget. Earlier failed/spent runs remain recorded. Any actually changed
+future material requires its real current source, caller, history and separate
+operational admission; the renewal is no waiver of those requirements.
+
+PR2494.N7-retirement.v3 amends v2 only prospectively: a correctly implemented
+and validated temporary disposition can clear this PR's immediate NoSec
+blocker, while actual retirement remains due and tracked in both existing
+[seven-site](../roadmap/BACKLOG_LEDGER.md#ledger-p1-source-preserving-native-nosec-seven-20261028)
+and [eight-site](../roadmap/BACKLOG_LEDGER.md#ledger-p1-native-cli-subprocess-review)
+ledger items. Both stay OPEN. Preserve every N7-01.1–.7 definition and historical
+calendar result at v2, all 39 original criteria, owners and version references,
+and the full trusted-main publication, immutable pullback, native/security and
+downstream, main sanity, same-ID documentation/readback and verified recovery
+before owned cleanup outcomes. This renewal alone achieves none of them.
+Other NoSec/AM05/B24/Trivy decisions are outside this amendment.
+
+Rollback is a normal reviewed revert of only these renewal rows and associated
+prospective records, restoring the original expired inline enforcement and its
+failed guard result. Do not delete historical evidence, roll back a registry
+tag, reset an attempt or infer merge/deployment/native authority from rollback.
+Fresh applicable local/current-head CI/security/coverage/review, normal closeout
+and actual protected-action admission remain independently required.
+
 ### Accepted source-preserving seven-line allowlist instance — October 28, 2026
 
 On **2026-10-28**, @katsiaryna_kavaleuskaya directly accepted exactly seven
