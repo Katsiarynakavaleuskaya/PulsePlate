@@ -20,6 +20,7 @@ on:
         required: true
         default: unchanged
         options: [unchanged, xnet060-replay, xnet062-replay]
+      # The maintained1.27.4 source problem keeps all prior T/Q+PG/B rows spent.
       tool_prefetch_predecessor:
         description: Exact failed precompile run:artifact evidence selector; no dispatch authorization
         type: string

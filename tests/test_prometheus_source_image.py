@@ -562,8 +562,27 @@ def test_actual_layout_rejection_reaches_tool_report_and_keeps_cleanup_separate(
             "ref": "refs/heads/codex/python-setup-security-stabilization",
         },
     )
-    monkeypatch.setattr(source, "authenticate_producer_inputs", lambda *args, **kwargs: None)
-    monkeypatch.setattr(source, "tool_input_projection", lambda root: {"synthetic": True})
+
+    def authenticated(
+        api: API,
+        root: Path,
+        revision: str,
+        *,
+        tool: bool,
+        compiler_artifact: source.Artifact,
+    ) -> None:
+        assert isinstance(api, API) and root == tmp_path and revision == "synthetic" and tool
+        compiler = source.Artifact.canonical(compiler_artifact)
+        source.exact_data(vars(compiler), vars(source.CURRENT_GO))
+
+    def projection(root: Path, *, compiler_artifact: source.Artifact) -> dict[str, Any]:
+        assert root == tmp_path
+        compiler = source.Artifact.canonical(compiler_artifact)
+        source.exact_data(vars(compiler), vars(source.CURRENT_GO))
+        return {"synthetic": True}
+
+    monkeypatch.setattr(source, "authenticate_producer_inputs", authenticated)
+    monkeypatch.setattr(source, "tool_input_projection", projection)
     monkeypatch.setattr(source.shutil, "which", lambda name: "/usr/bin/docker")
     monkeypatch.setattr(source, "acquire", lambda *args, **kwargs: None)
 
@@ -578,7 +597,22 @@ def test_actual_layout_rejection_reaches_tool_report_and_keeps_cleanup_separate(
 
     monkeypatch.setattr(source, "extract", extract)
 
-    def rejected(*args: Any, **kwargs: Any) -> None:
+    def rejected(
+        native: source.Native,
+        work: Path,
+        source_root: Path,
+        go: Path,
+        label: str,
+        actual_locks: dict[str, str],
+        *,
+        root_module: str,
+        compiler_artifact: source.Artifact,
+    ) -> None:
+        assert work == tmp_path / "tool" and source_root == work / "source"
+        assert go == work / "go" and label == "tool" and root_module == "oras.land/oras"
+        assert actual_locks == source.ORAS_LOCKS
+        compiler = source.Artifact.canonical(compiler_artifact)
+        source.exact_data(vars(compiler), vars(source.CURRENT_GO))
         return source._layout_inventory(
             tree, {"sha256:" + p.name for p in (tree / "blobs/sha256").iterdir()}
         )
@@ -747,7 +781,9 @@ def _tool_scan_data(subject: str = "/synthetic/tool-rootfs") -> dict[str, Any]:
 
 def test_tool_observation_retains_module_high_without_security_claim() -> None:
     data = _tool_scan_data()
-    observed = source.tool_scan_inventory(source.canonical_data(data), data["ArtifactName"])
+    observed = source.tool_scan_inventory(
+        source.canonical_data(data), data["ArtifactName"], compiler_artifact=source.RETAINED_GO
+    )
     assert observed == {
         "all_findings": data["Results"][0]["Vulnerabilities"],
         "Secrets_fields_absent": 1,
@@ -818,7 +854,11 @@ def test_tool_scan_rejects_incomplete_subject_coverage_types_and_actual_secrets(
     elif fault == "duplicate-target":
         data["Results"].append(copy.deepcopy(row))
     with pytest.raises(source.QualificationError):
-        source.tool_scan_inventory(source.canonical_data(data), "/synthetic/tool-rootfs")
+        source.tool_scan_inventory(
+            source.canonical_data(data),
+            "/synthetic/tool-rootfs",
+            compiler_artifact=source.RETAINED_GO,
+        )
 
 
 @pytest.mark.parametrize(
@@ -1686,26 +1726,36 @@ def test_direct_acquisition_uses_verified_bytes_and_rejects_redirect(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     artifact = replace(source.GO, size=3, digest=source.sha(b"abc"))
+    monkeypatch.setattr(source, "GO", artifact)
     handler = install_transport(monkeypatch, [(200, b"abc", None)])
     result = source.acquire(artifact, tmp_path / "go")
     assert result["sha256"] == source.sha(b"abc")
+    assert (tmp_path / "go").read_bytes() == b"abc"
+    assert len(handler.requests) == 1
     assert handler.requests[0].get_header("Authorization") is None
-    install_transport(monkeypatch, [(302, b"", FINAL)])
+    handler = install_transport(monkeypatch, [(302, b"", FINAL)])
     with pytest.raises(source.QualificationError, match="source_transport_failed"):
         source.acquire(artifact, tmp_path / "redirect")
+    assert len(handler.requests) == 1
+    assert not (tmp_path / "redirect").exists()
 
 
 def test_release_accepts_one_finite_handoff_then_no_redirect(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     artifact = replace(source.UI, size=3, digest=source.sha(b"abc"))
+    monkeypatch.setattr(source, "UI", artifact)
     handler = install_transport(monkeypatch, [(302, b"", FINAL), (200, b"abc", None)])
     result = source.acquire(artifact, tmp_path / "ui")
     assert result["explicit_release_handoff"] is True and len(handler.requests) == 2
+    assert (tmp_path / "ui").read_bytes() == b"abc"
+    assert all(request.get_header("Authorization") is None for request in handler.requests)
     assert "sig=" not in json.dumps(result)
-    install_transport(monkeypatch, [(302, b"", FINAL), (302, b"", FINAL)])
+    handler = install_transport(monkeypatch, [(302, b"", FINAL), (302, b"", FINAL)])
     with pytest.raises(source.QualificationError, match="source_transport_failed"):
         source.acquire(artifact, tmp_path / "second-hop")
+    assert len(handler.requests) == 2
+    assert not (tmp_path / "second-hop").exists()
 
 
 @pytest.mark.parametrize(
@@ -1727,15 +1777,46 @@ def test_digest_failure_does_not_become_cache_or_retry(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     artifact = replace(source.GO, size=3, digest=source.sha(b"abc"))
+    monkeypatch.setattr(source, "GO", artifact)
     handler = install_transport(monkeypatch, [(200, b"bad", None)])
     with pytest.raises(source.QualificationError, match="download_integrity"):
         source.acquire(artifact, tmp_path / "go")
     assert len(handler.requests) == 1
+    assert (tmp_path / "go").read_bytes() == b"bad"
     with pytest.raises(source.QualificationError, match="download_cache_collision"):
         source.acquire(artifact, tmp_path / "go")
+    assert len(handler.requests) == 1
 
 
-def make_archive(path: Path, entries: list[tuple[str, bytes | None, bytes]]) -> source.Artifact:
+@pytest.mark.parametrize("fault", ["unregistered", "size-alias", "release-alias", "duplicate"])
+def test_artifact_rejection_precedes_transport_archive_and_output_effects(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fault: str
+) -> None:
+    supplied = dict(vars(source.CURRENT_GO))
+    code = "artifact_exact_named_tuple"
+    if fault == "unregistered":
+        supplied.update(size=3, digest=source.sha(b"abc"))
+    elif fault == "size-alias":
+        supplied["size"] = True
+        code = "artifact_digest_size_types"
+    elif fault == "release-alias":
+        supplied["release"] = 0
+        code = "declared_data_type"
+    else:
+        monkeypatch.setattr(source, "GO", source.CURRENT_GO)
+    handler = install_transport(monkeypatch, [])
+    artifact = cast(source.Artifact, supplied)
+    with pytest.raises(source.QualificationError, match=f"^{code}$"):
+        source.acquire(artifact, tmp_path / "download")
+    with pytest.raises(source.QualificationError, match=f"^{code}$"):
+        source.extract(artifact, tmp_path / "unread.tar.gz", tmp_path / "result")
+    assert handler.requests == []
+    assert list(tmp_path.iterdir()) == []
+
+
+def make_archive(
+    monkeypatch: pytest.MonkeyPatch, path: Path, entries: list[tuple[str, bytes | None, bytes]]
+) -> source.Artifact:
     with tarfile.open(path, "w:gz") as archive:
         for name, payload, kind in entries:
             member = tarfile.TarInfo(name)
@@ -1746,8 +1827,8 @@ def make_archive(path: Path, entries: list[tuple[str, bytes | None, bytes]]) -> 
             if kind == tarfile.SYMTYPE:
                 member.linkname = "../outside"
             archive.addfile(member, io.BytesIO(payload) if payload is not None else None)
-    return source.Artifact(
-        "fixture",
+    artifact = source.Artifact(
+        "go",
         source.GO.url,
         path.stat().st_size,
         source.file_hash(path),
@@ -1756,34 +1837,49 @@ def make_archive(path: Path, entries: list[tuple[str, bytes | None, bytes]]) -> 
         sum(kind == tarfile.REGTYPE for _, _, kind in entries),
         1024,
     )
+    # Register only this test's exact tar tuple; the real canonical owner still validates it.
+    monkeypatch.setattr(source, "GO", artifact)
+    return artifact
 
 
-def test_safe_archive_checks_every_member_before_extraction(tmp_path: Path) -> None:
+def test_safe_archive_checks_every_member_before_extraction(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     path = tmp_path / "archive.tar.gz"
-    artifact = make_archive(path, [("a/b", b"content", tarfile.REGTYPE)])
+    artifact = make_archive(monkeypatch, path, [("a/b", b"content", tarfile.REGTYPE)])
     rows = source.extract(artifact, path, tmp_path / "result")
     assert rows[0]["sha256"] == source.sha(b"content")
     assert (tmp_path / "result/a/b").read_bytes() == b"content"
 
 
 @pytest.mark.parametrize(
-    "entries",
+    "entries,code",
     [
-        [("../escape", b"x", tarfile.REGTYPE)],
-        [("a//b", b"x", tarfile.REGTYPE)],
-        [("/absolute", b"x", tarfile.REGTYPE)],
-        [("a", None, tarfile.SYMTYPE)],
-        [("fifo", None, tarfile.FIFOTYPE)],
-        [("a", b"1", tarfile.REGTYPE), ("a", b"2", tarfile.REGTYPE)],
-        [("a", b"1", tarfile.REGTYPE), ("a/b", b"2", tarfile.REGTYPE)],
+        ([("../escape", b"x", tarfile.REGTYPE)], "archive_path"),
+        ([("a//b", b"x", tarfile.REGTYPE)], "archive_path"),
+        ([("/absolute", b"x", tarfile.REGTYPE)], "archive_path"),
+        ([("a", None, tarfile.SYMTYPE)], "archive_member_type"),
+        ([("fifo", None, tarfile.FIFOTYPE)], "archive_member_type"),
+        (
+            [("a", b"1", tarfile.REGTYPE), ("a", b"2", tarfile.REGTYPE)],
+            "archive_duplicate",
+        ),
+        (
+            [("a", b"1", tarfile.REGTYPE), ("a/b", b"2", tarfile.REGTYPE)],
+            "archive_file_directory_collision",
+        ),
     ],
+    ids=["parent-path", "empty-component", "absolute", "symlink", "fifo", "duplicate", "collision"],
 )
 def test_archive_rejects_escapes_links_specials_and_collisions(
-    tmp_path: Path, entries: list[tuple[str, bytes | None, bytes]]
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    entries: list[tuple[str, bytes | None, bytes]],
+    code: str,
 ) -> None:
     path = tmp_path / "archive.tar.gz"
-    artifact = make_archive(path, entries)
-    with pytest.raises(source.QualificationError):
+    artifact = make_archive(monkeypatch, path, entries)
+    with pytest.raises(source.QualificationError, match=f"^{code}$"):
         source.extract(artifact, path, tmp_path / "result")
     assert not (tmp_path / "result").exists()
 
@@ -2542,7 +2638,10 @@ def test_xnet062_report_actual_qualify_finalization_and_primary_error(
         owned: dict[str, dict[str, Any]],
         *args: Any,
         target_version: str,
+        compiler_artifact: source.Artifact,
     ) -> None:
+        compiler = source.Artifact.canonical(compiler_artifact)
+        source.exact_data(vars(compiler), vars(source.CURRENT_GO))
         assert target_version == "v0.62.0"
         original_report = args[-1]
         fixture, transcript, expected, _ = _xnet062_report_fixture(
@@ -2638,7 +2737,9 @@ def test_xnet062_report_keeps_060_serialization_and_return_contract(
 ) -> None:
     _xnet062_qualify_inputs(monkeypatch)
 
-    def observed(*args: Any, target_version: str) -> None:
+    def observed(*args: Any, target_version: str, compiler_artifact: source.Artifact) -> None:
+        compiler = source.Artifact.canonical(compiler_artifact)
+        source.exact_data(vars(compiler), vars(source.CURRENT_GO))
         assert target_version == "v0.60.0"
         args[-1]["module_action"] = "xnet060-replay"
         args[-1]["module_derivation"] = {"original_field": [1, "legacy"]}
@@ -2719,13 +2820,16 @@ def test_local_Mac_is_rejected_before_network_or_native_operations(
 def test_valid_wrong_release_asset_is_rejected_before_final_fetch(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    artifact = replace(source.UI, size=3, digest=source.sha(b"abc"))
+    monkeypatch.setattr(source, "UI", artifact)
     wrong = FINAL.replace(
         "45b9efd2-fa57-4f55-951b-67f2ea9abb5d", "01234567-89ab-cdef-0123-456789abcdef"
     )
     handler = install_transport(monkeypatch, [(302, b"", wrong)])
     with pytest.raises(source.QualificationError, match="release_handoff_path"):
-        source.acquire(replace(source.UI, size=3, digest=source.sha(b"abc")), tmp_path / "ui")
+        source.acquire(artifact, tmp_path / "ui")
     assert len(handler.requests) == 1
+    assert not (tmp_path / "ui").exists()
 
 
 def test_producer_binding_is_absolute_and_independent_of_cwd(
@@ -2997,7 +3101,7 @@ def test_missing_archive_stream_preserves_failure_before_output_creation(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, missing_read: int
 ) -> None:
     path = tmp_path / "archive.tar.gz"
-    artifact = make_archive(path, [("a/b", b"content", tarfile.REGTYPE)])
+    artifact = make_archive(monkeypatch, path, [("a/b", b"content", tarfile.REGTYPE)])
     original = tarfile.TarFile.extractfile
     calls = 0
 
@@ -3579,9 +3683,18 @@ def test_ghcr_mixed_flags_reject_before_auth(
 
 
 def _fixed_native_capture_fixture(
-    tmp_path: Path, mode: str, adapter: str = "GHCR"
+    tmp_path: Path,
+    mode: str,
+    adapter: str = "GHCR",
+    *,
+    held_deadline: float | None = None,
+    held_cleanup: int = 2,
+    held_ready_delay: float = 0.0,
 ) -> tuple[Path, Path, Path]:
     """One existing synthetic native fixture for both consumers of the canonical group boundary."""
+    if mode == "owned_held_pipes":
+        assert held_deadline is not None
+        assert 0 <= held_ready_delay < held_deadline - source.time.monotonic()
     runner = tmp_path.resolve()
     repository, package = ghcr_synthetic_responses()
     trace = runner / "synthetic-command-trace.jsonl"
@@ -3614,11 +3727,31 @@ def _fixed_native_capture_fixture(
                 else " raise SystemExit(128+signum)\n"
             )
         )
-        + "signal.signal(signal.SIGTERM, terminate)\nready.write_text('ready')\n"
+        + "signal.signal(signal.SIGTERM, terminate)\n"
+        + (
+            "time.sleep("
+            + repr(held_ready_delay)
+            + ")\nassert time.monotonic()<"
+            + repr(held_deadline)
+            + "\n"
+            if mode == "owned_held_pipes"
+            else ""
+        )
+        + (
+            "ready_stage=ready.with_suffix('.child-ready-pending')\n"
+            "ready_stage.write_text(str(time.monotonic()))\n"
+            "ready_stage.replace(ready)\n"
+            if mode == "owned_held_pipes"
+            else "ready.write_text('ready')\n"
+        )
         + (
             "time.sleep(max(0,lifetime_end-time.monotonic()))\n"
             if mode == "owned_residual"
-            else "time.sleep(5)\n"
+            else (
+                "time.sleep(max(0," + repr(held_deadline + held_cleanup) + "-time.monotonic()))\n"
+                if mode == "owned_held_pipes" and held_deadline is not None
+                else "time.sleep(5)\n"
+            )
         )
     )
     gh.write_text(
@@ -3646,13 +3779,32 @@ def _fixed_native_capture_fixture(
         + "if sys.argv[1:]==['auth','status','--hostname','github.com']:\n"
         + " if mode in ('owned_residual','owned_residual_exec_exit','owned_held_pipes'):\n"
         + "  child=subprocess.Popen([sys.executable,'-c',child_code],stdin=subprocess.DEVNULL,stdout=None if mode=='owned_held_pipes' else subprocess.DEVNULL,stderr=None if mode=='owned_held_pipes' else subprocess.DEVNULL)\n"
-        + "  trace.with_suffix('.child-pid').write_text(str(child.pid))\n"
-        + "  trace.with_suffix('.child-group').write_text(str(os.getpgid(child.pid)))\n"
-        + "  ready=trace.with_suffix('.child-ready'); ready_deadline=time.monotonic()+1\n"
-        + "  while not ready.exists():\n"
-        + "   assert time.monotonic()<ready_deadline\n"
-        + "   time.sleep(0.01)\n"
-        + "  time.sleep(0.5)\n"
+        + (
+            "  for suffix,value in (('.child-pid',child.pid),('.child-group',os.getpgid(child.pid))):\n"
+            "   marker=trace.with_suffix(suffix); staged=trace.with_suffix(suffix+'-pending')\n"
+            "   staged.write_text(str(value)); staged.replace(marker)\n"
+            if mode == "owned_held_pipes"
+            else (
+                "  trace.with_suffix('.child-pid').write_text(str(child.pid))\n"
+                "  trace.with_suffix('.child-group').write_text(str(os.getpgid(child.pid)))\n"
+            )
+        )
+        + (
+            "  release=trace.with_suffix('.child-release')\n"
+            + "  while not release.exists():\n"
+            + "   assert time.monotonic()<"
+            + repr(held_deadline)
+            + "\n"
+            + "   time.sleep(0.01)\n"
+            if mode == "owned_held_pipes"
+            else (
+                "  ready=trace.with_suffix('.child-ready'); ready_deadline=time.monotonic()+1\n"
+                "  while not ready.exists():\n"
+                "   assert time.monotonic()<ready_deadline\n"
+                "   time.sleep(0.01)\n"
+                "  time.sleep(0.5)\n"
+            )
+        )
         + " if mode=='deadline': time.sleep(3)\n"
         + " if mode=='output_bound': sys.stdout.write('x'*(1024**2+1))\n"
         + " elif mode=='auth_reflection': sys.stdout.write(token)\n"
@@ -4006,6 +4158,7 @@ def test_ghcr_fixed_native_capture_and_hygiene(
         "owned_residual",
         "owned_residual_exec_exit",
         "owned_held_pipes",
+        "owned_held_pipes_delayed_ready",
     ],
 )
 def test_github_fixed_native_capture_and_hygiene(
@@ -4015,7 +4168,21 @@ def test_github_fixed_native_capture_and_hygiene(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Same native child fixture/canonical recognizer, synthetic auth only."""
-    runner, trace, gh = _fixed_native_capture_fixture(tmp_path, mode, "GitHubRead")
+    held_pipes = mode in {"owned_held_pipes", "owned_held_pipes_delayed_ready"}
+    cleanup_seconds = 2
+    held_started_at = source.time.monotonic() if held_pipes else None
+    held_deadline = held_started_at + 8 if held_started_at is not None else None
+    held_ready_delay = 1.25 if mode == "owned_held_pipes_delayed_ready" else 0.0
+    if held_pipes:
+        assert not source.CLEANING
+    runner, trace, gh = _fixed_native_capture_fixture(
+        tmp_path,
+        "owned_held_pipes" if held_pipes else mode,
+        "GitHubRead",
+        held_deadline=held_deadline,
+        held_cleanup=cleanup_seconds,
+        held_ready_delay=held_ready_delay,
+    )
     exit_observations = (
         _coordinate_residual_fixture_exit(monkeypatch, trace) if mode == "owned_residual" else []
     )
@@ -4034,7 +4201,7 @@ def test_github_fixed_native_capture_and_hygiene(
     private = runner / "private"
     adapter = source.GitHubRead.__new__(source.GitHubRead)
     deadline_witnesses: list[tuple[float, float, int, tuple[int, ...]]] = []
-    if mode == "owned_held_pipes":
+    if held_pipes:
         real_owned_members = source.owned_members
 
         def observe_ready_members(
@@ -4050,13 +4217,45 @@ def test_github_fixed_native_capture_and_hygiene(
                 and not deadline_witnesses
                 and trace.with_suffix(".child-ready").exists()
                 and trace.with_suffix(".child-pid").exists()
+                and trace.with_suffix(".child-group").exists()
             ):
                 child_pid = int(trace.with_suffix(".child-pid").read_text())
                 active_pids = tuple(row["pid"] for row in members[1])
-                if child_pid in active_pids:
+                child_row = next((row for row in members[1] if row["pid"] == child_pid), None)
+                if child_row is not None and process.poll() is None:
+                    assert child_row["uid"] == source.os.getuid()
+                    assert (
+                        child_row["pgid"]
+                        == process.pid
+                        == int(trace.with_suffix(".child-group").read_text())
+                    )
+                    assert child_row["ppid"] == process.pid
+                    assert source.process_identity(child_row) == seen[child_pid]
                     previous = adapter.deadline
-                    adapter.deadline = min(previous, source.time.monotonic() + 1)
+                    assert previous == cap == held_deadline
+                    witnessed_at = source.time.monotonic()
+                    assert witnessed_at < previous
+                    ready_at = float(trace.with_suffix(".child-ready").read_text())
+                    assert held_started_at is not None
+                    assert ready_at - held_started_at >= held_ready_delay
+                    adapter.deadline = min(previous, witnessed_at + 1)
                     deadline_witnesses.append((previous, adapter.deadline, child_pid, active_pids))
+                    trace.with_suffix(".deadline-witness").write_text(
+                        json.dumps(
+                            {
+                                "original_end": held_deadline,
+                                "witnessed_at": witnessed_at,
+                                "tightened_end": adapter.deadline,
+                                "child_identity": seen[child_pid],
+                                "child_ppid": child_row["ppid"],
+                                "active_pids": active_pids,
+                                "ready_delay": held_ready_delay,
+                                "ready_at": ready_at,
+                                "fixture_started_at": held_started_at,
+                            }
+                        )
+                    )
+                    trace.with_suffix(".child-release").write_text("release witnessed leader\n")
             return members
 
         monkeypatch.setattr(source, "owned_members", observe_ready_members)
@@ -4066,8 +4265,12 @@ def test_github_fixed_native_capture_and_hygiene(
             adapter,
             private,
             evidence,
-            source.time.monotonic() + (1 if mode == "deadline" else 8),
-            2,
+            (
+                held_deadline
+                if held_deadline is not None
+                else source.time.monotonic() + (1 if mode == "deadline" else 8)
+            ),
+            cleanup_seconds,
         )
         adapter.json("/repos/" + source.GHCR_REPOSITORY)
         adapter.json("/repos/" + source.GHCR_REPOSITORY + "/synthetic-package")
@@ -4094,14 +4297,40 @@ def test_github_fixed_native_capture_and_hygiene(
             assert str(failure.value) == "GitHub_private_member"
         if mode in {"owned_residual", "owned_residual_exec_exit"}:
             assert str(failure.value) == "GHCR_owned_group_survived"
-        if mode in {"owned_residual", "owned_residual_exec_exit", "owned_held_pipes"}:
+        if mode in {"owned_residual", "owned_residual_exec_exit"} or held_pipes:
             assert trace.with_suffix(".child-signal").read_bytes() == b"SIGTERM\n"
             child = int(trace.with_suffix(".child-pid").read_text())
-            if mode == "owned_held_pipes":
+            if held_pipes:
                 assert len(deadline_witnesses) == 1
                 previous, tightened, witnessed_child, active_pids = deadline_witnesses[0]
-                assert tightened <= previous
+                assert tightened <= previous == held_deadline
                 assert witnessed_child == child and child in active_pids
+                assert trace.with_suffix(".child-release").is_file()
+                if isinstance(failure.value, source.subprocess.TimeoutExpired):
+                    assert failure.value.cmd == [
+                        "/bin/ps",
+                        "-axo",
+                        "pid,ppid,pgid,uid,lstart,state,comm",
+                    ]
+                    assert 0 < failure.value.timeout <= 1
+                else:
+                    assert isinstance(failure.value, source.QualificationError)
+                    assert str(failure.value) == "qualification_deadline"
+                trace.with_suffix(".deadline-primary").write_text(
+                    json.dumps(
+                        {
+                            "type": type(failure.value).__name__,
+                            "cause": (
+                                "fixed_ps_timeout"
+                                if isinstance(failure.value, source.subprocess.TimeoutExpired)
+                                else "qualification_deadline"
+                            ),
+                            "original_end": held_deadline,
+                            "tightened_end": tightened,
+                            "cleanup_end": adapter.cleanup_deadline,
+                        }
+                    )
+                )
             if mode == "owned_residual_exec_exit":
                 assert private.is_dir()
                 assert (
@@ -4110,7 +4339,13 @@ def test_github_fixed_native_capture_and_hygiene(
                 )
             group = int(trace.with_suffix(".child-group").read_text())
             cleanup_deadline = adapter.cleanup_deadline
-            deadline = source.time.monotonic() + 5
+            deadline = (
+                held_deadline + cleanup_seconds
+                if held_deadline is not None
+                else source.time.monotonic() + 5
+            )
+            if held_pipes:
+                assert cleanup_deadline is not None and cleanup_deadline <= deadline
             while True:
                 rows = source.process_census(deadline, ())
                 child_row = rows.get(child)
@@ -4156,6 +4391,8 @@ def test_github_fixed_native_capture_and_hygiene(
         assert credential.encode() not in path.read_bytes()
         assert b"synthetic.other.opaque.writer" not in path.read_bytes()
     assert adapter.process is None
+    if held_pipes:
+        assert not source.CLEANING
 
 
 @pytest.mark.parametrize("uncertainty", ["reused_identity", "census_failure"])
@@ -4826,11 +5063,13 @@ def test_promote_writer_success_does_not_bypass_main_or_package_guards(
 def test_promote_known_writer_order_has_frozen_acyclic_workflow() -> None:
     import yaml
 
+    # Historical published B at 762eed retained this separate raw workflow digest:
+    # 17deb9c904594c23ca20ecc88fc917c51bcb392aca108fff08358910e148bdf8
     raw = (Path(__file__).resolve().parents[1] / ".github/workflows/build.yml").read_bytes()
     assert (
         hashlib.sha256(raw).hexdigest()
-        # Public frozen build workflow digest
-        == "17deb9c904594c23ca20ecc88fc917c51bcb392aca108fff08358910e148bdf8"
+        # Current raw workflow, including the maintained Go 1.27.4 source-problem comment.
+        == "3c22a13fbabdc282c40ed7b57fa02566a9625d9ce69f62f241ebc34ec124aa3e"
     )
     jobs = yaml.safe_load(raw)["jobs"]
     assert jobs["publish"]["needs"] == ["build", "security-scan"]
@@ -5661,10 +5900,13 @@ def test_derivation_controller_uses_two_clean_original_fixed_get_replays_or_stop
         modules: Path,
         expected: dict[str, bytes],
         *args: Any,
-        **kwargs: Any,
+        restore_cache_modes: bool = False,
+        compiler_artifact: source.Artifact,
     ) -> dict[str, Any]:
+        compiler = source.Artifact.canonical(compiler_artifact)
+        source.exact_data(vars(compiler), vars(source.CURRENT_GO))
         assert source._derivation_locks(root) == expected
-        if kwargs.get("restore_cache_modes"):
+        if restore_cache_modes:
             assert target_version == "v0.62.0" and expected == incumbent
         else:
             assert expected == derived or fault == "b-lock-mismatch"
@@ -8509,9 +8751,18 @@ def test_public_package_inventory_change_keeps_full_raw_tool_and_pair_binding(
             assert names == (*source.PRODUCER_FILES, source.MANIFEST_PATH)
             return dict(files)
 
-    monkeypatch.setattr(
-        source, "read_image_manifest", lambda *args, **kwargs: copy.deepcopy(manifest)
-    )
+    def read_manifest(
+        path: Path,
+        *,
+        preparation: bool,
+        compiler_artifact: source.Artifact,
+    ) -> dict[str, Any]:
+        assert path == tmp_path / source.MANIFEST_PATH and preparation
+        compiler = source.Artifact.canonical(compiler_artifact)
+        source.exact_data(vars(compiler), vars(source.CURRENT_GO))
+        return copy.deepcopy(manifest)
+
+    monkeypatch.setattr(source, "read_image_manifest", read_manifest)
     api = FrozenSourceAPI()
     assert source.authenticate_producer_inputs(api, tmp_path, "1" * 40, tool=tool)
     files[changed] += b" changed"
@@ -9347,6 +9598,8 @@ class _ProductImportNative(source.Native):
         self.survive = False
         self.bad_id = False
         self.bad_version = False
+        self.version_token = "go1.27.4"
+        self.version_tokens: dict[str, str] = {}
         self.bad_terminal = False
         self.custody_fault = ""
         self.archive_fault = ""
@@ -9651,7 +9904,8 @@ class _ProductImportNative(source.Native):
                 OOMKilled=self.bad_terminal,
                 StartedAt="2026-11-07T00:00:00Z",
             )
-            raw = ("version 3.15.0 " + source.REVISION + " go1.27.3").encode()
+            token = self.version_tokens.get(name, self.version_token)
+            raw = ("version 3.15.0 " + source.REVISION + " " + token).encode()
             if self.bad_version:
                 raw = b"wrong version"
             if self.start_running_timeout:
@@ -9685,7 +9939,12 @@ def _product_import_fixture(
 
 
 def _run_product_import(
-    native: _ProductImportNative, archive: Path, graph: dict[str, Any], *, synthetic: bool = True
+    native: _ProductImportNative,
+    archive: Path,
+    graph: dict[str, Any],
+    *,
+    synthetic: bool = True,
+    compiler_artifact: source.Artifact,
 ) -> dict[str, Any]:
     return source.native_import(
         native,
@@ -9696,7 +9955,120 @@ def _run_product_import(
         archive,
         graph,
         synthetic=synthetic,
+        compiler_artifact=compiler_artifact,
     )
+
+
+@pytest.mark.parametrize("compiler", [source.GO, source.RETAINED_GO, source.CURRENT_GO])
+@pytest.mark.parametrize("observed", ["go1.27.2", "go1.27.3", "go1.27.4"])
+@pytest.mark.parametrize("modern", [False, True])
+@pytest.mark.parametrize("role", ["prometheus", "promtool"])
+def test_native_import_uses_explicit_compiler_tuple_for_both_binary_versions(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    compiler: source.Artifact,
+    observed: str,
+    modern: bool,
+    role: str,
+) -> None:
+    native, archive, graph = _product_import_fixture(tmp_path, monkeypatch, modern)
+    native.version_token = compiler.go_version.split()[2]
+    native.version_tokens["import-" + role + "-version"] = observed
+    if observed == compiler.go_version.split()[2]:
+        result = _run_product_import(
+            native, archive, graph, synthetic=False, compiler_artifact=compiler
+        )
+        assert result["status"] == "observed_real_native_import"
+        assert {name for _, name, _ in native.calls if name.endswith("-version")} == {
+            "import-prometheus-version",
+            "import-promtool-version",
+        }
+    else:
+        with pytest.raises(
+            source.QualificationError, match="^native_candidate_version_revision_compiler$"
+        ):
+            _run_product_import(native, archive, graph, synthetic=False, compiler_artifact=compiler)
+    assert not native.loaded and not native.containers and native.cleanup_starts == 1
+
+
+@pytest.mark.parametrize("observed", ["go1X27X4", "xgo1.27.4", "go1.27.40"])
+def test_native_import_compiler_token_keeps_escaped_word_boundaries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, observed: str
+) -> None:
+    native, archive, graph = _product_import_fixture(tmp_path, monkeypatch)
+    native.version_token = observed
+    with pytest.raises(
+        source.QualificationError, match="^native_candidate_version_revision_compiler$"
+    ):
+        _run_product_import(
+            native, archive, graph, synthetic=False, compiler_artifact=source.CURRENT_GO
+        )
+    assert not native.loaded and not native.containers and native.cleanup_starts == 1
+
+
+@pytest.mark.parametrize("synthetic", [False, True])
+@pytest.mark.parametrize(
+    "fault,diagnostic",
+    [
+        ("missing", "compiler_artifact"),
+        ("none", "artifact_digest_size_types"),
+        ("digest-type", "artifact_digest_size_types"),
+        ("size-bool", "artifact_digest_size_types"),
+        ("unknown", "artifact_exact_named_tuple"),
+        ("release-alias", "declared_data_type"),
+        ("extra", "declared_data_keys"),
+        ("wrong-root", "declared_data_value"),
+        ("non-Go", "compiler_artifact_role"),
+    ],
+)
+def test_native_import_compiler_context_rejects_before_archive_or_native_effects(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    synthetic: bool,
+    fault: str,
+    diagnostic: str,
+) -> None:
+    native, archive, graph = _product_import_fixture(tmp_path, monkeypatch)
+
+    def no_archive_read(*args: Any) -> None:
+        pytest.fail("compiler context reached archive validation")
+
+    monkeypatch.setattr(source, "validate_docker_archive", no_archive_read)
+    context: dict[str, Any] = dict(vars(source.CURRENT_GO))
+    kwargs: dict[str, Any] = {"compiler_artifact": context}
+    if fault == "missing":
+        kwargs.clear()
+    elif fault == "none":
+        kwargs["compiler_artifact"] = None
+    elif fault == "digest-type":
+        context["digest"] = True
+    elif fault == "size-bool":
+        context["size"] = True
+    elif fault == "unknown":
+        context["digest"] = "0" * 64
+    elif fault == "release-alias":
+        context["release"] = 0
+    elif fault == "extra":
+        context["unexpected"] = True
+    elif fault == "wrong-root":
+        context["root"] = "foreign"
+    elif fault == "non-Go":
+        kwargs["compiler_artifact"] = source.SOURCE
+    expected = TypeError if fault == "missing" else source.QualificationError
+    with pytest.raises(expected, match=diagnostic):
+        source.native_import(
+            native,
+            native.evidence.parent,
+            "/usr/bin/docker",
+            native.evidence.parent / "config",
+            {},
+            archive,
+            graph,
+            synthetic=synthetic,
+            **kwargs,
+        )
+    assert native.calls == [] and native.cleanup_starts == 0 and not native.loaded
+    assert not (native.evidence / "import-cleanup.json").exists()
 
 
 @pytest.mark.parametrize("modern", [False, True])
@@ -9705,7 +10077,13 @@ def test_native_import_complete_product_lifecycle(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, modern: bool, synthetic: bool
 ) -> None:
     native, archive, graph = _product_import_fixture(tmp_path, monkeypatch, modern)
-    result = _run_product_import(native, archive, graph, synthetic=synthetic)
+    result = _run_product_import(
+        native,
+        archive,
+        graph,
+        synthetic=synthetic,
+        compiler_artifact=source.CURRENT_GO,
+    )
     assert result["image_config_id"] == graph["config_digest"]
     assert result["status"] == (
         "observed_synthetic_format_only" if synthetic else "observed_real_native_import"
@@ -9747,7 +10125,7 @@ def test_native_import_rejects_saved_graph_drift(
     native, archive, graph = _product_import_fixture(tmp_path, monkeypatch)
     native.archive_fault = fault
     with pytest.raises(source.QualificationError, match=diagnostic):
-        _run_product_import(native, archive, graph)
+        _run_product_import(native, archive, graph, compiler_artifact=source.CURRENT_GO)
     assert native.created_count == 0 and native.loaded
     assert not any(argv[3:5] == ["image", "rm"] for argv, _, _ in native.calls)
 
@@ -9770,7 +10148,7 @@ def test_native_import_rejects_container_custody_drift(
     native, archive, graph = _product_import_fixture(tmp_path, monkeypatch)
     native.custody_fault = fault
     with pytest.raises(source.QualificationError, match=diagnostic):
-        _run_product_import(native, archive, graph)
+        _run_product_import(native, archive, graph, compiler_artifact=source.CURRENT_GO)
     assert not any(argv[3] in ("cp", "start", "rm") for argv, _, _ in native.calls)
     assert native.containers and native.loaded
 
@@ -9793,7 +10171,13 @@ def test_native_import_preserves_primary_timeout(
     native, archive, graph = _product_import_fixture(tmp_path, monkeypatch)
     native.fail_label, native.fail_after_effect = label, after
     with pytest.raises(TimeoutError) as caught:
-        _run_product_import(native, archive, graph, synthetic=False)
+        _run_product_import(
+            native,
+            archive,
+            graph,
+            synthetic=False,
+            compiler_artifact=source.CURRENT_GO,
+        )
     assert caught.value is native.error and native.cleanup_starts == 1
     assert getattr(caught.value, "native_import_cleanup")
     if label in {"import-load", "import-image", "import-save", "import-copy-create"}:
@@ -9812,12 +10196,12 @@ def test_native_import_cleanup_error_never_creates_success(
     if primary:
         native.fail_label = "import-copy-0"
         with pytest.raises(TimeoutError) as caught:
-            _run_product_import(native, archive, graph)
+            _run_product_import(native, archive, graph, compiler_artifact=source.CURRENT_GO)
         assert caught.value is native.error
         assert any("failure" in row for row in caught.value.native_import_cleanup)
     else:
         with pytest.raises(source.QualificationError, match="product_import_cleanup_failed"):
-            _run_product_import(native, archive, graph)
+            _run_product_import(native, archive, graph, compiler_artifact=source.CURRENT_GO)
     assert native.containers and native.loaded
 
 
@@ -9839,7 +10223,13 @@ def test_native_import_failed_lifecycle_states(
     native, archive, graph = _product_import_fixture(tmp_path, monkeypatch)
     setattr(native, fault, True)
     with pytest.raises(source.QualificationError, match=diagnostic):
-        _run_product_import(native, archive, graph, synthetic=False)
+        _run_product_import(
+            native,
+            archive,
+            graph,
+            synthetic=False,
+            compiler_artifact=source.CURRENT_GO,
+        )
     if fault in {"preexisting", "tag_collision", "bad_id", "survive", "extra_tag"}:
         assert not any(argv[3:5] == ["image", "rm"] for argv, _, _ in native.calls)
 
@@ -9875,7 +10265,7 @@ def test_native_import_incomplete_inventory_is_not_absence(
         else "product_import_cleanup_failed"
     )
     with pytest.raises(source.QualificationError, match=diagnostic):
-        _run_product_import(native, archive, graph)
+        _run_product_import(native, archive, graph, compiler_artifact=source.CURRENT_GO)
     if label == "import-inventory":
         assert not native.loaded and native.created_count == 0
 
@@ -9890,7 +10280,7 @@ def test_native_import_private_save_file_cannot_be_substituted(
     native, archive, graph = _product_import_fixture(tmp_path, monkeypatch)
     native.save_file_fault = fault
     with pytest.raises(source.QualificationError, match=diagnostic):
-        _run_product_import(native, archive, graph)
+        _run_product_import(native, archive, graph, compiler_artifact=source.CURRENT_GO)
     assert native.created_count == 0 and native.loaded
 
 
@@ -9905,7 +10295,7 @@ def test_native_import_save_is_streamed_not_returned_as_stdout(
         return original(path)
 
     monkeypatch.setattr(Path, "read_bytes", bounded_read)
-    _run_product_import(native, archive, graph)
+    _run_product_import(native, archive, graph, compiler_artifact=source.CURRENT_GO)
     save_call = next(row for row in native.calls if row[1] == "import-save")
     assert "watched_output" in save_call[2] and "output_bound" not in save_call[2]
     assert (native.evidence / "import-save.stdout").stat().st_size == 0
@@ -9918,7 +10308,13 @@ def test_native_import_running_version_timeout_removes_only_proven_full_ID(
     native, archive, graph = _product_import_fixture(tmp_path, monkeypatch)
     native.start_running_timeout = True
     with pytest.raises(TimeoutError) as caught:
-        _run_product_import(native, archive, graph, synthetic=False)
+        _run_product_import(
+            native,
+            archive,
+            graph,
+            synthetic=False,
+            compiler_artifact=source.CURRENT_GO,
+        )
     assert caught.value is native.error and not native.containers and not native.loaded
     forced = [argv for argv, _, _ in native.calls if argv[3:5] == ["rm", "--force"]]
     assert len(forced) == 1 and re.fullmatch(r"[0-9a-f]{64}", forced[0][-1])
@@ -9931,7 +10327,7 @@ def test_native_import_free_space_failure_precedes_save_and_create(
     observed = source.shutil.disk_usage(tmp_path)
     monkeypatch.setattr(source.shutil, "disk_usage", lambda path: observed._replace(free=0))
     with pytest.raises(source.QualificationError, match="product_save_free_space_HOLD"):
-        _run_product_import(native, archive, graph)
+        _run_product_import(native, archive, graph, compiler_artifact=source.CURRENT_GO)
     assert native.created_count == 0
     assert not any(argv[3:5] == ["image", "save"] for argv, _, _ in native.calls)
 
@@ -9972,7 +10368,7 @@ def test_native_import_hash_correct_manifest_must_still_bind_source_graph(
     native.image.update(Id=native.engine, RepoDigests=["pulseplate-prometheus@" + native.engine])
     # The raw manifest hashes to the observed engine and descriptor; source relation alone rejects.
     with pytest.raises(source.QualificationError, match=diagnostic):
-        _run_product_import(native, archive, graph)
+        _run_product_import(native, archive, graph, compiler_artifact=source.CURRENT_GO)
     assert native.created_count == 0 and native.loaded
 
 
@@ -9988,7 +10384,7 @@ def test_native_import_inspect_cross_links_cannot_be_ignored(
         native.descriptor["annotations"]["org.opencontainers.image.ref.name"] = "foreign"
         diagnostic = "declared_data_value"
     with pytest.raises(source.QualificationError, match=diagnostic):
-        _run_product_import(native, archive, graph)
+        _run_product_import(native, archive, graph, compiler_artifact=source.CURRENT_GO)
     assert native.created_count == 0
 
 
@@ -10012,7 +10408,7 @@ def test_native_import_image_census_keeps_untagged_repository_rows(
         + ":<none>\n"
     ).encode()
     native.image_inventory_prefix = prefix
-    result = _run_product_import(native, archive, graph)
+    result = _run_product_import(native, archive, graph, compiler_artifact=source.CURRENT_GO)
     assert result["image_config_id"] == graph["config_digest"]
     assert native.image_inventory_prefix == prefix and not native.loaded
     removals = [argv for argv, _, _ in native.calls if argv[3:5] == ["image", "rm"]]
@@ -10047,7 +10443,7 @@ def test_native_import_image_census_still_rejects_ambiguous_or_incomplete_rows(
         second = "sha256:short\tcaddy:<none>\n"
     native.image_inventory_prefix = (first + second).encode()
     with pytest.raises(source.QualificationError, match=diagnostic):
-        _run_product_import(native, archive, graph)
+        _run_product_import(native, archive, graph, compiler_artifact=source.CURRENT_GO)
     assert not any(
         argv[3] in ("load", "create", "cp", "start", "rm") for argv, _, _ in native.calls
     )
@@ -10069,7 +10465,7 @@ def test_native_import_image_census_retains_exact_candidate_collision(
         + "\tpulseplate-prometheus:candidate\n"
     ).encode()
     with pytest.raises(source.QualificationError, match="native_import_tag_collision"):
-        _run_product_import(native, archive, graph)
+        _run_product_import(native, archive, graph, compiler_artifact=source.CURRENT_GO)
     assert not native.loaded and native.created_count == 0
 
 
@@ -10081,7 +10477,7 @@ def test_native_import_image_census_untagged_ID_remains_preexisting(
         native.engine + "\tcaddy:<none>\n" + "sha256:" + "d" * 64 + "\tcaddy:<none>\n"
     ).encode()
     with pytest.raises(source.QualificationError, match="product_preexisting_image_HOLD"):
-        _run_product_import(native, archive, graph)
+        _run_product_import(native, archive, graph, compiler_artifact=source.CURRENT_GO)
     assert native.created_count == 0 and native.loaded
     assert not any(argv[3:5] == ["image", "rm"] for argv, _, _ in native.calls)
 
@@ -10094,7 +10490,7 @@ def test_native_import_image_census_does_not_relax_container_name_uniqueness(
         "c" * 64 + "\tforeign-container\n" + "d" * 64 + "\tforeign-container\n"
     ).encode()
     with pytest.raises(source.QualificationError, match="product_inventory_ambiguous_names"):
-        _run_product_import(native, archive, graph)
+        _run_product_import(native, archive, graph, compiler_artifact=source.CURRENT_GO)
     assert native.created_count == 0
 
 
@@ -10112,7 +10508,13 @@ def test_native_import_full_ID_export_separates_tagged_live_custody(
             {key: native.descriptor[key] for key in ("mediaType", "digest", "size")}
         ]
         assert compatibility[0]["RepoTags"] is None
-    result = _run_product_import(native, archive, graph, synthetic=False)
+    result = _run_product_import(
+        native,
+        archive,
+        graph,
+        synthetic=False,
+        compiler_artifact=source.CURRENT_GO,
+    )
     assert result["image_config_id"] == graph["config_digest"]
     for role in ("copy", "prometheus", "promtool"):
         actual = json.loads(
@@ -10142,7 +10544,7 @@ def test_native_import_full_ID_export_rejects_tagged_or_mixed_shapes(
     native, archive, graph = _product_import_fixture(tmp_path, monkeypatch)
     native.archive_fault = fault
     with pytest.raises(source.QualificationError, match=diagnostic):
-        _run_product_import(native, archive, graph)
+        _run_product_import(native, archive, graph, compiler_artifact=source.CURRENT_GO)
     assert native.created_count == 0 and native.loaded
 
 
@@ -10154,7 +10556,7 @@ def test_native_import_full_ID_export_does_not_relax_tagged_live_descriptor(
         key: native.descriptor[key] for key in ("mediaType", "digest", "size")
     }
     with pytest.raises(source.QualificationError, match="declared_data_keys"):
-        _run_product_import(native, archive, graph)
+        _run_product_import(native, archive, graph, compiler_artifact=source.CURRENT_GO)
     assert native.created_count == 0 and native.loaded
 
 
@@ -10705,6 +11107,22 @@ def _p062_stage_fixture(
                 "completed_at": end,
             }
         )
+    zero_run = source.P062_ZERO_JOB_HISTORY[0]
+    runs[zero_run] = {
+        "id": zero_run,
+        "head_sha": source.P062_ZERO_JOB_HISTORY[1],
+        "head_branch": source.P062_REF[11:],
+        "run_attempt": 1,
+        "status": "completed",
+        "conclusion": "failure",
+        "event": "workflow_dispatch",
+        "workflow_id": 199904435,
+        "repository": {"id": 1043311030},
+        "head_repository": {"id": 1043311030},
+        "created_at": "2026-11-09T18:22:11Z",
+        "updated_at": "2026-11-09T18:23:02Z",
+    }
+    jobs[zero_run] = []
     for selected in ("tool", "qualification", "pair"):
         rid = {"tool": 501, "qualification": 502, "pair": 503}[selected]
         if rid > current_id:
@@ -10968,14 +11386,22 @@ def test_p062_qualification_authentication_finishes_before_native_or_acquisition
             if fault in ("close", "primary-and-close"):
                 raise source.QualificationError("synthetic_cleanup_error")
 
-    def retained(reader: Any, producer: Path, destination: Path) -> tuple[Path, dict[str, Any]]:
+    def retained(
+        reader: Any,
+        producer: Path,
+        destination: Path,
+        *,
+        compiler_artifact: source.Artifact,
+    ) -> tuple[Path, dict[str, Any]]:
+        compiler = source.Artifact.canonical(compiler_artifact)
+        source.exact_data(vars(compiler), vars(source.CURRENT_GO))
         trace.append("retained")
         assert reader.private.is_dir() and producer == root and destination == work
         if fault in ("retained", "primary-and-close"):
             raise source.QualificationError("synthetic_retained_error")
         return work / "oras", {
             "coordinates": source.read_image_manifest(
-                root / source.MANIFEST_PATH, preparation=True
+                root / source.MANIFEST_PATH, preparation=True, compiler_artifact=compiler
             )["inputs"]["oras"]["retained"]
         }
 
@@ -11036,7 +11462,7 @@ def test_p062_epochs_and_prepared_manifest_have_no_future_outputs(tmp_path: Path
         "go.mod": "d85af091d5bf9ba19f98e4d92e24b368d3e5537af086521ef10c7dd669695fd7",
         "go.sum": "eaeb5e4f16a9edcab1aeeb2b1a90a0f85decbd0065b3bf63e03729d324f7fc1f",
     }
-    assert len(source.P062_SPENT_HISTORY) == 22
+    assert len(source.P062_SPENT_HISTORY) == 26
     assert {
         name: sum(row[2] == name for row in source.P062_SPENT_HISTORY)
         for name in (
@@ -11046,13 +11472,15 @@ def test_p062_epochs_and_prepared_manifest_have_no_future_outputs(tmp_path: Path
             source.P062_COMPANION,
         )
     } == {
-        "prometheus-oras-qualification": 8,
-        "prometheus-source-qualification": 6,
-        "prometheus-source-build-pair": 4,
-        source.P062_COMPANION: 4,
+        "prometheus-oras-qualification": 9,
+        "prometheus-source-qualification": 7,
+        "prometheus-source-build-pair": 5,
+        source.P062_COMPANION: 5,
     }
     # Ordered, full-row digests bind every field, including times and outcomes.
-    original, consumed = source.P062_SPENT_HISTORY[:19], source.P062_SPENT_HISTORY[19:]
+    original = source.P062_SPENT_HISTORY[:19]
+    consumed = source.P062_SPENT_HISTORY[19:22]
+    later = source.P062_SPENT_HISTORY[22:]
     assert original[-1][:2] == (40384356149, 121788589461)
     assert source.sha(source.canonical_data(original)) == (
         "19346b66ab34d8ed0ef446aef5a3b101e8cb989c50356ec8f22b734a1761debd"
@@ -11060,6 +11488,16 @@ def test_p062_epochs_and_prepared_manifest_have_no_future_outputs(tmp_path: Path
     assert tuple(row[:2] for row in consumed) == _P062_PREVIOUS_CYCLE_JOBS
     assert source.sha(source.canonical_data(consumed)) == (
         "2c0f68627c0cbd438069b9ffe7093e9982ba362de74db90c24168244819d3cd9"
+    )
+
+    assert tuple(row[:2] for row in later) == (
+        (42701498451, 129447127667),
+        (42732019678, 129552125108),
+        (42732019678, 129552125483),
+        (42734455562, 129560137184),
+    )
+    assert source.sha(source.canonical_data(later)) == (
+        "3d1aafe73ca111eee0a9917d35eaaa2bc8c78c4ca037c95e0e05807b5d1a8a78"
     )
 
 
@@ -11158,3 +11596,225 @@ def test_p062_output_receiver_requires_prepared_P1_and_equal_inputs(
     else:
         with pytest.raises(source.QualificationError):
             source.authenticate_producer_inputs(api, root, "b" * 40)
+
+
+@pytest.mark.parametrize("artifact", [source.GO, source.RETAINED_GO, source.CURRENT_GO])
+def test_go_artifact_exact_data_reifies_equivalent_owner_instances(
+    artifact: source.Artifact,
+) -> None:
+    from types import SimpleNamespace
+
+    for supplied in (replace(artifact), dict(vars(artifact)), SimpleNamespace(**vars(artifact))):
+        canonical = source.Artifact.canonical(supplied)
+        assert vars(canonical) == vars(artifact)
+        assert canonical.go_version.split()[2] in {"go1.27.2", "go1.27.3", "go1.27.4"}
+    assert source.CURRENT_GO.size == 70680823
+    assert (source.CURRENT_GO.members, source.CURRENT_GO.files) == (17375, 15659)
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("size", True),
+        ("size", 70680823.0),
+        ("size", "70680823"),
+        ("release", 0),
+        ("members", 17375.0),
+        ("digest", []),
+        ("url", "https://example.invalid/go"),
+    ],
+)
+def test_go_artifact_malformed_exact_fields_reject_without_scalar_alias(
+    field: str, value: Any
+) -> None:
+    supplied = dict(vars(source.CURRENT_GO))
+    supplied[field] = value
+    with pytest.raises(source.QualificationError):
+        source.Artifact.canonical(supplied)
+
+
+@pytest.mark.parametrize("fault", ["missing", "extra"])
+def test_go_artifact_complete_nine_fields_required(fault: str) -> None:
+    supplied = dict(vars(source.CURRENT_GO))
+    if fault == "missing":
+        supplied.pop("release")
+    else:
+        supplied["epoch"] = "not admitted"
+    with pytest.raises(source.QualificationError):
+        source.Artifact.canonical(supplied)
+
+
+def test_compiler_tuple_manifest_cannot_choose_its_historical_expectation(tmp_path: Path) -> None:
+    manifest = {
+        "schema": source.IMAGE_SCHEMA,
+        "phase": "source_prepared",
+        "inputs": source.declared_inputs(compiler_artifact=source.RETAINED_GO),
+        "selection": None,
+        "candidate": None,
+    }
+    path = tmp_path / "manifest.json"
+    path.write_bytes(source.canonical_data(manifest))
+    with pytest.raises(source.QualificationError):
+        source.read_image_manifest(path, preparation=True)
+    old = source.read_image_manifest(path, preparation=True, compiler_artifact=source.RETAINED_GO)
+    assert old["inputs"]["go"]["version"] == source.RETAINED_GO_VERSION
+    with pytest.raises(source.QualificationError):
+        source.read_image_manifest(path, compiler_artifact=source.RETAINED_GO)
+
+
+def _native_current_go_inputs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[dict[str, Any], bytes, bytes, str]:
+    manifest = {
+        "schemaVersion": 2,
+        "mediaType": source.OCI_MANIFEST,
+        "config": source._CURRENT_NATIVE_GO_CONFIG,
+        "layers": source._CURRENT_NATIVE_GO_LAYERS,
+        "annotations": source._CURRENT_NATIVE_GO_ANNOTATIONS,
+    }
+    manifest_raw = json.dumps(manifest, separators=(",", ":")).encode()
+    assert len(manifest_raw) <= 1922
+    manifest_raw += b" " * (1922 - len(manifest_raw))
+    platform_digest = "sha256:" + source.sha(manifest_raw)
+    monkeypatch.setattr(source, "_CURRENT_NATIVE_GO_MANIFEST", platform_digest)
+    core = {"mediaType": source.OCI_MANIFEST, "digest": platform_digest, "size": 1922}
+    index_raw = json.dumps(
+        {
+            "schemaVersion": 2,
+            "mediaType": "application/vnd.oci.image.index.v1+json",
+            "manifests": [
+                {
+                    **core,
+                    "platform": {"architecture": "amd64", "os": "linux"},
+                    "annotations": source._CURRENT_NATIVE_GO_ANNOTATIONS,
+                }
+            ],
+        },
+        separators=(",", ":"),
+    ).encode()
+    index_raw += b" " * (9026 - len(index_raw))
+    index_digest = "sha256:" + source.sha(index_raw)
+    expected_source = "golang:1.26.11-alpine3.23@" + index_digest
+    monkeypatch.setattr(source, "_CURRENT_NATIVE_GO_INDEX", index_digest)
+    monkeypatch.setattr(source, "_CURRENT_NATIVE_GO_SOURCE", expected_source)
+    image = {
+        "Id": platform_digest,
+        "Os": "linux",
+        "Architecture": "amd64",
+        "Descriptor": core,
+        "RepoDigests": ["golang@" + platform_digest],
+        "Config": copy.deepcopy(source._CURRENT_NATIVE_GO_CONFIG_FIELDS),
+        "RootFS": {"Type": "layers", "Layers": list(source._CURRENT_NATIVE_GO_DIFF_IDS)},
+    }
+    return image, index_raw, manifest_raw, expected_source
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "missing-source",
+        "indexed",
+        "config-engine",
+        "rootfs-order",
+        "native-config",
+        "descriptor-annotations",
+        "container-annotations",
+        "container-index",
+    ],
+)
+def test_native_go_current_source_and_native_container_image_roles(
+    monkeypatch: pytest.MonkeyPatch, fault: str | None
+) -> None:
+    image, index, manifest, expected_source = _native_current_go_inputs(monkeypatch)
+    if fault == "config-engine":
+        image["Id"] = source._CURRENT_NATIVE_GO_CONFIG["digest"]
+    elif fault == "rootfs-order":
+        image["RootFS"]["Layers"].reverse()
+    elif fault == "native-config":
+        image["Config"]["GOTOOLCHAIN"] = "auto"
+    elif fault == "descriptor-annotations":
+        image["Descriptor"]["annotations"] = {}
+    if fault in {
+        "missing-source",
+        "indexed",
+        "config-engine",
+        "rootfs-order",
+        "native-config",
+        "descriptor-annotations",
+    }:
+        with pytest.raises(source.QualificationError):
+            source.native_go_identity(
+                image,
+                index,
+                manifest,
+                indexed=fault == "indexed",
+                expected_source=None if fault == "missing-source" else expected_source,
+            )
+        return
+    relation = source.native_go_identity(image, index, manifest, expected_source=expected_source)
+    actual = {
+        "Image": relation["operand"],
+        "Config": {"Image": relation["operand"]},
+        "ImageManifestDescriptor": {
+            **relation["manifest"],
+            "platform": {"architecture": "amd64", "os": "linux"},
+        },
+    }
+    if fault == "container-annotations":
+        actual["ImageManifestDescriptor"]["annotations"] = {}
+    elif fault == "container-index":
+        actual["Image"] = source._CURRENT_NATIVE_GO_INDEX
+    if fault is None:
+        source.native_container_image_identity(actual, relation, expected_source=expected_source)
+        with pytest.raises(source.QualificationError):
+            source.native_container_image_identity(actual, relation)
+    else:
+        with pytest.raises(source.QualificationError):
+            source.native_container_image_identity(
+                actual, relation, expected_source=expected_source
+            )
+
+
+def test_native_go_valid_old_tuple_rejects_new_source_before_child(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    image, index, manifest = _native_go_inputs(monkeypatch, indexed=False)
+    source.native_go_identity(image, index, manifest)
+    with pytest.raises(source.QualificationError, match="native_Go_current_content_roots"):
+        source.native_go_identity(
+            image, index, manifest, expected_source=source._CURRENT_NATIVE_GO_SOURCE
+        )
+
+
+def test_p062_go4_problem_preserves_all_twenty_six_spent_job_rows() -> None:
+    assert len(source.P062_SPENT_HISTORY) == 26
+    assert {row[0] for row in source.P062_SPENT_HISTORY[-4:]} == {
+        42701498451,
+        42732019678,
+        42734455562,
+    }
+    assert all(len(row) == 12 for row in source.P062_SPENT_HISTORY)
+    assert source.P062_ZERO_JOB_HISTORY == (42673421928, "cc25be204a4252409a96208f83c23040e1261714")
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("run_attempt", True),
+        ("run_attempt", 1.0),
+        ("run_attempt", "1"),
+        ("workflow_id", 199904435.0),
+        ("event", "push"),
+        ("head_branch", "main"),
+        ("repository", {"id": 1043311030.0}),
+    ],
+)
+def test_p062_zero_job_history_keeps_exact_original_identity_and_types(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, field: str, value: Any
+) -> None:
+    api, root = _p062_stage_fixture(tmp_path, monkeypatch, "tool")
+    api.runs[source.P062_ZERO_JOB_HISTORY[0]][field] = value
+    with pytest.raises(source.QualificationError):
+        source.manual_hosted_admission(api, "tool", producer_root=root)
+    assert api.jobs[source.P062_ZERO_JOB_HISTORY[0]] == []

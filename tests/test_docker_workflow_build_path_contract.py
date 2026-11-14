@@ -29,6 +29,7 @@ import pytest
 import yaml
 
 from scripts.ci import fetch_docker_source_artifacts as docker_sources
+from scripts.ci import prometheus_source_image as source_image
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
@@ -532,6 +533,7 @@ def test_current_alertmanager_build_orders_real_input_seams_and_retains_spent_fa
             "root_inputs": {
                 "source.tar.gz": "81e69f87954aedb557ed67d9ef0218a1c0c9b9e0c3184c9ddffe07bd247239fc",
                 "ui.tar.gz": "3d6b13c5af094724e0bed8f757399e08af44d40d6c6cd87392a1f8ee6ed1e457",
+                "go-toolchain.tar.gz": transport.CURRENT_GO.digest,
             },
             "plan": {
                 "compiler_argv": [
@@ -562,9 +564,21 @@ def test_current_alertmanager_build_orders_real_input_seams_and_retains_spent_fa
         "probe_scan": {},
     }
     monkeypatch.setattr(docker_sources, "_alertmanager_support_payload", lambda *a, **k: support)
-    monkeypatch.setattr(
-        docker_sources, "_alertmanager_materialize", lambda *a: events.append("materialized")
-    )
+
+    def materialize(
+        archive: Path,
+        destination: Path,
+        deadline: float,
+        *,
+        compiler_artifact: transport.Artifact,
+    ) -> None:
+        assert isinstance(compiler_artifact, transport.Artifact)
+        assert transport.Artifact.canonical(compiler_artifact) is transport.CURRENT_GO
+        assert archive.is_file() and destination == tmp_path / "current-build/inputs"
+        events.append("materialized")
+
+    monkeypatch.setattr(docker_sources, "_alertmanager_materialize", materialize)
+    forwarded_plans: list[dict[str, Any]] = []
 
     def pair(
         inputs: Path,
@@ -573,8 +587,14 @@ def test_current_alertmanager_build_orders_real_input_seams_and_retains_spent_fa
         work: Path,
         result: dict[str, Any],
         *args: Any,
+        compiler_artifact: transport.Artifact,
         **kwargs: Any,
     ) -> None:
+        assert isinstance(compiler_artifact, transport.Artifact)
+        assert transport.Artifact.canonical(compiler_artifact) is transport.CURRENT_GO
+        assert plan is result["plan"]
+        assert result["root_inputs"]["go-toolchain.tar.gz"] == compiler_artifact.digest
+        forwarded_plans.append(plan)
         kwargs["preparation_finished"].append(time.monotonic())
         assert kwargs["upstream_version"] == "0.34.2"
         assert events[-1] == "materialized"
@@ -597,7 +617,15 @@ def test_current_alertmanager_build_orders_real_input_seams_and_retains_spent_fa
         if fault == "budget-after-pair":
             clock_offset[0] = float(os.environ["ALERTMANAGER_PRODUCER_SECONDS"]) - 180
 
-    def security(*args: Any, **kwargs: Any) -> dict[str, Any]:
+    def security(
+        *args: Any,
+        compiler_artifact: transport.Artifact,
+        qualification_plan: dict[str, Any],
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        assert isinstance(compiler_artifact, transport.Artifact)
+        assert transport.Artifact.canonical(compiler_artifact) is transport.CURRENT_GO
+        assert qualification_plan is forwarded_plans[0]
         assert kwargs["support_report"] is support
         events.append("security")
         if fault == "security":
@@ -5336,7 +5364,6 @@ def _alertmanager_retained_fixture(
     derived: dict[str, bytes],
 ) -> dict[str, bytes]:
     import time
-    from types import SimpleNamespace
     from scripts.ci import prometheus_source_image as transport
 
     roots = {
@@ -5353,7 +5380,13 @@ def _alertmanager_retained_fixture(
 
     monkeypatch.setattr(docker_sources, "_alertmanager_upstream_version", historical_upstream)
     monkeypatch.setattr(
-        transport, "GO", SimpleNamespace(digest=sha256(roots["go-toolchain.tar.gz"]).hexdigest())
+        transport,
+        "GO",
+        replace(
+            transport.GO,
+            size=len(roots["go-toolchain.tar.gz"]),
+            digest=sha256(roots["go-toolchain.tar.gz"]).hexdigest(),
+        ),
     )
     monkeypatch.setattr(
         docker_sources,
@@ -5643,7 +5676,6 @@ def test_alertmanager_062_authenticated_qualification_reader(
 ) -> None:
     """A synthetic native archive exercises the registered reader, never real source qualification."""
     import base64
-    from types import SimpleNamespace
     from scripts.ci import prometheus_source_image as transport
     from tests.test_prometheus_source_image import _native_fixed_base_image
 
@@ -5742,8 +5774,26 @@ def test_alertmanager_062_authenticated_qualification_reader(
     )
     monkeypatch.setattr(
         transport,
-        "CURRENT_GO",
-        SimpleNamespace(digest=sha256(b"synthetic qualified Go archive").hexdigest()),
+        "GO",
+        transport.Artifact(
+            "go",
+            "https://dl.google.com/go/go1.27.2.linux-amd64.tar.gz",
+            70590635,
+            "ecbadb99091a3f46e31f5f934b068b1864eafa7995211b39eaddf76996045fe5",
+            "go",
+            17373,
+            15657,
+            300 * 1024**2,
+        ),
+    )
+    monkeypatch.setattr(
+        transport,
+        "RETAINED_GO",
+        replace(
+            transport.RETAINED_GO,
+            size=len(b"synthetic qualified Go archive"),
+            digest=sha256(b"synthetic qualified Go archive").hexdigest(),
+        ),
     )
     base = _native_fixed_base_image()
     report["loaded_base_ID"] = base["Id"]
@@ -6248,6 +6298,7 @@ def test_alertmanager_062_authenticated_qualification_reader(
                     current=True,
                     upstream_version="0.34.2",
                     qualification_plan=result["plan"],
+                    compiler_artifact=source_image.RETAINED_GO,
                 )
 
             assert check(base)["linked_modules"] == maps[binary]
@@ -6273,6 +6324,7 @@ def test_alertmanager_062_authenticated_qualification_reader(
                     current=True,
                     upstream_version="0.34.2",
                     qualification_plan=result["plan"],
+                    compiler_artifact=source_image.RETAINED_GO,
                 )
 
 
@@ -6435,8 +6487,8 @@ def test_alertmanager_062_support_requires_the_same_qualified_source_before_use(
 def test_alertmanager_historical_0342_noop_remains_distinct_from_062(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    historical_alertmanager_selection: dict[str, Any],
 ) -> None:
-    from types import SimpleNamespace
     from scripts.ci import prometheus_source_image as transport
 
     locks = {"go.mod": b"original mod\n", "go.sum": b"original sums\n"}
@@ -6474,8 +6526,26 @@ def test_alertmanager_historical_0342_noop_remains_distinct_from_062(
     )
     monkeypatch.setattr(
         transport,
-        "CURRENT_GO",
-        SimpleNamespace(digest=sha256(b"synthetic qualified Go archive").hexdigest()),
+        "GO",
+        transport.Artifact(
+            "go",
+            "https://dl.google.com/go/go1.27.2.linux-amd64.tar.gz",
+            70590635,
+            "ecbadb99091a3f46e31f5f934b068b1864eafa7995211b39eaddf76996045fe5",
+            "go",
+            17373,
+            15657,
+            300 * 1024**2,
+        ),
+    )
+    monkeypatch.setattr(
+        transport,
+        "RETAINED_GO",
+        replace(
+            transport.RETAINED_GO,
+            size=len(b"synthetic qualified Go archive"),
+            digest=sha256(b"synthetic qualified Go archive").hexdigest(),
+        ),
     )
     files["module-qualification.json"] = json.dumps(report).encode()
     archive = _alertmanager_payload_zip(tmp_path, files)
@@ -6501,6 +6571,101 @@ def test_alertmanager_historical_0342_noop_remains_distinct_from_062(
         producer_recipe=original_files["deploy/alertmanager/Containerfile"],
     )
     assert retained == result
+    # Exercise the real full legacy payload reader through the live caller,
+    # using the actual accepted source/Q coordinates and synthetic API transport.
+    from argparse import Namespace
+    import signal
+
+    accepted_source = historical_alertmanager_selection["accepted"]
+    assert accepted_source["source"] == "8aee3976d8f13027a5f2a38f0152ede0f4990156"
+    live_q = dict(q, source=accepted_source["source"], run=42107347940, artifact=13451573523)
+    events: list[str] = []
+    for key in (
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "GHCR_READ_TOKEN",
+        "DOCKER_CONFIG",
+        "DOCKER_AUTH_CONFIG",
+    ):
+        monkeypatch.delenv(key, raising=False)
+
+    class Reader:
+        def __init__(self, private: Path, evidence: Path, deadline: float, cleanup: int) -> None:
+            self.private = private
+            private.mkdir()
+            events.append("read-open")
+
+        def close(self) -> None:
+            self.private.rmdir()
+            events.append("read-close")
+
+    def original_source(api: Any, revision: str, *, accepted: bool) -> dict[str, bytes]:
+        assert accepted and revision == accepted_source["source"]
+        return original_files
+
+    def current_input(api: Any, revision: str, destination: Path, **kwargs: Any) -> dict[str, Any]:
+        assert revision == accepted_source["source"] and kwargs["kind"] == "qualification"
+        assert (
+            kwargs["upstream_version"] == "0.34.2"
+            and kwargs["source_branch"] == docker_sources._ALERT_Q_BRANCH
+        )
+        assert kwargs["source_files"] == live_q["source_files"]
+        destination.write_bytes(archive.read_bytes())
+        return live_q
+
+    original_parser = docker_sources._alertmanager_qualified_payload
+
+    def parse_original(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        assert events[-1] == "read-close"
+        assert kwargs["original_producer"] == (accepted_source["source"], original_files)
+        parsed = original_parser(*args, **kwargs)
+        assert "derivation_epoch" not in parsed and "derivation_epoch" not in parsed["plan"]
+        assert parsed["root_inputs"]["go-toolchain.tar.gz"] == transport.RETAINED_GO.digest
+        events.append("legacy-parse")
+        return parsed
+
+    class StopNative:
+        def __init__(self, *args: Any) -> None:
+            assert events[-2:] == ["read-close", "legacy-parse"]
+            raise RuntimeError("synthetic-live-old0342-after-close-parse")
+
+    scanner = tmp_path / "live-scanner"
+    scanner.write_bytes(b"synthetic scanner")
+    cache = tmp_path / "live-cache"
+    for name in docker_sources._ALERT_DB:
+        path = cache / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"{}")
+    monkeypatch.setattr(
+        docker_sources, "_ALERT_TRIVY_SHA256", sha256(scanner.read_bytes()).hexdigest()
+    )
+    monkeypatch.setattr(
+        docker_sources,
+        "_alertmanager_limits",
+        lambda **kwargs: {"SECURITY_SECONDS": 1800, "CLEANUP_SECONDS": 45, "PREP_SECONDS": 600},
+    )
+    monkeypatch.setattr(
+        docker_sources, "_alertmanager_accepted_live_profile", lambda: (accepted_source, "0.34.2")
+    )
+    monkeypatch.setattr(docker_sources, "_alertmanager_source_snapshot", original_source)
+    monkeypatch.setattr(docker_sources, "_alertmanager_current_inputs", current_input)
+    monkeypatch.setattr(docker_sources, "_alertmanager_qualified_payload", parse_original)
+    monkeypatch.setattr(transport, "GitHubRead", Reader)
+    monkeypatch.setattr(transport, "Native", StopNative)
+    monkeypatch.setattr(shutil, "which", lambda _: "/synthetic/docker")
+    monkeypatch.setattr(signal, "getitimer", lambda _: (0.0, 0.0))
+    monkeypatch.setattr(signal, "setitimer", lambda *args: None)
+    monkeypatch.setattr(signal, "signal", lambda *args: None)
+    with pytest.raises(RuntimeError, match="synthetic-live-old0342-after-close-parse"):
+        docker_sources._alertmanager_live_security(
+            Namespace(
+                alertmanager_scanner=scanner,
+                alertmanager_cache=cache,
+                output_dir=tmp_path / "live-original",
+            )
+        )
+    assert events == ["read-open", "read-close", "legacy-parse"]
+    monkeypatch.setattr(docker_sources, "_alertmanager_qualified_payload", original_parser)
     report["derivation_epoch"] = docker_sources._ALERT_XNET062_METADATA_EPOCH
     files["module-qualification.json"] = json.dumps(report).encode()
     archive = _alertmanager_payload_zip(tmp_path, files)
@@ -6955,7 +7120,7 @@ def test_alertmanager_current_go_archive_guard_uses_acquired_owner_before_extrac
 
     current = replace(source.CURRENT_GO, size=len(payload), digest=sha256(payload).hexdigest())
     legacy = source.GO
-    archive = tmp_path / "go1.27.3.linux-amd64.tar.gz"
+    archive = tmp_path / "go1.27.4.linux-amd64.tar.gz"
     acquisitions: list[Path] = []
     extractions: list[Path] = []
     if case == "symlink":
@@ -7710,7 +7875,12 @@ def test_alertmanager_candidate_scan_requires_real_complete_pair_and_unsuppresse
         plan, streams = _alertmanager_062_binary_fixture()
         build_information = {
             b: docker_sources._alertmanager_build_information(
-                streams[b], b, current=True, upstream_version="0.34.2", qualification_plan=plan
+                streams[b],
+                b,
+                current=True,
+                upstream_version="0.34.2",
+                qualification_plan=plan,
+                compiler_artifact=source_image.RETAINED_GO,
             )
             for b in ("alertmanager", "amtool")
         }
@@ -7756,6 +7926,7 @@ def test_alertmanager_candidate_scan_requires_real_complete_pair_and_unsuppresse
                 proof_mode="dynamic",
                 upstream_version="0.34.2",
                 current=True,
+                compiler_artifact=source_image.RETAINED_GO,
             )
 
         if fault == "062-correct":
@@ -8155,7 +8326,10 @@ def test_alertmanager_both_security_callers_use_actual_authenticated_support_ref
 
     build_information = {
         name: docker_sources._alertmanager_build_information(
-            build_raw(name), name, current=current_epoch
+            build_raw(name),
+            name,
+            current=current_epoch,
+            compiler_artifact=source_image.RETAINED_GO if (current_epoch) else source_image.GO,
         )
         for name in ("alertmanager", "amtool")
     }
@@ -8238,6 +8412,7 @@ def test_alertmanager_both_security_callers_use_actual_authenticated_support_ref
         *,
         proof_mode: str,
         upstream_version: str,
+        compiler_artifact: object | None = None,
         current: bool = False,
     ) -> dict[str, Any]:
         assert proof_mode == "dynamic"
@@ -8254,6 +8429,7 @@ def test_alertmanager_both_security_callers_use_actual_authenticated_support_ref
             proof_mode=proof_mode,
             current=current,
             upstream_version=upstream_version,
+            compiler_artifact=compiler_artifact,
         )
         raise RuntimeError("synthetic-stop-after-actual-OS-reconciliation")
 
@@ -8264,7 +8440,9 @@ def test_alertmanager_both_security_callers_use_actual_authenticated_support_ref
         "root_inputs": {
             "source.tar.gz": "5c5c72ec6b4c4746d523f2ed1994dfec4b94f7457e530ee6fb16cfec158e545e",
             "ui.tar.gz": "881fe0f7beb9573f35be47dd233af6220e72c8db72c03bcd1780402eb8dc1307",
-            "go-toolchain.tar.gz": (transport.CURRENT_GO if current_epoch else transport.GO).digest,
+            "go-toolchain.tar.gz": (
+                transport.RETAINED_GO if current_epoch else transport.GO
+            ).digest,
             "base-image.tar": sha256((support / "base-image.tar").read_bytes()).hexdigest(),
         },
     }
@@ -9166,7 +9344,11 @@ def test_alertmanager_unconfigured_accepted_producer_holds_before_credentials_or
             docker_sources._alertmanager_source_snapshot(API(), "a" * 40, accepted=True)
         else:
             docker_sources._alertmanager_candidate_payload(
-                tmp_path / "absent.zip", tmp_path / "payload", {}, {}, tmp_path
+                tmp_path / "absent.zip",
+                tmp_path / "payload",
+                {},
+                {"root_inputs": {"go-toolchain.tar.gz": transport.RETAINED_GO.digest}},
+                tmp_path,
             )
     assert list(tmp_path.iterdir()) == []
 
@@ -9255,6 +9437,7 @@ def test_alertmanager_payload_independent_A_binds_source_recipe_and_full_subject
         "support_binding": {**qualification, "zip_sha256": "2" * 64},
         "support_report": {"scanner": {"DB": docker_sources._ALERT_DB}},
     }
+    inspected = {"root_inputs": {"go-toolchain.tar.gz": source_image.RETAINED_GO.digest}}
     del api
     archive = tmp_path / "candidate.zip"
     archive.write_bytes(b"synthetic accepted artifact transport")
@@ -9305,7 +9488,7 @@ def test_alertmanager_payload_independent_A_binds_source_recipe_and_full_subject
         selected["zip_sha256"] = sha256(archive.read_bytes()).hexdigest()
         with pytest.raises(RuntimeError, match="AM_accepted_producer_subject_graph"):
             docker_sources._alertmanager_candidate_payload(
-                archive, tmp_path / "payload", source, {}, tmp_path, **upstream
+                archive, tmp_path / "payload", source, inspected, tmp_path, **upstream
             )
         assert not (tmp_path / "payload").exists()
         return
@@ -9326,7 +9509,7 @@ def test_alertmanager_payload_independent_A_binds_source_recipe_and_full_subject
     )
     with pytest.raises(RuntimeError, match=expected):
         docker_sources._alertmanager_candidate_payload(
-            archive, tmp_path / "payload", source, {}, tmp_path, **upstream
+            archive, tmp_path / "payload", source, inspected, tmp_path, **upstream
         )
     assert not (tmp_path / "payload").exists()
 
@@ -9847,10 +10030,37 @@ def test_alertmanager_current_scan_requires_complete_accepted_OS_and_both_native
 @pytest.mark.parametrize("target", [0, 1, 2])
 @pytest.mark.parametrize("identifier", ["CVE-2026-111943", "CVE-synthetic-unrelated"])
 def test_alertmanager_target_CVE_postcondition_is_severity_independent_in_current_epoch(
-    current_epoch: bool, severity: str, target: int, identifier: str
+    current_epoch: bool,
+    severity: str,
+    target: int,
+    identifier: str,
+    historical_alertmanager_selection: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The finite target-ID predicate is independent of the existing generic severity gate."""
+    if current_epoch:
+        monkeypatch.setattr(
+            docker_sources,
+            "_ALERT_ACCEPTED_CANDIDATE",
+            historical_alertmanager_selection["accepted"],
+        )
+        monkeypatch.setattr(
+            docker_sources, "_ALERT_CURRENT_SCAN_ORACLE", historical_alertmanager_selection["scan"]
+        )
+    compiler = source_image.RETAINED_GO if current_epoch else source_image.GO
+    upstream_version = "0.34.2" if current_epoch else "0.34.1"
     report = _alertmanager_current_scan_report()
+    arguments = (report, docker_sources._ALERT_CURRENT_SCAN_ORACLE["subject"]["config"], None, None)
+    assert (
+        docker_sources._alertmanager_candidate_inventory(
+            *arguments,
+            current=current_epoch,
+            proof_mode="accepted-live",
+            upstream_version=upstream_version,
+            compiler_artifact=compiler,
+        )["findings"]
+        == []
+    )
     finding = {
         "VulnerabilityID": identifier,
         "Severity": severity,
@@ -9858,23 +10068,31 @@ def test_alertmanager_target_CVE_postcondition_is_severity_independent_in_curren
         "InstalledVersion": "1",
     }
     report["Results"][target]["Vulnerabilities"] = [finding]
-    arguments = (report, docker_sources._ALERT_CURRENT_SCAN_ORACLE["subject"]["config"], None, None)
     if severity in ("HIGH", "CRITICAL"):
         with pytest.raises(RuntimeError, match="^AM_new_blocking_support_finding_HOLD$"):
             docker_sources._alertmanager_candidate_inventory(
                 *arguments,
                 current=current_epoch,
                 proof_mode="accepted-live",
-                upstream_version="0.34.1",
+                upstream_version=upstream_version,
+                compiler_artifact=compiler,
             )
     elif current_epoch and identifier == "CVE-2026-111943":
         with pytest.raises(RuntimeError, match="^AM_current_Go_CVE_still_present$"):
             docker_sources._alertmanager_candidate_inventory(
-                *arguments, current=True, proof_mode="accepted-live", upstream_version="0.34.1"
+                *arguments,
+                current=True,
+                proof_mode="accepted-live",
+                upstream_version=upstream_version,
+                compiler_artifact=compiler,
             )
     else:
         observed = docker_sources._alertmanager_candidate_inventory(
-            *arguments, current=current_epoch, proof_mode="accepted-live", upstream_version="0.34.1"
+            *arguments,
+            current=current_epoch,
+            proof_mode="accepted-live",
+            upstream_version=upstream_version,
+            compiler_artifact=compiler,
         )
         assert observed["findings"] == [finding]
 
@@ -11970,7 +12188,15 @@ def test_alertmanager_assembly_child_umask_requires_absolute_interpreter(
     work = tmp_path / "pair"
     with pytest.raises(transport.QualificationError, match="^AM_pair_interpreter$"):
         docker_sources._alertmanager_pair(
-            tmp_path, support, {}, work, {}, {}, 0, base_descriptor=base_descriptor
+            tmp_path,
+            support,
+            {},
+            work,
+            {},
+            {},
+            0,
+            base_descriptor=base_descriptor,
+            compiler_artifact=source_image.CURRENT_GO,
         )
     assert not work.exists()
 
@@ -12212,20 +12438,28 @@ def test_alertmanager_support_reader_closes_auth_before_native_and_preserves_HOL
     monkeypatch.setattr(docker_sources, "_alertmanager_current_inputs", inputs)
     monkeypatch.setattr(docker_sources, "_alertmanager_package_read", lambda *args: {})
 
+    inspection_plan: dict[str, Any] = {}
+
     def inspect_qualified(
         path: Path, *, current: bool, xnet062_qualification: dict[str, Any]
     ) -> dict[str, Any]:
         assert closed == [True] and path.read_bytes() == data["zip"] and current is True
         assert xnet062_qualification == qualification
-        return {"plan": {}, "outstanding": ["support"], "compiler_starts": 0}
+        return {"plan": inspection_plan, "outstanding": ["support"], "compiler_starts": 0}
 
     monkeypatch.setattr(docker_sources, "_alertmanager_qualified_payload", inspect_qualified)
 
     def native(
-        archive: Path, output: Path, *, qualification_sha256: str, current: bool
+        archive: Path,
+        output: Path,
+        *,
+        qualification_sha256: str,
+        current: bool,
+        qualification_plan: dict[str, Any],
     ) -> dict[str, Any]:
         assert closed == [True] and archive.read_bytes() == data["zip"]
         assert qualification_sha256 == qualification["zip_sha256"] and current is True
+        assert qualification_plan is inspection_plan and qualification_plan == {}
         assert not (output / "private").exists()
         if support_failure:
             raise RuntimeError("synthetic native support failure")
@@ -12511,6 +12745,10 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
     linked_plan, linked_bytes = (
         _alertmanager_062_binary_fixture() if fault == "062-linked" else ({}, {})
     )
+    # This pair executes the current compiler; the shared historical fixture keeps Go1.27.3.
+    linked_bytes = {
+        name: raw.replace(b"go1.27.3", b"go1.27.4") for name, raw in linked_bytes.items()
+    }
     buildkit_failure = fault is not None and fault.startswith("buildkit-")
     successful_faults = (
         None,
@@ -12857,7 +13095,7 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
                     raw = (
                         linked_bytes[name]
                         if linked_bytes
-                        else _alertmanager_buildinfo(name).replace(b"go1.27.2", b"go1.27.3")
+                        else _alertmanager_buildinfo(name).replace(b"go1.27.2", b"go1.27.4")
                     )
             elif "wait" in argv:
                 raw = (str(containers[argv[-1]]["State"]["ExitCode"]) + "\n").encode()
@@ -13180,6 +13418,7 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
                 time.monotonic() + 600,
                 retained=retained,
                 base_descriptor=base_descriptor,
+                compiler_artifact=source_image.CURRENT_GO,
             )
         if buildkit_failure:
             assert isinstance(caught.value, transport.QualificationError)
@@ -13362,6 +13601,7 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
             retained=retained,
             base_descriptor=base_descriptor,
             upstream_version="0.34.2" if linked_plan else "0.34.1",
+            compiler_artifact=source_image.CURRENT_GO,
         )
         if linked_plan:
             assert {
@@ -13596,6 +13836,12 @@ def test_alertmanager_materializer_uses_actual_frozen_bytes_field_without_native
             "module-qualification.json", json.dumps({"frozen_input_payload": {"members": rows}})
         )
         archive.writestr("frozen-inputs.tar", stream.getvalue())
+    current_compiler = replace(
+        transport.CURRENT_GO,
+        size=len(payloads["go-toolchain.tar.gz"]),
+        digest=sha256(payloads["go-toolchain.tar.gz"]).hexdigest(),
+    )
+    monkeypatch.setattr(transport, "CURRENT_GO", current_compiler)
     extracted: list[Path] = []
 
     def extract(selected: object, archive: Path, destination: Path, deadline: float) -> None:
@@ -13605,6 +13851,7 @@ def test_alertmanager_materializer_uses_actual_frozen_bytes_field_without_native
         (destination / "bin").mkdir(parents=True)
         (destination / "bin/go").write_bytes(b"synthetic retained Go executable")
         (destination / "bin/go").chmod(0o755)
+        (destination / "VERSION").write_bytes(transport.CURRENT_GO_VERSION_FILE)
         extracted.append(destination)
 
     monkeypatch.setattr(transport, "extract", extract)
@@ -13616,12 +13863,12 @@ def test_alertmanager_materializer_uses_actual_frozen_bytes_field_without_native
         if fault:
             with pytest.raises(RuntimeError, match="AM_materialized_"):
                 docker_sources._alertmanager_materialize(
-                    artifact, destination, time.monotonic() + 30
+                    artifact, destination, time.monotonic() + 30, compiler_artifact=current_compiler
                 )
             assert not extracted
         else:
             result = docker_sources._alertmanager_materialize(
-                artifact, destination, time.monotonic() + 30
+                artifact, destination, time.monotonic() + 30, compiler_artifact=current_compiler
             )
             assert result == destination / "alertmanager-go" and extracted == [result]
             assert (destination / "source/NOTICE").read_bytes() == payloads["source/NOTICE"]
@@ -13793,6 +14040,7 @@ def test_alertmanager_phase_observation_failure_preserves_actual_owner_error_and
                 docker_sources._alertmanager_limits(),
                 build_information={},
                 support_report={"scanner": {"DB": docker_sources._ALERT_DB}},
+                compiler_artifact=source_image.RETAINED_GO,
             )
 
     else:
@@ -13939,7 +14187,11 @@ def test_source_version_build_metadata_is_distinct_from_current_compiler(version
     raw = _alertmanager_buildinfo("alertmanager").replace(b"go1.27.2", b"go1.27.3")
     raw = raw.replace(b"\t(devel)", b"\tv" + version.encode())
     actual = docker_sources._alertmanager_build_information(
-        raw, "alertmanager", current=True, upstream_version=version
+        raw,
+        "alertmanager",
+        current=True,
+        upstream_version=version,
+        compiler_artifact=source_image.RETAINED_GO,
     )
     assert actual["main"]["Version"] == "v" + version
     with pytest.raises(RuntimeError, match="AM_"):
@@ -13948,6 +14200,7 @@ def test_source_version_build_metadata_is_distinct_from_current_compiler(version
             "alertmanager",
             current=True,
             upstream_version="0.34.2" if version == "0.34.1" else "0.34.1",
+            compiler_artifact=source_image.RETAINED_GO,
         )
 
 
@@ -14576,6 +14829,19 @@ def test_alertmanager_publisher_orders_fresh_controls_and_reserves_one_clock(
 
     monkeypatch.setattr(transport, "GitHubRead", API)
     seen: dict[str, Any] = {}
+    candidate_roots = {
+        "source.tar.gz": "81e69f87954aedb557ed67d9ef0218a1c0c9b9e0c3184c9ddffe07bd247239fc",
+        "ui.tar.gz": "3d6b13c5af094724e0bed8f757399e08af44d40d6c6cd87392a1f8ee6ed1e457",
+        "go-toolchain.tar.gz": transport.CURRENT_GO.digest,
+    }
+    candidate_plan = {
+        "UI_file_hashes": {},
+        "assembly_argv": [
+            "--build-context",
+            transport.BASE + "=oci-layout:///inputs/base-layout@sha256:" + "b" * 64,
+        ],
+        "probe": {},
+    }
 
     def publish(
         args: Any,
@@ -14598,6 +14864,8 @@ def test_alertmanager_publisher_orders_fresh_controls_and_reserves_one_clock(
                     "graph": {},
                     "build_information": {},
                     "producer_admission": {"mode": "H"},
+                    "root_inputs": deepcopy(candidate_roots),
+                    "plan": deepcopy(candidate_plan),
                 },
                 "candidate_directory": output / "candidate",
                 "support": output / "support",
@@ -14618,7 +14886,16 @@ def test_alertmanager_publisher_orders_fresh_controls_and_reserves_one_clock(
             raise RuntimeError("controlled-pullback")
         return kwargs["prepared"]["candidate"]
 
-    def security(*args: Any, **kwargs: Any) -> dict[str, Any]:
+    def security(
+        *args: Any,
+        compiler_artifact: transport.Artifact,
+        qualification_plan: dict[str, Any],
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        assert isinstance(compiler_artifact, transport.Artifact)
+        assert transport.Artifact.canonical(compiler_artifact) is transport.CURRENT_GO
+        assert qualification_plan == candidate_plan
+        assert kwargs["upstream_version"] == "0.34.2"
         events.append("security")
         assert "prep-cleanup" in events
         if fault == "security-timeout":
@@ -15065,22 +15342,52 @@ def test_alertmanager_real_publisher_body_holds_effects_and_retains_observed_wri
         assert kwargs["original_producer"] == (h, source)
         assert kwargs["xnet062_qualification"]["source"] == h
         assert kwargs["producer_recipe"] == source["deploy/alertmanager/Containerfile"]
-        return {"root_inputs": {}, "plan": {}}
+        return {
+            "root_inputs": {
+                "source.tar.gz": "81e69f87954aedb557ed67d9ef0218a1c0c9b9e0c3184c9ddffe07bd247239fc",
+                "ui.tar.gz": "3d6b13c5af094724e0bed8f757399e08af44d40d6c6cd87392a1f8ee6ed1e457",
+                "go-toolchain.tar.gz": transport.CURRENT_GO.digest,
+            },
+            "plan": {
+                "assembly_argv": [
+                    "--build-context",
+                    transport.BASE
+                    + "=oci-layout:///inputs/base-layout@<UNOBSERVED_CURRENT_EXPORT>",
+                ]
+            },
+        }
 
     monkeypatch.setattr(docker_sources, "_alertmanager_qualified_payload", read_original_q)
-    monkeypatch.setattr(
-        docker_sources, "_alertmanager_upstream_identity", lambda *_args, **_kwargs: "0.34.2"
-    )
-    monkeypatch.setattr(docker_sources, "_alertmanager_bind_current_plan", lambda *_: None)
     scanner = {"sha256": docker_sources._ALERT_TRIVY_SHA256, "DB": {"db": "a" * 64}}
+    bound_plan = {
+        "assembly_argv": [
+            "--build-context",
+            transport.BASE + "=oci-layout:///inputs/base-layout@sha256:" + "b" * 64,
+        ],
+        "probe": {},
+    }
 
     def support(archive: Path, destination: Path, **kwargs: Any) -> dict[str, Any]:
         assert kwargs["original_producer"] == (h, source) and kwargs["qualification"]["source"] == h
         destination.mkdir()
         (destination / "trivy").write_bytes(b"scanner")
-        return {"probe": {}, "scanner": scanner}
+        return {
+            "probe": {},
+            "scanner": scanner,
+            "base": {"actual_local_OCI_descriptor": {"digest": "sha256:" + "b" * 64}},
+        }
 
-    def candidate(archive: Path, destination: Path, *args: Any, **kwargs: Any) -> dict[str, Any]:
+    def candidate(
+        archive: Path,
+        destination: Path,
+        source_files: dict[str, bytes],
+        inspected: dict[str, Any],
+        supported: Path,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        assert source_files == source and supported.is_dir()
+        assert inspected["root_inputs"]["go-toolchain.tar.gz"] == transport.CURRENT_GO.digest
+        assert inspected["plan"] == bound_plan
         assert kwargs["merged_producer"]["source"] == h
         assert kwargs["merged_material"]["source"] == h
         destination.mkdir()
@@ -15092,6 +15399,8 @@ def test_alertmanager_real_publisher_body_holds_effects_and_retains_observed_wri
             "OCI_archive_sha256": sha256(b"OCI").hexdigest(),
             "security": {"candidate": {"packages": 1}},
             "producer_admission": {"mode": "H"},
+            "root_inputs": deepcopy(inspected["root_inputs"]),
+            "plan": deepcopy(inspected["plan"]),
         }
 
     def tool(api: Any, root: Path, directory: Path) -> tuple[Path, dict[str, Any]]:
@@ -15128,6 +15437,7 @@ def test_alertmanager_real_publisher_body_holds_effects_and_retains_observed_wri
             output / "security/evidence",
         }
         assert files.is_dir() and kwargs["comparison_subject"] == graph["config"]["digest"]
+        assert kwargs["qualification_plan"] == bound_plan
         return {
             "targets": [graph["config"]["digest"]],
             "packages": [{"Name": "fixture"}],
@@ -15265,6 +15575,15 @@ def test_alertmanager_real_publisher_body_holds_effects_and_retains_observed_wri
         ("H", "graph"),
         ("H", "missing-C"),
         ("H", "payload-only-H"),
+    ]
+    + [
+        (mode, fault)
+        for mode in ("C", "H")
+        for fault in (
+            "observed-root-inputs-missing",
+            "observed-root-compiler-mismatch",
+            "observed-plan-missing",
+        )
     ],
 )
 def test_alertmanager_payload_C_H_scope_reaches_binary_owner_only_with_exact_binding(
@@ -15321,6 +15640,7 @@ def test_alertmanager_payload_C_H_scope_reaches_binary_owner_only_with_exact_bin
     root_inputs = {
         "source.tar.gz": "81e69f87954aedb557ed67d9ef0218a1c0c9b9e0c3184c9ddffe07bd247239fc",
         "ui.tar.gz": "3d6b13c5af094724e0bed8f757399e08af44d40d6c6cd87392a1f8ee6ed1e457",
+        "go-toolchain.tar.gz": source_image.RETAINED_GO.digest,
     }
     observed = {
         "source": revision,
@@ -15394,7 +15714,12 @@ def test_alertmanager_payload_C_H_scope_reaches_binary_owner_only_with_exact_bin
         observed["build_information"] = {}
         for n, raw in streams.items():
             info = docker_sources._alertmanager_build_information(
-                raw, n, current=True, upstream_version="0.34.2", qualification_plan=plan
+                raw,
+                n,
+                current=True,
+                upstream_version="0.34.2",
+                qualification_plan=plan,
+                compiler_artifact=source_image.RETAINED_GO,
             )
             if n == "amtool":
                 wrong = info["linked_modules"]["golang.org/x/net"][1]
@@ -15407,7 +15732,17 @@ def test_alertmanager_payload_C_H_scope_reaches_binary_owner_only_with_exact_bin
             observed["build_information"][n] = info
             files[f"pair-evidence/{n}-buildinfo-attach.stdout"] = raw
 
-    if fault == "H-status":
+    # Keep the inspected tuple/plan intact while mutating only the retained observation.
+    observed = deepcopy(observed)
+    assert observed["root_inputs"] == root_inputs and observed["root_inputs"] is not root_inputs
+    assert observed["plan"] == plan and observed["plan"] is not plan
+    if fault == "observed-root-inputs-missing":
+        observed.pop("root_inputs")
+    elif fault == "observed-root-compiler-mismatch":
+        observed["root_inputs"]["go-toolchain.tar.gz"] = source_image.CURRENT_GO.digest
+    elif fault == "observed-plan-missing":
+        observed.pop("plan")
+    elif fault == "H-status":
         observed["status"] = "OBSERVED_MERGED_H_REBUILD_SECURITY_NATIVE"
     elif fault == "C-status":
         observed["status"] = "OBSERVED_PR2494_C_SECURITY_NATIVE"
@@ -15423,6 +15758,7 @@ def test_alertmanager_payload_C_H_scope_reaches_binary_owner_only_with_exact_bin
         observed["producer_admission"]["expected_C"]["source"] = "0" * 40
     elif fault == "graph":
         observed["graph"]["config"]["digest"] = "sha256:" + "0" * 64
+    assert root_inputs["go-toolchain.tar.gz"] == source_image.RETAINED_GO.digest
     files["candidate-observation.json"] = json.dumps(observed).encode()
     directories = sorted(
         {
@@ -15464,6 +15800,8 @@ def test_alertmanager_payload_C_H_scope_reaches_binary_owner_only_with_exact_bin
         if fault == "062-rebound-native":
             reached.append(name)
             return actual_owner(raw, name, **kwargs)
+        compiler = source_image.Artifact.canonical(kwargs.pop("compiler_artifact"))
+        source_image.exact_data(vars(compiler), vars(source_image.RETAINED_GO))
         assert raw == b"next binary owner input" and kwargs == {
             "current": True,
             "qualification_plan": plan,
@@ -15488,6 +15826,9 @@ def test_alertmanager_payload_C_H_scope_reaches_binary_owner_only_with_exact_bin
         "graph": "AM_accepted_producer_subject_graph",
         "missing-C": "AM_accepted_producer_UNCONFIGURED_HOLD",
         "payload-only-H": "AM_candidate_current_Q_S_source",
+        "observed-root-inputs-missing": "AM_candidate_source_input_binding",
+        "observed-root-compiler-mismatch": "AM_candidate_source_input_binding",
+        "observed-plan-missing": "AM_candidate_positive_predecessors_and_finite_recipe",
     }[fault]
     with pytest.raises(RuntimeError, match=expected):
         docker_sources._alertmanager_candidate_payload(
@@ -15699,6 +16040,29 @@ def test_alertmanager_current_durable_predecessor_requires_complete_H_publicatio
             "ui.tar.gz": "3d6b13c5af094724e0bed8f757399e08af44d40d6c6cd87392a1f8ee6ed1e457",
         },
     }
+    built["root_inputs"]["go-toolchain.tar.gz"] = transport.RETAINED_GO.digest
+    built["plan"] = {}
+    built["upstream"] = {
+        kind: {
+            "source": h,
+            "source_files": {name: hashes[name] for name in docker_sources._ALERT_Q_SOURCE_FILES},
+            "run": number,
+            "artifact": number + 10,
+            "attempt": 1,
+        }
+        for kind, number in (("qualification", 81), ("support", 82))
+    }
+    built["build_information"] = {}
+    for binary in ("alertmanager", "amtool"):
+        raw_buildinfo = _alertmanager_buildinfo(binary).replace(b"go1.27.2", b"go1.27.3")
+        producer_files["pair-evidence/" + binary + "-buildinfo-attach.stdout"] = raw_buildinfo
+        built["build_information"][binary] = docker_sources._alertmanager_build_information(
+            raw_buildinfo,
+            binary,
+            current=True,
+            upstream_version="0.34.2",
+            compiler_artifact=transport.RETAINED_GO,
+        )
     built["UI_file_hashes"] = {"index.html.gz": "a" * 64, "assets/main.js.gz": "b" * 64}
     if fault == "missing-UI":
         built.pop("UI_file_hashes")
@@ -15889,6 +16253,17 @@ def test_alertmanager_current_durable_predecessor_requires_complete_H_publicatio
         lambda *_: pytest.fail("ordinary reader must not attest historical H using live checkout"),
     )
     monkeypatch.setattr(transport, "Native", Native)
+
+    def candidate_inventory(*args: Any, compiler_artifact: object, **kwargs: Any) -> dict[str, Any]:
+        assert (
+            transport.Artifact.canonical(compiler_artifact).digest == transport.RETAINED_GO.digest
+        )
+        assert args[1] == built["graph"]["config"]["digest"] and args[2] is None
+        assert args[3] == built["build_information"]
+        assert kwargs["proof_mode"] == "accepted-live"
+        return inventory
+
+    monkeypatch.setattr(docker_sources, "_alertmanager_candidate_inventory", candidate_inventory)
     scan_calls: list[dict[str, Any]] = []
     monkeypatch.setattr(
         docker_sources,
@@ -16337,6 +16712,7 @@ def test_alertmanager_security_owns_private_fanal_cache_and_rejects_DB_drift(
             docker_sources._alertmanager_limits(),
             build_information={},
             support_report={"scanner": {"DB": database}},
+            compiler_artifact=source_image.RETAINED_GO,
         )
 
     if fault is None:
@@ -16766,6 +17142,19 @@ def test_alertmanager_inventory_requires_coherent_configured_live_profile(
     monkeypatch: pytest.MonkeyPatch, fault: str
 ) -> None:
     report = _alertmanager_current_scan_report()
+    assert (
+        docker_sources._alertmanager_candidate_inventory(
+            report,
+            report["Metadata"]["ImageID"],
+            None,
+            None,
+            proof_mode="accepted-live",
+            upstream_version="0.34.1",
+            current=True,
+            compiler_artifact=source_image.GO,
+        )["findings"]
+        == []
+    )
     oracle = deepcopy(docker_sources._ALERT_CURRENT_SCAN_ORACLE)
     if fault == "unconfigured":
         monkeypatch.setattr(docker_sources, "_ALERT_ACCEPTED_CANDIDATE", None)
@@ -16790,6 +17179,7 @@ def test_alertmanager_inventory_requires_coherent_configured_live_profile(
             proof_mode="accepted-live",
             upstream_version="0.34.2" if fault == "upstream" else "0.34.1",
             current=True,
+            compiler_artifact=source_image.GO,
         )
 
 
@@ -17086,3 +17476,126 @@ def test_prometheus_pair_diagnostic_requires_successful_upload_output(
         check=False,
     )
     assert (completed.returncode == 0) is passed
+
+
+@pytest.mark.parametrize("binary", ["alertmanager", "amtool"])
+def test_alertmanager_062_compiler_tuple_is_independent_of_current_boolean(binary: str) -> None:
+    raw = _alertmanager_buildinfo(binary).replace(b"go1.27.2", b"go1.27.3")
+    old = docker_sources._alertmanager_build_information(
+        raw, binary, current=True, compiler_artifact=source_image.RETAINED_GO
+    )
+    assert old["Go"] == "go1.27.3"
+    with pytest.raises(source_image.QualificationError, match="AM_actual_Go_build_version"):
+        docker_sources._alertmanager_build_information(
+            raw, binary, current=True, compiler_artifact=source_image.CURRENT_GO
+        )
+    with pytest.raises(source_image.QualificationError, match="AM_current_compiler_context"):
+        docker_sources._alertmanager_build_information(raw, binary, current=True)
+
+
+@pytest.mark.parametrize("severity", ["UNKNOWN", "LOW", "MEDIUM"])
+@pytest.mark.parametrize("target", [1, 2])
+def test_alertmanager_062_maintained_compiler_does_not_waive_surviving_stdlib_finding(
+    severity: str,
+    target: int,
+    historical_alertmanager_selection: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Synthetic paired build-info and report fixtures; no native build or scanner claim."""
+    monkeypatch.setattr(
+        docker_sources, "_ALERT_ACCEPTED_CANDIDATE", historical_alertmanager_selection["accepted"]
+    )
+    monkeypatch.setattr(
+        docker_sources, "_ALERT_CURRENT_SCAN_ORACLE", historical_alertmanager_selection["scan"]
+    )
+    qualification_plan, synthetic_streams = _alertmanager_062_binary_fixture()
+    compiler_version = source_image.CURRENT_GO.go_version.split()[2]
+    build_information: dict[str, Any] = {
+        binary: docker_sources._alertmanager_build_information(
+            raw.replace(b": go1.27.3\n", b": " + compiler_version.encode("ascii") + b"\n", 1),
+            binary,
+            current=True,
+            upstream_version="0.34.2",
+            qualification_plan=qualification_plan,
+            compiler_artifact=source_image.CURRENT_GO,
+        )
+        for binary, raw in synthetic_streams.items()
+    }
+    report = _alertmanager_current_scan_report()
+    for row in report["Results"][1:]:
+        binary = row["Target"].rsplit("/", 1)[1]
+        information = build_information[binary]
+        modules = dict(information["dependencies"])
+        modules["stdlib"] = "v" + information["Go"].removeprefix("go")
+        modules[information["main"]["Path"]] = "0.34.2"
+        row["Packages"] = [{"Name": name, "Version": version} for name, version in modules.items()]
+    assert (
+        docker_sources._alertmanager_candidate_inventory(
+            report,
+            report["Metadata"]["ImageID"],
+            None,
+            build_information,
+            current=True,
+            proof_mode="accepted-live",
+            upstream_version="0.34.2",
+            compiler_artifact=source_image.CURRENT_GO,
+        )["findings"]
+        == []
+    )
+    report["Results"][target]["Vulnerabilities"] = [
+        {
+            "VulnerabilityID": "CVE-2026-97054",
+            "PkgName": "stdlib",
+            "InstalledVersion": "v1.27.4",
+            "Severity": severity,
+        }
+    ]
+    with pytest.raises(
+        source_image.QualificationError, match="AM_current_Go_vendor_CVE_still_present"
+    ):
+        docker_sources._alertmanager_candidate_inventory(
+            report,
+            report["Metadata"]["ImageID"],
+            None,
+            build_information,
+            current=True,
+            proof_mode="accepted-live",
+            upstream_version="0.34.2",
+            compiler_artifact=source_image.CURRENT_GO,
+        )
+
+
+def test_alertmanager_062_accepted_live_scan_rejects_crossed_compiler_context(
+    historical_alertmanager_selection: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        docker_sources, "_ALERT_ACCEPTED_CANDIDATE", historical_alertmanager_selection["accepted"]
+    )
+    monkeypatch.setattr(
+        docker_sources, "_ALERT_CURRENT_SCAN_ORACLE", historical_alertmanager_selection["scan"]
+    )
+    report = _alertmanager_current_scan_report()
+    assert (
+        docker_sources._alertmanager_candidate_inventory(
+            report,
+            report["Metadata"]["ImageID"],
+            None,
+            None,
+            current=True,
+            proof_mode="accepted-live",
+            upstream_version="0.34.2",
+            compiler_artifact=source_image.RETAINED_GO,
+        )["findings"]
+        == []
+    )
+    with pytest.raises(source_image.QualificationError, match="AM_accepted_scan_compiler_tuple"):
+        docker_sources._alertmanager_candidate_inventory(
+            report,
+            report["Metadata"]["ImageID"],
+            None,
+            None,
+            current=True,
+            proof_mode="accepted-live",
+            upstream_version="0.34.2",
+            compiler_artifact=source_image.CURRENT_GO,
+        )

@@ -1444,3 +1444,35 @@ evidence without inferring missing J, time or outcomes. These operations grant
 no downstream authority. Follow the
 [episode contract](../docs/orchestration/contracts/INVARIANT_FAMILY_REVIEW_EPISODE_CONTRACT.md#optional-lifecycle-supervision-euler-ops-1)
 and its [focused tests](../tests/test_invariant_family_review_episode.py).
+
+
+## Source-bound maintained compiler updates
+
+For the existing AM/Prometheus/ORAS producer, carry the canonically authenticated
+source/Q/frozen-root compiler Artifact through internal materialize/native/
+build-info/inventory callers. Reify all nine existing Artifact fields with exact
+types in the P owner; current booleans, x/net epochs, report names/counts/dates,
+Python identity and candidate-declared fields do not select a compiler. Preserve
+old tuples as historical evidence, without new execution permission. Keep the
+existing returned plan/root-input and manifest shapes.
+
+The current Caddy caller binds its authenticated Dockerfile/compiler ref to the
+same native owner's expected_source before create/start/probe and forwards it
+through terminal/cleanup. Admit only measured native representations; supplier
+DATA/projections do not replace new native controls or post-test/build trees.
+Freeze new F/P source and current deployment-caller fingerprints in C while
+keeping each workflow controller commit and its regular path/mode/length/
+SHA-256/Git-blob tuple coherent. Do not install new helper raw pins under an
+old controller ref. After independently designating the real C object, H updates
+the two workflows together: four logical refs, six Prometheus revision
+assertions, six length/SHA-256 predicates and six blob predicates, all derived
+from the actual C P object. Contract-test oracles use the declared immutable pin
+and the strict Git reader; historical pins stay explicit, without worktree
+fallback. Omit a byte-equal path from C's changed set and retain it in the
+reviewed source-input closure. The prepared-null
+Prometheus manifest cannot consume an old tool/image under new inputs. Use the
+existing T/P1/Q+PG/B/P2 and natural accepted-AM live-read sequence; no private
+adapter, new epoch/schema, generic OCI verifier or provider/native replay.
+The dated NoSec fixture remains the renewal carrier; preserve original inline
+comments and refresh the same five P coordinates/current owner bindings after
+final P bytes. ROOT owns fresh cheap gates before expensive validation.

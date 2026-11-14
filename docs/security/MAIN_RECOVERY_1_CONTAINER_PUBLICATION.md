@@ -552,6 +552,81 @@ tag, reset an attempt or infer merge/deployment/native authority from rollback.
 Fresh applicable local/current-head CI/security/coverage/review, normal closeout
 and actual protected-action admission remain independently required.
 
+
+### November 14 current P source and coordinate rebinding
+
+The November13 six-file table and paired Bandit result above describe that
+reviewed starting snapshot only. Current P now has 495574 bytes,
+SHA-256 `3b352e9c1fe128515f6bccf70237fd63d421c1249a3568dbdf8ed1e73786977d` and regular Git blob
+`7b893973104a33a69e25ff3f4c20f1966f0cf44d`. The maintained compiler/source correction changes its
+Artifact, qualification, typed finite history and native-image source owners;
+old whole-source P9fc equality and its entire six-file scanner proposition are
+not asserted for this material. The other five source hashes/ten fixture rows
+remain byte-identical to the dated November13 snapshot.
+
+Only the same five P fixture coordinates are rebound below. All original
+inline comments, B404/B603 rules, explanations, PR-2494 references and
+November11 inline dates are unchanged. The existing fixture retains exactly
+15 members in separate8+7 cohorts, refPR-2494, December13 inclusive and manual
+reviewDecember6. Prior misses/unproved reviews and both OPEN removal ledgers
+remain. This refresh supplies no new member, expiry decision, Trivy ignore,
+guard mechanism or native hazard-retirement result.
+
+| Current inline comment | Rule | Existing process owner | November13 coordinate |
+| --- | --- | --- | --- |
+| `scripts/ci/prometheus_source_image.py:30` | B404 | `module import` | `30` |
+| `scripts/ci/prometheus_source_image.py:1153` | B603 | `Native.run` | `1095` |
+| `scripts/ci/prometheus_source_image.py:2973` | B603 | `process_census` | `2882` |
+| `scripts/ci/prometheus_source_image.py:3202` | B603 | `qualify_existing_ghcr_package.capture` | `3111` |
+| `scripts/ci/prometheus_source_image.py:5248` | B603 | `GitHubRead._capture` | `4935` |
+
+The four native primitive ASTs remain equal to their original reviewed bodies
+without line-location attributes: Native.run, process_census, qualify_existing_ghcr_package.capture
+and GitHubRead._capture. The subprocess import and all five comment texts are
+also unchanged. This is static source comparison, not native execution proof.
+The changed callers select/reify the exact existing Artifact field data and
+bind current source before effects. Native.run still accepts only absolute
+argv, explicitly recorded nonsecret environment, bounded stdout/stderr/output
+watch, original deadlines and owned process-group termination/reaping. Census
+keeps its fixed absolute ps/format, Darwin/Linux identity and uncertainty
+handling; a snapshot does not prove permanent absence. Dedicated gh capture
+keeps fixed authenticated GET/auth semantics, isolated private HOME/config,
+opaque credentials and bounded output/reflection/child custody. The private
+_capture retains binary stdin, streaming bounds, reflection checks, original
+cleanup clocks and all supported gh/Git/Docker/ORAS/Caddy ownership modes.
+
+The new live AM caller uses that existing reader on trusted source with
+step-only read tokens, positive process/private cleanup before parse and a
+secret-free Native environment. Compiler/source tuple and early Caddy source
+joins add no native primitive, shell, credential-bearing recorded argv/env,
+registry scope or execution grant. Current operation/control/source behavior
+still requires its own actual native gates. Tool/PATH/OS/Docker trust, native
+option semantics, caller discipline, process uncertainty and the existing
+buffering/redaction limits remain residual risks; no arbitrary future-call
+safety or universal equivalent-impossibility claim follows.
+
+The existing native-import owner now requires the producer-bound compiler
+Artifact as a private keyword and canonically validates all nine fields and its
+Go role before archive validation or native effects
+(`scripts/ci/prometheus_source_image.py:9636`). Both existing tool and pair
+producers forward their already validated compiler, including the synthetic
+format path. The version probe keeps its escaped token and word boundaries,
+using only that canonical tuple. Explicit historical Go2/Go3 recognition adds
+no current execution grant: current producer entry checks still require Go4.
+No subprocess primitive, argv, environment, credential, clock, cleanup or
+NoSec coordinate changes follow from this compiler-discrimination correction.
+
+ROOT must refresh the unchanged real-date guard and the same-material native
+Bandit1.9.4 ordinary/unignored six-target pair before expensive gates. Expected
+ordinary0/unignored1 and exact6B404+9B603 positive inventory are criteria,
+not observed results here. Current reports/errors/metrics and before/after
+source/config identities remain pending; the old pair is dated history.
+No test, scanner, native command, provider, commit, publication or merge was
+executed by this source writer. Current helper/workflow/deploy byte bindings
+use the final regular P/F source; a real C and independent designation still
+precede ROOT's ten commit-pin substitutions in combined H. All39 and complete
+postmerge/recovery-before-owned-cleanup obligations remain required.
+
 ### Accepted source-preserving seven-line allowlist instance — October 28, 2026
 
 On **2026-10-28**, @katsiaryna_kavaleuskaya directly accepted exactly seven

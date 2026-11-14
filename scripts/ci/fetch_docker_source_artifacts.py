@@ -3003,6 +3003,7 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
     from scripts.ci.prometheus_source_image import (
         Native,
         CURRENT_GO as GO,
+        Artifact,
         extract,
         acquire,
         decode_objects,
@@ -3014,6 +3015,7 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
         require,
     )
 
+    GO = Artifact.canonical(GO)
     evidence = output / "alertmanager-module-evidence"
     output.mkdir(parents=True, exist_ok=True)
     evidence.mkdir(mode=0o700)
@@ -3034,7 +3036,7 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
     try:
         artifacts = load_manifest(DEFAULT_MANIFEST, artifact="alertmanager")
         _fetch_alertmanager_pair(artifacts, output, operation_deadline=deadline)
-        go_archive = output / "go1.27.3.linux-amd64.tar.gz"
+        go_archive = output / "go1.27.4.linux-amd64.tar.gz"
         if not go_archive.exists() and not go_archive.is_symlink():
             acquire(GO, go_archive, deadline)
 
@@ -3048,6 +3050,10 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
             raise RuntimeError("Exact Go input changed; no overwrite, replacement or retry.")
         toolchain = output / "alertmanager-go"
         go_members = extract(GO, go_archive, toolchain, deadline)
+        require(
+            (toolchain / "VERSION").read_bytes() == GO.go_version_file,
+            "AM_current_compiler_VERSION_file",
+        )
         (evidence / "go-compiler-input-members.json").write_text(
             json.dumps(go_members, indent=2) + "\n"
         )
@@ -3186,7 +3192,7 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
                 return raw
 
             version = command(["version"], "version")
-            if version != b"go version go1.27.3 linux/amd64\n":
+            if version != GO.go_version.encode():
                 raise RuntimeError("Qualified Go version/platform differs.")
             command(["mod", "download", "-json"], "baseline-download")
             baseline_raw = command(
@@ -3984,6 +3990,8 @@ def _alertmanager_current_inputs(
     source_branch: str | None = None,
 ) -> dict[str, Any]:
     """Resolve one actual current Q or S; no latest-success or supplied-ID fallback."""
+    # upstream_version/source_branch bind artifact lineage, not x/net format.
+    # Only qualified_payload authenticates and interprets the original format.
     from scripts.ci.prometheus_source_image import require
 
     require(upstream_version in ("0.34.1", "0.34.2"), "AM_current_input_upstream_epoch")
@@ -4403,6 +4411,62 @@ def _alertmanager_publication_predecessor(
                 and b"native_AM_full_candidate_controls=pass" not in lines,
                 "AM_current_full_H_native_marker",
             )
+        # This result was emitted by the exact authenticated successful canonical
+        # Q/S producer above. Its plan is that producer's existing same bound plan;
+        # no historical Q acquisition or second plan parser is introduced here.
+        require(
+            type(built.get("plan")) is dict and type(built.get("root_inputs")) is dict,
+            "AM_current_H_same_producer_plan",
+        )
+        from scripts.ci.prometheus_source_image import Artifact, GO, RETAINED_GO, CURRENT_GO
+
+        require(
+            type(built["root_inputs"].get("go-toolchain.tar.gz")) is str,
+            "AM_current_H_compiler_digest_type",
+        )
+        compiler_artifact = Artifact.canonical(
+            next(
+                (
+                    item
+                    for item in (GO, RETAINED_GO, CURRENT_GO)
+                    if item.digest == built["root_inputs"]["go-toolchain.tar.gz"]
+                ),
+                None,
+            )
+        )
+        upstream_inputs = built.get("upstream")
+        require(
+            type(upstream_inputs) is dict
+            and set(upstream_inputs) == {"qualification", "support"}
+            and all(
+                type(v) is dict
+                and v.get("source") == publisher
+                and v.get("source_files")
+                == {key: source_hashes[key] for key in _ALERT_Q_SOURCE_FILES}
+                and type(v.get("run")) is int
+                and v["run"] > 0
+                and type(v.get("artifact")) is int
+                and v["artifact"] > 0
+                and type(v.get("attempt")) is int
+                and v["attempt"] == 1
+                for v in upstream_inputs.values()
+            ),
+            "AM_current_H_canonical_Q_S_source",
+        )
+        build_information = {}
+        for binary in ("alertmanager", "amtool"):
+            build_information[binary] = _alertmanager_build_information(
+                producer_files["pair-evidence/" + binary + "-buildinfo-attach.stdout"],
+                binary,
+                current=True,
+                upstream_version=upstream,
+                qualification_plan=built["plan"],
+                compiler_artifact=compiler_artifact,
+            )
+        require(
+            build_information == built.get("build_information"),
+            "AM_current_H_original_pair_compiler",
+        )
         security_inventories = []
         for payload, security in (
             (producer_files, built.get("security", {})),
@@ -4430,7 +4494,17 @@ def _alertmanager_publication_predecessor(
                 and full["SchemaVersion"] == 2
                 and full.get("ArtifactType") == "container_image"
                 and full.get("Metadata", {}).get("ImageID") == built["graph"]["config"]["digest"]
-                and _alertmanager_support_inventory(full) == security.get("candidate"),
+                and _alertmanager_candidate_inventory(
+                    full,
+                    built["graph"]["config"]["digest"],
+                    None,
+                    build_information,
+                    current=True,
+                    proof_mode="accepted-live",
+                    upstream_version=upstream,
+                    compiler_artifact=compiler_artifact,
+                )
+                == security.get("candidate"),
                 "AM_current_H_full_raw_security_report",
             )
             security_inventories.append(
@@ -4439,6 +4513,7 @@ def _alertmanager_publication_predecessor(
                     security,
                     current=True,
                     comparison_subject=built["graph"]["config"]["digest"],
+                    qualification_plan=built["plan"],
                 )
             )
             require(
@@ -4882,6 +4957,10 @@ def _alertmanager_qualified_payload(
     import zipfile
     from scripts.ci.prometheus_source_image import (
         MAX_CACHE_BYTES,
+        Artifact,
+        GO,
+        RETAINED_GO,
+        CURRENT_GO,
         decode_modules,
         exact_data,
         unique_object,
@@ -4901,7 +4980,10 @@ def _alertmanager_qualified_payload(
         ),
         "AM_retained_Q_original_recipe",
     )
-    xnet062 = xnet062_qualification is not None
+    # Original-producer Q authentication is shared by both retained formats.
+    # Its canonical absent/present epoch branch below, after full source/Q/ZIP
+    # validation, selects legacy0342-noop versus062; upstream version does not.
+    xnet062 = xnet062_qualification is not None and original_producer is None
     if xnet062_qualification is not None:
         from scripts.ci.prometheus_source_image import file_hash
 
@@ -5206,6 +5288,22 @@ def _alertmanager_qualified_payload(
         == "directory",
         "AM_frozen_complete_readback",
     )
+    compiler_raw = root_bytes["go-toolchain.tar.gz"]
+    compiler_digest, compiler_size = sha256(compiler_raw).hexdigest(), len(compiler_raw)
+    require(
+        type(compiler_digest) is str and type(compiler_size) is int, "AM_retained_compiler_types"
+    )
+    compiler_artifact = Artifact.canonical(
+        next(
+            (
+                item
+                for item in (GO, RETAINED_GO, CURRENT_GO)
+                if item.digest == compiler_digest and item.size == compiler_size
+            ),
+            None,
+        )
+    )
+    require((compiler_artifact.digest != GO.digest) == current, "AM_retained_compiler_source_epoch")
     upstream_version = _alertmanager_upstream_version(root_bytes, current=current)
     require(not xnet062 or upstream_version == "0.34.2", "AM_062_source_epoch")
     baseline_graphs = []
@@ -5402,12 +5500,7 @@ def _alertmanager_qualified_payload(
         )
     _alertmanager_compare_replays(replays)
     require(
-        replays[0]["version"]
-        == (
-            b"go version go1.27.3 linux/amd64\n"
-            if current
-            else b"go version go1.27.2 linux/amd64\n"
-        ),
+        replays[0]["version"] == compiler_artifact.go_version.encode(),
         "AM_retained_Go_version",
     )
     delta = report["delta"]
@@ -5497,7 +5590,9 @@ def _alertmanager_qualified_payload(
         files, report, upstream_version=upstream_version, xnet062=xnet062
     )
     if xnet062 and xnet062_qualification is not None:
-        _alertmanager_xnet062_native_commands(files, report, xnet062_qualification["run"])
+        _alertmanager_xnet062_native_commands(
+            files, report, xnet062_qualification["run"], compiler_artifact=compiler_artifact
+        )
         # The producer records the complete original (pre-freeze) Go and source trees.
         compiler_members = go_binding["before_files"]
         compiler_inventory = json.loads(
@@ -5549,11 +5644,8 @@ def _alertmanager_qualified_payload(
     if xnet062:
         plan["derivation_epoch"] = _ALERT_XNET062_METADATA_EPOCH
         plan["command_module_inputs"] = _alertmanager_062_link_inputs(replays[0])
-    from scripts.ci.prometheus_source_image import GO, CURRENT_GO
-
     require(
-        sha256(root_bytes["go-toolchain.tar.gz"]).hexdigest()
-        == (CURRENT_GO if current else GO).digest,
+        sha256(root_bytes["go-toolchain.tar.gz"]).hexdigest() == compiler_artifact.digest,
         "AM_retained_Go_archive",
     )
     return {
@@ -5578,7 +5670,11 @@ def _alertmanager_qualified_payload(
 
 
 def _alertmanager_xnet062_native_commands(
-    files: dict[str, bytes], report: dict[str, Any], run_id: int
+    files: dict[str, bytes],
+    report: dict[str, Any],
+    run_id: int,
+    *,
+    compiler_artifact: object | None = None,
 ) -> None:
     """Bind retained command order, raw channels and replay identity to the actual Q."""
     from scripts.ci.prometheus_source_image import (
@@ -5592,6 +5688,11 @@ def _alertmanager_xnet062_native_commands(
 
     records = report["native_records"]
     work = PurePosixPath(records[0]["cwd"])
+    from scripts.ci.prometheus_source_image import Artifact
+
+    require(compiler_artifact is not None, "AM_062_compiler_context")
+    compiler = Artifact.canonical(compiler_artifact)
+    require(compiler.name == "go", "AM_compiler_artifact_role")
     require(
         work.is_absolute()
         and ".." not in work.parts
@@ -5798,9 +5899,7 @@ def _alertmanager_xnet062_native_commands(
             profiles[cid] = (pre, post)
             if cmd in ("version", "verify"):
                 expected = (
-                    b"go version go1.27.3 linux/amd64\n"
-                    if cmd == "version"
-                    else b"all modules verified\n"
+                    compiler.go_version.encode() if cmd == "version" else b"all modules verified\n"
                 )
                 online = "version" if cmd == "version" else "online-verify"
                 require(
@@ -6260,7 +6359,12 @@ def _alertmanager_current_base_graph(layout: Path) -> dict[str, Any]:
 
 
 def _alertmanager_support_observation(
-    archive: Path, output: Path, *, qualification_sha256: str | None = None, current: bool = False
+    archive: Path,
+    output: Path,
+    *,
+    qualification_sha256: str | None = None,
+    current: bool = False,
+    qualification_plan: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """One separately invoked compiler-free native support observation; no Docker start/build."""
     import shutil
@@ -6675,7 +6779,10 @@ def _alertmanager_support_observation(
         )
         vulnerable = scan("image", old_archive, "known-vulnerable-full-control")
         result["vulnerability_control"] = _alertmanager_vulnerability_control(
-            vulnerable, old_id, current=qualification_sha256 is not None
+            vulnerable,
+            old_id,
+            current=qualification_sha256 is not None,
+            qualification_plan=qualification_plan,
         )
         base_scan = scan("image", base_archive, "base-full-supported-scan")
         require(
@@ -6973,11 +7080,27 @@ def _alertmanager_support_inventory(
 
 
 def _alertmanager_vulnerability_control(
-    report: dict[str, Any], image_id: str, *, current: bool = False
+    report: dict[str, Any],
+    image_id: str,
+    *,
+    current: bool = False,
+    qualification_plan: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """The already selected OLD vulnerable subject is a control, never an admitted payload."""
+    """Exact OLD vulnerable negative control; canonical plan selects062, never candidate policy."""
     from scripts.ci.prometheus_source_image import require
 
+    require(type(current) is bool, "AM_control_epoch_type")
+    require(qualification_plan is None or type(qualification_plan) is dict, "AM_control_plan_type")
+    xnet062 = qualification_plan is not None and "derivation_epoch" in qualification_plan
+    if xnet062:
+        require(
+            current
+            and qualification_plan is not None
+            and qualification_plan.get("derivation_epoch") == _ALERT_XNET062_METADATA_EPOCH
+            and type(qualification_plan.get("command_module_inputs")) is dict
+            and set(qualification_plan["command_module_inputs"]) == {"alertmanager", "amtool"},
+            "AM_control_062_qualification",
+        )
     require(
         report.get("ArtifactType") == "container_image"
         and type(report.get("Metadata")) is dict
@@ -6985,19 +7108,25 @@ def _alertmanager_vulnerability_control(
         and type(report.get("Results")) is list,
         "AM_vulnerable_control_subject",
     )
+    identities = (
+        ("CVE-2026-84445", "pkg:golang/google.golang.org/grpc@v1.83.1"),
+        ("CVE-2026-78669", "pkg:golang/golang.org/x/net@v0.58.0"),
+        ("CVE-2026-78669", "pkg:golang/stdlib@v1.26.8"),
+        ("CVE-2026-78667", "pkg:golang/stdlib@v1.26.8"),
+        ("CVE-2026-97031", "pkg:golang/stdlib@v1.26.8"),
+    )
     expected = {
         (target, cve, purl, "HIGH")
         for target in ("bin/alertmanager", "bin/amtool")
-        for cve, purl in (
-            ("CVE-2026-84445", "pkg:golang/google.golang.org/grpc@v1.83.1"),
-            ("CVE-2026-78669", "pkg:golang/golang.org/x/net@v0.58.0"),
-            ("CVE-2026-78669", "pkg:golang/stdlib@v1.26.8"),
-            ("CVE-2026-78667", "pkg:golang/stdlib@v1.26.8"),
-            ("CVE-2026-97031", "pkg:golang/stdlib@v1.26.8"),
-        )
+        for cve, purl in identities
     }
-    require(type(current) is bool, "AM_control_epoch_type")
-    found, targets, ca_findings = [], [], []
+    if xnet062:
+        expected |= {
+            (target, "CVE-2026-78661", "pkg:golang/golang.org/x/net@v0.58.0", "HIGH")
+            for target in ("bin/alertmanager", "bin/amtool")
+        }
+    controlled_ids = {cve for cve, _ in identities} | {"CVE-2026-111943", "CVE-2026-78661"}
+    found, targets, ca_findings, controlled = [], [], [], []
     for row in report["Results"]:
         require(
             type(row) is dict
@@ -7015,37 +7144,39 @@ def _alertmanager_vulnerability_control(
         for finding in row.get("Vulnerabilities", []):
             require(
                 type(finding) is dict
-                and finding.get("Severity") in ("UNKNOWN", "LOW", "MEDIUM", "HIGH", "CRITICAL"),
+                and type(finding.get("Severity")) is str
+                and finding["Severity"] in ("UNKNOWN", "LOW", "MEDIUM", "HIGH", "CRITICAL"),
                 "AM_vulnerable_control_finding",
             )
-            is_ca_finding = finding.get("VulnerabilityID") == "CVE-2026-111943"
-            if is_ca_finding or finding["Severity"] in ("HIGH", "CRITICAL"):
+            cve = finding.get("VulnerabilityID")
+            require(type(cve) is str, "AM_vulnerable_control_ID_type")
+            is_controlled = cve in controlled_ids
+            if is_controlled or finding["Severity"] in ("HIGH", "CRITICAL"):
                 identifier = finding.get("PkgIdentifier")
-                require(type(identifier) is dict, "AM_vulnerable_control_PURL")
+                require(
+                    type(identifier) is dict and type(identifier.get("PURL")) is str,
+                    "AM_vulnerable_control_PURL",
+                )
                 require(
                     row.get("Class") == "lang-pkgs"
                     and row.get("Type") == "gobinary"
                     and row["Target"] in ("bin/alertmanager", "bin/amtool"),
                     "AM_known_vulnerable_control_inventory_changed_HOLD",
                 )
-                occurrence = (
-                    row["Target"],
-                    finding.get("VulnerabilityID"),
-                    identifier.get("PURL"),
-                    finding["Severity"],
-                )
-                if is_ca_finding:
+                occurrence = (row["Target"], cve, identifier["PURL"], finding["Severity"])
+                if is_controlled:
+                    controlled.append(occurrence)
+                if cve == "CVE-2026-111943":
                     require(
                         current
-                        and identifier.get("PURL") == "pkg:golang/stdlib@v1.26.8"
-                        and finding["Severity"] in ("HIGH", "MEDIUM"),
+                        and identifier["PURL"] == "pkg:golang/stdlib@v1.26.8"
+                        and finding["Severity"] in (("HIGH",) if xnet062 else ("HIGH", "MEDIUM")),
                         "AM_known_vulnerable_control_inventory_changed_HOLD",
                     )
                     ca_findings.append(occurrence)
                 if finding["Severity"] in ("HIGH", "CRITICAL"):
                     found.append(occurrence)
     if current:
-        # Retain both observed whole-report scores without losing mandatory CA detection.
         require(
             len(ca_findings) == 2
             and {item[0] for item in ca_findings} == {"bin/alertmanager", "bin/amtool"}
@@ -7053,6 +7184,11 @@ def _alertmanager_vulnerability_control(
             "AM_known_vulnerable_control_inventory_changed_HOLD",
         )
         expected |= {item for item in ca_findings if item[3] == "HIGH"}
+    controlled_expected = expected | {item for item in ca_findings if item[3] == "MEDIUM"}
+    require(
+        len(controlled) == len(controlled_expected) and set(controlled) == controlled_expected,
+        "AM_known_vulnerable_control_inventory_changed_HOLD_duplicate_or_identity",
+    )
     require(
         sorted(targets) == ["bin/alertmanager", "bin/amtool"]
         and len(found) == len(expected)
@@ -7386,6 +7522,7 @@ def _alertmanager_candidate_scan_evidence(
     current: bool,
     comparison_subject: str | None = None,
     deadline: float | None = None,
+    qualification_plan: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     """Reuse the existing full scan/positive-control raw evidence contract."""
     from scripts.ci.prometheus_source_image import file_hash, one_object, require
@@ -7439,6 +7576,7 @@ def _alertmanager_candidate_scan_evidence(
         one_object(raw("security-evidence/candidate-known-vulnerable-control.private.json")),
         "sha256:53622b714941158bc20cc92a7571aef515556218eef914b7b8ec5b2a0cb6f607",
         current=current,
+        qualification_plan=qualification_plan,
     )
     require(old == security.get("old_control"), "AM_candidate_actual_vulnerable_control")
     if comparison_subject is not None:
@@ -7478,6 +7616,22 @@ def _alertmanager_candidate_payload(
         unpack_layout,
     )
 
+    from scripts.ci.prometheus_source_image import Artifact, GO, RETAINED_GO, CURRENT_GO
+
+    require(
+        type(inspected["root_inputs"]["go-toolchain.tar.gz"]) is str,
+        "AM_validated_compiler_digest_type",
+    )
+    compiler_artifact = Artifact.canonical(
+        next(
+            (
+                item
+                for item in (GO, RETAINED_GO, CURRENT_GO)
+                if item.digest == inspected["root_inputs"]["go-toolchain.tar.gz"]
+            ),
+            None,
+        )
+    )
     accepted = _alertmanager_accepted_producer()
     current = accepted["source"] != _ALERT_HISTORICAL_C10["source"]
     merged = merged_producer is not None
@@ -7655,6 +7809,7 @@ def _alertmanager_candidate_payload(
             upstream_version=_alertmanager_upstream_identity(
                 inspected["root_inputs"], current=current
             ),
+            compiler_artifact=compiler_artifact,
         )
         require(
             observed_build == result.get("build_information", {}).get(binary)
@@ -7675,11 +7830,14 @@ def _alertmanager_candidate_payload(
                 inspected["root_inputs"], current=current
             ),
             proof_mode="dynamic",
+            compiler_artifact=compiler_artifact,
         )
         == result["security"].get("candidate"),
         "AM_candidate_full_report_not_summary_only",
     )
-    _alertmanager_candidate_scan_evidence(files, result["security"], current=current)
+    _alertmanager_candidate_scan_evidence(
+        files, result["security"], current=current, qualification_plan=inspected["plan"]
+    )
     fresh_directory(destination)
     for name, raw in files.items():
         target = destination / name
@@ -8052,22 +8210,41 @@ def _alertmanager_support_payload(
             )
         require(row["stdout"] not in seen, "AM_support_native_duplicate")
         seen.add(row["stdout"])
+    control = _alertmanager_vulnerability_control(
+        one_object(
+            (destination / "evidence/known-vulnerable-full-control.private.json").read_bytes()
+        ),
+        _ALERT_OLD_RUNTIME_CONFIG,
+        current=current,
+        qualification_plan=(
+            qualification_payload["plan"] if qualification_payload is not None else None
+        ),
+    )
+    require(control == report.get("vulnerability_control"), "AM_support_actual_vulnerable_control")
     require(file_hash(archive) == expected_zip, "AM_support_archive_drift")
     return report
 
 
-def _alertmanager_materialize(archive: Path, destination: Path, deadline: float) -> Path:
+def _alertmanager_materialize(
+    archive: Path,
+    destination: Path,
+    deadline: float,
+    *,
+    compiler_artifact: object | None = None,
+) -> Path:
     """Materialize only the already-qualified finite source/cache epoch, without acquisition."""
     import shutil
     import zipfile
     from scripts.ci.prometheus_source_image import (
-        CURRENT_GO as GO,
+        Artifact,
         extract,
         fresh_directory,
         one_object,
         require,
     )
 
+    compiler = Artifact.canonical(compiler_artifact)
+    require(compiler.name == "go", "AM_materialized_compiler_role")
     fresh_directory(destination, 0o755)
     with zipfile.ZipFile(archive) as retained:
         metadata = one_object(retained.read("module-qualification.json"))
@@ -8112,7 +8289,22 @@ def _alertmanager_materialize(archive: Path, destination: Path, deadline: float)
                     target.chmod(row["mode"])
             require(seen == set(expected), "AM_materialized_complete_input")
     toolchain = destination / "alertmanager-go"
-    extract(GO, destination / "go-toolchain.tar.gz", toolchain, deadline)
+    from scripts.ci.prometheus_source_image import file_hash
+
+    archive_path = destination / "go-toolchain.tar.gz"
+    require(
+        archive_path.stat().st_size == compiler.size
+        and file_hash(archive_path, deadline) == compiler.digest,
+        "AM_materialized_compiler_bytes",
+    )
+    extract(compiler, archive_path, toolchain, deadline)
+    from scripts.ci.prometheus_source_image import GO
+
+    if compiler.digest != GO.digest:
+        require(
+            (toolchain / "VERSION").read_bytes() == compiler.go_version_file,
+            "AM_materialized_compiler_VERSION_file",
+        )
     _alertmanager_readonly_go(toolchain, deadline)
     for directory in sorted((p for p in destination.rglob("*") if p.is_dir()), reverse=True):
         directory.chmod(0o555)
@@ -8126,19 +8318,26 @@ def _alertmanager_build_information(
     current: bool = False,
     upstream_version: str = "0.34.1",
     qualification_plan: dict[str, Any] | None = None,
+    compiler_artifact: object | None = None,
 ) -> dict[str, Any]:
     """Interpret native Go build-info for the required pair, including embedded stdlib."""
     from scripts.ci.prometheus_source_image import require
 
     lines = raw.decode("utf-8").splitlines()
+    from scripts.ci.prometheus_source_image import Artifact, GO
+
+    require(not current or compiler_artifact is not None, "AM_current_compiler_context")
+    compiler = Artifact.canonical(GO if compiler_artifact is None else compiler_artifact)
+    require(compiler.name == "go", "AM_compiler_artifact_role")
     require(type(current) is bool, "AM_build_info_epoch_type")
     require(
         upstream_version in ("0.34.1", "0.34.2") and (upstream_version == "0.34.1" or current),
         "AM_build_info_upstream_join",
     )
-    compiler = "go1.27.3" if current else "go1.27.2"
+    compiler_version = compiler.go_version.split()[2]
     require(
-        bool(lines) and lines[0] == "/out/" + binary + ": " + compiler, "AM_actual_Go_build_version"
+        bool(lines) and lines[0] == "/out/" + binary + ": " + compiler_version,
+        "AM_actual_Go_build_version",
     )
     checked_062 = qualification_plan is not None and bool(
         {"derivation_epoch", "command_module_inputs"}.intersection(qualification_plan)
@@ -8215,7 +8414,7 @@ def _alertmanager_build_information(
         )
     return {
         **({"linked_modules": linked} if checked_062 else {}),
-        "Go": compiler,
+        "Go": compiler_version,
         "dependencies": dependencies,
         "main": main,
         "path": path,
@@ -8594,6 +8793,7 @@ def _alertmanager_candidate_inventory(
     proof_mode: str,
     upstream_version: str,
     current: bool = False,
+    compiler_artifact: object | None = None,
 ) -> dict[str, Any]:
     """Check retained solver closure or a current complete supported scan of immutable S.
 
@@ -8617,8 +8817,25 @@ def _alertmanager_candidate_inventory(
         "AM_scan_upstream_join",
     )
     require(proof_mode in ("dynamic", "accepted-live"), "AM_scan_proof_mode")
+    from scripts.ci.prometheus_source_image import Artifact, GO, RETAINED_GO, CURRENT_GO
+
+    require(
+        proof_mode == "accepted-live" or not current or compiler_artifact is not None,
+        "AM_current_compiler_context",
+    )
+    compiler = Artifact.canonical(
+        (RETAINED_GO if current else GO) if compiler_artifact is None else compiler_artifact
+    )
     if proof_mode == "accepted-live":
-        require(base_report is None and build_information is None, "AM_scan_proof_modes_mixed")
+        require(
+            base_report is None
+            and (
+                build_information is None
+                or type(build_information) is dict
+                and compiler_artifact is not None
+            ),
+            "AM_scan_proof_modes_mixed",
+        )
         selected, version = _alertmanager_accepted_live_profile()
         require(upstream_version == version, "AM_scan_upstream_profile")
         require(
@@ -8644,6 +8861,14 @@ def _alertmanager_candidate_inventory(
             "AM_candidate_authenticated_base_scan_subject",
         )
         _alertmanager_support_inventory(base_report)
+    require(compiler.name == "go", "AM_compiler_artifact_role")
+    if build_information is not None:
+        require(
+            type(build_information) is dict
+            and set(build_information) == {"alertmanager", "amtool"}
+            and all(type(value) is dict for value in build_information.values()),
+            "AM_candidate_both_actual_buildinfo_required",
+        )
     xnet_links = {
         binary
         for binary, information in (build_information or {}).items()
@@ -8719,6 +8944,11 @@ def _alertmanager_candidate_inventory(
             "AM_unclassified_package_bearing_target",
         )
         for finding in row.get("Vulnerabilities", []):
+            if compiler.digest == CURRENT_GO.digest:
+                require(
+                    finding["VulnerabilityID"] != "CVE-2026-97054",
+                    "AM_current_Go_vendor_CVE_still_present",
+                )
             if xnet_links and finding.get("PkgName") == "golang.org/x/net":
                 require(
                     finding["VulnerabilityID"] not in {"CVE-2026-78661", "CVE-2026-97045"},
@@ -8750,7 +8980,7 @@ def _alertmanager_candidate_inventory(
             if build_information is not None:
                 information = build_information[binary]
                 require(
-                    information.get("Go") == ("go1.27.3" if current else "go1.27.2")
+                    information.get("Go") == compiler.go_version.split()[2]
                     and type(information.get("dependencies")) is dict
                     and type(information.get("main")) is dict
                     and information["main"].get("Path") == "github.com/prometheus/alertmanager"
@@ -8770,6 +9000,12 @@ def _alertmanager_candidate_inventory(
                 )
                 expected_modules["stdlib"] = "v" + information["Go"].removeprefix("go")
                 expected_modules[information["main"]["Path"]] = upstream_version
+            if build_information is None:
+                require(
+                    expected_modules.get("stdlib")
+                    == "v" + compiler.go_version.split()[2].removeprefix("go"),
+                    "AM_accepted_scan_compiler_tuple",
+                )
             actual_modules = {}
             for package in row.get("Packages", []):
                 name, version = package.get("Name"), package.get("Version")
@@ -8977,6 +9213,7 @@ def _alertmanager_pair(
     base_descriptor: dict[str, Any],
     upstream_version: str = "0.34.1",
     preparation_finished: list[float] | None = None,
+    compiler_artifact: object | None = None,
 ) -> dict[str, Any]:
     """One direct serial pair plus one COPY-only assembly; no resolver or retry."""
     from datetime import datetime
@@ -8995,6 +9232,13 @@ def _alertmanager_pair(
         tree_inventory,
     )
 
+    from scripts.ci.prometheus_source_image import Artifact, GO, CURRENT_GO
+
+    compiler = Artifact.canonical(GO if compiler_artifact is None else compiler_artifact)
+    require(compiler.name == "go", "AM_compiler_artifact_role")
+    from scripts.ci.prometheus_source_image import exact_data
+
+    exact_data(vars(compiler), vars(CURRENT_GO))
     require(
         base_descriptor == _alertmanager_current_base_graph(support / "base-layout"),
         "AM_pair_validated_current_base",
@@ -9250,6 +9494,7 @@ def _alertmanager_pair(
                 qualification_plan=plan,
                 current=True,
                 upstream_version=upstream_version,
+                compiler_artifact=compiler,
             )
         require(
             all(tree_inventory(inputs / name) == before for name, before in snapshots.items()),
@@ -9892,244 +10137,320 @@ def _alertmanager_live_security(args: argparse.Namespace) -> None:
         require,
     )
 
-    selected, live_upstream = _alertmanager_accepted_live_profile()
-    limits = _alertmanager_limits(caller=True)
-    scanner, cache = args.alertmanager_scanner, args.alertmanager_cache
-    require(
-        isinstance(scanner, Path)
-        and scanner.is_absolute()
-        and scanner.is_file()
-        and not scanner.is_symlink()
-        and file_hash(scanner) == _ALERT_TRIVY_SHA256,
-        "AM_live_pinned_scanner",
-    )
-    require(
-        isinstance(cache, Path)
-        and cache.is_absolute()
-        and cache.is_dir()
-        and not cache.is_symlink(),
-        "AM_live_cache",
-    )
-    database = {name: file_hash(cache / name) for name in _ALERT_DB}
-    work = args.output_dir.absolute()
-    fresh_directory(work)
-    evidence = work / "evidence"
-    fresh_directory(evidence)
-    config = work / "empty-docker-config"
-    fresh_directory(config)
-    empty_config, empty_ignore = work / "trivy.yaml", work / "trivy.ignore"
-    empty_config.write_bytes(b"{}\n")
-    empty_ignore.write_bytes(b"")
-    environment = {
-        "PATH": "/usr/bin:/bin",
-        "HOME": str(work),
-        "DOCKER_CONFIG": str(config),
-        "LANG": "C.UTF-8",
-    }
-    docker = shutil.which("docker")
-    require(docker is not None and Path(docker).is_absolute(), "AM_live_Docker")
-    prefix = [docker, "--config", str(config)]
     start = time.monotonic()
     previous_handler, previous_timer = signal.getsignal(signal.SIGALRM), signal.getitimer(
         signal.ITIMER_REAL
     )
-    deadline = min(
-        start + limits["SECURITY_SECONDS"],
-        start + previous_timer[0] if previous_timer[0] > 0 else float("inf"),
+    limits = _alertmanager_limits(caller=True)
+    original_end = min(
+        Fraction(start) + limits["SECURITY_SECONDS"],
+        (
+            Fraction(start) + Fraction(previous_timer[0])
+            if previous_timer[0] > 0
+            else Fraction(start) + limits["SECURITY_SECONDS"]
+        ),
     )
-    native = Native(evidence, deadline, limits["CLEANUP_SECONDS"])
+    operation_deadline = _alertmanager_clock_float(original_end)
+    deadline = _alertmanager_clock_float(original_end - limits["CLEANUP_SECONDS"])
+    require(
+        Fraction(time.monotonic()) < original_end - 2 * limits["CLEANUP_SECONDS"],
+        "AM_live_original_clock_remaining",
+    )
 
     def interrupt(signum: int, frame: object) -> None:
         raise TimeoutError("AM_live_security_deadline")
 
-    def scan(kind: str, subject: str, label: str) -> dict[str, Any]:
-        """Require actual scanner success and complete original JSON before a control can count."""
-        require(
-            file_hash(scanner) == _ALERT_TRIVY_SHA256
-            and {name: file_hash(cache / name) for name in database} == database,
-            "AM_live_scanner_DB_drift",
-        )
-        target = evidence / (label + ".private.json")
-        command = [
-            str(scanner),
-            kind,
-            "--config",
-            str(empty_config),
-            "--cache-dir",
-            str(cache),
-            "--skip-db-update",
-            "--skip-java-db-update",
-            "--skip-vex-repo-update",
-            "--offline-scan",
-            "--skip-version-check",
-            "--disable-telemetry",
-            "--scanners",
-            "vuln,secret",
-            "--pkg-types",
-            "os,library",
-            "--list-all-pkgs",
-            "--severity",
-            "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL",
-            "--format",
-            "json",
-            "--exit-code",
-            "0",
-            "--ignore-unfixed=false",
-            "--ignorefile",
-            str(empty_ignore),
-            "--timeout",
-            str(limits["SCAN_TIMEOUT_SECONDS"]) + "s",
-            "--output",
-            str(target),
-        ]
-        if kind == "image":
-            command += ["--image-src", "docker"]
-        native.run(
-            [*command, subject],
-            label,
-            environment,
-            cwd=work,
-            maximum_seconds=limits["SCAN_PROCESS_SECONDS"],
-        )
-        require(
-            target.is_file()
-            and not target.is_symlink()
-            and 0 < target.stat().st_size <= 64 * 1024**2,
-            "AM_live_native_report_missing",
-        )
-        target.chmod(0o600)
-        report = one_object(target.read_bytes())
-        require(
-            type(report.get("SchemaVersion")) is int and report["SchemaVersion"] == 2,
-            "AM_live_native_schema",
-        )
-        require(
-            file_hash(scanner) == _ALERT_TRIVY_SHA256
-            and {name: file_hash(cache / name) for name in database} == database,
-            "AM_live_scanner_DB_post_drift",
-        )
-        return cast(dict[str, Any], report)
-
-    result: dict[str, Any] = {
-        "compiler_starts": 0,
-        "scanner_sha256": _ALERT_TRIVY_SHA256,
-        "DB": database,
-        "DB_metadata": one_object((cache / "db/metadata.json").read_bytes()),
-    }
     signal.signal(signal.SIGALRM, interrupt)
-    signal.setitimer(signal.ITIMER_REAL, max(0.001, deadline - time.monotonic()))
-    primary: BaseException | None = None
+    signal.setitimer(signal.ITIMER_REAL, operation_deadline - time.monotonic())
     try:
-        result["scanner_version"] = one_object(
-            native.run(
-                [str(scanner), "--version", "--format", "json"],
-                "current-scanner-version",
-                environment,
-                cwd=work,
-                maximum_seconds=30,
-            )
+        selected, live_upstream = _alertmanager_accepted_live_profile()
+        scanner, cache = args.alertmanager_scanner, args.alertmanager_cache
+        require(
+            isinstance(scanner, Path)
+            and scanner.is_absolute()
+            and scanner.is_file()
+            and not scanner.is_symlink()
+            and file_hash(scanner) == _ALERT_TRIVY_SHA256,
+            "AM_live_pinned_scanner",
         )
         require(
-            result["scanner_version"].get("Version") == "0.74.0", "AM_live_native_scanner_version"
+            isinstance(cache, Path)
+            and cache.is_absolute()
+            and cache.is_dir()
+            and not cache.is_symlink(),
+            "AM_live_cache",
         )
-        current_epoch = selected["source"] != _ALERT_HISTORICAL_C10["source"]
-        graph = selected["graph"]
-        image_id = graph["config"]["digest"]
-        image = one_object(
-            native.run(
-                [*prefix, "image", "inspect", "--format", "{{json .}}", image_id],
-                "live-local-candidate",
-                environment,
-                cwd=work,
-                maximum_seconds=30,
+        database = {name: file_hash(cache / name) for name in _ALERT_DB}
+        work = args.output_dir.absolute()
+        fresh_directory(work)
+        evidence = work / "evidence"
+        fresh_directory(evidence)
+        config = work / "empty-docker-config"
+        fresh_directory(config)
+        empty_config, empty_ignore = work / "trivy.yaml", work / "trivy.ignore"
+        empty_config.write_bytes(b"{}\n")
+        empty_ignore.write_bytes(b"")
+        environment = {
+            "PATH": "/usr/bin:/bin",
+            "HOME": str(work),
+            "DOCKER_CONFIG": str(config),
+            "LANG": "C.UTF-8",
+        }
+        docker = shutil.which("docker")
+        require(docker is not None and Path(docker).is_absolute(), "AM_live_Docker")
+        prefix = [docker, "--config", str(config)]
+        from scripts.ci.prometheus_source_image import (
+            Artifact,
+            GO,
+            RETAINED_GO,
+            CURRENT_GO,
+            GitHubRead,
+        )
+
+        api_deadline = _alertmanager_clock_float(
+            min(
+                Fraction(start) + limits["PREP_SECONDS"],
+                Fraction(operation_deadline) - 2 * limits["CLEANUP_SECONDS"],
             )
         )
-        require(
-            image.get("Id") == image_id
-            and image.get("Os") == "linux"
-            and image.get("Architecture") == "amd64"
-            and image.get("RootFS", {}).get("Layers") == graph["diff_ids"],
-            "AM_live_actual_local_candidate",
-        )
-        result["candidate"] = _alertmanager_candidate_inventory(
-            scan("image", image_id, "current-candidate-full-supported"),
-            image_id,
-            None,
-            None,
-            current=current_epoch,
-            proof_mode="accepted-live",
-            upstream_version=live_upstream,
-        )
-        native.run(
-            [*prefix, "pull", "--platform", "linux/amd64", _ALERT_OLD_RUNTIME_REF],
-            "live-old-control-pull",
-            environment,
-            cwd=work,
-            maximum_seconds=120,
-        )
-        old = one_object(
-            native.run(
-                [*prefix, "image", "inspect", "--format", "{{json .}}", _ALERT_OLD_RUNTIME_REF],
-                "live-old-control-identity",
-                environment,
-                cwd=work,
-                maximum_seconds=30,
-            )
-        )
-        require(
-            _alertmanager_contract_image([old], _ALERT_OLD_RUNTIME_CONFIG) == "old",
-            "AM_live_actual_old_control",
-        )
-        result["old_control"] = _alertmanager_vulnerability_control(
-            scan("image", _ALERT_OLD_RUNTIME_CONFIG, "current-known-vulnerable-control"),
-            _ALERT_OLD_RUNTIME_CONFIG,
-            current=current_epoch,
-        )
-        positive, negative = work / "positive", work / "negative"
-        fresh_directory(positive)
-        fresh_directory(negative)
-        (positive / "credentials.txt").write_text(
-            "GITHUB_PAT=ghp_" + "012345678901234567890123456789abcdef" + "\n"
-        )
-        (negative / "credentials.txt").write_text("plain harmless operational text\n")
-        result["secrets"] = _alertmanager_secret_controls(
-            scan("fs", str(positive), "current-secret-positive"),
-            scan("fs", str(negative), "current-secret-negative"),
-            str(positive),
-            str(negative),
-        )
-        result["status"] = "OBSERVED_CURRENT_SUPPORTED_INVENTORY_AND_FOUR_CONTROLS"
-    except BaseException as error:
-        primary = error
-        result["failure"] = type(error).__name__
-        raise
-    finally:
-        signal.setitimer(signal.ITIMER_REAL, 0)
-        signal.signal(signal.SIGALRM, previous_handler)
-        result["native_records"] = native.records
+        require(api_deadline > time.monotonic(), "AM_live_preparation_remaining")
+        github_evidence = work / "github-read-evidence"
+        fresh_directory(github_evidence)
+        api = GitHubRead(work / "private", github_evidence, api_deadline, limits["CLEANUP_SECONDS"])
         try:
+            source = _alertmanager_source_snapshot(api, selected["source"], accepted=True)
+            qualification = _alertmanager_current_inputs(
+                api,
+                selected["source"],
+                work / "qualification.zip",
+                kind="qualification",
+                source_files={
+                    name: sha256(source[name]).hexdigest() for name in _ALERT_Q_SOURCE_FILES
+                },
+                upstream_version=live_upstream,
+                source_branch=_ALERT_Q_BRANCH if live_upstream == "0.34.2" else None,
+            )
+        finally:
+            _alertmanager_close_preparation_api(api, deadline)
+        require(
+            not api.private.exists() and not api.private.is_symlink(),
+            "AM_live_credentials_removed_before_native",
+        )
+        inspected = _alertmanager_qualified_payload(
+            work / "qualification.zip",
+            current=selected["source"] != _ALERT_HISTORICAL_C10["source"],
+            producer_recipe=source["deploy/alertmanager/Containerfile"],
+            xnet062_qualification=qualification if live_upstream == "0.34.2" else None,
+            original_producer=(selected["source"], source) if live_upstream == "0.34.2" else None,
+        )
+        require(
+            type(inspected["root_inputs"]["go-toolchain.tar.gz"]) is str,
+            "AM_validated_compiler_digest_type",
+        )
+        compiler_artifact = Artifact.canonical(
+            next(
+                (
+                    item
+                    for item in (GO, RETAINED_GO, CURRENT_GO)
+                    if item.digest == inspected["root_inputs"]["go-toolchain.tar.gz"]
+                ),
+                None,
+            )
+        )
+        require(time.monotonic() < deadline, "AM_live_native_remaining")
+        # Re-arm only the saved original end so Native may use its reserved tail.
+        signal.setitimer(signal.ITIMER_REAL, operation_deadline - time.monotonic())
+        native = Native(evidence, deadline, limits["CLEANUP_SECONDS"])
+
+        def scan(kind: str, subject: str, label: str) -> dict[str, Any]:
+            """Require actual scanner success and complete original JSON before a control can count."""
+            require(
+                file_hash(scanner) == _ALERT_TRIVY_SHA256
+                and {name: file_hash(cache / name) for name in database} == database,
+                "AM_live_scanner_DB_drift",
+            )
+            target = evidence / (label + ".private.json")
+            command = [
+                str(scanner),
+                kind,
+                "--config",
+                str(empty_config),
+                "--cache-dir",
+                str(cache),
+                "--skip-db-update",
+                "--skip-java-db-update",
+                "--skip-vex-repo-update",
+                "--offline-scan",
+                "--skip-version-check",
+                "--disable-telemetry",
+                "--scanners",
+                "vuln,secret",
+                "--pkg-types",
+                "os,library",
+                "--list-all-pkgs",
+                "--severity",
+                "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL",
+                "--format",
+                "json",
+                "--exit-code",
+                "0",
+                "--ignore-unfixed=false",
+                "--ignorefile",
+                str(empty_ignore),
+                "--timeout",
+                str(limits["SCAN_TIMEOUT_SECONDS"]) + "s",
+                "--output",
+                str(target),
+            ]
+            if kind == "image":
+                command += ["--image-src", "docker"]
+            native.run(
+                [*command, subject],
+                label,
+                environment,
+                cwd=work,
+                maximum_seconds=limits["SCAN_PROCESS_SECONDS"],
+            )
+            require(
+                target.is_file()
+                and not target.is_symlink()
+                and 0 < target.stat().st_size <= 64 * 1024**2,
+                "AM_live_native_report_missing",
+            )
+            target.chmod(0o600)
+            report = one_object(target.read_bytes())
+            require(
+                type(report.get("SchemaVersion")) is int and report["SchemaVersion"] == 2,
+                "AM_live_native_schema",
+            )
+            require(
+                file_hash(scanner) == _ALERT_TRIVY_SHA256
+                and {name: file_hash(cache / name) for name in database} == database,
+                "AM_live_scanner_DB_post_drift",
+            )
+            return cast(dict[str, Any], report)
+
+        result: dict[str, Any] = {
+            "compiler_starts": 0,
+            "scanner_sha256": _ALERT_TRIVY_SHA256,
+            "DB": database,
+            "DB_metadata": one_object((cache / "db/metadata.json").read_bytes()),
+        }
+        primary: BaseException | None = None
+        try:
+            result["scanner_version"] = one_object(
+                native.run(
+                    [str(scanner), "--version", "--format", "json"],
+                    "current-scanner-version",
+                    environment,
+                    cwd=work,
+                    maximum_seconds=30,
+                )
+            )
+            require(
+                result["scanner_version"].get("Version") == "0.74.0",
+                "AM_live_native_scanner_version",
+            )
+            current_epoch = selected["source"] != _ALERT_HISTORICAL_C10["source"]
+            graph = selected["graph"]
+            image_id = graph["config"]["digest"]
+            image = one_object(
+                native.run(
+                    [*prefix, "image", "inspect", "--format", "{{json .}}", image_id],
+                    "live-local-candidate",
+                    environment,
+                    cwd=work,
+                    maximum_seconds=30,
+                )
+            )
+            require(
+                image.get("Id") == image_id
+                and image.get("Os") == "linux"
+                and image.get("Architecture") == "amd64"
+                and image.get("RootFS", {}).get("Layers") == graph["diff_ids"],
+                "AM_live_actual_local_candidate",
+            )
+            result["candidate"] = _alertmanager_candidate_inventory(
+                scan("image", image_id, "current-candidate-full-supported"),
+                image_id,
+                None,
+                None,
+                current=current_epoch,
+                proof_mode="accepted-live",
+                upstream_version=live_upstream,
+                compiler_artifact=compiler_artifact,
+            )
+            native.run(
+                [*prefix, "pull", "--platform", "linux/amd64", _ALERT_OLD_RUNTIME_REF],
+                "live-old-control-pull",
+                environment,
+                cwd=work,
+                maximum_seconds=120,
+            )
+            old = one_object(
+                native.run(
+                    [*prefix, "image", "inspect", "--format", "{{json .}}", _ALERT_OLD_RUNTIME_REF],
+                    "live-old-control-identity",
+                    environment,
+                    cwd=work,
+                    maximum_seconds=30,
+                )
+            )
+            require(
+                _alertmanager_contract_image([old], _ALERT_OLD_RUNTIME_CONFIG) == "old",
+                "AM_live_actual_old_control",
+            )
+            result["old_control"] = _alertmanager_vulnerability_control(
+                scan("image", _ALERT_OLD_RUNTIME_CONFIG, "current-known-vulnerable-control"),
+                _ALERT_OLD_RUNTIME_CONFIG,
+                current=current_epoch,
+                qualification_plan=inspected["plan"],
+            )
+            positive, negative = work / "positive", work / "negative"
+            fresh_directory(positive)
+            fresh_directory(negative)
+            (positive / "credentials.txt").write_text(
+                "GITHUB_PAT=ghp_" + "012345678901234567890123456789abcdef" + "\n"
+            )
+            (negative / "credentials.txt").write_text("plain harmless operational text\n")
+            result["secrets"] = _alertmanager_secret_controls(
+                scan("fs", str(positive), "current-secret-positive"),
+                scan("fs", str(negative), "current-secret-negative"),
+                str(positive),
+                str(negative),
+            )
+            result["status"] = "OBSERVED_CURRENT_SUPPORTED_INVENTORY_AND_FOUR_CONTROLS"
+        except BaseException as error:
+            primary = error
+            result["failure"] = type(error).__name__
+            raise
+        finally:
+            result["native_records"] = native.records
             try:
+                native.begin_cleanup()
                 (work / "security-observation.json").write_text(json.dumps(result, indent=2) + "\n")
             except BaseException as observation_error:
                 if primary is not None:
                     primary.add_note(
-                        "AM current security observation also failed: "
+                        "AM current security finalization also failed: "
                         + type(observation_error).__name__
                     )
                     raise primary from None
                 raise
-        finally:
-            if previous_timer[0] > 0:
-                remaining = previous_timer[0] - (time.monotonic() - start)
-                if remaining > 0:
-                    signal.setitimer(signal.ITIMER_REAL, remaining, previous_timer[1])
-                else:
-                    active_error = primary or sys.exc_info()[1]
-                    if active_error is None:
-                        raise TimeoutError("Caller timer expired during current AM security checks")
-                    active_error.add_note(
-                        "Caller timer also expired during current AM security checks"
-                    )
+    finally:
+        active_error = sys.exc_info()[1]
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous_handler)
+        if previous_timer[0] > 0:
+            remaining = Fraction(previous_timer[0]) - (Fraction(time.monotonic()) - Fraction(start))
+            if remaining > 0:
+                signal.setitimer(
+                    signal.ITIMER_REAL, _alertmanager_clock_float(remaining), previous_timer[1]
+                )
+            elif active_error is None:
+                raise TimeoutError("Caller timer expired during current AM security checks")
+            else:
+                active_error.add_note("Caller timer also expired during current AM security checks")
 
 
 def _alertmanager_final_security(
@@ -10142,6 +10463,8 @@ def _alertmanager_final_security(
     build_information: dict[str, Any],
     support_report: dict[str, Any],
     upstream_version: str = "0.34.1",
+    compiler_artifact: object | None = None,
+    qualification_plan: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Scan the retained candidate and controls with the exact already-observed DB."""
     import shutil
@@ -10154,6 +10477,11 @@ def _alertmanager_final_security(
     )
 
     database = support_report.get("scanner", {}).get("DB")
+    from scripts.ci.prometheus_source_image import Artifact
+
+    require(compiler_artifact is not None, "AM_final_compiler_context")
+    compiler = Artifact.canonical(compiler_artifact)
+    require(compiler.name == "go", "AM_compiler_artifact_role")
     require(
         type(database) is dict
         and set(database) == set(_ALERT_DB)
@@ -10319,6 +10647,7 @@ def _alertmanager_final_security(
             ),
             "sha256:53622b714941158bc20cc92a7571aef515556218eef914b7b8ec5b2a0cb6f607",
             current=True,
+            qualification_plan=qualification_plan,
         )
         layout = work / "docker-load-layout"
         require(
@@ -10342,6 +10671,7 @@ def _alertmanager_final_security(
             current=True,
             upstream_version=upstream_version,
             proof_mode="dynamic",
+            compiler_artifact=compiler,
         )
         reports["scanner"] = {
             "sha256": _ALERT_TRIVY_SHA256,
@@ -11575,6 +11905,7 @@ def _alertmanager_prepare_candidate_body(
         xnet062_qualification=qualification if original_producer is not None else None,
         original_producer=original_producer,
     )
+
     support = output / "support"
     current = accepted["source"] != _ALERT_HISTORICAL_C10["source"]
     supported = _alertmanager_support_payload(
@@ -11871,6 +12202,7 @@ def _alertmanager_publish(
             xnet062_qualification=bindings["qualification"],
             original_producer=original_producer,
         )
+
         require(
             _alertmanager_upstream_identity(inspected["root_inputs"], current=True) == "0.34.2",
             "AM_publication_exact_upstream",
@@ -12013,6 +12345,7 @@ def _alertmanager_publish(
         candidate["security"],
         current=True,
         comparison_subject=candidate["graph"]["config"]["digest"],
+        qualification_plan=candidate["plan"],
         deadline=api.deadline,
     )
     fresh_inventory = _alertmanager_candidate_scan_evidence(
@@ -12020,6 +12353,7 @@ def _alertmanager_publish(
         security,
         current=True,
         comparison_subject=candidate["graph"]["config"]["digest"],
+        qualification_plan=candidate["plan"],
         deadline=api.deadline,
     )
     require(
@@ -13327,6 +13661,22 @@ def _alertmanager_current_build(args: argparse.Namespace) -> None:
         inspected = _alertmanager_qualified_payload(
             output / "qualification.zip", current=True, xnet062_qualification=q
         )
+        from scripts.ci.prometheus_source_image import Artifact, GO, RETAINED_GO, CURRENT_GO
+
+        require(
+            type(inspected["root_inputs"]["go-toolchain.tar.gz"]) is str,
+            "AM_validated_compiler_digest_type",
+        )
+        compiler_artifact = Artifact.canonical(
+            next(
+                (
+                    item
+                    for item in (GO, RETAINED_GO, CURRENT_GO)
+                    if item.digest == inspected["root_inputs"]["go-toolchain.tar.gz"]
+                ),
+                None,
+            )
+        )
         require(
             _alertmanager_upstream_identity(inspected["root_inputs"], current=True) == "0.34.2",
             "AM_current_producer_upstream",
@@ -13342,7 +13692,9 @@ def _alertmanager_current_build(args: argparse.Namespace) -> None:
         _alertmanager_bind_current_plan(inspected["plan"], supported)
         inspected["plan"]["probe"] = supported["probe"]
         inputs = output / "inputs"
-        _alertmanager_materialize(output / "qualification.zip", inputs, deadline)
+        _alertmanager_materialize(
+            output / "qualification.zip", inputs, deadline, compiler_artifact=compiler_artifact
+        )
         result["upstream"] = {"qualification": q, "support": supported_binding}
         result["root_inputs"] = inspected["root_inputs"]
         result["plan"] = inspected["plan"]
@@ -13363,6 +13715,7 @@ def _alertmanager_current_build(args: argparse.Namespace) -> None:
             base_descriptor=supported["base"]["actual_local_OCI_descriptor"],
             upstream_version="0.34.2",
             preparation_finished=prep_finished,
+            compiler_artifact=compiler_artifact,
         )
         charged_seconds += Fraction(time.monotonic()) - prep_started
         require(len(prep_finished) == 1, "AM_pair_preparation_clock")
@@ -13397,6 +13750,8 @@ def _alertmanager_current_build(args: argparse.Namespace) -> None:
             build_information=result["build_information"],
             support_report=supported,
             upstream_version="0.34.2",
+            compiler_artifact=compiler_artifact,
+            qualification_plan=inspected["plan"],
         )
         charged_seconds += Fraction(time.monotonic()) - security_started
         cleanup_remaining -= limits["CLEANUP_SECONDS"]
@@ -13683,6 +14038,22 @@ def _alertmanager_execution(args: argparse.Namespace) -> None:
             + limits["PUBLICATION_SECONDS"],
         )
         candidate = prepared["candidate"]
+        from scripts.ci.prometheus_source_image import Artifact, GO, RETAINED_GO, CURRENT_GO
+
+        require(
+            type(candidate["root_inputs"].get("go-toolchain.tar.gz")) is str,
+            "AM_validated_compiler_digest_type",
+        )
+        compiler_artifact = Artifact.canonical(
+            next(
+                (
+                    item
+                    for item in (GO, RETAINED_GO, CURRENT_GO)
+                    if item.digest == candidate["root_inputs"]["go-toolchain.tar.gz"]
+                ),
+                None,
+            )
+        )
         result["pre_copy_security"] = _alertmanager_final_security(
             prepared["candidate_directory"] / "candidate.oci.tar",
             candidate["graph"],
@@ -13690,6 +14061,8 @@ def _alertmanager_execution(args: argparse.Namespace) -> None:
             output / "security",
             limits,
             build_information=candidate["build_information"],
+            compiler_artifact=compiler_artifact,
+            qualification_plan=candidate["plan"],
             support_report=prepared["support_report"],
             upstream_version="0.34.2",
         )
@@ -14989,6 +15362,7 @@ def _inspect_alertmanager_inputs(args: argparse.Namespace) -> None:
     inspected = _alertmanager_qualified_payload(
         output / "qualification.zip", current=True, xnet062_qualification=qualification
     )
+
     result = {
         "asset_type": "Alertmanager retained-input inspection",
         "upstream": qualification,
@@ -15012,6 +15386,7 @@ def _inspect_alertmanager_inputs(args: argparse.Namespace) -> None:
             output,
             qualification_sha256=qualification["zip_sha256"],
             current=True,
+            qualification_plan=inspected["plan"],
         )
         inspected["plan"]["probe"] = inspected["support"]["probe"]
         inspected["outstanding"] = [

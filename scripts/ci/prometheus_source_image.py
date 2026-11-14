@@ -42,8 +42,10 @@ import zlib
 REVISION = "5241a27fe3c6983549fccc32f6e65917408c63cd"
 TREE = "ffa0c7e9512071483f6c40a95aba9b97fbd86583"
 GO_VERSION = "go version go1.27.2 linux/amd64\n"
-CURRENT_GO_VERSION = "go version go1.27.3 linux/amd64\n"
-CURRENT_GO_VERSION_FILE = b"go1.27.3\ntime 2026-10-19T22:20:36Z\n"
+RETAINED_GO_VERSION = "go version go1.27.3 linux/amd64\n"
+RETAINED_GO_VERSION_FILE = b"go1.27.3\ntime 2026-10-19T22:20:36Z\n"
+CURRENT_GO_VERSION = "go version go1.27.4 linux/amd64\n"
+CURRENT_GO_VERSION_FILE = b"go1.27.4\ntime 2026-11-02T20:36:20Z\n"
 HISTORICAL_BASE = "gcr.io/distroless/static-debian13@sha256:2293b36c7c9082bf4115aab724b4d2cddec82c8eba39bf27ac0517e159acf150"
 BASE = "gcr.io/distroless/static-debian13@sha256:433bb346cd0b6b8346462f879adaa4ac0fbb463a72901b46736ede4aeca3dadc"
 HISTORICAL_BASE_CONFIG = "sha256:55a757dc8ab862a4eb634c434261dcd26f17c186b54f7bce845404a335456110"
@@ -456,6 +458,46 @@ class Artifact:
     expanded: int
     release: bool = False
 
+    @staticmethod
+    def canonical(value: object) -> Artifact:
+        """Reify exact existing Artifact field data in this owner, never Python identity."""
+        data = value if type(value) is dict else getattr(value, "__dict__", None)
+        require(
+            type(data) is dict
+            and type(data.get("digest")) is str
+            and type(data.get("size")) is int,
+            "artifact_digest_size_types",
+        )
+        data = cast(dict[str, Any], data)
+        matches = [
+            item
+            for item in (SOURCE, GO, RETAINED_GO, CURRENT_GO, UI, CHECKSUMS, ORAS_SOURCE)
+            if item.digest == data["digest"] and item.size == data["size"]
+        ]
+        require(len(matches) == 1, "artifact_exact_named_tuple")
+        exact_data(data, vars(matches[0]))
+        return matches[0]
+
+    @property
+    def go_version(self) -> str:
+        artifact = Artifact.canonical(self)
+        require(artifact.name == "go", "artifact_compiler_role")
+        if artifact.digest == GO.digest:
+            return GO_VERSION
+        if artifact.digest == RETAINED_GO.digest:
+            return RETAINED_GO_VERSION
+        return CURRENT_GO_VERSION
+
+    @property
+    def go_version_file(self) -> bytes:
+        artifact = Artifact.canonical(self)
+        require(artifact.name == "go" and artifact.digest != GO.digest, "artifact_VERSION_observed")
+        return (
+            RETAINED_GO_VERSION_FILE
+            if artifact.digest == RETAINED_GO.digest
+            else CURRENT_GO_VERSION_FILE
+        )
+
 
 SOURCE = Artifact(
     "source",
@@ -477,7 +519,7 @@ GO = Artifact(
     15657,
     300 * 1024**2,
 )
-CURRENT_GO = Artifact(
+RETAINED_GO = Artifact(
     "go",
     "https://dl.google.com/go/go1.27.3.linux-amd64.tar.gz",
     70588678,
@@ -485,6 +527,16 @@ CURRENT_GO = Artifact(
     "go",
     17373,
     15657,
+    300 * 1024**2,
+)
+CURRENT_GO = Artifact(
+    "go",
+    "https://dl.google.com/go/go1.27.4.linux-amd64.tar.gz",
+    70680823,
+    "7226736c2339719cda28fbf3a54d71aa63bcefe376e98cef00034268dab24840",
+    "go",
+    17375,
+    15659,
     300 * 1024**2,
 )
 UI = Artifact(
@@ -556,6 +608,7 @@ def validate_release_handoff(url: str, artifact_name: str) -> None:
 
 
 def acquire(artifact: Artifact, path: Path, deadline: float | None = None) -> dict[str, Any]:
+    artifact = Artifact.canonical(artifact)
     real_directory(path.parent)
     require(not path.exists() and not path.is_symlink(), "download_cache_collision")
     expected = {
@@ -565,8 +618,8 @@ def acquire(artifact: Artifact, path: Path, deadline: float | None = None) -> di
         "checksums": CHECKSUMS.url,
         "oras-source": ORAS_SOURCE.url,
     }
-    if artifact == CURRENT_GO:
-        expected["go"] = CURRENT_GO.url
+    if artifact.name == "go":
+        expected["go"] = artifact.url
     value = urlsplit(artifact.url)
     require(
         artifact.name in expected
@@ -647,6 +700,7 @@ def acquire(artifact: Artifact, path: Path, deadline: float | None = None) -> di
 def extract(
     artifact: Artifact, archive: Path, destination: Path, deadline: float | None = None
 ) -> list[dict[str, Any]]:
+    artifact = Artifact.canonical(artifact)
     require(
         file_hash(archive) == artifact.digest and archive.stat().st_size == artifact.size,
         "archive_bytes",
@@ -693,6 +747,8 @@ def extract(
                     raise QualificationError("archive_member_missing")
                 data = stream.read(member.size + 1)
                 require(len(data) == member.size, "archive_member_short")
+                if artifact.name == "go" and artifact.digest != GO.digest and relative == "VERSION":
+                    require(data == artifact.go_version_file, "go_archive_VERSION_file")
                 rows.append(
                     {
                         "path": relative,
@@ -741,6 +797,8 @@ def extract(
                 {r["path"]: {"size": r["size"], "sha256": r["sha256"]} for r in rows} == UI_FILES,
                 "UI_complete_inventory",
             )
+        if artifact.name == "go" and artifact.digest != GO.digest:
+            require("VERSION" in files, "go_archive_VERSION_missing")
         fresh_directory(destination, 0o755)
         for member in members:
             check_deadline(deadline)
@@ -1414,7 +1472,14 @@ def _derivation_phase(
     expected: dict[str, bytes],
     remainder: list[dict[str, Any]],
     go_hash: str,
+    *,
+    compiler_artifact: Artifact | None = None,
 ) -> dict[str, Any]:
+    compiler_artifact = Artifact.canonical(
+        CURRENT_GO if compiler_artifact is None else compiler_artifact
+    )
+    require(compiler_artifact.name == "go", "compiler_artifact_role")
+    exact_data(vars(compiler_artifact), vars(CURRENT_GO))
     result: dict[str, Any] = {}
     commands = (
         ("version", ["version"]),
@@ -1431,7 +1496,7 @@ def _derivation_phase(
         raw = native.run([str(go / "bin/go"), *command], label + "-" + key, environment, cwd=source)
         _derivation_guard(source, expected, remainder, go, go_hash, native.deadline)
         if key == "version":
-            require(raw.decode() == CURRENT_GO_VERSION, "derivation_native_Go_version")
+            require(raw.decode() == compiler_artifact.go_version, "derivation_native_Go_version")
         elif key == "edit":
             objects = decode_objects(raw)
             require(
@@ -1490,9 +1555,15 @@ def _derivation_offline(
     work: Path,
     *,
     restore_cache_modes: bool = False,
+    compiler_artifact: Artifact | None = None,
 ) -> dict[str, Any]:
     # An incumbent observation precedes the newly authored get. Retain the
     # complete owned member identities before temporarily freezing its cache.
+    compiler_artifact = Artifact.canonical(
+        CURRENT_GO if compiler_artifact is None else compiler_artifact
+    )
+    require(compiler_artifact.name == "go", "compiler_artifact_role")
+    exact_data(vars(compiler_artifact), vars(CURRENT_GO))
     members: dict[Path, os.stat_result] = {}
     original_cache: list[dict[str, Any]] = []
     if restore_cache_modes:
@@ -1574,7 +1645,7 @@ def _derivation_offline(
             "readonly_derivation_cache_changed",
         )
         if command_name == "version":
-            require(raw.decode() == CURRENT_GO_VERSION, "sandbox_Go_version")
+            require(raw.decode() == compiler_artifact.go_version, "sandbox_Go_version")
         elif command_name in ("prometheus", "promtool"):
             observations[command_name] = decode_packages(raw, command_name)
             full_packages[command_name] = {
@@ -1660,8 +1731,14 @@ def derive_xnet_observe(
     report: dict[str, Any],
     *,
     target_version: str = "v0.60.0",
+    compiler_artifact: Artifact | None = None,
 ) -> None:
     """Exactly two original-source fixed-get replays inside this existing Native lease."""
+    compiler_artifact = Artifact.canonical(
+        CURRENT_GO if compiler_artifact is None else compiler_artifact
+    )
+    require(compiler_artifact.name == "go", "compiler_artifact_role")
+    exact_data(vars(compiler_artifact), vars(CURRENT_GO))
     import difflib
 
     require(target_version in ("v0.60.0", "v0.62.0"), "unsupported_xnet_derivation_target")
@@ -1735,6 +1812,7 @@ def derive_xnet_observe(
             original,
             original_remainder,
             go_hash,
+            compiler_artifact=compiler_artifact,
         )
         old = before["selected"].get("golang.org/x/net")
         require(
@@ -1775,6 +1853,7 @@ def derive_xnet_observe(
                 incumbent_locks,
                 original_remainder,
                 go_hash,
+                compiler_artifact=compiler_artifact,
             )
             selected_incumbent = before["selected"].get("golang.org/x/net")
             require(
@@ -1801,6 +1880,7 @@ def derive_xnet_observe(
                 docker_env,
                 work,
                 restore_cache_modes=True,
+                compiler_artifact=compiler_artifact,
             )
             _retain_xnet062_arrays(native, label, incumbent_offline)
             incumbent = {
@@ -1857,6 +1937,7 @@ def derive_xnet_observe(
             derived,
             original_remainder,
             go_hash,
+            compiler_artifact=compiler_artifact,
         )
         selected = after["selected"].get("golang.org/x/net")
         require(
@@ -1897,6 +1978,7 @@ def derive_xnet_observe(
             owned,
             docker_env,
             work,
+            compiler_artifact=compiler_artifact,
         )
         record = {
             "replay": label,
@@ -2362,7 +2444,13 @@ def qualify(
     *,
     derive_xnet060: bool = False,
     derive_xnet062: bool = False,
+    compiler_artifact: Artifact | None = None,
 ) -> dict[str, Any]:
+    compiler_artifact = Artifact.canonical(
+        CURRENT_GO if compiler_artifact is None else compiler_artifact
+    )
+    require(compiler_artifact.name == "go", "compiler_artifact_role")
+    exact_data(vars(compiler_artifact), vars(CURRENT_GO))
     require(
         type(derive_xnet060) is bool and type(derive_xnet062) is bool,
         "xnet_derivation_selector_type",
@@ -2428,7 +2516,9 @@ def qualify(
                 report["admission"] = manual_hosted_admission(
                     api, "qualification", producer_root=root
                 )
-                _tool, retained = retained_tool(api, root, work)
+                _tool, retained = retained_tool(
+                    api, root, work, compiler_artifact=compiler_artifact
+                )
                 report["retained_tool"] = retained["coordinates"]
             except BaseException as error:
                 authentication_error = error
@@ -2446,7 +2536,7 @@ def qualify(
         downloads = work / "downloads"
         fresh_directory(downloads)
         report["acquisition"] = []
-        for artifact in (SOURCE, CURRENT_GO, UI, CHECKSUMS):
+        for artifact in (SOURCE, compiler_artifact, UI, CHECKSUMS):
             require(time.monotonic() < deadline, "qualification_deadline")
             stage = "acquire_" + artifact.name
             report["acquisition"].append(acquire(artifact, downloads / artifact.name, deadline))
@@ -2456,7 +2546,7 @@ def qualify(
             "UI_checksum_row",
         )
         source, go, ui = work / "source", work / "go", work / "ui"
-        for artifact, target in ((SOURCE, source), (CURRENT_GO, go), (UI, ui)):
+        for artifact, target in ((SOURCE, source), (compiler_artifact, go), (UI, ui)):
             stage = "extract_" + artifact.name
             rows = extract(artifact, downloads / artifact.name, target, deadline)
             (evidence / (artifact.name + "-members.json")).write_text(
@@ -2464,7 +2554,7 @@ def qualify(
             )
         require(
             (source / "VERSION").read_bytes() == b"3.15.0\n"
-            and (go / "VERSION").read_bytes() == CURRENT_GO_VERSION_FILE,
+            and (go / "VERSION").read_bytes() == compiler_artifact.go_version_file,
             "source_VERSION",
         )
         require(
@@ -2491,6 +2581,7 @@ def qualify(
                 docker_env,
                 report,
                 target_version="v0.62.0" if derive_xnet062 else "v0.60.0",
+                compiler_artifact=compiler_artifact,
             )
             if report.get("admission", {}).get("producer_epoch") == "xnet062":
                 for replay in report["module_derivation"]["replays"]:
@@ -2507,7 +2598,7 @@ def qualify(
             go_binary = str(go / "bin/go")
             require(
                 native.run([go_binary, "version"], "online-go-version", online, cwd=source).decode()
-                == CURRENT_GO_VERSION,
+                == compiler_artifact.go_version,
                 "native_Go_version",
             )
             module_raw = native.run(
@@ -2614,7 +2705,7 @@ def qualify(
                 )
                 report["container_completion"][label] = completion
                 if label == "go-version":
-                    require(raw.decode() == CURRENT_GO_VERSION, "sandbox_Go_version")
+                    require(raw.decode() == compiler_artifact.go_version, "sandbox_Go_version")
                 elif label in ("prometheus", "promtool"):
                     observations[label] = decode_packages(raw, label)
             require(set(observations) == {"prometheus", "promtool"}, "both_command_graphs_required")
@@ -3316,6 +3407,73 @@ _NATIVE_GO_ANNOTATIONS = {
 }
 
 
+# Exact supplier12611 DATA; Native Docker owns the content/native correspondence.
+_CURRENT_NATIVE_GO_SOURCE = "golang:1.26.11-alpine3.23@sha256:db99415e2625ce0ee03eed09edf7f32ae8c58dc399f28cc602a87fe7238119e4"
+_CURRENT_NATIVE_GO_INDEX = "sha256:db99415e2625ce0ee03eed09edf7f32ae8c58dc399f28cc602a87fe7238119e4"
+_CURRENT_NATIVE_GO_MANIFEST = (
+    "sha256:6fa4e6dc2fc42920e53eb6b6a7e928155dc68282060f0901ec3cdd134c3a0eb5"
+)
+_CURRENT_NATIVE_GO_CONFIG = {
+    "mediaType": "application/vnd.oci.image.config.v1+json",
+    "digest": "sha256:7112a03fdc0b65a29119dce314aea166996eda5719399bf90b9cab54f369e8a6",
+    "size": 2195,
+}
+_CURRENT_NATIVE_GO_LAYERS = [
+    {
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "digest": "sha256:74c614fb2c68574f50c582dcc9c18c46618bd6ff2019768190aacfb861ce51d2",
+        "size": 3852589,
+    },
+    {
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "digest": "sha256:381c5390af1396a766b47955369d41eb08f5e8287bfa1fa6d7a14f5e62f0395e",
+        "size": 244455,
+    },
+    {
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "digest": "sha256:6dbc954da649613d4c282586205a0e44ab2d9d17be5dfde8d18d13f7461fad21",
+        "size": 67419428,
+    },
+    {
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "digest": "sha256:740ff3bddbeff762232a2e9e7c72e7f7ab3de22d471c5108d3025ab27b1efcb5",
+        "size": 125,
+    },
+    {
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "digest": "sha256:4f4fb700ef54461cfa02571ae0db9a0dc1e0cdb5577484a6d75e68dc38e8acc1",
+        "size": 32,
+    },
+]
+_CURRENT_NATIVE_GO_ANNOTATIONS = {
+    "com.docker.official-images.bashbrew.arch": "amd64",
+    "org.opencontainers.image.base.digest": "sha256:644c1ad8fc45cc581ab1b5ea7ec1bebc9b037fd4801ad697ca124deb3f9c9332",
+    "org.opencontainers.image.base.name": "alpine:3.23",
+    "org.opencontainers.image.created": "2026-11-10T18:21:13Z",
+    "org.opencontainers.image.revision": "f66ba4e64dfbab452b77f8ae045428aacadc24a2",
+    "org.opencontainers.image.source": "https://github.com/docker-library/golang.git#f66ba4e64dfbab452b77f8ae045428aacadc24a2:1.26/alpine3.23",
+    "org.opencontainers.image.url": "https://hub.docker.com/_/golang",
+    "org.opencontainers.image.version": "1.26.11-alpine3.23",
+}
+_CURRENT_NATIVE_GO_DIFF_IDS = [
+    "sha256:7900194cf2429d4e860306cd85f7b1d04154ef522ab603ff058bd8221b0cee62",
+    "sha256:b0abdc08268cedb7846fbe64793ae2f6e743d45275bf933b7afcd67864cb6ff5",
+    "sha256:b9757dc9f68b118b80b08e11b4b5b47178d7ba07e555dc4b78ea39dd433a2a3d",
+    "sha256:9ae87daf88b9eae5f5fe52dde4181d6d57db951194b7daead8f7389a8c8f883c",
+    "sha256:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef",
+]
+_CURRENT_NATIVE_GO_CONFIG_FIELDS = {
+    "Env": [
+        "PATH=/go/bin:/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "GOLANG_VERSION=1.26.11",
+        "GOTOOLCHAIN=local",
+        "GOPATH=/go",
+    ],
+    "Cmd": ["/bin/sh"],
+    "WorkingDir": "/go",
+}
+
+
 def native_one_image(raw: bytes) -> dict[str, Any]:
     """One complete Docker inspect array; Go's JSON object stream is not this carrier."""
     require(0 < len(raw) <= MAX_NATIVE_OUTPUT, "native_image_JSON_size")
@@ -3409,9 +3567,84 @@ def native_base_identity(image: dict[str, Any], *, current: bool = True) -> dict
 
 
 def native_go_identity(
-    image: dict[str, Any], index_raw: bytes, manifest_raw: bytes, *, indexed: bool = False
+    image: dict[str, Any],
+    index_raw: bytes,
+    manifest_raw: bytes,
+    *,
+    indexed: bool = False,
+    expected_source: str | None = None,
 ) -> dict[str, Any]:
     """Exact qualified Go0525 platform-pull/M-create profile, never arbitrary compiler input."""
+    require(
+        expected_source is None or type(expected_source) is str, "native_Go_expected_source_type"
+    )
+    if expected_source == _CURRENT_NATIVE_GO_SOURCE:
+        require(type(indexed) is bool and not indexed, "native_Go_current_operand_role")
+        require(
+            type(index_raw) is bytes
+            and len(index_raw) == 9026
+            and "sha256:" + sha(index_raw) == _CURRENT_NATIVE_GO_INDEX
+            and type(manifest_raw) is bytes
+            and len(manifest_raw) == 1922
+            and "sha256:" + sha(manifest_raw) == _CURRENT_NATIVE_GO_MANIFEST,
+            "native_Go_current_content_roots",
+        )
+        index, manifest = one_object(index_raw), one_object(manifest_raw)
+        require(
+            set(index) == {"schemaVersion", "mediaType", "manifests"},
+            "native_Go_current_index_shape",
+        )
+        exact_data(index["schemaVersion"], 2)
+        exact_data(index["mediaType"], "application/vnd.oci.image.index.v1+json")
+        require(type(index["manifests"]) is list, "native_Go_current_index_members")
+        platform = {"architecture": "amd64", "os": "linux"}
+        selected = [
+            row
+            for row in index["manifests"]
+            if type(row) is dict and row.get("platform") == platform
+        ]
+        require(len(selected) == 1, "native_Go_current_one_platform")
+        core = {"mediaType": OCI_MANIFEST, "digest": _CURRENT_NATIVE_GO_MANIFEST, "size": 1922}
+        exact_data(
+            selected[0],
+            {**core, "platform": platform, "annotations": _CURRENT_NATIVE_GO_ANNOTATIONS},
+        )
+        require(
+            set(manifest) == {"schemaVersion", "mediaType", "config", "layers", "annotations"},
+            "native_Go_current_manifest_shape",
+        )
+        exact_data(manifest["schemaVersion"], 2)
+        exact_data(manifest["mediaType"], OCI_MANIFEST)
+        exact_data(_descriptor(manifest["config"], OCI_CONFIG), _CURRENT_NATIVE_GO_CONFIG)
+        require(
+            type(manifest["layers"]) is list and len(manifest["layers"]) == 5,
+            "native_Go_current_layers",
+        )
+        for layer in manifest["layers"]:
+            _descriptor(layer, "application/vnd.oci.image.layer.v1.tar+gzip")
+        exact_data(manifest["layers"], _CURRENT_NATIVE_GO_LAYERS)
+        exact_data(manifest["annotations"], _CURRENT_NATIVE_GO_ANNOTATIONS)
+        require(type(image) is dict, "native_Go_current_image")
+        exact_data([image.get("Os"), image.get("Architecture")], ["linux", "amd64"])
+        exact_data(image.get("Id"), _CURRENT_NATIVE_GO_MANIFEST)
+        exact_data(image.get("RootFS"), {"Type": "layers", "Layers": _CURRENT_NATIVE_GO_DIFF_IDS})
+        exact_data(image.get("Config"), _CURRENT_NATIVE_GO_CONFIG_FIELDS)
+        exact_data(image.get("RepoDigests"), ["golang@" + _CURRENT_NATIVE_GO_MANIFEST])
+        exact_data(image.get("Descriptor"), core)
+        return {
+            "profile": "go12611-platform",
+            "representation": "manifest",
+            "engine_id": _CURRENT_NATIVE_GO_MANIFEST,
+            "operand": _CURRENT_NATIVE_GO_MANIFEST,
+            "config_digest": _CURRENT_NATIVE_GO_CONFIG["digest"],
+            "requested_root": "golang@" + _CURRENT_NATIVE_GO_MANIFEST,
+            "manifest": core,
+        }
+    require(
+        expected_source is None
+        or expected_source == "golang:1.26.10-alpine3.23@" + _NATIVE_GO_INDEX,
+        "native_Go_expected_source_join",
+    )
     require(type(indexed) is bool, "native_Go_operand_role")
     require(
         "sha256:" + sha(index_raw) == _NATIVE_GO_INDEX
@@ -3505,8 +3738,46 @@ def native_go_identity(
     }
 
 
-def native_container_image_identity(actual: dict[str, Any], relation: dict[str, Any]) -> None:
+def native_container_image_identity(
+    actual: dict[str, Any], relation: dict[str, Any], *, expected_source: str | None = None
+) -> None:
     """Bind one declared create operand; descriptor roles are not whole-object aliases."""
+    require(
+        expected_source is None or type(expected_source) is str, "native_Go_expected_source_type"
+    )
+    if relation.get("profile") == "go12611-platform":
+        require(
+            expected_source == _CURRENT_NATIVE_GO_SOURCE, "native_container_current_source_join"
+        )
+        core = {"mediaType": OCI_MANIFEST, "digest": _CURRENT_NATIVE_GO_MANIFEST, "size": 1922}
+        exact_data(
+            relation,
+            {
+                "profile": "go12611-platform",
+                "representation": "manifest",
+                "engine_id": _CURRENT_NATIVE_GO_MANIFEST,
+                "operand": _CURRENT_NATIVE_GO_MANIFEST,
+                "config_digest": _CURRENT_NATIVE_GO_CONFIG["digest"],
+                "requested_root": "golang@" + _CURRENT_NATIVE_GO_MANIFEST,
+                "manifest": core,
+            },
+        )
+        require(
+            type(actual) is dict and type(actual.get("Config")) is dict,
+            "native_container_current_objects",
+        )
+        exact_data(actual.get("Image"), _CURRENT_NATIVE_GO_MANIFEST)
+        exact_data(actual["Config"].get("Image"), _CURRENT_NATIVE_GO_MANIFEST)
+        exact_data(
+            actual.get("ImageManifestDescriptor"),
+            {**core, "platform": {"architecture": "amd64", "os": "linux"}},
+        )
+        return
+    require(
+        expected_source is None
+        or expected_source == "golang:1.26.10-alpine3.23@" + _NATIVE_GO_INDEX,
+        "native_container_expected_source_join",
+    )
     profile = relation.get("profile")
     require(
         profile in ("base-current", "base-historical", "go0525-platform", "go0525-index"),
@@ -3616,7 +3887,15 @@ def finite_recipe() -> bytes:
     ).encode()
 
 
-def declared_inputs(*, historical_xnet060: bool = False) -> dict[str, Any]:
+def declared_inputs(
+    *,
+    historical_xnet060: bool = False,
+    compiler_artifact: Artifact | None = None,
+) -> dict[str, Any]:
+    compiler_artifact = Artifact.canonical(
+        CURRENT_GO if compiler_artifact is None else compiler_artifact
+    )
+    require(compiler_artifact.name == "go", "compiler_artifact_role")
     return {
         "source": {
             "version": "3.15.0",
@@ -3627,7 +3906,7 @@ def declared_inputs(*, historical_xnet060: bool = False) -> dict[str, Any]:
             "original_locks": LOCKS,
             "derived_locks": XNET060_INCUMBENT_LOCKS if historical_xnet060 else DERIVED_LOCKS,
         },
-        "go": {"archive": CURRENT_GO.__dict__, "version": CURRENT_GO_VERSION},
+        "go": {"archive": vars(compiler_artifact), "version": compiler_artifact.go_version},
         "ui": {
             "archive": UI.__dict__,
             "checksums": CHECKSUMS.__dict__,
@@ -3650,7 +3929,7 @@ def declared_inputs(*, historical_xnet060: bool = False) -> dict[str, Any]:
             "raw_headers_sha256": ORAS_RAW_HEADERS,
             "original_locks": ORAS_LOCKS,
             "license_sha256": ORAS_LICENSE,
-            "compiler": "go1.27.3 linux/amd64 CGO_ENABLED=0",
+            "compiler": compiler_artifact.go_version.split()[2] + " linux/amd64 CGO_ENABLED=0",
             "command": ORAS_COMMAND,
             "flags": [
                 "-mod=readonly",
@@ -3678,7 +3957,16 @@ def declared_inputs(*, historical_xnet060: bool = False) -> dict[str, Any]:
     }
 
 
-def read_image_manifest(path: Path, *, preparation: bool = False) -> dict[str, Any]:
+def read_image_manifest(
+    path: Path,
+    *,
+    preparation: bool = False,
+    compiler_artifact: Artifact | None = None,
+) -> dict[str, Any]:
+    compiler_artifact = Artifact.canonical(
+        CURRENT_GO if compiler_artifact is None else compiler_artifact
+    )
+    require(compiler_artifact.name == "go", "compiler_artifact_role")
     real_directory(path.parent)
     descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     try:
@@ -3720,7 +4008,7 @@ def read_image_manifest(path: Path, *, preparation: bool = False) -> dict[str, A
     )
     # Two exact data epochs; recognizing historical data grants no current stage.
     historical = value["inputs"].get("source", {}).get("derived_locks") == XNET060_INCUMBENT_LOCKS
-    expected = declared_inputs(historical_xnet060=historical)
+    expected = declared_inputs(historical_xnet060=historical, compiler_artifact=compiler_artifact)
     retained = value["inputs"]["oras"].get("retained")
     if retained is not None:
         validate_tool_coordinates(retained)
@@ -3773,9 +4061,21 @@ def validate_tool_coordinates(value: Any) -> None:
     )
 
 
-def tool_input_projection(root: Path) -> dict[str, Any]:
+def tool_input_projection(
+    root: Path,
+    *,
+    compiler_artifact: Artifact | None = None,
+) -> dict[str, Any]:
     """The tool's own output coordinates are never inputs to that tool build."""
-    value = read_image_manifest(root / "deploy/prometheus/image-manifest.json", preparation=True)
+    compiler_artifact = Artifact.canonical(
+        CURRENT_GO if compiler_artifact is None else compiler_artifact
+    )
+    require(compiler_artifact.name == "go", "compiler_artifact_role")
+    value = read_image_manifest(
+        root / "deploy/prometheus/image-manifest.json",
+        preparation=True,
+        compiler_artifact=compiler_artifact,
+    )
     inputs = copy.deepcopy(value["inputs"])
     inputs["oras"]["retained"] = None
     return {
@@ -3791,8 +4091,17 @@ def tool_input_projection(root: Path) -> dict[str, Any]:
     }
 
 
-def producer_projection(root: Path, acquired: object) -> dict[str, Any]:
+def producer_projection(
+    root: Path,
+    acquired: object,
+    *,
+    compiler_artifact: Artifact | None = None,
+) -> dict[str, Any]:
     """No selection, artifact-output ID, wrapper head or timestamp is a build input."""
+    compiler_artifact = Artifact.canonical(
+        CURRENT_GO if compiler_artifact is None else compiler_artifact
+    )
+    require(compiler_artifact.name == "go", "compiler_artifact_role")
     recipe = root / "deploy/prometheus/Containerfile"
     require(recipe.read_bytes() == finite_recipe(), "finite_recipe_bytes")
     paths = (
@@ -3800,7 +4109,11 @@ def producer_projection(root: Path, acquired: object) -> dict[str, Any]:
         ".github/workflows/build.yml",
         "deploy/prometheus/Containerfile",
     )
-    manifest = read_image_manifest(root / "deploy/prometheus/image-manifest.json", preparation=True)
+    manifest = read_image_manifest(
+        root / "deploy/prometheus/image-manifest.json",
+        preparation=True,
+        compiler_artifact=compiler_artifact,
+    )
     require(
         type(acquired) is dict
         and set(acquired) == {"source", "go", "modules", "UI_transform", "tool_implementations"},
@@ -3813,7 +4126,7 @@ def producer_projection(root: Path, acquired: object) -> dict[str, Any]:
             and re.fullmatch(r"[0-9a-f]{64}", acquired[name]) is not None,
             "acquired_digest_type",
         )
-    require(acquired["go"] == CURRENT_GO.digest, "acquired_qualified_Go")
+    require(acquired["go"] == compiler_artifact.digest, "acquired_qualified_Go")
     transform, implementations = acquired["UI_transform"], acquired["tool_implementations"]
     require(
         type(transform) is dict
@@ -5247,13 +5560,24 @@ def authenticate_pr_source(
 
 
 def authenticate_producer_inputs(
-    api: GitHubRead, root: Path, source: str, *, tool: bool = False
+    api: GitHubRead,
+    root: Path,
+    source: str,
+    *,
+    tool: bool = False,
+    compiler_artifact: Artifact | None = None,
 ) -> dict[str, Any]:
+    compiler_artifact = Artifact.canonical(
+        CURRENT_GO if compiler_artifact is None else compiler_artifact
+    )
+    require(compiler_artifact.name == "go", "compiler_artifact_role")
     files = api.source_files(source, (*PRODUCER_FILES, MANIFEST_PATH))
     for name in PRODUCER_FILES:
         require(files[name] == (root / name).read_bytes(), "full_raw_producer_input_drift")
     source_manifest = one_object(files[MANIFEST_PATH])
-    current = read_image_manifest(root / MANIFEST_PATH, preparation=True)
+    current = read_image_manifest(
+        root / MANIFEST_PATH, preparation=True, compiler_artifact=compiler_artifact
+    )
     source_inputs = copy.deepcopy(source_manifest.get("inputs"))
     current_inputs = copy.deepcopy(current["inputs"])
     require(
@@ -5970,8 +6294,14 @@ def _qualification_xnet062(
     qualified: dict[str, Any],
     work: Path,
     vendor_base: dict[str, Any],
+    *,
+    compiler_artifact: Artifact | None = None,
 ) -> dict[str, bytes]:
     """Independent retained Q predicates; no runtime-original/Native reconstruction."""
+    compiler_artifact = Artifact.canonical(
+        CURRENT_GO if compiler_artifact is None else compiler_artifact
+    )
+    require(compiler_artifact.name == "go", "compiler_artifact_role")
     import difflib
 
     report = one_object(files["qualification.json"])
@@ -5987,7 +6317,9 @@ def _qualification_xnet062(
         work.is_absolute() and work.name == f'prometheus-source-{qrun["id"]}-1',
         "p062_Q_trusted_work_root",
     )
-    manifest = read_image_manifest(root / MANIFEST_PATH, preparation=True)
+    manifest = read_image_manifest(
+        root / MANIFEST_PATH, preparation=True, compiler_artifact=compiler_artifact
+    )
     require(manifest["inputs"]["source"]["derived_locks"] == DERIVED_LOCKS, "p062_Q_current_epoch")
     for key, expected_scalar in (
         ("source_revision", REVISION),
@@ -6034,7 +6366,7 @@ def _qualification_xnet062(
                 "explicit_release_handoff": item.release,
                 "final_redirects": 0,
             }
-            for item in (SOURCE, CURRENT_GO, UI, CHECKSUMS)
+            for item in (SOURCE, compiler_artifact, UI, CHECKSUMS)
         ],
     )
     transform = report.get("UI_transform")
@@ -6251,7 +6583,7 @@ def _qualification_xnet062(
             ):
                 raw = record(label + "-" + key, [str(go / "bin/go"), *command], online, source)
                 if key == "version":
-                    require(raw == CURRENT_GO_VERSION.encode(), "p062_Q_compiler_version")
+                    require(raw == compiler_artifact.go_version.encode(), "p062_Q_compiler_version")
                 elif key == "edit":
                     value = one_object(raw)
                     require(
@@ -6393,7 +6725,7 @@ def _qualification_xnet062(
                 )
                 completions[command] = state
                 if command == "version":
-                    require(raw == CURRENT_GO_VERSION.encode(), "p062_Q_compiler_version")
+                    require(raw == compiler_artifact.go_version.encode(), "p062_Q_compiler_version")
                 elif command in ("prometheus", "promtool"):
                     require(
                         bound(bindings[command], stage + "-native.stdout") == raw,
@@ -6598,7 +6930,12 @@ def qualification_locks(
     qualified: dict[str, Any] | None = None,
     qualification_root: Path | None = None,
     vendor_base: dict[str, Any] | None = None,
+    compiler_artifact: Artifact | None = None,
 ) -> dict[str, bytes]:
+    compiler_artifact = Artifact.canonical(
+        CURRENT_GO if compiler_artifact is None else compiler_artifact
+    )
+    require(compiler_artifact.name == "go", "compiler_artifact_role")
     require(
         (producer_root is None) == (artifact_digest is None),
         "qualification_current_binding_pair",
@@ -6626,6 +6963,7 @@ def qualification_locks(
             qualified,
             cast(Path, qualification_root),
             cast(dict[str, Any], vendor_base),
+            compiler_artifact=compiler_artifact,
         )
     require(qualification_root is None and vendor_base is None, "p062_Q_context_pair")
     result = {}
@@ -6668,7 +7006,7 @@ def qualification_locks(
                 "explicit_release_handoff": item.release,
                 "final_redirects": 0,
             }
-            for item in (SOURCE, CURRENT_GO, UI, CHECKSUMS)
+            for item in (SOURCE, compiler_artifact, UI, CHECKSUMS)
         ]
         exact_data(report.get("acquisition"), expected_acquisition)
         expected_producer = {
@@ -6699,8 +7037,9 @@ def qualification_locks(
         )
         for label in ("a", "b"):
             require(
-                files[label + "-base-version.stdout"] == CURRENT_GO_VERSION.encode()
-                and files[label + "-derived-version.stdout"] == CURRENT_GO_VERSION.encode(),
+                files[label + "-base-version.stdout"] == compiler_artifact.go_version.encode()
+                and files[label + "-derived-version.stdout"]
+                == compiler_artifact.go_version.encode(),
                 "qualification_current_native_Go",
             )
     return result
@@ -7120,7 +7459,68 @@ P062_SPENT_HISTORY = (
         "2026-11-09T12:41:38Z",
         "2026-11-09T12:56:02Z",
     ),
+    (
+        42701498451,
+        129447127667,
+        "prometheus-oras-qualification",
+        "f098871821badf16556968ab4da6d4f44532c5a3",
+        "codex/dependency-alertmanager-remediation",
+        1,
+        "completed",
+        "success",
+        "completed",
+        "success",
+        "2026-11-09T21:20:08Z",
+        "2026-11-09T21:22:39Z",
+    ),
+    (
+        42732019678,
+        129552125108,
+        "prometheus-ghcr-package-qualification",
+        "af6ef77fd183753751a0043a72c6495ce708515c",
+        "codex/dependency-alertmanager-remediation",
+        1,
+        "completed",
+        "success",
+        "completed",
+        "success",
+        "2026-11-10T00:55:53Z",
+        "2026-11-10T00:56:12Z",
+    ),
+    (
+        42732019678,
+        129552125483,
+        "prometheus-source-qualification",
+        "af6ef77fd183753751a0043a72c6495ce708515c",
+        "codex/dependency-alertmanager-remediation",
+        1,
+        "completed",
+        "success",
+        "completed",
+        "success",
+        "2026-11-10T00:55:53Z",
+        "2026-11-10T01:07:28Z",
+    ),
+    (
+        42734455562,
+        129560137184,
+        "prometheus-source-build-pair",
+        "af6ef77fd183753751a0043a72c6495ce708515c",
+        "codex/dependency-alertmanager-remediation",
+        1,
+        "completed",
+        "success",
+        "completed",
+        "success",
+        "2026-11-10T01:15:21Z",
+        "2026-11-10T01:32:19Z",
+    ),
 )
+
+
+# Failed42673421928/cc25be204a4252409a96208f83c23040e1261714 had zero jobs.
+# It remains charged history, never a fabricated completed job or a stage allowance.
+P062_ZERO_JOB_HISTORY = (42673421928, "cc25be204a4252409a96208f83c23040e1261714")
 
 
 def _p062_stage_admission(api: GitHubRead, root: Path, purpose: str) -> dict[str, Any]:
@@ -7163,6 +7563,8 @@ def _p062_stage_admission(api: GitHubRead, root: Path, purpose: str) -> dict[str
         and manifest["candidate"] is None,
         "p062_prepared_null_outputs",
     )
+    # This new source-bound problem is exactly the maintained1274 declaration.
+    exact_data(manifest["inputs"]["go"], declared_inputs()["go"])
     expected_inputs = declared_inputs()
     coordinates = manifest["inputs"]["oras"]["retained"]
     if purpose == "tool":
@@ -7201,10 +7603,29 @@ def _p062_stage_admission(api: GitHubRead, root: Path, purpose: str) -> dict[str
     historical_ids = {row[0] for row in P062_SPENT_HISTORY}
     seen_jobs: set[int] = set()
     for run in runs:
+        require(type(run.get("id")) is int and run["id"] > 0, "p062_run_ID_type")
         jobs_endpoint = prefix + f'/actions/runs/{run["id"]}/jobs?filter=all'
         jp = api.json(jobs_endpoint + "&per_page=100&page=1")
         jobs = api.pages(jobs_endpoint, "jobs", jp["total_count"])
         relevant = [j for j in jobs if j.get("name") in names and j.get("conclusion") != "skipped"]
+        if run["id"] == P062_ZERO_JOB_HISTORY[0]:
+            for key, expected in {
+                "id": P062_ZERO_JOB_HISTORY[0],
+                "head_sha": P062_ZERO_JOB_HISTORY[1],
+                "head_branch": "codex/dependency-alertmanager-remediation",
+                "event": "workflow_dispatch",
+                "workflow_id": 199904435,
+                "run_attempt": 1,
+                "status": "completed",
+                "conclusion": "failure",
+                "created_at": "2026-11-09T18:22:11Z",
+                "updated_at": "2026-11-09T18:23:02Z",
+            }.items():
+                exact_data(run.get(key), expected)
+            for key in ("repository", "head_repository"):
+                require(type(run.get(key)) is dict, "p062_zero_job_repository_object")
+                exact_data(run[key].get("id"), 1043311030)
+            require(not jobs, "p062_zero_job_history_changed")
         if not relevant:
             require(run.get("id") != run_id, "p062_current_job_missing")
             continue
@@ -8706,7 +9127,13 @@ def prefetch_modules(
     locks: dict[str, str],
     *,
     root_module: str = ROOT_MODULE,
+    compiler_artifact: Artifact | None = None,
 ) -> tuple[Path, dict[str, Any]]:
+    compiler_artifact = Artifact.canonical(
+        CURRENT_GO if compiler_artifact is None else compiler_artifact
+    )
+    require(compiler_artifact.name == "go", "compiler_artifact_role")
+    exact_data(vars(compiler_artifact), vars(CURRENT_GO))
     require(root_module in (ROOT_MODULE, "oras.land/oras"), "prefetch_finite_root")
     modules = work / (label + "-modules")
     fresh_directory(modules, 0o755)
@@ -8759,7 +9186,7 @@ def prefetch_modules(
             try:
                 raw = native.run([binary, *command], label + "-" + name, online, cwd=source)
                 if name == "version":
-                    require(raw.decode() == CURRENT_GO_VERSION, "prefetch_qualified_Go")
+                    require(raw.decode() == compiler_artifact.go_version, "prefetch_qualified_Go")
                 elif name == "download":
                     decode_modules(raw)
                     downloads = raw
@@ -9216,7 +9643,12 @@ def native_import(
     graph: dict[str, Any],
     *,
     synthetic: bool,
+    compiler_artifact: Artifact,
 ) -> dict[str, Any]:
+    compiler_artifact = Artifact.canonical(compiler_artifact)
+    require(compiler_artifact.name == "go", "compiler_artifact_role")
+    compiler_version = compiler_artifact.go_version.split()[2].encode()
+    compiler_pattern = rb"\b" + re.escape(compiler_version) + rb"\b"
     validate_docker_archive(archive, graph)
     prefix = [docker, "--config", str(config)]
     tag = "pulseplate-prometheus:candidate"
@@ -9484,7 +9916,7 @@ def native_import(
                 require(
                     re.search(rb"\bversion 3\.15\.0\b", output) is not None
                     and REVISION.encode() in output
-                    and re.search(rb"\bgo1\.27\.3\b", output) is not None,
+                    and re.search(compiler_pattern, output) is not None,
                     "native_candidate_version_revision_compiler",
                 )
     except BaseException as error:
@@ -9610,8 +10042,17 @@ def native_import(
     }
 
 
-def tool_scan_inventory(raw: bytes, subject: str) -> dict[str, Any]:
+def tool_scan_inventory(
+    raw: bytes,
+    subject: str,
+    *,
+    compiler_artifact: Artifact | None = None,
+) -> dict[str, Any]:
     """Validate observation structure/coverage/privacy, never classify its findings."""
+    compiler_artifact = Artifact.canonical(
+        CURRENT_GO if compiler_artifact is None else compiler_artifact
+    )
+    require(compiler_artifact.name == "go", "compiler_artifact_role")
     require(
         type(subject) is str and Path(subject).is_absolute() and ".." not in Path(subject).parts,
         "tool_scan_subject_coordinate",
@@ -9676,7 +10117,8 @@ def tool_scan_inventory(raw: bytes, subject: str) -> dict[str, Any]:
     )
     require(
         len({(row["Name"], row["Version"]) for row in packages}) == len(packages)
-        and [row["Version"] for row in packages if row["Name"] == "stdlib"] == ["v1.27.3"],
+        and [row["Version"] for row in packages if row["Name"] == "stdlib"]
+        == ["v" + compiler_artifact.go_version.split()[2].removeprefix("go")],
         "tool_native_Go_scanner_coverage",
     )
     identities = {(row["Name"], row["Version"]) for row in packages}
@@ -9687,7 +10129,19 @@ def tool_scan_inventory(raw: bytes, subject: str) -> dict[str, Any]:
     return {"all_findings": findings, "Secrets_fields_absent": missing_secrets}
 
 
-def scan_tool(native: Native, work: Path, binary: Path, env: dict[str, str]) -> dict[str, Any]:
+def scan_tool(
+    native: Native,
+    work: Path,
+    binary: Path,
+    env: dict[str, str],
+    *,
+    compiler_artifact: Artifact | None = None,
+) -> dict[str, Any]:
+    compiler_artifact = Artifact.canonical(
+        CURRENT_GO if compiler_artifact is None else compiler_artifact
+    )
+    require(compiler_artifact.name == "go", "compiler_artifact_role")
+    exact_data(vars(compiler_artifact), vars(CURRENT_GO))
     scanner = shutil.which("trivy")
     require(scanner is not None and Path(scanner).is_absolute(), "tool_native_scanner_missing")
     scanner = cast(str, scanner)
@@ -9764,7 +10218,9 @@ def scan_tool(native: Native, work: Path, binary: Path, env: dict[str, str]) -> 
         == db,
         "tool_scan_subject_DB_changed",
     )
-    inventory = tool_scan_inventory(report.read_bytes(), str(rootfs))
+    inventory = tool_scan_inventory(
+        report.read_bytes(), str(rootfs), compiler_artifact=compiler_artifact
+    )
     destination = native.evidence / "tool-full.raw.json"
     require(not destination.exists(), "tool_full_publication_fresh")
     os.rename(report, destination)
@@ -9793,7 +10249,13 @@ def qualify_tool(
     cleanup: int,
     *,
     prefetch_predecessor: str | None = None,
+    compiler_artifact: Artifact | None = None,
 ) -> dict[str, Any]:
+    compiler_artifact = Artifact.canonical(
+        CURRENT_GO if compiler_artifact is None else compiler_artifact
+    )
+    require(compiler_artifact.name == "go", "compiler_artifact_role")
+    exact_data(vars(compiler_artifact), vars(CURRENT_GO))
     require(
         type(seconds) is int
         and 0 < seconds <= 1800
@@ -9815,10 +10277,12 @@ def qualify_tool(
             or admission.get("producer_epoch") == "xnet062",
             "current_tool_requires_stabilization_admission",
         )
-        authenticate_producer_inputs(api, root, admission["head"], tool=True)
+        authenticate_producer_inputs(
+            api, root, admission["head"], tool=True, compiler_artifact=compiler_artifact
+        )
     finally:
         api.close()
-    projection = tool_input_projection(root)
+    projection = tool_input_projection(root, compiler_artifact=compiler_artifact)
     report: dict[str, Any] = {
         "identity": "PulsePlate-rebuilt ORAS 1.3.4",
         "source_revision": ORAS_REVISION,
@@ -9846,10 +10310,10 @@ def qualify_tool(
     try:
         downloads = work / "downloads"
         fresh_directory(downloads)
-        for artifact in (ORAS_SOURCE, CURRENT_GO):
+        for artifact in (ORAS_SOURCE, compiler_artifact):
             acquire(artifact, downloads / artifact.name, native.deadline)
         source, go = work / "source", work / "go"
-        for artifact, path in ((ORAS_SOURCE, source), (CURRENT_GO, go)):
+        for artifact, path in ((ORAS_SOURCE, source), (compiler_artifact, go)):
             rows = extract(artifact, downloads / artifact.name, path, native.deadline)
             (evidence / (artifact.name + "-members.json")).write_bytes(canonical_data(rows))
         require(
@@ -9858,7 +10322,14 @@ def qualify_tool(
             "tool_source_locks_license",
         )
         modules, report["public_modules"] = prefetch_modules(
-            native, work, source, go, "tool", ORAS_LOCKS, root_module="oras.land/oras"
+            native,
+            work,
+            source,
+            go,
+            "tool",
+            ORAS_LOCKS,
+            root_module="oras.land/oras",
+            compiler_artifact=compiler_artifact,
         )
         native.run(
             [docker, "--config", str(config), "pull", "--platform", "linux/amd64", BASE],
@@ -9889,7 +10360,7 @@ def qualify_tool(
                 command,
             )
             if label == "version":
-                require(raw.decode() == CURRENT_GO_VERSION, "tool_offline_compiler")
+                require(raw.decode() == compiler_artifact.go_version, "tool_offline_compiler")
             elif label == "modules":
                 report["full_modules"] = decode_selected_modules(raw, root_module="oras.land/oras")
                 require(
@@ -9954,7 +10425,7 @@ def qualify_tool(
             output=output,
         )
         require(
-            b"go1.27.3" in buildinfo
+            compiler_artifact.go_version.split()[2].encode() in buildinfo
             and ORAS_COMMAND.encode() in buildinfo
             and b"\tbuild\tCGO_ENABLED=0" in buildinfo
             and b"\t=>\t" not in buildinfo,
@@ -9964,7 +10435,9 @@ def qualify_tool(
             raw = native.run([str(binary), *command], "ORAS-" + label, env, cwd=work)
             if label == "version":
                 require(
-                    b"1.3.4" in raw and ORAS_REVISION.encode() in raw and b"go1.27.3" in raw,
+                    b"1.3.4" in raw
+                    and ORAS_REVISION.encode() in raw
+                    and compiler_artifact.go_version.split()[2].encode() in raw,
                     "tool_native_version",
                 )
             else:
@@ -10003,9 +10476,19 @@ def qualify_tool(
         )
         compare_pair(graph, validate_oci_graph(copied, base, synthetic=True))
         report["native_format"] = native_import(
-            native, work, docker, config, env, archive, graph, synthetic=True
+            native,
+            work,
+            docker,
+            config,
+            env,
+            archive,
+            graph,
+            synthetic=True,
+            compiler_artifact=compiler_artifact,
         )
-        report["native_scan"] = scan_tool(native, work, binary, env)
+        report["native_scan"] = scan_tool(
+            native, work, binary, env, compiler_artifact=compiler_artifact
+        )
         require(
             tree_inventory(source) == before_source and tree_inventory(modules) == before_cache,
             "tool_readonly_inputs_changed",
@@ -10036,8 +10519,20 @@ def qualify_tool(
     return report
 
 
-def retained_tool(api: GitHubRead, root: Path, work: Path) -> tuple[Path, dict[str, Any]]:
-    manifest = read_image_manifest(root / MANIFEST_PATH, preparation=True)
+def retained_tool(
+    api: GitHubRead,
+    root: Path,
+    work: Path,
+    *,
+    compiler_artifact: Artifact | None = None,
+) -> tuple[Path, dict[str, Any]]:
+    compiler_artifact = Artifact.canonical(
+        CURRENT_GO if compiler_artifact is None else compiler_artifact
+    )
+    require(compiler_artifact.name == "go", "compiler_artifact_role")
+    manifest = read_image_manifest(
+        root / MANIFEST_PATH, preparation=True, compiler_artifact=compiler_artifact
+    )
     coordinates = manifest["inputs"]["oras"]["retained"]
     require(coordinates is not None, "qualified_retained_tool_not_selected")
     archive = work / "tool-input.zip"
@@ -10054,14 +10549,16 @@ def retained_tool(api: GitHubRead, root: Path, work: Path) -> tuple[Path, dict[s
         and authenticated["artifact"].get("digest") == coordinates["artifact_digest"],
         "retained_tool_API_coordinates",
     )
-    authenticate_producer_inputs(api, root, coordinates["source_head"], tool=True)
+    authenticate_producer_inputs(
+        api, root, coordinates["source_head"], tool=True, compiler_artifact=compiler_artifact
+    )
     files = _zip_members(archive)
     require(
         {"oras", "tool.json", "LICENSE", "vendor.oci.tar", "tool-full.raw.json"} <= set(files),
         "retained_tool_payload",
     )
     report = one_object(files["tool.json"])
-    projection = tool_input_projection(root)
+    projection = tool_input_projection(root, compiler_artifact=compiler_artifact)
     require(
         report.get("status") == "observed_tool_and_synthetic_format_only"
         and report.get("failure") is None
@@ -10094,7 +10591,9 @@ def retained_tool(api: GitHubRead, root: Path, work: Path) -> tuple[Path, dict[s
         "retained_tool_graph_format_scan_binding",
     )
     scan = report["native_scan"]
-    inventory = tool_scan_inventory(files["tool-full.raw.json"], scan.get("subject"))
+    inventory = tool_scan_inventory(
+        files["tool-full.raw.json"], scan.get("subject"), compiler_artifact=compiler_artifact
+    )
     for name, value in inventory.items():
         exact_data(scan.get(name), value)
     require(
@@ -10165,7 +10664,19 @@ def retained_tool(api: GitHubRead, root: Path, work: Path) -> tuple[Path, dict[s
     }
 
 
-def build_pair(work: Path, root: Path, seconds: int, cleanup: int) -> dict[str, Any]:
+def build_pair(
+    work: Path,
+    root: Path,
+    seconds: int,
+    cleanup: int,
+    *,
+    compiler_artifact: Artifact | None = None,
+) -> dict[str, Any]:
+    compiler_artifact = Artifact.canonical(
+        CURRENT_GO if compiler_artifact is None else compiler_artifact
+    )
+    require(compiler_artifact.name == "go", "compiler_artifact_role")
+    exact_data(vars(compiler_artifact), vars(CURRENT_GO))
     require(
         type(seconds) is int
         and 0 < seconds <= 3600
@@ -10177,7 +10688,9 @@ def build_pair(work: Path, root: Path, seconds: int, cleanup: int) -> dict[str, 
     evidence = work / "evidence"
     fresh_directory(evidence)
     preparatory = Native(evidence, time.monotonic() + 900, cleanup)
-    manifest = read_image_manifest(root / MANIFEST_PATH, preparation=True)
+    manifest = read_image_manifest(
+        root / MANIFEST_PATH, preparation=True, compiler_artifact=compiler_artifact
+    )
     require(manifest["phase"] == "source_prepared", "pair_preparation_phase_only")
     api = GitHubRead(work / "GitHub-private", evidence, preparatory.deadline, cleanup)
     try:
@@ -10187,8 +10700,10 @@ def build_pair(work: Path, root: Path, seconds: int, cleanup: int) -> dict[str, 
             or admission.get("producer_epoch") == "xnet062",
             "current_pair_requires_stabilization_admission",
         )
-        authenticate_producer_inputs(api, root, admission["head"])
-        tool, tool_record = retained_tool(api, root, work)
+        authenticate_producer_inputs(
+            api, root, admission["head"], compiler_artifact=compiler_artifact
+        )
+        tool, tool_record = retained_tool(api, root, work, compiler_artifact=compiler_artifact)
         qualification = work / "xnet-qualified-input.zip"
         qualified = _current_qualification_artifact(api, root, admission, qualification)
         current_epoch = admission.get("producer_epoch") == "xnet062"
@@ -10211,12 +10726,13 @@ def build_pair(work: Path, root: Path, seconds: int, cleanup: int) -> dict[str, 
             qualified=qualified if current_epoch else None,
             qualification_root=qroot,
             vendor_base=tool_record["base"] if current_epoch else None,
+            compiler_artifact=compiler_artifact,
         )
     finally:
         api.close()
     downloads = work / "downloads"
     fresh_directory(downloads)
-    for artifact in (SOURCE, CURRENT_GO, UI, CHECKSUMS):
+    for artifact in (SOURCE, compiler_artifact, UI, CHECKSUMS):
         acquire(artifact, downloads / artifact.name, preparatory.deadline)
     require(
         (downloads / "checksums")
@@ -10227,7 +10743,7 @@ def build_pair(work: Path, root: Path, seconds: int, cleanup: int) -> dict[str, 
         "pair_official_matching_UI",
     )
     go, ui = work / "go", work / "ui"
-    extract(CURRENT_GO, downloads / "go", go, preparatory.deadline)
+    extract(compiler_artifact, downloads / "go", go, preparatory.deadline)
     extract(UI, downloads / "ui", ui, preparatory.deadline)
     require(file_hash(go / "LICENSE") == GO_LICENSE, "pair_Go_license")
     docker = shutil.which("docker")
@@ -10291,7 +10807,13 @@ def build_pair(work: Path, root: Path, seconds: int, cleanup: int) -> dict[str, 
                 "pair_authentic_source_licenses",
             )
             modules, module_record = prefetch_modules(
-                native, lane, source, go, label, manifest["inputs"]["source"]["derived_locks"]
+                native,
+                lane,
+                source,
+                go,
+                label,
+                manifest["inputs"]["source"]["derived_locks"],
+                compiler_artifact=compiler_artifact,
             )
             source_inventory, module_inventory = tree_inventory(source), tree_inventory(modules)
             observations, graph_hashes = {}, {}
@@ -10320,7 +10842,7 @@ def build_pair(work: Path, root: Path, seconds: int, cleanup: int) -> dict[str, 
                 graph_hashes[binary] = sha(raw)
             acquired = {
                 "source": sha(canonical_data(source_inventory)),
-                "go": CURRENT_GO.digest,
+                "go": compiler_artifact.digest,
                 "modules": module_record["inventory_sha256"],
                 "UI_transform": transform,
                 "tool_implementations": {
@@ -10332,7 +10854,7 @@ def build_pair(work: Path, root: Path, seconds: int, cleanup: int) -> dict[str, 
                     "zlib": zlib.ZLIB_RUNTIME_VERSION,
                 },
             }
-            projection = producer_projection(root, acquired)
+            projection = producer_projection(root, acquired, compiler_artifact=compiler_artifact)
             projections.append(projection)
             output = lane / "output"
             fresh_directory(output, 0o777)
@@ -10487,6 +11009,7 @@ def build_pair(work: Path, root: Path, seconds: int, cleanup: int) -> dict[str, 
                 evidence / label / "image.docker.tar",
                 graph,
                 synthetic=False,
+                compiler_artifact=compiler_artifact,
             )
             check_deadline(observation.deadline)
             report["builds"][0 if label == "a" else 1]["post_build_native_elapsed_seconds"] = (

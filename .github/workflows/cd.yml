@@ -1987,16 +1987,6 @@ jobs:
             --output-dir "$RUNNER_TEMP/alertmanager-consumer-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
           printf 'controller_source=%s\n' "$controller_source" >> "$GITHUB_OUTPUT"
 
-      - name: Remove designated AM controller after credential cleanup
-        if: always() && (steps.alertmanager-control.outcome == 'success' || steps.alertmanager-control.outcome == 'failure')
-        timeout-minutes: 1
-        run: |
-          set -euo pipefail
-          controller="$GITHUB_WORKSPACE/artifacts/orchestration/alertmanager-control"
-          test ! -L "$controller"
-          rm -rf -- "$controller"
-          test ! -e "$controller" && test ! -L "$controller"
-
       - name: Check canonical Prometheus config with exact-image promtool
         timeout-minutes: 2
         env:
@@ -2104,6 +2094,37 @@ jobs:
             --ignorefile "$TRIVY_IGNORE_FILE" \
             --cache-dir /tmp/trivy-cache-prometheus-image-security \
             "$PROMETHEUS_RUNTIME_REF"
+
+      - name: Scan accepted AM and execute all four current controls
+        timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_LIVE_SECURITY_MINUTES) }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ALERTMANAGER_CONTROLLER_SOURCE: ${{ steps.alertmanager-image.outputs.controller_source }}
+          TRIVY_BIN: ${{ steps.prometheus_trivy.outputs.path }}
+          TRIVY_CACHE_DIR: /tmp/trivy-cache-prometheus-image-security
+        run: |
+          set -euo pipefail
+          umask 077
+          controller="$GITHUB_WORKSPACE/artifacts/orchestration/alertmanager-control"
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then controller="$GITHUB_WORKSPACE"; fi
+          test ! -L "$controller"
+          test "$(git -C "$controller" rev-parse HEAD)" = "$ALERTMANAGER_CONTROLLER_SOURCE"
+          cd "$controller"
+          python3 -E -s -S -m scripts.ci.fetch_docker_source_artifacts --artifact alertmanager \
+            --alertmanager-stage security-check --alertmanager-scanner "$TRIVY_BIN" \
+            --alertmanager-cache "$TRIVY_CACHE_DIR" \
+            --output-dir "$RUNNER_TEMP/alertmanager-live-security-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+
+      - name: Remove designated AM controller after credential cleanup
+        if: always() && (steps.alertmanager-control.outcome == 'success' || steps.alertmanager-control.outcome == 'failure')
+        timeout-minutes: 1
+        run: |
+          set -euo pipefail
+          controller="$GITHUB_WORKSPACE/artifacts/orchestration/alertmanager-control"
+          test ! -L "$controller"
+          rm -rf -- "$controller"
+          test ! -e "$controller" && test ! -L "$controller"
 
       - name: Select AM Python without dependency or SDK installation
         if: github.event_name == 'pull_request'
@@ -2277,20 +2298,6 @@ jobs:
             --entrypoint /bin/amtool \
             --mount "type=bind,source=$GITHUB_WORKSPACE/deploy/alertmanager/alertmanager.yml,target=/etc/alertmanager/alertmanager.yml,readonly" \
             "$AM_IMAGE_ID" check-config /etc/alertmanager/alertmanager.yml
-
-      - name: Scan accepted AM and execute all four current controls
-        timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_LIVE_SECURITY_MINUTES) }}
-        env:
-          ALERTMANAGER_CONTROLLER_SOURCE: ${{ steps.alertmanager-image.outputs.controller_source }}
-          TRIVY_BIN: ${{ steps.prometheus_trivy.outputs.path }}
-          TRIVY_CACHE_DIR: /tmp/trivy-cache-prometheus-image-security
-        run: |
-          set -euo pipefail
-          umask 077
-          python -m scripts.ci.fetch_docker_source_artifacts --artifact alertmanager \
-            --alertmanager-stage security-check --alertmanager-scanner "$TRIVY_BIN" \
-            --alertmanager-cache "$TRIVY_CACHE_DIR" \
-            --output-dir "$RUNNER_TEMP/alertmanager-live-security-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
 
       - name: Prove staging environment label reaches Alertmanager despite forged metric label
         timeout-minutes: 3

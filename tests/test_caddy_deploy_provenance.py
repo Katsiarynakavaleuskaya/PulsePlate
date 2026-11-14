@@ -91,8 +91,8 @@ PROMETHEUS_RULES_HASH_CHECK = (
 )
 
 GO_BUILDER = (
-    "golang:1.26.10-alpine3.23@"
-    "sha256:0525c952defebc693cdaf62cdf43afa32be5a7f377e99260642ea19c240c708e"
+    "golang:1.26.11-alpine3.23@"
+    "sha256:db99415e2625ce0ee03eed09edf7f32ae8c58dc399f28cc602a87fe7238119e4"
 )
 NODE_BUILDER = (
     "node:24.22.1-bookworm-slim@"
@@ -102,7 +102,7 @@ CADDY_BASE = (
     "caddy:2.11.9-alpine@" "sha256:0bbb055bda6793c999bde78b1b5ce3e89f829fb031af2cf50056ea1246559fee"
 )
 EXPECTED_CADDY_BUILDER_STAGE = (
-    "FROM golang:1.26.10-alpine3.23@sha256:0525c952defebc693cdaf62cdf43afa32be5a7f377e99260642ea19c240c708e AS caddy-build\n"
+    "FROM golang:1.26.11-alpine3.23@sha256:db99415e2625ce0ee03eed09edf7f32ae8c58dc399f28cc602a87fe7238119e4 AS caddy-build\n"
     "\n"
     "ENV CGO_ENABLED=0 \\\n"
     "    GOTOOLCHAIN=local \\\n"
@@ -126,25 +126,25 @@ EXPECTED_CADDY_BUILDER_STAGE = (
     "    set -o pipefail; \\\n"
     "    evidence=/caddy-build-evidence; \\\n"
     '    mkdir "$evidence"; \\\n'
-    "    test \"$(sha256sum /usr/local/go/bin/go | cut -d' ' -f1)\" = 9c2a37ae5b21ba1d5a004bb9ab4d0c64de6fc5778e9d30487adccea62678b8b5; \\\n"
+    "    test \"$(sha256sum /usr/local/go/bin/go | cut -d' ' -f1)\" = 95499375c24b610cdc9e3684cec920174ec4c4f3f66d35b4332107f0f7d3d27d; \\\n"
     "    echo '9beb880c561244794fda6176ac17f3f9c1690ae31fc26ac069afbf452e1c3f22  /opt/go1.26.10-http-connection-nominations.patch' | sha256sum -c -; \\\n"
     "    echo '2dc6f44b2e7a95a1b970cdbbcf70ddc532c35921c4b83ff80ca6e48b20a1c32e  /opt/go_http_connection_nominations_test.go' | sha256sum -c -; \\\n"
     '    verify_stdlib() { ( test ! -L "$1"; test -d "$1"; cd "$1"; test -z "$(find . -mindepth 1 ! -type d ! -type f -print)"; find . -type f -exec sha256sum {} + | LC_ALL=C sort > "$evidence/$2"; test "$(sha256sum "$evidence/$2" | cut -d\' \' -f1)" = "$3"; ); }; \\\n'
-    "    verify_stdlib /usr/local/go stdlib-original-tree.sha256 e54472503fcedc70793baefd53d9ae2eee748610e190f99f533ae6ef7c3ecf64; \\\n"
-    "    test ! -e /opt/go1.26.10-http-baseline; \\\n"
-    "    test ! -L /opt/go1.26.10-http-baseline; \\\n"
-    "    cp -R /usr/local/go /opt/go1.26.10-http-baseline; \\\n"
-    "    cp /opt/go_http_connection_nominations_test.go /opt/go1.26.10-http-baseline/src/net/http/go_http_connection_nominations_test.go; \\\n"
-    "    test ! -e /opt/go1.26.10-http-patched; \\\n"
-    "    test ! -L /opt/go1.26.10-http-patched; \\\n"
-    "    cp -R /usr/local/go /opt/go1.26.10-http-patched; \\\n"
-    "    cp /opt/go_http_connection_nominations_test.go /opt/go1.26.10-http-patched/src/net/http/go_http_connection_nominations_test.go; \\\n"
-    "    verify_stdlib /opt/go1.26.10-http-baseline stdlib-baseline-tree.sha256 aed4cf1ca75d78f74118dc8686cd0bdd6d017c1b8bb98e0f46c2ed859ad72a26; \\\n"
-    "    echo '3e04744176d3cf5bef2827ab158b10aaeec3981ac5f4e7fb86e3dbf5f592eed7  /opt/go1.26.10-http-patched/src/net/http/transfer.go' | sha256sum -c -; \\\n"
-    "    (cd /opt/go1.26.10-http-patched; env -i PATH=/usr/bin:/bin GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_CEILING_DIRECTORIES=/opt /usr/bin/git apply --no-index --check --whitespace=error-all /opt/go1.26.10-http-connection-nominations.patch; env -i PATH=/usr/bin:/bin GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_CEILING_DIRECTORIES=/opt /usr/bin/git apply --no-index --whitespace=error-all /opt/go1.26.10-http-connection-nominations.patch); \\\n"
-    "    echo '0a19c32dab21d8c906795189b5c35da22551e0c2932a07b1fe64ac4559e70a01  /opt/go1.26.10-http-patched/src/net/http/transfer.go' | sha256sum -c -; \\\n"
-    "    verify_stdlib /opt/go1.26.10-http-patched stdlib-patched-tree.sha256 afce6dcef776fcfe337fff1c5d4a3c68cd4729be7c27463d07e09fc7fafaa3f5; \\\n"
-    '    sha256sum /opt/go1.26.10-http-connection-nominations.patch /opt/go_http_connection_nominations_test.go /usr/local/go/bin/go /usr/local/go/src/net/http/transfer.go /opt/go1.26.10-http-patched/src/net/http/transfer.go /usr/local/go/src/net/http/internal/ascii/print.go /usr/local/go/src/net/http/server.go /usr/local/go/src/net/textproto/reader.go /usr/local/go/src/net/textproto/textproto.go /usr/local/go/src/vendor/golang.org/x/net/http/httpguts/httplex.go | LC_ALL=C sort > "$evidence/stdlib-inputs.sha256"; \\\n'
+    "    verify_stdlib /usr/local/go stdlib-original-tree.sha256 cd0e29a237713551aba930d7f3976b03b361fb7b1e885ad308266d3b19c63ea4; \\\n"
+    "    test ! -e /opt/go1.26.11-http-baseline; \\\n"
+    "    test ! -L /opt/go1.26.11-http-baseline; \\\n"
+    "    cp -R /usr/local/go /opt/go1.26.11-http-baseline; \\\n"
+    "    cp /opt/go_http_connection_nominations_test.go /opt/go1.26.11-http-baseline/src/net/http/go_http_connection_nominations_test.go; \\\n"
+    "    test ! -e /opt/go1.26.11-http-patched; \\\n"
+    "    test ! -L /opt/go1.26.11-http-patched; \\\n"
+    "    cp -R /usr/local/go /opt/go1.26.11-http-patched; \\\n"
+    "    cp /opt/go_http_connection_nominations_test.go /opt/go1.26.11-http-patched/src/net/http/go_http_connection_nominations_test.go; \\\n"
+    "    verify_stdlib /opt/go1.26.11-http-baseline stdlib-baseline-tree.sha256 81610504883937e37f0d618a8e0e8f88de644a86d9522dc8c5f20a8900b86bc2; \\\n"
+    "    echo '51b8bad342f6c505b1be224bf7074f293fb2b2a36f4a0bacc28ad27329a585f4  /opt/go1.26.11-http-patched/src/net/http/transfer.go' | sha256sum -c -; \\\n"
+    "    (cd /opt/go1.26.11-http-patched; env -i PATH=/usr/bin:/bin GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_CEILING_DIRECTORIES=/opt /usr/bin/git apply --no-index --check --whitespace=error-all /opt/go1.26.10-http-connection-nominations.patch; env -i PATH=/usr/bin:/bin GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_CEILING_DIRECTORIES=/opt /usr/bin/git apply --no-index --whitespace=error-all /opt/go1.26.10-http-connection-nominations.patch); \\\n"
+    "    echo '2e8683b4bbfda8eef2517ad67566d766b93beffc7516f290dd12efa062a72823  /opt/go1.26.11-http-patched/src/net/http/transfer.go' | sha256sum -c -; \\\n"
+    "    verify_stdlib /opt/go1.26.11-http-patched stdlib-patched-tree.sha256 ce66b041c82c993b0a8ecff307fff975dab42b50e6f25c296c55f1bec550224c; \\\n"
+    '    sha256sum /opt/go1.26.10-http-connection-nominations.patch /opt/go_http_connection_nominations_test.go /usr/local/go/bin/go /usr/local/go/src/net/http/transfer.go /opt/go1.26.11-http-patched/src/net/http/transfer.go /usr/local/go/src/net/http/internal/ascii/print.go /usr/local/go/src/net/http/server.go /usr/local/go/src/net/textproto/reader.go /usr/local/go/src/net/textproto/textproto.go /usr/local/go/src/vendor/golang.org/x/net/http/httpguts/httplex.go | LC_ALL=C sort > "$evidence/stdlib-inputs.sha256"; \\\n'
     '    : > "$evidence/stdlib-test-commands.txt"; \\\n'
     '    : > "$evidence/stdlib-test-inventory.txt"; \\\n'
     "    test ! -e /opt/caddy-stdlib-baseline-cache; \\\n"
@@ -152,19 +152,19 @@ EXPECTED_CADDY_BUILDER_STAGE = (
     "    test ! -e /opt/caddy-stdlib-patched-cache; \\\n"
     "    mkdir -m 700 /opt/caddy-stdlib-patched-cache; \\\n"
     "    printf 'BASELINE_NATIVE_LIST\\n' >> \"$evidence/stdlib-test-inventory.txt\"; \\\n"
-    '    ( export GOROOT=/opt/go1.26.10-http-baseline GOCACHE=/opt/caddy-stdlib-baseline-cache GOPROXY=off GOSUMDB=off; test "$(go env GOROOT)" = "$GOROOT"; test "$(go env GOCACHE)" = "$GOCACHE"; if /usr/local/go/bin/go test -count=1 -p=2 -list \'^(TestReadResponse|TestWriteResponse|TestReadResponseErrors|TestResponseWritesOnlySingleConnectionClose|TestReadResponseCloseInMiddle|TestResponseContentLengthShortBody|TestTransportConnectionCloseOnResponse|TestTransportConnectionCloseOnRequest|TestTransportRespectRequestWantsClose|TestTransportReadToEndReusesConn|TestIssue3644|TestTransportResponseBodyWritableOnProtocolSwitch|TestPPHTTPConnectionBaseline|TestPPHTTPConnectionSurvivors|TestPPHTTPConnectionFieldNameCase|TestPPHTTPBoundaryControls|TestPPHTTPFramingControls|TestPPHTTPMalformedReaderControls|TestPPHTTPMalformedAcceptedParity|TestPPHTTPResponseWriteRoundTrip|TestPPHTTPTransportCloseNominees|TestPPHTTPTransportPersistenceOptions|TestPPHTTPPersistenceOptions|TestPPHTTPPersistenceBoundaryControls|TestPPHTTPPersistenceWriteRoundTrip|TestReverseProxyStripHeadersPresentInConnection)$\' net/http net/http/httputil >> "$evidence/stdlib-test-inventory.txt" 2>&1; then native_status=0; else native_status=$?; fi; printf \'%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n\' baseline-list "$native_status" "$GOROOT" "$GOCACHE" "$GOPROXY" "$GOSUMDB" \'["/usr/local/go/bin/go","test","-count=1","-p=2","-list","^(TestReadResponse|TestWriteResponse|TestReadResponseErrors|TestResponseWritesOnlySingleConnectionClose|TestReadResponseCloseInMiddle|TestResponseContentLengthShortBody|TestTransportConnectionCloseOnResponse|TestTransportConnectionCloseOnRequest|TestTransportRespectRequestWantsClose|TestTransportReadToEndReusesConn|TestIssue3644|TestTransportResponseBodyWritableOnProtocolSwitch|TestPPHTTPConnectionBaseline|TestPPHTTPConnectionSurvivors|TestPPHTTPConnectionFieldNameCase|TestPPHTTPBoundaryControls|TestPPHTTPFramingControls|TestPPHTTPMalformedReaderControls|TestPPHTTPMalformedAcceptedParity|TestPPHTTPResponseWriteRoundTrip|TestPPHTTPTransportCloseNominees|TestPPHTTPTransportPersistenceOptions|TestPPHTTPPersistenceOptions|TestPPHTTPPersistenceBoundaryControls|TestPPHTTPPersistenceWriteRoundTrip|TestReverseProxyStripHeadersPresentInConnection)$","net/http","net/http/httputil"]\' >> "$evidence/stdlib-test-commands.txt"; if test "$native_status" != 0; then cat "$evidence/stdlib-test-inventory.txt"; exit 1; fi; ); \\\n'
-    '    ( export GOROOT=/opt/go1.26.10-http-baseline GOCACHE=/opt/caddy-stdlib-baseline-cache GOPROXY=off GOSUMDB=off; test "$(go env GOROOT)" = "$GOROOT"; test "$(go env GOCACHE)" = "$GOCACHE"; if /usr/local/go/bin/go test -count=1 -p=2 -parallel=2 -timeout=90s -json -run \'^(TestReadResponse|TestWriteResponse|TestReadResponseErrors|TestResponseWritesOnlySingleConnectionClose|TestReadResponseCloseInMiddle|TestResponseContentLengthShortBody|TestTransportConnectionCloseOnResponse|TestTransportConnectionCloseOnRequest|TestTransportRespectRequestWantsClose|TestTransportReadToEndReusesConn|TestIssue3644|TestTransportResponseBodyWritableOnProtocolSwitch|TestPPHTTPBoundaryControls|TestPPHTTPMalformedAcceptedParity|TestPPHTTPMalformedReaderControls|TestPPHTTPPersistenceBoundaryControls|TestReverseProxyStripHeadersPresentInConnection)$\' net/http net/http/httputil > "$evidence/stdlib-baseline-controls.jsonl" 2>&1; then native_status=0; else native_status=$?; fi; printf \'%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n\' baseline-controls "$native_status" "$GOROOT" "$GOCACHE" "$GOPROXY" "$GOSUMDB" \'["/usr/local/go/bin/go","test","-count=1","-p=2","-parallel=2","-timeout=90s","-json","-run","^(TestReadResponse|TestWriteResponse|TestReadResponseErrors|TestResponseWritesOnlySingleConnectionClose|TestReadResponseCloseInMiddle|TestResponseContentLengthShortBody|TestTransportConnectionCloseOnResponse|TestTransportConnectionCloseOnRequest|TestTransportRespectRequestWantsClose|TestTransportReadToEndReusesConn|TestIssue3644|TestTransportResponseBodyWritableOnProtocolSwitch|TestPPHTTPBoundaryControls|TestPPHTTPMalformedAcceptedParity|TestPPHTTPMalformedReaderControls|TestPPHTTPPersistenceBoundaryControls|TestReverseProxyStripHeadersPresentInConnection)$","net/http","net/http/httputil"]\' >> "$evidence/stdlib-test-commands.txt"; if test "$native_status" != 0; then cat "$evidence/stdlib-baseline-controls.jsonl"; exit 1; fi; ); \\\n'
-    '    ( export GOROOT=/opt/go1.26.10-http-baseline GOCACHE=/opt/caddy-stdlib-baseline-cache GOPROXY=off GOSUMDB=off; test "$(go env GOROOT)" = "$GOROOT"; test "$(go env GOCACHE)" = "$GOCACHE"; if /usr/local/go/bin/go test -count=1 -p=2 -parallel=2 -timeout=90s -json -run \'^(TestPPHTTPConnectionBaseline)$\' net/http > "$evidence/stdlib-baseline-red.jsonl" 2>&1; then native_status=0; else native_status=$?; fi; printf \'%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n\' baseline-red "$native_status" "$GOROOT" "$GOCACHE" "$GOPROXY" "$GOSUMDB" \'["/usr/local/go/bin/go","test","-count=1","-p=2","-parallel=2","-timeout=90s","-json","-run","^(TestPPHTTPConnectionBaseline)$","net/http"]\' >> "$evidence/stdlib-test-commands.txt"; if test "$native_status" != 1; then cat "$evidence/stdlib-baseline-red.jsonl"; exit 1; fi; ); \\\n'
+    '    ( export GOROOT=/opt/go1.26.11-http-baseline GOCACHE=/opt/caddy-stdlib-baseline-cache GOPROXY=off GOSUMDB=off; test "$(go env GOROOT)" = "$GOROOT"; test "$(go env GOCACHE)" = "$GOCACHE"; if /usr/local/go/bin/go test -count=1 -p=2 -list \'^(TestReadResponse|TestWriteResponse|TestReadResponseErrors|TestResponseWritesOnlySingleConnectionClose|TestReadResponseCloseInMiddle|TestResponseContentLengthShortBody|TestTransportConnectionCloseOnResponse|TestTransportConnectionCloseOnRequest|TestTransportRespectRequestWantsClose|TestTransportReadToEndReusesConn|TestIssue3644|TestTransportResponseBodyWritableOnProtocolSwitch|TestPPHTTPConnectionBaseline|TestPPHTTPConnectionSurvivors|TestPPHTTPConnectionFieldNameCase|TestPPHTTPBoundaryControls|TestPPHTTPFramingControls|TestPPHTTPMalformedReaderControls|TestPPHTTPMalformedAcceptedParity|TestPPHTTPResponseWriteRoundTrip|TestPPHTTPTransportCloseNominees|TestPPHTTPTransportPersistenceOptions|TestPPHTTPPersistenceOptions|TestPPHTTPPersistenceBoundaryControls|TestPPHTTPPersistenceWriteRoundTrip|TestReverseProxyStripHeadersPresentInConnection)$\' net/http net/http/httputil >> "$evidence/stdlib-test-inventory.txt" 2>&1; then native_status=0; else native_status=$?; fi; printf \'%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n\' baseline-list "$native_status" "$GOROOT" "$GOCACHE" "$GOPROXY" "$GOSUMDB" \'["/usr/local/go/bin/go","test","-count=1","-p=2","-list","^(TestReadResponse|TestWriteResponse|TestReadResponseErrors|TestResponseWritesOnlySingleConnectionClose|TestReadResponseCloseInMiddle|TestResponseContentLengthShortBody|TestTransportConnectionCloseOnResponse|TestTransportConnectionCloseOnRequest|TestTransportRespectRequestWantsClose|TestTransportReadToEndReusesConn|TestIssue3644|TestTransportResponseBodyWritableOnProtocolSwitch|TestPPHTTPConnectionBaseline|TestPPHTTPConnectionSurvivors|TestPPHTTPConnectionFieldNameCase|TestPPHTTPBoundaryControls|TestPPHTTPFramingControls|TestPPHTTPMalformedReaderControls|TestPPHTTPMalformedAcceptedParity|TestPPHTTPResponseWriteRoundTrip|TestPPHTTPTransportCloseNominees|TestPPHTTPTransportPersistenceOptions|TestPPHTTPPersistenceOptions|TestPPHTTPPersistenceBoundaryControls|TestPPHTTPPersistenceWriteRoundTrip|TestReverseProxyStripHeadersPresentInConnection)$","net/http","net/http/httputil"]\' >> "$evidence/stdlib-test-commands.txt"; if test "$native_status" != 0; then cat "$evidence/stdlib-test-inventory.txt"; exit 1; fi; ); \\\n'
+    '    ( export GOROOT=/opt/go1.26.11-http-baseline GOCACHE=/opt/caddy-stdlib-baseline-cache GOPROXY=off GOSUMDB=off; test "$(go env GOROOT)" = "$GOROOT"; test "$(go env GOCACHE)" = "$GOCACHE"; if /usr/local/go/bin/go test -count=1 -p=2 -parallel=2 -timeout=90s -json -run \'^(TestReadResponse|TestWriteResponse|TestReadResponseErrors|TestResponseWritesOnlySingleConnectionClose|TestReadResponseCloseInMiddle|TestResponseContentLengthShortBody|TestTransportConnectionCloseOnResponse|TestTransportConnectionCloseOnRequest|TestTransportRespectRequestWantsClose|TestTransportReadToEndReusesConn|TestIssue3644|TestTransportResponseBodyWritableOnProtocolSwitch|TestPPHTTPBoundaryControls|TestPPHTTPMalformedAcceptedParity|TestPPHTTPMalformedReaderControls|TestPPHTTPPersistenceBoundaryControls|TestReverseProxyStripHeadersPresentInConnection)$\' net/http net/http/httputil > "$evidence/stdlib-baseline-controls.jsonl" 2>&1; then native_status=0; else native_status=$?; fi; printf \'%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n\' baseline-controls "$native_status" "$GOROOT" "$GOCACHE" "$GOPROXY" "$GOSUMDB" \'["/usr/local/go/bin/go","test","-count=1","-p=2","-parallel=2","-timeout=90s","-json","-run","^(TestReadResponse|TestWriteResponse|TestReadResponseErrors|TestResponseWritesOnlySingleConnectionClose|TestReadResponseCloseInMiddle|TestResponseContentLengthShortBody|TestTransportConnectionCloseOnResponse|TestTransportConnectionCloseOnRequest|TestTransportRespectRequestWantsClose|TestTransportReadToEndReusesConn|TestIssue3644|TestTransportResponseBodyWritableOnProtocolSwitch|TestPPHTTPBoundaryControls|TestPPHTTPMalformedAcceptedParity|TestPPHTTPMalformedReaderControls|TestPPHTTPPersistenceBoundaryControls|TestReverseProxyStripHeadersPresentInConnection)$","net/http","net/http/httputil"]\' >> "$evidence/stdlib-test-commands.txt"; if test "$native_status" != 0; then cat "$evidence/stdlib-baseline-controls.jsonl"; exit 1; fi; ); \\\n'
+    '    ( export GOROOT=/opt/go1.26.11-http-baseline GOCACHE=/opt/caddy-stdlib-baseline-cache GOPROXY=off GOSUMDB=off; test "$(go env GOROOT)" = "$GOROOT"; test "$(go env GOCACHE)" = "$GOCACHE"; if /usr/local/go/bin/go test -count=1 -p=2 -parallel=2 -timeout=90s -json -run \'^(TestPPHTTPConnectionBaseline)$\' net/http > "$evidence/stdlib-baseline-red.jsonl" 2>&1; then native_status=0; else native_status=$?; fi; printf \'%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n\' baseline-red "$native_status" "$GOROOT" "$GOCACHE" "$GOPROXY" "$GOSUMDB" \'["/usr/local/go/bin/go","test","-count=1","-p=2","-parallel=2","-timeout=90s","-json","-run","^(TestPPHTTPConnectionBaseline)$","net/http"]\' >> "$evidence/stdlib-test-commands.txt"; if test "$native_status" != 1; then cat "$evidence/stdlib-baseline-red.jsonl"; exit 1; fi; ); \\\n'
     "    grep -F 'PP_BASELINE_SETUP_BODY_CLOSE_OK' \"$evidence/stdlib-baseline-red.jsonl\"; \\\n"
     "    grep -F 'PP_EXPECTED_NOMINATION_MISMATCH' \"$evidence/stdlib-baseline-red.jsonl\"; \\\n"
     "    printf 'PATCHED_NATIVE_LIST\\n' >> \"$evidence/stdlib-test-inventory.txt\"; \\\n"
-    '    ( export GOROOT=/opt/go1.26.10-http-patched GOCACHE=/opt/caddy-stdlib-patched-cache GOPROXY=off GOSUMDB=off; test "$(go env GOROOT)" = "$GOROOT"; test "$(go env GOCACHE)" = "$GOCACHE"; if /usr/local/go/bin/go test -count=1 -p=2 -list \'^(TestReadResponse|TestWriteResponse|TestReadResponseErrors|TestResponseWritesOnlySingleConnectionClose|TestReadResponseCloseInMiddle|TestResponseContentLengthShortBody|TestTransportConnectionCloseOnResponse|TestTransportConnectionCloseOnRequest|TestTransportRespectRequestWantsClose|TestTransportReadToEndReusesConn|TestIssue3644|TestTransportResponseBodyWritableOnProtocolSwitch|TestPPHTTPConnectionBaseline|TestPPHTTPConnectionSurvivors|TestPPHTTPConnectionFieldNameCase|TestPPHTTPBoundaryControls|TestPPHTTPFramingControls|TestPPHTTPMalformedReaderControls|TestPPHTTPMalformedAcceptedParity|TestPPHTTPResponseWriteRoundTrip|TestPPHTTPTransportCloseNominees|TestPPHTTPTransportPersistenceOptions|TestPPHTTPPersistenceOptions|TestPPHTTPPersistenceBoundaryControls|TestPPHTTPPersistenceWriteRoundTrip|TestReverseProxyStripHeadersPresentInConnection)$\' net/http net/http/httputil >> "$evidence/stdlib-test-inventory.txt" 2>&1; then native_status=0; else native_status=$?; fi; printf \'%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n\' patched-list "$native_status" "$GOROOT" "$GOCACHE" "$GOPROXY" "$GOSUMDB" \'["/usr/local/go/bin/go","test","-count=1","-p=2","-list","^(TestReadResponse|TestWriteResponse|TestReadResponseErrors|TestResponseWritesOnlySingleConnectionClose|TestReadResponseCloseInMiddle|TestResponseContentLengthShortBody|TestTransportConnectionCloseOnResponse|TestTransportConnectionCloseOnRequest|TestTransportRespectRequestWantsClose|TestTransportReadToEndReusesConn|TestIssue3644|TestTransportResponseBodyWritableOnProtocolSwitch|TestPPHTTPConnectionBaseline|TestPPHTTPConnectionSurvivors|TestPPHTTPConnectionFieldNameCase|TestPPHTTPBoundaryControls|TestPPHTTPFramingControls|TestPPHTTPMalformedReaderControls|TestPPHTTPMalformedAcceptedParity|TestPPHTTPResponseWriteRoundTrip|TestPPHTTPTransportCloseNominees|TestPPHTTPTransportPersistenceOptions|TestPPHTTPPersistenceOptions|TestPPHTTPPersistenceBoundaryControls|TestPPHTTPPersistenceWriteRoundTrip|TestReverseProxyStripHeadersPresentInConnection)$","net/http","net/http/httputil"]\' >> "$evidence/stdlib-test-commands.txt"; if test "$native_status" != 0; then cat "$evidence/stdlib-test-inventory.txt"; exit 1; fi; ); \\\n'
-    '    ( export GOROOT=/opt/go1.26.10-http-patched GOCACHE=/opt/caddy-stdlib-patched-cache GOPROXY=off GOSUMDB=off; test "$(go env GOROOT)" = "$GOROOT"; test "$(go env GOCACHE)" = "$GOCACHE"; if /usr/local/go/bin/go test -count=1 -p=2 -parallel=2 -timeout=90s -json -run \'^(TestReadResponse|TestWriteResponse|TestReadResponseErrors|TestResponseWritesOnlySingleConnectionClose|TestReadResponseCloseInMiddle|TestResponseContentLengthShortBody|TestTransportConnectionCloseOnResponse|TestTransportConnectionCloseOnRequest|TestTransportRespectRequestWantsClose|TestTransportReadToEndReusesConn|TestIssue3644|TestTransportResponseBodyWritableOnProtocolSwitch|TestPPHTTPConnectionBaseline|TestPPHTTPConnectionSurvivors|TestPPHTTPConnectionFieldNameCase|TestPPHTTPBoundaryControls|TestPPHTTPFramingControls|TestPPHTTPMalformedReaderControls|TestPPHTTPMalformedAcceptedParity|TestPPHTTPResponseWriteRoundTrip|TestPPHTTPTransportCloseNominees|TestPPHTTPTransportPersistenceOptions|TestPPHTTPPersistenceOptions|TestPPHTTPPersistenceBoundaryControls|TestPPHTTPPersistenceWriteRoundTrip|TestReverseProxyStripHeadersPresentInConnection)$\' net/http net/http/httputil > "$evidence/stdlib-patched-tests.jsonl" 2>&1; then native_status=0; else native_status=$?; fi; printf \'%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n\' patched-tests "$native_status" "$GOROOT" "$GOCACHE" "$GOPROXY" "$GOSUMDB" \'["/usr/local/go/bin/go","test","-count=1","-p=2","-parallel=2","-timeout=90s","-json","-run","^(TestReadResponse|TestWriteResponse|TestReadResponseErrors|TestResponseWritesOnlySingleConnectionClose|TestReadResponseCloseInMiddle|TestResponseContentLengthShortBody|TestTransportConnectionCloseOnResponse|TestTransportConnectionCloseOnRequest|TestTransportRespectRequestWantsClose|TestTransportReadToEndReusesConn|TestIssue3644|TestTransportResponseBodyWritableOnProtocolSwitch|TestPPHTTPConnectionBaseline|TestPPHTTPConnectionSurvivors|TestPPHTTPConnectionFieldNameCase|TestPPHTTPBoundaryControls|TestPPHTTPFramingControls|TestPPHTTPMalformedReaderControls|TestPPHTTPMalformedAcceptedParity|TestPPHTTPResponseWriteRoundTrip|TestPPHTTPTransportCloseNominees|TestPPHTTPTransportPersistenceOptions|TestPPHTTPPersistenceOptions|TestPPHTTPPersistenceBoundaryControls|TestPPHTTPPersistenceWriteRoundTrip|TestReverseProxyStripHeadersPresentInConnection)$","net/http","net/http/httputil"]\' >> "$evidence/stdlib-test-commands.txt"; if test "$native_status" != 0; then cat "$evidence/stdlib-patched-tests.jsonl"; exit 1; fi; ); \\\n'
-    "    verify_stdlib /opt/go1.26.10-http-baseline stdlib-baseline-tree.sha256 aed4cf1ca75d78f74118dc8686cd0bdd6d017c1b8bb98e0f46c2ed859ad72a26; \\\n"
-    "    verify_stdlib /opt/go1.26.10-http-patched stdlib-post-tests-tree.sha256 afce6dcef776fcfe337fff1c5d4a3c68cd4729be7c27463d07e09fc7fafaa3f5; \\\n"
-    "    rm -rf /opt/go1.26.10-http-baseline /opt/caddy-stdlib-baseline-cache\n"
+    '    ( export GOROOT=/opt/go1.26.11-http-patched GOCACHE=/opt/caddy-stdlib-patched-cache GOPROXY=off GOSUMDB=off; test "$(go env GOROOT)" = "$GOROOT"; test "$(go env GOCACHE)" = "$GOCACHE"; if /usr/local/go/bin/go test -count=1 -p=2 -list \'^(TestReadResponse|TestWriteResponse|TestReadResponseErrors|TestResponseWritesOnlySingleConnectionClose|TestReadResponseCloseInMiddle|TestResponseContentLengthShortBody|TestTransportConnectionCloseOnResponse|TestTransportConnectionCloseOnRequest|TestTransportRespectRequestWantsClose|TestTransportReadToEndReusesConn|TestIssue3644|TestTransportResponseBodyWritableOnProtocolSwitch|TestPPHTTPConnectionBaseline|TestPPHTTPConnectionSurvivors|TestPPHTTPConnectionFieldNameCase|TestPPHTTPBoundaryControls|TestPPHTTPFramingControls|TestPPHTTPMalformedReaderControls|TestPPHTTPMalformedAcceptedParity|TestPPHTTPResponseWriteRoundTrip|TestPPHTTPTransportCloseNominees|TestPPHTTPTransportPersistenceOptions|TestPPHTTPPersistenceOptions|TestPPHTTPPersistenceBoundaryControls|TestPPHTTPPersistenceWriteRoundTrip|TestReverseProxyStripHeadersPresentInConnection)$\' net/http net/http/httputil >> "$evidence/stdlib-test-inventory.txt" 2>&1; then native_status=0; else native_status=$?; fi; printf \'%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n\' patched-list "$native_status" "$GOROOT" "$GOCACHE" "$GOPROXY" "$GOSUMDB" \'["/usr/local/go/bin/go","test","-count=1","-p=2","-list","^(TestReadResponse|TestWriteResponse|TestReadResponseErrors|TestResponseWritesOnlySingleConnectionClose|TestReadResponseCloseInMiddle|TestResponseContentLengthShortBody|TestTransportConnectionCloseOnResponse|TestTransportConnectionCloseOnRequest|TestTransportRespectRequestWantsClose|TestTransportReadToEndReusesConn|TestIssue3644|TestTransportResponseBodyWritableOnProtocolSwitch|TestPPHTTPConnectionBaseline|TestPPHTTPConnectionSurvivors|TestPPHTTPConnectionFieldNameCase|TestPPHTTPBoundaryControls|TestPPHTTPFramingControls|TestPPHTTPMalformedReaderControls|TestPPHTTPMalformedAcceptedParity|TestPPHTTPResponseWriteRoundTrip|TestPPHTTPTransportCloseNominees|TestPPHTTPTransportPersistenceOptions|TestPPHTTPPersistenceOptions|TestPPHTTPPersistenceBoundaryControls|TestPPHTTPPersistenceWriteRoundTrip|TestReverseProxyStripHeadersPresentInConnection)$","net/http","net/http/httputil"]\' >> "$evidence/stdlib-test-commands.txt"; if test "$native_status" != 0; then cat "$evidence/stdlib-test-inventory.txt"; exit 1; fi; ); \\\n'
+    '    ( export GOROOT=/opt/go1.26.11-http-patched GOCACHE=/opt/caddy-stdlib-patched-cache GOPROXY=off GOSUMDB=off; test "$(go env GOROOT)" = "$GOROOT"; test "$(go env GOCACHE)" = "$GOCACHE"; if /usr/local/go/bin/go test -count=1 -p=2 -parallel=2 -timeout=90s -json -run \'^(TestReadResponse|TestWriteResponse|TestReadResponseErrors|TestResponseWritesOnlySingleConnectionClose|TestReadResponseCloseInMiddle|TestResponseContentLengthShortBody|TestTransportConnectionCloseOnResponse|TestTransportConnectionCloseOnRequest|TestTransportRespectRequestWantsClose|TestTransportReadToEndReusesConn|TestIssue3644|TestTransportResponseBodyWritableOnProtocolSwitch|TestPPHTTPConnectionBaseline|TestPPHTTPConnectionSurvivors|TestPPHTTPConnectionFieldNameCase|TestPPHTTPBoundaryControls|TestPPHTTPFramingControls|TestPPHTTPMalformedReaderControls|TestPPHTTPMalformedAcceptedParity|TestPPHTTPResponseWriteRoundTrip|TestPPHTTPTransportCloseNominees|TestPPHTTPTransportPersistenceOptions|TestPPHTTPPersistenceOptions|TestPPHTTPPersistenceBoundaryControls|TestPPHTTPPersistenceWriteRoundTrip|TestReverseProxyStripHeadersPresentInConnection)$\' net/http net/http/httputil > "$evidence/stdlib-patched-tests.jsonl" 2>&1; then native_status=0; else native_status=$?; fi; printf \'%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n\' patched-tests "$native_status" "$GOROOT" "$GOCACHE" "$GOPROXY" "$GOSUMDB" \'["/usr/local/go/bin/go","test","-count=1","-p=2","-parallel=2","-timeout=90s","-json","-run","^(TestReadResponse|TestWriteResponse|TestReadResponseErrors|TestResponseWritesOnlySingleConnectionClose|TestReadResponseCloseInMiddle|TestResponseContentLengthShortBody|TestTransportConnectionCloseOnResponse|TestTransportConnectionCloseOnRequest|TestTransportRespectRequestWantsClose|TestTransportReadToEndReusesConn|TestIssue3644|TestTransportResponseBodyWritableOnProtocolSwitch|TestPPHTTPConnectionBaseline|TestPPHTTPConnectionSurvivors|TestPPHTTPConnectionFieldNameCase|TestPPHTTPBoundaryControls|TestPPHTTPFramingControls|TestPPHTTPMalformedReaderControls|TestPPHTTPMalformedAcceptedParity|TestPPHTTPResponseWriteRoundTrip|TestPPHTTPTransportCloseNominees|TestPPHTTPTransportPersistenceOptions|TestPPHTTPPersistenceOptions|TestPPHTTPPersistenceBoundaryControls|TestPPHTTPPersistenceWriteRoundTrip|TestReverseProxyStripHeadersPresentInConnection)$","net/http","net/http/httputil"]\' >> "$evidence/stdlib-test-commands.txt"; if test "$native_status" != 0; then cat "$evidence/stdlib-patched-tests.jsonl"; exit 1; fi; ); \\\n'
+    "    verify_stdlib /opt/go1.26.11-http-baseline stdlib-baseline-tree.sha256 81610504883937e37f0d618a8e0e8f88de644a86d9522dc8c5f20a8900b86bc2; \\\n"
+    "    verify_stdlib /opt/go1.26.11-http-patched stdlib-post-tests-tree.sha256 ce66b041c82c993b0a8ecff307fff975dab42b50e6f25c296c55f1bec550224c; \\\n"
+    "    rm -rf /opt/go1.26.11-http-baseline /opt/caddy-stdlib-baseline-cache\n"
     "\n"
-    "ENV GOROOT=/opt/go1.26.10-http-patched \\\n"
+    "ENV GOROOT=/opt/go1.26.11-http-patched \\\n"
     "    GOCACHE=/opt/caddy-stdlib-patched-cache\n"
     "\n"
     "RUN set -eux; \\\n"
@@ -183,7 +183,7 @@ EXPECTED_CADDY_BUILDER_STAGE = (
     "    go get github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.9; \\\n"
     "    go mod download all; \\\n"
     "    go mod verify; \\\n"
-    "    echo '40a8c29bde80ddaaf323030a9631453d905b1deafc4eb909c0b2b1c43bd2965d  go.mod' | sha256sum -c -; \\\n"
+    "    echo '4a11def21d6670163e30e911b160c48f1ad5af8eb946a4388b86d60c473f7bda  go.mod' | sha256sum -c -; \\\n"
     "    echo 'bc1def232f1f0a8d205b39c38fa9b0159d481c05f90933bc975659ec0c0317c8  go.sum' | sha256sum -c -; \\\n"
     "    go get golang.org/x/net@v0.62.0; \\\n"
     "    cp go.mod /tmp/caddy-xnet062-postget.mod; \\\n"
@@ -192,7 +192,7 @@ EXPECTED_CADDY_BUILDER_STAGE = (
     "    go mod verify; \\\n"
     "    cmp go.mod /tmp/caddy-xnet062-postget.mod; \\\n"
     "    echo 'f5d9289fa0e27604a936ed5e35368db876398dac62154b9a6af9d0d2a891f7d9  /tmp/caddy-xnet062-postget.sum' | sha256sum -c -; \\\n"
-    "    echo 'f06331d8fba11ae7ac7ba36f80198bb9ca7c5ac22df4deb7011ab91a4d52f596  go.mod' | sha256sum -c -; \\\n"
+    "    echo '2fe5b4ec98da3f364435b074d4a031c14848fa49e688b726ecc6a9fd1b09f70d  go.mod' | sha256sum -c -; \\\n"
     "    echo 'be8f44f7e591bcaa54412fe5f3061235596be2faf9bd3f5fdece0106fea45338  go.sum' | sha256sum -c -; \\\n"
     "    test -z \"$(go list -m -f '{{if .Replace}}{{.Path}} => {{.Replace.Path}}{{end}}' all)\"; \\\n"
     "    evidence=/caddy-build-evidence; \\\n"
@@ -296,8 +296,8 @@ EXPECTED_CADDY_BUILDER_STAGE = (
     '    verify_jose_source /opt/go-jose-v3.0.5-patched 72 "$patched_tree" post-build; \\\n'
     '    verify_jose_source "$original_dir" 71 "$original_tree" original-post-build; \\\n'
     '    verify_stdlib() { ( test ! -L "$1"; test -d "$1"; cd "$1"; test -z "$(find . -mindepth 1 ! -type d ! -type f -print)"; find . -type f -exec sha256sum {} + | LC_ALL=C sort > "$evidence/$2"; test "$(sha256sum "$evidence/$2" | cut -d\' \' -f1)" = "$3"; ); }; \\\n'
-    '    verify_stdlib "$GOROOT" stdlib-post-build-tree.sha256 afce6dcef776fcfe337fff1c5d4a3c68cd4729be7c27463d07e09fc7fafaa3f5; \\\n'
-    "    verify_stdlib /usr/local/go stdlib-original-post-build-tree.sha256 e54472503fcedc70793baefd53d9ae2eee748610e190f99f533ae6ef7c3ecf64; \\\n"
+    '    verify_stdlib "$GOROOT" stdlib-post-build-tree.sha256 ce66b041c82c993b0a8ecff307fff975dab42b50e6f25c296c55f1bec550224c; \\\n'
+    "    verify_stdlib /usr/local/go stdlib-original-post-build-tree.sha256 cd0e29a237713551aba930d7f3976b03b361fb7b1e885ad308266d3b19c63ea4; \\\n"
     '    cp /tmp/caddy-binary-metadata "$evidence/build-info.txt"; \\\n'
     '    sha256sum /go/bin/caddy > "$evidence/binary.sha256"; \\\n'
     '    rm "$evidence/packages.json"; \\\n'
@@ -335,7 +335,7 @@ EXPECTED_CADDY_FINAL_STAGE = (
             'LABEL org.opencontainers.image.title="PulsePlate Caddy SPA shell" \\',
             (
                 '      org.opencontainers.image.description="Caddy 2.11.9 rebuilt with '
-                'Go 1.26.10 and PulsePlate frontend assets"'
+                'Go 1.26.11 and PulsePlate frontend assets"'
             ),
             "",
             "# Compare the standard module surface before replacing the upstream binary.",
@@ -366,7 +366,7 @@ EXPECTED_CADDY_FINAL_STAGE = (
             '      "libcurl>=8.20.0-r0" \\',
             '      "libcrypto3>=3.5.8-r0" \\',
             '      "libssl3>=3.5.8-r0" \\',
-            '      "zlib>=1.3.2-r1"; \\',
+            '      "zlib>=1.4-r0"; \\',
             "    mv /usr/bin/caddy.pulseplate /usr/bin/caddy; \\",
             "    setcap cap_net_bind_service=+ep /usr/bin/caddy; \\",
             "    getcap /usr/bin/caddy | grep -F 'cap_net_bind_service=ep'; \\",
@@ -376,7 +376,7 @@ EXPECTED_CADDY_FINAL_STAGE = (
             ),
             (
                 "    caddy build-info | awk -F '\\t' '$1 == \"go\" && $2 == "
-                '"go1.26.10" { found=1 } END { exit found ? 0 : 1 }\'; \\'
+                '"go1.26.11" { found=1 } END { exit found ? 0 : 1 }\'; \\'
             ),
             "    rm -f /tmp/caddy-official-modules /tmp/caddy-rebuilt-modules",
             "",
@@ -563,7 +563,7 @@ def test_caddy_dockerfile_owns_exact_hardened_build_recipe() -> None:
     assert '"c-ares>=1.34.8-r0"' in text
     assert '"curl>=8.20.0-r0"' in text
     assert '"libcurl>=8.20.0-r0"' in text
-    assert '"zlib>=1.3.2-r1"' in text
+    assert '"zlib>=1.4-r0"' in text
     assert "COPY --from=caddy-build --chmod=0755 /go/bin/caddy" in text
     assert "caddy list-modules --packages" in text
     assert "setcap cap_net_bind_service=+ep /usr/bin/caddy" in text
@@ -763,7 +763,7 @@ def test_caddy_builder_stage_snapshot_rejects_dependency_contract_drift(case: st
         candidate = source.replace(expected_check, "", 1)
     elif case == "final-go-mod-unbound":
         candidate = source.replace(
-            "f06331d8fba11ae7ac7ba36f80198bb9ca7c5ac22df4deb7011ab91a4d52f596", "0" * 64, 1
+            "2fe5b4ec98da3f364435b074d4a031c14848fa49e688b726ecc6a9fd1b09f70d", "0" * 64, 1
         )
     elif case == "go-mod-comparison-omitted":
         candidate = source.replace("    cmp go.mod /tmp/caddy-xnet062-postget.mod; \\\n", "", 1)
@@ -809,7 +809,7 @@ def test_caddy_openssl_final_stage_snapshot_rejects_representative_byte_drift(
     if case == "lower-floor":
         candidate = source.replace("3.5.8-r0", "3.5.7-r0")
     elif case == "lower-zlib-floor":
-        candidate = source.replace("zlib>=1.3.2-r1", "zlib>=1.3.2-r0")
+        candidate = source.replace("zlib>=1.4-r0", "zlib>=1.3.2-r1", 1)
     elif case == "partial-floor":
         candidate = source.replace(
             '      "libssl3>=3.5.8-r0" \\\n',
@@ -836,6 +836,7 @@ def test_caddy_openssl_final_stage_snapshot_rejects_representative_byte_drift(
             1,
         )
 
+    assert candidate != source
     with pytest.raises(AssertionError):
         _assert_caddy_openssl_runtime_floor_contract(candidate)
 
@@ -1354,16 +1355,16 @@ def test_production_quick_fix_rebuilds_and_verifies_hardened_caddy() -> None:
     assert pull_index < build_index < up_index < version_index < build_info_index < success_index
     assert "dc pull ||" not in text
     assert 'CADDY_VERSION_TOKEN" != "v2.11.9"' in text
-    assert 'CADDY_GO_VERSION" != "go1.26.10"' in text
+    assert 'CADDY_GO_VERSION" != "go1.26.11"' in text
     assert "*v2.11.9*" not in text
-    assert "*go1.26.10*" not in text
+    assert "*go1.26.11*" not in text
 
 
 @pytest.mark.parametrize(
     ("caddy_version", "build_info", "expected_error"),
     (
-        ("v2.11.90 h1:test", "go\tgo1.26.10\n", "Expected Caddy v2.11.9"),
-        ("v2.11.9 h1:test", "go\tgo1.26.100\n", "Expected Caddy built with Go 1.26.10"),
+        ("v2.11.90 h1:test", "go\tgo1.26.11\n", "Expected Caddy v2.11.9"),
+        ("v2.11.9 h1:test", "go\tgo1.26.110\n", "Expected Caddy built with Go 1.26.11"),
     ),
 )
 def test_production_quick_fix_rejects_inexact_caddy_identity(
@@ -1387,7 +1388,7 @@ def test_production_quick_fix_fails_closed_when_readiness_fails(tmp_path: Path) 
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.9 h1:test",
-        go_version="go1.26.10",
+        go_version="go1.26.11",
         curl_exit=22,
     )
 
@@ -1402,7 +1403,7 @@ def test_production_quick_fix_redacts_duplicate_secret_values(tmp_path: Path) ->
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.9 h1:test",
-        go_version="go1.26.10",
+        go_version="go1.26.11",
         extra_env=(
             f"POSTGRES_PASSWORD={password_sentinel}\n"
             f"DATABASE_URL=postgresql+psycopg://pulseplate:{dsn_sentinel}@db/pulseplate\n"
@@ -1433,7 +1434,7 @@ def test_production_quick_fix_rejects_compose_normalized_duplicate_keys(
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.9 h1:test",
-        go_version="go1.26.10",
+        go_version="go1.26.11",
         extra_env=f"{duplicate_line}\n",
     )
 
@@ -1454,7 +1455,7 @@ def test_production_quick_fix_fails_closed_when_env_file_is_missing(tmp_path: Pa
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.9 h1:test",
-        go_version="go1.26.10",
+        go_version="go1.26.11",
         create_env=False,
     )
 
@@ -1468,7 +1469,7 @@ def test_production_quick_fix_replaces_env_atomically_with_preserved_mode(tmp_pa
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.9 h1:test",
-        go_version="go1.26.10",
+        go_version="go1.26.11",
     )
 
     env_path = tmp_path / "production" / ".env"
@@ -1506,7 +1507,7 @@ def test_production_quick_fix_normalizes_managed_flag_cleanup(
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.9 h1:test",
-        go_version="go1.26.10",
+        go_version="go1.26.11",
         extra_env=f"{legacy_line}\n",
     )
 
@@ -2352,8 +2353,7 @@ def _assert_checkpoint_pr_native_job(workflow: dict[str, object]) -> None:
     assert "secrets." not in str(classifier)
     assert classifier["run"].count('trusted["classify_source_change"](previous, current)') == 1
     assert "mode=" not in selection["run"]
-    # pragma: allowlist nextline secret - public trusted control commit
-    assert control["with"]["ref"] == "97040beecd327dccd5ddb1071bcc7aabd672c8d1"
+    assert re.fullmatch(r"[0-9a-f]{40}", control["with"]["ref"])
     assert control["with"]["persist-credentials"] is False
     assert "python3 -I -S" in consumer["run"] and "runpy.run_path(str(helper))" in consumer["run"]
     assert consumer["env"]["GH_TOKEN"] == "${{ secrets.GITHUB_TOKEN }}"
@@ -3919,6 +3919,7 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
             "root_inputs": {
                 "source.tar.gz": "81e69f87954aedb557ed67d9ef0218a1c0c9b9e0c3184c9ddffe07bd247239fc",
                 "ui.tar.gz": "3d6b13c5af094724e0bed8f757399e08af44d40d6c6cd87392a1f8ee6ed1e457",
+                "go-toolchain.tar.gz": transport.CURRENT_GO.digest,
             },
             "plan": {
                 "assembly_argv": [
@@ -4007,6 +4008,8 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
             "build_information": {},
             "security": {"scanner": scanner},
             "producer_admission": {"mode": "H"},
+            "root_inputs": deepcopy(inspected["root_inputs"]),
+            "plan": deepcopy(inspected["plan"]),
         }
         (destination / "candidate-observation.json").write_text(json.dumps(observed))
         return observed
@@ -4053,6 +4056,9 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
         support: Path,
         work: Path,
         limits: dict[str, int],
+        *,
+        compiler_artifact: transport.Artifact,
+        qualification_plan: dict[str, Any],
         **kwargs: Any,
     ) -> dict[str, Any]:
         nonlocal now
@@ -4062,6 +4068,15 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
             now = start + 2535
         assert sessions[0].closed and not sessions[0].private.exists() and len(sessions) == 1
         assert archive.is_file() and selected_graph == graph and support.is_dir()
+        assert isinstance(compiler_artifact, transport.Artifact)
+        assert transport.Artifact.canonical(compiler_artifact) is transport.CURRENT_GO
+        assert qualification_plan == {
+            "assembly_argv": [
+                "--build-context",
+                transport.BASE + "=oci-layout:///inputs/base-layout@sha256:" + "b" * 64,
+            ],
+            "probe": {},
+        }
         assert (
             kwargs["upstream_version"] == "0.34.2"
             and kwargs["support_report"]["scanner"] == scanner
@@ -4315,12 +4330,47 @@ def test_alertmanager_current_four_controls_retain_native_reports_and_reject_unp
     (cache / "db/trivy.db").write_bytes(b"synthetic native DB")
     (cache / "db/metadata.json").write_text('{"Version":2,"UpdatedAt":"2026-10-18T00:00:00Z"}')
     monkeypatch.setattr(shutil, "which", lambda name: "/synthetic/" + name)
+    acquisition_order: list[str] = []
+
+    class Reader:
+        def __init__(self, private: Path, evidence: Path, deadline: float, cleanup: int) -> None:
+            self.private = private
+            private.mkdir()
+            acquisition_order.append("open")
+
+        def close(self) -> None:
+            self.private.rmdir()
+            acquisition_order.append("close")
+
+    monkeypatch.setattr(transport, "GitHubRead", Reader)
+    monkeypatch.setattr(
+        fetcher,
+        "_alertmanager_source_snapshot",
+        lambda *a, **k: {name: b"synthetic source" for name in fetcher._ALERT_Q_SOURCE_FILES},
+    )
+    monkeypatch.setattr(
+        fetcher,
+        "_alertmanager_current_inputs",
+        lambda *a, **k: {"run": 42107347940, "source": "synthetic original"},
+    )
+    monkeypatch.setattr(
+        fetcher,
+        "_alertmanager_qualified_payload",
+        lambda *a, **k: {
+            "root_inputs": {
+                "go-toolchain.tar.gz": (
+                    transport.RETAINED_GO if current_epoch else transport.GO
+                ).digest
+            },
+            "plan": {},
+        },
+    )
     calls: list[str] = []
     timers: list[float] = []
     if fault in ("observation-write", "primary-and-observation"):
         import signal
 
-        monkeypatch.setattr(signal, "getitimer", lambda timer: (5.0, 0.0))
+        monkeypatch.setattr(signal, "getitimer", lambda timer: (120.0, 0.0))
         monkeypatch.setattr(signal, "setitimer", lambda timer, value, *args: timers.append(value))
         monkeypatch.setattr(fetcher.time, "monotonic", lambda: 100.0)
         write = Path.write_text
@@ -4357,18 +4407,28 @@ def test_alertmanager_current_four_controls_retain_native_reports_and_reject_unp
     control_owner = fetcher._alertmanager_vulnerability_control
 
     def inventory(
-        *args: Any, current: bool = False, proof_mode: str, upstream_version: str
+        *args: Any,
+        current: bool = False,
+        proof_mode: str,
+        upstream_version: str,
+        compiler_artifact: object | None = None,
     ) -> dict[str, Any]:
         assert proof_mode == "accepted-live"
         assert upstream_version == ("0.34.2" if current_epoch else "0.34.1")
         forwarded.append(("candidate", current))
         return inventory_owner(
-            *args, current=current, proof_mode=proof_mode, upstream_version=upstream_version
+            *args,
+            current=current,
+            proof_mode=proof_mode,
+            upstream_version=upstream_version,
+            compiler_artifact=compiler_artifact,
         )
 
-    def control(*args: Any, current: bool = False) -> dict[str, Any]:
+    def control(
+        *args: Any, current: bool = False, qualification_plan: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         forwarded.append(("old_control", current))
-        return control_owner(*args, current=current)
+        return control_owner(*args, current=current, qualification_plan=qualification_plan)
 
     monkeypatch.setattr(fetcher, "_alertmanager_candidate_inventory", inventory)
     monkeypatch.setattr(fetcher, "_alertmanager_vulnerability_control", control)
@@ -4380,6 +4440,9 @@ def test_alertmanager_current_four_controls_retain_native_reports_and_reject_unp
         def __init__(self, *args: Any) -> None:
             self.records: list[dict[str, Any]] = []
 
+        def begin_cleanup(self) -> None:
+            acquisition_order.append("native-cleanup")
+
         def run(
             self,
             argv: list[str],
@@ -4389,6 +4452,7 @@ def test_alertmanager_current_four_controls_retain_native_reports_and_reject_unp
             cwd: Path,
             **kwargs: Any,
         ) -> bytes:
+            assert acquisition_order[:2] == ["open", "close"]
             assert cwd == args.output_dir
             calls.append(label)
             assert not any("TOKEN" in key for key in environment)
@@ -4542,12 +4606,12 @@ def test_alertmanager_current_four_controls_retain_native_reports_and_reject_unp
         elif fault in ("target-Go-HIGH", "target-Go-CRITICAL", "new-HIGH"):
             assert str(observed.value) == "AM_new_blocking_support_finding_HOLD"
         if fault in ("observation-write", "primary-and-observation"):
-            assert timers[0] <= 5.0 and timers[-1] == 5.0
+            assert timers[0] <= 120.0 and timers[-1] == 120.0
             assert not (args.output_dir / "security-observation.json").exists()
             if fault == "primary-and-observation":
                 assert str(observed.value) == "synthetic scanner native exit2"
                 assert (
-                    "AM current security observation also failed: OSError"
+                    "AM current security finalization also failed: OSError"
                     in observed.value.__notes__
                 )
             return
@@ -5984,7 +6048,7 @@ def test_caddy_official_controls_use_one_bound_acquisition(
             else:
                 stdout = {
                     "version": "v2.11.9",
-                    "build-info": "go go1.26.10",
+                    "build-info": "go go1.26.11",
                     "/usr/bin/caddy": "cap_net_bind_service=ep",
                 }[argv[-1]]
             return subprocess.CompletedProcess(argv, 0, stdout)
@@ -6200,12 +6264,24 @@ def test_caddy_metadata_step_owns_full_id_watcher_and_terminal_cleanup(
 
     class IndexHash:
         def hexdigest(self) -> str:
-            return "0525c952defebc693cdaf62cdf43afa32be5a7f377e99260642ea19c240c708e"
+            return "db99415e2625ce0ee03eed09edf7f32ae8c58dc399f28cc602a87fe7238119e4"
 
     monkeypatch.setattr(
         hashlib, "sha256", lambda raw=b"": IndexHash() if raw == index else real_sha256(raw)
     )
-    monkeypatch.setattr(native_owner, "native_go_identity", lambda *_: {"operand": image})
+    current_compiler = (
+        "golang:1.26.11-alpine3.23@sha256:"
+        "db99415e2625ce0ee03eed09edf7f32ae8c58dc399f28cc602a87fe7238119e4"
+    )
+
+    def native_go_identity(
+        observed: dict[str, Any], raw: bytes, platform_raw: bytes, *, expected_source: str
+    ) -> dict[str, str]:
+        assert expected_source == current_compiler
+        assert observed["Id"] == image and raw == index and platform_raw == b"{}"
+        return {"operand": image}
+
+    monkeypatch.setattr(native_owner, "native_go_identity", native_go_identity)
     monkeypatch.setattr(caddy_surface, "validate_trivy_image_report", lambda *_: None)
     monkeypatch.setattr(caddy_surface, "CADDY_XNET062_INCUMBENT_FILES", {})
     monkeypatch.setattr(
@@ -6214,7 +6290,10 @@ def test_caddy_metadata_step_owns_full_id_watcher_and_terminal_cleanup(
         lambda _: {"complete_delta": [], "historical_caddy_delta": []},
     )
 
-    def native_image_identity(actual: dict[str, Any], relation: dict[str, str]) -> None:
+    def native_image_identity(
+        actual: dict[str, Any], relation: dict[str, str], *, expected_source: str
+    ) -> None:
+        assert expected_source == current_compiler and relation["operand"] == image
         assert actual["Image"] == relation["operand"]
 
     monkeypatch.setattr(native_owner, "native_container_image_identity", native_image_identity)
@@ -6365,7 +6444,7 @@ def test_caddy_metadata_step_owns_full_id_watcher_and_terminal_cleanup(
                     assert "watched_output" not in kwargs
                     if fault == "version-profile":
                         container["HostConfig"]["PidsLimit"] = 129
-                    return b"go version go1.26.10 linux/amd64\n"
+                    return b"go version go1.26.11 linux/amd64\n"
                 paths = {m["Destination"]: Path(m["Source"]) for m in container["Mounts"]}
                 watch.append((channel, kwargs["watched_output"]))
                 assert kwargs["watched_output"] == paths["/work"].parent

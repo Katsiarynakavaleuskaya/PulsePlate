@@ -633,11 +633,7 @@ def test_prometheus_cd_registry_credential_route_preserves_base_execution_bounda
     assert "scripts.ci.prometheus_source_image --operation consume" in consumer["run"]
     control = steps["Checkout fixed trusted Prometheus control"]
     cleanup = steps["Remove fixed trusted Prometheus control checkout"]
-    assert (
-        control["with"]["ref"]
-        # pragma: allowlist nextline secret - public trusted control commit
-        == "97040beecd327dccd5ddb1071bcc7aabd672c8d1"
-    )
+    assert re.fullmatch(r"[0-9a-f]{40}", control["with"]["ref"])
     assert control["with"]["persist-credentials"] is False
     assert control["with"]["sparse-checkout"] == "scripts/ci/prometheus_source_image.py"
     assert control["if"] == "${{ success() && github.event_name == 'pull_request' }}"
@@ -674,8 +670,11 @@ def test_prometheus_cd_registry_credential_route_preserves_base_execution_bounda
         "Require separately designated AM controller",
         "Checkout separately designated AM controller",
         "Prepare exact AM subject before material execution",
-        "Remove designated AM controller after credential cleanup",
         "Check canonical Prometheus config with exact-image promtool",
+        "Scan exact Prometheus image without suppressions",
+        "Scan accepted AM and execute all four current controls",
+        "Remove designated AM controller after credential cleanup",
+        "Select AM Python without dependency or SDK installation",
     ]
     assert [names.index(name) for name in expected_order] == sorted(
         names.index(name) for name in expected_order

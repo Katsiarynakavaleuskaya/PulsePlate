@@ -986,7 +986,7 @@ jobs:
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 / Node 24 cache path
         with:
           version: v0.74.0
-          image-ref: golang:1.26.10-alpine3.23@sha256:0525c952defebc693cdaf62cdf43afa32be5a7f377e99260642ea19c240c708e
+          image-ref: golang:1.26.11-alpine3.23@sha256:db99415e2625ce0ee03eed09edf7f32ae8c58dc399f28cc602a87fe7238119e4
           format: table
           vuln-type: os,library
           severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
@@ -1037,8 +1037,9 @@ jobs:
           config = work / "docker-config"
           fresh_directory(config)
           environment = {"PATH": "/usr/bin:/bin", "HOME": str(work), "DOCKER_CONFIG": str(config), "LANG": "C.UTF-8"}
-          compiler = "golang:1.26.10-alpine3.23@sha256:0525c952defebc693cdaf62cdf43afa32be5a7f377e99260642ea19c240c708e"
+          compiler = "golang:1.26.11-alpine3.23@sha256:db99415e2625ce0ee03eed09edf7f32ae8c58dc399f28cc602a87fe7238119e4"
           recipe = (root / "frontend/Dockerfile.caddy-spa").read_bytes()
+          require(recipe.splitlines().count(("FROM " + compiler + " AS caddy-build").encode()) == 1, "compiler_authenticated_recipe_source")
           gets = re.findall(rb"^    go get ([^;]+);", recipe, re.MULTILINE)
           baseline_gets = [b"github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.4", b"google.golang.org/grpc@v1.83.2", b"golang.org/x/crypto@v0.55.0", b"golang.org/x/net@v0.60.0", b"github.com/klauspost/compress@v1.18.7"]
           baseline_gets += [b"github.com/go-jose/go-jose/v4@v4.1.6"]
@@ -1125,7 +1126,7 @@ jobs:
                   observed = native_one_image(native.run([docker, "--config", str(config), "image", "inspect", selected], "compiler-config", environment, cwd=work))
                   require((observed["Os"], observed["Architecture"]) == ("linux", "amd64"), "compiler_native_platform")
                   platform_raw = native.run([docker, "--config", str(config), "buildx", "imagetools", "inspect", "--raw", selected], "compiler-platform-raw", environment, cwd=work)
-                  image_relation = native_go_identity(observed, raw, platform_raw)
+                  image_relation = native_go_identity(observed, raw, platform_raw, expected_source=compiler)
                   require(image_relation["operand"] == observed["Id"], "compiler_bound_native_operand")
                   report["compiler_platform"] = targets[0]
                   report["compiler_config"] = observed
@@ -1140,7 +1141,7 @@ jobs:
                   require(re.fullmatch(r"[0-9a-f]{64}", version_id) is not None, "compiler_version_full_ID")
                   owned[version_name] = version_id
                   version_before = native_one_image(native.run([docker, "--config", str(config), "inspect", version_id], "compiler-version-prestart", environment, cwd=work))
-                  native_container_image_identity(version_before, image_relation)
+                  native_container_image_identity(version_before, image_relation, expected_source=compiler)
                   require(version_before["Id"] == version_id and version_before["Name"] == "/" + version_name
                           and version_before["Config"]["Labels"].get("pulseplate.caddy-metadata") == os.environ["GITHUB_RUN_ID"]
                           and version_before["Config"]["Entrypoint"] == ["/usr/local/go/bin/go"]
@@ -1161,12 +1162,12 @@ jobs:
                   start_attempts.add(version_id)
                   go_version = native.run([docker, "--config", str(config), "start", "--attach", version_id], "compiler-native-version", environment, cwd=work)
                   version_after = native_one_image(native.run([docker, "--config", str(config), "inspect", version_id], "compiler-version-terminal", environment, cwd=work))
-                  native_container_image_identity(version_after, image_relation)
+                  native_container_image_identity(version_after, image_relation, expected_source=compiler)
                   validate_caddy_metadata_custody(version_before, version_after, started_id=version_id)
                   require(version_after["State"]["Status"] == "exited" and version_after["State"]["Running"] is False
                           and type(version_after["State"]["ExitCode"]) is int and version_after["State"]["ExitCode"] == 0
                           and version_after["State"]["OOMKilled"] is False, "compiler_version_terminal")
-                  require(go_version == b"go version go1.26.10 linux/amd64\n", "compiler_native_version")
+                  require(go_version == b"go version go1.26.11 linux/amd64\n", "compiler_native_version")
                   report["compiler_go_version_sha256"] = hashlib.sha256(go_version).hexdigest()
                   scanner = shutil.which("trivy")
                   require(scanner is not None and Path(scanner).is_absolute(), "compiler_native_scanner_missing")
@@ -1217,7 +1218,7 @@ jobs:
               }
               '''
                   seed = '''go version > /output/compiler-version.txt
-              test "$(cat /output/compiler-version.txt)" = "go version go1.26.10 linux/amd64"
+              test "$(cat /output/compiler-version.txt)" = "go version go1.26.11 linux/amd64"
               cat /etc/alpine-release > /output/alpine-release.txt
               go mod init pulseplate.local/caddy-build
               go get github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.4
@@ -1292,7 +1293,7 @@ jobs:
                               require(re.fullmatch(r"[0-9a-f]{64}", container_id) is not None, "caddy_metadata_full_ID")
                               owned[name] = container_id
                               inspected = native_one_image(native.run([docker, "--config", str(config), "inspect", container_id], label + "-" + suffix + "-inspect", environment, cwd=work))
-                              native_container_image_identity(inspected, image_relation)
+                              native_container_image_identity(inspected, image_relation, expected_source=compiler)
                               require(inspected["Id"] == container_id and inspected["Name"] == "/" + name, "caddy_metadata_full_identity")
                               require(inspected["Config"]["User"] == str(os.getuid()) + ":" + str(os.getgid())
                                       and inspected["HostConfig"]["ReadonlyRootfs"] is True
@@ -1318,7 +1319,7 @@ jobs:
                               native.run([docker, "--config", str(config), "start", "--attach", container_id],
                                          label + "-" + suffix + "-native", environment, cwd=work, watched_output=lane)
                               terminal = native_one_image(native.run([docker, "--config", str(config), "inspect", container_id], label + "-" + suffix + "-terminal", environment, cwd=work))
-                              native_container_image_identity(terminal, image_relation)
+                              native_container_image_identity(terminal, image_relation, expected_source=compiler)
                               validate_caddy_metadata_custody(inspected, terminal, started_id=container_id)
                               require(terminal["State"]["Status"] == "exited" and terminal["State"]["Running"] is False
                                       and type(terminal["State"]["ExitCode"]) is int and terminal["State"]["ExitCode"] == 0
@@ -1361,7 +1362,7 @@ jobs:
                           require(cid not in removed and inventory[cid] == name and name in owned_profiles,
                                   "caddy_cleanup_full_custody")
                           actual = native_one_image(native.run([docker, "--config", str(config), "inspect", cid], name + "-cleanup-inspect", environment, cwd=work, cleaning=True))
-                          native_container_image_identity(actual, image_relation)
+                          native_container_image_identity(actual, image_relation, expected_source=compiler)
                           started_id = cid if cid in start_attempts else None
                           validate_caddy_metadata_custody(owned_profiles[name], actual, started_id=started_id)
                           require(actual["Config"]["Labels"].get("pulseplate.caddy-metadata") == os.environ["GITHUB_RUN_ID"], "caddy_cleanup_ownership")
@@ -1370,7 +1371,7 @@ jobs:
                                          name + "-cleanup-stop", environment, cwd=work, cleaning=True, maximum_seconds=20)
                               stopped = native_one_image(native.run([docker, "--config", str(config), "inspect", cid],
                                   name + "-cleanup-terminal", environment, cwd=work, cleaning=True))
-                              native_container_image_identity(stopped, image_relation)
+                              native_container_image_identity(stopped, image_relation, expected_source=compiler)
                               validate_caddy_metadata_custody(owned_profiles[name], stopped, started_id=started_id)
                               require(stopped["State"]["Status"] == "exited" and stopped["State"]["Running"] is False
                                       and stopped["State"]["StartedAt"] == actual["State"]["StartedAt"],
@@ -1777,7 +1778,7 @@ jobs:
                   raise ValueError("Caddy version differs")
               (evidence / "version.txt").write_text(version)
               info = _run_docker([*common, "pulseplate-caddy:contract", "caddy", "build-info"]).stdout
-              if ["go", "go1.26.10"] not in [line.split() for line in info.splitlines()]:
+              if ["go", "go1.26.11"] not in [line.split() for line in info.splitlines()]:
                   raise ValueError("Caddy compiler differs")
               (evidence / "build-info.txt").write_text(info)
               caps = _run_docker([*common, "pulseplate-caddy:contract", "getcap", "/usr/bin/caddy"]).stdout

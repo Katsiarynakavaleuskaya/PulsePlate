@@ -4393,8 +4393,9 @@ def test_prometheus_cd_uses_authenticated_finite_consumer_and_retains_strict_sca
     assert 'trusted["consume_image"](work, material' in consumer["run"]
     assert "python3 -I -S" in consumer["run"]
     fixed = steps["Checkout fixed trusted Prometheus control"]
+    assert re.fullmatch(r"[0-9a-f]{40}", fixed["with"]["ref"])
     assert fixed["with"] == {
-        "ref": "97040beecd327dccd5ddb1071bcc7aabd672c8d1",  # pragma: allowlist secret - public trusted control commit
+        "ref": fixed["with"]["ref"],
         "persist-credentials": False,
         "path": "artifacts/orchestration/prometheus-control",
         "sparse-checkout": "scripts/ci/prometheus_source_image.py",
@@ -16364,6 +16365,155 @@ def test_checkpoint_admission_rejects_before_protected_publication(
         assert not any(path.name.startswith(".pulseplate-") for path in project.rglob("*"))
 
 
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "none",
+        "candidate-placement",
+        "candidate-copy",
+        "early-cleanup",
+        "missing-checkout",
+        "missing-subject",
+        "missing-scanner",
+        "retained-missing-cleanup",
+        "retained-early-cleanup",
+        "retained-duplicate-cleanup",
+    ],
+)
+def test_alertmanager_current_four_controls_live_steps_are_in_same_trusted_consumer_job(
+    fault: str,
+) -> None:
+    import copy
+
+    workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    jobs = workflow["jobs"]
+    expected_jobs = {"prometheus-image-security-pr", "prometheus-image-security-trusted"}
+    live_name = "Scan accepted AM and execute all four current controls"
+    cleanup_name = "Remove designated AM controller after credential cleanup"
+    scan_name = "Scan exact Prometheus image without suppressions"
+    setup_name = "Select AM Python without dependency or SDK installation"
+
+    def assert_placement(candidate_jobs: dict[str, Any]) -> None:
+        for name, expected in (
+            (live_name, expected_jobs),
+            (cleanup_name, expected_jobs | {"alertmanager-retained-candidate"}),
+        ):
+            assert {
+                job_name
+                for job_name, job in candidate_jobs.items()
+                if any(step.get("name") == name for step in job.get("steps", []))
+            } == expected
+        retained = candidate_jobs["alertmanager-retained-candidate"]["steps"]
+        retained_names = [step.get("name") for step in retained]
+        assert retained_names.count(cleanup_name) == 1
+        assert live_name not in retained_names
+        prepare = retained_names.index("Prepare exact AM subject before material execution")
+        cleanup = retained_names.index(cleanup_name)
+        proxy = retained_names.index("Validate existing credential-free AM native Python proxy")
+        assert prepare + 1 == cleanup and cleanup + 1 == proxy
+        assert retained[prepare]["id"] == "alertmanager-image"
+        retained_ids = [step.get("id") for step in retained]
+        assert retained_ids.count("alertmanager-control") == 1
+        assert retained_ids.index("alertmanager-control") < prepare
+        assert retained[cleanup]["if"] == (
+            "always() && (steps.alertmanager-control.outcome == 'success' || "
+            "steps.alertmanager-control.outcome == 'failure')"
+        )
+        assert "env" not in retained[cleanup]
+        assert 'rm -rf -- "$controller"' in retained[cleanup]["run"]
+        assert 'test ! -e "$controller" && test ! -L "$controller"' in retained[cleanup]["run"]
+        assert (
+            candidate_jobs["prometheus-image-security-pr"]["steps"]
+            is candidate_jobs["prometheus-image-security-trusted"]["steps"]
+        )
+        for job_name in expected_jobs:
+            job = candidate_jobs[job_name]
+            assert job["permissions"] == {
+                "contents": "read",
+                "actions": "read",
+                "packages": "read",
+            }
+            steps = job["steps"]
+            names = [step.get("name") for step in steps]
+            for name in (scan_name, live_name, cleanup_name, setup_name):
+                assert names.count(name) == 1
+            scan, live, cleanup, setup = (
+                names.index(name) for name in (scan_name, live_name, cleanup_name, setup_name)
+            )
+            assert scan + 1 == live and live + 1 == cleanup and cleanup + 1 == setup
+            ids = [step.get("id") for step in steps]
+            for step_id in (
+                "alertmanager-control",
+                "alertmanager-image",
+                "prometheus-image",
+                "prometheus_trivy",
+            ):
+                assert ids.count(step_id) == 1
+            checkout = ids.index("alertmanager-control")
+            subject = ids.index("alertmanager-image")
+            assert checkout < subject < scan
+            assert ids.index("prometheus-image") < scan
+            assert ids.index("prometheus_trivy") < scan
+            assert steps[checkout]["with"]["path"] == "artifacts/orchestration/alertmanager-control"
+            assert steps[checkout]["with"]["persist-credentials"] is False
+            assert steps[scan]["env"]["TRIVY_BIN"] == "${{ steps.prometheus_trivy.outputs.path }}"
+            live_step = steps[live]
+            assert live_step["env"]["ALERTMANAGER_CONTROLLER_SOURCE"] == (
+                "${{ steps.alertmanager-image.outputs.controller_source }}"
+            )
+            assert live_step["env"]["TRIVY_BIN"] == "${{ steps.prometheus_trivy.outputs.path }}"
+            for token in ("GH_TOKEN", "GITHUB_TOKEN"):
+                assert live_step["env"][token] == "${{ secrets.GITHUB_TOKEN }}"
+                assert token not in job.get("env", {})
+            assert 'cd "$controller"' in live_step["run"]
+            assert 'test "$(git -C "$controller" rev-parse HEAD)"' in live_step["run"]
+            assert (
+                "python3 -E -s -S -m scripts.ci.fetch_docker_source_artifacts" in live_step["run"]
+            )
+            assert steps[cleanup]["if"] == (
+                "always() && (steps.alertmanager-control.outcome == 'success' || "
+                "steps.alertmanager-control.outcome == 'failure')"
+            )
+            assert "env" not in steps[cleanup]
+            assert 'test ! -e "$controller" && test ! -L "$controller"' in steps[cleanup]["run"]
+
+    assert_placement(jobs)
+    if fault == "none":
+        return
+    changed = copy.deepcopy(jobs)
+    steps = changed["prometheus-image-security-pr"]["steps"]
+    live = next(step for step in steps if step.get("name") == live_name)
+    cleanup = next(step for step in steps if step.get("name") == cleanup_name)
+    if fault in {"candidate-placement", "candidate-copy"}:
+        changed["alertmanager-candidate-build"]["steps"].extend([live, cleanup])
+        if fault == "candidate-placement":
+            steps.remove(live)
+            steps.remove(cleanup)
+    elif fault.startswith("retained-"):
+        retained = changed["alertmanager-retained-candidate"]["steps"]
+        retained_cleanup = next(step for step in retained if step.get("name") == cleanup_name)
+        if fault == "retained-duplicate-cleanup":
+            retained.append(retained_cleanup)
+        else:
+            retained.remove(retained_cleanup)
+            if fault == "retained-early-cleanup":
+                retained.insert(0, retained_cleanup)
+    elif fault == "early-cleanup":
+        steps.remove(cleanup)
+        steps.insert(
+            next(i for i, step in enumerate(steps) if step.get("name") == scan_name), cleanup
+        )
+    else:
+        removed_id = {
+            "missing-checkout": "alertmanager-control",
+            "missing-subject": "alertmanager-image",
+            "missing-scanner": "prometheus_trivy",
+        }[fault]
+        next(step for step in steps if step.get("id") == removed_id).pop("id")
+    with pytest.raises(AssertionError):
+        assert_placement(changed)
+
+
 def test_prometheus_cd_separates_pr_and_staging_without_duplicating_steps() -> None:
     workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
     jobs = workflow["jobs"]
@@ -17625,14 +17775,22 @@ def test_alertmanager_compiler_epoch_is_exact(current: bool) -> None:
         "\tbuild\t-tags=netgo\n\tbuild\t-trimpath=true\n"
     ).encode()
     assert (
-        alertmanager_source._alertmanager_build_information(raw, "alertmanager", current=current)[
-            "Go"
-        ]
+        alertmanager_source._alertmanager_build_information(
+            raw,
+            "alertmanager",
+            current=current,
+            compiler_artifact=prometheus_source.RETAINED_GO if (current) else prometheus_source.GO,
+        )["Go"]
         == compiler
     )
     with pytest.raises(prometheus_source.QualificationError, match="AM_actual_Go_build_version"):
         alertmanager_source._alertmanager_build_information(
-            raw, "alertmanager", current=not current
+            raw,
+            "alertmanager",
+            current=not current,
+            compiler_artifact=(
+                prometheus_source.RETAINED_GO if (not current) else prometheus_source.GO
+            ),
         )
 
 
@@ -17761,6 +17919,7 @@ def test_alertmanager_current_negative_control_rejects_incomplete_or_changed_rep
         ca_finding["PkgIdentifier"]["PURL"] = "pkg:golang/stdlib@v1.27.3"
     elif fault == "missing-PURL":
         ca_finding["PkgIdentifier"].pop("PURL")
+        diagnostic = "AM_vulnerable_control_PURL"
     elif fault == "malformed-PURL":
         ca_finding["PkgIdentifier"] = []
         diagnostic = "AM_vulnerable_control_PURL"
@@ -17982,3 +18141,81 @@ def test_historical_AM_oracle_is_independent_of_current_static_data(
     before = _historical_AM_scan_oracle()
     monkeypatch.setattr(alertmanager_source, "_ALERT_CURRENT_SCAN_ORACLE", {})
     assert _historical_AM_scan_oracle() == before
+
+
+@pytest.mark.parametrize("fault", [None, "missing", "duplicate-low", "wrong-row", "wrong-purl"])
+def test_alertmanager_negative_control_062_exact_fourteen_and_all_severity_identity(
+    fault: str | None,
+) -> None:
+    report = _synthetic_AM_negative_control(True)
+    plan = {
+        "derivation_epoch": alertmanager_source._ALERT_XNET062_METADATA_EPOCH,
+        "command_module_inputs": {"alertmanager": {}, "amtool": {}},
+    }
+    for row in report["Results"]:
+        row["Vulnerabilities"].append(
+            {
+                "VulnerabilityID": "CVE-2026-78661",
+                "Severity": "HIGH",
+                "PkgIdentifier": {"PURL": "pkg:golang/golang.org/x/net@v0.58.0"},
+            }
+        )
+    if fault == "missing":
+        report["Results"][0]["Vulnerabilities"].pop()
+    elif fault in ("duplicate-low", "wrong-row"):
+        finding = {
+            "VulnerabilityID": "CVE-2026-78661",
+            "Severity": "LOW",
+            "PkgIdentifier": {"PURL": "pkg:golang/golang.org/x/net@v0.58.0"},
+        }
+        if fault == "wrong-row":
+            report["Results"].append(
+                {
+                    "Target": "bin/alertmanager",
+                    "Class": "os-pkgs",
+                    "Type": "alpine",
+                    "Vulnerabilities": [finding],
+                }
+            )
+        else:
+            report["Results"][0]["Vulnerabilities"].append(finding)
+    elif fault == "wrong-purl":
+        report["Results"][0]["Vulnerabilities"][-1]["PkgIdentifier"][
+            "PURL"
+        ] = "pkg:golang/stdlib@v1.26.8"
+    if fault is not None:
+        with pytest.raises(
+            prometheus_source.QualificationError, match="AM_known_vulnerable_control"
+        ):
+            alertmanager_source._alertmanager_vulnerability_control(
+                report, "synthetic-control", current=True, qualification_plan=plan
+            )
+    else:
+        observed = alertmanager_source._alertmanager_vulnerability_control(
+            report, "synthetic-control", current=True, qualification_plan=plan
+        )
+        assert observed["known_HIGH_occurrences"] == 14
+        with pytest.raises(prometheus_source.QualificationError):
+            alertmanager_source._alertmanager_vulnerability_control(
+                report, "synthetic-control", current=True
+            )
+
+
+@pytest.mark.parametrize("field", ["ID", "PURL"])
+@pytest.mark.parametrize("malformed", [None, [], {}, 1, True])
+def test_alertmanager_negative_control_consumed_identity_types_before_hash(
+    field: str, malformed: Any
+) -> None:
+    report = _synthetic_AM_negative_control(True)
+    finding = report["Results"][0]["Vulnerabilities"][0]
+    if field == "ID":
+        finding["VulnerabilityID"] = malformed
+    else:
+        finding["PkgIdentifier"]["PURL"] = malformed
+    with pytest.raises(
+        prometheus_source.QualificationError,
+        match="AM_vulnerable_control_" + ("ID_type" if field == "ID" else "PURL"),
+    ):
+        alertmanager_source._alertmanager_vulnerability_control(
+            report, "synthetic-control", current=True
+        )

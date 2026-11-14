@@ -826,7 +826,7 @@ _CADDY_FIXTURE_IMPORTS = (
     "tep.sm/crypto@v0.81.0/jose|github.com/go-jose/go-jose/v3\n"
 )
 _CADDY_FIXTURE_BINARY = (
-    b"/go/bin/caddy: go1.26.10\n\tmod\tgithub.com/caddyserver/caddy/v2\tv2.11.4\th1"
+    b"/go/bin/caddy: go1.26.11\n\tmod\tgithub.com/caddyserver/caddy/v2\tv2.11.4\th1"
     b":XKxkMTgNSizEvKG6QHue6cAsFOteU2qA61w2tKkCWi0=\n\tdep\tgithub.com/coreos/go-"
     b"oidc/v3\tv3.17.0\th1:hWBGaQfbi0iVviX4ibC7bk8OKT5qNr4klBaCHVNvehc=\n\tdep\tgit"
     b"hub.com/go-jose/go-jose/v3\tv3.0.5\n\t=>\t/opt/go-jose-v3.0.5-patched\t(devel"
@@ -1034,7 +1034,7 @@ def _caddy_source_report() -> dict:
         for row in json.loads(_CADDY_FIXTURE_MODULES)
         if row["Path"] not in ("pulseplate.local/caddy-build", "github.com/go-jose/go-jose/v3", v4)
     ]
-    ordinary.append({"Name": "stdlib", "Version": "v1.26.10", "ID": "stdlib@v1.26.10"})
+    ordinary.append({"Name": "stdlib", "Version": "v1.26.11", "ID": "stdlib@v1.26.11"})
     return {
         "SchemaVersion": 2,
         "ArtifactType": "container_image",
@@ -3167,6 +3167,30 @@ def test_caddy062_recipe_and_workflow_preserve_seed_then_one_new_action() -> Non
     assert "be8f44f7e591bcaa54412fe5f3061235596be2faf9bd3f5fdece0106fea45338  go.sum" in advance
 
 
+def test_caddy062_current_generated_metadata_bindings_match_exact_observed_DATA() -> None:
+    assert runtime_surface.CADDY_XNET062_INCUMBENT_FILES == {
+        "baseline-go.mod": "e85dc5d385d444fc90eb5a35ba42eb3fe404515c9a66fcdcea5aa3e61472a603",
+        "baseline-go.sum": "912171681209ea4fcc6c3f2571307a16dfccb77ac88eb4ec6e1246329a1e23df",
+        "baseline-modules.json": "940262f6c6411705a735cdd2a4fe07910a90d7963807152164a316a77c77fe32",
+        "baseline-module-graph.txt": "3cbdbceb9b1e4b9d81b22583172692ff9090d386f6f67836e01324a3a6675cc8",
+        "baseline-packages.json": "1a973a0b318f58e0a30c7c9aea831a7cd6794ee61fae489734cf5f42b6e69bab",
+        "baseline-verify.txt": "b4537ed75f533f993f371954de47e42a793b8e5b0587577de7e27fb3e50696bd",
+        "incumbent-go.mod": "4a11def21d6670163e30e911b160c48f1ad5af8eb946a4388b86d60c473f7bda",
+        "incumbent-go.sum": "bc1def232f1f0a8d205b39c38fa9b0159d481c05f90933bc975659ec0c0317c8",
+        "incumbent-modules.json": "350ebc67daf202a4f184a940a1459e7c02ef07a677048498d1d8905bb95f090d",
+        "incumbent-module-graph.txt": "a1631c64f483398286ca2eda8d9d36dc1889163e63df4572a8f153d1b68b0cd2",
+        "incumbent-packages.json": "cc45b9153ba630ef3cb65da4419358bc0bcba666779714e57b6b49f4306a77db",
+        "incumbent-verify.txt": "b4537ed75f533f993f371954de47e42a793b8e5b0587577de7e27fb3e50696bd",
+    }
+    assert runtime_surface.CADDY_XNET062_PROFILE_SHA256 == (
+        "3c20d7520c469a5f5d02fee4c12205a434e9e22088320791c45e95a4f5f50b74"
+    )
+    recipe = Path(__file__).resolve().parents[1] / "frontend/Dockerfile.caddy-spa"
+    assert hashlib.sha256(recipe.read_bytes()).hexdigest() == (
+        "5c3425b7d668dd4a768ddca65f4b483b97c3dfdf8735bfb2a0520b711e68540c"
+    )
+
+
 @pytest.mark.parametrize(
     "fault",
     [
@@ -3177,6 +3201,9 @@ def test_caddy062_recipe_and_workflow_preserve_seed_then_one_new_action() -> Non
         "head",
         "attempt",
         "recipe",
+        "old-recipe",
+        "old-platform",
+        "old-Go-version",
         "status-only",
         "cleanup",
         "same-start",
@@ -3331,9 +3358,9 @@ def test_caddy062_charge_step_requires_independently_reviewed_same_run_outputs(
         "run_attempt": 1,
         "recipe_sha256": inputs["frontend/Dockerfile.caddy-spa"]["sha256"],
         "compiler_platform": {
-            "digest": "sha256:9d1e2c4fda593efb2c405e1c855c75ec17fe42dc02f6b7142a5ea7af7f386bf4"
+            "digest": "sha256:6fa4e6dc2fc42920e53eb6b6a7e928155dc68282060f0901ec3cdd134c3a0eb5"
         },
-        "compiler_go_version_sha256": "4e0b213cba780f63b02f3ab9001ee61e4101d254e0af1a8205574c19dad0f93b",
+        "compiler_go_version_sha256": "3008ffc50874cac169bf0446997798346d244c5c1ff94af771a02191f465a4b1",
         "compiler_scan": {"Secrets_fields_absent": 1},
         "derivations": {
             lane: runtime_surface.validate_caddy_xnet062_metadata(metadata / lane / "output")
@@ -3382,6 +3409,16 @@ def test_caddy062_charge_step_requires_independently_reviewed_same_run_outputs(
         report["run_attempt"] = True
     if fault == "recipe":
         report["recipe_sha256"] = "0" * 64
+    if fault == "old-recipe":
+        report["recipe_sha256"] = "0c78748dba55fceea2afbb62f4bd6693f3d784f613089c7a8fbc54b518344f92"
+    if fault == "old-platform":
+        report["compiler_platform"][
+            "digest"
+        ] = "sha256:9d1e2c4fda593efb2c405e1c855c75ec17fe42dc02f6b7142a5ea7af7f386bf4"
+    if fault == "old-Go-version":
+        report["compiler_go_version_sha256"] = (
+            "4e0b213cba780f63b02f3ab9001ee61e4101d254e0af1a8205574c19dad0f93b"
+        )
     if fault == "cleanup":
         report["cleanup_failure"] = "fixture failure"
     (metadata / "evidence").mkdir()
@@ -3455,7 +3492,15 @@ def test_caddy062_charge_step_requires_independently_reviewed_same_run_outputs(
         message = (
             "reviewed selected-source profile differs"
             if fault in {"equal-wrong", "equal-package-replacement"}
-            else None
+            else (
+                "^declared_data_value$"
+                if fault == "old-recipe"
+                else (
+                    "^Caddy qualification identity or cleanup differs$"
+                    if fault in {"old-platform", "old-Go-version"}
+                    else None
+                )
+            )
         )
         with pytest.raises((OSError, KeyError, ValueError, QualificationError), match=message):
             exec(program, {})
@@ -3466,10 +3511,22 @@ def test_caddy_metadata_native_identity_delegates_without_config_ID_alias() -> N
     workflow = (
         Path(__file__).resolve().parents[1] / ".github/workflows/frontend-ci.yml"
     ).read_text()
-    assert "image_relation = native_go_identity(observed, raw, platform_raw)" in workflow
-    assert "native_container_image_identity(inspected, image_relation)" in workflow
-    assert "native_container_image_identity(terminal, image_relation)" in workflow
-    assert "native_container_image_identity(actual, image_relation)" in workflow
+    assert (
+        "image_relation = native_go_identity(observed, raw, platform_raw, expected_source=compiler)"
+        in workflow
+    )
+    assert (
+        "native_container_image_identity(inspected, image_relation, expected_source=compiler)"
+        in workflow
+    )
+    assert (
+        "native_container_image_identity(terminal, image_relation, expected_source=compiler)"
+        in workflow
+    )
+    assert (
+        "native_container_image_identity(actual, image_relation, expected_source=compiler)"
+        in workflow
+    )
     assert 'inspected["Id"] == container_id' in workflow
     assert (
         "validate_caddy_metadata_custody(version_before, version_after, started_id=version_id)"

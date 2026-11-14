@@ -336,22 +336,22 @@ def validate_trivy_image_report(image: str, report_path: Path) -> None:
     _read_trivy_image_report(image, report_path)
 
 
-# Frozen Go-v3 native metadata: seed2.11.4 and selected2.11.9 before local v3 replacement.
-# These historical input bindings never become guessed x/net062 output pins.
+# Current observed Go1.26.11 metadata: seed2.11.4 and selected2.11.9 before local v3 replacement.
+# Actual baseline/incumbent raw bindings; final/offline/A-B proof remains separately required.
 CADDY_XNET062_INCUMBENT_FILES = {
-    "baseline-go.mod": "1d41fe1c258e7c6a6180eeea06b31aa3fd068e35120038cbc6fe15e7f89c21a6",
+    "baseline-go.mod": "e85dc5d385d444fc90eb5a35ba42eb3fe404515c9a66fcdcea5aa3e61472a603",
     "baseline-go.sum": "912171681209ea4fcc6c3f2571307a16dfccb77ac88eb4ec6e1246329a1e23df",
-    "baseline-modules.json": "f18a737a749e514db520c435e888dfced1865efe5aafb64c28fa5e1935d85a09",
-    "baseline-module-graph.txt": "b1c650b3999bdd295f399bd1ed509b34b404c6fc239070b2c18d5dfae08bbace",
-    "baseline-packages.json": "325952468890a84b81b734895b72342ea33907feb15aa38d016da2451f249992",
+    "baseline-modules.json": "940262f6c6411705a735cdd2a4fe07910a90d7963807152164a316a77c77fe32",
+    "baseline-module-graph.txt": "3cbdbceb9b1e4b9d81b22583172692ff9090d386f6f67836e01324a3a6675cc8",
+    "baseline-packages.json": "1a973a0b318f58e0a30c7c9aea831a7cd6794ee61fae489734cf5f42b6e69bab",
     "baseline-verify.txt": "b4537ed75f533f993f371954de47e42a793b8e5b0587577de7e27fb3e50696bd",
-    "incumbent-go.mod": "40a8c29bde80ddaaf323030a9631453d905b1deafc4eb909c0b2b1c43bd2965d",
+    "incumbent-go.mod": "4a11def21d6670163e30e911b160c48f1ad5af8eb946a4388b86d60c473f7bda",
     "incumbent-go.sum": "bc1def232f1f0a8d205b39c38fa9b0159d481c05f90933bc975659ec0c0317c8",
-    "incumbent-modules.json": "fa0c145b518c15baa0e9d215a101400066fc43f1d39992bdb4e1cd25ca542197",
+    "incumbent-modules.json": "350ebc67daf202a4f184a940a1459e7c02ef07a677048498d1d8905bb95f090d",
     "incumbent-module-graph.txt": (
-        "1db07897d94dae5f699b88b5dfccb5afffc21240bbe89297029839735246db93"
+        "a1631c64f483398286ca2eda8d9d36dc1889163e63df4572a8f153d1b68b0cd2"
     ),
-    "incumbent-packages.json": "e373e649e7db5cc5dc972e5e8881b44c7871de5b7ea93ea59ae38da2c7fa22bb",
+    "incumbent-packages.json": "cc45b9153ba630ef3cb65da4419358bc0bcba666779714e57b6b49f4306a77db",
     "incumbent-verify.txt": "b4537ed75f533f993f371954de47e42a793b8e5b0587577de7e27fb3e50696bd",
 }
 CADDY_XNET062_METADATA_EPOCH = "caddy2.11.9-xnet062-metadata"
@@ -562,9 +562,10 @@ def validate_caddy_xnet062_metadata(
     }
 
 
-# Reviewed selected-source profile from metadata run 42614729223, artifact 13672158177.
-# Only stable member bytes, module/graph facts and command package identities cross runs.
-CADDY_XNET062_PROFILE_SHA256 = "872500ba864b9c4b5fc5e60686ba45465fd51a4f1d26d8560719d775410a3c94"
+# Historical anchor: metadata run 42614729223, artifact 13672158177.
+# Current expected Go1.26.11 DATA projection includes required future offline lock equality.
+# Same profile algorithm; all39/native/offline/A-B observations remain required.
+CADDY_XNET062_PROFILE_SHA256 = "3c20d7520c469a5f5d02fee4c12205a434e9e22088320791c45e95a4f5f50b74"
 
 
 def _caddy_xnet062_profile(
@@ -676,13 +677,13 @@ def validate_caddy_prebuild(
     }
     exact_data({key: report[key] for key in expected_report}, expected_report)
     if (
-        recipe != "0c78748dba55fceea2afbb62f4bd6693f3d784f613089c7a8fbc54b518344f92"
+        recipe != "5c3425b7d668dd4a768ddca65f4b483b97c3dfdf8735bfb2a0520b711e68540c"
         or report.get("cleanup_failure") is not None
         or set(report["derivations"]) != {"a", "b"}
         or report["compiler_platform"]["digest"]
-        != "sha256:9d1e2c4fda593efb2c405e1c855c75ec17fe42dc02f6b7142a5ea7af7f386bf4"
+        != "sha256:6fa4e6dc2fc42920e53eb6b6a7e928155dc68282060f0901ec3cdd134c3a0eb5"
         or report["compiler_go_version_sha256"]
-        != "4e0b213cba780f63b02f3ab9001ee61e4101d254e0af1a8205574c19dad0f93b"
+        != "3008ffc50874cac169bf0446997798346d244c5c1ff94af771a02191f465a4b1"
         or type(report["compiler_scan"]["Secrets_fields_absent"]) is not int
         or report["compiler_scan"]["Secrets_fields_absent"] <= 0
     ):
@@ -779,17 +780,17 @@ CADDY_V3_BUILD_MEMBERS = frozenset(
         "binary.sha256",
     }
 )
-CADDY_STDLIB_ROOT = "/opt/go1.26.10-http-patched"
-CADDY_STDLIB_BASELINE_ROOT = "/opt/go1.26.10-http-baseline"
-CADDY_STDLIB_ORIGINAL_TREE = "e54472503fcedc70793baefd53d9ae2eee748610e190f99f533ae6ef7c3ecf64"
-CADDY_STDLIB_BASELINE_TREE = "aed4cf1ca75d78f74118dc8686cd0bdd6d017c1b8bb98e0f46c2ed859ad72a26"
-CADDY_STDLIB_PATCHED_TREE = "afce6dcef776fcfe337fff1c5d4a3c68cd4729be7c27463d07e09fc7fafaa3f5"
-CADDY_STDLIB_ORIGINAL_COUNT = 15045
+CADDY_STDLIB_ROOT = "/opt/go1.26.11-http-patched"
+CADDY_STDLIB_BASELINE_ROOT = "/opt/go1.26.11-http-baseline"
+CADDY_STDLIB_ORIGINAL_TREE = "cd0e29a237713551aba930d7f3976b03b361fb7b1e885ad308266d3b19c63ea4"
+CADDY_STDLIB_BASELINE_TREE = "81610504883937e37f0d618a8e0e8f88de644a86d9522dc8c5f20a8900b86bc2"
+CADDY_STDLIB_PATCHED_TREE = "ce66b041c82c993b0a8ecff307fff975dab42b50e6f25c296c55f1bec550224c"
+CADDY_STDLIB_ORIGINAL_COUNT = 15048
 CADDY_STDLIB_PATCH_SHA256 = "9beb880c561244794fda6176ac17f3f9c1690ae31fc26ac069afbf452e1c3f22"
 CADDY_STDLIB_FIXTURE_SHA256 = "2dc6f44b2e7a95a1b970cdbbcf70ddc532c35921c4b83ff80ca6e48b20a1c32e"
-CADDY_STDLIB_BEFORE_SHA256 = "3e04744176d3cf5bef2827ab158b10aaeec3981ac5f4e7fb86e3dbf5f592eed7"
-CADDY_STDLIB_AFTER_SHA256 = "0a19c32dab21d8c906795189b5c35da22551e0c2932a07b1fe64ac4559e70a01"
-CADDY_GO_BINARY_SHA256 = "9c2a37ae5b21ba1d5a004bb9ab4d0c64de6fc5778e9d30487adccea62678b8b5"
+CADDY_STDLIB_BEFORE_SHA256 = "51b8bad342f6c505b1be224bf7074f293fb2b2a36f4a0bacc28ad27329a585f4"
+CADDY_STDLIB_AFTER_SHA256 = "2e8683b4bbfda8eef2517ad67566d766b93beffc7516f290dd12efa062a72823"
+CADDY_GO_BINARY_SHA256 = "95499375c24b610cdc9e3684cec920174ec4c4f3f66d35b4332107f0f7d3d27d"
 CADDY_STDLIB_MEMBERS = frozenset(
     {
         "stdlib-inputs.sha256",
@@ -916,7 +917,7 @@ CADDY_STDLIB_UPSTREAM_TOPS = [
 ]
 CADDY_STDLIB_HELPERS = {
     "src/net/http/internal/ascii/print.go": "f2af00c0c1b74c279c0bd7d1b0054a5440cb4046cbd60292dfc1aa4ada76845e",
-    "src/net/http/server.go": "6f344ca40661ce5d31ce7f237dc23c53d4d34fe3043bd5e76bac50e6c97d91cb",
+    "src/net/http/server.go": "832934b96383a274d363bc3a3e77d2eac8507ab6a7c401858c53294b753eaeaa",
     "src/net/textproto/reader.go": "fe649123b4df42a4aeb7713aa3f8028de61897072874f37c67c497bd6bbf734f",
     "src/net/textproto/textproto.go": "e4f0d94752345b5dec4fe7f4805531e8036a9cd44131d807cafa700dd5323901",
     "src/vendor/golang.org/x/net/http/httpguts/httplex.go": "8cfd5819dc821d45f82fde10afff4b2e652535b0091e0559fc8ad7766051a2c2",
@@ -2828,7 +2829,7 @@ def validate_caddy_source_evidence(
         lines = [line.split() for line in raw.decode().splitlines() if line.strip()]
         require(
             any(
-                line == ["go", "go1.26.10"] or line == ["/go/bin/caddy:", "go1.26.10"]
+                line == ["go", "go1.26.11"] or line == ["/go/bin/caddy:", "go1.26.11"]
                 for line in lines
             ),
             "Go compiler",
@@ -2991,7 +2992,7 @@ def validate_caddy_ci_report(
     expected_go = dict(compiled)
     expected_go.pop("github.com/go-jose/go-jose/v3")
     expected_go[CADDY_PATCHED_ROOT] = None
-    expected_go["stdlib"] = "v1.26.10"
+    expected_go["stdlib"] = "v1.26.11"
     observed_go = [(package["Name"], package.get("Version")) for package in caddy[0]["Packages"]]
     if len(observed_go) != len(set(observed_go)) or set(observed_go) != set(expected_go.items()):
         raise ValueError("Caddy complete binary and scanner Go package inventory differ")
