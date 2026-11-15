@@ -135,13 +135,13 @@ REMEDIATION_FIXED_FLOORS = {
     "anyio": Version("4.14.2"),
     "black": Version("26.10.1"),
     "certifi": Version("2026.10.19"),
-    "dnspython": Version("2.9.0"),
+    "dnspython": Version("2.9.2"),
     "filelock": Version("4.2.1"),
     "setuptools": Version("84.1.0"),
     "httpcore2": Version("2.12.0"),
     "httpx2": Version("2.12.0"),
     "msgpack": Version("1.2.3"),
-    "opentelemetry-api": Version("1.45.1"),
+    "opentelemetry-api": Version("1.45.2"),
     "pillow": Version("13.0.0"),
     "urllib3": Version("2.8.0"),
     "virtualenv": Version("21.14.10"),
@@ -246,6 +246,14 @@ LATE_PYTHON_STABILIZATION_F_CUTOFF = {
 PYTHON_STABILIZATION_GUARDED_ADVISORIES = {
     **PYTHON_STABILIZATION_F_CUTOFF,
     **LATE_PYTHON_STABILIZATION_F_CUTOFF,
+    "dnspython": {
+        **LATE_PYTHON_STABILIZATION_F_CUTOFF["dnspython"],
+        "GHSA-vvf4-9x63-8xvv": "<2.9.2",
+    },
+    "opentelemetry-api": {
+        **PYTHON_STABILIZATION_F_CUTOFF["opentelemetry-api"],
+        "GHSA-mf5v-w3w3-f6cg": "<=1.45.1",
+    },
 }
 
 
@@ -3940,7 +3948,7 @@ def test_python_stabilization_current_governed_surfaces_are_safe() -> None:
     for package, advisories in PYTHON_STABILIZATION_GUARDED_ADVISORIES.items():
         assert set(advisories.values()) <= set(
             schema["blocked_versions"].get(package, ())
-        ), f"{package}: schema must retain every October advisory range"
+        ), f"{package}: schema must retain every governed advisory range"
         for name in sorted(discovered):
             _assert_remediated_dependency_surface(
                 REPO_ROOT / name,
@@ -4002,6 +4010,10 @@ def test_python_stabilization_enforces_each_primary_advisory_range(
         affected = "1.2.0"
     if advisory == "GHSA-4f8h-vr72-p32c":
         affected = "21.14.9"
+    if advisory == "GHSA-vvf4-9x63-8xvv":
+        affected = "2.9.0"
+    if advisory == "GHSA-mf5v-w3w3-f6cg":
+        affected = "1.45.1"
     assert SpecifierSet(affected_range).contains(affected, prereleases=True), advisory
     schema = deepcopy(_load_schema(SCHEMA_PATH))
     schema["blocked_versions"][package] = [affected_range]
@@ -4136,7 +4148,7 @@ def test_python_stabilization_rejects_omitted_advisory_range(
         value for value in schema["blocked_versions"][package] if value != omitted
     ]
     monkeypatch.setattr(f"{__name__}._load_schema", lambda _path: schema)
-    with pytest.raises(AssertionError, match="schema must retain every October advisory range"):
+    with pytest.raises(AssertionError, match="schema must retain every governed advisory range"):
         test_python_stabilization_current_governed_surfaces_are_safe()
 
 
