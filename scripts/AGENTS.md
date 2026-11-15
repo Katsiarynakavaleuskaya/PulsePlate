@@ -526,15 +526,14 @@ handoff after any governed input change.
   source checks. Final import evidence must name only the exact patched stdlib root.
   Source-local correction is not an official Go release or scanner-clearance claim.
 
-- Caddy's static-D response is not proof of a reverse-proxy WebSocket upgrade.
-  Qualify the finite normal-entry `/ws` contour separately, with the real Caddy
-  process/configuration, raw repeated and case-varied headers, canonical 101
-  Upgrade/Connection semantics and actual masked-client/unmasked-server frames.
-  Keep end-to-end header multiplicity and ordinary/rejected-upgrade controls.
-  A vulnerable control must positively reproduce the leak with working duplex;
-  setup failure, missing response or timeout is not that proof. Qualify the
-  selected raw duplex tool before use, retain both role exits and bounded
-  cleanup, and share the existing RUNTIME reservation without resetting it.
+- Bind each Caddy scanner subject to its immutable image, binary, module identity
+  and full and HIGH/CRITICAL reports. Read the affected official binary as data
+  from a stopped container using the pinned Go reader. Only the source-qualified
+  patched candidate may serve requests. Verify static-D separately from ordinary
+  HTTP forwarding and a successful normal WebSocket upgrade with both duplex
+  frames. Retain the two role exits, bounded cleanup and shared RUNTIME budget.
+  The selected upstream source and subject-specific scanner evidence establish
+  the correction. Ordinary traffic establishes compatibility.
   See `docs/security/CVE-2026-116587-caddy-go-jose.md` for the source owner.
 
 - Keep required vulnerable-control identity detection separate from mutable
