@@ -2686,6 +2686,18 @@ def _upgrade_native_fixture(case: str = "upgrade", *, response: bytes | None = N
             )
         else:
             response = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
+    if duplex:
+        upstream = (
+            b"HTTP/1.1 101 Switching Protocols\r\nConnection: upgrade\r\nUpgrade: websocket\r\n"
+            b"X-End-To-End: first\r\nx-end-to-end: second\r\n"
+            b"Sec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n"
+        ) + server_frame
+    else:
+        upstream = (
+            b"HTTP/1.1 200 OK\r\nContent-Length: 15\r\n"
+            b"Connection: keep-alive\r\nKeep-Alive: timeout=5\r\n"
+            b"X-End-To-End: first\r\nx-end-to-end: second\r\n\r\nordinary-body\r\n"
+        )
     files = {
         "server-received": request,
         "client-received": response,
@@ -2697,6 +2709,7 @@ def _upgrade_native_fixture(case: str = "upgrade", *, response: bytes | None = N
         "kill-client.stderr": b"",
         "wait-server.stderr": b"Killed\n",
         "wait-client.stderr": b"Killed\n",
+        "server-sent": upstream,
     }
     rows = [
         "TERMINAL role=server stop=0 kill=0 wait=137",
@@ -2711,6 +2724,34 @@ def test_caddy_upgrade_native_channels_keep_http_and_duplex_contract(case: str) 
     result = runtime_surface._validate_caddy_upgrade_exchange(case, _upgrade_native_fixture(case))
     assert result["case"] == case
     assert result["duplex"] is (case == "upgrade")
+
+
+@pytest.mark.parametrize("case", ["ordinary-200", "upgrade"])
+@pytest.mark.parametrize("defect", ["missing", "empty", "truncated", "substituted", "forwarded"])
+def test_caddy_observer_requires_emitted_input_and_normalized_output(
+    case: str, defect: str
+) -> None:
+    rows = _upgrade_native_fixture(case).decode().splitlines()
+    index = next(i for i, row in enumerate(rows) if row.startswith("FILE name=server-sent "))
+    emitted = bytes.fromhex(rows[index].split(" hex=")[1])
+    if defect == "forwarded":
+        # Replacing the observed client response with the unchanged input must reject both cases.
+        index = next(
+            i for i, row in enumerate(rows) if row.startswith("FILE name=client-received ")
+        )
+        rows[index] = f"FILE name=client-received bytes={len(emitted)} hex={emitted.hex()}"
+        error = "canonical upgrade Connection" if case == "upgrade" else "ordinary response"
+    elif defect == "missing":
+        del rows[index]
+        error = "incomplete native terminal result"
+    else:
+        changed = {"empty": b"", "truncated": emitted[:-1], "substituted": emitted.swapcase()}[
+            defect
+        ]
+        rows[index] = f"FILE name=server-sent bytes={len(changed)} hex={changed.hex()}"
+        error = "captured upstream response"
+    with pytest.raises(ValueError, match=error):
+        runtime_surface._validate_caddy_upgrade_exchange(case, ("\n".join(rows) + "\n").encode())
 
 
 @pytest.mark.parametrize(

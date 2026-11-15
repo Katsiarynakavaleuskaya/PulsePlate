@@ -1041,7 +1041,7 @@ def _caddy_upgrade_cases() -> dict[str, tuple[bytes, bytes, bool]]:
     return {
         "upgrade": (
             request,
-            b"HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n"
+            b"HTTP/1.1 101 Switching Protocols\r\nConnection: upgrade\r\nUpgrade: websocket\r\n"
             + preserved
             + b"\r\n",
             True,
@@ -1049,6 +1049,7 @@ def _caddy_upgrade_cases() -> dict[str, tuple[bytes, bytes, bool]]:
         "ordinary-200": (
             b"GET /ws HTTP/1.1\r\nHost: localhost\r\n\r\n",
             b"HTTP/1.1 200 OK\r\nContent-Length: 15\r\n"
+            b"Connection: keep-alive\r\nKeep-Alive: timeout=5\r\n"
             b"X-End-To-End: first\r\nx-end-to-end: second\r\n\r\nordinary-body\r\n",
             False,
         ),
@@ -1098,7 +1099,7 @@ finish() {
       "$role" "$(cat stop-"$role".result)" "$killed" "$waited"
   done
   capture=0
-  for channel in server-received client-received server-stderr client-stderr \
+  for channel in server-received client-received server-sent server-stderr client-stderr \
       stop-server.stderr stop-client.stderr kill-server.stderr kill-client.stderr \
       wait-server.stderr wait-client.stderr; do
     if [ ! -f "$channel" ]; then
@@ -1139,14 +1140,14 @@ i=0
 until od -An -v -tx1 server-received | tr -d ' \n' | grep -q '0d0a0d0a'; do
   i=$((i+1)); [ "$i" -le 4 ]; sleep 1
 done
-printf '%b' "$3" >&3
+printf '%b' "$3" | /bin/busybox tee server-sent >&3
 i=0
 until od -An -v -tx1 client-received | tr -d ' \n' | grep -q '0d0a0d0a'; do
   i=$((i+1)); [ "$i" -le 4 ]; sleep 1
 done
 if [ "$4" = duplex ]; then
   printf '%b' "$5" >&4
-  printf '%b' "$6" >&3
+  printf '%b' "$6" | /bin/busybox tee -a server-sent >&3
   i=0
   until od -An -v -tx1 server-received | tr -d ' \n' | grep -q "$7" &&
       od -An -v -tx1 client-received | tr -d ' \n' | grep -q "$8"; do
@@ -1183,11 +1184,12 @@ def _validate_caddy_upgrade_exchange(case: str, raw: bytes) -> dict[str, object]
     cases = _caddy_upgrade_cases()
     if case not in cases:
         raise ValueError("Caddy fixture case differs")
-    _, _, duplex = cases[case]
+    _, upstream_response, duplex = cases[case]
     lines = raw.decode("ascii").splitlines()
     files: dict[str, bytes] = {}
     roles: dict[str, tuple[int, int, int]] = {}
     expected_files = {
+        "server-sent",
         "server-received",
         "client-received",
         "server-stderr",
@@ -1218,7 +1220,7 @@ def _validate_caddy_upgrade_exchange(case: str, raw: bytes) -> dict[str, object]
         else:
             raise ValueError("Caddy fixture unrecognized native output")
     if (
-        len(lines) != 13
+        len(lines) != len(expected_files) + 3
         or lines[-1] != "RESULT primary=0 capture=0"
         or set(files) != expected_files
         or set(roles) != {"server", "client"}
@@ -1239,6 +1241,10 @@ def _validate_caddy_upgrade_exchange(case: str, raw: bytes) -> dict[str, object]
             raise ValueError("Caddy fixture natural termination diagnostic")
     if files["server-stderr"] or files["client-stderr"]:
         raise ValueError("Caddy fixture socket diagnostic")
+    if duplex:
+        upstream_response += _caddy_websocket_frame(b"PP2494-server", masked=False)
+    if files["server-sent"] != upstream_response:
+        raise ValueError("Caddy captured upstream response differs")
     request, request_headers, sent = _caddy_fixture_http(files["server-received"])
     status, headers, received = _caddy_fixture_http(files["client-received"])
     if request != b"GET /ws HTTP/1.1":
@@ -1264,6 +1270,7 @@ def _validate_caddy_upgrade_exchange(case: str, raw: bytes) -> dict[str, object]
         or sent
         or received != b"ordinary-body\r\n"
         or values(b"content-length") != [b"15"]
+        or values(b"keep-alive")
         or values(b"upgrade")
     ):
         raise ValueError("Caddy ordinary response differs")
@@ -1275,6 +1282,7 @@ def _validate_caddy_upgrade_exchange(case: str, raw: bytes) -> dict[str, object]
         "roles": roles,
         "native_stdout_sha256": hashlib.sha256(raw).hexdigest(),
         "request_sha256": hashlib.sha256(files["server-received"]).hexdigest(),
+        "upstream_response_sha256": hashlib.sha256(files["server-sent"]).hexdigest(),
         "response_sha256": hashlib.sha256(files["client-received"]).hexdigest(),
     }
 
