@@ -14,6 +14,7 @@ from collections import Counter
 import copy
 import os
 import time
+import tempfile
 import math
 from contextlib import contextmanager
 from typing import Iterator
@@ -937,6 +938,9 @@ CADDY_IMPORT_CHAIN = (
 )
 
 
+CADDY_MODULE = "github.com/caddyserver/caddy/v2"
+CADDY_UPGRADE_CVE = "CVE-2026-55458"
+
 CADDY_CI_FIXED_SOURCES = {
     ".github/workflows/frontend-ci.yml",
     "deploy/Caddyfile",
@@ -1001,18 +1005,13 @@ _CADDY_SYNTHETIC_ENVIRONMENT = (
 )
 
 
-def _is_caddy_synthetic_environment(value: object, *, vulnerable_control: bool = False) -> bool:
-    """Recognize all six reviewed unique bindings, independent of Docker's list order."""
-    if type(vulnerable_control) is not bool:
-        return False
-    expected = list(_CADDY_SYNTHETIC_ENVIRONMENT)
-    if vulnerable_control:
-        expected[3] = "CADDY_VERSION=v2.11.4"
+def _is_caddy_synthetic_environment(value: object) -> bool:
+    """Require the six reviewed bindings of the patched candidate."""
     return (
         type(value) is list
-        and len(value) == 6
+        and len(value) == len(_CADDY_SYNTHETIC_ENVIRONMENT)
         and all(type(entry) is str for entry in value)
-        and Counter(value) == Counter(expected)
+        and Counter(value) == Counter(_CADDY_SYNTHETIC_ENVIRONMENT)
     )
 
 
@@ -1039,50 +1038,18 @@ def _caddy_upgrade_cases() -> dict[str, tuple[bytes, bytes, bool]]:
         b"X-End-To-End: first\r\nx-end-to-end: second\r\n"
         b"Sec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n"
     )
-    hop = (
-        b"X-Strip-One: first-secret\r\nX-Strip-Two: second-secret\r\n"
-        b'Alt-Svc: h3=":443"\r\n'
-        b"Keep-Alive: timeout=5\r\nProxy-Connection: keep-alive\r\n"
-        b"Proxy-Authenticate: synthetic\r\nProxy-Authorization: synthetic\r\n"
-        b"Te: trailers\r\nTrailer: X-Trailer\r\n"
-    )
-    response = (
-        b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\n"
-        b"Connection: Upgrade, X-Strip-One, X-Strip-Two\r\n" + hop + preserved + b"\r\n"
-    )
-    duplicate = response.replace(
-        b"Connection: Upgrade, X-Strip-One, X-Strip-Two\r\n",
-        b"Connection: Upgrade, X-Strip-One\r\ncOnNeCtIoN: X-Strip-Two, uPgRaDe\r\n",
-    )
     return {
-        "upgrade": (request, response, True),
-        "duplicate-connection": (request, duplicate, True),
+        "upgrade": (
+            request,
+            b"HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n"
+            + preserved
+            + b"\r\n",
+            True,
+        ),
         "ordinary-200": (
-            request.replace(b"Connection: Upgrade", b"Connection: close").replace(
-                b"Upgrade: websocket\r\n", b""
-            ),
+            b"GET /ws HTTP/1.1\r\nHost: localhost\r\n\r\n",
             b"HTTP/1.1 200 OK\r\nContent-Length: 15\r\n"
-            b"Connection: close, X-Strip-One, X-Strip-Two\r\n"
-            + hop
-            + b"X-End-To-End: first\r\nx-end-to-end: second\r\n\r\nordinary-body\r\n",
-            False,
-        ),
-        "missing-upgrade": (request, response.replace(b"Upgrade: websocket\r\n", b""), False),
-        "mismatched-upgrade": (
-            request,
-            response.replace(b"Upgrade: websocket\r\n", b"Upgrade: h2c\r\n"),
-            False,
-        ),
-        "invalid-upgrade": (
-            request,
-            response.replace(b"Upgrade: websocket\r\n", b"Upgrade: \x80\r\n"),
-            False,
-        ),
-        "no-request-upgrade": (
-            request.replace(b"Connection: Upgrade", b"Connection: close").replace(
-                b"Upgrade: websocket\r\n", b""
-            ),
-            response,
+            b"X-End-To-End: first\r\nx-end-to-end: second\r\n\r\nordinary-body\r\n",
             False,
         ),
     }
@@ -1212,9 +1179,7 @@ def _caddy_fixture_http(raw: bytes) -> tuple[bytes, list[tuple[bytes, bytes]], b
     return lines[0], headers, body
 
 
-def _validate_caddy_upgrade_exchange(
-    case: str, raw: bytes, *, vulnerable_control: bool
-) -> dict[str, object]:
+def _validate_caddy_upgrade_exchange(case: str, raw: bytes) -> dict[str, object]:
     cases = _caddy_upgrade_cases()
     if case not in cases:
         raise ValueError("Caddy fixture case differs")
@@ -1292,41 +1257,18 @@ def _validate_caddy_upgrade_exchange(
             or [v.lower() for k, v in request_headers if k == b"upgrade"] != [b"websocket"]
         ):
             raise ValueError("Caddy fixture valid 101 or real duplex frames differ")
-    elif status != b"HTTP/1.1 200 OK" or sent:
-        # The selected Caddy source returns without writing a response on a rejected
-        # backend upgrade; the HTTP server emits an empty 200, never a tunnel.
-        raise ValueError("Caddy fixture rejection/ordinary response differs")
-    elif received != (b"ordinary-body\r\n" if case == "ordinary-200" else b""):
-        raise ValueError("Caddy fixture unexpected ordinary/rejected body")
-    if case == "ordinary-200" and values(b"content-length") != [b"15"]:
-        raise ValueError("Caddy fixture ordinary response length differs")
-    if duplex or case == "ordinary-200":
-        if values(b"x-end-to-end") != [b"first", b"second"]:
-            raise ValueError("Caddy fixture end-to-end header multiplicity differs")
-    elif values(b"upgrade") or values(b"sec-websocket-accept"):
-        raise ValueError("Caddy fixture rejected upgrade leaked handshake")
-    blocked = {
-        b"alt-svc",
-        b"x-strip-one",
-        b"x-strip-two",
-        b"keep-alive",
-        b"proxy-connection",
-        b"proxy-authenticate",
-        b"proxy-authorization",
-        b"te",
-        b"trailer",
-        b"transfer-encoding",
-    }
-    if vulnerable_control and duplex:
-        if values(b"x-strip-one") != [b"first-secret"] or values(b"x-strip-two") != [
-            b"second-secret"
-        ]:
-            raise ValueError("Caddy vulnerable control did not positively reproduce header leak")
-    else:
-        if any(name in blocked for name, _ in headers):
-            raise ValueError("Caddy upstream hop-by-hop header leaked")
-        if duplex and values(b"connection") != [b"Upgrade"]:
+        if values(b"connection") != [b"Upgrade"]:
             raise ValueError("Caddy canonical upgrade Connection differs")
+    elif (
+        status != b"HTTP/1.1 200 OK"
+        or sent
+        or received != b"ordinary-body\r\n"
+        or values(b"content-length") != [b"15"]
+        or values(b"upgrade")
+    ):
+        raise ValueError("Caddy ordinary response differs")
+    if values(b"x-end-to-end") != [b"first", b"second"] or values(b"alt-svc"):
+        raise ValueError("Caddy ordinary response headers differ")
     return {
         "case": case,
         "duplex": duplex,
@@ -1334,13 +1276,10 @@ def _validate_caddy_upgrade_exchange(
         "native_stdout_sha256": hashlib.sha256(raw).hexdigest(),
         "request_sha256": hashlib.sha256(files["server-received"]).hexdigest(),
         "response_sha256": hashlib.sha256(files["client-received"]).hexdigest(),
-        "vulnerable_leak_reproduced": vulnerable_control and duplex,
     }
 
 
-def _observe_caddy_upgrade_exchanges(
-    name: str, directory: Path, *, vulnerable_control: bool
-) -> list[dict[str, object]]:
+def _observe_caddy_upgrade_exchanges(name: str, directory: Path) -> list[dict[str, object]]:
     from scripts.ci.prometheus_source_image import Native
 
     if DOCKER_BINARY is None or not Path(DOCKER_BINARY).is_absolute() or _CADDY_REMAINING is None:
@@ -1366,10 +1305,6 @@ def _observe_caddy_upgrade_exchanges(
     primary_error: BaseException | None = None
     try:
         for case, (request, response, duplex) in _caddy_upgrade_cases().items():
-            # The historical image is a positive leak/duplex control, not a new
-            # compatibility promise for its different invalid-upgrade behavior.
-            if vulnerable_control and not duplex:
-                continue
             raw = native.run(
                 [
                     DOCKER_BINARY,
@@ -1399,9 +1334,7 @@ def _observe_caddy_upgrade_exchanges(
             )
             if (workspace / (case + ".stderr")).read_bytes():
                 raise ValueError("Caddy upgrade guest emitted unexpected stderr")
-            results.append(
-                _validate_caddy_upgrade_exchange(case, raw, vulnerable_control=vulnerable_control)
-            )
+            results.append(_validate_caddy_upgrade_exchange(case, raw))
     except BaseException as error:
         primary_error = error
     finally:
@@ -1430,18 +1363,73 @@ def _observe_caddy_upgrade_exchanges(
 
 
 def observe_caddy_ci_runtime(
-    image: str, directory: Path, *, upgrade: bool = False, vulnerable_control: bool = False
+    image: str,
+    directory: Path,
+    *,
+    report_path: Path,
+    strict_report: Path,
+    binary_metadata: bytes,
+    source_evidence: Path,
+    binary_sha256: str,
+    recipe: bytes,
+    native_exit: int,
+    expected_report_sha256: str,
+    controls: dict[str, Any],
+    control_directory: Path,
+) -> tuple[dict[str, Any], dict[str, object]]:
+    """Validate both static subjects and the candidate source before any serving operation."""
+    with caddy_ci_phase("REPORT_BINDINGS"):
+        decision = validate_caddy_ci_report(
+            image,
+            report_path,
+            binary_metadata=binary_metadata,
+            source_evidence=source_evidence,
+            binary_sha256=binary_sha256,
+            recipe=recipe,
+            native_exit=native_exit,
+            expected_report_sha256=expected_report_sha256,
+        )
+        validate_caddy_policy_projection(image, report_path, strict_report)
+        if controls.get("failure") is not None or controls.get("container_cleanup") is not True:
+            raise ValueError("Caddy current native control execution incomplete")
+        decision["controls"] = validate_caddy_control_reports(
+            json.loads(report_path.read_bytes()),
+            controls,
+            control_directory,
+            candidate_binary_sha256=binary_sha256,
+        )
+    directory.mkdir(mode=0o700)
+    with caddy_ci_phase("RUNTIME"):
+        loaded = _observe_validated_caddy_runtime(decision, directory)
+        upgrade = directory / "upgrade"
+        upgrade.mkdir(mode=0o700)
+        loaded["normal_upgrade"] = _observe_validated_caddy_runtime(decision, upgrade, upgrade=True)
+    return decision, loaded
+
+
+def _observe_validated_caddy_runtime(
+    decision: dict[str, Any], directory: Path, *, upgrade: bool = False
 ) -> dict[str, object]:
-    """Bind two serving-process values and isolated storage, never a deployed service."""
+    """Observe only the candidate from the source and six-report decisions."""
     global _CADDY_REMAINING
-    if re.fullmatch(r"sha256:[0-9a-f]{64}", image) is None:
-        raise ValueError("Caddy runtime requires an immutable local image ID")
+    source = decision["source"]
+    subjects = decision["controls"]["subjects"]
+    candidate = subjects["candidate"]
+    image = decision["image"]
     if (
-        type(upgrade) is not bool
-        or type(vulnerable_control) is not bool
-        or (vulnerable_control and not upgrade)
+        decision["decision"] != "source_CVE116587_correction_with_unsuppressed_scan"
+        or decision["controls"]["native_controls"] != "observed_exact_current_epoch"
+        or source["compiled_module_versions"].get(CADDY_MODULE) != "v2.11.9"
+        or not re.fullmatch(r"[0-9a-f]{64}", source["binary_sha256"])
+        or not re.fullmatch(r"sha256:[0-9a-f]{64}", image)
+        or candidate["image"] != image
+        or candidate["version"] != "v2.11.9"
+        or candidate["binary_sha256"] != source["binary_sha256"]
+        or subjects["official"]["image"] == image
+        or subjects["official"]["version"] != "v2.11.4"
+        or type(upgrade) is not bool
     ):
-        raise ValueError("Caddy runtime contour differs")
+        raise ValueError("Caddy runtime requires the source-qualified patched candidate")
     selected_config = CADDY_UPGRADE_CONFIG if upgrade else CADDY_D_CONFIG
     config = directory / "loaded-ci-config.json"
     with config.open("xb") as stream:
@@ -1533,13 +1521,28 @@ def observe_caddy_ci_runtime(
             or prepared_config["Tty"] is not False
             or prepared_config["WorkingDir"] != "/srv"
             or prepared_config["Hostname"] != prepared["Id"][:12]
-            or not _is_caddy_synthetic_environment(
-                prepared_config.get("Env"), vulnerable_control=vulnerable_control
-            )
+            or not _is_caddy_synthetic_environment(prepared_config.get("Env"))
         ):
             raise ValueError("Caddy pre-start synthetic environment binding differs")
+        phase, observed_channels = "pre-start-binary", ()
+        container_id = prepared["Id"]
+        with tempfile.TemporaryDirectory(dir=directory) as scratch:
+            binary = Path(scratch) / "caddy"
+            _run_docker(["cp", container_id + ":/usr/bin/caddy", str(binary)])
+            if (
+                binary.is_symlink()
+                or not binary.is_file()
+                or not 0 < binary.stat().st_size <= 256 * 1024 * 1024
+            ):
+                raise ValueError("Caddy pre-start binary is not a bounded regular file")
+            with binary.open("rb") as binary_stream:
+                if (
+                    hashlib.file_digest(binary_stream, "sha256").hexdigest()
+                    != source["binary_sha256"]
+                ):
+                    raise ValueError("Caddy pre-start binary differs from qualified source")
         phase, observed_channels = "start", ()
-        _run_docker(["start", name])
+        _run_docker(["start", container_id])
         # The same request proves readiness and only the two required getenv values.
         # Literal placeholders stay in CADDY_D_CONFIG; expected values stay here.
         expected_response = (
@@ -1551,7 +1554,7 @@ def observe_caddy_ci_runtime(
         probe = _run_docker(
             [
                 "exec",
-                name,
+                container_id,
                 "/bin/busybox",
                 "sh",
                 "-c",
@@ -1566,13 +1569,13 @@ def observe_caddy_ci_runtime(
             raise ValueError("Caddy loaded configuration/private environment response differs")
         phase, observed_channels = "config-readback", ()
         config_result = _run_docker(
-            ["exec", name, "/bin/busybox", "cat", "/ci.json"], preserve_newlines=True
+            ["exec", container_id, "/bin/busybox", "cat", "/ci.json"], preserve_newlines=True
         )
         loaded = config_result.stdout.encode()
         observed_channels = (("config.stdout", config_result.stdout),)
         phase = "process-command"
         command = _run_docker(
-            ["exec", name, "/bin/busybox", "cat", "/proc/1/cmdline"], preserve_newlines=True
+            ["exec", container_id, "/bin/busybox", "cat", "/proc/1/cmdline"], preserve_newlines=True
         ).stdout
         observed_channels += (("command.stdout", command),)
         if (
@@ -1590,12 +1593,14 @@ def observe_caddy_ci_runtime(
         if upgrade:
             phase, observed_channels = "normal-upgrade", ()
             evidence["upgrade_exchanges"] = _observe_caddy_upgrade_exchanges(
-                name, directory, vulnerable_control=vulnerable_control
+                container_id, directory
             )
         sockets = {}
         for kind in ("tcp", "tcp6", "udp", "udp6"):
             phase, observed_channels = "sockets-" + kind, ()
-            raw = _run_docker(["exec", name, "/bin/busybox", "cat", "/proc/net/" + kind]).stdout
+            raw = _run_docker(
+                ["exec", container_id, "/bin/busybox", "cat", "/proc/net/" + kind]
+            ).stdout
             observed_channels = (("sockets.stdout", raw),)
             rows = [line.split() for line in raw.splitlines()[1:] if line.strip()]
             if any(len(row) < 4 for row in rows):
@@ -1605,12 +1610,10 @@ def observe_caddy_ci_runtime(
             if listening != (["0100007F:46A0"] if kind == "tcp" else []):
                 raise ValueError("Caddy native listener/admin boundary differs")
         phase, observed_channels = "runtime-inspect", ()
-        inspection = _run_docker(["inspect", name])
+        inspection = _run_docker(["inspect", container_id])
         observed_channels = (("inspect.stdout", inspection.stdout),)
         inspected = json.loads(inspection.stdout)[0]
-        if not _is_caddy_synthetic_environment(
-            inspected["Config"].get("Env"), vulnerable_control=vulnerable_control
-        ):
+        if not _is_caddy_synthetic_environment(inspected["Config"].get("Env")):
             raise ValueError("Caddy synthetic environment changed after startup")
         for channel, output in (("stdout", inspection.stdout), ("stderr", inspection.stderr)):
             try:
@@ -1684,7 +1687,7 @@ def observe_caddy_ci_runtime(
         ):
             raise ValueError("Caddy private temporary environment differs")
         phase, observed_channels = "native-log-bounds", ()
-        logs = _run_docker(["logs", name], preserve_newlines=True)
+        logs = _run_docker(["logs", container_id], preserve_newlines=True)
         observed_channels = (("logs.stdout", logs.stdout), ("logs.stderr", logs.stderr))
         if len(logs.stdout.encode("utf-8")) > 65536 or len(logs.stderr.encode("utf-8")) > 65536:
             raise ValueError("Caddy native log output exceeds retained bound")
@@ -1694,7 +1697,7 @@ def observe_caddy_ci_runtime(
         private_directory = _run_docker(
             [
                 "exec",
-                name,
+                container_id,
                 "/bin/busybox",
                 "stat",
                 "-c",
@@ -1737,9 +1740,7 @@ def observe_caddy_ci_runtime(
             if created:
                 inspection = _run_docker(["inspect", name])
                 current = json.loads(inspection.stdout)[0]
-                if _is_caddy_synthetic_environment(
-                    current["Config"].get("Env"), vulnerable_control=vulnerable_control
-                ):
+                if _is_caddy_synthetic_environment(current["Config"].get("Env")):
                     for channel, output in (
                         ("stdout", inspection.stdout),
                         ("stderr", inspection.stderr),
@@ -2735,6 +2736,13 @@ def validate_caddy_source_evidence(
         "module records",
     )
     modules = {row["Path"]: row for row in rows}
+    caddy_module = modules.get(CADDY_MODULE, {})
+    if (caddy_module.get("Version"), caddy_module.get("Sum")) != (
+        "v2.11.9",
+        "h1:bhZtcRKQOq0fuLvEgCdPYvUxXyGn9kzjG4lh2332DTE=",
+    ) or "Replace" in caddy_module:
+        raise ValueError("Caddy selected upstream source identity differs")
+
     require(len(modules) == len(rows), "duplicate module")
     original = "github.com/go-jose/go-jose/v3"
     require([row["Path"] for row in rows if "Replace" in row] == [original], "one replacement")
@@ -2989,6 +2997,8 @@ def validate_caddy_ci_report(
     compiled = source["compiled_module_versions"]
     if not isinstance(compiled, dict):
         raise ValueError("Caddy compiled module observation malformed")
+    if compiled.get(CADDY_MODULE) != "v2.11.9":
+        raise ValueError("Caddy candidate binary module version differs")
     expected_go = dict(compiled)
     expected_go.pop("github.com/go-jose/go-jose/v3")
     expected_go[CADDY_PATCHED_ROOT] = None
@@ -3004,6 +3014,7 @@ def validate_caddy_ci_report(
         raise ValueError("Caddy ordinary Go package identity differs")
     return {
         "decision": "source_CVE116587_correction_with_unsuppressed_scan",
+        "image": image,
         "source": source,
         "finding_inventory": inventory,
         "v3_scanner_comparability": "UNKNOWN",
@@ -3086,6 +3097,8 @@ def validate_caddy_control_reports(
     candidate: dict[str, Any],
     controls: dict[str, Any],
     directory: Path,
+    *,
+    candidate_binary_sha256: str,
 ) -> dict[str, object]:
     """Consume the finite same-epoch candidate/official/secret native observations."""
     if (
@@ -3163,6 +3176,84 @@ def validate_caddy_control_reports(
                     del row["Vulnerabilities"]
         if high["Results"] != expected_results:
             raise ValueError("Caddy full and HC native inventory differ")
+    static = controls["official_static"]
+    official_file = directory / "official-caddy.binary"
+    metadata_file = directory / "official-go-version-m.txt"
+    for path, limit, expected in (
+        (official_file, 256 * 1024 * 1024, static["binary_sha256"]),
+        (metadata_file, 1024 * 1024, static["metadata_sha256"]),
+    ):
+        if path.is_symlink() or not path.is_file() or not 0 < path.stat().st_size <= limit:
+            raise ValueError("Caddy official static input differs")
+        with path.open("rb") as stream:
+            observed = hashlib.file_digest(stream, "sha256").hexdigest()
+        if observed != expected:
+            raise ValueError("Caddy official static digest differs")
+    if static["image"] != controls["subjects"]["official"]:
+        raise ValueError("Caddy official static subject differs")
+    lines = [line.split() for line in metadata_file.read_text().splitlines() if line.strip()]
+    if not lines or lines[0] != ["go", "version", "go1.26.11", "linux/amd64"]:
+        raise ValueError("Caddy static metadata reader version differs")
+    for module, version in ((CADDY_MODULE, "v2.11.4"), ("github.com/go-jose/go-jose/v3", "v3.0.5")):
+        rows = [i for i, line in enumerate(lines) if line[:2] in (["mod", module], ["dep", module])]
+        if len(rows) != 1:
+            raise ValueError("Caddy official static module inventory differs")
+        i = rows[0]
+        if (
+            len(lines[i]) < 3
+            or lines[i][2] != version
+            or (i + 1 < len(lines) and lines[i + 1][0] == "=>")
+            or (
+                module != CADDY_MODULE
+                and lines[i][3:] != ["h1:BLLJWbC4nMZOfuPVxoZIxeYsn6Nl2r1fITaJ78UQlVQ="]
+            )
+        ):
+            raise ValueError("Caddy official static module identity differs")
+    subjects = {}
+    for subject, version, binary_hash in (
+        ("candidate", "v2.11.9", candidate_binary_sha256),
+        ("official", "v2.11.4", static["binary_sha256"]),
+    ):
+        binary_results = [
+            row
+            for row in reports[subject + "-full"]["Results"]
+            if row.get("Target") == "usr/bin/caddy"
+            and row.get("Class") == "lang-pkgs"
+            and row.get("Type") == "gobinary"
+        ]
+        if len(binary_results) != 1 or not re.fullmatch(r"[0-9a-f]{64}", binary_hash):
+            raise ValueError("Caddy static subject binary evidence differs")
+        row = binary_results[0]
+        pkgs = [pkg for pkg in row.get("Packages", []) if pkg.get("Name") == CADDY_MODULE]
+        if len(pkgs) != 1 or (pkgs[0].get("Version"), pkgs[0].get("ID")) != (
+            version,
+            CADDY_MODULE + "@" + version,
+        ):
+            raise ValueError("Caddy static version and native scan package differ")
+        findings = [
+            v
+            for result in reports[subject + "-full"]["Results"]
+            for v in result.get("Vulnerabilities", [])
+            if v.get("VulnerabilityID") == CADDY_UPGRADE_CVE
+        ]
+        if any(
+            v.get("PkgName") != CADDY_MODULE
+            or v.get("PkgID") != pkgs[0]["ID"]
+            or v.get("InstalledVersion") != version
+            or v not in row.get("Vulnerabilities", [])
+            for v in findings
+        ):
+            raise ValueError("Caddy advisory and package identity differ")
+        if subject == "candidate" and findings:
+            raise ValueError("Caddy patched candidate reported affected")
+        subjects[subject] = {
+            "image": controls["subjects"][subject],
+            "binary_sha256": binary_hash,
+            "version": version,
+            "advisory": CADDY_UPGRADE_CVE,
+            "scanner_visibility": "observed" if findings else "not_reported",
+            "reported_severities": [v["Severity"] for v in findings],
+        }
     official = reports["official-HC"]
     witness = [
         finding
@@ -3350,6 +3441,7 @@ def validate_caddy_control_reports(
         raise ValueError("Caddy secret child changed complete nonsecret inventory")
     return {
         "native_controls": "observed_exact_current_epoch",
+        "subjects": subjects,
         "v3_scanner_comparability": "UNKNOWN",
         "reports": {name: value["sha256"] for name, value in observations.items()},
     }

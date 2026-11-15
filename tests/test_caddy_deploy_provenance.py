@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import ast
+
 import hashlib
 import inspect
 import json
@@ -5908,6 +5910,8 @@ def _caddy_inline(name: str) -> str:
         "scanner-fails",
         "release-times-out",
         "scanner-times-out",
+        "reader-times-out",
+        "reader-fails",
         "phase-expires",
         "unbound-recipe",
         "missing",
@@ -5926,6 +5930,7 @@ def test_caddy_official_controls_use_one_bound_acquisition(
     from contextlib import contextmanager
 
     scanner = "caddy:2.11.4-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648"
+    reader = "golang:1.26.11-alpine3.23@sha256:db99415e2625ce0ee03eed09edf7f32ae8c58dc399f28cc602a87fe7238119e4"
     recipe_name = "frontend/Dockerfile.caddy-spa"
     recipe = tmp_path / recipe_name
     recipe.parent.mkdir()
@@ -5985,7 +5990,7 @@ def test_caddy_official_controls_use_one_bound_acquisition(
         assert stat.S_IMODE((tmp_path / "official-home").stat().st_mode) == 0o700
         assert capture_output and not check
         pulls.append((argv[-1], timeout))
-        role = "release" if len(pulls) == 1 else "scanner"
+        role = ("release", "scanner", "reader")[len(pulls) - 1]
         if fault == f"{role}-times-out":
             raise subprocess.TimeoutExpired(argv, timeout)
         now += 300 if fault == "phase-expires" else 23
@@ -6014,18 +6019,22 @@ def test_caddy_official_controls_use_one_bound_acquisition(
             ):
                 exec(script, {})
         expected = [(CADDY_BASE, 300)]
-        if fault.startswith("scanner-"):
+        if fault.startswith(("scanner-", "reader-")):
             expected.append((scanner, 277))
+        if fault.startswith("reader-"):
+            expected.append((reader, 254))
         assert pulls == expected
         assert phases == ["OFFICIAL_PULL"]
     else:
         exec(script, {})
-        assert pulls == [(CADDY_BASE, 300), (scanner, 277)]
+        assert pulls == [(CADDY_BASE, 300), (scanner, 277), (reader, 254)]
         assert phases == ["OFFICIAL_PULL"]
         assert output.read_text().splitlines() == [f"release_ref={CADDY_BASE}"]
         monkeypatch.setenv(
             "CADDY_RELEASE_REF", output.read_text().strip().removeprefix("release_ref=")
         )
+        image = "sha256:" + "a" * 64
+        monkeypatch.setenv("CADDY_CONFIG_ID", image)
         module_images: list[str] = []
 
         def offline(argv: list[str]) -> subprocess.CompletedProcess[str]:
@@ -6062,7 +6071,7 @@ def test_caddy_official_controls_use_one_bound_acquisition(
             ),
             {},
         )
-        assert module_images == [CADDY_BASE, "pulseplate-caddy:contract"]
+        assert module_images == [CADDY_BASE, image]
         assert phases == ["OFFICIAL_PULL", "RUNTIME_CONFIG"]
     if fault:
         assert not output.exists()
@@ -6101,6 +6110,23 @@ def test_caddy_official_controls_bind_both_consumers_after_capture() -> None:
     )
     assert 'official = inspect(official_ref, "official-image")' in observer
     assert 'scan_pair("official", official["Id"])' in observer
+    assert 'docker("official-binary-copy", ["cp", cid + ":/usr/bin/caddy"' in observer
+    starts = [
+        call
+        for call in ast.walk(ast.parse(observer))
+        if isinstance(call, ast.Call)
+        and isinstance(call.func, ast.Name)
+        and call.func.id == "docker"
+        and len(call.args) > 1
+        and isinstance(call.args[1], ast.List)
+        and call.args[1].elts
+        and isinstance(call.args[1].elts[0], ast.Constant)
+        and call.args[1].elts[0].value == "start"
+    ]
+    assert [ast.unparse(call.args[1]) for call in starts] == ["['start', '--attach', reader_id]"]
+    for step in (parity, _named_step(steps, "Validate staging and production Caddyfiles")):
+        assert step["env"]["CADDY_CONFIG_ID"] == "${{ steps.caddy-image.outputs.image_id }}"
+        assert "pulseplate-caddy:contract" not in step["run"]
 
 
 def _caddy_budget_fixture(runner: Path, monkeypatch: pytest.MonkeyPatch) -> dict:
@@ -6763,16 +6789,10 @@ def test_caddy_job_budget_is_complete_and_owned_only_by_existing_job() -> None:
     decision = _named_step(
         steps, "Decide source-qualified Caddy inventory and current native controls"
     )["run"]
-    for required in (
-        "validate_caddy_source",
-        "validate_caddy_ci_report",
-        "validate_caddy_control_reports",
-        "validate_caddy_policy_projection",
-        "observe_caddy_ci_runtime",
-    ):
-        if required != "validate_caddy_source":
-            assert required in decision
-    assert decision.index("validate_caddy_control_reports(json") < decision.index(
+    assert decision.index("if result.returncode != 0:") < decision.index(
+        "observe_caddy_ci_runtime("
+    )
+    assert decision.index("observe_caddy_ci_runtime(") < decision.index(
         "os.rename(private_candidate / name"
     )
     assert decision.index('controls["cleanup"] = True') < decision.index(
@@ -7064,7 +7084,13 @@ def test_caddy_candidate_release_requires_current_source_control_and_cleanup_con
     def native(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess:
         return subprocess.CompletedProcess(args, 0, args[-1] + "\n", "")
 
-    def runtime(*args: Any, **kwargs: Any) -> dict:
+    def runtime(decision: dict, directory: Path, **kwargs: Any) -> dict:
+        assert fault not in ("source", "HC", "secret", "policy")
+        assert decision["image"] == decision["controls"]["subjects"]["candidate"]["image"]
+        assert (
+            decision["source"]["binary_sha256"]
+            == decision["controls"]["subjects"]["candidate"]["binary_sha256"]
+        )
         if fault == "runtime":
             raise ValueError("synthetic runtime failure")
         return {"actual_fixture_only": True}
@@ -7117,7 +7143,7 @@ def test_caddy_candidate_release_requires_current_source_control_and_cleanup_con
             ).encode()
 
     monkeypatch.setattr(owner, "_run_docker", native)
-    monkeypatch.setattr(owner, "observe_caddy_ci_runtime", runtime)
+    monkeypatch.setattr(owner, "_observe_validated_caddy_runtime", runtime)
     monkeypatch.setattr(subprocess, "run", run)
     monkeypatch.setattr(subprocess, "check_output", output)
 

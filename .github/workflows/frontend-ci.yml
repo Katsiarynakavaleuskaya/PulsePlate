@@ -1747,7 +1747,8 @@ jobs:
           home.mkdir(mode=0o700)
           environment = {"PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": str(home), "LANG": "C.UTF-8"}
           with caddy_ci_phase("OFFICIAL_PULL") as remaining:
-              for role, image in (("release", release_ref), ("scanner", scanner_ref)):
+              for role, image in (("release", release_ref), ("scanner", scanner_ref),
+                                  ("reader", "golang:1.26.11-alpine3.23@sha256:db99415e2625ce0ee03eed09edf7f32ae8c58dc399f28cc602a87fe7238119e4")):
                   result = subprocess.run([subject["docker"], "pull", "--platform", "linux/amd64", image],
                       env=environment, capture_output=True, timeout=remaining(300), check=False)
                   if result.returncode:
@@ -1759,11 +1760,12 @@ jobs:
       - name: Verify hardened Caddy runtime and module parity
         if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet062-metadata') }}
         env:
+          CADDY_CONFIG_ID: ${{ steps.caddy-image.outputs.image_id }}
           CADDY_RELEASE_REF: ${{ steps.caddy-official.outputs.release_ref }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import os
+          import os, re
           from pathlib import Path
           from scripts.ci.check_docker_runtime_dependency_surface import _run_docker, caddy_ci_phase
 
@@ -1772,22 +1774,25 @@ jobs:
           evidence.mkdir(exist_ok=True)
           common = ["run", "--rm", "--pull", "never", "--network", "none", "--read-only", "--cap-drop", "ALL", "--cap-add", "NET_BIND_SERVICE"]
           official_caddy_ref = os.environ["CADDY_RELEASE_REF"]
+          image = os.environ["CADDY_CONFIG_ID"]
+          if re.fullmatch(r"sha256:[0-9a-f]{64}", image) is None:
+              raise ValueError("Caddy captured image identity differs")
           with caddy_ci_phase("RUNTIME_CONFIG"):
-              version = _run_docker([*common, "pulseplate-caddy:contract", "caddy", "version"]).stdout
+              version = _run_docker([*common, image, "caddy", "version"]).stdout
               if not version.split() or version.split()[0] != "v2.11.9":
                   raise ValueError("Caddy version differs")
               (evidence / "version.txt").write_text(version)
-              info = _run_docker([*common, "pulseplate-caddy:contract", "caddy", "build-info"]).stdout
+              info = _run_docker([*common, image, "caddy", "build-info"]).stdout
               if ["go", "go1.26.11"] not in [line.split() for line in info.splitlines()]:
                   raise ValueError("Caddy compiler differs")
               (evidence / "build-info.txt").write_text(info)
-              caps = _run_docker([*common, "pulseplate-caddy:contract", "getcap", "/usr/bin/caddy"]).stdout
+              caps = _run_docker([*common, image, "getcap", "/usr/bin/caddy"]).stdout
               if "cap_net_bind_service=ep" not in caps:
                   raise ValueError("Caddy required capability missing")
               (evidence / "capabilities.txt").write_text(caps)
               native_modules = []
-              for name, image in (("official-modules.txt", official_caddy_ref), ("rebuilt-modules.txt", "pulseplate-caddy:contract")):
-                  output = _run_docker([*common, image, "caddy", "list-modules", "--packages"]).stdout
+              for name, module_image in (("official-modules.txt", official_caddy_ref), ("rebuilt-modules.txt", image)):
+                  output = _run_docker([*common, module_image, "caddy", "list-modules", "--packages"]).stdout
                   modules = sorted(line.split()[0] for line in output.splitlines() if line.split() and line.split()[0] != "Standard")
                   (evidence / name).write_text("\n".join(modules) + "\n")
                   native_modules.append(modules)
@@ -1797,12 +1802,18 @@ jobs:
 
       - name: Validate staging and production Caddyfiles
         if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet062-metadata') }}
+        env:
+          CADDY_CONFIG_ID: ${{ steps.caddy-image.outputs.image_id }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
+          import os, re
           from pathlib import Path
           from scripts.ci.check_docker_runtime_dependency_surface import _run_docker, caddy_ci_phase
           # Native caddy validate calls retain the existing synthetic domains and mounts.
+          image = os.environ["CADDY_CONFIG_ID"]
+          if re.fullmatch(r"sha256:[0-9a-f]{64}", image) is None:
+              raise ValueError("Caddy captured image identity differs")
           with caddy_ci_phase("RUNTIME_CONFIG"):
               for config, values in (("Caddyfile", {"STAGING_DOMAIN": "staging.example.com"}),
                                      ("Caddyfile.production", {"PRODUCTION_DOMAIN": "example.com", "STAGING_FALLBACK_DOMAIN": "staging.example.com"})):
@@ -1811,7 +1822,7 @@ jobs:
                   for name, value in values.items():
                       arguments += ["-e", name + "=" + value]
                   arguments += ["-v", str(Path("deploy", config).resolve(strict=True)) + ":/etc/caddy/Caddyfile:ro",
-                                "pulseplate-caddy:contract", "caddy", "validate", "--config", "/etc/caddy/Caddyfile"]
+                                image, "caddy", "validate", "--config", "/etc/caddy/Caddyfile"]
                   _run_docker(arguments)
           PY
 
@@ -2118,27 +2129,56 @@ jobs:
               control["parent_layers"] = candidate["RootFS"]["Layers"]
               official_ref = "caddy:2.11.4-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648"
               official = inspect(official_ref, "official-image")
-              if (official["Os"], official["Architecture"]) != ("linux", "amd64"):
+              if (official["Os"], official["Architecture"]) != ("linux", "amd64") or official["Id"] == candidate["Id"]:
                   raise ValueError("Caddy official control platform")
               control["subjects"]["official"] = official["Id"]
               name = owner + "-official"
               cid = docker("official-create", ["create", "--pull", "never", "--name", name, "--label", "pulseplate.caddy-control=" + owner,
                   "--network", "none", "--read-only", "--cap-drop", "ALL", "--cap-add", "NET_BIND_SERVICE",
                   "--security-opt", "no-new-privileges", "--cpus", "1", "--memory", "256m", "--memory-swap", "256m",
-                  "--pids-limit", "64", "--entrypoint", "/usr/bin/caddy", official["Id"], "build-info"]).decode().strip()
+                  "--pids-limit", "64", "--entrypoint", "/bin/false", official["Id"]]).decode().strip()
               owned.append((cid, name, official["Id"]))
               row = inspect(cid, "official-created")
               if row["Image"] != official["Id"] or row["Config"]["Labels"].get("pulseplate.caddy-control") != owner or row["State"]["Running"]:
                   raise ValueError("Caddy official control ownership")
-              info = docker("official-build-info", ["start", "--attach", cid])
-              terminal = inspect(cid, "official-terminal")
-              if terminal["State"]["ExitCode"] != 0 or terminal["State"]["OOMKilled"]:
-                  raise ValueError("Caddy official metadata native failure")
-              lines = [line.split() for line in info.decode().splitlines() if line.strip()]
-              positions = [index for index, line in enumerate(lines) if line[:2] == ["dep", "github.com/go-jose/go-jose/v3"]]
-              if len(positions) != 1 or lines[positions[0]][2:] != ["v3.0.5", "h1:BLLJWbC4nMZOfuPVxoZIxeYsn6Nl2r1fITaJ78UQlVQ="] or (
-                      positions[0] + 1 < len(lines) and lines[positions[0] + 1][0] == "=>"):
-                  raise ValueError("Caddy official unreplaced v3 witness")
+              binary = control_dir / "official-caddy.binary"
+              if binary.exists() or binary.is_symlink() or row["State"]["Status"] != "created" or row["Id"] != cid:
+                  raise ValueError("Caddy stopped static binary source differs")
+              docker("official-binary-copy", ["cp", cid + ":/usr/bin/caddy", str(binary)])
+              if binary.is_symlink() or not binary.is_file() or not 0 < binary.stat().st_size <= 256 * 1024 * 1024:
+                  raise ValueError("Caddy stopped static binary is not a bounded regular file")
+              binary.chmod(0o444)
+              binary_hash = digest(binary)
+              reader = inspect("golang:1.26.11-alpine3.23@sha256:db99415e2625ce0ee03eed09edf7f32ae8c58dc399f28cc602a87fe7238119e4", "metadata-reader-image")
+              if (reader["Os"], reader["Architecture"]) != ("linux", "amd64") or reader["Id"] in control["subjects"].values():
+                  raise ValueError("Caddy static reader subject differs")
+              control["reader_image"] = reader["Id"]
+              name = owner + "-reader"
+              reader_id = docker("metadata-reader-create", ["create", "--pull", "never", "--name", name,
+                  "--label", "pulseplate.caddy-control=" + owner, "--network", "none", "--read-only",
+                  "--user", "65532:65532", "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
+                  "--cpus", "1", "--memory", "256m", "--memory-swap", "256m", "--pids-limit", "64",
+                  "--mount", "type=bind,source=" + str(binary.resolve(strict=True)) + ",target=/tmp/caddy-static,readonly",
+                  "--entrypoint", "/usr/bin/env", reader["Id"], "-i", "HOME=/tmp", "LANG=C",
+                  "GOTOOLCHAIN=local", "GOENV=off", "GOWORK=off", "/bin/sh", "-ec",
+                  "/usr/local/go/bin/go version && /usr/local/go/bin/go version -m /tmp/caddy-static"]).decode().strip()
+              owned.append((reader_id, name, reader["Id"]))
+              reader_row = inspect(reader_id, "metadata-reader-created")
+              if (reader_row["Id"], reader_row["Image"], reader_row["Name"], reader_row["State"]["Status"],
+                  reader_row["Config"]["Labels"].get("pulseplate.caddy-control")) != (reader_id,reader["Id"],"/"+name,"created",owner):
+                  raise ValueError("Caddy metadata reader ownership differs")
+              info = docker("metadata-reader-inspect-binary", ["start", "--attach", reader_id])
+              end = inspect(reader_id, "metadata-reader-terminal")
+              static = inspect(cid, "official-never-started")
+              if (end["State"]["Status"] != "exited" or end["State"]["ExitCode"] != 0 or end["State"]["OOMKilled"]
+                  or (static["Id"],static["Image"],static["State"]["Status"]) != (cid,official["Id"],"created")
+                  or digest(binary) != binary_hash):
+                  raise ValueError("Caddy static metadata observation failed")
+              metadata = control_dir / "official-go-version-m.txt"
+              with metadata.open("xb") as stream:
+                  stream.write(info)
+              control["official_static"] = {"image": official["Id"], "binary_sha256": binary_hash,
+                                            "metadata_sha256": hashlib.sha256(info).hexdigest()}
               scan_pair("candidate", subject["image_config_id"])
               scan_pair("official", official["Id"])
               name = owner + "-secret"
@@ -2182,14 +2222,15 @@ jobs:
               raise
           finally:
               try:
-                  # Closed two-container inventory; no foreign or inherited resources touched.
+                  # Closed official, metadata reader and secret-container inventory; no foreign or inherited resources touched.
                   census = docker("cleanup-census", ["ps", "--all", "--no-trunc", "--filter", "label=pulseplate.caddy-control=" + owner,
                                                     "--format", "{{.ID}}"], 20, "CONTROL_CLEANUP").decode().splitlines()
-                  if len(census) > 2 or len(set(census)) != len(census):
+                  if len(census) > 3 or len(set(census)) != len(census):
                       raise ValueError("Caddy control cleanup inventory differs")
                   for cid in census:
                       row = inspect(cid, "cleanup-owned", "CONTROL_CLEANUP")
                       expected_image = {"/" + owner + "-official": control["subjects"].get("official"),
+                                        "/" + owner + "-reader": control.get("reader_image"),
                                         "/" + owner + "-secret": subject["image_config_id"]}.get(row["Name"])
                       if expected_image is None or row["Image"] != expected_image or row["Config"]["Labels"].get("pulseplate.caddy-control") != owner:
                           raise ValueError("Caddy control cleanup ownership differs")
@@ -2414,8 +2455,7 @@ jobs:
           import subprocess
           import time
           from scripts.ci.check_docker_runtime_dependency_surface import (
-              observe_caddy_ci_runtime, validate_caddy_ci_report, validate_caddy_policy_projection,
-              validate_caddy_control_reports, caddy_ci_phase, caddy_ci_source_inventory,
+              observe_caddy_ci_runtime, caddy_ci_phase, caddy_ci_source_inventory,
           )
 
           work = Path(os.environ["RUNNER_TEMP"])
@@ -2428,27 +2468,8 @@ jobs:
           raw = evidence / "full-observation/full.raw.json"
           binary = (evidence / "full-observation/native-projections/build-info.txt").read_bytes()
           admission = json.loads((work / "caddy-admission/admission.json").read_bytes())
-          with caddy_ci_phase("REPORT_BINDINGS"):
-              decision = validate_caddy_ci_report(image, raw, binary_metadata=binary,
-                  source_evidence=Path(subject["build_evidence"]), binary_sha256=subject["binary_sha256"],
-                  recipe=Path("frontend/Dockerfile.caddy-spa").read_bytes(), native_exit=observation["full_scan_native_exit"],
-                  expected_report_sha256=observation["full_report_sha256"])
-              controls = subject["controls"]
-              if controls["failure"] is not None or controls.get("container_cleanup") is not True:
-                  raise ValueError("Caddy current native control execution incomplete")
-              decision["controls"] = validate_caddy_control_reports(json.loads(raw.read_bytes()), controls, private / "controls")
+          controls = subject["controls"]
           runtime_dir = evidence / "loaded-runtime"
-          runtime_dir.mkdir(mode=0o700)
-          with caddy_ci_phase("RUNTIME"):
-              loaded = observe_caddy_ci_runtime(image, runtime_dir)
-              upgrade_dir = runtime_dir / "upgrade"
-              upgrade_dir.mkdir(mode=0o700)
-              loaded["normal_upgrade"] = observe_caddy_ci_runtime(image, upgrade_dir, upgrade=True)
-              control_dir = runtime_dir / "vulnerable-upgrade-control"
-              control_dir.mkdir(mode=0o700)
-              loaded["vulnerable_upgrade_control"] = observe_caddy_ci_runtime(
-                  controls["subjects"]["official"], control_dir, upgrade=True, vulnerable_control=True)
-          (runtime_dir / "observation.json").write_text(json.dumps(loaded, indent=2))
           output = evidence / "strict-control.raw.json"
           argv = [subject["scanner"], "convert", "--quiet", "--format", "json", "--ignore-policy",
                   str(Path("trivy/ignore-policy.rego").resolve(strict=True)), "--ignorefile", str(private / "empty.trivyignore"), str(raw)]
@@ -2457,8 +2478,11 @@ jobs:
                   result = subprocess.run(argv, env=subject["clean_env"], stdout=stdout, stderr=stderr, timeout=remaining(60), check=False)
               if result.returncode != 0:
                   raise ValueError("Caddy native strict conversion failed")
-          with caddy_ci_phase("REPORT_BINDINGS"):
-              validate_caddy_policy_projection(image, raw, output)
+          decision, loaded = observe_caddy_ci_runtime(image, runtime_dir, report_path=raw, strict_report=output, binary_metadata=binary,
+              source_evidence=Path(subject["build_evidence"]), binary_sha256=subject["binary_sha256"],
+              recipe=Path("frontend/Dockerfile.caddy-spa").read_bytes(), native_exit=observation["full_scan_native_exit"],
+              expected_report_sha256=observation["full_report_sha256"], controls=controls, control_directory=private / "controls")
+          (runtime_dir / "observation.json").write_text(json.dumps(loaded, indent=2))
           decision["strict_conversion"] = {"native_exit": result.returncode, "sha256": hashlib.sha256(output.read_bytes()).hexdigest()}
           with caddy_ci_phase("PROCESSING") as remaining:
               if caddy_ci_source_inventory(Path.cwd(), list(admission["inputs"])) != admission["inputs"]:
@@ -2518,7 +2542,7 @@ jobs:
           # Current native validation above authorizes only privacy-safe retained reports.
           # Raw secret-bearing/unclassified failures remain private; no report is rewritten.
           for source in (private / "controls").iterdir():
-              if source.name.endswith(".raw.json") or source.name == "native-controls.json":
+              if source.name.endswith(".raw.json") or source.name in ("native-controls.json", "official-go-version-m.txt"):
                   destination = evidence / "controls" / source.name
                   destination.parent.mkdir(exist_ok=True)
                   if source.is_symlink() or not source.is_file() or destination.exists():

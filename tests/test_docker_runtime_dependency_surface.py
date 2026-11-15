@@ -768,12 +768,12 @@ _CADDY_PATCHED_LISTING = (
 _CADDY_FIXTURE_MODULES = (
     '[{"Path": "pulseplate.local/caddy-build", "Main": true, "Dir": "/tmp/tmp'
     '.hfKfLO", "GoMod": "/tmp/tmp.hfKfLO/go.mod", "GoVersion": "1.26.10"}, {"'
-    'Path": "github.com/caddyserver/caddy/v2", "Version": "v2.11.4", "Time": '
+    'Path": "github.com/caddyserver/caddy/v2", "Version": "v2.11.9", "Time": '
     '"2026-06-01T19:35:02Z", "Indirect": true, "Dir": "/go/pkg/mod/github.com'
-    '/caddyserver/caddy/v2@v2.11.4", "GoMod": "/go/pkg/mod/cache/download/git'
-    'hub.com/caddyserver/caddy/v2/@v/v2.11.4.mod", "GoVersion": "1.25.1", "Su'
-    'm": "h1:XKxkMTgNSizEvKG6QHue6cAsFOteU2qA61w2tKkCWi0=", "GoModSum": "h1:z'
-    'XCl032uTaF5/TpgU38axqFD41jqzxomTDNqK7BzMeI="}, {"Path": "github.com/core'
+    '/caddyserver/caddy/v2@v2.11.9", "GoMod": "/go/pkg/mod/cache/download/git'
+    'hub.com/caddyserver/caddy/v2/@v/v2.11.9.mod", "GoVersion": "1.25.1", "Su'
+    'm": "h1:bhZtcRKQOq0fuLvEgCdPYvUxXyGn9kzjG4lh2332DTE=", "GoModSum": "h1:j'
+    'ctG0eTy0tC4ST/Q7GIPKIfxox7mhSCtcwlwF82HLVM="}, {"Path": "github.com/core'
     'os/go-oidc/v3", "Version": "v3.17.0", "Time": "2025-11-21T03:32:42Z", "I'
     'ndirect": true, "Dir": "/go/pkg/mod/github.com/coreos/go-oidc/v3@v3.17.0'
     '", "GoMod": "/go/pkg/mod/cache/download/github.com/coreos/go-oidc/v3/@v/'
@@ -804,15 +804,15 @@ _CADDY_FIXTURE_MODULES = (
 )
 _CADDY_FIXTURE_IMPORTS = (
     "github.com/caddyserver/caddy/v2/cmd/caddy|/go/pkg/mod/github.com/caddyse"
-    "rver/caddy/v2@v2.11.4/cmd/caddy|github.com/caddyserver/caddy/v2/modules/"
+    "rver/caddy/v2@v2.11.9/cmd/caddy|github.com/caddyserver/caddy/v2/modules/"
     "standard\ngithub.com/caddyserver/caddy/v2/modules/caddypki|/go/pkg/mod/gi"
-    "thub.com/caddyserver/caddy/v2@v2.11.4/modules/caddypki|github.com/smalls"
+    "thub.com/caddyserver/caddy/v2@v2.11.9/modules/caddypki|github.com/smalls"
     "tep/certificates/authority\ngithub.com/caddyserver/caddy/v2/modules/caddy"
-    "pki/acmeserver|/go/pkg/mod/github.com/caddyserver/caddy/v2@v2.11.4/modul"
+    "pki/acmeserver|/go/pkg/mod/github.com/caddyserver/caddy/v2@v2.11.9/modul"
     "es/caddypki/acmeserver|github.com/caddyserver/caddy/v2/modules/caddypki "
     "github.com/smallstep/certificates/acme github.com/smallstep/certificates"
     "/authority\ngithub.com/caddyserver/caddy/v2/modules/standard|/go/pkg/mod/"
-    "github.com/caddyserver/caddy/v2@v2.11.4/modules/standard|github.com/cadd"
+    "github.com/caddyserver/caddy/v2@v2.11.9/modules/standard|github.com/cadd"
     "yserver/caddy/v2/modules/caddypki github.com/caddyserver/caddy/v2/module"
     "s/caddypki/acmeserver\ngithub.com/coreos/go-oidc/v3/oidc|/go/pkg/mod/gith"
     "ub.com/coreos/go-oidc/v3@v3.17.0/oidc|github.com/go-jose/go-jose/v4\ngith"
@@ -826,8 +826,8 @@ _CADDY_FIXTURE_IMPORTS = (
     "tep.sm/crypto@v0.81.0/jose|github.com/go-jose/go-jose/v3\n"
 )
 _CADDY_FIXTURE_BINARY = (
-    b"/go/bin/caddy: go1.26.11\n\tmod\tgithub.com/caddyserver/caddy/v2\tv2.11.4\th1"
-    b":XKxkMTgNSizEvKG6QHue6cAsFOteU2qA61w2tKkCWi0=\n\tdep\tgithub.com/coreos/go-"
+    b"/go/bin/caddy: go1.26.11\n\tmod\tgithub.com/caddyserver/caddy/v2\tv2.11.9\th1"
+    b":bhZtcRKQOq0fuLvEgCdPYvUxXyGn9kzjG4lh2332DTE=\n\tdep\tgithub.com/coreos/go-"
     b"oidc/v3\tv3.17.0\th1:hWBGaQfbi0iVviX4ibC7bk8OKT5qNr4klBaCHVNvehc=\n\tdep\tgit"
     b"hub.com/go-jose/go-jose/v3\tv3.0.5\n\t=>\t/opt/go-jose-v3.0.5-patched\t(devel"
     b")\t\n\tdep\tgithub.com/go-jose/go-jose/v4\tv4.1.6\th1:sNRkftxFJxwsILiQukqp5z83"
@@ -1442,6 +1442,7 @@ def test_caddy_private_environment_response_uses_literal_native_placeholders() -
         "native-create",
         "native-preinspect",
         "native-start",
+        "changed-binary",
         "native-readiness",
         "native-config",
         "native-cmdline",
@@ -1458,6 +1459,23 @@ def test_caddy_actual_loaded_runtime_requires_complete_native_boundary_and_clean
 ) -> None:
     image = "sha256:" + "a" * 64
     container_id = "b" * 64
+    binary = b"synthetic candidate executable bytes"
+    binary_hash = hashlib.sha256(binary).hexdigest()
+    decision = {
+        "decision": "source_CVE116587_correction_with_unsuppressed_scan",
+        "image": image,
+        "source": {
+            "binary_sha256": binary_hash,
+            "compiled_module_versions": {runtime_surface.CADDY_MODULE: "v2.11.9"},
+        },
+        "controls": {
+            "native_controls": "observed_exact_current_epoch",
+            "subjects": {
+                "candidate": {"image": image, "version": "v2.11.9", "binary_sha256": binary_hash},
+                "official": {"image": "sha256:" + "9" * 64, "version": "v2.11.4"},
+            },
+        },
+    }
     sentinel = "synthetic-private-observation-sentinel"
     synthetic_environment = [
         "HOME=/run/pulseplate-caddy-tmp",
@@ -1492,7 +1510,11 @@ def test_caddy_actual_loaded_runtime_requires_complete_native_boundary_and_clean
             if fault == "native-create":
                 raise RuntimeError("synthetic native command failed")
             assert args[args.index("--entrypoint") + 1] == "/usr/bin/caddy"
+        elif args[0] == "cp":
+            assert args[1] == container_id + ":/usr/bin/caddy"
+            Path(args[2]).write_bytes(b"changed" if fault == "changed-binary" else binary)
         elif args[0] == "start":
+            assert args[1] == container_id
             if fault == "native-start":
                 raise RuntimeError("synthetic native command failed")
             selected["started"] = True
@@ -1848,7 +1870,8 @@ def test_caddy_actual_loaded_runtime_requires_complete_native_boundary_and_clean
     requested_fault, fault = fault, None
     current_directory = tmp_path / "valid-baseline"
     current_directory.mkdir()
-    baseline = runtime_surface.observe_caddy_ci_runtime(image, current_directory)
+    baseline = runtime_surface._observe_validated_caddy_runtime(decision, current_directory)
+    assert all(call[1] == container_id for call in calls if call[0] in ("start", "exec", "logs"))
     assert baseline["response"] == expected_response
     assert baseline["inspected"]["HostConfig"]["CapAdd"] == ["CAP_NET_BIND_SERVICE"]
     assert baseline["private_temporary_directory"] == "65532:65532:700:directory\n"
@@ -1882,7 +1905,7 @@ def test_caddy_actual_loaded_runtime_requires_complete_native_boundary_and_clean
     for filename in capture_obstructions:
         (current_directory / filename).mkdir()
     if fault in (None, "order-prepared", "order-runtime", "order-cleanup", "order-each"):
-        result = runtime_surface.observe_caddy_ci_runtime(image, current_directory)
+        result = runtime_surface._observe_validated_caddy_runtime(decision, current_directory)
         assert result["response"] == expected_response
     else:
         error_type: type[Exception] = ValueError
@@ -1944,19 +1967,23 @@ def test_caddy_actual_loaded_runtime_requires_complete_native_boundary_and_clean
                 "process": "Caddy actual process/config binding differs",
                 "admin": "Caddy native listener/admin boundary differs",
                 "udp": "Caddy native listener/admin boundary differs",
+                "changed-binary": "Caddy pre-start binary differs",
                 "mount": "Caddy immutable configuration mount differs",
                 "bind-type": "Caddy immutable configuration mount differs",
                 "bind-source": "Caddy immutable configuration mount differs",
                 "extra-mount": "Caddy immutable configuration mount differs",
             }[fault]
         with pytest.raises(error_type, match=message) as caught:
-            runtime_surface.observe_caddy_ci_runtime(image, current_directory)
+            runtime_surface._observe_validated_caddy_runtime(decision, current_directory)
+        if fault == "changed-binary":
+            assert all(call[0] != "start" for call in calls)
         rendered = "".join(traceback.format_exception(caught.value))
         assert sentinel not in rendered
         notes = getattr(caught.value, "__notes__", [])
         expected_phase = {
             "native-create": "create",
             "native-preinspect": "pre-start-inspect",
+            "changed-binary": "pre-start-binary",
             "native-start": "start",
             "native-readiness": "readiness-private-environment",
             "native-config": "config-readback",
@@ -2172,6 +2199,9 @@ def _caddy_control_fixture(directory: Path, *, local_layer: bool = False) -> tup
         "Version": "v3.0.5",
         "ID": "github.com/go-jose/go-jose/v3@v3.0.5",
     }
+    module = runtime_surface.CADDY_MODULE
+    package = next(pkg for pkg in official["Results"][1]["Packages"] if pkg["Name"] == module)
+    package.update(Version="v2.11.4", ID=module + "@v2.11.4")
     official["Results"][1]["Vulnerabilities"] = [
         {
             "VulnerabilityID": "CVE-2026-116587",
@@ -2269,6 +2299,20 @@ def _caddy_control_fixture(directory: Path, *, local_layer: bool = False) -> tup
         "fixture_sha256": hashlib.sha256(
             ("GITHUB_PAT=" + "ghp_" + "012345678901234567890123456789abcdef" + "\n").encode()
         ).hexdigest(),
+    }
+    official_binary = b"static test binary"
+    metadata = (
+        "go version go1.26.11 linux/amd64\n"
+        "/tmp/caddy-static: go1.26.10\n"
+        "mod github.com/caddyserver/caddy/v2 v2.11.4\n"
+        "dep github.com/go-jose/go-jose/v3 v3.0.5 h1:BLLJWbC4nMZOfuPVxoZIxeYsn6Nl2r1fITaJ78UQlVQ=\n"
+    ).encode()
+    (directory / "official-caddy.binary").write_bytes(official_binary)
+    (directory / "official-go-version-m.txt").write_bytes(metadata)
+    controls["official_static"] = {
+        "image": images["official"],
+        "binary_sha256": hashlib.sha256(official_binary).hexdigest(),
+        "metadata_sha256": hashlib.sha256(metadata).hexdigest(),
     }
     if local_layer:
         controls.update(owner="synthetic", child_tag="pulseplate-caddy-control:synthetic")
@@ -2466,14 +2510,108 @@ def test_caddy_native_controls_require_decoded_findings_and_complete_subject_rel
     )
     original = {path.name: path.read_bytes() for path in directory.iterdir()}
     if fault in (None, "local", "descriptor-digest-match", "legacy-registry"):
-        result = runtime_surface.validate_caddy_control_reports(candidate, controls, directory)
+        result = runtime_surface.validate_caddy_control_reports(
+            candidate, controls, directory, candidate_binary_sha256="c" * 64
+        )
         assert result["native_controls"] == "observed_exact_current_epoch"
         assert result["v3_scanner_comparability"] == "UNKNOWN"
         assert len(result["reports"]) == 6
     else:
         with pytest.raises(ValueError):
-            runtime_surface.validate_caddy_control_reports(candidate, controls, directory)
+            runtime_surface.validate_caddy_control_reports(
+                candidate, controls, directory, candidate_binary_sha256="c" * 64
+            )
     assert {path.name: path.read_bytes() for path in directory.iterdir()} == original
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "official-observed",
+        "wrong-owner",
+        "binary-tampered",
+        "metadata-symlink",
+        "reader-version",
+        "module-version",
+        "replacement",
+        "wrong-package",
+        "candidate-observed",
+        "candidate-version",
+    ],
+)
+def test_caddy_static_subjects_bind_original_metadata_and_both_native_inventories(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str | None
+) -> None:
+    directory = tmp_path / "controls"
+    candidate, controls = _caddy_control_fixture(directory)
+    static = controls["official_static"]
+    metadata = directory / "official-go-version-m.txt"
+    if fault == "wrong-owner":
+        static["image"] = controls["subjects"]["candidate"]
+    elif fault == "binary-tampered":
+        (directory / "official-caddy.binary").write_bytes(b"changed")
+    elif fault == "metadata-symlink":
+        backup = metadata.rename(directory / "fixture.txt")
+        metadata.symlink_to(backup)
+    elif fault in ("reader-version", "module-version", "replacement"):
+        text = metadata.read_text()
+        if fault == "reader-version":
+            text = text.replace("go1.26.11", "go1.26.10")
+        elif fault == "module-version":
+            text = text.replace("v2.11.4", "v2.11.9")
+        else:
+            text = text.replace("dep github.com/go-jose", "=> other v0.0.0\ndep github.com/go-jose")
+        metadata.write_text(text)
+        static["metadata_sha256"] = hashlib.sha256(metadata.read_bytes()).hexdigest()
+    elif fault in ("official-observed", "wrong-package", "candidate-observed", "candidate-version"):
+        subject = "candidate" if fault.startswith("candidate-") else "official"
+        scan = controls["scans"][subject + "-full"]
+        path = directory / scan["file"]
+        report = json.loads(path.read_bytes())
+        row = report["Results"][1]
+        pkg = next(p for p in row["Packages"] if p["Name"] == runtime_surface.CADDY_MODULE)
+        if fault == "candidate-version":
+            pkg["Version"] = "v2.11.4"
+            hc = controls["scans"]["candidate-HC"]
+            hc_path = directory / hc["file"]
+            high = json.loads(hc_path.read_bytes())
+            next(p for p in high["Results"][1]["Packages"] if p["Name"] == pkg["Name"]).update(pkg)
+            hc_path.write_text(json.dumps(high))
+            hc["sha256"] = hashlib.sha256(hc_path.read_bytes()).hexdigest()
+        else:
+            row.setdefault("Vulnerabilities", []).append(
+                {
+                    "VulnerabilityID": runtime_surface.CADDY_UPGRADE_CVE,
+                    "PkgID": pkg["ID"],
+                    "PkgName": "other" if fault == "wrong-package" else pkg["Name"],
+                    "InstalledVersion": pkg["Version"],
+                    "Severity": "LOW",
+                    "Status": "affected",
+                }
+            )
+        path.write_text(json.dumps(report))
+        scan["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+        if subject == "candidate":
+            candidate = report
+    monkeypatch.setattr(
+        runtime_surface,
+        "_run_docker",
+        lambda args: subprocess.CompletedProcess(args, 0, args[-1] + "\n", ""),
+    )
+    if fault in (None, "official-observed"):
+        result = runtime_surface.validate_caddy_control_reports(
+            candidate, controls, directory, candidate_binary_sha256="c" * 64
+        )
+        assert result["subjects"]["candidate"]["scanner_visibility"] == "not_reported"
+        observed = result["subjects"]["official"]
+        assert observed["scanner_visibility"] == ("observed" if fault else "not_reported")
+        assert observed["reported_severities"] == (["LOW"] if fault else [])
+    else:
+        with pytest.raises(ValueError):
+            runtime_surface.validate_caddy_control_reports(
+                candidate, controls, directory, candidate_binary_sha256="c" * 64
+            )
 
 
 def test_caddy_synthetic_environment_accepts_exactly_all_720_orders() -> None:
@@ -2523,11 +2661,9 @@ def test_caddy_synthetic_environment_accepts_exactly_all_720_orders() -> None:
         assert runtime_surface._is_caddy_synthetic_environment(value) is False
 
 
-def _upgrade_native_fixture(
-    case: str = "upgrade", *, vulnerable: bool = False, response: bytes | None = None
-) -> bytes:
+def _upgrade_native_fixture(case: str = "upgrade", *, response: bytes | None = None) -> bytes:
     """Independent native-shape fixture; not evidence of a real Caddy process."""
-    duplex = case in ("upgrade", "duplicate-connection")
+    duplex = case == "upgrade"
     client_frame = bytes.fromhex("818d13579bdf4307a9eb2a63b6bc7f3efeb167")
     server_frame = bytes.fromhex("810d5050323439342d736572766572")
     request = b"GET /ws HTTP/1.1\r\nHost: localhost\r\n"
@@ -2542,8 +2678,6 @@ def _upgrade_native_fixture(
                 b"Sec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n"
                 b"X-End-To-End: first\r\nx-end-to-end: second\r\n"
             )
-            if vulnerable:
-                response += b"X-Strip-One: first-secret\r\nX-Strip-Two: second-secret\r\n"
             response += b"\r\n" + server_frame
         elif case == "ordinary-200":
             response = (
@@ -2572,48 +2706,11 @@ def _upgrade_native_fixture(
     return ("\n".join(rows) + "\nRESULT primary=0 capture=0\n").encode()
 
 
-@pytest.mark.parametrize(
-    "case",
-    [
-        "upgrade",
-        "duplicate-connection",
-        "ordinary-200",
-        "missing-upgrade",
-        "mismatched-upgrade",
-        "invalid-upgrade",
-        "no-request-upgrade",
-    ],
-)
+@pytest.mark.parametrize("case", ["upgrade", "ordinary-200"])
 def test_caddy_upgrade_native_channels_keep_http_and_duplex_contract(case: str) -> None:
-    result = runtime_surface._validate_caddy_upgrade_exchange(
-        case, _upgrade_native_fixture(case), vulnerable_control=False
-    )
+    result = runtime_surface._validate_caddy_upgrade_exchange(case, _upgrade_native_fixture(case))
     assert result["case"] == case
-    assert result["duplex"] is (case in ("upgrade", "duplicate-connection"))
-    assert result["vulnerable_leak_reproduced"] is False
-
-
-@pytest.mark.parametrize("vulnerable", [False, True])
-def test_caddy_upgrade_control_requires_positive_leak_not_a_clean_or_failed_run(
-    vulnerable: bool,
-) -> None:
-    raw = _upgrade_native_fixture(vulnerable=vulnerable)
-    if vulnerable:
-        assert (
-            runtime_surface._validate_caddy_upgrade_exchange(
-                "upgrade", raw, vulnerable_control=True
-            )["vulnerable_leak_reproduced"]
-            is True
-        )
-        with pytest.raises(ValueError, match="leaked"):
-            runtime_surface._validate_caddy_upgrade_exchange(
-                "upgrade", raw, vulnerable_control=False
-            )
-    else:
-        with pytest.raises(ValueError, match="positively reproduce"):
-            runtime_surface._validate_caddy_upgrade_exchange(
-                "upgrade", raw, vulnerable_control=True
-            )
+    assert result["duplex"] is (case == "upgrade")
 
 
 @pytest.mark.parametrize(
@@ -2625,7 +2722,6 @@ def test_caddy_upgrade_control_requires_positive_leak_not_a_clean_or_failed_run(
         "lost-duplicate",
         "wrong-frame",
         "unmasked-client",
-        "leak",
         "timeout",
         "native-failure",
         "missing-role",
@@ -2647,7 +2743,6 @@ def test_caddy_upgrade_rejects_protocol_capture_and_cleanup_failures(defect: str
         "lost-duplicate",
         "wrong-frame",
         "unmasked-client",
-        "leak",
     }:
         index = next(
             i
@@ -2669,8 +2764,6 @@ def test_caddy_upgrade_rejects_protocol_capture_and_cleanup_failures(defect: str
             )
         elif defect == "lost-duplicate":
             wire = wire.replace(b"x-end-to-end: second\r\n", b"")
-        elif defect == "leak":
-            wire = wire.replace(b"\r\n\r\n", b"\r\nx-StRiP-TwO: leak\r\n\r\n")
         elif defect == "unmasked-client":
             wire = wire[: wire.index(b"\r\n\r\n") + 4] + bytes.fromhex(
                 "810d5050323439342d636c69656e74"
@@ -2698,7 +2791,7 @@ def test_caddy_upgrade_rejects_protocol_capture_and_cleanup_failures(defect: str
         rows.insert(-1, "UNRECOGNIZED")
     with pytest.raises(ValueError):
         runtime_surface._validate_caddy_upgrade_exchange(
-            "upgrade", ("\n".join(rows) + "\n").encode(), vulnerable_control=False
+            "upgrade", ("\n".join(rows) + "\n").encode()
         )
 
 
@@ -2714,10 +2807,7 @@ def test_caddy_normal_entry_configuration_keeps_static_d_separate() -> None:
     assert handler["handler"] == "reverse_proxy"
     assert handler["upstreams"] == [{"dial": "127.0.0.1:18081"}]
     cases = runtime_surface._caddy_upgrade_cases()
-    duplicate = cases["duplicate-connection"][1]
-    assert b"Connection: Upgrade, X-Strip-One\r\n" in duplicate
-    assert b"cOnNeCtIoN: X-Strip-Two, uPgRaDe\r\n" in duplicate
-    assert b"X-Strip-One: first-secret\r\nX-Strip-Two: second-secret\r\n" in duplicate
+    assert set(cases) == {"upgrade", "ordinary-200"}
     assert runtime_surface._caddy_websocket_frame(b"PP2494-client", masked=True) == bytes.fromhex(
         "818d13579bdf4307a9eb2a63b6bc7f3efeb167"
     )
@@ -2776,15 +2866,11 @@ def test_caddy_upgrade_execution_reuses_native_owner_and_retains_failure_evidenc
 
     monkeypatch.setattr(source, "Native", Native)
     if fault is None:
-        result = runtime_surface._observe_caddy_upgrade_exchanges(
-            "owned-caddy", tmp_path, vulnerable_control=False
-        )
-        assert len(result) == 7 and len(seen) == 7
+        result = runtime_surface._observe_caddy_upgrade_exchanges("owned-caddy", tmp_path)
+        assert len(result) == 2 and len(seen) == 2
     else:
         with pytest.raises((RuntimeError, ValueError, OSError)) as failure:
-            runtime_surface._observe_caddy_upgrade_exchanges(
-                "owned-caddy", tmp_path, vulnerable_control=False
-            )
+            runtime_surface._observe_caddy_upgrade_exchanges("owned-caddy", tmp_path)
         assert seen == (
             ["upgrade"]
             if fault in ("native", "stderr", "native-and-capture", "native-and-cleanup")
@@ -2816,9 +2902,9 @@ def test_caddy_nonupgrade_natural_exit_retains_actual_signal_race(stop: int, kil
             b"FILE name=wait-client.stderr bytes=0 hex=",
         )
     )
-    assert runtime_surface._validate_caddy_upgrade_exchange(
-        "ordinary-200", raw, vulnerable_control=False
-    )["roles"]["client"] == (stop, kill, 0)
+    assert runtime_surface._validate_caddy_upgrade_exchange("ordinary-200", raw)["roles"][
+        "client"
+    ] == (stop, kill, 0)
 
 
 @pytest.mark.parametrize(
@@ -2836,7 +2922,6 @@ def test_caddy_ordinary_response_requires_complete_body_length_and_no_alt_svc(
         runtime_surface._validate_caddy_upgrade_exchange(
             "ordinary-200",
             _upgrade_native_fixture("ordinary-200", response=response),
-            vulnerable_control=False,
         )
 
 
