@@ -7120,12 +7120,13 @@ def _alertmanager_vulnerability_control(
         for target in ("bin/alertmanager", "bin/amtool")
         for cve, purl in identities
     }
+    controlled_ids = {cve for cve, _ in identities} | {"CVE-2026-111943"}
     if xnet062:
         expected |= {
             (target, "CVE-2026-78661", "pkg:golang/golang.org/x/net@v0.58.0", "HIGH")
             for target in ("bin/alertmanager", "bin/amtool")
         }
-    controlled_ids = {cve for cve, _ in identities} | {"CVE-2026-111943", "CVE-2026-78661"}
+        controlled_ids.add("CVE-2026-78661")
     found, targets, ca_findings, controlled = [], [], [], []
     for row in report["Results"]:
         require(

@@ -17858,6 +17858,41 @@ def test_alertmanager_negative_control_keeps_disjoint_epochs(
                 )
 
 
+@pytest.mark.parametrize("severity", ["UNKNOWN", "LOW", "MEDIUM", "HIGH", "CRITICAL"])
+@pytest.mark.parametrize("current", [False, True])
+def test_alertmanager_historical_control_retains_non062_lower_severity(
+    current: bool, severity: str
+) -> None:
+    report = _synthetic_AM_negative_control(current)
+    for row in report["Results"]:
+        row["Vulnerabilities"].append(
+            {
+                "VulnerabilityID": "CVE-2026-78661",
+                "Severity": severity,
+                "PkgIdentifier": {"PURL": "pkg:golang/golang.org/x/net@v0.58.0"},
+            }
+        )
+    plan = {"state": "DECLARED_ONLY_COMPILER_HOLD"}
+    assert "derivation_epoch" not in plan
+    before = json.dumps(report, sort_keys=True)
+    if severity in ("HIGH", "CRITICAL"):
+        with pytest.raises(prometheus_source.QualificationError, match="inventory_changed_HOLD"):
+            alertmanager_source._alertmanager_vulnerability_control(
+                report, "synthetic-control", current=current, qualification_plan=plan
+            )
+    else:
+        result = alertmanager_source._alertmanager_vulnerability_control(
+            report, "synthetic-control", current=current, qualification_plan=plan
+        )
+        assert result == {
+            "scope": "KNOWN_VULNERABLE_CONTROL_ONLY_NEVER_CANDIDATE",
+            "known_HIGH_occurrences": 12 if current else 10,
+            "all_severity_findings_retained": True,
+            "image_config": "synthetic-control",
+        }
+    assert json.dumps(report, sort_keys=True) == before
+
+
 @pytest.mark.parametrize("ca_severity", ["HIGH", "MEDIUM"])
 @pytest.mark.parametrize(
     "fault",
@@ -18143,7 +18178,26 @@ def test_historical_AM_oracle_is_independent_of_current_static_data(
     assert _historical_AM_scan_oracle() == before
 
 
-@pytest.mark.parametrize("fault", [None, "missing", "duplicate-low", "wrong-row", "wrong-purl"])
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "missing",
+        "both-missing",
+        "duplicate-low",
+        "duplicate-high",
+        "wrong-row",
+        "wrong-purl",
+        "wrong-target",
+        "wrong-class",
+        "unknown",
+        "critical",
+        "mixed",
+        "epoch",
+        "inputs",
+        "not-current",
+    ],
+)
 def test_alertmanager_negative_control_062_exact_fourteen_and_all_severity_identity(
     fault: str | None,
 ) -> None:
@@ -18162,6 +18216,28 @@ def test_alertmanager_negative_control_062_exact_fourteen_and_all_severity_ident
         )
     if fault == "missing":
         report["Results"][0]["Vulnerabilities"].pop()
+    elif fault == "both-missing":
+        for row in report["Results"]:
+            row["Vulnerabilities"].pop()
+    elif fault == "duplicate-high":
+        report["Results"][0]["Vulnerabilities"].append(
+            dict(report["Results"][0]["Vulnerabilities"][-1])
+        )
+    elif fault == "wrong-target":
+        report["Results"][0]["Target"] = "bin/other"
+    elif fault == "wrong-class":
+        report["Results"][0]["Class"] = "os-pkgs"
+    elif fault in ("unknown", "critical", "mixed"):
+        for row in report["Results"]:
+            row["Vulnerabilities"][-1]["Severity"] = (
+                "CRITICAL" if fault == "critical" else "UNKNOWN"
+            )
+            if fault == "mixed":
+                break
+    elif fault == "epoch":
+        plan["derivation_epoch"] = "unrecognized"
+    elif fault == "inputs":
+        plan["command_module_inputs"] = {"alertmanager": {}}
     elif fault in ("duplicate-low", "wrong-row"):
         finding = {
             "VulnerabilityID": "CVE-2026-78661",
@@ -18185,10 +18261,11 @@ def test_alertmanager_negative_control_062_exact_fourteen_and_all_severity_ident
         ] = "pkg:golang/stdlib@v1.26.8"
     if fault is not None:
         with pytest.raises(
-            prometheus_source.QualificationError, match="AM_known_vulnerable_control"
+            prometheus_source.QualificationError,
+            match="AM_(known_vulnerable_control|control_062_qualification)",
         ):
             alertmanager_source._alertmanager_vulnerability_control(
-                report, "synthetic-control", current=True, qualification_plan=plan
+                report, "synthetic-control", current=fault != "not-current", qualification_plan=plan
             )
     else:
         observed = alertmanager_source._alertmanager_vulnerability_control(

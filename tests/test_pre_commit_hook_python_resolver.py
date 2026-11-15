@@ -1598,6 +1598,86 @@ def _prepare_dependabot_policy_hook_repo(tmp_path: Path) -> Path:
     return repo
 
 
+@pytest.mark.parametrize("mode", ("branch", "staged"))
+@pytest.mark.parametrize(
+    "changed_path,valid",
+    [
+        ("docs/ENGINEERING_LESSONS.md", True),
+        ("AGENTS.md", True),
+        ("RUNBOOK_AGENT.md", True),
+        ("docs/ENGINEERING_LESSONS.md", False),
+        ("AGENTS.md", False),
+        ("RUNBOOK_AGENT.md", False),
+        ("README.md", True),
+    ],
+)
+def test_backend_hook_canonical_docs_run_registry_test(
+    tmp_path: Path, backend_shell: str, mode: str, changed_path: str, valid: bool
+) -> None:
+    """The real selector must run pytest and propagate an actual selected test failure."""
+    repo = _prepare_dependabot_policy_hook_repo(tmp_path)
+    guards = repo / "tests/guards"
+    guards.mkdir()
+    # Other existing mappings must also remain runnable in this small isolated Git fixture.
+    for name in (
+        "tests/guards/test_review_source_quota_policy_guard.py",
+        "tests/test_review_source_status.py",
+        "tests/test_pr_review_material_seal.py",
+        "tests/test_pr_merge_readiness_gate.py",
+    ):
+        (repo / name).write_text("def test_other_mapping():\n    assert True\n", encoding="utf-8")
+    (guards / "test_security_devtooling_regression_guards.py").write_text(
+        "def test_changed_docs_do_not_add_local_users_absolute_paths():\n    assert True\n",
+        encoding="utf-8",
+    )
+    target = repo / "tests/test_agent_docs_registry_guard.py"
+    target.write_text(
+        "from pathlib import Path\n\n"
+        "def test_selected_registry_boundary():\n"
+        f"    assert Path({changed_path!r}).read_text() == 'valid\\n'\n",
+        encoding="utf-8",
+    )
+    _git(repo, "add", "tests")
+    _git(repo, "commit", "--quiet", "-m", "add isolated pytest fixtures")
+    _git(repo, "switch", "--quiet", "-c", "canonical-doc-selection")
+    surface = repo / changed_path
+    surface.parent.mkdir(parents=True, exist_ok=True)
+    surface.write_text("valid\n" if valid else "invalid\n", encoding="utf-8")
+    _git(repo, "add", changed_path)
+    if mode == "branch":
+        _git(repo, "commit", "--quiet", "-m", "change one canonical document")
+    junit = tmp_path / "selected-docs.xml"
+    env = _clean_hook_env()
+    env.pop("SKIP_TESTS", None)
+    env.update(
+        VENV_PYTHON=sys.executable,
+        PYTEST_DISABLE_PLUGIN_AUTOLOAD="1",
+        PYTEST_ADDOPTS=f"-c /dev/null --rootdir={shlex.quote(str(repo))} "
+        f"--confcutdir={shlex.quote(str(repo))} --junitxml={shlex.quote(str(junit))}",
+    )
+    env["BRANCH_DIFF_MODE" if mode == "branch" else "PRE_COMMIT"] = "1"
+    result = subprocess.run(
+        [backend_shell, "scripts/run-backend-tests-pre-commit.sh"],
+        cwd=repo,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == (0 if valid else 1), result.stdout + result.stderr
+    if changed_path == "README.md":
+        assert not junit.exists()
+        assert "Backend tests passed" not in result.stdout
+        return
+    cases = ElementTree.parse(junit).findall(".//testcase")
+    selected = [case for case in cases if case.get("name") == "test_selected_registry_boundary"]
+    assert len(selected) == 1
+    assert selected[0].find("error") is None and selected[0].find("skipped") is None
+    assert (selected[0].find("failure") is None) is valid
+    assert ("Backend tests passed" in result.stdout) is valid
+    assert ("Backend tests failed" in result.stdout) is not valid
+
+
 @pytest.mark.parametrize(
     "relative_path",
     (

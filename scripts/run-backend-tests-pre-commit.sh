@@ -392,6 +392,9 @@ add_extra_tests_for_changed_files() {
                 ;;
         esac
         case "$file" in
+            AGENTS.md | RUNBOOK_AGENT.md | docs/ENGINEERING_LESSONS.md)
+                EXTRA_TEST_FILES+=("tests/test_agent_docs_registry_guard.py")
+                ;;
             .github/workflows/ci.yml)
                 EXTRA_TEST_FILES+=("tests/test_private_python_proxy_workflow_contract.py")
                 EXTRA_TEST_FILES+=("tests/test_ci_workflow_pr_size_governance_contract.py")
