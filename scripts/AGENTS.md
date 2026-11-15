@@ -1334,6 +1334,7 @@ Changes under `docs/` select the exact docs path-leakage guard node, including
 isolated documentation branches. Root and one-level `.txt`/`.in` carrier
 candidates select the dependency security guard alongside ownership validation;
 these guards must remain reachable without a companion Python-file change.
+Changes to root `AGENTS.md`, `RUNBOOK_AGENT.md` or `docs/ENGINEERING_LESSONS.md` also select the complete `tests/test_agent_docs_registry_guard.py` module.
 The owning selection tests are `tests/test_pre_commit_hook_python_resolver.py`.
 CD-only changes also select the exact pure pgvector compatibility node and the
 existing parameterized scan-loop node in `test_pgvector_attestations.py`; the

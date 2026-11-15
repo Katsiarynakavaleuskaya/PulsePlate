@@ -1089,6 +1089,28 @@ or unrelated deletion is never closure and remains forbidden.
 
 ---
 
+## Repo Commands Reference
+
+```bash
+# Import hygiene / repo policy
+pytest -q tests/test_repo_policy_guards.py
+
+# VIP-only guard: forbid sys.modules mutations
+pytest -q tests/test_repo_policy_sys_modules.py
+
+# Smoke test
+make test-fast
+
+# Coverage
+make cov-check
+
+# Lint / format
+make lint && make fmt-check
+
+# Detect forbidden sys.modules mutations in tests (manual scan)
+git grep -nE "sys\.modules\[[^]]+\]\s*=|del\s+sys\.modules\[" -- tests
+```
+
 ## 34) Scope attempt bounds to the current problem and operation
 
 ### Problem
@@ -1118,25 +1140,3 @@ publication, production changes, or a provider invocation. Conversely, a
 consumed historical attempt cannot by itself block necessary authorized work.
 Use the existing checkpoint and invocation records; no new counter, receipt
 schema, approval loop or orchestration framework is needed.
-
-## Repo Commands Reference
-
-```bash
-# Import hygiene / repo policy
-pytest -q tests/test_repo_policy_guards.py
-
-# VIP-only guard: forbid sys.modules mutations
-pytest -q tests/test_repo_policy_sys_modules.py
-
-# Smoke test
-make test-fast
-
-# Coverage
-make cov-check
-
-# Lint / format
-make lint && make fmt-check
-
-# Detect forbidden sys.modules mutations in tests (manual scan)
-git grep -nE "sys\.modules\[[^]]+\]\s*=|del\s+sys\.modules\[" -- tests
-```
