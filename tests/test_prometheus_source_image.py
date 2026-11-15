@@ -11776,6 +11776,169 @@ def test_native_go_current_source_and_native_container_image_roles(
             )
 
 
+_CURRENT_GO_CLASSIC_DEFAULTS = {
+    "AttachStderr": False,
+    "AttachStdin": False,
+    "AttachStdout": False,
+    "Domainname": "",
+    "Entrypoint": None,
+    "Hostname": "",
+    "Image": "",
+    "Labels": None,
+    "OnBuild": None,
+    "OpenStdin": False,
+    "StdinOnce": False,
+    "Tty": False,
+    "User": "",
+    "Volumes": None,
+}
+
+
+def _native_current_classic_go_inputs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[dict[str, Any], bytes, bytes, str]:
+    image, index, manifest, expected_source = _native_current_go_inputs(monkeypatch)
+    image["Id"] = source._CURRENT_NATIVE_GO_CONFIG["digest"]
+    image["Config"].update(_CURRENT_GO_CLASSIC_DEFAULTS)
+    del image["Descriptor"]
+    return image, index, manifest, expected_source
+
+
+@pytest.mark.parametrize("field", tuple(_CURRENT_GO_CLASSIC_DEFAULTS))
+@pytest.mark.parametrize("mutation", ["missing", "value", "type"])
+def test_native_current_classic_go_requires_exact_observed_defaults(
+    monkeypatch: pytest.MonkeyPatch, field: str, mutation: str
+) -> None:
+    image, index, manifest, expected_source = _native_current_classic_go_inputs(monkeypatch)
+    original = _CURRENT_GO_CLASSIC_DEFAULTS[field]
+    if mutation == "missing":
+        del image["Config"][field]
+    elif type(original) is bool:
+        image["Config"][field] = True if mutation == "value" else 0
+    elif type(original) is str:
+        image["Config"][field] = "changed" if mutation == "value" else None
+    else:
+        image["Config"][field] = {"unexpected": True} if mutation == "value" else []
+    with pytest.raises(source.QualificationError):
+        source.native_go_identity(image, index, manifest, expected_source=expected_source)
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "extra",
+        "core-env",
+        "rootfs",
+        "repo",
+        "null-descriptor",
+        "manifest-descriptor",
+        "indexed",
+        "nonbool-role",
+        "missing-source",
+        "wrong-source",
+    ],
+)
+def test_native_current_classic_go_rejects_mixed_or_unbound_image(
+    monkeypatch: pytest.MonkeyPatch, fault: str
+) -> None:
+    image, index, manifest, expected_source = _native_current_classic_go_inputs(monkeypatch)
+    if fault == "extra":
+        image["Config"]["Extra"] = None
+    elif fault == "core-env":
+        image["Config"]["Env"].reverse()
+    elif fault == "rootfs":
+        image["RootFS"]["Layers"].reverse()
+    elif fault == "repo":
+        image["RepoDigests"] = ["golang@" + source._CURRENT_NATIVE_GO_CONFIG["digest"]]
+    elif fault == "null-descriptor":
+        image["Descriptor"] = None
+    elif fault == "manifest-descriptor":
+        image["Descriptor"] = {
+            "mediaType": source.OCI_MANIFEST,
+            "digest": source._CURRENT_NATIVE_GO_MANIFEST,
+            "size": 1922,
+        }
+    if fault == "missing-source":
+        expected_source = None
+    elif fault == "wrong-source":
+        expected_source = "golang:1.26.10-alpine3.23@" + source._NATIVE_GO_INDEX
+    with pytest.raises(source.QualificationError):
+        source.native_go_identity(
+            image,
+            index,
+            manifest,
+            indexed=0 if fault == "nonbool-role" else fault == "indexed",
+            expected_source=expected_source,
+        )
+
+
+@pytest.mark.parametrize("representation", ["config", "manifest"])
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "image",
+        "config-image",
+        "missing-source",
+        "wrong-source",
+        "relation-operand",
+        "relation-extra",
+        "relation-missing",
+        "relation-root",
+        "relation-kind",
+        "descriptor",
+        "index-operand",
+    ],
+)
+def test_native_current_go_constructor_keeps_complete_representation(
+    monkeypatch: pytest.MonkeyPatch, representation: str, fault: str | None
+) -> None:
+    image, index, manifest, expected_source = (
+        _native_current_classic_go_inputs(monkeypatch)
+        if representation == "config"
+        else _native_current_go_inputs(monkeypatch)
+    )
+    relation = source.native_go_identity(image, index, manifest, expected_source=expected_source)
+    assert relation["representation"] == representation
+    assert relation["engine_id"] == relation["operand"] == image["Id"]
+    actual = {"Image": relation["operand"], "Config": {"Image": relation["operand"]}}
+    descriptor = {**relation["manifest"], "platform": {"architecture": "amd64", "os": "linux"}}
+    if representation == "manifest":
+        actual["ImageManifestDescriptor"] = descriptor
+    if fault == "image":
+        actual["Image"] = "sha256:" + "0" * 64
+    elif fault == "config-image":
+        actual["Config"]["Image"] = "sha256:" + "0" * 64
+    elif fault == "missing-source":
+        expected_source = None
+    elif fault == "wrong-source":
+        expected_source = "golang:1.26.10-alpine3.23@" + source._NATIVE_GO_INDEX
+    elif fault == "relation-operand":
+        relation["operand"] = source._CURRENT_NATIVE_GO_INDEX
+    elif fault == "relation-extra":
+        relation["extra"] = None
+    elif fault == "relation-missing":
+        del relation["config_digest"]
+    elif fault == "relation-root":
+        relation["requested_root"] = source._CURRENT_NATIVE_GO_SOURCE
+    elif fault == "relation-kind":
+        relation["representation"] = "manifest" if representation == "config" else "config"
+    elif fault == "descriptor":
+        if representation == "config":
+            actual["ImageManifestDescriptor"] = None
+        else:
+            del actual["ImageManifestDescriptor"]
+    elif fault == "index-operand":
+        actual["Image"] = actual["Config"]["Image"] = source._CURRENT_NATIVE_GO_INDEX
+    if fault is None:
+        source.native_container_image_identity(actual, relation, expected_source=expected_source)
+    else:
+        with pytest.raises(source.QualificationError):
+            source.native_container_image_identity(
+                actual, relation, expected_source=expected_source
+            )
+
+
 def test_native_go_valid_old_tuple_rejects_new_source_before_child(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

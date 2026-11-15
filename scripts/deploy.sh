@@ -217,7 +217,7 @@ if [ "$secret_file_metadata" != "${EUID}:444" ]; then
 fi
 
 PROMETHEUS_CONTRACT_HELPER="${PROMETHEUS_CONTRACT_HELPER:-${PROJECT_DIR}/scripts/ci/prometheus_source_image.py}"
-PROMETHEUS_CONTRACT_HELPER_SHA256="3b352e9c1fe128515f6bccf70237fd63d421c1249a3568dbdf8ed1e73786977d" # pragma: allowlist secret - public source digest
+PROMETHEUS_CONTRACT_HELPER_SHA256="6edcf4c7c7a8f75c8ca2c5929027873986e5ebce94741baea24d8315efd6aa54" # pragma: allowlist secret - public source digest
 readonly PROMETHEUS_CONTRACT_HELPER PROMETHEUS_CONTRACT_HELPER_SHA256
 
 run_trusted_contract() {

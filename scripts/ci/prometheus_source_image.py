@@ -3474,6 +3474,25 @@ _CURRENT_NATIVE_GO_CONFIG_FIELDS = {
 }
 
 
+# Exact native defaults observed for the current supplier tuple in classic Docker storage.
+_CURRENT_NATIVE_GO_CLASSIC_DEFAULTS = {
+    "AttachStderr": False,
+    "AttachStdin": False,
+    "AttachStdout": False,
+    "Domainname": "",
+    "Entrypoint": None,
+    "Hostname": "",
+    "Image": "",
+    "Labels": None,
+    "OnBuild": None,
+    "OpenStdin": False,
+    "StdinOnce": False,
+    "Tty": False,
+    "User": "",
+    "Volumes": None,
+}
+
+
 def native_one_image(raw: bytes) -> dict[str, Any]:
     """One complete Docker inspect array; Go's JSON object stream is not this carrier."""
     require(0 < len(raw) <= MAX_NATIVE_OUTPUT, "native_image_JSON_size")
@@ -3626,16 +3645,26 @@ def native_go_identity(
         exact_data(manifest["annotations"], _CURRENT_NATIVE_GO_ANNOTATIONS)
         require(type(image) is dict, "native_Go_current_image")
         exact_data([image.get("Os"), image.get("Architecture")], ["linux", "amd64"])
-        exact_data(image.get("Id"), _CURRENT_NATIVE_GO_MANIFEST)
         exact_data(image.get("RootFS"), {"Type": "layers", "Layers": _CURRENT_NATIVE_GO_DIFF_IDS})
-        exact_data(image.get("Config"), _CURRENT_NATIVE_GO_CONFIG_FIELDS)
         exact_data(image.get("RepoDigests"), ["golang@" + _CURRENT_NATIVE_GO_MANIFEST])
-        exact_data(image.get("Descriptor"), core)
+        engine = image.get("Id")
+        if engine == _CURRENT_NATIVE_GO_CONFIG["digest"]:
+            exact_data(
+                image.get("Config"),
+                {**_CURRENT_NATIVE_GO_CONFIG_FIELDS, **_CURRENT_NATIVE_GO_CLASSIC_DEFAULTS},
+            )
+            require("Descriptor" not in image, "native_Go_current_classic_descriptor")
+            representation = "config"
+        else:
+            exact_data(engine, _CURRENT_NATIVE_GO_MANIFEST)
+            exact_data(image.get("Config"), _CURRENT_NATIVE_GO_CONFIG_FIELDS)
+            exact_data(image.get("Descriptor"), core)
+            representation = "manifest"
         return {
             "profile": "go12611-platform",
-            "representation": "manifest",
-            "engine_id": _CURRENT_NATIVE_GO_MANIFEST,
-            "operand": _CURRENT_NATIVE_GO_MANIFEST,
+            "representation": representation,
+            "engine_id": engine,
+            "operand": engine,
             "config_digest": _CURRENT_NATIVE_GO_CONFIG["digest"],
             "requested_root": "golang@" + _CURRENT_NATIVE_GO_MANIFEST,
             "manifest": core,
@@ -3750,13 +3779,20 @@ def native_container_image_identity(
             expected_source == _CURRENT_NATIVE_GO_SOURCE, "native_container_current_source_join"
         )
         core = {"mediaType": OCI_MANIFEST, "digest": _CURRENT_NATIVE_GO_MANIFEST, "size": 1922}
+        representation = relation.get("representation")
+        require(representation in ("config", "manifest"), "native_container_current_representation")
+        operand = (
+            _CURRENT_NATIVE_GO_CONFIG["digest"]
+            if representation == "config"
+            else _CURRENT_NATIVE_GO_MANIFEST
+        )
         exact_data(
             relation,
             {
                 "profile": "go12611-platform",
-                "representation": "manifest",
-                "engine_id": _CURRENT_NATIVE_GO_MANIFEST,
-                "operand": _CURRENT_NATIVE_GO_MANIFEST,
+                "representation": representation,
+                "engine_id": operand,
+                "operand": operand,
                 "config_digest": _CURRENT_NATIVE_GO_CONFIG["digest"],
                 "requested_root": "golang@" + _CURRENT_NATIVE_GO_MANIFEST,
                 "manifest": core,
@@ -3766,12 +3802,18 @@ def native_container_image_identity(
             type(actual) is dict and type(actual.get("Config")) is dict,
             "native_container_current_objects",
         )
-        exact_data(actual.get("Image"), _CURRENT_NATIVE_GO_MANIFEST)
-        exact_data(actual["Config"].get("Image"), _CURRENT_NATIVE_GO_MANIFEST)
-        exact_data(
-            actual.get("ImageManifestDescriptor"),
-            {**core, "platform": {"architecture": "amd64", "os": "linux"}},
-        )
+        exact_data(actual.get("Image"), operand)
+        exact_data(actual["Config"].get("Image"), operand)
+        if representation == "config":
+            require(
+                "ImageManifestDescriptor" not in actual,
+                "native_container_current_classic_descriptor",
+            )
+        else:
+            exact_data(
+                actual.get("ImageManifestDescriptor"),
+                {**core, "platform": {"architecture": "amd64", "os": "linux"}},
+            )
         return
     require(
         expected_source is None

@@ -106,7 +106,7 @@ fi
 readonly PYTHON_BIN
 
 PROMETHEUS_CONTRACT_HELPER="$DEPLOY_DIR/scripts/ci/prometheus_source_image.py"
-PROMETHEUS_CONTRACT_HELPER_SHA256="3b352e9c1fe128515f6bccf70237fd63d421c1249a3568dbdf8ed1e73786977d" # pragma: allowlist secret - public source digest
+PROMETHEUS_CONTRACT_HELPER_SHA256="6edcf4c7c7a8f75c8ca2c5929027873986e5ebce94741baea24d8315efd6aa54" # pragma: allowlist secret - public source digest
 run_prometheus_contract() {
   "$PYTHON_BIN" -I -c '
 import hashlib

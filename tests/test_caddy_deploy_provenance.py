@@ -6218,6 +6218,7 @@ def test_caddy_metadata_advance_checks_each_raw_sum_before_capture(
     ("fault", "diagnostic"),
     [
         (None, None),
+        ("identity-rejected", "synthetic compiler identity rejected"),
         ("version-profile", "declared_data_value"),
         ("resolver-profile", "declared_data_value"),
         ("cache-replaced", "caddy_metadata_phase_cache_replaced"),
@@ -6232,8 +6233,13 @@ def test_caddy_metadata_advance_checks_each_raw_sum_before_capture(
         ("timeout-without-start", "resolver test timeout"),
     ],
 )
+@pytest.mark.parametrize("native_form", ["config", "manifest"])
 def test_caddy_metadata_step_owns_full_id_watcher_and_terminal_cleanup(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str | None, diagnostic: str | None
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fault: str | None,
+    diagnostic: str | None,
+    native_form: str,
 ) -> None:
     import platform
     import time
@@ -6285,7 +6291,11 @@ def test_caddy_metadata_step_owns_full_id_watcher_and_terminal_cleanup(
         + b"a" * 64
         + b'"}]}'
     )
-    image = "sha256:" + "b" * 64
+    image = (
+        "sha256:7112a03fdc0b65a29119dce314aea166996eda5719399bf90b9cab54f369e8a6"
+        if native_form == "config"
+        else "sha256:6fa4e6dc2fc42920e53eb6b6a7e928155dc68282060f0901ec3cdd134c3a0eb5"
+    )
     real_sha256 = hashlib.sha256
 
     class IndexHash:
@@ -6305,7 +6315,9 @@ def test_caddy_metadata_step_owns_full_id_watcher_and_terminal_cleanup(
     ) -> dict[str, str]:
         assert expected_source == current_compiler
         assert observed["Id"] == image and raw == index and platform_raw == b"{}"
-        return {"operand": image}
+        if fault == "identity-rejected":
+            raise RuntimeError("synthetic compiler identity rejected")
+        return {"operand": image, "representation": native_form}
 
     monkeypatch.setattr(native_owner, "native_go_identity", native_go_identity)
     monkeypatch.setattr(caddy_surface, "validate_trivy_image_report", lambda *_: None)
@@ -6320,7 +6332,8 @@ def test_caddy_metadata_step_owns_full_id_watcher_and_terminal_cleanup(
         actual: dict[str, Any], relation: dict[str, str], *, expected_source: str
     ) -> None:
         assert expected_source == current_compiler and relation["operand"] == image
-        assert actual["Image"] == relation["operand"]
+        assert relation["representation"] == native_form
+        assert actual["Image"] == actual["Config"]["Image"] == relation["operand"]
 
     monkeypatch.setattr(native_owner, "native_container_image_identity", native_image_identity)
 
@@ -6391,6 +6404,7 @@ def test_caddy_metadata_step_owns_full_id_watcher_and_terminal_cleanup(
                     [{"Id": image, "Os": "linux", "Architecture": "amd64", "Config": {"Env": []}}]
                 ).encode()
             if command == "create":
+                assert argv[argv.index("--entrypoint") + 2] == image
                 entry = argv.index("--entrypoint")
                 name = argv[argv.index("--name") + 1]
                 cid = real_sha256(name.encode()).hexdigest()
@@ -6412,6 +6426,7 @@ def test_caddy_metadata_step_owns_full_id_watcher_and_terminal_cleanup(
                     "Image": argv[entry + 2],
                     "Mounts": mounts,
                     "Config": {
+                        "Image": argv[entry + 2],
                         "Cmd": argv[entry + 3 :],
                         "Entrypoint": [argv[entry + 1]],
                         "User": argv[argv.index("--user") + 1],
@@ -6520,6 +6535,10 @@ def test_caddy_metadata_step_owns_full_id_watcher_and_terminal_cleanup(
     root = tmp_path / "caddy-xnet062-metadata"
     report = json.loads((root / "evidence/qualification.json").read_text())
     channels = [channel for channel, _ in commands]
+    if fault == "identity-rejected":
+        assert not any(argv[3] in ("create", "start") for _, argv in commands)
+        assert report["failure"] == "RuntimeError" and not active
+        return
     if fault is None:
         assert len(watch) == 8 and set(path.name for _, path in watch) == {"a", "b"}
         assert snapshots.count(("modules", 4 * 1024**3)) == snapshots.count(("work", None)) == 8

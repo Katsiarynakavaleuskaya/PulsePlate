@@ -1436,3 +1436,26 @@ CI/review, merge and trusted-main publication/pullback remain pending. The
 Product29 synthetic transport proof and Caddy observations do not supply those
 outcomes. Rollback is to hold further effects and preserve evidence; selecting
 the vulnerable predecessor or renewing any expired deadline is not remediation.
+
+
+## Current Go 1.26.11 native image representations
+
+The original Caddy metadata run 43727210962 stopped before container creation
+and recorded zero compiler invocations. Its pinned supplier index and platform
+manifest matched the declared config descriptor, five layers and ordered
+RootFS identities. Docker exposed the config digest as its image ID with the
+three core Config fields, fourteen explicit native defaults and no Descriptor.
+
+The current source recognizer accepts that complete classic representation
+and the existing complete manifest representation. Exact typed comparisons
+distinguish absent fields, null, false and zero. The constructor revalidates
+the same source and selected operand against both Image fields before use.
+The original config-only mutation of a sparse manifest record remains invalid.
+The existing workflow uses the observed, validated ID as its create operand.
+
+These changes establish a bounded interpretation of the recorded tuple.
+A successful current constructor, compiler-version observation and both
+derivations require a new source-bound native result. Original failed output
+and charged attempts remain recorded. Evidence
+`scripts/ci/prometheus_source_image.py:3588` and
+`tests/test_prometheus_source_image.py:11785`.
