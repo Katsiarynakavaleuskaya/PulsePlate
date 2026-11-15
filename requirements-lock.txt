@@ -248,7 +248,7 @@ openai==2.29.0
     # via
     #   -c requirements.txt
     #   -r requirements.in
-opentelemetry-api==1.45.1
+opentelemetry-api==1.45.2
     # via
     #   -c requirements.txt
     #   -r requirements.in
@@ -277,13 +277,13 @@ opentelemetry-proto==1.45.1
     #   -c requirements.txt
     #   opentelemetry-exporter-otlp-proto-common
     #   opentelemetry-exporter-otlp-proto-http
-opentelemetry-sdk==1.45.1
+opentelemetry-sdk==1.45.2
     # via
     #   -c requirements.txt
     #   -r requirements.in
     #   opentelemetry-exporter-otlp-common
     #   opentelemetry-exporter-otlp-proto-http
-opentelemetry-semantic-conventions==0.66b1
+opentelemetry-semantic-conventions==0.66b2
     # via
     #   -c requirements.txt
     #   opentelemetry-sdk
