@@ -3124,7 +3124,7 @@ def native_alertmanager_main(
             image_id == historical["graph"]["config"]["digest"]
         ), "historical native subject required"
     merged_H = False
-    historical_observation = observation is None
+    compiler = prometheus_image.GO
     expected_version = "0.34.1"
     expected_revision = "73c6bfe7393929211294c1954f30d8ed78e4d0ad"
     if observation is not None:
@@ -3142,7 +3142,6 @@ def native_alertmanager_main(
         is_historical = (
             source_evidence.get("source") == historical["source"] and graph == historical["graph"]
         )
-        historical_observation = is_historical
         if not is_historical:
             assert isinstance(
                 source_evidence.get("root_inputs"), dict
@@ -3173,6 +3172,28 @@ def native_alertmanager_main(
             ), "historical native root profile differs"
             if expected_version == "0.34.2":
                 expected_revision = source_owner._ALERT_UPSTREAM_0342_REVISION
+        if not is_historical or "root_inputs" in source_evidence:
+            roots = source_evidence.get("root_inputs")
+            assert type(roots) is dict, "native compiler root inputs required"
+            digest = roots.get("go-toolchain.tar.gz")
+            assert type(digest) is str, "native compiler digest must be a string"
+            compiler = prometheus_image.Artifact.canonical(
+                next(
+                    (
+                        item
+                        for item in (
+                            prometheus_image.GO,
+                            prometheus_image.RETAINED_GO,
+                            prometheus_image.CURRENT_GO,
+                        )
+                        if item.digest == digest
+                    ),
+                    None,
+                )
+            )
+            assert compiler.name == "go" and (
+                (compiler.digest == prometheus_image.GO.digest) is is_historical
+            ), "native compiler epoch differs"
     if producer_image and observation is not None:
         admission = source_evidence.get("producer_admission")
         if admission is not None:
@@ -3190,6 +3211,7 @@ def native_alertmanager_main(
                 )
                 assert expected_version == "0.34.2"
                 merged_H = True
+    expected_go = compiler.go_version.split()[2]
     config = ROOT / "deploy/alertmanager/alertmanager.yml"
     assert config_sha256 == "5dc1025c293763618febeb74c17edcb126ad943f9b20c2296c67847e9f977549"
     assert (
@@ -3256,7 +3278,7 @@ def native_alertmanager_main(
                 assert stamped == {
                     "build user": "pulseplate@builder",
                     "build date": "19700101-00:00:00",
-                    "go version": "go1.27.2" if historical_observation else "go1.27.3",
+                    "go version": expected_go,
                     "platform": "linux/amd64",
                     "tags": "netgo",
                 }, "actual stamped native metadata differs from frozen compiler command"
@@ -5446,6 +5468,7 @@ def _synthetic_current_native_selection(
         "source": selected["source"],
         "graph": selected["graph"],
         "root_inputs": {
+            "go-toolchain.tar.gz": prometheus_image.RETAINED_GO.digest,
             "source.tar.gz": "5c5c72ec6b4c4746d523f2ed1994dfec4b94f7457e530ee6fb16cfec158e545e",
             "ui.tar.gz": "881fe0f7beb9573f35be47dd233af6220e72c8db72c03bcd1780402eb8dc1307",
         },
@@ -5454,18 +5477,37 @@ def _synthetic_current_native_selection(
 
 
 @pytest.mark.parametrize(
-    "producer_image,upstream_version,merged_H",
+    "producer_image,upstream_version,merged_H,compiler_profile,expected_go",
     [
-        (False, "0.34.1", False),
-        (True, "0.34.1", False),
-        (True, "0.34.2", False),
-        (True, "0.34.2", True),
+        (False, "0.34.1", False, "retained", "go1.27.3"),
+        (True, "0.34.1", False, "retained", "go1.27.3"),
+        (True, "0.34.2", False, "retained", "go1.27.3"),
+        (True, "0.34.2", True, "retained", "go1.27.3"),
+        (False, "0.34.1", False, "current", "go1.27.4"),
+        (True, "0.34.1", False, "current", "go1.27.4"),
+        (True, "0.34.2", False, "current", "go1.27.4"),
+        (True, "0.34.2", True, "current", "go1.27.4"),
+        (False, "0.34.1", False, "historical", "go1.27.2"),
     ],
 )
 @pytest.mark.parametrize("binary", ["alertmanager", "amtool"])
 @pytest.mark.parametrize(
     "fault",
-    [None, "version", "revision", "branch", "user", "date", "Go", "platform", "tags", "duplicate"],
+    [
+        None,
+        "version",
+        "revision",
+        "branch",
+        "name",
+        "user",
+        "date",
+        "Go",
+        "platform",
+        "tags",
+        "duplicate",
+        "missing",
+        "extra",
+    ],
 )
 def test_alertmanager_full_native_entry_checks_both_real_stamped_version_outputs(
     tmp_path: Path,
@@ -5475,6 +5517,8 @@ def test_alertmanager_full_native_entry_checks_both_real_stamped_version_outputs
     producer_image: bool,
     upstream_version: str,
     merged_H: bool,
+    compiler_profile: str,
+    expected_go: str,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     from scripts.ci import fetch_docker_source_artifacts as fetcher
@@ -5487,9 +5531,27 @@ def test_alertmanager_full_native_entry_checks_both_real_stamped_version_outputs
     if upstream_version == "0.34.2":
         revision = fetcher._ALERT_UPSTREAM_0342_REVISION
         evidence["root_inputs"] = {
+            "go-toolchain.tar.gz": prometheus_image.RETAINED_GO.digest,
             "source.tar.gz": "81e69f87954aedb557ed67d9ef0218a1c0c9b9e0c3184c9ddffe07bd247239fc",
             "ui.tar.gz": "3d6b13c5af094724e0bed8f757399e08af44d40d6c6cd87392a1f8ee6ed1e457",
         }
+    if compiler_profile == "historical":
+        selected = json.loads(json.dumps(fetcher._ALERT_HISTORICAL_C10))
+        monkeypatch.setattr(fetcher, "_ALERT_ACCEPTED_CANDIDATE", selected)
+        image = selected["graph"]["config"]["digest"]
+        evidence = {
+            "source": selected["source"],
+            "graph": selected["graph"],
+            "root_inputs": {
+                "source.tar.gz": "5c5c72ec6b4c4746d523f2ed1994dfec4b94f7457e530ee6fb16cfec158e545e",
+                "ui.tar.gz": "881fe0f7beb9573f35be47dd233af6220e72c8db72c03bcd1780402eb8dc1307",
+                "go-toolchain.tar.gz": prometheus_image.GO.digest,
+            },
+        }
+    elif compiler_profile == "current":
+        evidence["root_inputs"]["go-toolchain.tar.gz"] = prometheus_image.CURRENT_GO.digest
+    # Corroborating output cannot choose the compiler expected by the consumer.
+    evidence["build_information"] = {"Go": "go1.27.3" if expected_go == "go1.27.4" else "go1.27.4"}
     if merged_H:
         assert producer_image and upstream_version == "0.34.2"
         selected_C = json.loads(json.dumps(fetcher._ALERT_ACCEPTED_CANDIDATE))
@@ -5539,7 +5601,9 @@ def test_alertmanager_full_native_entry_checks_both_real_stamped_version_outputs
                 + upstream_version
                 + " (branch: HEAD, revision: "
                 + revision
-                + ")\n  build user: pulseplate@builder\n  build date: 19700101-00:00:00\n  go version: go1.27.3\n  platform: linux/amd64\n  tags: netgo\n"
+                + ")\n  build user: pulseplate@builder\n  build date: 19700101-00:00:00\n  go version: "
+                + expected_go
+                + "\n  platform: linux/amd64\n  tags: netgo\n"
             )
             if actual == binary and fault is not None:
                 replacements = {
@@ -5548,12 +5612,17 @@ def test_alertmanager_full_native_entry_checks_both_real_stamped_version_outputs
                     "branch": ("branch: HEAD", "branch: unrelated"),
                     "user": ("pulseplate@builder", "unreviewed@builder"),
                     "date": ("19700101-00:00:00", "20261017-00:00:00"),
-                    "Go": ("go1.27.3", "go1.26.8"),
+                    "Go": (expected_go, "go1.27.3" if expected_go == "go1.27.4" else "go1.27.4"),
+                    "name": (actual + ", version", "other, version"),
                     "platform": ("linux/amd64", "linux/arm64"),
                     "tags": ("tags: netgo", "tags: unknown"),
                 }
                 if fault == "duplicate":
                     raw += "  tags: netgo\n"
+                elif fault == "missing":
+                    raw = raw.replace("  tags: netgo\n", "")
+                elif fault == "extra":
+                    raw += "  extra: unexpected\n"
                 else:
                     raw = raw.replace(*replacements[fault])
             return subprocess.CompletedProcess(argv, 0, raw, "")
@@ -7131,6 +7200,7 @@ def test_ordinary_published_writer_supplies_native_consumer_subject(
         expected = {"source": selected["source"], "graph": selected["graph"]}
     else:
         expected["root_inputs"] = {
+            "go-toolchain.tar.gz": prometheus_image.RETAINED_GO.digest,
             "source.tar.gz": "81e69f87954aedb557ed67d9ef0218a1c0c9b9e0c3184c9ddffe07bd247239fc",
             "ui.tar.gz": "3d6b13c5af094724e0bed8f757399e08af44d40d6c6cd87392a1f8ee6ed1e457",
         }
@@ -7331,5 +7401,91 @@ def test_native_consumer_incomplete_profile_rejects_before_setup(
             image,
             "5dc1025c293763618febeb74c17edcb126ad943f9b20c2296c67847e9f977549",
             None if fault == "observation" else observation,
+        )
+    assert calls == []
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "missing",
+        "null",
+        "bool",
+        "int",
+        "list",
+        "dict",
+        "empty",
+        "unknown",
+        "wrong-role",
+        "current-historical",
+        "historical-retained",
+        "historical-current",
+        "historical-graph",
+    ],
+)
+def test_native_consumer_compiler_root_rejects_before_setup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str
+) -> None:
+    from scripts.ci import fetch_docker_source_artifacts as source
+
+    image = "sha256:" + "8" * 64
+    evidence = _synthetic_current_native_selection(image, monkeypatch)
+    if fault.startswith("historical-"):
+        selected = json.loads(json.dumps(source._ALERT_HISTORICAL_C10))
+        image = selected["graph"]["config"]["digest"]
+        evidence["source"] = selected["source"]
+        evidence["graph"] = selected["graph"]
+        evidence["root_inputs"]["go-toolchain.tar.gz"] = prometheus_image.GO.digest
+        if fault == "historical-graph":
+            evidence["graph"]["default_CA_sha256"] = "f" * 64
+        else:
+            evidence["root_inputs"]["go-toolchain.tar.gz"] = (
+                prometheus_image.RETAINED_GO.digest
+                if fault == "historical-retained"
+                else prometheus_image.CURRENT_GO.digest
+            )
+    else:
+        roots = evidence["root_inputs"]
+        if fault == "missing":
+            roots.pop("go-toolchain.tar.gz")
+        else:
+            roots["go-toolchain.tar.gz"] = {
+                "null": None,
+                "bool": True,
+                "int": 1,
+                "list": [],
+                "dict": {},
+                "empty": "",
+                "unknown": "f" * 64,
+                "wrong-role": prometheus_image.SOURCE.digest,
+                "current-historical": prometheus_image.GO.digest,
+            }[fault]
+    observation = tmp_path / "observation.json"
+    observation.write_text(json.dumps(evidence))
+    monkeypatch.setattr(sys, "platform", "linux")
+    calls: list[str] = []
+
+    def forbidden(*args: object, **kwargs: object) -> None:
+        calls.append("setup-or-native")
+        raise RuntimeError("invalid compiler reached setup")
+
+    monkeypatch.setattr(tempfile, "TemporaryDirectory", forbidden)
+    monkeypatch.setattr(sys.modules[__name__], "_native", forbidden)
+    if fault in ("empty", "unknown", "wrong-role"):
+        expected_error = prometheus_image.QualificationError
+        diagnostic = "artifact_digest_size_types"
+    else:
+        expected_error = AssertionError
+        diagnostic = (
+            "native compiler epoch differs"
+            if fault == "current-historical" or fault.startswith("historical-")
+            else "native compiler digest must be a string"
+        )
+    with pytest.raises(expected_error, match=diagnostic):
+        native_alertmanager_main(
+            image,
+            "5dc1025c293763618febeb74c17edcb126ad943f9b20c2296c67847e9f977549",
+            observation,
+            producer_image=True,
         )
     assert calls == []
