@@ -19,4 +19,4 @@ scripts/ci/prometheus_source_image.py:30 remove-by=2026-12-13 ref=PR-2494
 scripts/ci/prometheus_source_image.py:1153 remove-by=2026-12-13 ref=PR-2494
 scripts/ci/prometheus_source_image.py:2973 remove-by=2026-12-13 ref=PR-2494
 scripts/ci/prometheus_source_image.py:3202 remove-by=2026-12-13 ref=PR-2494
-scripts/ci/prometheus_source_image.py:5248 remove-by=2026-12-13 ref=PR-2494
+scripts/ci/prometheus_source_image.py:5290 remove-by=2026-12-13 ref=PR-2494
