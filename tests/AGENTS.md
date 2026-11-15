@@ -815,6 +815,10 @@ rg -n "sys\.modules\.get\(\"recipe_store\"\)|recipe_store.*spec_from_file_locati
 
 ## Finite source-image producer tests
 
+- Native execution validators must derive expected compiler identity from the selected
+  canonical source context before native setup. Keep synthetic profiles complete and
+  expected stdout and wrong-version test literals independently authored; deriving
+  both the implementation and its test oracle from one selector masks identity drift.
 - For already-approved public-checksum annotations in source-image fixtures,
   inspect the actual literal line after formatting and rerun the real detector.
   Keep strict checksum assertions; formatting or AST equivalence alone does not
