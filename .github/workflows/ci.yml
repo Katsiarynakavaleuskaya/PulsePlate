@@ -3913,7 +3913,7 @@ jobs:
       fail-fast: false
       matrix:
         family: [iphone, ipad]
-    # Sequential caps total 30m; nominal 15m setup/diagnostic headroom.
+    # Sequential caps total 35m with 10m nominal setup/diagnostic headroom.
     timeout-minutes: 45
     if: |
       needs.changes.outputs.ios == 'true' && (
@@ -4020,6 +4020,7 @@ jobs:
         env:
           DEVELOPER_DIR: ${{ steps.select-xcode.outputs.developer_dir }}
           UI_SMOKE_FOREGROUND_TIMEOUT_SECONDS: "90"
+          IOS_UI_SMOKE_BUILD_TIMEOUT_SECONDS: 900
         run: |
           set -euo pipefail
 
@@ -4091,7 +4092,6 @@ jobs:
             echo "✓ System services ready"
           fi
 
-          echo "=== Building for testing (timeout: 10 minutes) ==="
           python3 - << 'PY'
           import subprocess
           import sys
@@ -4101,6 +4101,21 @@ jobs:
           if not destination:
               print("::error::DESTINATION is empty", file=sys.stderr)
               sys.exit(1)
+
+          try:
+              timeout_s = int(os.environ["IOS_UI_SMOKE_BUILD_TIMEOUT_SECONDS"])
+          except (KeyError, ValueError):
+              print(
+                  "::error::IOS_UI_SMOKE_BUILD_TIMEOUT_SECONDS must be a positive integer",
+                  file=sys.stderr,
+              )
+              sys.exit(2)
+          if timeout_s <= 0:
+              print(
+                  "::error::IOS_UI_SMOKE_BUILD_TIMEOUT_SECONDS must be a positive integer",
+                  file=sys.stderr,
+              )
+              sys.exit(2)
 
           cmd = [
               "xcodebuild", "build-for-testing",
@@ -4113,10 +4128,11 @@ jobs:
               "-enableCodeCoverage", "NO",
           ]
 
+          print(f"=== Building for testing (timeout: {timeout_s}s) ===", flush=True)
           try:
-              subprocess.run(cmd, timeout=600, check=True)
+              subprocess.run(cmd, timeout=timeout_s, check=True)
           except subprocess.TimeoutExpired:
-              print("::error::xcodebuild build-for-testing timed out after 10 minutes", file=sys.stderr)
+              print(f"::error::xcodebuild build-for-testing timed out after {timeout_s}s", file=sys.stderr)
               sys.exit(1)
           except subprocess.CalledProcessError as e:
               sys.exit(e.returncode)

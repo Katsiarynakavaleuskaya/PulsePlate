@@ -6206,7 +6206,7 @@ IOS_RELEASE_BUILD_RUN_SHA256 = (
 )
 # Non-secret SHA-256 of the exact yaml.safe_load() UI smoke run scalar; no normalization.
 IOS_UI_SMOKE_RUN_SHA256 = (
-    "bf9a94c226d1e42c30f111737c343591afbca7eb8f7559e3861cadded28cbb65"  # pragma: allowlist secret
+    "40d772e16d09dcbb0ae7f44c43e224906c1916ffcdbb5c6d003952c562c0637a"  # pragma: allowlist secret
 )
 
 
@@ -6360,11 +6360,23 @@ def _assert_ios_family_matrix_contract(workflow: dict[str, object]) -> None:
                 for step in steps
                 if step.get("name") == "iOS UI smoke (build-for-testing + test-without-building)"
             )
+            assert smoke_step["env"] == {
+                "DEVELOPER_DIR": "${{ steps.select-xcode.outputs.developer_dir }}",
+                "UI_SMOKE_FOREGROUND_TIMEOUT_SECONDS": "90",
+                "IOS_UI_SMOKE_BUILD_TIMEOUT_SECONDS": 900,
+            }
             smoke_run = smoke_step["run"]
             assert isinstance(smoke_run, str)
             assert hashlib.sha256(smoke_run.encode("utf-8")).hexdigest() == IOS_UI_SMOKE_RUN_SHA256
             assert 'DESTINATION="${{ steps.select-destination.outputs.destination }}"' in smoke_run
             assert smoke_run.count('"-destination", destination') == 2
+            timeout_input = 'timeout_s = int(os.environ["IOS_UI_SMOKE_BUILD_TIMEOUT_SECONDS"])'
+            assert smoke_run.count(timeout_input) == 1
+            assert "except (KeyError, ValueError):" in smoke_run
+            assert "if timeout_s <= 0:" in smoke_run
+            assert "subprocess.run(cmd, timeout=timeout_s, check=True)" in smoke_run
+            assert "subprocess.run(cmd, timeout=900, check=True)" in smoke_run
+            assert "SIM_BOOT_TIMEOUT_SECONDS:-300" in smoke_run
         artifact = next(step for step in steps if step.get("name") == artifact_step)
         artifact_name = artifact["with"]["name"]
         assert "${{ matrix.family }}" in artifact_name
