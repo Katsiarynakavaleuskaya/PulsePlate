@@ -330,8 +330,9 @@ orders and inventories. CI output and Step Summary show family, runtime, UDID an
 **UI matrix job budget:**
 
 - The existing `ios-ui-smoke` job has a 45-minute enclosing limit for both families.
-- Its sequential boot, Debug build, and UI test caps total 30 minutes; the remaining
-  15 minutes are nominal setup/diagnostic headroom, not a guarantee or SLA.
+- The sequential caps are five minutes for boot, 15 minutes for the UI Debug build,
+  and 15 minutes for UI execution. The 35-minute sum leaves 10 minutes of nominal
+  setup and diagnostic headroom within the 45-minute job.
 - Preserve the separate phase timeouts and current-head terminal UI test evidence.
 
 **System services warmup:**
@@ -347,7 +348,11 @@ orders and inventories. CI output and Step Summary show family, runtime, UDID an
 
 **Timeout policy:**
 
-- `xcodebuild build-for-testing` **must** be wrapped in timeout (10 minutes)
+- The unit Debug `xcodebuild build-for-testing` retains its 10-minute timeout.
+- The UI Debug build uses the existing `ios-ui-smoke` step environment value
+  `IOS_UI_SMOKE_BUILD_TIMEOUT_SECONDS=900`. Validate the required positive integer
+  before starting `xcodebuild build-for-testing` and use that value for the
+  start message, subprocess timeout, and expiry message.
 - `xcodebuild test-without-building` **must** be wrapped in timeout (15 minutes)
 - The `ios-tests` job budget must use
   `${{ fromJSON(vars.IOS_TESTS_JOB_TIMEOUT_MINUTES || '60') }}`; repository vars may override the
@@ -356,7 +361,7 @@ orders and inventories. CI output and Step Summary show family, runtime, UDID an
   `15m` + Release build `10m`. The 60-minute fallback leaves nominal 20-minute setup/diagnostic
   headroom; that headroom is neither guaranteed nor an SLA.
 - Implementation: Python `subprocess.run(timeout=...)` (macOS doesn't have `timeout` by default)
-- If timeout triggers, error message is explicit ("xcodebuild ... timed out after X minutes")
+- If a child times out, its error message identifies the phase and its limit.
 
 **Environment variables (hard rule):**
 
@@ -370,8 +375,10 @@ orders and inventories. CI output and Step Summary show family, runtime, UDID an
 1. Check Step Summary for: runtime, device, UDID, destination
 2. Check logs for `bootstatus -b` exit code (must be 0)
 3. Check logs for build-for-testing vs test-without-building failures
-4. If timeout: distinguish the `5m` boot, `10m` Debug build, `15m` unit, and `10m` Release bounds
-   from the vars-overridable 60-minute job fallback.
+4. For a timeout, identify the phase and parent job. The UI job has a `5m` boot,
+   `15m` Debug build, and `15m` UI execution under `45m` overall. The unit job
+   retains its `5m` boot, `10m` Debug build, `15m` unit, and `10m` Release caps
+   under the vars-overridable `60m` job fallback.
 
 **Required (CI):**
 
