@@ -3515,16 +3515,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Select Xcode (require exact 27.0 and iOS 27 SDK)
+      - name: Select Xcode (require exact 27.2 and iOS 27.2 SDK)
         id: select-xcode
         shell: bash
         run: |
           set -euo pipefail
 
-          # Prefer exact Xcode 27.0 aliases; verify the fallback version.
+          # Prefer exact Xcode 27.2 aliases; verify the fallback version.
           CANDIDATES=(
-            "/Applications/Xcode_27.0.0.app/Contents/Developer"
-            "/Applications/Xcode_27.0.app/Contents/Developer"
+            "/Applications/Xcode_27.2.0.app/Contents/Developer"
+            "/Applications/Xcode_27.2.app/Contents/Developer"
             "/Applications/Xcode.app/Contents/Developer"
           )
 
@@ -3537,7 +3537,7 @@ jobs:
           done
 
           if [ -z "$SELECTED" ]; then
-            echo "::error::No Xcode 27.0 installation found in /Applications."
+            echo "::error::No Xcode 27.2 installation found in /Applications."
             echo "::error::Available Xcode apps:"
             for app in /Applications/Xcode*.app; do
               [ -e "$app" ] && echo " - $app"
@@ -3558,11 +3558,11 @@ jobs:
 
           # Extract Xcode version for cache key (avoid broken pipe from pipe consumers like head/sed)
           XCODEBUILD_VERSION="$(xcodebuild -version)"
-          # First line must be "Xcode 27.0".
+          # First line must be "Xcode 27.2".
           XCODE_VERSION="${XCODEBUILD_VERSION#Xcode }"
           XCODE_VERSION="${XCODE_VERSION%%$'\n'*}"
-          if [ "$XCODE_VERSION" != "27.0" ]; then
-            echo "::error::Selected Xcode must be exactly 27.0. Got $XCODE_VERSION"
+          if [ "$XCODE_VERSION" != "27.2" ]; then
+            echo "::error::Selected Xcode must be exactly 27.2. Got $XCODE_VERSION"
             exit 1
           fi
           echo "xcode_version=$XCODE_VERSION" >> "$GITHUB_OUTPUT"
@@ -3575,14 +3575,14 @@ jobs:
           SWIFT_VERSION_OUTPUT="$(swift --version)"
           echo "$SWIFT_VERSION_OUTPUT"
           if [[ "$SWIFT_VERSION_OUTPUT" != *"Apple Swift version 6.4"* ]]; then
-            echo "::error::Expected Apple Swift 6.4 under Xcode 27.0"
+            echo "::error::Expected Apple Swift 6.4 under Xcode 27.2"
             exit 1
           fi
           for sdk in iphoneos iphonesimulator; do
             sdk_version="$(xcrun --sdk "$sdk" --show-sdk-version)"
             echo "$sdk SDK: $sdk_version"
-            if [ "$sdk_version" != "27.0" ]; then
-              echo "::error::Expected $sdk SDK 27.0, got $sdk_version"
+            if [ "$sdk_version" != "27.2" ]; then
+              echo "::error::Expected $sdk SDK 27.2, got $sdk_version"
               exit 1
             fi
           done
@@ -3925,15 +3925,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Select Xcode (require exact 27.0 and iOS 27 SDK)
+      - name: Select Xcode (require exact 27.2 and iOS 27.2 SDK)
         id: select-xcode
         shell: bash
         run: |
           set -euo pipefail
 
           CANDIDATES=(
-            "/Applications/Xcode_27.0.0.app/Contents/Developer"
-            "/Applications/Xcode_27.0.app/Contents/Developer"
+            "/Applications/Xcode_27.2.0.app/Contents/Developer"
+            "/Applications/Xcode_27.2.app/Contents/Developer"
             "/Applications/Xcode.app/Contents/Developer"
           )
 
@@ -3946,7 +3946,7 @@ jobs:
           done
 
           if [ -z "$SELECTED" ]; then
-            echo "::error::No Xcode 27.0 installation found in /Applications."
+            echo "::error::No Xcode 27.2 installation found in /Applications."
             echo "::error::Available Xcode apps:"
             for app in /Applications/Xcode*.app; do
               [ -e "$app" ] && echo " - $app"
@@ -3960,11 +3960,11 @@ jobs:
 
           # Extract Xcode version for cache key (avoid broken pipe from pipe consumers like head/sed)
           XCODEBUILD_VERSION="$(xcodebuild -version)"
-          # First line must be "Xcode 27.0".
+          # First line must be "Xcode 27.2".
           XCODE_VERSION="${XCODEBUILD_VERSION#Xcode }"
           XCODE_VERSION="${XCODE_VERSION%%$'\n'*}"
-          if [ "$XCODE_VERSION" != "27.0" ]; then
-            echo "::error::Selected Xcode must be exactly 27.0. Got $XCODE_VERSION"
+          if [ "$XCODE_VERSION" != "27.2" ]; then
+            echo "::error::Selected Xcode must be exactly 27.2. Got $XCODE_VERSION"
             exit 1
           fi
           echo "xcode_version=$XCODE_VERSION" >> "$GITHUB_OUTPUT"
@@ -3977,14 +3977,14 @@ jobs:
           SWIFT_VERSION_OUTPUT="$(swift --version)"
           echo "$SWIFT_VERSION_OUTPUT"
           if [[ "$SWIFT_VERSION_OUTPUT" != *"Apple Swift version 6.4"* ]]; then
-            echo "::error::Expected Apple Swift 6.4 under Xcode 27.0"
+            echo "::error::Expected Apple Swift 6.4 under Xcode 27.2"
             exit 1
           fi
           for sdk in iphoneos iphonesimulator; do
             sdk_version="$(xcrun --sdk "$sdk" --show-sdk-version)"
             echo "$sdk SDK: $sdk_version"
-            if [ "$sdk_version" != "27.0" ]; then
-              echo "::error::Expected $sdk SDK 27.0, got $sdk_version"
+            if [ "$sdk_version" != "27.2" ]; then
+              echo "::error::Expected $sdk SDK 27.2, got $sdk_version"
               exit 1
             fi
           done

@@ -179,11 +179,18 @@ def test_screenshot_jobs_require_exact_xcode27_sdk_and_runtime() -> None:
         select = _step_by_name(job_name, "Select Xcode")
         run = select["run"]
         assert isinstance(run, str)
-        assert "/Applications/Xcode_27.0.0.app/Contents/Developer" in run
-        assert 'if [ "$XCODE_VERSION" != "27.0" ]; then' in run
-        assert 'if [ "$sdk_version" != "27.0" ]; then' in run
+        aliases = (
+            "/Applications/Xcode_27.2.0.app/Contents/Developer",
+            "/Applications/Xcode_27.2.app/Contents/Developer",
+            "/Applications/Xcode.app/Contents/Developer",
+        )
+        positions = [run.index(alias) for alias in aliases]
+        assert positions == sorted(positions)
+        assert "for sdk in iphoneos iphonesimulator; do" in run
+        assert 'if [ "$XCODE_VERSION" != "27.2" ]; then' in run
+        assert 'if [ "$sdk_version" != "27.2" ]; then' in run
         assert "Apple Swift version 6.4" in run
-        assert "com.apple.CoreSimulator.SimRuntime.iOS-27-0" in run
+        assert "com.apple.CoreSimulator.SimRuntime.iOS-27-2" in run
         assert "Runner image:" in run
         assert "Xcode_26" not in run
 
@@ -194,17 +201,17 @@ def test_screenshot_jobs_require_exact_xcode27_sdk_and_runtime() -> None:
         "iPhone 17 Pro Max",
         "iPhone 16 Pro Max",
     ]
-    assert 'ios_version: "27.0"' in fastfile
+    assert 'ios_version: "27.2"' in fastfile
 
 
 def test_snapshot_device_resolver_ignores_newer_name_on_old_runtime(tmp_path: Path) -> None:
     result = _resolve_snapshot_devices_with_inventory(
         tmp_path,
         {
-            "com.apple.CoreSimulator.SimRuntime.iOS-26-5": [
+            "com.apple.CoreSimulator.SimRuntime.iOS-27-0": [
                 {"name": "iPhone 18 Pro Max", "udid": "older-only", "isAvailable": True},
             ],
-            "com.apple.CoreSimulator.SimRuntime.iOS-27-0": [
+            "com.apple.CoreSimulator.SimRuntime.iOS-27-2": [
                 {"name": "iPhone 17 Pro Max", "udid": "current-phone", "isAvailable": True},
                 {"name": "iPad Pro 13-inch (M5)", "udid": "current-ipad", "isAvailable": True},
             ],
@@ -218,24 +225,24 @@ def test_snapshot_device_resolver_fails_without_ios27_candidate(tmp_path: Path) 
     result = _resolve_snapshot_devices_with_inventory(
         tmp_path,
         {
-            "com.apple.CoreSimulator.SimRuntime.iOS-26-5": [
+            "com.apple.CoreSimulator.SimRuntime.iOS-27-0": [
                 {"name": "iPhone 18 Pro Max", "udid": "older-only", "isAvailable": True},
             ],
-            "com.apple.CoreSimulator.SimRuntime.iOS-27-0": [
+            "com.apple.CoreSimulator.SimRuntime.iOS-27-2": [
                 {"name": "iPhone 18 Pro Max", "udid": "unavailable", "isAvailable": False},
                 {"name": "iPad Pro 13-inch (M5)", "udid": "current-ipad", "isAvailable": True},
             ],
         },
     )
     assert result.returncode != 0
-    assert "No available iOS 27.0 simulator found for iPhone" in result.stderr
+    assert "No available iOS 27.2 simulator found for iPhone" in result.stderr
 
 
 def test_snapshot_device_resolver_prefers_max_over_smaller_pro_on_ios27(tmp_path: Path) -> None:
     result = _resolve_snapshot_devices_with_inventory(
         tmp_path,
         {
-            "com.apple.CoreSimulator.SimRuntime.iOS-27-0": [
+            "com.apple.CoreSimulator.SimRuntime.iOS-27-2": [
                 {"name": "iPhone 16 Pro", "udid": "small-pro", "isAvailable": True},
                 {"name": "iPhone 17 Pro Max", "udid": "eligible-max", "isAvailable": True},
                 {"name": "iPad Pro 13-inch (M5)", "udid": "current-ipad", "isAvailable": True},

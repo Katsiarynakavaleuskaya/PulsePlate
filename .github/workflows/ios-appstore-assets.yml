@@ -46,8 +46,8 @@ jobs:
         run: |
           set -euo pipefail
           CANDIDATES=(
-            "/Applications/Xcode_27.0.0.app/Contents/Developer"
-            "/Applications/Xcode_27.0.app/Contents/Developer"
+            "/Applications/Xcode_27.2.0.app/Contents/Developer"
+            "/Applications/Xcode_27.2.app/Contents/Developer"
             "/Applications/Xcode.app/Contents/Developer"
           )
 
@@ -59,8 +59,8 @@ jobs:
               XCODEBUILD_VERSION="$(xcodebuild -version)"
               XCODE_VERSION="${XCODEBUILD_VERSION#Xcode }"
               XCODE_VERSION="${XCODE_VERSION%%$'\n'*}"
-              if [ "$XCODE_VERSION" != "27.0" ]; then
-                echo "::error::Selected Xcode must be exactly 27.0. Got $XCODE_VERSION"
+              if [ "$XCODE_VERSION" != "27.2" ]; then
+                echo "::error::Selected Xcode must be exactly 27.2. Got $XCODE_VERSION"
                 exit 1
               fi
               echo "Using Xcode at $candidate"
@@ -71,23 +71,23 @@ jobs:
               SWIFT_VERSION_OUTPUT="$(swift --version)"
               echo "$SWIFT_VERSION_OUTPUT"
               if [[ "$SWIFT_VERSION_OUTPUT" != *"Apple Swift version 6.4"* ]]; then
-                echo "::error::Expected Apple Swift 6.4 under Xcode 27.0"
+                echo "::error::Expected Apple Swift 6.4 under Xcode 27.2"
                 exit 1
               fi
               for sdk in iphoneos iphonesimulator; do
                 sdk_version="$(xcrun --sdk "$sdk" --show-sdk-version)"
                 echo "$sdk SDK: $sdk_version"
-                if [ "$sdk_version" != "27.0" ]; then
-                  echo "::error::Expected $sdk SDK 27.0, got $sdk_version"
+                if [ "$sdk_version" != "27.2" ]; then
+                  echo "::error::Expected $sdk SDK 27.2, got $sdk_version"
                   exit 1
                 fi
               done
               python3 - <<'RUNTIME_CHECK'
           import json, subprocess, sys
           data = json.loads(subprocess.check_output(["xcrun", "simctl", "list", "runtimes", "-j"], text=True))
-          matches = [r for r in data.get("runtimes", []) if r.get("identifier") == "com.apple.CoreSimulator.SimRuntime.iOS-27-0" and r.get("isAvailable")]
+          matches = [r for r in data.get("runtimes", []) if r.get("identifier") == "com.apple.CoreSimulator.SimRuntime.iOS-27-2" and r.get("isAvailable")]
           if len(matches) != 1:
-              print("::error::Expected one available iOS 27.0 simulator runtime", file=sys.stderr)
+              print("::error::Expected one available iOS 27.2 simulator runtime", file=sys.stderr)
               sys.exit(1)
           print("Selected simulator runtime:", matches[0]["identifier"])
           RUNTIME_CHECK
@@ -95,7 +95,7 @@ jobs:
             fi
           done
 
-          echo "::error::No Xcode 27.0 installation found"
+          echo "::error::No Xcode 27.2 installation found"
           echo "Available Xcode installations under /Applications:"
           for xcode_app in /Applications/Xcode*.app; do
             if [ -d "$xcode_app" ]; then
@@ -158,8 +158,8 @@ jobs:
         run: |
           set -euo pipefail
           for candidate in \
-            /Applications/Xcode_27.0.0.app/Contents/Developer \
-            /Applications/Xcode_27.0.app/Contents/Developer \
+            /Applications/Xcode_27.2.0.app/Contents/Developer \
+            /Applications/Xcode_27.2.app/Contents/Developer \
             /Applications/Xcode.app/Contents/Developer; do
             if [ -d "$candidate" ]; then
               echo "DEVELOPER_DIR=$candidate" >> "$GITHUB_ENV"
@@ -168,8 +168,8 @@ jobs:
               XCODEBUILD_VERSION="$(xcodebuild -version)"
               XCODE_VERSION="${XCODEBUILD_VERSION#Xcode }"
               XCODE_VERSION="${XCODE_VERSION%%$'\n'*}"
-              if [ "$XCODE_VERSION" != "27.0" ]; then
-                echo "::error::Selected Xcode must be exactly 27.0. Got $XCODE_VERSION"
+              if [ "$XCODE_VERSION" != "27.2" ]; then
+                echo "::error::Selected Xcode must be exactly 27.2. Got $XCODE_VERSION"
                 exit 1
               fi
               : "${ImageOS:?Runner ImageOS identity unavailable}"
@@ -179,30 +179,30 @@ jobs:
               SWIFT_VERSION_OUTPUT="$(swift --version)"
               echo "$SWIFT_VERSION_OUTPUT"
               if [[ "$SWIFT_VERSION_OUTPUT" != *"Apple Swift version 6.4"* ]]; then
-                echo "::error::Expected Apple Swift 6.4 under Xcode 27.0"
+                echo "::error::Expected Apple Swift 6.4 under Xcode 27.2"
                 exit 1
               fi
               for sdk in iphoneos iphonesimulator; do
                 sdk_version="$(xcrun --sdk "$sdk" --show-sdk-version)"
                 echo "$sdk SDK: $sdk_version"
-                if [ "$sdk_version" != "27.0" ]; then
-                  echo "::error::Expected $sdk SDK 27.0, got $sdk_version"
+                if [ "$sdk_version" != "27.2" ]; then
+                  echo "::error::Expected $sdk SDK 27.2, got $sdk_version"
                   exit 1
                 fi
               done
               python3 - <<'RUNTIME_CHECK'
           import json, subprocess, sys
           data = json.loads(subprocess.check_output(["xcrun", "simctl", "list", "runtimes", "-j"], text=True))
-          matches = [r for r in data.get("runtimes", []) if r.get("identifier") == "com.apple.CoreSimulator.SimRuntime.iOS-27-0" and r.get("isAvailable")]
+          matches = [r for r in data.get("runtimes", []) if r.get("identifier") == "com.apple.CoreSimulator.SimRuntime.iOS-27-2" and r.get("isAvailable")]
           if len(matches) != 1:
-              print("::error::Expected one available iOS 27.0 simulator runtime", file=sys.stderr)
+              print("::error::Expected one available iOS 27.2 simulator runtime", file=sys.stderr)
               sys.exit(1)
           print("Selected simulator runtime:", matches[0]["identifier"])
           RUNTIME_CHECK
               exit 0
             fi
           done
-          echo "::error::No Xcode 27.0 installation found"
+          echo "::error::No Xcode 27.2 installation found"
           echo "Available Xcode installations under /Applications:"
           for xcode_app in /Applications/Xcode*.app; do
             if [ -d "$xcode_app" ]; then

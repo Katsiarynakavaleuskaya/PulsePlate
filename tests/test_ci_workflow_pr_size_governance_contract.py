@@ -3008,8 +3008,8 @@ def test_changes_job_uses_node24_paths_filter_pin_and_keeps_ios_filters() -> Non
     for path in ios_filters:
         assert f"`{path}`" in agents_text
 
-    assert "Xcode 27.0 (matches the current iOS SDK lane)" in agents_text
-    assert "exact Xcode 27.0 fallback at `/Applications/Xcode.app`" in agents_text
+    assert "Xcode 27.2 (matches the current iOS SDK lane)" in agents_text
+    assert "exact Xcode 27.2 fallback at `/Applications/Xcode.app`" in agents_text
     assert "Xcode 16.x (matches project format)" not in agents_text
     assert "Xcode 16.4 → 16.3 → 16.2" not in agents_text
 
@@ -3029,11 +3029,15 @@ def test_changes_job_uses_node24_paths_filter_pin_and_keeps_ios_filters() -> Non
         )
         priority_positions = [
             executable_xcode_lines.index(f'"/Applications/Xcode_{version}.app/Contents/Developer"')
-            for version in ("27.0.0", "27.0")
+            for version in ("27.2.0", "27.2")
         ]
+        priority_positions.append(
+            executable_xcode_lines.index('"/Applications/Xcode.app/Contents/Developer"')
+        )
         assert priority_positions == sorted(priority_positions)
-        assert 'if [ "$XCODE_VERSION" != "27.0" ]; then' in executable_xcode_lines
-        assert 'if [ "$sdk_version" != "27.0" ]; then' in executable_xcode_lines
+        assert "for sdk in iphoneos iphonesimulator; do" in executable_xcode_lines
+        assert 'if [ "$XCODE_VERSION" != "27.2" ]; then' in executable_xcode_lines
+        assert 'if [ "$sdk_version" != "27.2" ]; then' in executable_xcode_lines
         assert "Apple Swift version 6.4" in executable_xcode_lines
         assert (
             'python3 ../scripts/ci/select_ios_simulator.py --family "${{ matrix.family }}"'
@@ -6240,7 +6244,7 @@ def _assert_ios_release_build_contract(workflow: dict[str, object]) -> None:
     step_names = [step.get("name") for step in steps]
     assert step_names == [
         "Checkout",
-        "Select Xcode (require exact 27.0 and iOS 27 SDK)",
+        "Select Xcode (require exact 27.2 and iOS 27.2 SDK)",
         "Cache SwiftPM packages (SourcePackages only, not Build)",
         "Select iOS simulator destination (stable)",
         IOS_APPSTORE_VERIFY_STEP_NAME,

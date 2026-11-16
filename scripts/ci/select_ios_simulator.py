@@ -1,4 +1,4 @@
-"""Select one exact iOS 27.0 simulator from a requested device family."""
+"""Select one exact iOS 27.2 simulator from a requested device family."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from typing import Any
 import unicodedata
 from uuid import UUID
 
-IOS_27_RUNTIME = "com.apple.CoreSimulator.SimRuntime.iOS-27-0"
+IOS_27_RUNTIME = "com.apple.CoreSimulator.SimRuntime.iOS-27-2"
 FAMILIES = {"iphone": "iPhone", "ipad": "iPad"}
 PREFERRED_NAMES = {
     "iphone": ("iPhone 18 Pro Max", "iPhone 18 Pro", "iPhone 17e", "iPhone 17"),
@@ -62,10 +62,10 @@ def select_simulator(
     if any(not isinstance(key, str) for key in devices):
         raise SelectionError("simctl devices inventory has an invalid runtime key")
     if IOS_27_RUNTIME not in devices:
-        raise SelectionError("Exactly one iOS 27.0 simulator runtime is required")
+        raise SelectionError("Exactly one iOS 27.2 simulator runtime is required")
     runtime_devices = devices[IOS_27_RUNTIME]
     if not isinstance(runtime_devices, list):
-        raise SelectionError("iOS 27.0 devices inventory must be a list")
+        raise SelectionError("iOS 27.2 devices inventory must be a list")
     if not isinstance(types_inventory, dict) or not isinstance(
         types_inventory.get("devicetypes"), list
     ):
@@ -85,7 +85,7 @@ def select_simulator(
     seen_udids: set[str] = set()
     for item in runtime_devices:
         if not isinstance(item, dict) or not isinstance(item.get("isAvailable"), bool):
-            raise SelectionError("iOS 27.0 device entry has invalid availability")
+            raise SelectionError("iOS 27.2 device entry has invalid availability")
         if not item["isAvailable"]:
             continue
         name = _safe_text(item.get("name"), label="device name")
@@ -105,7 +105,7 @@ def select_simulator(
             candidates.append({"device_name": name, "udid": udid})
 
     if not candidates:
-        raise SelectionError(f"No available {FAMILIES[family]} simulator on iOS 27.0")
+        raise SelectionError(f"No available {FAMILIES[family]} simulator on iOS 27.2")
     preferred = PREFERRED_NAMES[family] if preferred_names is None else preferred_names
     order = {name: index for index, name in enumerate(preferred)}
     candidates.sort(

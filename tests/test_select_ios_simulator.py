@@ -195,7 +195,7 @@ def test_unavailable_preferred_device_is_not_selected() -> None:
 @pytest.mark.parametrize(
     ("mutation", "message"),
     [
-        ("wrong_runtime", "Exactly one iOS 27.0"),
+        ("wrong_runtime", "Exactly one iOS 27.2"),
         ("non_string_runtime", "invalid runtime key"),
         ("unknown_type", "Unknown device type"),
         ("invalid_udid", "Invalid simulator UDID"),
@@ -215,7 +215,7 @@ def test_malformed_or_unproven_inventory_fails(mutation: str, message: str) -> N
     device = device_list[1]
     assert isinstance(device, dict)
     if mutation == "wrong_runtime":
-        device_map["com.apple.CoreSimulator.SimRuntime.iOS-27-1"] = device_map.pop(
+        device_map["com.apple.CoreSimulator.SimRuntime.iOS-27-0"] = device_map.pop(
             selector.IOS_27_RUNTIME
         )
     elif mutation == "non_string_runtime":
@@ -275,7 +275,7 @@ def test_cli_writes_family_and_udid_only_output(
         f"destination=platform=iOS Simulator,id={IPAD_UDID if family == 'ipad' else IPHONE_UDID}\n"
         in output
     )
-    assert "ios_runtime_id=com.apple.CoreSimulator.SimRuntime.iOS-27-0" in output
+    assert "ios_runtime_id=com.apple.CoreSimulator.SimRuntime.iOS-27-2" in output
     assert "### iOS Destination Selection" in summary_path.read_text()
     assert "untrusted" not in output + summary_path.read_text() + capsys.readouterr().out
 
@@ -411,11 +411,12 @@ def test_native_inventory_uses_resolved_xcrun_with_exact_arguments(
 @pytest.mark.parametrize(
     "key",
     [
-        "com.apple.CoreSimulator.SimRuntime.iOS-27-0-extra",
-        "com.apple.CoreSimulator.SimRuntime.iOS-27-0-1",
+        "com.apple.CoreSimulator.SimRuntime.iOS-27-2-extra",
+        "com.apple.CoreSimulator.SimRuntime.iOS-27-2-1",
+        "com.apple.CoreSimulator.SimRuntime.iOS-27-0",
         "com.apple.CoreSimulator.SimRuntime.iOS-27-1",
-        "com.apple.CoreSimulator.SimRuntime.iOS-27-0 ",
-        "com.apple.CoreSimulator.SimRuntime.ios-27-0",
+        "com.apple.CoreSimulator.SimRuntime.iOS-27-2 ",
+        "com.apple.CoreSimulator.SimRuntime.ios-27-2",
         "unrelated\nname=untrusted",
         "",
         "com.apple.CoreSimulator.SimRuntime.visionOS-3-0",
@@ -452,9 +453,9 @@ def test_cli_selected_runtime_failure_survives_valid_foreign_bucket(
     device_map = devices["devices"]
     assert isinstance(device_map, dict)
     valid = device_map.pop(selector.IOS_27_RUNTIME)
-    device_map["com.apple.CoreSimulator.SimRuntime.iOS-27-0-extra"] = valid
+    device_map["com.apple.CoreSimulator.SimRuntime.iOS-27-2-extra"] = valid
     if fault != "alias-only":
-        device_map["com.apple.CoreSimulator.SimRuntime.iOS-27-1"] = valid
+        device_map["com.apple.CoreSimulator.SimRuntime.iOS-27-0"] = valid
     if fault not in ("missing", "alias-only"):
         device_map[selector.IOS_27_RUNTIME] = {
             "null": None,
