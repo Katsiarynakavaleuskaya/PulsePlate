@@ -3476,9 +3476,9 @@ def test_alertmanager_PR_retained_candidate_has_no_registry_or_compiler_authorit
     assert job["env"] == {
         "ALERTMANAGER_JOB_TIMEOUT_MINUTES": "80",
         "ALERTMANAGER_CALLER_KIND": "standalone",
-        "AM_CANDIDATE_RUN": "42110438896",
-        "AM_CANDIDATE_ARTIFACT": "13456175467",
-        "AM_CANDIDATE_SOURCE": "8aee3976d8f13027a5f2a38f0152ede0f4990156",
+        "AM_CANDIDATE_RUN": "43811981051",
+        "AM_CANDIDATE_ARTIFACT": "14202207192",
+        "AM_CANDIDATE_SOURCE": "e91033b4528a83782de3e7dc1e73e6def398348a",
     }
     runs = "\n".join(step.get("run", "") for step in _steps(job))
     assert "--alertmanager-stage candidate-check" in runs
@@ -7905,9 +7905,12 @@ def test_caddy_authenticated_reader_lifetime(
     source.write_bytes(b"# synthetic acquisition fixture\n")
     expected = hashlib.sha256(source.read_bytes()).hexdigest()
     directory = tmp_path / "admission"
-    now = caddy_surface.time.monotonic()
+    # Use one exact simulated clock for the reader and its cleanup transport.
+    now = 4096.25
     phase_end = now + 44
-    monkeypatch.setattr(caddy_surface, "time", SimpleNamespace(monotonic=lambda: now))
+    clock = SimpleNamespace(monotonic=lambda: now)
+    monkeypatch.setattr(caddy_surface, "time", clock)
+    monkeypatch.setattr(transport, "time", clock)
 
     def remaining(cap: float) -> float:
         return min(cap, phase_end - now)

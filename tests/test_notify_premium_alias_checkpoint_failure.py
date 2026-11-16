@@ -44,8 +44,8 @@ from scripts.ci import prometheus_source_image as prometheus_image
 from scripts.ops import notify_premium_alias_checkpoint_failure as notifier
 
 ROOT = Path(__file__).resolve().parents[1]
-ALERTMANAGER_IMAGE = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:e4b0453fb56079d8ee565f76c4029c34d0711215b2a72541cc060bdcbe9827d3"
-_ACCEPTED_AM_CONFIG = "sha256:db6b5863659a4d2e4372cbf32602429299763e0efacc2c165dc7245c3e9df2ee"
+ALERTMANAGER_IMAGE = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:873bc6cfae14edcf9f2acf2d81f9863f98ee8f78623125a7e02642a66e3bbe27"
+_ACCEPTED_AM_CONFIG = "sha256:0bd9dd59b71d137947ebb1e88a001716dfdd154df13d566280939f7df8abc62c"
 # Frozen native UI oracle from accepted C10; ordinary checks do not depend on artifact expiry.
 _HISTORICAL_AM_UI = {
     ".build_stamp": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
@@ -91,8 +91,8 @@ _ACCEPTED_AM_UI = {
     "index.html.gz": "cda9f8f59ab3194a9e16416887800e7f6d99bb69e167e5db9f3963fd91b1257d",
 }
 _ACCEPTED_AM_BINARIES = {
-    "alertmanager": "4a871fe631f8b91e9f421f2ff9c3a4f2472d340cc654448155cb8722cae125d1",
-    "amtool": "e041a8aadb52426695dcee36f2ce854ca26d82f53a2f0379d4faaabfb316b954",
+    "alertmanager": "31e82e0151c7b42778b6612992a525820ba9c7e72106e71654c10292f67dc2d7",
+    "amtool": "ec1481dce2fa5e1621dfd927f596595b2aef7baa80248ee1294537902b71364b",
 }
 
 SYSTEMD_UNIT_DIRECTORY = Path("/run/systemd/system")

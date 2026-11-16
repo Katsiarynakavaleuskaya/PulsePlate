@@ -119,8 +119,8 @@ def test_current_selected_images_match_live_identity_consumers(
             raw = (WORKFLOWS_DIR / workflow).read_text()
             assert raw.count(tuple_text) == raw.count(source_text) == expected_count
             for kind, run_id, artifact_id in (
-                ("qualification", 42107347940, 13451573523),
-                ("support", 42108567179, 13452993574),
+                ("qualification", 43808505545, 14199242996),
+                ("support", 43810186398, 14200227448),
             ):
                 selector = (
                     f"--alertmanager-{kind}-run {run_id} "
@@ -132,7 +132,7 @@ def test_current_selected_images_match_live_identity_consumers(
                     == expected_count
                 )
         for name in ("alertmanager", "amtool"):
-            assert oracle["expected_modules"][name]["stdlib"] == "v1.27.3"
+            assert oracle["expected_modules"][name]["stdlib"] == "v1.27.4"
 
 
 @pytest.mark.parametrize("tool_selected", [False, True], ids=["without-tool", "with-tool"])
@@ -223,7 +223,7 @@ def test_historical_AM_fixture_copy_does_not_change_current_selection(
             assert (
                 oracle["expected_modules"][name]["github.com/prometheus/alertmanager"] == "0.34.2"
             )
-            assert oracle["expected_modules"][name]["stdlib"] == "v1.27.3"
+            assert oracle["expected_modules"][name]["stdlib"] == "v1.27.4"
             assert historical["expected_modules"][name] != oracle["expected_modules"][name]
         old_ref = (
             "ghcr.io/katsiarynakavaleuskaya/pulseplate@"
@@ -6487,7 +6487,6 @@ def test_alertmanager_062_support_requires_the_same_qualified_source_before_use(
 def test_alertmanager_historical_0342_noop_remains_distinct_from_062(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    historical_alertmanager_selection: dict[str, Any],
 ) -> None:
     from scripts.ci import prometheus_source_image as transport
 
@@ -6572,12 +6571,11 @@ def test_alertmanager_historical_0342_noop_remains_distinct_from_062(
     )
     assert retained == result
     # Exercise the real full legacy payload reader through the live caller,
-    # using the actual accepted source/Q coordinates and synthetic API transport.
+    # using independent historical source/Q coordinates and synthetic API transport.
     from argparse import Namespace
     import signal
 
-    accepted_source = historical_alertmanager_selection["accepted"]
-    assert accepted_source["source"] == "8aee3976d8f13027a5f2a38f0152ede0f4990156"
+    accepted_source = {"source": "8aee3976d8f13027a5f2a38f0152ede0f4990156"}
     live_q = dict(q, source=accepted_source["source"], run=42107347940, artifact=13451573523)
     events: list[str] = []
     for key in (
@@ -10047,7 +10045,7 @@ def test_alertmanager_target_CVE_postcondition_is_severity_independent_in_curren
         monkeypatch.setattr(
             docker_sources, "_ALERT_CURRENT_SCAN_ORACLE", historical_alertmanager_selection["scan"]
         )
-    compiler = source_image.RETAINED_GO if current_epoch else source_image.GO
+    compiler = source_image.CURRENT_GO if current_epoch else source_image.GO
     upstream_version = "0.34.2" if current_epoch else "0.34.1"
     report = _alertmanager_current_scan_report()
     arguments = (report, docker_sources._ALERT_CURRENT_SCAN_ORACLE["subject"]["config"], None, None)
@@ -17584,7 +17582,7 @@ def test_alertmanager_062_accepted_live_scan_rejects_crossed_compiler_context(
             current=True,
             proof_mode="accepted-live",
             upstream_version="0.34.2",
-            compiler_artifact=source_image.RETAINED_GO,
+            compiler_artifact=source_image.CURRENT_GO,
         )["findings"]
         == []
     )
@@ -17597,5 +17595,5 @@ def test_alertmanager_062_accepted_live_scan_rejects_crossed_compiler_context(
             current=True,
             proof_mode="accepted-live",
             upstream_version="0.34.2",
-            compiler_artifact=source_image.CURRENT_GO,
+            compiler_artifact=source_image.RETAINED_GO,
         )

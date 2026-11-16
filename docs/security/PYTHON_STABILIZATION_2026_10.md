@@ -983,6 +983,20 @@ Rollback restores the prior comments and corresponding helper pins, exposing
 the prior expiry failure. Recheck the actual final helper pins, both complete
 scanner modes and current-calendar guards after this comment change.
 
+#### November 16 integration reassessment
+
+The current formatted helper retained the same three controls and site-specific
+removal triggers. Bandit 1.9.4 returned 0 with three suppressed tests in ordinary
+mode. The `--ignore-nosec` comparison returned 1 with exactly three LOW findings:
+B105 at `scripts/ci/fetch_docker_source_artifacts.py:11095`, B404 at
+`scripts/ci/fetch_docker_source_artifacts.py:14871` and B603 at
+`scripts/ci/fetch_docker_source_artifacts.py:14926`. Both reports covered 15,034
+lines and had zero scanner errors. The nine selected collector cases and the
+current-calendar NoSec guard passed on the same helper. Both deployment
+readers bind its exact formatted bytes. Retain the existing site-specific
+justifications and the December 15 inclusive removal deadline. Removal,
+current-head checks and merged-main acceptance remain open.
+
 ### November 1 reassessment of the six checkpoint and OPS sites
 
 PR #2494 adopts the following six individual dispositions on material 26,
