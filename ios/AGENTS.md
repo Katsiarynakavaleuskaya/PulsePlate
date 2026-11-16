@@ -157,10 +157,10 @@
 
 **Xcode selection:**
 
-- Preferred exact alias: Xcode 27.0 (`/Applications/Xcode_27.0.0.app`)
-- Alternate exact alias: `/Applications/Xcode_27.0.app`
-- Final fallback: `/Applications/Xcode.app`, only if `xcodebuild -version` resolves to Xcode 27.0
-- CI fails if Xcode, Swift 6.4, iOS 27.0 SDK, or simulator runtime is absent (see `.github/workflows/ci.yml` `select-xcode` step).
+- Preferred exact alias: Xcode 27.2 (`/Applications/Xcode_27.2.0.app`)
+- Alternate exact alias: `/Applications/Xcode_27.2.app`
+- Final fallback: `/Applications/Xcode.app`, only if `xcodebuild -version` resolves to Xcode 27.2
+- CI fails if Xcode, Swift 6.4, iOS 27.2 SDK, or simulator runtime is absent (see `.github/workflows/ci.yml` `select-xcode` step).
 - `PulsePlate`, `PulsePlateTests`, and `PulsePlateUITests` enable Swift
   `SWIFT_TREAT_WARNINGS_AS_ERRORS` in Debug and Release. This does not classify
   Xcode build-tool messages such as AppIntents metadata extraction.
@@ -168,7 +168,7 @@
 **Simulator (CI):**
 
 - **Auto-selected** from available simulators in the requested family at runtime (no hard-coded device)
-- **Runtime policy:** require the exact available iOS 27.0 simulator; no older-runtime fallback
+- **Runtime policy:** require the exact available iOS 27.2 simulator; no older-runtime fallback
 - **Device preference:** the iPhone row prefers `iPhone 18 Pro Max` → `iPhone 18 Pro` → `iPhone 17e` → `iPhone 17`; the iPad row prefers known iPad models. Missing preferred models fall back to the same family in deterministic order.
 - **Family proof:** `deviceTypeIdentifier` joins the `simctl` device type inventory, where
   `productFamily` must match the matrix row. A missing family fails its row.
@@ -237,7 +237,7 @@ orders and inventories. CI output and Step Summary show family, runtime, UDID an
 **Destination policy (CI):**
 
 - CI **auto-selects** destination from available simulators in each row's family
-- Requires **iOS 27.0 runtime**; missing runtime fails the job
+- Requires **iOS 27.2 runtime**; missing runtime fails the job
 - Preferred device ordering is family-specific and never changes the requested family
 - **Hard rule:** never pin a simulator that may not exist; CI must discover availability first
 - Never uses `OS=latest` for named devices (to avoid nondeterministic runtime resolution)
@@ -257,8 +257,8 @@ orders and inventories. CI output and Step Summary show family, runtime, UDID an
 
 **Recommended before pushing an iOS PR:**
 
-- Run `make ios-test IOS_DESTINATION="platform=iOS Simulator,id=<iOS-27.0-UDID>"` locally
-  on an available iOS 27.0 simulator (xcodebuild test)
+- Run `make ios-test IOS_DESTINATION="platform=iOS Simulator,id=<iOS-27.2-UDID>"` locally
+  on an available iOS 27.2 simulator (xcodebuild test)
 - This runs all unit tests including guard tests
 - Catches issues before CI
 
@@ -285,7 +285,7 @@ orders and inventories. CI output and Step Summary show family, runtime, UDID an
   - iPhone preference order is `iPhone 18 Pro Max` → `iPhone 18 Pro` → `iPhone 17e` → `iPhone 17`.
   - iPad preference order and fallback remain within iPad models. `productFamily` from
     `simctl list devicetypes -j` is the sole family recognizer.
-  - Requires iOS 27.0 runtime (no older-runtime fallback)
+  - Requires iOS 27.2 runtime (no older-runtime fallback)
   - **Never uses `OS=latest`** (guard fails job if `latest` detected)
 - Both use `-project PulsePlate.xcodeproj` (canonical: app scheme tests = project-based)
 - By default both use `-only-testing:PulsePlateTests` with
@@ -303,10 +303,10 @@ orders and inventories. CI output and Step Summary show family, runtime, UDID an
 
 - Preferred models only affect order within the requested family. If none is present,
   select any available device of the same `productFamily`, sorted by name and UDID.
-- If that family, the exact iOS 27.0 runtime, a known device type, or a valid UDID
+- If that family, the exact iOS 27.2 runtime, a known device type, or a valid UDID
   is unavailable, fail the row. Never use device-name prefixes or cross-family fallback.
 - Runtime selection reads only the literal
-  `com.apple.CoreSimulator.SimRuntime.iOS-27-0` entry in the string-keyed devices
+  `com.apple.CoreSimulator.SimRuntime.iOS-27-2` entry in the string-keyed devices
   map. Unselected runtime keys and values have no effect on selection. Validate
   every available device in that entry and the complete device-type inventory.
 - Output must include: `family`, `ios_runtime_id`, `device_name`, `udid`, and `destination`.
