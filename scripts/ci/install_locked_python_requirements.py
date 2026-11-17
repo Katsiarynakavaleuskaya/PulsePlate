@@ -1997,8 +1997,21 @@ def _supported_wheel_tags_for_python(python_executable: str | None) -> set[str]:
         return _current_supported_wheel_tags()
 
     target = resolve_python_executable(python_executable)
-    if target == resolve_python_executable(sys.executable):
+    current = resolve_python_executable(sys.executable)
+    if target == current:
         return _current_supported_wheel_tags()
+    # Sibling aliases may share current-runtime tags. A shared binary in a
+    # different invocation directory still needs independent qualification.
+    if os.path.dirname(target) == os.path.dirname(current):
+        try:
+            same_executable = os.path.samefile(target, current)
+        except OSError as exc:
+            raise RuntimeError(
+                "Unable to compare wheel-tag target to the current interpreter"
+            ) from exc
+        if same_executable:
+            return _current_supported_wheel_tags()
+
     payload = _target_python_wheel_tag_payload(target)
     tags = payload.get("tags")
     if (

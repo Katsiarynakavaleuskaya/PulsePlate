@@ -3032,6 +3032,85 @@ def test_supported_wheel_tags_resolves_current_python_alias_through_which(
     assert observed_names == ["python"]
 
 
+def test_supported_wheel_tags_reuses_current_tags_for_sibling_symlink(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    current = _write_executable(tmp_path.resolve() / "bin" / "python")
+    alias = current.with_name("python3.13")
+    _symlink_or_skip(alias, current)
+    assert installer.resolve_python_executable(str(alias)) == str(alias)
+    assert alias != current and alias.parent == current.parent
+    assert alias.samefile(current)
+    monkeypatch.setattr(installer, "sys", types.SimpleNamespace(executable=str(current)))
+    current_tags = {"py3-none-any"}
+    monkeypatch.setattr(installer, "_current_supported_wheel_tags", lambda: current_tags)
+    monkeypatch.setattr(
+        installer, "_target_python_wheel_tag_payload", lambda _: pytest.fail("probed sibling alias")
+    )
+
+    assert installer._supported_wheel_tags_for_python(str(alias)) == current_tags
+
+
+@pytest.mark.parametrize("difference", ["invocation-directory", "backing-file"])
+def test_supported_wheel_tags_qualifies_distinct_invocations_externally(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, difference: str
+) -> None:
+    root = tmp_path.resolve()
+    current = _write_executable(root / "current" / "bin" / "python")
+    if difference == "invocation-directory":
+        target = root / "external" / "bin" / "python"
+        target.parent.mkdir(parents=True)
+        _symlink_or_skip(target, current)
+        assert target.parent != current.parent and target.samefile(current)
+    else:
+        target = _write_executable(current.with_name("python3.13"))
+        assert target.parent == current.parent and not target.samefile(current)
+    assert installer.resolve_python_executable(str(target)) == str(target)
+    monkeypatch.setattr(installer, "sys", types.SimpleNamespace(executable=str(current)))
+    monkeypatch.setattr(
+        installer, "_current_supported_wheel_tags", lambda: pytest.fail("used current tags")
+    )
+    observed_targets: list[str] = []
+
+    def external_probe(selected: str) -> dict[str, object]:
+        observed_targets.append(selected)
+        return {"tags": ["py3-none-any"]}
+
+    monkeypatch.setattr(installer, "_target_python_wheel_tag_payload", external_probe)
+
+    assert installer._supported_wheel_tags_for_python(str(target)) == {"py3-none-any"}
+    assert observed_targets == [str(target)]
+
+
+def test_supported_wheel_tags_rejects_indeterminate_sibling_identity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    current = _write_executable(tmp_path.resolve() / "bin" / "python")
+    alias = current.with_name("python3.13")
+    _symlink_or_skip(alias, current)
+    assert installer.resolve_python_executable(str(current)) == str(current)
+    assert installer.resolve_python_executable(str(alias)) == str(alias)
+    assert alias.samefile(current)
+    monkeypatch.setattr(installer, "sys", types.SimpleNamespace(executable=str(current)))
+    monkeypatch.setattr(
+        installer, "_current_supported_wheel_tags", lambda: pytest.fail("used current tags")
+    )
+    monkeypatch.setattr(
+        installer,
+        "_target_python_wheel_tag_payload",
+        lambda _: pytest.fail("probed uncertain alias"),
+    )
+
+    def fail_comparison(target: str, running: str) -> bool:
+        assert (target, running) == (str(alias), str(current))
+        raise PermissionError("synthetic inability to stat the alias")
+
+    monkeypatch.setattr(installer.os.path, "samefile", fail_comparison)
+
+    with pytest.raises(RuntimeError, match="Unable to compare wheel-tag target"):
+        installer._supported_wheel_tags_for_python(str(alias))
+
+
 def test_supported_wheel_tags_rejects_unknown_bare_target_python_names(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -9911,7 +9990,7 @@ def test_invalid_present_provider_tags_never_enter_metadata_fallback(
 
 
 @pytest.mark.parametrize("surface", ["provider", "pth", "sitecustomize", "pythonpath"])
-def test_external_tag_target_rejects_before_import_or_emergency_download(
+def test_external_tag_target_rejects_unqualified_provider_or_startup(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, surface: str
 ) -> None:
     import venv
@@ -9926,6 +10005,8 @@ def test_external_tag_target_rejects_before_import_or_emergency_download(
     for key in tuple(os.environ):
         if key.startswith("PYTHON") or key == "__PYVENV_LAUNCHER__":
             monkeypatch.delenv(key)
+    assert "py3-none-any" in installer._supported_wheel_tags_for_python(str(python))
+    error = "External wheel-tag target requires independent provider qualification"
     if surface == "provider":
         package = site_dir / "packaging"
         package.mkdir()
@@ -9936,6 +10017,7 @@ def test_external_tag_target_rejects_before_import_or_emergency_download(
         (site_dir / "sitecustomize.py").write_text(code, encoding="utf-8")
     else:
         monkeypatch.setenv("PYTHONPATH", str(site_dir))
-    with pytest.raises(RuntimeError, match="External wheel-tag target requires"):
+        error = "External wheel-tag target requires a qualified import environment"
+    with pytest.raises(RuntimeError, match=f"^{error}$"):
         installer._supported_wheel_tags_for_python(str(python))
     assert not marker.exists()
