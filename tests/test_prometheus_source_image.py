@@ -537,11 +537,7 @@ def test_layout_rejection_retains_bounded_facts_without_replacing_primary(
         assert "\n" not in facts["relative"] and "\t" not in facts["relative"]
 
 
-def test_actual_layout_rejection_reaches_tool_report_and_keeps_cleanup_separate(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    tree = _finite_vendor_input(tmp_path, monkeypatch)
-    (tree / "index.json").chmod(0o444)
+def _stub_tool_qualification_inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     locks = {"go.mod": b"original", "go.sum": b"sums"}
     monkeypatch.setattr(source, "ORAS_LOCKS", {key: source.sha(raw) for key, raw in locks.items()})
     monkeypatch.setattr(source, "ORAS_LICENSE", source.sha(b"license"))
@@ -597,6 +593,14 @@ def test_actual_layout_rejection_reaches_tool_report_and_keeps_cleanup_separate(
 
     monkeypatch.setattr(source, "extract", extract)
 
+
+def test_actual_layout_rejection_reaches_tool_report_and_keeps_cleanup_separate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    tree = _finite_vendor_input(tmp_path, monkeypatch)
+    (tree / "index.json").chmod(0o444)
+    _stub_tool_qualification_inputs(tmp_path, monkeypatch)
+
     def rejected(
         native: source.Native,
         work: Path,
@@ -629,6 +633,350 @@ def test_actual_layout_rejection_reaches_tool_report_and_keeps_cleanup_separate(
     assert report["failure"]["layout_rejection"]["relative"] == "index.json"
     assert report["failure"]["layout_rejection"]["mode"] == "0o444"
     assert report["cleanup"] == [{"failure": "synthetic_cleanup"}]
+
+
+@pytest.fixture
+def tool_qualification_caller(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> tuple[Path, dict[str, float], list[source.Native], list[str]]:
+    # Exercise the caller's actual Native.run deadline and evidence checks.
+    # GitHub, compiler, Docker and scanner effects use synthetic transports.
+    tmp_path = tmp_path.resolve()
+    _stub_tool_qualification_inputs(tmp_path, monkeypatch)
+    work = tmp_path / "tool"
+    clock = {"now": 1000.0}
+    monkeypatch.setattr(source.time, "monotonic", lambda: clock["now"])
+    owners: list[source.Native] = []
+    starts: list[str] = []
+    container_id = "a" * 64
+    name = "fixture-tool"
+    alive = True
+
+    def prefetch(native: source.Native, *_args: Any, **_kwargs: Any) -> tuple[Path, dict[str, Any]]:
+        owners.append(native)
+        modules = work / "modules"
+        modules.mkdir()
+        return modules, {}
+
+    def finite_go(
+        native: source.Native,
+        _work: Path,
+        _docker: str,
+        _config: Path,
+        _env: dict[str, str],
+        _src: Path,
+        _go: Path,
+        _modules: Path,
+        owned: dict[str, dict[str, Any]],
+        label: str,
+        _command: list[str],
+        **kwargs: Any,
+    ) -> bytes:
+        assert native is owners[0]
+        owned[name] = {"container_id": container_id}
+        if label == "tool-compile":
+            binary_header = b"\x7fELF\x02\x01" + bytes(12) + b"\x3e\x00"
+            (kwargs["output"] / "oras").write_bytes(binary_header)
+        return {
+            "tool-version": source.CURRENT_GO.go_version.encode(),
+            "tool-modules": b'{"Path":"oras.land/oras","Main":true}',
+            "tool-packages": source.canonical_data(
+                {"ImportPath": source.ORAS_COMMAND, "Name": "main"}
+            ),
+            "tool-buildinfo": (
+                source.CURRENT_GO.go_version.split()[2] + source.ORAS_COMMAND
+            ).encode()
+            + b"\tbuild\tCGO_ENABLED=0",
+        }.get(label, b"")
+
+    class CompletedProcess:
+        returncode = 0
+
+        def poll(self) -> int:
+            return self.returncode
+
+    def completed(argv: list[str], **kwargs: Any) -> CompletedProcess:
+        nonlocal alive
+        output = kwargs["stdout"]
+        label = Path(output.name).stem
+        starts.append(label)
+        if label == name + "-cleanup-inventory":
+            assert argv[-4:] == ["ps", "--all", "--format", "{{.Names}}"]
+            output.write((name + "\n").encode())
+        elif label == name + "-cleanup-inspect":
+            assert argv[-2:] == ["inspect", name]
+            output.write(source.canonical_data([{"Id": container_id, "Name": "/" + name}]))
+        elif label == name + "-cleanup-remove":
+            assert alive and argv[-3:] == ["rm", "--force", container_id]
+            alive = False
+        elif label == name + "-cleanup-absence":
+            assert not alive and argv[-4:] == ["ps", "--all", "--format", "{{.Names}}"]
+        else:
+            outputs = {
+                "tool-base-pull": b"",
+                "ORAS-version": (
+                    "1.3.4 " + source.ORAS_REVISION + " " + source.CURRENT_GO.go_version.split()[2]
+                ).encode(),
+                "ORAS-help": b"--from-oci-layout --to-oci-layout",
+                "ORAS-authenticated-base": b"",
+                "ORAS-local-format-copy": b"",
+                "fixture-format": b"format",
+                "fixture-format-cleanup": b"format cleanup",
+                "fixture-scan": b"scan",
+            }
+            output.write(outputs[label])
+        error = kwargs["stderr"]
+        error.write(f"fixture:{label}\n".encode("ascii"))
+        output.flush()
+        error.flush()
+        return CompletedProcess()
+
+    def validate(actual: dict[str, Any], selected: str, expected: dict[str, Any]) -> None:
+        assert selected == name
+        assert actual == {"Id": expected["container_id"], "Name": "/" + selected}
+
+    monkeypatch.setattr(source, "prefetch_modules", prefetch)
+    monkeypatch.setattr(source, "finite_go", finite_go)
+    monkeypatch.setattr(source.subprocess, "Popen", completed)
+    monkeypatch.setattr(source, "validate_container", validate)
+    monkeypatch.setattr(source, "base_graph", lambda _path: {})
+    monkeypatch.setattr(source, "construct_image", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        source, "validate_oci_graph", lambda *_args, **_kwargs: {"manifest_digest": "fixture"}
+    )
+    monkeypatch.setattr(source, "compare_pair", lambda *_args: None)
+    monkeypatch.setattr(source, "pack_layout", lambda *_args: None)
+    return work, clock, owners, starts
+
+
+def _assert_tool_command_captures(records: list[dict[str, Any]]) -> None:
+    for record in records:
+        for stream in ("stdout", "stderr"):
+            raw = Path(record[stream]).read_bytes()
+            assert record[stream + "_sha256"] == hashlib.sha256(raw).hexdigest()
+
+
+@pytest.mark.parametrize(
+    ("case", "now", "cap", "code"),
+    [
+        ("continuation", 1121.0, 1241.0, None),
+        ("at-deadline", 1800.0, 1120.0, "qualification_deadline"),
+        ("past-deadline", 1801.0, 1120.0, "qualification_deadline"),
+        ("import-failure", 1121.0, 1120.0, "fixture_import_failure"),
+        ("zero-cap", 1121.0, 0.0, "fixture_import_failure"),
+        ("earlier-outer-cap", 1121.0, 1090.0, "fixture_import_failure"),
+        ("pre-armed-outer-cap", 1000.0, 0.0, "cleanup_deadline_already_started"),
+        ("pre-arm-child-failure", 1121.0, 1241.0, "fixture_import_failure"),
+        ("scan-failure", 1121.0, 1241.0, "fixture_scan_failure"),
+    ],
+)
+def test_qualify_tool_keeps_format_and_terminal_cleanup_clocks_distinct(
+    tool_qualification_caller: tuple[Path, dict[str, float], list[source.Native], list[str]],
+    monkeypatch: pytest.MonkeyPatch,
+    case: str,
+    now: float,
+    cap: float,
+    code: str | None,
+) -> None:
+    work, clock, owners, starts = tool_qualification_caller
+    children: list[source.Native] = []
+    import_failure = source.QualificationError("fixture_import_failure")
+    scan_failure = source.QualificationError("fixture_scan_failure")
+
+    def import_format(
+        child: source.Native,
+        work_dir: Path,
+        _docker: str,
+        _config: Path,
+        env: dict[str, str],
+        archive: Path,
+        graph: dict[str, Any],
+        *,
+        synthetic: bool,
+        compiler_artifact: source.Artifact,
+    ) -> dict[str, Any]:
+        children.append(child)
+        assert synthetic and compiler_artifact == source.CURRENT_GO
+        assert archive == work_dir / "format.docker.tar" and graph == {"manifest_digest": "fixture"}
+        assert child.deadline == owners[0].deadline == 1800.0
+        assert child.cleanup == owners[0].cleanup == 120
+        assert child.evidence == owners[0].evidence
+        child.run(["/usr/bin/docker", "fixture-format"], "fixture-format", env, cwd=work_dir)
+        if case != "pre-arm-child-failure":
+            child.begin_cleanup()
+            assert child.cleanup_deadline == 1120.0
+            assert (
+                child.run(
+                    ["/usr/bin/docker", "fixture-format-cleanup"],
+                    "fixture-format-cleanup",
+                    env,
+                    cwd=work_dir,
+                    cleaning=True,
+                )
+                == b"format cleanup"
+            )
+        if case == "zero-cap":
+            child.cleanup_deadline = 0.0
+        if case == "earlier-outer-cap":
+            owners[0].cleanup_deadline = 1090.0
+        clock["now"] = now
+        if code == "fixture_import_failure":
+            raise import_failure
+        return {"status": "observed_synthetic_format_only"}
+
+    def scan(
+        native: source.Native, work_dir: Path, _binary: Path, env: dict[str, str], **_kwargs: Any
+    ) -> dict[str, Any]:
+        assert native is owners[0] and native.cleanup_deadline is None
+        assert clock["now"] == 1121.0 < native.deadline
+        native.run(["/usr/bin/trivy", "fixture-scan"], "fixture-scan", env, cwd=work_dir)
+        if case == "scan-failure":
+            raise scan_failure
+        return {"status": "fixture_scan"}
+
+    monkeypatch.setattr(source, "native_import", import_format)
+    monkeypatch.setattr(source, "scan_tool", scan)
+    if case == "pre-armed-outer-cap":
+
+        def prearm(*_args: Any) -> None:
+            owners[0].cleanup_deadline = 0.0
+
+        monkeypatch.setattr(source, "compare_pair", prearm)
+
+    if code is None:
+        result = source.qualify_tool(work, work.parent, 800, 120)
+        assert result["status"] == "observed_tool_and_synthetic_format_only"
+    else:
+        with pytest.raises(source.QualificationError, match=f"^{code}$") as caught:
+            source.qualify_tool(work, work.parent, 800, 120)
+        if code == "fixture_import_failure":
+            assert caught.value is import_failure
+        elif code == "fixture_scan_failure":
+            assert caught.value is scan_failure
+
+    [outer] = owners
+    assert outer.cleanup_deadline == cap
+    if case == "pre-armed-outer-cap":
+        assert children == []
+    else:
+        assert len(children) == 1 and children[0] is not outer
+    evidence = source.one_object((outer.evidence / "tool.json").read_bytes())
+    _assert_tool_command_captures(evidence["native_commands"])
+    labels = [Path(row["stdout"]).stem for row in evidence["native_commands"]]
+    assert labels == starts
+    tail = ["ORAS-local-format-copy"]
+    if children:
+        tail.append("fixture-format")
+        if case != "pre-arm-child-failure":
+            tail.append("fixture-format-cleanup")
+    if case in ("continuation", "scan-failure"):
+        tail.append("fixture-scan")
+    if now < cap:
+        tail.extend(
+            "fixture-tool-cleanup-" + step for step in ("inventory", "inspect", "remove", "absence")
+        )
+        assert evidence["cleanup"] == [{"name": "fixture-tool", "native_absent": True}]
+    else:
+        assert evidence["cleanup"] == [
+            {
+                "name": "fixture-tool",
+                "failure": "QualificationError",
+                "code": "qualification_deadline",
+            }
+        ]
+    assert labels[-len(tail) :] == tail
+    if code is None:
+        assert evidence["failure"] is None
+    else:
+        assert evidence["failure"]["code"] == code and "status" not in evidence
+
+
+@pytest.mark.parametrize("primary_failure", [False, True])
+@pytest.mark.parametrize("fault", ["cleanup", "report", "both"])
+def test_qualify_tool_retains_first_failure_when_terminal_evidence_fails(
+    tool_qualification_caller: tuple[Path, dict[str, float], list[source.Native], list[str]],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    primary_failure: bool,
+    fault: str,
+) -> None:
+    work, _clock, owners, starts = tool_qualification_caller
+    primary = source.QualificationError("fixture_import_primary")
+    cleanup_error = source.QualificationError("fixture_cleanup_failed")
+    report_error = OSError("synthetic report write details must stay private")
+    guaranteed_cleanup = source.cleanup_owned
+    write_bytes = Path.write_bytes
+
+    def import_format(
+        child: source.Native, work_dir: Path, *_args: Any, **_kwargs: Any
+    ) -> dict[str, Any]:
+        child.run(["/usr/bin/docker", "fixture-format"], "fixture-format", {}, cwd=work_dir)
+        child.begin_cleanup()
+        assert (
+            child.run(
+                ["/usr/bin/docker", "fixture-format-cleanup"],
+                "fixture-format-cleanup",
+                {},
+                cwd=work_dir,
+                cleaning=True,
+            )
+            == b"format cleanup"
+        )
+        if primary_failure:
+            raise primary
+        return {"status": "observed_synthetic_format_only"}
+
+    def cleanup(*args: Any, **kwargs: Any) -> list[dict[str, Any]]:
+        outcome = guaranteed_cleanup(*args, **kwargs)
+        assert outcome == [{"name": "fixture-tool", "native_absent": True}]
+        if fault in ("cleanup", "both"):
+            raise cleanup_error
+        return outcome
+
+    def write(path: Path, raw: bytes) -> int:
+        if path == work / "evidence/tool.json" and fault in ("report", "both"):
+            raise report_error
+        return write_bytes(path, raw)
+
+    monkeypatch.setattr(source, "native_import", import_format)
+    monkeypatch.setattr(source, "scan_tool", lambda *_args, **_kwargs: {"status": "fixture_scan"})
+    monkeypatch.setattr(source, "cleanup_owned", cleanup)
+    monkeypatch.setattr(Path, "write_bytes", write)
+
+    expected = report_error if fault == "report" else cleanup_error
+    if primary_failure:
+        expected = primary
+    with pytest.raises(type(expected)) as caught:
+        source.qualify_tool(work, work.parent, 800, 120)
+    assert caught.value is expected
+    [outer] = owners
+    _assert_tool_command_captures(outer.records)
+    assert (outer.evidence / "fixture-format.stdout").read_bytes() == b"format"
+    assert [Path(row["stdout"]).stem for row in outer.records] == starts
+    assert starts[-7:] == [
+        "ORAS-local-format-copy",
+        "fixture-format",
+        "fixture-format-cleanup",
+        "fixture-tool-cleanup-inventory",
+        "fixture-tool-cleanup-inspect",
+        "fixture-tool-cleanup-remove",
+        "fixture-tool-cleanup-absence",
+    ]
+    if fault == "cleanup":
+        evidence = source.one_object((outer.evidence / "tool.json").read_bytes())
+        assert evidence["cleanup"] == [
+            {"failure": "QualificationError", "code": "fixture_cleanup_failed"}
+        ]
+        assert evidence["failure"]["code"] == str(expected)
+        assert "status" not in evidence
+    else:
+        assert not (outer.evidence / "tool.json").exists()
+        stderr = capsys.readouterr().err
+        assert "synthetic report write details" not in stderr
+        if fault == "both" and primary_failure:
+            assert "Tool cleanup also failed: fixture_cleanup_failed" in stderr
+        if fault == "both" or primary_failure:
+            assert "Tool report also failed: OSError" in stderr
 
 
 def test_finite_vendor_recomputes_diffID_instead_of_trusting_config(
@@ -11067,7 +11415,7 @@ def _p062_stage_fixture(
         path.write_bytes(raw)
     originals = dict(files, **{source.MANIFEST_PATH: p0})
     runs, jobs = {}, {}
-    for row in source.P062_SPENT_HISTORY:
+    for row in source.P062_SPENT_HISTORY + source.P062_EXHAUSTED_CLOCK_CYCLE:
         (
             rid,
             jid,
@@ -11150,8 +11498,8 @@ def _p062_stage_fixture(
                 "run_attempt": 1,
                 "status": "in_progress" if live else "completed",
                 "conclusion": None if live else "success",
-                "started_at": f"2026-11-10T0{rid - 500}:00:00Z",
-                "completed_at": None if live else f"2026-11-10T0{rid - 500}:01:00Z",
+                "started_at": f"2026-11-17T0{rid - 500}:00:00Z",
+                "completed_at": None if live else f"2026-11-17T0{rid - 500}:01:00Z",
             }
         ]
         if selected == "qualification":
@@ -11231,6 +11579,204 @@ def test_p062_replacement_requires_each_previously_consumed_job(
     error = "declared_data_length" if fault == "missing" else "declared_data_value"
     with pytest.raises(source.QualificationError, match=f"^{error}$"):
         source.manual_hosted_admission(api, "tool", producer_root=root)
+
+
+_P062_EXHAUSTED_CLOCK_JOBS = (
+    (43764109938, 132965253155),
+    (43808568629, 133105082212),
+    (43808568629, 133105082497),
+    (43810831152, 133111903061),
+)
+
+
+def test_p062_clock_continuation_binds_the_exact_spent_census() -> None:
+    # Canonical digests independently derived from the retained native census.
+    prior = source.P062_SPENT_HISTORY
+    exhausted = source.P062_EXHAUSTED_CLOCK_CYCLE
+    assert tuple(row[:2] for row in exhausted) == _P062_EXHAUSTED_CLOCK_JOBS
+    assert source.sha(source.canonical_data(prior)) == (
+        "3cd28dc4938d49e75c1d40b4e647669e3cfa7741f561c97e853dd8ea3413a510"
+    )
+    assert source.sha(source.canonical_data(exhausted)) == (
+        "e0f2ede32fa21eebb8b3589854874817e68a2c942508e27d92576d6c2add5462"
+    )
+    assert source.sha(source.canonical_data(prior + exhausted)) == (
+        "cad807616252eaf7c8cf2cd8c9ab8222220a74f2ba160d0589a375a3a3564c63"
+    )
+
+
+@pytest.mark.parametrize(("run_id", "job_id"), _P062_EXHAUSTED_CLOCK_JOBS)
+@pytest.mark.parametrize(
+    ("fault", "diagnostic"),
+    [
+        ("missing", "declared_data_length"),
+        ("changed-time", "declared_data_value"),
+        ("relabeled", "declared_data_value"),
+        ("duplicate", "p062_unique_native_job"),
+        ("job-id-float", "p062_unique_native_job"),
+        ("job-run-id-float", "declared_data_type"),
+        ("job-attempt-bool", "declared_data_type"),
+        ("job-run-drift", "declared_data_value"),
+        ("job-source-drift", "declared_data_value"),
+    ],
+)
+def test_p062_clock_continuation_requires_each_exhausted_job(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    run_id: int,
+    job_id: int,
+    fault: str,
+    diagnostic: str,
+) -> None:
+    api, root = _p062_stage_fixture(tmp_path, monkeypatch, "tool")
+    jobs = api.jobs[run_id]
+    job = next(row for row in jobs if row["id"] == job_id)
+    if fault == "missing":
+        jobs.remove(job)
+    elif fault == "changed-time":
+        job["completed_at"] = job["started_at"]
+    elif fault == "relabeled":
+        job["name"] = (
+            source.P062_JOB_NAMES["pair"]
+            if job["name"] == source.P062_JOB_NAMES["tool"]
+            else source.P062_JOB_NAMES["tool"]
+        )
+    elif fault == "duplicate":
+        jobs.append(copy.deepcopy(job))
+    elif fault == "job-id-float":
+        job["id"] = float(job_id)
+    elif fault == "job-run-id-float":
+        job["run_id"] = float(run_id)
+    elif fault == "job-attempt-bool":
+        job["run_attempt"] = True
+    elif fault == "job-run-drift":
+        job["run_id"] = run_id + 1
+    else:
+        job["head_sha"] = "f" * 40
+    with pytest.raises(source.QualificationError, match=f"^{diagnostic}$"):
+        source.manual_hosted_admission(api, "tool", producer_root=root)
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "diagnostic"),
+    [
+        ("id", 43764109938.0, "p062_run_ID_type"),
+        ("run_attempt", True, "declared_data_type"),
+        ("run_attempt", 1.0, "declared_data_type"),
+        ("workflow_id", 199904435.0, "declared_data_type"),
+        ("repository", {"id": 1043311030.0}, "declared_data_type"),
+        ("head_repository", {"id": 1043311031}, "declared_data_value"),
+        ("event", "push", "declared_data_value"),
+    ],
+)
+def test_p062_clock_history_retains_typed_run_identity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, field: str, value: Any, diagnostic: str
+) -> None:
+    api, root = _p062_stage_fixture(tmp_path, monkeypatch, "tool")
+    api.runs[43764109938][field] = value
+    with pytest.raises(source.QualificationError, match=f"^{diagnostic}$"):
+        source.manual_hosted_admission(api, "tool", producer_root=root)
+
+
+@pytest.mark.parametrize(
+    ("fault", "diagnostic"),
+    [
+        ("missing", "p062_zero_job_history_cardinality"),
+        ("duplicate", "p062_zero_job_history_cardinality"),
+        ("populated", "p062_zero_job_history_changed"),
+    ],
+)
+def test_p062_zero_job_run_is_a_separate_positive_census_observation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str, diagnostic: str
+) -> None:
+    api, root = _p062_stage_fixture(tmp_path, monkeypatch, "tool")
+    zero_id = 42673421928
+    if fault == "missing":
+        del api.runs[zero_id]
+        del api.jobs[zero_id]
+    elif fault == "populated":
+        api.jobs[zero_id].append({"id": 999, "name": "unrelated job", "conclusion": "skipped"})
+    else:
+        original_json, original_pages = api.json, api.pages
+
+        def json_with_duplicate_count(endpoint: str) -> dict[str, Any]:
+            result = original_json(endpoint)
+            if "workflow_dispatch" in endpoint:
+                result["total_count"] += 1
+            return result
+
+        def pages_with_duplicate_zero(
+            endpoint: str, key: str | None, total: int
+        ) -> list[dict[str, Any]]:
+            if key != "workflow_runs":
+                return original_pages(endpoint, key, total)
+            # Isolate the admission's own presence check from native page deduplication.
+            rows = original_pages(endpoint, key, total - 1)
+            return [*rows, copy.deepcopy(api.runs[zero_id])]
+
+        api.json, api.pages = json_with_duplicate_count, pages_with_duplicate_zero
+
+    with pytest.raises(source.QualificationError, match=f"^{diagnostic}$"):
+        source.manual_hosted_admission(api, "tool", producer_root=root)
+
+
+@pytest.mark.parametrize(
+    ("purpose", "fault", "diagnostic"),
+    [
+        ("tool", "extra-failed", "p062_successor_spent_or_unknown"),
+        ("tool", "extra-active", "p062_successor_spent_or_unknown"),
+        ("tool", "second-tool-send", "p062_nonrenewable_stage_prefix"),
+        ("tool", "wrong-current-ref", "p062_current_run_identity"),
+        ("qualification", "old-tool-coordinate", "p062_actual_T_source_join"),
+        ("pair", "companion-other-run", "p062_same_P1_qualification_pair"),
+        ("pair", "companion-at-pair-start", "p062_companion_precedes_pair"),
+    ],
+)
+def test_p062_clock_history_preserves_the_nonrenewable_successor_prefix(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    purpose: str,
+    fault: str,
+    diagnostic: str,
+) -> None:
+    api, root = _p062_stage_fixture(tmp_path, monkeypatch, purpose)
+    if fault in ("extra-failed", "extra-active", "second-tool-send"):
+        status = "in_progress" if fault == "extra-active" else "completed"
+        outcome = {"extra-failed": "failure", "extra-active": None, "second-tool-send": "success"}[
+            fault
+        ]
+        api.runs[504] = {**api.runs[501], "id": 504, "status": status, "conclusion": outcome}
+        api.jobs[504] = [
+            {
+                **api.jobs[501][0],
+                "id": 804,
+                "run_id": 504,
+                "status": status,
+                "conclusion": outcome,
+            }
+        ]
+    elif fault == "wrong-current-ref":
+        api.runs[501]["head_branch"] = "codex/unselected"
+    elif fault == "old-tool-coordinate":
+        manifest = json.loads(api.files[source.MANIFEST_PATH])
+        manifest["inputs"]["oras"]["retained"].update(
+            source_head="eb31efb4b80e16f1e1197b4f73e8677e8db45179",
+            run_id=43764109938,
+            artifact_name="prometheus-oras-43764109938-1",
+        )
+        raw = source.canonical_data(manifest)
+        api.files[source.MANIFEST_PATH] = raw
+        (root / source.MANIFEST_PATH).write_bytes(raw)
+    elif fault == "companion-other-run":
+        api.runs[504] = {**api.runs[502], "id": 504}
+        companion = api.jobs[502].pop()
+        assert companion["name"] == source.P062_COMPANION
+        api.jobs[504] = [{**companion, "run_id": 504}]
+    else:
+        api.jobs[502][1]["completed_at"] = api.jobs[503][0]["started_at"]
+
+    with pytest.raises(source.QualificationError, match=f"^{diagnostic}$"):
+        source.manual_hosted_admission(api, purpose, producer_root=root)
 
 
 @pytest.mark.parametrize(

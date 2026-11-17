@@ -1438,6 +1438,54 @@ outcomes. Rollback is to hold further effects and preserve evidence; selecting
 the vulnerable predecessor or renewing any expired deadline is not remediation.
 
 
+### 2026-11-17 corrected-source continuation
+
+The retained 2026-11-17 UTC `build.yml` dispatch census covers 36 distinct runs
+and all 36 job pages. The before and after run captures have the same SHA-256,
+`4467c22dc8b268e96f32d3a86b96dc348c6443292f45f501a02c4f1328bd6531`.
+The reconciled census SHA-256 is
+`3492c86af8c633e70668332e5141f9707e6cb32d6453ad87c9b79fbc0a6c8bf1`.
+Its selected history contains the original 26 exact job rows and these four
+exhausted first-attempt jobs. Each listed run and job completed successfully.
+
+| Stage | Run | Job | Source commit | Job started (UTC) | Job completed (UTC) |
+| --- | --- | --- | --- | --- | --- |
+| T | [43764109938](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/43764109938) | 132965253155 | `eb31efb4b80e16f1e1197b4f73e8677e8db45179` | 2026-11-15 21:31:08 | 2026-11-15 21:33:48 |
+| Q | [43808568629](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/43808568629) | 133105082212 | `e91033b4528a83782de3e7dc1e73e6def398348a` | 2026-11-16 05:11:48 | 2026-11-16 05:21:36 |
+| Q read-only package companion | [43808568629](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/43808568629) | 133105082497 | `e91033b4528a83782de3e7dc1e73e6def398348a` | 2026-11-16 05:11:48 | 2026-11-16 05:12:04 |
+| B | [43810831152](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/43810831152) | 133111903061 | `e91033b4528a83782de3e7dc1e73e6def398348a` | 2026-11-16 05:31:54 | 2026-11-16 05:50:42 |
+
+Separately, failed run
+[42673421928](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/42673421928)
+at `cc25be204a4252409a96208f83c23040e1261714` appears exactly once and has
+a complete empty job inventory. Its retained job-page SHA-256 is
+`ac4ca6f88083fb59b201f0c3898727c11fb68ff2c33a8851e33c54949912a5d1`.
+The admission check requires that run independently of the 30 spent job rows.
+The four completed rows remain charged, with prior native starts, observed
+costs, failed attempts and original evidence retained. Historical T and B
+artifacts still bind to their original source. Source anchors:
+`scripts/ci/prometheus_source_image.py:7195`,
+`scripts/ci/prometheus_source_image.py:7565`, and
+`scripts/ci/prometheus_source_image.py:7570`.
+
+The operator's continuing instruction covers the necessary corrected-source
+work. For this one continuation, ROOT independently reviews and designates real
+controller commit C and the exact prepared P0 for T, then the exact P1 for Q
+and B. Before release, ROOT verifies the repository, live PR, ref, head, base,
+and complete raw source inputs against those actual Git objects. ROOT holds
+exclusive ref and dispatch custody through native run selection and binds the
+actual run, job, attempt, and source. If a send may have occurred, reconcile
+that specific invocation before any further effect. The candidate's source
+checks establish technical eligibility. The actual ROOT release supplies the
+operation decision.
+
+P0 retains null tool and output selections. P1 selects only actual T evidence
+and keeps the same raw producer inputs. The whole Q run and its package
+companion must succeed on that exact P1 before B. P2 selects only actual
+source-matching B evidence. The earlier stage limits, tool and image compile
+counts, deadlines, 39 accepted criteria, and publication and post-merge
+obligations continue to apply. No successor output is selected in this record.
+
 ## Current Go 1.26.11 native image representations
 
 The original Caddy metadata run 43727210962 stopped before container creation

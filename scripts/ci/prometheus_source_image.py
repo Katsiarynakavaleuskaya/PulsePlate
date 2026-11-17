@@ -7565,6 +7565,68 @@ P062_SPENT_HISTORY = (
 P062_ZERO_JOB_HISTORY = (42673421928, "cc25be204a4252409a96208f83c23040e1261714")
 
 
+# Four observed completed jobs from the exhausted November 15-16 source cycle.
+# They close that cycle and cannot satisfy a current predecessor slot.
+P062_EXHAUSTED_CLOCK_CYCLE = (
+    (
+        43764109938,
+        132965253155,
+        "prometheus-oras-qualification",
+        "eb31efb4b80e16f1e1197b4f73e8677e8db45179",
+        "codex/dependency-alertmanager-remediation",
+        1,
+        "completed",
+        "success",
+        "completed",
+        "success",
+        "2026-11-15T21:31:08Z",
+        "2026-11-15T21:33:48Z",
+    ),
+    (
+        43808568629,
+        133105082212,
+        "prometheus-source-qualification",
+        "e91033b4528a83782de3e7dc1e73e6def398348a",
+        "codex/dependency-alertmanager-remediation",
+        1,
+        "completed",
+        "success",
+        "completed",
+        "success",
+        "2026-11-16T05:11:48Z",
+        "2026-11-16T05:21:36Z",
+    ),
+    (
+        43808568629,
+        133105082497,
+        "prometheus-ghcr-package-qualification",
+        "e91033b4528a83782de3e7dc1e73e6def398348a",
+        "codex/dependency-alertmanager-remediation",
+        1,
+        "completed",
+        "success",
+        "completed",
+        "success",
+        "2026-11-16T05:11:48Z",
+        "2026-11-16T05:12:04Z",
+    ),
+    (
+        43810831152,
+        133111903061,
+        "prometheus-source-build-pair",
+        "e91033b4528a83782de3e7dc1e73e6def398348a",
+        "codex/dependency-alertmanager-remediation",
+        1,
+        "completed",
+        "success",
+        "completed",
+        "success",
+        "2026-11-16T05:31:54Z",
+        "2026-11-16T05:50:42Z",
+    ),
+)
+
+
 def _p062_stage_admission(api: GitHubRead, root: Path, purpose: str) -> dict[str, Any]:
     """One fixed PR2494 successor; caller release is separate from this observation."""
     require(
@@ -7642,7 +7704,9 @@ def _p062_stage_admission(api: GitHubRead, root: Path, purpose: str) -> dict[str
     successors: list[tuple[dict[str, Any], dict[str, Any]]] = []
     current_jobs: list[dict[str, Any]] = []
     names = set(P062_JOB_NAMES.values()) | {P062_COMPANION}
-    historical_ids = {row[0] for row in P062_SPENT_HISTORY}
+    expected_history = P062_SPENT_HISTORY + P062_EXHAUSTED_CLOCK_CYCLE
+    historical_ids = {row[0] for row in expected_history}
+    zero_job_runs = 0
     seen_jobs: set[int] = set()
     for run in runs:
         require(type(run.get("id")) is int and run["id"] > 0, "p062_run_ID_type")
@@ -7668,6 +7732,7 @@ def _p062_stage_admission(api: GitHubRead, root: Path, purpose: str) -> dict[str
                 require(type(run.get(key)) is dict, "p062_zero_job_repository_object")
                 exact_data(run[key].get("id"), 1043311030)
             require(not jobs, "p062_zero_job_history_changed")
+            zero_job_runs += 1
         if not relevant:
             require(run.get("id") != run_id, "p062_current_job_missing")
             continue
@@ -7717,7 +7782,8 @@ def _p062_stage_admission(api: GitHubRead, root: Path, purpose: str) -> dict[str
                     "p062_successor_spent_or_unknown",
                 )
                 successors.append((run, job))
-    exact_data(sorted(historical), list(P062_SPENT_HISTORY))
+    require(zero_job_runs == 1, "p062_zero_job_history_cardinality")
+    exact_data(sorted(historical), list(expected_history))
     expected_current_names = {P062_JOB_NAMES[purpose]} | (
         {P062_COMPANION} if purpose == "qualification" else set()
     )
@@ -10349,6 +10415,7 @@ def qualify_tool(
         "LANG": "C.UTF-8",
     }
     owned: dict[str, dict[str, Any]] = {}
+    primary: BaseException | None = None
     try:
         downloads = work / "downloads"
         fresh_directory(downloads)
@@ -10517,17 +10584,31 @@ def qualify_tool(
             cwd=work,
         )
         compare_pair(graph, validate_oci_graph(copied, base, synthetic=True))
-        report["native_format"] = native_import(
-            native,
-            work,
-            docker,
-            config,
-            env,
-            archive,
-            graph,
-            synthetic=True,
-            compiler_artifact=compiler_artifact,
-        )
+        # The format import closes its own custody before this operation continues.
+        require(native.cleanup_deadline is None, "cleanup_deadline_already_started")
+        format_native = Native(native.evidence, native.deadline, native.cleanup)
+        try:
+            report["native_format"] = native_import(
+                format_native,
+                work,
+                docker,
+                config,
+                env,
+                archive,
+                graph,
+                synthetic=True,
+                compiler_artifact=compiler_artifact,
+            )
+            check_deadline(native.deadline)
+        except BaseException:
+            format_cleanup_deadline = format_native.cleanup_deadline
+            if format_cleanup_deadline is not None and (
+                native.cleanup_deadline is None or format_cleanup_deadline < native.cleanup_deadline
+            ):
+                native.cleanup_deadline = format_cleanup_deadline
+            raise
+        finally:
+            native.records.extend(format_native.records)
         report["native_scan"] = scan_tool(
             native, work, binary, env, compiler_artifact=compiler_artifact
         )
@@ -10539,25 +10620,56 @@ def qualify_tool(
             all(file_hash(source / name) == value for name, value in ORAS_LOCKS.items()),
             "tool_original_locks_after",
         )
-        report["status"] = "observed_tool_and_synthetic_format_only"
         destination = evidence / "oras"
         shutil.copyfile(binary, destination)
         destination.chmod(0o755)
         shutil.copyfile(source / "LICENSE", evidence / "LICENSE")
         pack_layout(vendor, evidence / "vendor.oci.tar")
     except BaseException as error:
+        primary = error
         report["failure"] = {"class": type(error).__name__, "code": diagnostic_code(error)}
         rejection = getattr(error, "layout_rejection", None)
         if rejection is not None:
             report["failure"]["layout_rejection"] = rejection
         raise
     finally:
-        if native.cleanup_deadline is None:
-            native.begin_cleanup()
-        report["cleanup"] = cleanup_owned(native, docker, config, owned, env, work)
+        cleanup_error: BaseException | None = None
+        try:
+            if native.cleanup_deadline is None:
+                native.begin_cleanup()
+            report["cleanup"] = cleanup_owned(native, docker, config, owned, env, work)
+            require(not any("failure" in row for row in report["cleanup"]), "tool_cleanup_failed")
+        except BaseException as error:
+            cleanup_error = error
+            failure = {"class": type(error).__name__, "code": diagnostic_code(error)}
+            if "cleanup" not in report:
+                report["cleanup"] = [{"failure": failure["class"], "code": failure["code"]}]
+            if primary is None:
+                report["failure"] = failure
+        else:
+            if primary is None:
+                report["status"] = "observed_tool_and_synthetic_format_only"
+
         report["native_commands"] = native.records
-        (evidence / "tool.json").write_bytes(canonical_data(report))
-    require(not any("failure" in row for row in report["cleanup"]), "tool_cleanup_failed")
+        try:
+            (evidence / "tool.json").write_bytes(canonical_data(report))
+        except BaseException as error:
+            if primary is None and cleanup_error is None:
+                raise
+            # The structured summary is unavailable. Keep the raw captures and
+            # expose only bounded secondary diagnostics beside the first error.
+            diagnostics = [("report", error)]
+            if primary is not None and cleanup_error is not None:
+                diagnostics.insert(0, ("cleanup", cleanup_error))
+            for stage, secondary in diagnostics:
+                try:
+                    detail = diagnostic_code(secondary) or type(secondary).__name__
+                    print(f"Tool {stage} also failed: {detail}", file=sys.stderr)
+                except BaseException as diagnostic_error:
+                    # Diagnostic rendering cannot replace an active failure.
+                    report["diagnostic_failure"] = type(diagnostic_error).__name__
+        if primary is None and cleanup_error is not None:
+            raise cleanup_error
     return report
 
 
