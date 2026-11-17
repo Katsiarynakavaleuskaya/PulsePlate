@@ -1460,19 +1460,27 @@ The current Caddy caller binds its authenticated Dockerfile/compiler ref to the
 same native owner's expected_source before create/start/probe and forwards it
 through terminal/cleanup. Admit only measured native representations; supplier
 DATA/projections do not replace new native controls or post-test/build trees.
-Freeze new F/P source and current deployment-caller fingerprints in C while
-keeping each workflow controller commit and its regular path/mode/length/
-SHA-256/Git-blob tuple coherent. Do not install new helper raw pins under an
-old controller ref. After independently designating the real C object, H updates
-the two workflows together: four logical refs, six Prometheus revision
-assertions, six length/SHA-256 predicates and six blob predicates, all derived
-from the actual C P object. Contract-test oracles use the declared immutable pin
-and the strict Git reader; historical pins stay explicit, without worktree
-fallback. Omit a byte-equal path from C's changed set and retain it in the
-reviewed source-input closure. The prepared-null
-Prometheus manifest cannot consume an old tool/image under new inputs. Use the
-existing T/P1/Q+PG/B/P2 and natural accepted-AM live-read sequence; no private
-adapter, new epoch/schema, generic OCI verifier or provider/native replay.
+Freeze changed F/P source and current deployment-caller fingerprints in C
+while keeping each workflow controller commit and its regular path, mode,
+length, SHA-256 and Git blob coherent.
+Do not install new helper raw pins under an old controller ref.
+Derive new pins from the independently designated real C object. H updates
+the affected controller in both workflows together. A joint F/P transition
+moves four logical refs. A P-only change
+keeps the two AM controller refs when the existing immutable F/P checkout and
+its six-file material and five-template bindings still match. For Prometheus,
+update both checkout refs and all six revision, length/SHA-256 and blob checks
+from C's actual P object. Contract-test oracles use the immutable pins and
+strict Git reader without worktree fallback. Keep historical pins explicit
+and omit byte-equal paths from C's changed set while retaining them in the
+reviewed source closure.
+Require exact spent history and positive separate presence of the original
+zero-job run before the existing T/P1/Q+PG/B/P2 sequence. ROOT designates and
+verifies actual P0 and P1 under exclusive ref and dispatch custody before each
+release. The prepared-null Prometheus manifest cannot consume an old tool/image
+under new inputs. Keep the natural accepted-AM live-read sequence and existing
+attempt, budget and evidence contracts. No private adapter, new epoch/schema,
+generic OCI verifier or provider/native replay.
 The dated NoSec fixture remains the renewal carrier; preserve original inline
 comments and refresh the same five P coordinates/current owner bindings after
 final P bytes. ROOT owns fresh cheap gates before expensive validation.
