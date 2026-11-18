@@ -5777,7 +5777,7 @@ def test_test_pr_contract_capture_supports_real_ci_root_conftest(tmp_path: Path)
                 env=environment,
                 capture_output=True,
                 text=True,
-                timeout=30,
+                timeout=60 if capture == "no" else 30,  # The positive child runs the covered test.
                 check=False,
             )
         except subprocess.TimeoutExpired as timeout:
@@ -9480,7 +9480,7 @@ def test_test_pr_contract_capture_preserves_timeout_output_and_primary_failure(
     import stat
     import sys
 
-    timeout = subprocess.TimeoutExpired([], 30, output=partial_stdout, stderr=partial_stderr)
+    timeout = subprocess.TimeoutExpired([], 60, output=partial_stdout, stderr=partial_stderr)
     calls: list[str] = []
 
     def observe_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
@@ -9529,7 +9529,7 @@ def test_test_pr_contract_capture_preserves_timeout_output_and_primary_failure(
             "env": expected_environment,
             "capture_output": True,
             "text": True,
-            "timeout": 30,
+            "timeout": 60 if capture == "no" else 30,
             "check": False,
         }
         calls.append(capture)
