@@ -20,6 +20,10 @@ ARG SQLITE_AUTOCONF_SHA3_256_PART_8="1b72983b"
 # Exact SDK target family; default and runtime Python keep their existing amd64 pin.
 ARG PSYCOPG_SDK_PYTHON_IMAGE="python@sha256:7a6b87c02e1f4d6bb572e379235cbbdd7892add0572442c9b0b860a3f5aa9857"
 
+# Compose supplies the same four verified inputs when the checkout has no source cache.
+FROM scratch AS sdk-source-archives
+COPY build/docker-sources/zlib-71747d1d39168833e0cae8ed84b8ce77cb049699.tar.gz build/docker-sources/ncurses-snapshots-dc909d77781ef5c2a0684e9ad9eb9f0c0baf5ecc.tar.gz build/docker-sources/openssl-3.5.9.tar.gz build/docker-sources/postgresql-18.6.tar.gz /input/native/
+
 FROM ${PSYCOPG_SDK_PYTHON_IMAGE} AS native-builder
 ARG PSYCOPG_SDK_PYTHON_IMAGE
 COPY scripts/ci/install_locked_python_requirements.py /tooling/scripts/ci/
@@ -28,7 +32,7 @@ RUN python -I -c 'import os, sys; sys.path.insert(0, "/tooling/scripts/ci"); fro
     && apt-get install -y --no-install-recommends build-essential bison flex ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 COPY scripts/ci/docker_source_artifacts.json scripts/ci/fetch_docker_source_artifacts.py /tooling/scripts/ci/
-COPY build/docker-sources/zlib-71747d1d39168833e0cae8ed84b8ce77cb049699.tar.gz build/docker-sources/ncurses-snapshots-dc909d77781ef5c2a0684e9ad9eb9f0c0baf5ecc.tar.gz build/docker-sources/openssl-3.5.9.tar.gz build/docker-sources/postgresql-18.6.tar.gz /input/native/
+COPY --from=sdk-source-archives /input/native/ /input/native/
 RUN --network=none python - <<'PY'
 import sys
 sys.path.insert(0, "/tooling/scripts/ci")

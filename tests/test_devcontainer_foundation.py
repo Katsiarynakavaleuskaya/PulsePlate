@@ -303,6 +303,115 @@ def test_devcontainer_sdk_artifacts_keep_source_build_and_auth_in_the_producer()
         assert root["services"][service]["platform"] == "linux/amd64"
 
 
+def test_direct_devcontainer_build_supplies_the_four_verified_sdk_archives() -> None:
+    """A clean checkout provides the original SDK inputs before the native stage runs."""
+    config = json.loads((DEVCONTAINER_DIR / "devcontainer.json").read_text())
+    assert config["dockerComposeFile"] == ["docker-compose.source-inputs.yml"]
+    source_config = yaml.safe_load((DEVCONTAINER_DIR / config["dockerComposeFile"][0]).read_text())
+    base_config = yaml.safe_load((DEVCONTAINER_DIR / "docker-compose.devcontainer.yml").read_text())
+    services = source_config["services"]
+    assert set(services) == {"devcontainer", "sdk-source-inputs", "native-sdk-artifacts"}
+    assert services["devcontainer"] == {
+        "extends": {"file": "docker-compose.devcontainer.yml", "service": "devcontainer"}
+    }
+    assert source_config["secrets"] == {"pp_netrc": base_config["secrets"]["pp_netrc"]}
+    assert source_config["volumes"] == base_config["volumes"]
+    source = services["sdk-source-inputs"]
+    assert set(source) == {"platform", "build", "deploy"}
+    assert source["platform"] == "linux/amd64" and source["deploy"] == {"replicas": 0}
+    assert set(source["build"]) == {"context", "dockerfile_inline"}
+    assert source["build"]["context"] == ".."
+
+    manifest = json.loads((REPO_ROOT / "scripts/ci/docker_source_artifacts.json").read_text())
+    names = {"zlib", "ncurses", "openssl", "postgresql"}
+    filenames = {a["filename"] for a in manifest["artifacts"] if a["name"] in names}
+    assert len(filenames) == len(names)
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text()
+    sdk_base = re.search(r'^ARG PSYCOPG_SDK_PYTHON_IMAGE="([^"]+)"$', dockerfile, re.MULTILINE)
+    assert sdk_base is not None
+    recipe = source["build"]["dockerfile_inline"].splitlines()
+    assert recipe[:4] == [
+        f"FROM {sdk_base[1]} AS fetch",
+        "COPY scripts/ci/docker_source_artifacts.json scripts/ci/fetch_docker_source_artifacts.py "
+        "/tooling/scripts/ci/",
+        "RUN python -I /tooling/scripts/ci/fetch_docker_source_artifacts.py "
+        "--manifest /tooling/scripts/ci/docker_source_artifacts.json --output-dir /verified",
+        "FROM scratch",
+    ]
+    assert len(recipe) == 5
+    exported = shlex.split(recipe[4])
+    assert exported[:2] == ["COPY", "--from=fetch"] and exported[-1] == "/input/native/"
+    assert sorted(exported[2:-1]) == sorted(f"/verified/{name}" for name in filenames)
+
+    ordinary = dockerfile.split("FROM scratch AS sdk-source-archives\n", 1)[1].split("\nFROM ", 1)[
+        0
+    ]
+    local_copy = shlex.split(ordinary.strip())
+    assert local_copy[0] == "COPY" and local_copy[-1] == "/input/native/"
+    assert sorted(local_copy[1:-1]) == sorted(f"build/docker-sources/{name}" for name in filenames)
+    native = dockerfile.split(" AS native-builder\n", 1)[1].split("\nFROM ", 1)[0]
+    assert (
+        native.index("COPY --from=sdk-source-archives /input/native/ /input/native/")
+        < native.index("validate_source_payload(record, payload)")
+        < native.index("archive.extractall(")
+    )
+
+    # The credential-free proxy is already selected by the repository's dependency owner.
+    proxy = yaml.safe_load((REPO_ROOT / ".github/dependabot.yml").read_text())["registries"][
+        "python-index"
+    ]["url"]
+    base_sdk = base_config["services"]["native-sdk-artifacts"]
+    assert services["native-sdk-artifacts"] == {
+        **base_sdk,
+        "build": {
+            **base_sdk["build"],
+            "additional_contexts": {"sdk-source-archives": "service:sdk-source-inputs"},
+            "args": {"PULSEPLATE_PYTHON_INDEX_URL": proxy},
+            "secrets": ["pp_netrc"],
+        },
+    }
+
+
+def test_devcontainer_source_fetch_refuses_a_stale_manifest_before_creating_output(
+    tmp_path: Path,
+) -> None:
+    """Execute the staged fetch command from an empty context with a rejected manifest."""
+    config = json.loads((DEVCONTAINER_DIR / "devcontainer.json").read_text())
+    source_config = yaml.safe_load((DEVCONTAINER_DIR / config["dockerComposeFile"][0]).read_text())
+    recipe = source_config["services"]["sdk-source-inputs"]["build"][
+        "dockerfile_inline"
+    ].splitlines()
+    command = shlex.split(next(line for line in recipe if line.startswith("RUN ")))
+    _, _, isolated, program, manifest_flag, manifest_path, output_flag, output_path = command
+    native_cli = tmp_path / program.lstrip("/")
+    native_cli.parent.mkdir(parents=True)
+    shutil.copy(REPO_ROOT / "scripts/ci/fetch_docker_source_artifacts.py", native_cli)
+    manifest = json.loads((REPO_ROOT / "scripts/ci/docker_source_artifacts.json").read_text())
+    manifest["review_by"] = "2000-01-01"
+    staged_manifest = tmp_path / manifest_path.lstrip("/")
+    staged_manifest.write_text(json.dumps(manifest))
+    output = tmp_path / output_path.lstrip("/")
+
+    rejected = subprocess.run(
+        [
+            sys.executable,
+            isolated,
+            str(native_cli),
+            manifest_flag,
+            str(staged_manifest),
+            output_flag,
+            str(output),
+        ],
+        cwd=tmp_path,
+        env={"PATH": os.defpath, "HOME": str(tmp_path)},
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+    assert rejected.returncode != 0 and "review_by is stale: 2000-01-01" in rejected.stderr
+    assert not output.exists()
+
+
 def test_root_development_consumes_prefetched_sdk_offline_and_provides_make() -> None:
     dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
     development = dockerfile.split("FROM runtime-base AS development\n", 1)[1]
@@ -452,7 +561,7 @@ def _standalone_bootstrap_fixture(tmp_path: Path) -> tuple[Path, dict[str, str],
 def test_host_native_sources_prerequisite_hands_off_only_to_canonical_fetcher(
     tmp_path: Path, override_interpreter: bool
 ) -> None:
-    """Prove the documented pre-Reopen Make transport; owning fetcher tests prove verification."""
+    """Exercise the explicit Make source transport used by dc-up on the host."""
     guide = (
         (REPO_ROOT / "CONTRIBUTING.md")
         .read_text()
@@ -462,7 +571,7 @@ def test_host_native_sources_prerequisite_hands_off_only_to_canonical_fetcher(
     assert (
         guide.index("from a reviewed/trusted checkout")
         < guide.index("make docker-source-artifacts")
-        < guide.index("Dev Containers: Reopen in Container")
+        < guide.index("make dc-up")
     )
     fixture, environment, log = _standalone_bootstrap_fixture(tmp_path)
     control = Path(environment["PATH"].split(os.pathsep)[0])

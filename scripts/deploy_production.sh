@@ -536,7 +536,7 @@ validate_postgres_contract_files() {
 }
 
 PROMETHEUS_CONTRACT_HELPER="${PROMETHEUS_CONTRACT_HELPER:-${DEPLOY_DIR}/scripts/ci/prometheus_source_image.py}"
-PROMETHEUS_CONTRACT_HELPER_SHA256="caeef6254bb44aa0a1ac54c069e0f88c095d91bd17da1adc568c0d57d400e858" # pragma: allowlist secret - public source digest
+PROMETHEUS_CONTRACT_HELPER_SHA256="d0f7521da2323e91fe289dfc58a16ba03b9dde4c83411eb09ef2dca25d045aa6" # pragma: allowlist secret - public source digest
 readonly PROMETHEUS_CONTRACT_HELPER PROMETHEUS_CONTRACT_HELPER_SHA256
 
 run_trusted_contract() {
@@ -601,7 +601,7 @@ import stat
 import sys
 
 manifest_path = sys.argv[1]
-expected_file_sha256 = "9aa310913af9799c39182428e0170b173fe2144367b302d7d2cafd87c93c03b2"  # pragma: allowlist secret
+expected_file_sha256 = "2583671c942aa7dead7047631e68992bdd8c301c3e76a83ea21a24cc6fa1a3d0"  # pragma: allowlist secret
 expected_keys = set(
     """
     schema repository tag platform platform_manifest_digest config_digest runtime_ref
@@ -627,17 +627,17 @@ expected_keys = set(
 expected_values = {
     "schema": "pulseplate.postgres_pgvector_image_manifest.v1",
     "repository": "ghcr.io/katsiarynakavaleuskaya/pulseplate",
-    "tag": "postgres-15.19-pgvector0.8.6-alpine3.23",
+    "tag": "postgres-15.20-pgvector0.8.6-alpine3.23",
     "platform": "linux/amd64",
-    "platform_manifest_digest": "sha256:d4437ad4970b4099e4cb7d05b7fa625c7e6959949d1374f1f2d4bd4149ae5fa3",
-    "config_digest": "sha256:643c5c00d70c37d83a0ab6db8b0996e4c03fb82c4769a45b03eef0cf3ee2abd5",
+    "platform_manifest_digest": "sha256:5b81202040bbcfbf4fc29ee32c6e6a8c824c27c50aa41c80e62418c5c2ec3adc",
+    "config_digest": "sha256:65d34d5f6a34bc6c365b3b326bfa593bdd43adbed1ece14c9b63171ba586004b",
     "runtime_user": "70",
     "runtime_entrypoint": "/usr/local/bin/docker-entrypoint.sh",
     "runtime_default_pgdata": "/var/lib/postgresql/15/data",
     "compose_pgdata": "/var/lib/postgresql/data",
     "compose_volume_target": "/var/lib/postgresql/data",
     "postgres_major": "15",
-    "postgres_version": "15.19",
+    "postgres_version": "15.20",
     "pgvector_version": "0.8.6",
     "mountpoint_layer_schema": "pulseplate.pgvector_mountpoint_layer.v1",
     "mountpoint_layer_digest": "sha256:4c539aa857412d283fe8d55b40227fbd17b9fd6f06834f81fd98ec6796ee7396",
@@ -914,14 +914,21 @@ if type(payload) is not list or len(payload) != 1 or type(payload[0]) is not dic
     raise SystemExit("PostgreSQL image inspect must return exactly one image")
 record = payload[0]
 image_id = record.get("Id")
-if sys.argv[3] == "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@sha256:d4437ad4970b4099e4cb7d05b7fa625c7e6959949d1374f1f2d4bd4149ae5fa3":
+if sys.argv[3] == "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.20-pgvector0.8.6-alpine3.23@sha256:5b81202040bbcfbf4fc29ee32c6e6a8c824c27c50aa41c80e62418c5c2ec3adc":
+    expected_config = "sha256:65d34d5f6a34bc6c365b3b326bfa593bdd43adbed1ece14c9b63171ba586004b"
+    expected_platform = "sha256:5b81202040bbcfbf4fc29ee32c6e6a8c824c27c50aa41c80e62418c5c2ec3adc"
+    expected_base = "sha256:ac5f0af144f2123cfb0fd89d9e38843ece6bfaef6bb7240d9ed7e6da88565325"
+    expected_minor = "20"
+elif sys.argv[3] == "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@sha256:d4437ad4970b4099e4cb7d05b7fa625c7e6959949d1374f1f2d4bd4149ae5fa3":
     expected_config = "sha256:643c5c00d70c37d83a0ab6db8b0996e4c03fb82c4769a45b03eef0cf3ee2abd5"
     expected_platform = "sha256:d4437ad4970b4099e4cb7d05b7fa625c7e6959949d1374f1f2d4bd4149ae5fa3"
     expected_base = "sha256:3a241134f6d82eb6465622af948258e41806cfb4497e6c8f0f0a64ca6c4d34db"
+    expected_minor = "19"
 elif sys.argv[3] == "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380":
     expected_config = "sha256:c822c68e22d0358e66cee17e06f7b3ece5d1538cb8b607c1376b59620866ceff"
     expected_platform = "sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380"
     expected_base = "sha256:d94fee7e5e98fcb5cd58db6ad96fc6aa844f1af6dd56aba1f87d9f8e57a7a16d"
+    expected_minor = "19"
 else:
     raise SystemExit("PostgreSQL image reference is outside the closed transition set")
 if sys.argv[1] != expected_platform:
@@ -942,7 +949,7 @@ environment = config.get("Env")
 required_environment = {
     "PGDATA": "/var/lib/postgresql/15/data",
     "PG_MAJOR": "15",
-    "PG_MINOR": "19",
+    "PG_MINOR": expected_minor,
 }
 
 if (
@@ -2478,10 +2485,11 @@ validate_existing_postgres_image_identity() {
         echo "❌ Existing legacy PostgreSQL image ID does not match the frozen predecessor" >&2
         return 1
       fi
+      printf '%s\n' 150019
       ;;
     "$POSTGRES_RUNTIME_REF")
       local platform_image_id="${POSTGRES_RUNTIME_REF##*@}"
-      if [ "$image_id" = "sha256:643c5c00d70c37d83a0ab6db8b0996e4c03fb82c4769a45b03eef0cf3ee2abd5" ] || \
+      if [ "$image_id" = "sha256:65d34d5f6a34bc6c365b3b326bfa593bdd43adbed1ece14c9b63171ba586004b" ] || \
          [ "$image_id" = "$platform_image_id" ]; then
         if validate_postgres_image_metadata \
             "$POSTGRES_RUNTIME_REF" "$POSTGRES_RUNTIME_REF" "$image_id" 2>/dev/null; then
@@ -2494,21 +2502,16 @@ validate_existing_postgres_image_identity() {
         echo "❌ Existing current PostgreSQL image ID does not match the frozen candidate" >&2
         return 1
       fi
+      printf '%s\n' 150020
       ;;
-    "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380")
-      if [ "$image_id" = "sha256:c822c68e22d0358e66cee17e06f7b3ece5d1538cb8b607c1376b59620866ceff" ] || \
-         [ "$image_id" = "sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380" ]; then
-        if validate_postgres_image_metadata \
-            "$configured_image" "$configured_image" "$image_id" 2>/dev/null; then
-          :
-        else
-          echo "Existing prior PostgreSQL image metadata is not the frozen predecessor" >&2
-          return 1
-        fi
-      else
-        echo "Existing prior PostgreSQL image ID does not match the frozen predecessor" >&2
+    "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@sha256:d4437ad4970b4099e4cb7d05b7fa625c7e6959949d1374f1f2d4bd4149ae5fa3" | \
+      "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380")
+      if [ -z "$image_id" ] || ! validate_postgres_image_metadata \
+          "$configured_image" "$configured_image" "$image_id" 2>/dev/null; then
+        echo "Existing prior PostgreSQL image metadata is not the frozen predecessor" >&2
         return 1
       fi
+      printf '%s\n' 150019
       ;;
     *)
       echo "❌ Existing PostgreSQL configured image is outside the closed transition set" >&2
@@ -2519,31 +2522,35 @@ validate_existing_postgres_image_identity() {
 
 read_existing_postgres_runtime_state() {
   local container_id="$1"
+  local expected_server_version="$2"
   "$DOCKER_BIN" exec "$container_id" sh -ec '
 postgres_uid="$(id -u postgres)"
 server_version_num="$(psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --tuples-only --no-align --quiet --command "SHOW server_version_num")"
 data_directory="$(psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --tuples-only --no-align --quiet --command "SHOW data_directory")"
 test "$postgres_uid" = "70"
-test "$server_version_num" = "150019"
+test "$server_version_num" = "$1"
 test "$data_directory" = "/var/lib/postgresql/data"
 printf "%s\t%s\t%s\n" "$postgres_uid" "$server_version_num" "$data_directory"
-'
+' sh "$expected_server_version"
 }
 
 assert_existing_postgres_unchanged() {
   local expected_state="$1"
   local expected_runtime="$2"
-  local current_container=""
+  local expected_server_version="$3"
+  local current_container current_state current_runtime
   current_container="$(dc ps -q postgres | tr -d '\r')"
   if [ -z "$current_container" ] || [[ "$current_container" == *$'\n'* ]]; then
     echo "❌ Existing PostgreSQL container identity changed during transition" >&2
     return 1
   fi
-  if [ "$(read_existing_postgres_state "$current_container")" != "$expected_state" ]; then
+  if ! current_state="$(read_existing_postgres_state "$current_container")" || \
+      [ "$current_state" != "$expected_state" ]; then
     echo "❌ Existing PostgreSQL container/image/volume identity drifted" >&2
     return 1
   fi
-  if [ "$(read_existing_postgres_runtime_state "$current_container")" != "$expected_runtime" ]; then
+  if ! current_runtime="$(read_existing_postgres_runtime_state "$current_container" "$expected_server_version")" || \
+      [ "$current_runtime" != "$expected_runtime" ]; then
     echo "❌ Existing PostgreSQL runtime identity drifted" >&2
     return 1
   fi
@@ -3085,8 +3092,8 @@ if [ "$PRODUCTION_DB_TOPOLOGY" = "self-hosted" ]; then
     postgres_state_receipt="$(read_existing_postgres_state "$postgres_container_raw")"
     IFS=$'\t' read -r postgres_container postgres_image_id postgres_configured_image \
       postgres_pgdata postgres_volume <<< "$postgres_state_receipt"
-    validate_existing_postgres_image_identity "$postgres_image_id" "$postgres_configured_image"
-    postgres_runtime_receipt="$(read_existing_postgres_runtime_state "$postgres_container")"
+    postgres_server_version="$(validate_existing_postgres_image_identity "$postgres_image_id" "$postgres_configured_image")"
+    postgres_runtime_receipt="$(read_existing_postgres_runtime_state "$postgres_container" "$postgres_server_version")"
     if [ "$postgres_volume" != "$POSTGRES_VOLUME_NAME" ]; then
       echo "❌ Existing PostgreSQL volume does not match rendered Compose identity" >&2
       exit 1
@@ -3104,7 +3111,7 @@ if [ "$PRODUCTION_DB_TOPOLOGY" = "self-hosted" ]; then
   fi
 
   if [ "$postgres_transition" = "existing" ]; then
-    if assert_existing_postgres_unchanged "$postgres_state_receipt" "$postgres_runtime_receipt"; then
+    if assert_existing_postgres_unchanged "$postgres_state_receipt" "$postgres_runtime_receipt" "$postgres_server_version"; then
       :
     else
       identity_status=$?
@@ -3133,7 +3140,7 @@ if [ "$PRODUCTION_DB_TOPOLOGY" = "self-hosted" ]; then
       echo "❌ PostgreSQL backup receipt validation failed; captured product writers remain quiesced" >&2
       exit "$receipt_status"
     fi
-    if assert_existing_postgres_unchanged "$postgres_state_receipt" "$postgres_runtime_receipt"; then
+    if assert_existing_postgres_unchanged "$postgres_state_receipt" "$postgres_runtime_receipt" "$postgres_server_version"; then
       :
     else
       identity_status=$?

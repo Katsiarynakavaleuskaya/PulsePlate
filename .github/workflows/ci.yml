@@ -880,7 +880,7 @@ jobs:
         if: github.event_name == 'pull_request' && steps.checkpoint-selection.outputs.selected == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: 2ebe53024febe8e026c4a1f1e056f19482f0fca9 # pragma: allowlist secret - public trusted control commit
+          ref: &prometheus_test_revision 2ebe53024febe8e026c4a1f1e056f19482f0fca9 # pragma: allowlist secret - public trusted control commit
           persist-credentials: false
           path: artifacts/orchestration/prometheus-control
           sparse-checkout: scripts/ci/prometheus_source_image.py
@@ -1062,7 +1062,8 @@ jobs:
                   and pr["head"].get("sha") == head and pr["base"].get("sha") == base):
               raise SystemExit("Prometheus_material_revision_HOLD")
           seconds, cleanup = int(os.environ["PROMETHEUS_SELECT_SECONDS"]), int(os.environ["PROMETHEUS_CLEANUP_SECONDS"])
-          reserved_minutes = 87 + int(os.environ["ALERTMANAGER_GENERIC_NATIVE_MINUTES"]) + int(os.environ["ALERTMANAGER_LINT_CHECK_MINUTES"])
+          # The fixed caps include two minutes to prepare the pinned controller object.
+          reserved_minutes = 89 + int(os.environ["ALERTMANAGER_GENERIC_NATIVE_MINUTES"]) + int(os.environ["ALERTMANAGER_LINT_CHECK_MINUTES"])
           if int(os.environ["ALERTMANAGER_JOB_TIMEOUT_MINUTES"]) < reserved_minutes:
               raise SystemExit("Prometheus_selection_enclosing_budget_HOLD")
           if seconds != 60 or cleanup != 120:
@@ -1229,6 +1230,26 @@ jobs:
           set -euo pipefail
           restored_sha="$(git rev-parse HEAD)"
           test "$restored_sha" = "$GITHUB_SHA"
+
+      - &prepare_prometheus_test_control
+        name: Prepare pinned Prometheus Git object for tests
+        timeout-minutes: 2
+        shell: bash
+        env:
+          CONTROLLER_SHA: *prometheus_test_revision
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_NO_REPLACE_OBJECTS: "1"
+        run: |
+          set -euo pipefail
+          [[ "$CONTROLLER_SHA" =~ ^[0-9a-f]{40}$ ]]
+          if ! git cat-file -e "$CONTROLLER_SHA^{commit}" 2>/dev/null; then
+            git -c credential.helper= -c http.extraHeader= -c http.https://github.com/.extraHeader= \
+              -c http.followRedirects=false fetch --no-tags --no-recurse-submodules \
+              --no-write-fetch-head --no-auto-maintenance \
+              https://github.com/Katsiarynakavaleuskaya/PulsePlate.git "$CONTROLLER_SHA"
+          fi
+          resolved="$(git rev-parse --verify --end-of-options "$CONTROLLER_SHA^{commit}")"
+          test "$resolved" = "$CONTROLLER_SHA"
 
       - name: Setup Python environment
         timeout-minutes: 20
@@ -3026,6 +3047,8 @@ jobs:
         with:
           fetch-depth: 0
 
+      - *prepare_prometheus_test_control
+
       - name: Resolve PR diagnostic package proxy
         if: github.event_name == 'pull_request'
         env:
@@ -3913,7 +3936,7 @@ jobs:
       fail-fast: false
       matrix:
         family: [iphone, ipad]
-    # Sequential caps total 35m with 10m nominal setup/diagnostic headroom.
+    # iPad sequential caps total 37m; iPhone remains 35m within the same 45m job.
     timeout-minutes: 45
     if: |
       needs.changes.outputs.ios == 'true' && (
@@ -4021,6 +4044,8 @@ jobs:
           DEVELOPER_DIR: ${{ steps.select-xcode.outputs.developer_dir }}
           UI_SMOKE_FOREGROUND_TIMEOUT_SECONDS: "90"
           IOS_UI_SMOKE_BUILD_TIMEOUT_SECONDS: 900
+          SIM_BOOT_TIMEOUT_SECONDS: ${{ matrix.family == 'ipad' && '420' || '300' }}
+          SIM_BOOT_DIAGNOSTIC_TIMEOUT_SECONDS: "30"
         run: |
           set -euo pipefail
 
@@ -4029,6 +4054,11 @@ jobs:
 
           if [ -z "$DESTINATION" ]; then
             echo "::error::DESTINATION is empty"
+            exit 1
+          fi
+
+          if [ -z "$UDID" ]; then
+            echo "::error::UDID is empty"
             exit 1
           fi
 
@@ -4047,7 +4077,6 @@ jobs:
             echo "=== Booting simulator ==="
             echo "Booting simulator: $UDID"
             xcrun simctl boot "$UDID" || true
-            export SIM_BOOT_TIMEOUT_SECONDS="${SIM_BOOT_TIMEOUT_SECONDS:-300}"
             echo "Waiting for simulator to be ready (timeout: ${SIM_BOOT_TIMEOUT_SECONDS}s)..."
             python3 - << 'PY'
           import os
@@ -4057,27 +4086,39 @@ jobs:
           udid = os.environ.get("UDID", "")
           try:
               timeout_s = int(os.environ["SIM_BOOT_TIMEOUT_SECONDS"])
-          except KeyError:
-              print(
-                  "::error::SIM_BOOT_TIMEOUT_SECONDS is not set (single-source timeout policy).",
-                  file=sys.stderr,
-              )
+              diagnostic_timeout_s = int(os.environ["SIM_BOOT_DIAGNOSTIC_TIMEOUT_SECONDS"])
+              if timeout_s <= 0 or diagnostic_timeout_s <= 0:
+                  raise ValueError("nonpositive timeout")
+          except (KeyError, ValueError):
+              print("::error::Simulator timeout inputs must be positive integers", file=sys.stderr)
               sys.exit(2)
 
           if not udid:
               print("::error::UDID is empty", file=sys.stderr)
               sys.exit(1)
 
+          failure = None
           try:
               subprocess.run(["xcrun", "simctl", "bootstatus", udid, "-b"], timeout=timeout_s, check=True)
           except subprocess.TimeoutExpired:
               print(f"::error::Simulator not ready after {timeout_s}s (bootstatus timeout)", file=sys.stderr)
-              subprocess.run(["xcrun", "simctl", "list", "devices"], check=False)
-              sys.exit(1)
+              failure = 1
           except subprocess.CalledProcessError as e:
               print("::error::Simulator bootstatus failed", file=sys.stderr)
-              subprocess.run(["xcrun", "simctl", "list", "devices"], check=False)
-              sys.exit(e.returncode)
+              failure = e.returncode
+
+          if failure is not None:
+              try:
+                  subprocess.run(
+                      ["xcrun", "simctl", "list", "devices"],
+                      timeout=diagnostic_timeout_s, check=False,
+                  )
+              except (subprocess.TimeoutExpired, OSError) as diagnostic_error:
+                  print(
+                      f"::warning::Simulator diagnostics unavailable: {type(diagnostic_error).__name__}",
+                      file=sys.stderr,
+                  )
+              sys.exit(failure)
           PY
 
             echo "✓ Simulator booted and ready"

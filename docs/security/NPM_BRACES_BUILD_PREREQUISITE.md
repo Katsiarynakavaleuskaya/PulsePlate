@@ -1,5 +1,52 @@
 # npm:braces frontend build prerequisite
 
+## Main integration evidence — 2026-11-19
+
+Base: `2d1df880c8ac2fb1ea53bf09836905194fb47121`. Only Tailwind 4.3.3,
+its PostCSS plugin 4.3.3 and tailwind-merge 3.7.0 are new authored inputs
+(`frontend/package.json:52`, `:61`, `:84`). Main security versions, overrides
+and the other three npm surfaces are preserved. Original four-advisory
+cutoff and BRACES-BUILD/v1.0 B01–B09 remain separate from this material epoch.
+
+The historical base48 transaction records 89 JSON-pointer transitions (13/76).
+The new transaction records **77 whole-package-record changes**: four authored
+projections (root plus three targets) and 73 independently replayed closure
+records; the lock inventory changes from 710 to 683 records, including root.
+These are different units. Two exact-main seeded Node24.22.1/npm11.19.1
+lock-only runs exited0 with byte-identical outputs; offline
+`npm ls --all --package-lock-only --json --offline` exited0 with 1,149 graph
+occurrences and no reported problems. No braces lock node remains.
+Lock SHA-256: `bdd503aca2771982c54dbc7c282fe728c1a9361d0ddd9597c72fedddece7e556`.
+Inputs, full argv/delta and receipts: ignored `main-sync-20261118/resolver-*`
+evidence under the artifact root defined below.
+
+On that pair, genuine npm ci passed; incumbent Redocly apply/verify then failed
+with `Redocly compatibility: bundleDependencies opaque graph forbidden`.
+The corrected helper SHA-256 `f2d023842e4b4c5c51413fbf54f0d94fe5f7b7db93df15660f696704aac3ae2c`
+subsequently passed apply, verify and idempotent reapply with unchanged target
+bytes. Type generation preserved both schema files; typecheck/production build,
+CSS smoke, **57 Vitest cases** and **one Chromium forced-color radio case**
+passed; full browser/Storybook gates remain pending. Failure and correction
+receipts: `main-sync-20261118/native-frontend/`.
+
+The paired current-main and candidate watch probes both received two add events
+but generated no new unimported-file137px CSS in direct or browser observations;
+both probes exited1. This is an observed shared fixture limitation, not a PASS
+or general HMR parity. The successful historical existing-Home HMR observation
+retains its old source binding and does not close this scenario.
+
+Pure integration:15 paths versus published17; final repair/mapping count is separate.
+Catalog/Docker contract equal main: ten records, review-by2026-11-30 and the
+ncurses signed-tag binding (`scripts/ci/docker_source_artifacts.json:4`).
+This supersedes the October30 extension without renewing other exceptions.
+
+Complete #2495 before CAB-07C #2484. Its original20 paths are historical;
+two later owner-approved iOS dependency updates require separate checks.
+C01–C14 and macOS/iOS evidence remain separate. Local/CI/security/review,
+authorized merge and post-merge proof remain required; original DoD stays open.
+
+## Historical publication checkpoint — 2026-10-22
+
 Status at the recorded **2026-10-22T22:56:56Z** coordinator cutoff:
 [PR #2495](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2495)
 was published at `efb261c668e0fdd25a006b69a8d2b9b19475673c`. The meaningful
@@ -44,7 +91,8 @@ without pretending that an old Oracle/local receipt is a fresh seal.
 Remove `npm:braces` through the admitted frontend build-parent migration while
 preserving the existing UI/CSS, token imports, class-merge behavior and the
 accepted Safari 16.4+, Chrome 111+, Firefox 128+ support contract. The separate
-CAB-07C PR #2484 retains its 20-path scope and original C01–C14 criteria.
+CAB-07C PR #2484 retains original C01–C14; its initial 20-path scope now has
+two subsequently owner-approved iOS dependency updates, with separate validation.
 
 The governing packet is `01ea883bb040`, with accepted criteria
 `BRACES-BUILD/v1.0` B01–B09. The owner admitted one start from the exact base
@@ -692,6 +740,9 @@ commits or replaying successful acquire/A/B or paid validation merely for
 this documentation record.
 
 ## Bounded Docker source review deadline extension — 2026-10-23
+
+Historical exception: the later main source qualification now owns the
+November 30 review boundary described above. This old permission is not renewed.
 
 The human owner directly requested a temporary Docker manifest deadline extension
 so this substantive PR can finish. The coordinator selected **2026-10-30

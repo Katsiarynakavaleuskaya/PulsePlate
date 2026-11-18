@@ -948,14 +948,14 @@ def test_deploy_relative_directory_reaches_verified_helper_without_product_mutat
 
 
 POSTGRES_RUNTIME_REF = (
-    "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@"
-    "sha256:d4437ad4970b4099e4cb7d05b7fa625c7e6959949d1374f1f2d4bd4149ae5fa3"
+    "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.20-pgvector0.8.6-alpine3.23@"
+    "sha256:5b81202040bbcfbf4fc29ee32c6e6a8c824c27c50aa41c80e62418c5c2ec3adc"
 )
 POSTGRES_PLATFORM_MANIFEST_DIGEST = (
-    "sha256:d4437ad4970b4099e4cb7d05b7fa625c7e6959949d1374f1f2d4bd4149ae5fa3"
+    "sha256:5b81202040bbcfbf4fc29ee32c6e6a8c824c27c50aa41c80e62418c5c2ec3adc"
 )
-POSTGRES_CONFIG_DIGEST = "sha256:643c5c00d70c37d83a0ab6db8b0996e4c03fb82c4769a45b03eef0cf3ee2abd5"
-POSTGRES_BASE_DIGEST = "sha256:3a241134f6d82eb6465622af948258e41806cfb4497e6c8f0f0a64ca6c4d34db"
+POSTGRES_CONFIG_DIGEST = "sha256:65d34d5f6a34bc6c365b3b326bfa593bdd43adbed1ece14c9b63171ba586004b"
+POSTGRES_BASE_DIGEST = "sha256:ac5f0af144f2123cfb0fd89d9e38843ece6bfaef6bb7240d9ed7e6da88565325"
 POSTGRES_PRIOR_PLATFORM_DIGEST = (
     "sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380"
 )
@@ -969,6 +969,39 @@ POSTGRES_PRIOR_RUNTIME_REF = (
     "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@"
     + POSTGRES_PRIOR_PLATFORM_DIGEST
 )
+POSTGRES_LAST_PLATFORM_DIGEST = (
+    "sha256:d4437ad4970b4099e4cb7d05b7fa625c7e6959949d1374f1f2d4bd4149ae5fa3"
+)
+POSTGRES_LAST_CONFIG_DIGEST = (
+    "sha256:643c5c00d70c37d83a0ab6db8b0996e4c03fb82c4769a45b03eef0cf3ee2abd5"
+)
+POSTGRES_LAST_BASE_DIGEST = (
+    "sha256:3a241134f6d82eb6465622af948258e41806cfb4497e6c8f0f0a64ca6c4d34db"
+)
+POSTGRES_LAST_RUNTIME_REF = (
+    "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@"
+    + POSTGRES_LAST_PLATFORM_DIGEST
+)
+POSTGRES_DERIVED_IMAGES = {
+    "prior": (
+        POSTGRES_PRIOR_RUNTIME_REF,
+        POSTGRES_PRIOR_PLATFORM_DIGEST,
+        POSTGRES_PRIOR_CONFIG_DIGEST,
+        POSTGRES_PRIOR_BASE_DIGEST,
+    ),
+    "last": (
+        POSTGRES_LAST_RUNTIME_REF,
+        POSTGRES_LAST_PLATFORM_DIGEST,
+        POSTGRES_LAST_CONFIG_DIGEST,
+        POSTGRES_LAST_BASE_DIGEST,
+    ),
+    "current": (
+        POSTGRES_RUNTIME_REF,
+        POSTGRES_PLATFORM_MANIFEST_DIGEST,
+        POSTGRES_CONFIG_DIGEST,
+        POSTGRES_BASE_DIGEST,
+    ),
+}
 FAKE_PROMETHEUS_COMPOSE_JSON = json.dumps(
     {
         "services": {
@@ -1087,7 +1120,7 @@ FAKE_POSTGRES_IMAGE_INSPECT_JSON = json.dumps(
                 "Env": [
                     "PGDATA=/var/lib/postgresql/15/data",
                     "PG_MAJOR=15",
-                    "PG_MINOR=19",
+                    "PG_MINOR=20",
                 ],
                 "Labels": {
                     "com.pulseplate.pgvector.version": "0.8.6",
@@ -1095,7 +1128,7 @@ FAKE_POSTGRES_IMAGE_INSPECT_JSON = json.dumps(
                         "8ee86c96f0fd72390f890aa8a336fda6d3ab4c6c"
                     ),
                     "com.pulseplate.postgres.base-manifest": (
-                        "sha256:3a241134f6d82eb6465622af948258e41806cfb4497e6c8f0f0a64ca6c4d34db"
+                        "sha256:ac5f0af144f2123cfb0fd89d9e38843ece6bfaef6bb7240d9ed7e6da88565325"
                     ),
                 },
             },
@@ -1453,18 +1486,18 @@ def test_postgres_pgvector_manifest_binds_reproducible_image_and_scan_contract()
     """Bind the image recipe and every deployment consumer to the same immutable subject."""
     manifest_bytes = POSTGRES_MANIFEST_PATH.read_bytes()
     assert hashlib.sha256(manifest_bytes).hexdigest() == (
-        "9aa310913af9799c39182428e0170b173fe2144367b302d7d2cafd87c93c03b2"  # pragma: allowlist secret
+        "2583671c942aa7dead7047631e68992bdd8c301c3e76a83ea21a24cc6fa1a3d0"  # pragma: allowlist secret
     )
     manifest = json.loads(manifest_bytes)
     assert manifest["schema"] == "pulseplate.postgres_pgvector_image_manifest.v1"
     assert manifest["repository"] == "ghcr.io/katsiarynakavaleuskaya/pulseplate"
-    assert manifest["tag"] == "postgres-15.19-pgvector0.8.6-alpine3.23"
+    assert manifest["tag"] == "postgres-15.20-pgvector0.8.6-alpine3.23"
     assert manifest["platform"] == "linux/amd64"
     assert manifest["platform_manifest_digest"] == POSTGRES_PLATFORM_MANIFEST_DIGEST
     assert manifest["config_digest"] == POSTGRES_CONFIG_DIGEST
     assert manifest["runtime_ref"] == POSTGRES_RUNTIME_REF
     assert manifest["source_date_epoch"] == "1785349734"
-    assert manifest["postgres_version"] == "15.19"
+    assert manifest["postgres_version"] == "15.20"
     assert manifest["pgvector_version"] == "0.8.6"
     assert manifest["runtime_user"] == "70"
     assert manifest["runtime_entrypoint"] == "/usr/local/bin/docker-entrypoint.sh"
@@ -1472,19 +1505,19 @@ def test_postgres_pgvector_manifest_binds_reproducible_image_and_scan_contract()
     assert manifest["compose_pgdata"] == "/var/lib/postgresql/data"
     assert manifest["compose_volume_target"] == "/var/lib/postgresql/data"
     assert manifest["runtime_base_platform_manifest_digest"] == (
-        "sha256:3a241134f6d82eb6465622af948258e41806cfb4497e6c8f0f0a64ca6c4d34db"
+        "sha256:ac5f0af144f2123cfb0fd89d9e38843ece6bfaef6bb7240d9ed7e6da88565325"
     )
     assert manifest["builder_base_platform_manifest_digest"] == (
-        "sha256:74cde2c2febf7d7ddacfd3d23dbc66ea0fcbc1bdb9ae4b1ed654d717d203a2a5"
+        "sha256:d518873fc4894f792f948bca16ab195f34212057dddc78ff2f0e4329469ecacd"
     )
     assert manifest["legacy_platform_manifest_digest"] == (
         "sha256:a2c20749c564b4eb73a77bfda626f8a3cde1bbfae020fb97c616a00cdc1a2181"
     )
-    assert manifest["builder_packages"] == "build-base=0.5-r3,postgresql15-dev=15.19-r0"
+    assert manifest["builder_packages"] == "build-base=0.5-r3,postgresql15-dev=15.20-r0"
     assert manifest["builder_apk_closure_count"] == "94"
     assert manifest["runtime_artifact_count"] == "64"
     assert manifest["runtime_artifact_inventory_sha256"] == (
-        "sha256:a51a19ba4c626d476611205144c79c89ccdfc136acdddb9e9eb2ef5921e8ea57"
+        "sha256:1bca0c016eec425dd0c6dfd0bf866d9f95a17cc75c88d9c1362976d32aef15a7"
     )
     assert manifest["mountpoint_layer_schema"] == "pulseplate.pgvector_mountpoint_layer.v1"
     assert manifest["mountpoint_layer_digest"] == (
@@ -1733,12 +1766,12 @@ def test_postgres_containerfile_is_exact_multistage_source_build() -> None:
     assert containerfile.count("FROM dhi.io/postgres@sha256:") == 2
     assert (
         "FROM dhi.io/postgres@sha256:"
-        "74cde2c2febf7d7ddacfd3d23dbc66ea0fcbc1bdb9ae4b1ed654d717d203a2a5 AS builder"  # pragma: allowlist secret
+        "d518873fc4894f792f948bca16ab195f34212057dddc78ff2f0e4329469ecacd AS builder"  # pragma: allowlist secret
         in containerfile
     )
     assert (
         "FROM dhi.io/postgres@sha256:"
-        "3a241134f6d82eb6465622af948258e41806cfb4497e6c8f0f0a64ca6c4d34db"  # pragma: allowlist secret
+        "ac5f0af144f2123cfb0fd89d9e38843ece6bfaef6bb7240d9ed7e6da88565325"  # pragma: allowlist secret
         in containerfile
     )
     assert "--repository /tmp/builder-apks add" in containerfile
@@ -1768,7 +1801,7 @@ def test_postgres_containerfile_is_exact_multistage_source_build() -> None:
     )
     final_stage = containerfile.split(
         "FROM dhi.io/postgres@sha256:"
-        "3a241134f6d82eb6465622af948258e41806cfb4497e6c8f0f0a64ca6c4d34db",  # pragma: allowlist secret
+        "ac5f0af144f2123cfb0fd89d9e38843ece6bfaef6bb7240d9ed7e6da88565325",  # pragma: allowlist secret
         maxsplit=1,
     )[1]
     for forbidden in ("\nRUN ", "\nUSER ", "\nENV ", "\nVOLUME ", "\nENTRYPOINT ", "\nCMD "):
@@ -2683,7 +2716,7 @@ def test_cd_postgres_candidate_is_verified_before_canonical_promotion() -> None:
     normalized_verify_run = " ".join(verify_run.replace("\\\n", " ").split())
     assert (
         "docker run --rm --platform linux/amd64 --entrypoint /usr/bin/postgres "
-        "\"$RUNTIME_REF\" --version | grep -Fx 'postgres (PostgreSQL) 15.19'"
+        "\"$RUNTIME_REF\" --version | grep -Fx 'postgres (PostgreSQL) 15.20'"
         in normalized_verify_run
     )
     assert '"$RUNTIME_REF" postgres --version' not in normalized_verify_run
@@ -2796,7 +2829,7 @@ if a[:2] == ["image", "inspect"]:
     assert a[4] in values; print(values[a[4]]); sys.exit(0)
 if a[:2] == ["run", "--rm"]:
     assert a[-1] == "--version" and "/usr/bin/postgres" in a
-    print("postgres (PostgreSQL) 15.19"); sys.exit(0)
+    print("postgres (PostgreSQL) 15.20"); sys.exit(0)
 if a[:3] == ["buildx", "imagetools", "create"]:
     assert a == ["buildx", "imagetools", "create", "--tag", os.environ["CANONICAL_TAG_REF"], os.environ["CANDIDATE_RUNTIME_REF"]]
     event("canonical-promotion"); sys.exit(0)
@@ -2804,7 +2837,7 @@ raise SystemExit(99)
 """)
     docker.chmod(0o700)
     repository = "ghcr.io/katsiarynakavaleuskaya/pulseplate"
-    tag = "postgres-15.19-pgvector0.8.6-alpine3.23"
+    tag = "postgres-15.20-pgvector0.8.6-alpine3.23"
     sha = "a" * 40
     candidate = f"{repository}:{tag}-candidate-{sha}-1-1@{POSTGRES_PLATFORM_MANIFEST_DIGEST}"
     oracle = """python3() {
@@ -3154,10 +3187,10 @@ def test_cd_postgres_pins_scout_and_binds_exact_dhi_source_subjects() -> None:
     assert '"$SCOUT_BIN" attestation get' in verify_run
     assert "--verify" in verify_run and "--skip-tlog" in verify_run
     for exact_subject in (
-        "pkg:docker/dhi/postgres@15-alpine3.23&platform=linux/amd64",
-        "3a241134f6d82eb6465622af948258e41806cfb4497e6c8f0f0a64ca6c4d34db",  # pragma: allowlist secret
-        "pkg:docker/dhi/postgres@15-alpine3.23-dev&platform=linux/amd64",
-        "74cde2c2febf7d7ddacfd3d23dbc66ea0fcbc1bdb9ae4b1ed654d717d203a2a5",  # pragma: allowlist secret
+        "pkg:docker/dhi/postgres@15.20-alpine3.23&platform=linux/amd64",
+        "ac5f0af144f2123cfb0fd89d9e38843ece6bfaef6bb7240d9ed7e6da88565325",  # pragma: allowlist secret
+        "pkg:docker/dhi/postgres@15.20-alpine3.23-dev&platform=linux/amd64",
+        "d518873fc4894f792f948bca16ab195f34212057dddc78ff2f0e4329469ecacd",  # pragma: allowlist secret
         "https://slsa.dev/provenance/v1",
     ):
         assert exact_subject in verify_run
@@ -3259,12 +3292,12 @@ def test_postgres_scout_source_statement_consumer(
     """
     identities = {
         "runtime": (
-            "pkg:docker/dhi/postgres@15-alpine3.23&platform=linux/amd64",
-            "3a241134f6d82eb6465622af948258e41806cfb4497e6c8f0f0a64ca6c4d34db",  # pragma: allowlist secret
+            "pkg:docker/dhi/postgres@15.20-alpine3.23&platform=linux/amd64",
+            "ac5f0af144f2123cfb0fd89d9e38843ece6bfaef6bb7240d9ed7e6da88565325",  # pragma: allowlist secret
         ),
         "builder": (
-            "pkg:docker/dhi/postgres@15-alpine3.23-dev&platform=linux/amd64",
-            "74cde2c2febf7d7ddacfd3d23dbc66ea0fcbc1bdb9ae4b1ed654d717d203a2a5",  # pragma: allowlist secret
+            "pkg:docker/dhi/postgres@15.20-alpine3.23-dev&platform=linux/amd64",
+            "d518873fc4894f792f948bca16ab195f34212057dddc78ff2f0e4329469ecacd",  # pragma: allowlist secret
         ),
     }
     fixtures = tmp_path / "fixtures"
@@ -4264,12 +4297,12 @@ def _write_postgres_oci_verifier_fixture(
                 "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
                 "PGDATA=/var/lib/postgresql/15/data",
                 "PG_MAJOR=15",
-                "PG_MINOR=19",
+                "PG_MINOR=20",
             ],
         },
         "rootfs": {
             "type": "layers",
-            "diff_ids": ["sha256:" + "0" * 64] * 15
+            "diff_ids": ["sha256:" + "0" * 64] * 12
             + ["sha256:" + "f" * 64 if variant == "diff-id" else layer_diff_id],
         },
     }
@@ -4289,7 +4322,7 @@ def _write_postgres_oci_verifier_fixture(
             "mediaType": "application/vnd.oci.image.config.v1+json",
             "size": len(config_bytes),
         },
-        "layers": [dummy_layer] * 15
+        "layers": [dummy_layer] * 12
         + [
             {
                 "annotations": {"buildkit/rewritten-timestamp": "1785349734"},
@@ -4934,8 +4967,6 @@ def _run_prometheus_pr_selector(
         env["GHCR_READ_TOKEN"] = "synthetic.registry.reader"
     elif outcome == "selector-missing-api":
         env.pop("GH_TOKEN")
-    elif outcome == "selector-small-budget":
-        env["ALERTMANAGER_JOB_TIMEOUT_MINUTES"] = "166"
     elif outcome == "selector-coordinate-drift":
         env["PROMETHEUS_ROUTE_BASE"] = "e" * 40
     output.write_text("")
@@ -5091,7 +5122,11 @@ def test_prometheus_cd_classifies_before_pr_code_and_binds_trusted_handoff(
         environment.pop("GH_TOKEN", None)
     if result.returncode == 0:
         result = _run_prometheus_pr_selector(
-            repository, environment, selector, output_file, budget=170
+            repository,
+            environment,
+            selector,
+            output_file,
+            budget=166 if variant == "selector-small-budget" else 170,
         )
     if result.returncode == 0:
         route = dict(line.split("=", 1) for line in output_file.read_text().splitlines())
@@ -5301,7 +5336,13 @@ def test_prometheus_ci_trusted_control_precedes_first_pr_import(
     )
     environment.pop("GH_TOKEN", None)
     if result.returncode == 0:
-        result = _run_prometheus_pr_selector(repository, environment, selector, output, budget=190)
+        result = _run_prometheus_pr_selector(
+            repository,
+            environment,
+            selector,
+            output,
+            budget=188 if variant == "selector-small-budget" else 189,
+        )
     if result.returncode == 0:
         route = dict(line.split("=", 1) for line in output.read_text().splitlines())["mode"]
         expected = (
@@ -6857,7 +6898,12 @@ print(json.dumps(payload))
     if [ "${{STUB_POSTGRES_RUNTIME_STATUS:-0}}" -ne 0 ]; then
       exit "${{STUB_POSTGRES_RUNTIME_STATUS}}"
     fi
-    printf '70\\t150019\\t/var/lib/postgresql/data\\n'
+    server_version=150019
+    case "${{STUB_POSTGRES_CONTAINER_INSPECT_JSON:-}}" in
+      *'{POSTGRES_RUNTIME_REF}'*) server_version=150020 ;;
+    esac
+    test "$server_version" = "$7" || exit 65
+    printf '70\\t%s\\t/var/lib/postgresql/data\\n' "$server_version"
     exit 0
     ;;
   exec\\ -i\\ aaaaaaaaaaaa*\\ pg_restore\\ --list*)
@@ -6887,7 +6933,7 @@ print(json.dumps(payload))
     fi
     printf '%s' "$volume_list_output"
     ;;
-  image\\ inspect\\ *postgres-15.19-pgvector0.8.6-alpine3.23*)
+  image\\ inspect\\ *postgres-15.20-pgvector0.8.6-alpine3.23*)
     if [ -n "${{STUB_POSTGRES_IMAGE_INSPECT_COUNTER_FILE:-}}" ]; then
       inspect_count=0
       if [ -f "$STUB_POSTGRES_IMAGE_INSPECT_COUNTER_FILE" ]; then
@@ -8844,7 +8890,7 @@ def _postgres_image_inspect_variant(variant: str) -> str:
     elif variant == "wrong-entrypoint":
         config["Entrypoint"] = ["/bin/sh"]
     elif variant == "wrong-environment":
-        config["Env"] = ["PGDATA=/var/lib/postgresql/data", "PG_MAJOR=15", "PG_MINOR=19"]
+        config["Env"] = ["PGDATA=/var/lib/postgresql/data", "PG_MAJOR=15", "PG_MINOR=20"]
     elif variant == "wrong-label":
         config["Labels"]["com.pulseplate.pgvector.version"] = "0.8.5"
     elif variant == "wrong-repository-digest":
@@ -13722,7 +13768,7 @@ def test_postgres_identity_revalidation_failure_keeps_product_writers_quiesced(
     assert bash_bin is not None
     marker = (
         'if assert_existing_postgres_unchanged "$postgres_state_receipt" '
-        '"$postgres_runtime_receipt"; then'
+        '"$postgres_runtime_receipt" "$postgres_server_version"; then'
     )
 
     for relative_path in ("scripts/deploy.sh", "scripts/deploy_production.sh"):
@@ -13746,6 +13792,7 @@ def test_postgres_identity_revalidation_failure_keeps_product_writers_quiesced(
                 "set -euo pipefail\n"
                 'postgres_state_receipt="state"\n'
                 'postgres_runtime_receipt="runtime"\n'
+                'postgres_server_version="150020"\n'
                 "assert_existing_postgres_unchanged() { return 42; }\n"
                 "restart_captured_product_containers_after_failure() {\n"
                 f"  printf 'restarted\\n' > \"{restart_log}\"\n"
@@ -13947,7 +13994,7 @@ def _current_postgres_image_inspect_variant(
     elif variant == "wrong-entrypoint":
         record["Config"]["Entrypoint"] = ["/bin/sh"]
     elif variant == "wrong-environment":
-        record["Config"]["Env"] = ["PG_MAJOR=15", "PG_MINOR=19"]
+        record["Config"]["Env"] = ["PG_MAJOR=15", "PG_MINOR=20"]
     elif variant == "wrong-label":
         record["Config"]["Labels"]["com.pulseplate.pgvector.version"] = "0.8.5"
     else:
@@ -14665,7 +14712,7 @@ def test_signed_apk_index_size_exception_preserves_unrelated_file_limit() -> Non
     assert len(hooks) == 2
     normal, index = hooks
     assert normal.get("args", []) == []
-    assert index["args"] == ["--maxkb=2048", "--enforce-all"]
+    assert index["args"] == ["--maxkb=2641", "--enforce-all"]
     index_path = "deploy/postgres-pgvector/builder-apk-index.tar.gz"
     for path in (index_path, index_path + ".extra", "unrelated.bin", "deploy/other/index.tar.gz"):
         selected = [
@@ -15609,7 +15656,7 @@ validate_staging_database_binding --storage-only
 
 
 @pytest.mark.parametrize("surface", ("staging", "production"))
-@pytest.mark.parametrize("image_case", ("prior", "current"))
+@pytest.mark.parametrize("image_case", ("prior", "last", "current"))
 @pytest.mark.parametrize("id_form", ("config", "platform"))
 @pytest.mark.parametrize(
     "fault",
@@ -15619,6 +15666,7 @@ validate_staging_database_binding --storage-only
         "config-crosspair",
         "platform-crosspair",
         "base-crosspair",
+        "minor-crosspair",
         "repo-crosspair",
         "captured-crosspair",
         "inspect-crosspair",
@@ -15635,35 +15683,17 @@ def test_postgres_metadata_selects_one_exact_derived_tuple(
     script_name = "deploy.sh" if surface == "staging" else "deploy_production.sh"
     source = (REPO_ROOT / "scripts" / script_name).read_text(encoding="utf-8")
     program = _postgres_function_source(source, "validate_postgres_image_metadata")
-    if image_case == "prior":
-        runtime_ref = POSTGRES_PRIOR_RUNTIME_REF
-        platform = POSTGRES_PRIOR_PLATFORM_DIGEST
-        config = POSTGRES_PRIOR_CONFIG_DIGEST
-        base = POSTGRES_PRIOR_BASE_DIGEST
-        other_ref = POSTGRES_RUNTIME_REF
-        other_platform, other_config, other_base = (
-            POSTGRES_PLATFORM_MANIFEST_DIGEST,
-            POSTGRES_CONFIG_DIGEST,
-            POSTGRES_BASE_DIGEST,
-        )
-    else:
-        runtime_ref = POSTGRES_RUNTIME_REF
-        platform, config, base = (
-            POSTGRES_PLATFORM_MANIFEST_DIGEST,
-            POSTGRES_CONFIG_DIGEST,
-            POSTGRES_BASE_DIGEST,
-        )
-        other_ref = POSTGRES_PRIOR_RUNTIME_REF
-        other_platform, other_config, other_base = (
-            POSTGRES_PRIOR_PLATFORM_DIGEST,
-            POSTGRES_PRIOR_CONFIG_DIGEST,
-            POSTGRES_PRIOR_BASE_DIGEST,
-        )
+    runtime_ref, platform, config, base = POSTGRES_DERIVED_IMAGES[image_case]
+    other_ref, other_platform, other_config, other_base = POSTGRES_DERIVED_IMAGES[
+        "prior" if image_case == "current" else "current"
+    ]
     image_id = config if id_form == "config" else platform
     record = json.loads(FAKE_POSTGRES_IMAGE_INSPECT_JSON)[0]
     record["Id"] = image_id
     record["RepoDigests"] = [f"ghcr.io/katsiarynakavaleuskaya/pulseplate@{platform}"]
     record["Config"]["Labels"]["com.pulseplate.postgres.base-manifest"] = base
+    if image_case != "current":
+        record["Config"]["Env"][-1] = "PG_MINOR=19"
     captured_image = image_id
     inspect_subject = runtime_ref
     if fault == "extra-repo-digest":
@@ -15671,6 +15701,8 @@ def test_postgres_metadata_selects_one_exact_derived_tuple(
     elif fault in {"config-crosspair", "platform-crosspair"}:
         record["Id"] = other_config if fault == "config-crosspair" else other_platform
         captured_image = record["Id"]
+    elif fault == "minor-crosspair":
+        record["Config"]["Env"][-1] = "PG_MINOR=19" if image_case == "current" else "PG_MINOR=20"
     elif fault == "base-crosspair":
         record["Config"]["Labels"]["com.pulseplate.postgres.base-manifest"] = other_base
     elif fault == "repo-crosspair":
@@ -15723,12 +15755,12 @@ def test_postgres_metadata_selects_one_exact_derived_tuple(
 
 
 @pytest.mark.parametrize("surface", ("staging", "production"))
-@pytest.mark.parametrize("image_case", ("prior", "current"))
+@pytest.mark.parametrize("image_case", ("prior", "last", "current"))
 @pytest.mark.parametrize("id_form", ("config", "platform"))
 def test_existing_postgres_prior_and_current_use_own_inspection(
     tmp_path: Path, surface: str, image_case: str, id_form: str
 ) -> None:
-    """Exercise both existing-service branches without admitting a prior candidate pull."""
+    """Preserve each admitted predecessor and permit candidate pulls only for the current ref."""
     bash = shutil.which("bash")
     assert bash is not None
     script_name = "deploy.sh" if surface == "staging" else "deploy_production.sh"
@@ -15741,25 +15773,14 @@ def test_existing_postgres_prior_and_current_use_own_inspection(
             "validate_existing_postgres_image_identity",
         )
     )
-    if image_case == "prior":
-        runtime_ref, platform, config, base = (
-            POSTGRES_PRIOR_RUNTIME_REF,
-            POSTGRES_PRIOR_PLATFORM_DIGEST,
-            POSTGRES_PRIOR_CONFIG_DIGEST,
-            POSTGRES_PRIOR_BASE_DIGEST,
-        )
-    else:
-        runtime_ref, platform, config, base = (
-            POSTGRES_RUNTIME_REF,
-            POSTGRES_PLATFORM_MANIFEST_DIGEST,
-            POSTGRES_CONFIG_DIGEST,
-            POSTGRES_BASE_DIGEST,
-        )
+    runtime_ref, platform, config, base = POSTGRES_DERIVED_IMAGES[image_case]
     image_id = config if id_form == "config" else platform
     record = json.loads(FAKE_POSTGRES_IMAGE_INSPECT_JSON)[0]
     record["Id"] = image_id
     record["RepoDigests"] = [f"ghcr.io/katsiarynakavaleuskaya/pulseplate@{platform}"]
     record["Config"]["Labels"]["com.pulseplate.postgres.base-manifest"] = base
+    if image_case != "current":
+        record["Config"]["Env"][-1] = "PG_MINOR=19"
     inspect_file = tmp_path / "inspect.json"
     inspect_file.write_text(json.dumps([record]), encoding="utf-8")
     log = tmp_path / "inspect-log"
@@ -15794,6 +15815,7 @@ def test_existing_postgres_prior_and_current_use_own_inspection(
         check=False,
     )
     assert existing.returncode == 0, existing.stderr
+    assert existing.stdout.strip() == ("150020" if image_case == "current" else "150019")
     assert log.read_text().splitlines() == [f"image inspect {runtime_ref}"]
     pulled = subprocess.run(
         [
@@ -15811,8 +15833,53 @@ def test_existing_postgres_prior_and_current_use_own_inspection(
         check=False,
     )
     assert (pulled.returncode == 0) is (image_case == "current"), pulled.stderr
-    if image_case == "prior":
+    if image_case != "current":
         assert log.read_text().splitlines() == [f"image inspect {runtime_ref}"]
+
+
+@pytest.mark.parametrize("script", ("deploy.sh", "deploy_production.sh"))
+@pytest.mark.parametrize(
+    ("expected", "observed"),
+    (("150019", "150019"), ("150020", "150020"), ("150019", "150020"), ("150020", "150019")),
+)
+def test_existing_postgres_live_version_must_match_the_inspected_image(
+    tmp_path: Path, script: str, expected: str, observed: str
+) -> None:
+    """Run the server probe with the authenticated image's selected version."""
+    source = (REPO_ROOT / "scripts" / script).read_text(encoding="utf-8")
+    program = _postgres_function_source(source, "read_existing_postgres_runtime_state")
+    docker = tmp_path / "docker"
+    _write_executable(
+        docker,
+        '#!/bin/sh\ntest "$1" = exec && test "$2" = pg || exit 2\nshift 2\nexec "$@"\n',
+    )
+    _write_executable(tmp_path / "id", '#!/bin/sh\nprintf "70\\n"\n')
+    _write_executable(
+        tmp_path / "psql",
+        '#!/bin/sh\ncase "$*" in\n'
+        '*"SHOW server_version_num") printf "%s\\n" "$VERSION" ;;\n'
+        '*"SHOW data_directory") printf "/var/lib/postgresql/data\\n" ;;\n'
+        "*) exit 2 ;;\nesac\n",
+    )
+    bash = shutil.which("bash")
+    assert bash is not None
+    completed = subprocess.run(
+        [bash, "-ec", program + 'read_existing_postgres_runtime_state pg "$1"', "sh", expected],
+        env={
+            "PATH": f"{tmp_path}{os.pathsep}{os.defpath}",
+            "DOCKER_BIN": str(docker),
+            "POSTGRES_USER": "test",
+            "POSTGRES_DB": "test",
+            "VERSION": observed,
+        },
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert (completed.returncode == 0) is (expected == observed)
+    assert completed.stdout == (
+        f"70\t{observed}\t/var/lib/postgresql/data\n" if expected == observed else ""
+    )
 
 
 @pytest.mark.parametrize("surface", ("staging", "production", "cd"))
@@ -16057,7 +16124,7 @@ def test_cd_postgres_prior_transition_releases_fixed_port_after_legacy_proof(
         if step.get("name") == "Prove PostgreSQL 15 pgvector 0.8.6 and same-volume continuity"
     )
     boundary = (
-        'test "$transitioned_postgres" = "postgres (PostgreSQL) 15.19"\n'
+        'test "$transitioned_postgres" = "postgres (PostgreSQL) 15.20"\n'
         'docker rm -f "$legacy_container_name" >/dev/null\n'
     )
     assert run.count(boundary) == 1
@@ -16117,7 +16184,7 @@ case "$1:$2" in
         printf 'version:%s\n' "$2" >> "$STATE_ROOT/lifecycle"
         case "$2:$CASE_SCENARIO" in
           *-legacy-postgres:legacy-proof-fails) printf 'postgres (PostgreSQL) 0\n' ;;
-          *) printf 'postgres (PostgreSQL) 15.19\n' ;;
+          *) printf 'postgres (PostgreSQL) 15.20\n' ;;
         esac
         ;;
       *'SELECT 1'*) printf '1\n' ;;
@@ -16161,7 +16228,13 @@ esac
         assert result.returncode == 0, result.stderr
         assert len(stops) == 2
         assert legacy_version < stops[-1] < events.index("start:" + prior)
-        assert (state / "port-owner").read_text().strip() == prior
+        last = prefix + "-last-postgres"
+        assert events.index("version:" + prior) < events.index("start:" + last)
+        assert events[-2:] == ["version:" + last, "stop:" + last]
+        assert not (state / "port-owner").exists()
+        calls = (state / "commands").read_text().splitlines()
+        for ref in (POSTGRES_PRIOR_RUNTIME_REF, POSTGRES_LAST_RUNTIME_REF):
+            assert calls.count("pull --platform linux/amd64 " + ref) == 1
     else:
         assert result.returncode != 0
         assert len(stops) == 1 and stops[0] < legacy_version

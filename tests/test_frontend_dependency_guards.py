@@ -6045,6 +6045,70 @@ REDOCLY_LOCK_ADMISSION_CASES.update(
 )
 
 
+REDOCLY_REVIEWED_BUNDLE_CASES = {
+    "bundle-apply": None,
+    "bundle-idempotent": None,
+    "bundle-verify": None,
+    "bundle-unrelated-ordinary": None,
+    "bundle-lock-order": None,
+    "bundle-missing-parent": "reviewed Tailwind bundle inventory",
+    "bundle-missing-leaf": "reviewed Tailwind bundle inventory",
+    "bundle-extra-member": "reviewed Tailwind bundle inventory",
+    "bundle-nested-member": "reviewed Tailwind bundle inventory",
+    "bundle-foreign": "bundleDependencies opaque graph forbidden",
+    "bundle-prefix-sibling": "bundleDependencies opaque graph forbidden",
+    "bundle-parent-null": "reviewed Tailwind bundle content",
+    "bundle-parent-sri": "reviewed Tailwind bundle content",
+    "bundle-parent-url": "reviewed Tailwind bundle content",
+    "bundle-parent-declaration": "reviewed Tailwind bundle content",
+    "bundle-leaf-null": "reviewed Tailwind bundle content",
+    "bundle-leaf-zero": "reviewed Tailwind bundle content",
+    "bundle-leaf-false": "reviewed Tailwind bundle content",
+    "bundle-leaf-version": "reviewed Tailwind bundle content",
+    "bundle-leaf-name": "reviewed Tailwind bundle content",
+    "bundle-leaf-metadata": "reviewed Tailwind bundle content",
+    "bundle-leaf-extra-field": "reviewed Tailwind bundle content",
+    "bundle-leaf-link": "reviewed Tailwind bundle content",
+    "bundle-leaf-shrinkwrap": "reviewed Tailwind bundle content",
+    "bundle-leaf-forged-provenance": "reviewed Tailwind bundle content",
+}
+
+
+@pytest.fixture(scope="module")
+def redocly_reviewed_bundle_records() -> dict[str, dict]:
+    """Independently qualify the current finite group through the canonical producer."""
+    lock = _load_transitive_npm_surface(FRONTEND_LOCK_JSON)
+    material = _assert_lock_surface_canonical_provenance(
+        surface="frontend/package-lock.json", document=lock
+    )
+    parent = "node_modules/@tailwindcss/oxide-wasm32-wasi"
+    keys = sorted(key for key in material.packages if key == parent or key.startswith(parent + "/"))
+    assert len(keys) == 7
+    leaves = set(keys) - {parent}
+    assert {key for key, owner in material.parent_owned.items() if owner == parent} == leaves
+    assert material.published_manifests[parent]["name"] == "@tailwindcss/oxide-wasm32-wasi"
+    assert material.published_manifests[parent]["version"] == "4.3.3"
+    for key in leaves:
+        assert material.packages[key]["inBundle"] is True
+        assert (
+            "resolved" not in material.packages[key] and "integrity" not in material.packages[key]
+        )
+        assert material.published_manifests[key]["version"] == material.packages[key]["version"]
+    projection = json.dumps(
+        [[key, material.packages[key]] for key in keys], separators=(",", ":"), ensure_ascii=False
+    ).encode("utf-8")
+    script = (REPO_ROOT / "frontend/scripts/check-redocly-compat.mjs").read_text()
+    pinned = re.findall(r'const reviewedTailwindBundleDigest = "([0-9a-f]{64})";', script)
+    assert pinned == [hashlib.sha256(projection).hexdigest()]
+    return deepcopy({key: material.packages[key] for key in keys})
+
+
+def test_redocly_reviewed_bundle_binding_has_canonical_archive_proof(
+    redocly_reviewed_bundle_records: dict[str, dict],
+) -> None:
+    assert len(redocly_reviewed_bundle_records) == 7
+
+
 @pytest.mark.parametrize(
     "case",
     [
@@ -6077,10 +6141,11 @@ REDOCLY_LOCK_ADMISSION_CASES.update(
         "invalid-sri",
         "noncanonical-sri",
         *sorted(REDOCLY_LOCK_ADMISSION_CASES),
+        *sorted(REDOCLY_REVIEWED_BUNDLE_CASES),
     ],
 )
 def test_redocly_existing_transition_on_complete_synthetic_payload(
-    tmp_path: Path, case: str
+    tmp_path: Path, case: str, redocly_reviewed_bundle_records: dict[str, dict]
 ) -> None:
     """Real file/Node operations on 687 synthetic members test control flow, not upstream identity."""
     node = shutil.which("node")
@@ -6140,9 +6205,9 @@ def test_redocly_existing_transition_on_complete_synthetic_payload(
             },
         },
     }
-    mode = "verify" if case == "verify-original" else "apply"
+    mode = "verify" if case in {"verify-original", "bundle-verify"} else "apply"
     target = parent / "lib/utils.js"
-    if case == "idempotent":
+    if case in {"idempotent", "bundle-idempotent", "bundle-verify"}:
         target.write_bytes(derived)
     elif case == "missing":
         (parent / "fixtures/member-0.txt").unlink()
@@ -6209,6 +6274,57 @@ def test_redocly_existing_transition_on_complete_synthetic_payload(
                 "selected-name-empty": "",
                 "selected-name-false": False,
             }[case]
+    if case in REDOCLY_REVIEWED_BUNDLE_CASES:
+        records = deepcopy(redocly_reviewed_bundle_records)
+        bundle_parent = "node_modules/@tailwindcss/oxide-wasm32-wasi"
+        leaf = bundle_parent + "/node_modules/@emnapi/core"
+        if case == "bundle-missing-parent":
+            records.pop(bundle_parent)
+        elif case == "bundle-missing-leaf":
+            records.pop(leaf)
+        elif case == "bundle-extra-member":
+            records[bundle_parent + "/node_modules/unexpected"] = deepcopy(records[leaf])
+        elif case == "bundle-nested-member":
+            records[leaf + "/node_modules/unexpected"] = deepcopy(records[leaf])
+        elif case in {"bundle-foreign", "bundle-prefix-sibling"}:
+            foreign = (
+                "node_modules/foreign" if case == "bundle-foreign" else bundle_parent + "-other"
+            )
+            records[foreign] = deepcopy(records[bundle_parent])
+        elif case == "bundle-parent-null":
+            records[bundle_parent] = None
+        elif case == "bundle-parent-sri":
+            records[bundle_parent]["integrity"] = "sha512-" + base64.b64encode(bytes(64)).decode()
+        elif case == "bundle-parent-url":
+            records[bundle_parent]["resolved"] += "?changed=1"
+        elif case == "bundle-parent-declaration":
+            records[bundle_parent]["bundleDependencies"] = ["@emnapi/core"]
+        elif case in {"bundle-leaf-null", "bundle-leaf-zero", "bundle-leaf-false"}:
+            records[leaf] = {
+                "bundle-leaf-null": None,
+                "bundle-leaf-zero": 0,
+                "bundle-leaf-false": False,
+            }[case]
+        elif case == "bundle-leaf-version":
+            records[leaf]["version"] = "1.11.2"
+        elif case == "bundle-leaf-name":
+            records[leaf]["name"] = "forged-leaf"
+        elif case == "bundle-leaf-metadata":
+            records[leaf]["dependencies"] = {}
+        elif case == "bundle-leaf-extra-field":
+            records[leaf]["unexpected"] = True
+        elif case == "bundle-leaf-link":
+            records[leaf]["link"] = True
+        elif case == "bundle-leaf-shrinkwrap":
+            records[leaf]["hasShrinkwrap"] = True
+        elif case == "bundle-leaf-forged-provenance":
+            records[leaf]["resolved"] = "https://registry.npmjs.org/forged/-/forged-1.0.0.tgz"
+            records[leaf]["integrity"] = integrity
+        lock["packages"].update(records)
+        if case == "bundle-unrelated-ordinary":
+            lock["packages"]["node_modules/unrelated"] = {"version": "99.0.0", "dependencies": {}}
+        elif case == "bundle-lock-order":
+            lock["packages"] = dict(reversed(list(lock["packages"].items())))
     (frontend / "package-lock.json").write_text(json.dumps(lock))
     script = (REPO_ROOT / "frontend/scripts/check-redocly-compat.mjs").read_text()
     boundary = "// REDOCLY_FIXED_CLI_BOUNDARY"
@@ -6264,11 +6380,15 @@ def test_redocly_existing_transition_on_complete_synthetic_payload(
         "valid-empty-records",
         "selected-name-absent",
         "selected-name-exact",
-    }:
+    } or (case in REDOCLY_REVIEWED_BUNDLE_CASES and REDOCLY_REVIEWED_BUNDLE_CASES[case] is None):
         assert result.returncode == 0, result.stderr
         assert target.read_bytes() == derived
     else:
         assert result.returncode != 0, case
+        if case in REDOCLY_REVIEWED_BUNDLE_CASES:
+            assert REDOCLY_REVIEWED_BUNDLE_CASES[case] in result.stderr
+            assert target.read_bytes() == original
+            assert not (minimatch / "executed").exists()
         if case.startswith("selected-name-"):
             assert "minimatch provenance/version" in result.stderr
             assert target.read_bytes() == original

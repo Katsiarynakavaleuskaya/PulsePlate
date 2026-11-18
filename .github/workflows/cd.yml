@@ -3004,27 +3004,27 @@ jobs:
               raise SystemExit("PostgreSQL Containerfile must be one regular file")
           manifest_bytes = manifest_path.read_bytes()
           if hashlib.sha256(manifest_bytes).hexdigest() != (
-              "9aa310913af9799c39182428e0170b173fe2144367b302d7d2cafd87c93c03b2"
+              "2583671c942aa7dead7047631e68992bdd8c301c3e76a83ea21a24cc6fa1a3d0"
           ):
               raise SystemExit("PostgreSQL image manifest bytes drifted")
           manifest = json.loads(manifest_bytes)
           expected = {
               "schema": "pulseplate.postgres_pgvector_image_manifest.v1",
               "repository": "ghcr.io/katsiarynakavaleuskaya/pulseplate",
-              "tag": "postgres-15.19-pgvector0.8.6-alpine3.23",
+              "tag": "postgres-15.20-pgvector0.8.6-alpine3.23",
               "platform": "linux/amd64",
-              "platform_manifest_digest": "sha256:d4437ad4970b4099e4cb7d05b7fa625c7e6959949d1374f1f2d4bd4149ae5fa3",
-              "config_digest": "sha256:643c5c00d70c37d83a0ab6db8b0996e4c03fb82c4769a45b03eef0cf3ee2abd5",
+              "platform_manifest_digest": "sha256:5b81202040bbcfbf4fc29ee32c6e6a8c824c27c50aa41c80e62418c5c2ec3adc",
+              "config_digest": "sha256:65d34d5f6a34bc6c365b3b326bfa593bdd43adbed1ece14c9b63171ba586004b",
               "source_date_epoch": "1785349734",
-              "containerfile_sha256": "sha256:aae2bfb779a3139d402d1e0a70085ab5bd565e938c46dcab024bad817b6d5c42",
-              "builder_apk_inputs_sha256": "sha256:2fc2d58bb4eb48681e4dec665e461e860b8198d74bbf7771d4db32c205927739",
-              "builder_apk_index_sha256": "sha256:ecdb6930ca663e4484c5ea41bec6682889601892ec46eefd85f5a4745318d781",
+              "containerfile_sha256": "sha256:c5ab2d853895333dd7a06bddf5ada287ee2e55a6bb367a59b86358cf14005928",
+              "builder_apk_inputs_sha256": "sha256:7accbd8b01528806c565ed982cdf7268cc54d8e05b38b220db38b371d7368b25",
+              "builder_apk_index_sha256": "sha256:c3b3248b0d0065d57cada12615ddb1584a7db77835922852831f58e8b98686db",
               "builder_apk_input_count": "41",
               "buildkit_platform_manifest_digest": "sha256:040d34121c27906c4ff9ac152a30d52bf2c5d328d3bb748916bb3d2743c02528",
               "buildkit_version": "0.32.2",
               "buildx_version": "0.37.0",
               "buildx_linux_amd64_sha256": "sha256:ae43fa08c796b44efc86d7a63c55f73f7c35f3101188dea7bf93bcd6f99577ba",
-              "postgres_version": "15.19",
+              "postgres_version": "15.20",
               "pgvector_version": "0.8.6",
               "mountpoint_layer_schema": "pulseplate.pgvector_mountpoint_layer.v1",
               "mountpoint_layer_digest": "sha256:4c539aa857412d283fe8d55b40227fbd17b9fd6f06834f81fd98ec6796ee7396",
@@ -3409,8 +3409,8 @@ jobs:
           : "${DOCKER_SCOUT_HUB_USER:?Docker Scout Hub user is required}"
           : "${DOCKER_SCOUT_HUB_PASSWORD:?Docker Scout Hub authentication is required}"
           test -f "$SCOUT_BIN" && test ! -L "$SCOUT_BIN" && test -x "$SCOUT_BIN"
-          runtime_base='registry://dhi.io/postgres@sha256:3a241134f6d82eb6465622af948258e41806cfb4497e6c8f0f0a64ca6c4d34db'
-          builder_base='registry://dhi.io/postgres@sha256:74cde2c2febf7d7ddacfd3d23dbc66ea0fcbc1bdb9ae4b1ed654d717d203a2a5'
+          runtime_base='registry://dhi.io/postgres@sha256:ac5f0af144f2123cfb0fd89d9e38843ece6bfaef6bb7240d9ed7e6da88565325'
+          builder_base='registry://dhi.io/postgres@sha256:d518873fc4894f792f948bca16ab195f34212057dddc78ff2f0e4329469ecacd'
           "$SCOUT_BIN" attestation get \
             --predicate-type https://slsa.dev/provenance/v1 \
             --verify \
@@ -3437,13 +3437,13 @@ jobs:
           expected = (
               (
                   Path("dhi-postgres-runtime-provenance.json"),
-                  "pkg:docker/dhi/postgres@15-alpine3.23&platform=linux/amd64",
-                  "3a241134f6d82eb6465622af948258e41806cfb4497e6c8f0f0a64ca6c4d34db",
+                  "pkg:docker/dhi/postgres@15.20-alpine3.23&platform=linux/amd64",
+                  "ac5f0af144f2123cfb0fd89d9e38843ece6bfaef6bb7240d9ed7e6da88565325",
               ),
               (
                   Path("dhi-postgres-builder-provenance.json"),
-                  "pkg:docker/dhi/postgres@15-alpine3.23-dev&platform=linux/amd64",
-                  "74cde2c2febf7d7ddacfd3d23dbc66ea0fcbc1bdb9ae4b1ed654d717d203a2a5",
+                  "pkg:docker/dhi/postgres@15.20-alpine3.23-dev&platform=linux/amd64",
+                  "d518873fc4894f792f948bca16ab195f34212057dddc78ff2f0e4329469ecacd",
               ),
           )
           for path, expected_name, expected_digest in expected:
@@ -3644,7 +3644,7 @@ jobs:
               raise SystemExit("Reproduced PostgreSQL manifest bytes have the wrong digest")
           manifest = json.loads(manifest_bytes)
           layers = manifest.get("layers")
-          if not isinstance(layers, list) or len(layers) != 16:
+          if not isinstance(layers, list) or len(layers) != 13:
               raise SystemExit("Reproduced PostgreSQL layer count drifted")
           mountpoint_descriptor = layers[-1]
           expected_mountpoint_descriptor = {
@@ -3721,7 +3721,7 @@ jobs:
           if (
               not isinstance(rootfs, dict)
               or not isinstance(rootfs.get("diff_ids"), list)
-              or len(rootfs["diff_ids"]) != 16
+              or len(rootfs["diff_ids"]) != 13
               or rootfs["diff_ids"][-1] != expected_mountpoint_diff_id
           ):
               raise SystemExit("PostgreSQL mountpoint layer diff ID drifted")
@@ -3733,7 +3733,7 @@ jobs:
               "entrypoint": ["/usr/local/bin/docker-entrypoint.sh"],
               "pgdata": "/var/lib/postgresql/15/data",
               "pg_major": "15",
-              "pg_minor": "19",
+              "pg_minor": "20",
           }
           environment = runtime.get("Env") if isinstance(runtime, dict) else None
           observed_runtime = {
@@ -3791,7 +3791,7 @@ jobs:
           import sys
 
           layers = json.loads(sys.argv[1])
-          if not isinstance(layers, list) or len(layers) != 16:
+          if not isinstance(layers, list) or len(layers) != 13:
               raise SystemExit("Loaded PostgreSQL image rootfs cardinality drifted")
           if layers[-1] != sys.argv[2]:
               raise SystemExit("Loaded PostgreSQL image mountpoint diff ID drifted")
@@ -3984,8 +3984,8 @@ jobs:
           tool_facts = file_facts(trivy)
           (public / "scanner-sha256.json").write_text(json.dumps(tool_facts, sort_keys=True) + "\n")
           subjects = [
-              "dhi.io/postgres@sha256:3a241134f6d82eb6465622af948258e41806cfb4497e6c8f0f0a64ca6c4d34db",
-              "dhi.io/postgres@sha256:74cde2c2febf7d7ddacfd3d23dbc66ea0fcbc1bdb9ae4b1ed654d717d203a2a5",
+              "dhi.io/postgres@sha256:ac5f0af144f2123cfb0fd89d9e38843ece6bfaef6bb7240d9ed7e6da88565325",
+              "dhi.io/postgres@sha256:d518873fc4894f792f948bca16ab195f34212057dddc78ff2f0e4329469ecacd",
               os.environ["PGVECTOR_BUILDER_LOCAL_TAG"],
               None,
           ]
@@ -4109,9 +4109,6 @@ jobs:
           legacy_container_name="${prefix}-legacy-postgres"
           legacy_volume_name="${prefix}-legacy-data"
           legacy_image='postgres:15-alpine@sha256:a2c20749c564b4eb73a77bfda626f8a3cde1bbfae020fb97c616a00cdc1a2181'
-          prior_container_name="${prefix}-prior-postgres"
-          prior_volume_name="${prefix}-prior-data"
-          prior_image='ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380'
           database_name="pgvector_compat"
           database_user="pgvector_compat"
           database_password="pgvector_compat_test_password" # pragma: allowlist secret
@@ -4156,7 +4153,7 @@ jobs:
             --cap-drop ALL \
             --security-opt no-new-privileges:true \
             --entrypoint /bin/sh \
-            dhi.io/postgres@sha256:3a241134f6d82eb6465622af948258e41806cfb4497e6c8f0f0a64ca6c4d34db \
+            dhi.io/postgres@sha256:ac5f0af144f2123cfb0fd89d9e38843ece6bfaef6bb7240d9ed7e6da88565325 \
             -ec 'stat -c "%n %u:%g:%a" /var /var/lib /var/lib/postgresql')"
           test "$base_parent_metadata" = $'/var 0:0:755\n/var/lib 0:0:755\n/var/lib/postgresql 70:70:750'
           if docker volume inspect "$volume_name" >/dev/null 2>&1; then
@@ -4252,51 +4249,61 @@ jobs:
           test "$transitioned_oid" = "$legacy_oid"
           test "$transitioned_sentinel" = "legacy-persistent"
           test "$transitioned_vector" = "0.8.6"
-          test "$transitioned_postgres" = "postgres (PostgreSQL) 15.19"
+          test "$transitioned_postgres" = "postgres (PostgreSQL) 15.20"
           docker rm -f "$legacy_container_name" >/dev/null
 
-          docker pull --platform linux/amd64 "$prior_image"
-          if docker volume inspect "$prior_volume_name" >/dev/null 2>&1; then
-            echo "Synthetic prior-volume name already exists" >&2
-            exit 1
-          fi
-          docker volume create "$prior_volume_name" >/dev/null
-          start_postgres "$prior_container_name" "$prior_volume_name" "$prior_image"
-          docker exec "$prior_container_name" psql \
-            --username "$database_user" --dbname "$database_name" \
-            --set ON_ERROR_STOP=1 \
-            --command 'CREATE EXTENSION vector;' \
-            --command 'CREATE TABLE pulseplate_prior_sentinel (value text PRIMARY KEY, embedding vector(3));' \
-            --command "INSERT INTO pulseplate_prior_sentinel VALUES ('prior-persistent', '[1,2,3]');"
-          prior_oid="$(docker exec "$prior_container_name" psql \
-            --username "$database_user" --dbname "$database_name" \
-            --set ON_ERROR_STOP=1 --tuples-only --no-align \
-            --command 'SELECT oid FROM pg_database WHERE datname = current_database();')"
-          [[ "$prior_oid" =~ ^[0-9]+$ ]]
-          docker rm -f "$prior_container_name" >/dev/null
-          start_postgres "$prior_container_name" "$prior_volume_name" "$PGVECTOR_FINAL_LOCAL_TAG"
-          prior_transitioned_oid="$(docker exec "$prior_container_name" psql \
-            --username "$database_user" --dbname "$database_name" \
-            --set ON_ERROR_STOP=1 --tuples-only --no-align \
-            --command 'SELECT oid FROM pg_database WHERE datname = current_database();')"
-          prior_transitioned_data="$(docker exec "$prior_container_name" psql \
-            --username "$database_user" --dbname "$database_name" \
-            --set ON_ERROR_STOP=1 --tuples-only --no-align \
-            --command "SELECT value || ':' || embedding::text FROM pulseplate_prior_sentinel;")"
-          prior_transitioned_vector="$(docker exec "$prior_container_name" psql \
-            --username "$database_user" --dbname "$database_name" \
-            --set ON_ERROR_STOP=1 --tuples-only --no-align \
-            --command "SELECT extversion FROM pg_extension WHERE extname = 'vector';")"
-          prior_vector_distance="$(docker exec "$prior_container_name" psql \
-            --username "$database_user" --dbname "$database_name" \
-            --set ON_ERROR_STOP=1 --tuples-only --no-align \
-            --command "SELECT embedding <-> '[1,2,3]'::vector FROM pulseplate_prior_sentinel;")"
-          prior_transitioned_postgres="$(docker exec "$prior_container_name" postgres --version)"
-          test "$prior_transitioned_oid" = "$prior_oid"
-          test "$prior_transitioned_data" = "prior-persistent:[1,2,3]"
-          test "$prior_transitioned_vector" = "0.8.6"
-          test "$prior_vector_distance" = "0"
-          test "$prior_transitioned_postgres" = "postgres (PostgreSQL) 15.19"
+          prove_prior_transition() {
+            local prior_container_name="$1" prior_volume_name="$2" prior_image="$3"
+            local prior_oid prior_transitioned_oid prior_transitioned_data prior_transitioned_vector
+            local prior_vector_distance prior_transitioned_postgres
+            docker pull --platform linux/amd64 "$prior_image"
+            if docker volume inspect "$prior_volume_name" >/dev/null 2>&1; then
+              echo "Synthetic prior-volume name already exists" >&2
+              exit 1
+            fi
+            docker volume create "$prior_volume_name" >/dev/null
+            start_postgres "$prior_container_name" "$prior_volume_name" "$prior_image"
+            docker exec "$prior_container_name" psql \
+              --username "$database_user" --dbname "$database_name" \
+              --set ON_ERROR_STOP=1 \
+              --command 'CREATE EXTENSION vector;' \
+              --command 'CREATE TABLE pulseplate_prior_sentinel (value text PRIMARY KEY, embedding vector(3));' \
+              --command "INSERT INTO pulseplate_prior_sentinel VALUES ('prior-persistent', '[1,2,3]');"
+            prior_oid="$(docker exec "$prior_container_name" psql \
+              --username "$database_user" --dbname "$database_name" \
+              --set ON_ERROR_STOP=1 --tuples-only --no-align \
+              --command 'SELECT oid FROM pg_database WHERE datname = current_database();')"
+            [[ "$prior_oid" =~ ^[0-9]+$ ]]
+            docker rm -f "$prior_container_name" >/dev/null
+            start_postgres "$prior_container_name" "$prior_volume_name" "$PGVECTOR_FINAL_LOCAL_TAG"
+            prior_transitioned_oid="$(docker exec "$prior_container_name" psql \
+              --username "$database_user" --dbname "$database_name" \
+              --set ON_ERROR_STOP=1 --tuples-only --no-align \
+              --command 'SELECT oid FROM pg_database WHERE datname = current_database();')"
+            prior_transitioned_data="$(docker exec "$prior_container_name" psql \
+              --username "$database_user" --dbname "$database_name" \
+              --set ON_ERROR_STOP=1 --tuples-only --no-align \
+              --command "SELECT value || ':' || embedding::text FROM pulseplate_prior_sentinel;")"
+            prior_transitioned_vector="$(docker exec "$prior_container_name" psql \
+              --username "$database_user" --dbname "$database_name" \
+              --set ON_ERROR_STOP=1 --tuples-only --no-align \
+              --command "SELECT extversion FROM pg_extension WHERE extname = 'vector';")"
+            prior_vector_distance="$(docker exec "$prior_container_name" psql \
+              --username "$database_user" --dbname "$database_name" \
+              --set ON_ERROR_STOP=1 --tuples-only --no-align \
+              --command "SELECT embedding <-> '[1,2,3]'::vector FROM pulseplate_prior_sentinel;")"
+            prior_transitioned_postgres="$(docker exec "$prior_container_name" postgres --version)"
+            test "$prior_transitioned_oid" = "$prior_oid"
+            test "$prior_transitioned_data" = "prior-persistent:[1,2,3]"
+            test "$prior_transitioned_vector" = "0.8.6"
+            test "$prior_vector_distance" = "0"
+            test "$prior_transitioned_postgres" = "postgres (PostgreSQL) 15.20"
+            docker rm -f "$prior_container_name" >/dev/null
+          }
+          prove_prior_transition "${prefix}-prior-postgres" "${prefix}-prior-data" \
+            'ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380'
+          prove_prior_transition "${prefix}-last-postgres" "${prefix}-last-data" \
+            'ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@sha256:d4437ad4970b4099e4cb7d05b7fa625c7e6959949d1374f1f2d4bd4149ae5fa3'
 
       - name: Verify existing public GHCR package identity before candidate write
         env:
@@ -4500,7 +4507,7 @@ jobs:
           test "$(docker image inspect "$RUNTIME_REF" --format '{{.Config.User}}')" = "70"
           docker run --rm --platform linux/amd64 --entrypoint /usr/bin/postgres \
             "$RUNTIME_REF" --version | \
-            grep -Fx 'postgres (PostgreSQL) 15.19'
+            grep -Fx 'postgres (PostgreSQL) 15.20'
 
       - name: Inspect the exact PostgreSQL platform manifest with native Docker
         env:
@@ -4684,7 +4691,8 @@ jobs:
               for synthetic_container in \
                 "${prefix}-postgres" \
                 "${prefix}-legacy-postgres" \
-                "${prefix}-prior-postgres"; do
+                "${prefix}-prior-postgres" \
+                "${prefix}-last-postgres"; do
                 if inventory_contains "$synthetic_container" docker container ls --all --format '{{.Names}}'; then
                   if ! docker rm -f "$synthetic_container" >/dev/null; then
                     cleanup_failed=1
@@ -4694,7 +4702,8 @@ jobs:
               for synthetic_volume in \
                 "${prefix}-data" \
                 "${prefix}-legacy-data" \
-                "${prefix}-prior-data"; do
+                "${prefix}-prior-data" \
+                "${prefix}-last-data"; do
                 if inventory_contains "$synthetic_volume" docker volume ls --format '{{.Name}}'; then
                   if ! docker volume rm "$synthetic_volume" >/dev/null; then
                     cleanup_failed=1

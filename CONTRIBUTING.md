@@ -51,10 +51,9 @@ export PULSEPLATE_PYTHON_INDEX_URL=https://packages.example.internal/simple
 # Optional, only if the approved proxy requires pip trusted-host behavior:
 export PULSEPLATE_PYTHON_TRUSTED_HOST=
 
-# HOST: from a reviewed/trusted checkout, prepare verified native source inputs first.
-make docker-source-artifacts
+# CLI: from a reviewed/trusted checkout, make docker-source-artifacts is an explicit
+# prerequisite of make dc-up. Run make dc-shell to open the running container.
 # VS Code: Cmd/Ctrl+Shift+P -> "Dev Containers: Reopen in Container"
-# CLI: make dc-up && make dc-shell (dc-up already includes this prerequisite)
 # After reviewing/trusting the workspace, run bootstrap manually inside the container:
 make devcontainer-bootstrap
 [ -f .env ] || cp .env.example .env
@@ -62,13 +61,16 @@ make devcontainer-bootstrap
 make dev
 ```
 
-Run the native-source prerequisite on the host before VS Code attempts its first
-build from a fresh checkout. It uses an existing approved host interpreter via
-`DEV_PYTHON`; override that Make variable if the automatic interpreter selection
-is unavailable. This step delegates source verification/acquisition to the existing
-fetcher only. It does not install a native macOS SDK, create/activate a host venv,
-or transfer the project `.env`, credentials or general host HOME. Repository
-bootstrap remains a separate manual step inside the trusted container.
+VS Code and Codespaces acquire verified sources in an isolated Docker build stage
+when creating this dev container. Compose 2.24.4 or later connects its four SDK
+archives to the native builder. The SDK acquisition service reads the approved
+PulsePlate package index and accepts a scoped netrc through its existing secret
+mount. Source acquisition needs outbound HTTPS. Workspace dependency installation
+remains a manual step inside the container.
+
+For the CLI, `make dc-up` invokes `make docker-source-artifacts` with the chosen
+`DEV_PYTHON` on the host before building. Set the approved package proxy for this
+path as shown above.
 
 Host Docker daemon access is intentionally not enabled by default. If a task
 requires Docker from inside the devcontainer, use a separate reviewed local

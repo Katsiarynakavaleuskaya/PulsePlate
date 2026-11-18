@@ -211,7 +211,7 @@ these identities before any activation or `T₀` claim.
 The closed repository record is
 `deploy/postgres-pgvector/image-manifest.json`. It binds:
 
-- DHI PostgreSQL `15.19-alpine3.23` runtime and `15.19-alpine3.23-dev` exact
+- DHI PostgreSQL `15.20-alpine3.23` runtime and `15.20-alpine3.23-dev` exact
   linux/amd64 platform manifests;
 - pgvector `0.8.6` commit/archive SHA-256 and the exact two-stage
   `deploy/postgres-pgvector/Containerfile`;
@@ -232,8 +232,9 @@ initialization precondition for the tested Docker engine while preserving the
 inherited non-root UID 70 entrypoint. A mounted existing volume hides that
 image directory; therefore the layer cannot repair, chown, migrate, inspect,
 or prove any existing staging or production volume. Host activation still
-requires one exact legacy-or-current image/config identity, UID 70, one exact
-`PGDATA`/named-volume target, live PostgreSQL `15.19`, stable container/runtime
+requires one exact predecessor or current image/config identity, UID 70, one exact
+`PGDATA`/named-volume target, live PostgreSQL `15.19` for the verified predecessor or
+`15.20` for the current image, stable container/runtime
 identity across the quiesced backup, and a mode-0600 custom dump that
 `pg_restore --list` can parse before the old database stops. Any identity,
 ownership, receipt, or data drift is `HOLD`, not permission for an automatic
