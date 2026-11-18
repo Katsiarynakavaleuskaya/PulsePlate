@@ -22,7 +22,8 @@ import json
 import os
 import re
 import shutil
-import subprocess  # nosec B404: fixed gh CLI only (remove-by: 2026-10-31, ref: PR-985)
+import stat
+import subprocess  # nosec B404: bounded gh and local Git subprocess calls (remove-by: 2027-02-01, ref: PR-985)
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -43,6 +44,7 @@ from scripts.orchestration.review_mapping_artifact import (
     validate_fixed_mapping_section,
 )
 from scripts.orchestration.pr_commit_identity import (
+    _MAX_REVIEW_THREAD_PAGES,
     CommitIdentityError,
     CommitRefKind,
     PrSnapshot,
@@ -96,27 +98,62 @@ _REPOSITORY_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 def _gh_path() -> str:
     """Resolved path to gh CLI (B607 / Sourcery: no partial path in subprocess)."""
     path = shutil.which("gh")
-    if not path:
+    if not path or not Path(path).is_absolute():
         raise RuntimeError("gh CLI not found in PATH")
     return path
 
 
 def _run(cmd: list[str]) -> str:
-    # Sourcery: use resolved binary path; argv from callers is fixed (no user input)
-    argv = list(cmd)
-    if argv and argv[0] == "gh":
-        argv = [_gh_path()] + argv[1:]
-    result = subprocess.run(  # nosec B603: argv from _gh_path()+static; no user input (remove-by: 2026-10-31, ref: PR-985)
-        argv,
-        capture_output=True,
-        text=True,
-        timeout=_RUN_TIMEOUT_SEC,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"Command failed: {' '.join(argv)}\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+    operations = {
+        ("gh", "auth", "token"): "auth token",
+        ("gh", "pr", "view", "--json", "number", "-q", ".number"): "PR number",
+        ("gh", "repo", "view", "--json", "owner", "-q", ".owner.login"): "repository owner",
+        ("gh", "repo", "view", "--json", "name", "-q", ".name"): "repository name",
+    }
+    operation = operations.get(tuple(cmd))
+    if operation is None and cmd[:2] == ["gh", "api"]:
+        repository = r"repos/(?!\.{1,2}/)[A-Za-z0-9_.-]+/(?!\.{1,2}/)[A-Za-z0-9_.-]+/"
+        if len(cmd) == 3 and re.fullmatch(repository + r"pulls/[1-9][0-9]*", cmd[-1]):
+            operation = "pull request"
+        elif len(cmd) == 5 and cmd[2:4] == ["--paginate", "--slurp"]:
+            for suffix, category in (
+                (r"compare/[0-9a-fA-F]{7,40}\.\.\.[0-9a-fA-F]{7,40}\?per_page=100", "compare"),
+                (
+                    r"activity\?ref=(?:[A-Za-z0-9._~+-]|%[0-9A-F]{2})+&activity_type=push&per_page=100",
+                    "activity",
+                ),
+                (r"events\?per_page=100", "events"),
+            ):
+                if re.fullmatch(repository + suffix, cmd[-1]):
+                    operation = category
+                    break
+    if operation is None:
+        raise RuntimeError("Unsupported gh operation")
+    argv = [_gh_path(), *cmd[1:]]
+    try:
+        result = subprocess.run(  # nosec B603: closed gh commands with validated dynamic REST operands and bounded diagnostics (remove-by: 2027-02-01, ref: PR-985)
+            argv,
+            capture_output=True,
+            text=True,
+            timeout=_RUN_TIMEOUT_SEC,
         )
-    return result.stdout
+    except subprocess.TimeoutExpired:
+        failure = "timeout"
+    except (OSError, UnicodeError):
+        failure = "transport failure"
+    else:
+        if result.returncode == 0:
+            return result.stdout
+        failure = f"exit {result.returncode}"
+    raise RuntimeError(f"gh {operation}: {failure}")
+
+
+def _decode_gh_json(raw: str) -> Any:
+    try:
+        return json.loads(raw)
+    except (ValueError, RecursionError):
+        pass
+    raise RuntimeError("Malformed gh JSON response")
 
 
 def _parse_iso_datetime(value: str) -> datetime:
@@ -137,75 +174,166 @@ def _parse_iso_datetime(value: str) -> datetime:
 _GIT_SHA_RE = re.compile(r"^[a-f0-9]{7,40}$", re.IGNORECASE)
 
 
-def _git_commit_time_iso(commit_sha: str) -> str:
-    """
-    Return commit committer date in strict ISO 8601 (git %cI).
-    Uses absolute git path; commit_sha validated so argv is safe (no injection).
-    """
-    if not _GIT_SHA_RE.match(commit_sha.strip()):
-        raise RuntimeError(f"Invalid commit SHA format: {commit_sha!r}")
-    git_path = shutil.which("git")
-    if not git_path:
-        raise RuntimeError("git not found in PATH; required for commit-after-comment guard")
-    result = subprocess.run(  # nosec B603: git_path from which(); commit_sha validated by _GIT_SHA_RE (remove-by: 2026-10-31, ref: PR-985)
-        [git_path, "show", "-s", "--format=%cI", commit_sha.strip()],
-        capture_output=True,
-        text=True,
-        timeout=_GIT_TIMEOUT_SEC,
-        check=False,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"git show failed for sha={commit_sha}: rc={result.returncode} stderr={result.stderr.strip()!r}"
+def _commit_metadata(commit_sha: str, field: str) -> bytes:
+    """Read one selected commit's exclusion/chronology data in the CLI checkout."""
+    spelling = commit_sha.strip()
+    if not re.fullmatch(r"[0-9A-Fa-f]{7,40}", spelling):
+        raise RuntimeError("Invalid commit SHA format")
+    formats = {
+        "time": ["-s", "--format=%cI"],
+        "subject": ["-s", "--format=%s"],
+        "files": ["--name-only", "-z", "--pretty=format:"],
+    }
+    options = formats[field]
+    git = shutil.which("git", path=os.defpath)
+    if (
+        not git
+        or not Path(git).is_absolute()
+        or not os.access(git, os.X_OK)
+        or not Path(git).is_file()
+    ):
+        raise RuntimeError("Local Git executable unavailable")
+    environment = {
+        "PATH": os.defpath,
+        "LC_ALL": "C",
+        "GIT_NO_REPLACE_OBJECTS": "1",
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_OPTIONAL_LOCKS": "0",
+        "GIT_TERMINAL_PROMPT": "0",
+    }
+
+    def query(*args: str) -> bytes:
+        try:
+            result = subprocess.run(  # nosec B603: absolute git binary checks metadata with fixed operands (remove-by: 2027-02-01, ref: PR-985)
+                [
+                    git,
+                    "--no-pager",
+                    "--no-replace-objects",
+                    "-c",
+                    "core.warnAmbiguousRefs=true",
+                    "-c",
+                    "advice.objectNameWarning=true",
+                    *args,
+                ],
+                cwd=REPO_ROOT,
+                env=environment,
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                timeout=_GIT_TIMEOUT_SEC,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            failure = "Local Git metadata query timed out"
+        except OSError:
+            failure = "Local Git metadata query could not execute"
+        else:
+            if result.returncode == 0 and not result.stderr:
+                return result.stdout
+            failure = "Local Git metadata query failed or was ambiguous"
+        raise RuntimeError(failure)
+
+    if query("rev-parse", "--show-toplevel") != os.fsencode(REPO_ROOT.resolve()) + b"\n":
+        raise RuntimeError("Local Git checkout mismatch")
+    shallow = b""
+    for leaf in (("info/grafts", "shallow") if field == "files" else ("info/grafts",)):
+        raw_path = query("rev-parse", "--git-path", leaf)
+        if (
+            not raw_path.endswith(b"\n")
+            or not raw_path[:-1]
+            or any(ch in raw_path[:-1] for ch in (b"\n", b"\r", b"\x00"))
+        ):
+            raise RuntimeError("Local Git history metadata path is invalid")
+        path = REPO_ROOT / os.fsdecode(raw_path[:-1])
+        try:
+            if leaf == "info/grafts":
+                path.lstat()
+                raise RuntimeError("Local Git grafts preclude metadata verification")
+            fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+            try:
+                if not stat.S_ISREG(os.fstat(fd).st_mode):
+                    raise RuntimeError("Invalid local Git shallow boundary")
+                with os.fdopen(fd, "rb", closefd=False) as stream:
+                    shallow = stream.read(4 * 1024**2 + 1)
+            finally:
+                os.close(fd)
+        except FileNotFoundError:
+            if leaf == "shallow":
+                shallow = b""
+        except OSError:
+            raise RuntimeError("Local Git history metadata unavailable") from None
+    boundaries = shallow.splitlines()
+    if (
+        len(shallow) > 4 * 1024**2
+        or len(set(boundaries)) != len(boundaries)
+        or any(not re.fullmatch(rb"[0-9a-f]{40}", row) for row in boundaries)
+    ):
+        raise RuntimeError("Invalid local Git shallow boundary")
+    unique = query("rev-parse", "--disambiguate=" + spelling.lower())
+    if not re.fullmatch(rb"[0-9a-f]{40}\n", unique) or not unique.startswith(
+        spelling.lower().encode("ascii")
+    ):
+        raise RuntimeError("Local commit object is missing or ambiguous")
+    oid = unique[:-1].decode("ascii")
+    if (
+        any(
+            query("rev-parse", "--verify", "--end-of-options", name) != unique
+            for name in dict.fromkeys((spelling, spelling.lower()))
         )
-    out = result.stdout.strip()
-    if not out:
-        raise RuntimeError(f"git returned empty commit time for sha={commit_sha}")
-    return out
+        or query("cat-file", "-t", oid) != b"commit\n"
+        or unique[:-1] in boundaries
+    ):
+        raise RuntimeError("Local commit identity or parent evidence is unavailable")
+    return query(
+        "show",
+        "--no-ext-diff",
+        "--no-textconv",
+        "--no-notes",
+        "--no-show-signature",
+        "--no-color",
+        "--no-decorate",
+        *options,
+        oid,
+        "--",
+    )
+
+
+def _git_commit_time_iso(commit_sha: str) -> str:
+    raw = _commit_metadata(commit_sha, "time")
+    if re.fullmatch(
+        rb"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}"
+        rb"(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])\n",
+        raw,
+    ):
+        value = raw[:-1].decode("ascii")
+        if value.endswith("Z"):
+            value = value[:-1] + "+00:00"
+        try:
+            datetime.fromisoformat(value)
+        except ValueError:
+            pass
+        else:
+            return value
+    raise RuntimeError("Invalid local commit timestamp")
 
 
 def _git_commit_subject(commit_sha: str) -> str:
-    """Return commit subject line for a SHA (git show -s --format=%s). SHA validated for safe argv."""
-    sha = commit_sha.strip()
-    if not _GIT_SHA_RE.match(sha):
-        raise RuntimeError(f"Invalid commit SHA format: {commit_sha!r}")
-    git_path = shutil.which("git")
-    if not git_path:
-        raise RuntimeError("git not found in PATH; required for trigger-only mapping guard")
-    result = subprocess.run(  # nosec B603: fixed argv, sha validated (remove-by: 2026-10-31, ref: PR-985)
-        [git_path, "show", "-s", "--format=%s", sha],
-        capture_output=True,
-        text=True,
-        timeout=_GIT_TIMEOUT_SEC,
-        check=False,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"git show subject failed for sha={commit_sha}: rc={result.returncode} stderr={result.stderr.strip()!r}"
-        )
-    return result.stdout.strip()
+    raw = _commit_metadata(commit_sha, "subject")
+    if raw.endswith(b"\n") and not any(ch in raw[:-1] for ch in (b"\r", b"\n", b"\x00")):
+        try:
+            return raw[:-1].decode("utf-8")
+        except UnicodeDecodeError:
+            pass
+    raise RuntimeError("Invalid local commit subject")
 
 
 def _git_changed_files(commit_sha: str) -> list[str]:
-    """Return list of files changed in a SHA (git show --name-only). Empty means empty commit. SHA validated."""
-    sha = commit_sha.strip()
-    if not _GIT_SHA_RE.match(sha):
-        raise RuntimeError(f"Invalid commit SHA format: {commit_sha!r}")
-    git_path = shutil.which("git")
-    if not git_path:
-        raise RuntimeError("git not found in PATH; required for trigger-only mapping guard")
-    result = subprocess.run(  # nosec B603: fixed argv, sha validated (remove-by: 2026-10-31, ref: PR-985)
-        [git_path, "show", "--name-only", "--pretty=format:", sha],
-        capture_output=True,
-        text=True,
-        timeout=_GIT_TIMEOUT_SEC,
-        check=False,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"git show name-only failed for sha={commit_sha}: rc={result.returncode} stderr={result.stderr.strip()!r}"
-        )
-    return [ln.strip() for ln in result.stdout.splitlines() if ln.strip()]
+    raw = _commit_metadata(commit_sha, "files")
+    if not raw:
+        return []
+    if not raw.endswith(b"\x00") or any(not name for name in raw[:-1].split(b"\x00")):
+        raise RuntimeError("Invalid local commit path inventory")
+    return [os.fsdecode(name) for name in raw[:-1].split(b"\x00")]
 
 
 def _check_trigger_only_mapping(
@@ -233,7 +361,7 @@ def _check_trigger_only_mapping(
         if TRIGGER_ONLY_COMMIT_SUBJECT_RE.search(subject):
             violations.append(
                 f"{t.url}: mapped to {sha} but commit subject looks like CI rerun/trigger "
-                f"('{subject}'). Trigger-only commits are not valid FIXED proof."
+                "and cannot serve as FIXED proof."
             )
     return violations
 
@@ -491,6 +619,23 @@ def _repository_activity_push_timestamp(activity: dict[str, object]) -> str:
     )
 
 
+def _next_page_cursor(info: dict[str, Any], seen: set[str], label: str) -> str | None:
+    more = info.get("hasNextPage")
+    if type(more) is not bool:
+        raise RuntimeError(f"{label} pagination is malformed")
+    cursor = info.get("endCursor")
+    if "endCursor" not in info or (
+        cursor is not None and (not isinstance(cursor, str) or not cursor.strip())
+    ):
+        raise RuntimeError(f"{label} cursor is malformed")
+    if not more:
+        return None
+    if not isinstance(cursor, str) or cursor in seen:
+        raise RuntimeError(f"{label} cursor is missing or repeated")
+    seen.add(cursor)
+    return cursor
+
+
 def _fetch_pr_force_push_boundaries(
     *,
     repository: str,
@@ -522,14 +667,16 @@ def _fetch_pr_force_push_boundaries(
     }
     """
     after: str | None = None
+    seen: set[str] = set()
     boundaries: list[tuple[str | None, str, str]] = []
     while True:
         data = _graphql(
             query,
             {"owner": owner, "name": name, "pr": pr_number, "after": after},
         )
-        pull_request = (data.get("repository") or {}).get("pullRequest") or {}
-        timeline = pull_request.get("timelineItems")
+        repo_data = data.get("repository")
+        pull_request = repo_data.get("pullRequest") if isinstance(repo_data, dict) else None
+        timeline = pull_request.get("timelineItems") if isinstance(pull_request, dict) else None
         if not isinstance(timeline, dict):
             raise RuntimeError("GitHub force-push timeline response is malformed")
         nodes = timeline.get("nodes")
@@ -563,15 +710,9 @@ def _fetch_pr_force_push_boundaries(
                     ),
                 )
             )
-        has_next_page = page_info.get("hasNextPage")
-        end_cursor = page_info.get("endCursor")
-        if not isinstance(has_next_page, bool):
-            raise RuntimeError("GitHub force-push timeline pagination is malformed")
-        if not has_next_page:
+        after = _next_page_cursor(page_info, seen, "GitHub force-push timeline")
+        if after is None:
             break
-        if not isinstance(end_cursor, str) or not end_cursor:
-            raise RuntimeError("GitHub force-push timeline cursor is malformed")
-        after = end_cursor
     return boundaries
 
 
@@ -583,7 +724,7 @@ def _fetch_compare_commit_shas(
 ) -> frozenset[str]:
     """Return commits GitHub proves were introduced between two exact heads."""
 
-    compare_pages = json.loads(
+    compare_pages = _decode_gh_json(
         _run(
             [
                 "gh",
@@ -628,7 +769,7 @@ def _fetch_server_commit_times(
     if not missing:
         return times
 
-    pull_payload = json.loads(_run(["gh", "api", f"repos/{repository}/pulls/{pr_number}"]))
+    pull_payload = _decode_gh_json(_run(["gh", "api", f"repos/{repository}/pulls/{pr_number}"]))
     head = pull_payload.get("head") if isinstance(pull_payload, dict) else None
     head_repo = head.get("repo") if isinstance(head, dict) else None
     head_repository = head_repo.get("full_name") if isinstance(head_repo, dict) else None
@@ -652,7 +793,7 @@ def _fetch_server_commit_times(
             "per_page": 100,
         }
     )
-    activity_pages = json.loads(
+    activity_pages = _decode_gh_json(
         _run(
             [
                 "gh",
@@ -704,7 +845,7 @@ def _fetch_server_commit_times(
     if not missing:
         return times
 
-    event_pages = json.loads(
+    event_pages = _decode_gh_json(
         _run(
             [
                 "gh",
@@ -793,26 +934,42 @@ def _get_pr_number(pr_number: int | None = None) -> int:
     out = _run(["gh", "pr", "view", "--json", "number", "-q", ".number"])
     out = out.strip()
     if not out.isdigit():
-        raise RuntimeError(f"Unable to detect PR number from gh output: {out!r}")
-    return int(out)
+        raise RuntimeError("Unable to detect PR number from gh output")
+    try:
+        return int(out)
+    except ValueError:
+        pass
+    raise RuntimeError("Unable to detect PR number from gh output")
 
 
 def _graphql(query: str, variables: dict[str, Any]) -> dict[str, Any]:
     # Sourcery: no dynamic argv — pass body via stdin (static argv only)
     body = json.dumps({"query": query, "variables": variables})
-    result = subprocess.run(  # nosec B603: argv static; body via stdin only (remove-by: 2026-10-31, ref: PR-985)
-        [_gh_path(), "api", "graphql", "--input", "-"],
-        input=body,
-        capture_output=True,
-        text=True,
-        timeout=_RUN_TIMEOUT_SEC,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(f"gh api graphql failed: {result.returncode}\nSTDERR:\n{result.stderr}")
-    data = json.loads(result.stdout)
-    if "errors" in data:
-        raise RuntimeError(f"GraphQL errors: {data['errors']}")
-    return cast(dict[str, Any], data["data"])
+    try:
+        result = subprocess.run(  # nosec B603: argv static; body via stdin only (remove-by: 2027-02-01, ref: PR-985)
+            [_gh_path(), "api", "graphql", "--input", "-"],
+            input=body,
+            capture_output=True,
+            text=True,
+            timeout=_RUN_TIMEOUT_SEC,
+        )
+    except subprocess.TimeoutExpired:
+        failure = "timeout"
+    except (OSError, UnicodeError):
+        failure = "transport failure"
+    else:
+        if result.returncode == 0:
+            payload = _decode_gh_json(result.stdout)
+            if (
+                isinstance(payload, dict)
+                and "errors" not in payload
+                and isinstance(payload.get("data"), dict)
+            ):
+                return cast(dict[str, Any], payload["data"])
+            failure = "invalid response"
+        else:
+            failure = f"exit {result.returncode}"
+    raise RuntimeError(f"gh graphql: {failure}")
 
 
 def _get_owner_repo() -> tuple[str, str]:
@@ -878,31 +1035,54 @@ def _collect_resolved_threads(pr_number: int) -> list[ResolvedThreadRef]:
     after: str | None = None
     resolved: list[ResolvedThreadRef] = []
 
-    while True:
+    seen: set[str] = set()
+    for _ in range(_MAX_REVIEW_THREAD_PAGES):
         variables = {"owner": owner, "repo": repo, "pr": pr_number, "after": after}
         data = _graphql(query, variables)
-        pr = data["repository"]["pullRequest"]
-        threads = pr["reviewThreads"]["nodes"]
-        for t in threads:
-            if not t.get("isResolved", False):
+        repository = data.get("repository")
+        pr = repository.get("pullRequest") if isinstance(repository, dict) else None
+        connection = pr.get("reviewThreads") if isinstance(pr, dict) else None
+        if not isinstance(connection, dict):
+            raise RuntimeError("GitHub review thread connection is malformed")
+        threads, page = connection.get("nodes"), connection.get("pageInfo")
+        if not isinstance(threads, list) or not isinstance(page, dict):
+            raise RuntimeError("GitHub review thread page is malformed")
+        for thread in threads:
+            if not isinstance(thread, dict) or type(thread.get("isResolved")) is not bool:
+                raise RuntimeError("GitHub review thread resolution state is malformed")
+            if not thread["isResolved"]:
                 continue
-            comment_nodes = (t.get("comments") or {}).get("nodes") or []
-            if comment_nodes and comment_nodes[0].get("url"):
-                first = comment_nodes[0]
-                created_at = first.get("createdAt") or ""
-                resolved.append(
-                    ResolvedThreadRef(
-                        url=first["url"],
-                        source="comment",
-                        is_resolved=True,
-                        created_at=created_at,
-                        author_login=str(((first.get("author") or {}).get("login") or "")),
-                    )
+            comments = thread.get("comments")
+            roots = comments.get("nodes") if isinstance(comments, dict) else None
+            if not isinstance(roots, list) or len(roots) != 1 or not isinstance(roots[0], dict):
+                raise RuntimeError("GitHub resolved review thread first comment is unavailable")
+            first = roots[0]
+            url = first.get("url")
+            if not isinstance(url, str) or not url.strip():
+                raise RuntimeError("GitHub resolved review thread URL is missing")
+            created_at = _validated_server_timestamp(
+                first.get("createdAt"), label="GitHub resolved review thread"
+            )
+            author = first.get("author")
+            login = author.get("login") if isinstance(author, dict) else None
+            if "author" not in first or (
+                author is not None and (not isinstance(login, str) or not login.strip())
+            ):
+                raise RuntimeError("GitHub resolved review thread author is malformed")
+            resolved.append(
+                ResolvedThreadRef(
+                    url=url,
+                    source="comment",
+                    is_resolved=True,
+                    created_at=created_at,
+                    author_login=login or "",
                 )
-        page = pr["reviewThreads"]["pageInfo"]
-        if not page["hasNextPage"]:
+            )
+        after = _next_page_cursor(page, seen, "GitHub review threads")
+        if after is None:
             break
-        after = page["endCursor"]
+    else:
+        raise RuntimeError("GitHub review threads exceeded the page limit")
 
     uniq: dict[str, ResolvedThreadRef] = {r.url: r for r in resolved}
     return list(uniq.values())
@@ -1047,14 +1227,14 @@ def _check_real_commit_proofs(
 def _has_gh_auth() -> bool:
     """True if gh CLI auth is actually usable for API calls."""
     try:
-        result = subprocess.run(  # nosec B603: argv [_gh_path(), "auth", "status"]; no user input (remove-by: 2026-10-31, ref: PR-985)
+        result = subprocess.run(  # nosec B603: argv [_gh_path(), "auth", "status"]; no user input (remove-by: 2027-02-01, ref: PR-985)
             [_gh_path(), "auth", "status"],
             capture_output=True,
             text=True,
             timeout=5,
         )
         return result.returncode == 0
-    except (OSError, RuntimeError, subprocess.TimeoutExpired):
+    except (OSError, UnicodeError, RuntimeError, subprocess.TimeoutExpired):
         return False
 
 
@@ -1103,24 +1283,29 @@ def _require_gh_token_preflight(require_auth: bool, in_ci: bool) -> None:
         print("ERROR: gh CLI not found in PATH; required when GH_TOKEN is set.")
         sys.exit(1)
     try:
-        result = subprocess.run(  # nosec B603: argv from _gh_path()+static; no user input (remove-by: 2026-10-31, ref: PR-985)
+        result = subprocess.run(  # nosec B603: argv from _gh_path()+static; no user input (remove-by: 2027-02-01, ref: PR-985)
             argv,
             capture_output=True,
             text=True,
             timeout=10,
         )
-    except (OSError, subprocess.TimeoutExpired) as exc:
+    except (OSError, UnicodeError, subprocess.TimeoutExpired) as exc:
         print("ERROR: GH_TOKEN is set but gh auth status failed during strict preflight.")
         print(f"       Env: {_env_diagnostic()}")
-        print(f"       Cause: {exc}")
+        print(
+            "       Cause: timeout"
+            if isinstance(exc, subprocess.TimeoutExpired)
+            else "       Cause: transport failure"
+        )
         print("  gh auth status  # run manually to see reason")
-        sys.exit(1)
-    if result.returncode != 0:
+    else:
+        if result.returncode == 0:
+            return
         print("ERROR: GH_TOKEN is set but gh auth status failed. Fix env before running GraphQL.")
         print(f"       Env: {_env_diagnostic()}")
         print("  gh auth status  # run manually to see reason")
-        sys.stderr.write(result.stderr or "")
-        sys.exit(1)
+        print(f"       Exit status: {result.returncode}")
+    sys.exit(1)
 
 
 def main() -> None:

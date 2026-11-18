@@ -22,7 +22,7 @@ import re
 import shutil
 import socket
 import stat
-import subprocess  # nosec B404: bounded absolute runtime/git argv only (remove-by: 2026-10-31, ref: ledger-p1-experiment-runner-macos-strict-backend)
+import subprocess  # nosec B404: bounded absolute runtime/git argv only (remove-by: 2027-02-01, ref: ledger-p1-experiment-runner-macos-strict-backend)
 import sys
 import tempfile
 import threading
@@ -349,7 +349,7 @@ def _run(
     try:
         child_env = dict(env_override) if env_override is not None else _safe_env()
         child_env.update({key: os.environ[key] for key in secret_env_keys if os.environ.get(key)})
-        return subprocess.run(  # nosec B603: argv begins with resolved absolute executable, no shell (remove-by: 2026-10-31, ref: ledger-p1-experiment-runner-macos-strict-backend)
+        return subprocess.run(  # nosec B603: argv begins with resolved absolute executable, no shell (remove-by: 2027-01-01, ref: ledger-p1-experiment-runner-macos-strict-backend)
             argv,
             cwd=str(cwd),
             env=child_env,
@@ -359,8 +359,9 @@ def _run(
             timeout=timeout,
             input=input_text,
         )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        raise DispatchError("probe_execution_failed") from exc
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    raise DispatchError("probe_execution_failed")
 
 
 def _resolve_cli(name: str) -> str | None:

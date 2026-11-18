@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import ExitStack
 import json
 import os
 from pathlib import Path
@@ -22,8 +23,10 @@ from scripts.orchestration.creative_code_patch_contract import (
 )
 from scripts.orchestration.creative_code_patch_workspace import (
     CreativeCodePatchWorkspaceError,
-    cleanup_run_dir,
-    resolve_run_dir,
+    RUN_ID_RE,
+    ensure_artifact_root,
+    exclusive_patch_run_lock,
+    resolve_existing_artifact_root,
     resolve_run_file,
     shared_tree_status,
     verify_origin_main_base,
@@ -308,18 +311,98 @@ def _prepare_builder_from_admission(admission_path: Path, *, run_id: str) -> Pat
         admission["patch_request"]["source_bundle_ref"],
         label="source bundle",
     )
-    run_dir_existed = True
-    try:
-        resolve_run_dir(run_id, create=False)
-    except CreativeCodePatchWorkspaceError:
-        run_dir_existed = False
-    try:
-        state = creative_code_patch_builder.prepare(
-            spec_bundle_path=source_bundle_path,
-            request_path=request_path,
-            run_id=run_id,
-        )
-        run_dir = resolve_run_dir(run_id, create=False)
+    leaf = run_id.strip()
+    if not RUN_ID_RE.fullmatch(leaf):
+        raise CreativeCodePatchWorkspaceError("run id must be a safe identifier.")
+    root = ensure_artifact_root()
+    run_dir = root / leaf
+    if not hasattr(os, "O_DIRECTORY") or not hasattr(os, "O_NOFOLLOW"):
+        raise CreativeSpecPatchAdmissionCliError("Prepare directory custody is unavailable.")
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+
+    def close_fd(fd: int) -> None:
+        primary = sys.exc_info()[1]
+        try:
+            os.close(fd)
+        except OSError:
+            if primary is None:
+                raise CreativeSpecPatchAdmissionCliError(
+                    "Prepare descriptor cleanup failed."
+                ) from None
+            primary.add_note("Prepare descriptor cleanup was uncertain.")
+
+    with ExitStack() as owned:
+        try:
+            root_identity = root.lstat()
+            root_fd = os.open(root, flags)
+            owned.callback(close_fd, root_fd)
+            if not os.path.samestat(root_identity, os.fstat(root_fd)):
+                raise CreativeSpecPatchAdmissionCliError("Prepare artifact root changed.")
+
+            def require_same_root() -> None:
+                if resolve_existing_artifact_root() != root or not os.path.samestat(
+                    root_identity, root.lstat()
+                ):
+                    raise CreativeSpecPatchAdmissionCliError("Prepare artifact root changed.")
+
+            require_same_root()
+            try:
+                os.mkdir(leaf, mode=0o700, dir_fd=root_fd)
+            except FileExistsError:
+                created = False
+            else:
+                created = True
+            run_identity = os.stat(leaf, dir_fd=root_fd, follow_symlinks=False)
+            run_fd = os.open(leaf, flags, dir_fd=root_fd)
+            owned.callback(close_fd, run_fd)
+            if not os.path.samestat(run_identity, os.fstat(run_fd)):
+                raise CreativeSpecPatchAdmissionCliError("Prepare run identity changed.")
+
+            def require_same_run() -> None:
+                require_same_root()
+                try:
+                    named = os.stat(leaf, dir_fd=root_fd, follow_symlinks=False)
+                except OSError:
+                    raise CreativeSpecPatchAdmissionCliError(
+                        "Prepare run identity unavailable."
+                    ) from None
+                if not os.path.samestat(run_identity, named):
+                    raise CreativeSpecPatchAdmissionCliError("Prepare run identity changed.")
+
+            require_same_run()
+            owned.enter_context(
+                exclusive_patch_run_lock(run_dir, label="creative-code admission prepare")
+            )
+            require_same_run()
+        except OSError:
+            raise CreativeSpecPatchAdmissionCliError(
+                "Prepare run reservation unavailable."
+            ) from None
+        try:
+            state = creative_code_patch_builder.prepare(
+                spec_bundle_path=source_bundle_path,
+                request_path=request_path,
+                run_id=run_id,
+            )
+        except Exception as primary:
+            # Only an empty reservation is attributable before the builder returns.
+            # A checkout or partial artifact may be the lower owner's recovery data.
+            if created:
+                try:
+                    require_same_run()
+                    if not os.listdir(run_fd):
+                        require_same_run()
+                        os.rmdir(leaf, dir_fd=root_fd)
+                except (
+                    OSError,
+                    CreativeSpecPatchAdmissionCliError,
+                    CreativeCodePatchWorkspaceError,
+                ):
+                    primary.add_note("Automatic empty-run cleanup was uncertain.")
+            raise
+        # A returned state carries no creation witnesses for individual files.
+        # Retain the prepared run on summary or possibly published write failure.
+        require_same_run()
         builder_prepare = build_builder_prepare_summary(
             run_id=run_id,
             state=state,
@@ -343,16 +426,8 @@ def _prepare_builder_from_admission(admission_path: Path, *, run_id: str) -> Pat
             result_file_present=(run_dir / creative_code_patch_builder.RESULT_FILE).exists(),
         )
         updated = attach_builder_prepare_summary(admission, builder_prepare=builder_prepare)
+        require_same_run()
         write_json_atomic(admission_path, updated)
-    except Exception:
-        if not run_dir_existed:
-            try:
-                cleanup_run_dir(run_id)
-            except CreativeCodePatchWorkspaceError as cleanup_exc:
-                raise CreativeSpecPatchAdmissionCliError(
-                    "prepare failed or produced invalid proof, and partial run cleanup failed."
-                ) from cleanup_exc
-        raise
     return admission_path
 
 

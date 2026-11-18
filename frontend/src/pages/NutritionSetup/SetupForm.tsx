@@ -3,7 +3,7 @@
 
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { setupSchema, type SetupFormValues, validDietFlags, type DietFlag } from './schema';
+import { setupSchema, parseSetupFormValues, type SetupFormInput, type SetupFormValues, validDietFlags, type DietFlag } from './schema';
 import { useSettings } from '../../lib/settings';
 import { useTranslation } from 'react-i18next';
 
@@ -37,12 +37,9 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
   const { t } = useTranslation();
 
   // Get saved values or defaults with validation
-  const saved: SetupFormValues | undefined = (() => {
-    const result = setupSchema.safeParse(settings.setup);
-    return result.success ? result.data : undefined;
-  })();
+  const saved = parseSetupFormValues(settings.setup);
 
-  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<SetupFormValues>({
+  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<SetupFormInput, unknown, SetupFormValues>({
     resolver: zodResolver(setupSchema),
     defaultValues: saved ?? {
       sex: 'female',
@@ -64,7 +61,7 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
     const newFlags = checked
       ? currentFlags.includes(flag) ? currentFlags : [...currentFlags, flag]
       : currentFlags.filter(f => f !== flag);
-    setValue('diet_flags', newFlags as DietFlag[]);
+    setValue('diet_flags', newFlags);
   };
 
   const submit = (values: SetupFormValues) => {

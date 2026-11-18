@@ -620,7 +620,9 @@ def test_python_setup_jobs_receive_devpi_credentials_on_main_push_only() -> None
         "diff-coverage",
     ],
 )
-def test_proxy_dependent_jobs_fail_before_work_on_invalid_needs(job_name: str) -> None:
+def test_proxy_dependent_jobs_fail_before_work_on_invalid_needs(
+    job_name: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     bash = shutil.which("bash")
     assert bash is not None
     job = load_ci_workflow()["jobs"][job_name]
@@ -654,23 +656,36 @@ def test_proxy_dependent_jobs_fail_before_work_on_invalid_needs(job_name: str) -
         )
         assert gate_env[key] == "${{ needs." + need + ".result }}"
 
+    home = tmp_path / "home"
+    home.mkdir(mode=0o700)
+    marker = tmp_path / "startup-marker"
+    startup = tmp_path / "hostile-bash-env"
+    startup.write_text("printf loaded > startup-marker\n", encoding="utf-8")
+    monkeypatch.setenv("BASH_ENV", str(startup))
+
     def execute(overrides: dict[str, str]) -> subprocess.CompletedProcess[str]:
-        env = dict(os.environ)
+        env = {"HOME": str(home), "PATH": os.defpath, "LC_ALL": "C"}
         env.update({key: "success" for key in expected_keys})
         if job_name == "security":
             env.update(PGVECTOR_RESULT="skipped", PGVECTOR_SELECTION="false")
         if job_name == "merge_readiness_gate":
             env.update(SECURITY_REQUIRED="true", PGVECTOR_REQUIRED="false", IOS_REQUIRED="true")
         env.update(overrides)
-        return subprocess.run(  # nosec B603: resolved bash executes fixed workflow gate text (remove-by: 2026-10-31, ref: PR-consol-ci-1)
+        return subprocess.run(
             [bash, "-e", "-o", "pipefail", "-c", gate_script],
             env=env,
+            cwd=tmp_path,
+            timeout=10,
             capture_output=True,
             text=True,
             check=False,
         )
 
+    assert execute({"BASH_ENV": str(startup)}).returncode == 0
+    assert marker.read_bytes() == b"loaded"
+    marker.unlink()
     assert execute({}).returncode == 0
+    assert not marker.exists()
     for need in needs:
         key = (
             "PGVECTOR_RESULT"

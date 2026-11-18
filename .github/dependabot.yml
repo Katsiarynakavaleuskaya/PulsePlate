@@ -54,6 +54,7 @@ updates:
           - "tenacity"
           - "click"
           - "email-validator"
+          - "dnspython"
           - "nh3"
         update-types:
           - "minor"
@@ -116,6 +117,7 @@ updates:
           - "pip-audit"
           - "pre-commit"
           - "virtualenv"
+          - "filelock"
           - "bandit"
           - "detect-secrets"
           - "distlib"

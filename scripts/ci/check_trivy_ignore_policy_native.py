@@ -3,18 +3,22 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
+import platform
 import shutil
 import stat
-import subprocess  # nosec B404: fixed native Trivy CLI only (remove-by: 2026-10-28, ref: PR-2453)
+import subprocess  # nosec B404 # B404: native Trivy version and Rego conversion require the process API (remove-by: 2026-11-11, ref: PR-2494)
 import sys
+import tempfile
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SOURCE_POLICY = REPO_ROOT / "trivy/ignore-policy.rego"
 SCAN_POLICY = REPO_ROOT / ".trivy-ignore-policy.rego"
 TIMEOUT_SECONDS = 10
+LINUX_X86_64_TRIVY_SHA256 = "d89bcc6510a267f11b773398cbf1be5520ce39f9e8b6633178c4487f05b7d791"
 TUPLES = (
     ("CVE-2026-27171", "zlib1g", "1:1.2.13.dfsg-1", "1:1.3.dfsg+really1.3.2-3"),
     ("CVE-2025-69720", "libncursesw6", "6.4-4", "6.6+20260608-2"),
@@ -55,17 +59,36 @@ def _trivy_binary() -> str:
         raise ValueError("Unable to resolve native Trivy executable") from exc
     if not resolved.is_file() or not os.access(resolved, os.X_OK):
         raise ValueError("Native Trivy executable is not an executable file")
+    if sys.platform == "linux" and platform.machine() == "x86_64":
+        try:
+            with resolved.open("rb") as stream:
+                digest = hashlib.file_digest(stream, "sha256").hexdigest()
+        except OSError as exc:
+            raise ValueError("Unable to hash native Trivy executable") from exc
+        if digest != LINUX_X86_64_TRIVY_SHA256:
+            raise ValueError("Native Trivy Linux x86_64 executable SHA-256 differs")
     return str(resolved)
 
 
-def _invoke(argv: list[str], *, payload: bytes | None = None) -> subprocess.CompletedProcess[bytes]:
+def _invoke(
+    argv: list[str], private: Path, *, payload: bytes | None = None
+) -> subprocess.CompletedProcess[bytes]:
     try:
-        return subprocess.run(  # nosec B603: absolute CLI and fixed argv, no shell (remove-by: 2026-10-28, ref: PR-2453)
+        return subprocess.run(  # nosec B603 # B603: resolved native Trivy, fixed version/convert argv, synthetic stdin and isolated child environment (remove-by: 2026-11-11, ref: PR-2494)
             argv,
             input=payload,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            cwd=REPO_ROOT,
+            stdin=subprocess.DEVNULL if payload is None else None,
+            cwd=private,
+            env={
+                "PATH": "/usr/bin:/bin",
+                "LANG": "C",
+                "LC_ALL": "C",
+                "HOME": str(private),
+                "XDG_CACHE_HOME": str(private / "cache"),
+                "TMPDIR": str(private / "tmp"),
+            },
             timeout=TIMEOUT_SECONDS,
             check=False,
         )
@@ -75,8 +98,8 @@ def _invoke(argv: list[str], *, payload: bytes | None = None) -> subprocess.Comp
         raise ValueError("Native Trivy command could not start") from exc
 
 
-def _require_version(binary: str) -> None:
-    result = _invoke([binary, "--version"])
+def _require_version(binary: str, private: Path) -> None:
+    result = _invoke([binary, "--version"], private)
     if result.returncode != 0 or result.stdout.splitlines()[:1] != [b"Version: 0.74.0"]:
         raise ValueError("Native Trivy must be exactly version 0.74.0")
 
@@ -295,7 +318,7 @@ def _visible_source_cases() -> list[tuple[str, dict[str, object], int | None]]:
     ]
 
 
-def _run_contract(binary: str, scan_copy: Path) -> int:
+def _run_contract(binary: str, scan_copy: Path, private: Path) -> int:
     argv = [
         binary,
         "convert",
@@ -316,7 +339,7 @@ def _run_contract(binary: str, scan_copy: Path) -> int:
         + _visible_source_cases()
     )
     for case_id, finding, expected in cases:
-        result = _invoke(argv, payload=_report_bytes(finding))
+        result = _invoke(argv, private, payload=_report_bytes(finding))
         if expected is None:
             diagnostic = result.stderr.decode("utf-8", errors="replace")
             if (
@@ -338,8 +361,12 @@ def main() -> int:
     try:
         _verify_policy_copy(SOURCE_POLICY, SCAN_POLICY)
         binary = _trivy_binary()
-        _require_version(binary)
-        case_count = _run_contract(binary, SCAN_POLICY)
+        with tempfile.TemporaryDirectory(prefix="pulseplate-trivy-convert-") as directory:
+            private = Path(directory).resolve(strict=True)
+            (private / "tmp").mkdir(mode=0o700)
+            (private / "cache").mkdir(mode=0o700)
+            _require_version(binary, private)
+            case_count = _run_contract(binary, SCAN_POLICY, private)
     except ValueError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1

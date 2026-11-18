@@ -11,8 +11,9 @@ from __future__ import annotations
 import os
 import signal
 import shutil
-import subprocess  # nosec B404: subprocess is required for bounded local sandbox execution (remove-by: 2026-10-31, ref: PR-1010)
+import subprocess  # nosec B404: subprocess is required for bounded local sandbox execution (remove-by: 2027-02-01, ref: PR-1010)
 import threading
+import time
 from typing import IO
 from typing import Final
 from dataclasses import dataclass
@@ -77,7 +78,6 @@ _EXECUTION_MODE_PRIORITY = {
     EXECUTION_MODE_BLOCKED: 2,
 }
 _WINDOWS_PROCESS_GROUP_FLAG = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-_STREAM_JOIN_GRACE_SECONDS: Final[float] = 0.1
 _TRUTHY_ENV_VALUES = frozenset({"1", "true", "yes", "on"})
 
 
@@ -245,7 +245,17 @@ def resolve_allowed_binary(binary: str, *, allowed_binaries: tuple[str, ...] | N
     resolved = shutil.which(binary)
     if not resolved:
         raise RuntimeError(f"Allowlisted sandbox binary not found on PATH: {binary}")
-    return resolved
+    try:
+        selected = Path(resolved)
+        invocation = selected.parent.resolve(strict=True) / selected.name
+        target = invocation.resolve(strict=True)
+        if not target.is_file() or not os.access(target, os.X_OK):
+            raise OSError
+    except (OSError, RuntimeError, ValueError):
+        raise RuntimeError(
+            "Allowlisted sandbox binary must resolve to an executable regular file."
+        ) from None
+    return str(invocation)
 
 
 def _sanitize_network_disable_marker(value: str, *, key: str) -> str:
@@ -378,6 +388,7 @@ class _StreamingOutputBuffer:
         self.budget = budget
         self._buffer = bytearray()
         self.truncated = False
+        self.drained_and_closed = False
 
     def append(self, chunk: bytes) -> None:
         accepted = self.budget.consume(chunk)
@@ -398,16 +409,18 @@ def _drain_stream(
     """Read a subprocess stream into a bounded collector."""
 
     try:
-        while True:
-            chunk = stream.read(_STREAM_READ_CHUNK_BYTES)
-            if not chunk:
-                break
-            collector.append(chunk)
-    except OSError:
-        # The controller may close a pipe during timeout cleanup.
+        try:
+            while True:
+                chunk = stream.read(_STREAM_READ_CHUNK_BYTES)
+                if chunk == b"":
+                    break
+                collector.append(chunk)
+        finally:
+            stream.close()
+    except (OSError, ValueError):
+        # The reader owns close. Partial data cannot witness a complete drain.
         return
-    finally:
-        stream.close()
+    collector.drained_and_closed = True
 
 
 def _terminate_sandbox_process(process: subprocess.Popen[bytes]) -> None:
@@ -422,19 +435,10 @@ def _terminate_sandbox_process(process: subprocess.Popen[bytes]) -> None:
     process.kill()
 
 
-def _join_drain_thread(
-    thread: threading.Thread,
-    *,
-    stream: IO[bytes],
-    timeout_seconds: int,
-) -> None:
-    """Bound drain-thread joins so timeout cleanup cannot block indefinitely."""
-
-    thread.join(timeout=timeout_seconds)
-    if not thread.is_alive():
-        return
-    stream.close()
-    thread.join(timeout=_STREAM_JOIN_GRACE_SECONDS)
+def _join_drain_thread(thread: threading.Thread, deadline: float) -> bool:
+    """The reader owns its stream; observe its termination within the shared allowance."""
+    thread.join(timeout=max(0.0, deadline - time.monotonic()))
+    return not thread.is_alive()
 
 
 def run_local_sandbox(
@@ -459,7 +463,7 @@ def run_local_sandbox(
     stdout_collector = _StreamingOutputBuffer(budget=output_budget)
     stderr_collector = _StreamingOutputBuffer(budget=output_budget)
 
-    process = subprocess.Popen(  # nosec B603: absolute allowlisted binary; argv bounded by sandbox API (remove-by: 2026-10-31, ref: PR-1010)
+    process = subprocess.Popen(  # nosec B603: absolute selected executable with explicit argv and sandbox controls (remove-by: 2027-01-01, ref: PR-1010)
         argv,
         cwd=str(sandbox_cwd),
         env=env,
@@ -486,16 +490,47 @@ def run_local_sandbox(
     stderr_thread.start()
 
     timed_out = False
+    uncertain = False
     try:
         returncode = process.wait(timeout=timeout_seconds)
     except subprocess.TimeoutExpired:
         timed_out = True
-        _terminate_sandbox_process(process)
-        process.wait()
         returncode = 124
+    except OSError:
+        # No positive wait-status witness; never signal this numeric group.
+        uncertain = True
+        returncode = 0  # never published on an uncertain path
 
-    _join_drain_thread(stdout_thread, stream=process.stdout, timeout_seconds=timeout_seconds)
-    _join_drain_thread(stderr_thread, stream=process.stderr, timeout_seconds=timeout_seconds)
+    cleanup_deadline = time.monotonic() + timeout_seconds
+    if timed_out:
+        if process.returncode is not None or (
+            os.name == "posix" and signal.getsignal(signal.SIGCHLD) != signal.SIG_DFL
+        ):
+            uncertain = True
+        else:
+            try:
+                _terminate_sandbox_process(process)
+            except OSError:
+                uncertain = True
+        try:
+            process.wait(timeout=max(0.0, cleanup_deadline - time.monotonic()))
+        except (OSError, subprocess.TimeoutExpired):
+            uncertain = True
+
+    for thread in (stdout_thread, stderr_thread):
+        try:
+            if not _join_drain_thread(thread, cleanup_deadline):
+                uncertain = True
+        except (OSError, RuntimeError):
+            uncertain = True
+    if (
+        uncertain
+        or not stdout_collector.drained_and_closed
+        or not stderr_collector.drained_and_closed
+    ):
+        # The runner recognizes this existing exception as an unsettled entered
+        # sandbox call. Never attach command argv or partially drained output.
+        raise subprocess.TimeoutExpired("sandbox cleanup", timeout_seconds)
     return SandboxResult(
         argv=argv,
         returncode=returncode,

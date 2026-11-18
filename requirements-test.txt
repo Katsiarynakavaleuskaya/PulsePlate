@@ -41,7 +41,7 @@ numpy==2.4.6
     # via
     #   -c requirements.txt
     #   -r requirements-test.in
-packaging==25.0
+packaging==26.3
     # via
     #   -c requirements.txt
     #   pytest

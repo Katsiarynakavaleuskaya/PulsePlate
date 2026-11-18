@@ -51,7 +51,8 @@ dead interpreter. Missing scripts are OK; see
 
 - `test-fast` is deterministic and does not use `.pytest_cache`/`--lf`.
 - `make validate-min` is the cheap deterministic local bundle: repo-policy guards + `make test-fast`.
-- `make validate-changed` runs branch-scoped Python test selection from the current branch merge-base through the repo `.venv`.
+- The installed pre-push backend hook runs `make validate-changed` once during each dispatched single feature-branch push. Its successful terminal result satisfies this push's local Make requirement. Run the other narrow gates before pushing. Standalone `make validate-changed` remains available for diagnosis.
+- Ordinary commits select backend tests from staged paths. A clean local `pre-commit run --all-files` runs the configured static/security hooks without replaying backend branch tests. Hosted lint explicitly selects its event delta under ci-lite.
 - `scripts/quick_check.sh` delegates to `make validate-min`, then adds staged-file format/import/syntax checks.
 - Use `. .venv/bin/activate` before direct local `pytest` runs outside Make targets.
 
@@ -65,6 +66,19 @@ Classify the result before choosing the next action:
 | Exploratory `rg`/`grep` returns 1 with no matches | Record the empty search result. It is not a failed gate unless the check required a match. Exit 2 or tool diagnostics still require investigation. |
 | Tool/service invocation fails | Preserve the error and diagnose its own prerequisite. A service HTTP 403 does not authorize model switching or a retry loop. |
 | Required CI is pending | Record pending and wait for current-head evidence; pending is neither pass nor failure. |
+
+**Attempt scope:** A one-attempt allowance applies to the specific agreed operation
+for the current problem, not to the lifetime of a PR. A distinct new problem,
+or a necessary invocation after correcting the observed cause, has its own
+scoped first attempt. Preserve earlier results and resource charges; they do
+not create a permanent prohibition on required follow-through. The coordinator
+uses the owner's continuing authorization, identifies the actual problem,
+material and operation, and applies the relevant per-invocation budget without
+asking again for permission already granted. Do not duplicate active or healthy
+work for context, blindly repeat an unchanged unresolved cause, or relabel an
+old invocation to reuse its exclusive claim. Source/evidence checks, workload
+limits, protected-operation ownership, and separate merge/release/deployment
+authority remain in force.
 
 For a failed required command:
 
@@ -561,7 +575,7 @@ The merge-readiness gate remains separate and still requires `GITHUB_TOKEN` for 
 - **Carryover rule:** If a PR intentionally carries over missed changes from a prior PR, the PR description MUST include a short **Carryover** note and the work MUST be tracked in `docs/roadmap/BACKLOG_LEDGER.md` (entry updated to point to that PR).
 - CI runs `pre-commit run --all-files` and will fail if hooks would modify files that aren't committed.
 - This is not optional: uncommitted hook modifications guarantee CI failure.
-- **One-time setup:** Run `pre-commit install` locally once to enable automatic hook execution on `git commit` (reduces CI noise).
+- **One-time setup:** Run `pre-commit install --hook-type pre-commit --hook-type pre-push` locally to install both stages.
 - **Async test marker rule for pre-commit-selected tests:** CI lint runs
   `pre-commit run --all-files`, and its `backend-tests` hook can execute changed
   tests in an environment where `pytest-asyncio` is not loaded even if the local
@@ -2612,13 +2626,13 @@ host-process secret isolation. These checks grant no deployment authority.
 4. **Token:** Use `${{ secrets.GHCR_READ_TOKEN }}` from environment secrets
 5. **Package access:** Package must grant repository access in settings
 
-The existing CI lint OBS2A native Prometheus consumer and CD PR Prometheus image-security consumer may use the existing ephemeral `${{
+The existing CI lint OBS2A and shared CD PR image-security consumers may use the existing ephemeral `${{
 secrets.GITHUB_TOKEN }}` with `contents: read`, `actions: read`, and `packages: read` for the
-same-repository `pull_request` published-subject branch only. It must independently retain the
+same-repository `pull_request` published-subject branches for Prometheus and Alertmanager only. Each canonical owner must independently retain the
 existing authenticated event/PR binding, exact existing public package identity, immutable subject
 and positive publication predecessor before registry login. The canonical consumer owns stdin-only
 login and bounded credential/process cleanup before the secret-free native child. The changed-PR
-candidate branch performs no registry login. This exception adds no staging environment or
+candidate branch performs no registry login. Alertmanager also requires its actual merged-own-PR/CD publication job predecessor, complete BASE native selection, exact six BASE/HEAD source blobs, the separately designated controller, and the exact public package/tag before login. Its historical initial own-PR retained route has no AM registry login; ordinary PR consumers require the positive publication predecessor. This exception adds no staging environment or
 long-lived secret to either PR job, creates no new secret, and grants no registry write, fallback, weaker
 verification, deployment, or merge authority. Other GHCR readers keep the existing
 environment-scoped GHCR_READ_TOKEN rule.
@@ -2775,7 +2789,7 @@ Do not remove this exclusion without a product decision and a separate PR
 
 - Swift syntax-only checks (pre-commit hooks) are insufficient for enforcement.
 - All iOS unit tests (including guard tests like `ThinClientGuardsTests`) must run in CI.
-- iOS build jobs run on the `xcode-27` runner with exact Xcode 27.0 (matches the current iOS SDK lane).
+- iOS build jobs run on the `xcode-27` runner with exact Xcode 27.2 (matches the current iOS SDK lane).
 - Tests must pass before PR merge.
 
 **Rationale:** Guard tests and architectural invariants are only enforced if tests actually run in CI. Syntax checks do not execute test code.
@@ -2803,7 +2817,7 @@ Do not remove this exclusion without a product decision and a separate PR
 - **`OS=latest` is forbidden in CI:** Job fails if destination contains `latest` (anti-nondeterminism guard). CI must use explicit UDID-based destinations only.
 - **Rationale:** UDID-only kills `latest` ambiguity, name mismatch, and OS version format issues on multi-runtime runners.
 - **Local runs (developer convenience):** May use friendly device name (e.g., `iPhone 16e`) or select latest available iOS runtime for local testing, but CI is strictly UDID-only.
-- **Xcode version pinning (hard rule):** CI requires Xcode 27.0, iOS 27.0 SDK and simulator runtime. It may use the exact Xcode 27.0 installation aliases, followed only by an exact Xcode 27.0 fallback at `/Applications/Xcode.app`; a different version or missing runtime fails closed. Xcode version mismatch causes "iOS X.Y is not installed" errors and makes simulators ineligible for `xcodebuild -showdestinations`.
+- **Xcode version pinning (hard rule):** CI requires Xcode 27.2, iOS 27.2 SDK and simulator runtime. It may use the exact Xcode 27.2 installation aliases, followed only by an exact Xcode 27.2 fallback at `/Applications/Xcode.app`; a different version or missing runtime fails closed. Xcode version mismatch causes "iOS X.Y is not installed" errors and makes simulators ineligible for `xcodebuild -showdestinations`.
 - **"Latest" policy clarification:**
   - ❌ **Forbidden:** `OS=latest` in CI destination strings
   - ✅ **Allowed:** "Latest Xcode installed" selection via deterministic priority list (pin/priority), not "whatever is newest"

@@ -1,4 +1,4 @@
-"""Select one exact iOS 27.0 simulator from a requested device family."""
+"""Select one exact iOS 27.2 simulator from a requested device family."""
 
 from __future__ import annotations
 
@@ -8,13 +8,13 @@ import os
 from pathlib import Path
 import re
 import shutil
-import subprocess  # nosec B404: bounded native simctl inventory reads require a subprocess (remove-by: 2026-10-31, ref: PR-2460)
+import subprocess  # nosec B404: bounded native simctl inventory reads require a subprocess (remove-by: 2027-01-31, ref: PR-2460)
 import sys
 from typing import Any
 import unicodedata
 from uuid import UUID
 
-IOS_27_RUNTIME = "com.apple.CoreSimulator.SimRuntime.iOS-27-0"
+IOS_27_RUNTIME = "com.apple.CoreSimulator.SimRuntime.iOS-27-2"
 FAMILIES = {"iphone": "iPhone", "ipad": "iPad"}
 PREFERRED_NAMES = {
     "iphone": ("iPhone 18 Pro Max", "iPhone 18 Pro", "iPhone 17e", "iPhone 17"),
@@ -26,7 +26,6 @@ PREFERRED_NAMES = {
     ),
 }
 UDID_RE = re.compile(r"[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}\Z")
-IOS_RUNTIME_RE = re.compile(r"com\.apple\.CoreSimulator\.SimRuntime\.iOS-\d+-\d+\Z")
 
 
 class SelectionError(ValueError):
@@ -60,20 +59,13 @@ def select_simulator(
     ):
         raise SelectionError("simctl devices inventory has no devices map")
     devices = devices_inventory["devices"]
-    for key in devices:
-        if not isinstance(key, str) or (
-            key.startswith("com.apple.CoreSimulator.SimRuntime.iOS-")
-            and not IOS_RUNTIME_RE.fullmatch(key)
-        ):
-            raise SelectionError("simctl devices inventory has an invalid runtime key")
-    ios_runtimes = [
-        key for key in devices if isinstance(key, str) and IOS_RUNTIME_RE.fullmatch(key)
-    ]
-    if ios_runtimes.count(IOS_27_RUNTIME) != 1:
-        raise SelectionError("Exactly one iOS 27.0 simulator runtime is required")
+    if any(not isinstance(key, str) for key in devices):
+        raise SelectionError("simctl devices inventory has an invalid runtime key")
+    if IOS_27_RUNTIME not in devices:
+        raise SelectionError("Exactly one iOS 27.2 simulator runtime is required")
     runtime_devices = devices[IOS_27_RUNTIME]
     if not isinstance(runtime_devices, list):
-        raise SelectionError("iOS 27.0 devices inventory must be a list")
+        raise SelectionError("iOS 27.2 devices inventory must be a list")
     if not isinstance(types_inventory, dict) or not isinstance(
         types_inventory.get("devicetypes"), list
     ):
@@ -93,7 +85,7 @@ def select_simulator(
     seen_udids: set[str] = set()
     for item in runtime_devices:
         if not isinstance(item, dict) or not isinstance(item.get("isAvailable"), bool):
-            raise SelectionError("iOS 27.0 device entry has invalid availability")
+            raise SelectionError("iOS 27.2 device entry has invalid availability")
         if not item["isAvailable"]:
             continue
         name = _safe_text(item.get("name"), label="device name")
@@ -113,7 +105,7 @@ def select_simulator(
             candidates.append({"device_name": name, "udid": udid})
 
     if not candidates:
-        raise SelectionError(f"No available {FAMILIES[family]} simulator on iOS 27.0")
+        raise SelectionError(f"No available {FAMILIES[family]} simulator on iOS 27.2")
     preferred = PREFERRED_NAMES[family] if preferred_names is None else preferred_names
     order = {name: index for index, name in enumerate(preferred)}
     candidates.sort(
@@ -134,7 +126,7 @@ def select_simulator(
 
 
 def _native_inventory(xcrun: str, *args: str) -> Any:
-    result = subprocess.run(  # nosec B603: resolved absolute xcrun, fixed simctl argv, no shell (remove-by: 2026-10-31, ref: PR-2460)
+    result = subprocess.run(  # nosec B603: resolved absolute xcrun, fixed simctl argv, no shell (remove-by: 2027-01-31, ref: PR-2460)
         [xcrun, "simctl", "list", *args, "-j"],
         check=True,
         capture_output=True,
@@ -171,7 +163,12 @@ def main() -> int:
                     print(f"- {key}: `{value.replace('`', '')}`", file=summary)
         for key, value in result.items():
             print(f"{key}={value}")
-    except (OSError, subprocess.SubprocessError, json.JSONDecodeError, SelectionError) as exc:
+    except (
+        OSError,
+        subprocess.SubprocessError,
+        json.JSONDecodeError,
+        SelectionError,
+    ) as exc:
         print(f"::error::iOS simulator selection failed: {exc}", file=sys.stderr)
         return 1
     return 0

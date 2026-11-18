@@ -15,6 +15,7 @@
 
 ## Conventions
 
+- Give distinct test scenarios unique function names within each module or class namespace; a later definition with the same name silently replaces the earlier test. Use parametrization with distinct case IDs when scenarios share one test body. After adding or changing regression scenarios, confirm that pytest collects each intended case ID.
 - Use pytest fixtures from `conftest.py`; keep tests isolated.
 - For a negative test targeting a specific guard, start from a valid complete
   baseline, change the intended input, and assert the guard's stable diagnostic
@@ -89,6 +90,10 @@
   `tests/conftest.py` and must enter `tests._client.open_test_client(...)`.
   The managed wrapper owns one lifespan, exact `dependency_overrides`
   restoration, and temporary finite SlowAPI limiter isolation.
+- Singleton-reset discovery reads only concrete `app` / `main_app` bindings
+  observed during the finite loaded-module traversal; do not invoke arbitrary
+  lazy module exports. Later client lifecycle and limiter ownership remain with
+  `tests._client.open_test_client(...)`, respecting explicit rate-limit opt-in.
 - The root `MetricsAwareTestClient` assignment is a temporary PR-TC2
   compatibility bridge. Do not add another patch owner or new callers of raw
   `make_test_client()`, `get_client()`, or `TestClient(...)` in shared provider
@@ -816,6 +821,10 @@ rg -n "sys\.modules\.get\(\"recipe_store\"\)|recipe_store.*spec_from_file_locati
 
 ## Finite source-image producer tests
 
+- Native execution validators must derive expected compiler identity from the selected
+  canonical source context before native setup. Keep synthetic profiles complete and
+  expected stdout and wrong-version test literals independently authored; deriving
+  both the implementation and its test oracle from one selector masks identity drift.
 - For already-approved public-checksum annotations in source-image fixtures,
   inspect the actual literal line after formatting and rerun the real detector.
   Keep strict checksum assertions; formatting or AST equivalence alone does not

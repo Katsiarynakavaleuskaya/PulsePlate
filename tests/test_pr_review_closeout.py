@@ -544,6 +544,13 @@ def test_stale_seal_evidence_accepts_unmerged_base_tips(
     )
     assert current.merge_base_sha == old_manifest.merge_base_sha
     assert snapshot.base_sha != historical_base
+    # A shallow tip on the independently advanced target cannot hide a parent of the PR head.
+    shallow = repo / ".git/shallow"
+    shallow.write_text(snapshot.base_sha + "\n", encoding="ascii")
+    git_binary = shutil.which("git")
+    assert git_binary is not None
+    evidence._reject_shallow_ancestry(repo, descendant_sha=snapshot.head_sha, git=git_binary)
+    shallow.unlink()
     payload, before = _graph_payload_state(fixture)
     live_ref = evidence._stale_seal_repository_commit(
         snapshot.head_sha, snapshot=snapshot, token="opaque", require_pr_commit=True
@@ -754,12 +761,58 @@ def _closeout_file_state(
 
 
 @pytest.mark.parametrize("pr_number", [0, -1, True, False, 42.0, "42", None])
-def test_closeout_state_dir_rejects_invalid_pr_numbers(pr_number: object) -> None:
+def test_closeout_state_dir_rejects_invalid_pr_numbers(tmp_path: Path, pr_number: object) -> None:
     """Reject nonpositive or non-integer PR identities at the actual directory guard."""
     assert closeout._state_dir(42) == closeout.STATE_ROOT / "PR_42"
     with pytest.raises(closeout.CloseoutError) as rejected:
         closeout._state_dir(cast(int, pr_number))
     assert str(rejected.value) == "pr_number must be positive"
+    with pytest.raises(evidence.ReviewEvidenceError, match="mapping requires a positive PR number"):
+        evidence.read_regular_mapping_blob(
+            tmp_path, commit_sha="a" * 40, pr_number=cast(int, pr_number)
+        )
+
+
+@pytest.mark.parametrize(
+    ("fault", "diagnostic"),
+    [
+        ("revision", "mapping revision must be a commit"),
+        ("missing", "mapping must be one canonical regular blob"),
+        ("leaf", "mapping leaf object must be a blob"),
+        ("size", "mapping blob size is malformed"),
+    ],
+)
+def test_mapping_evidence_rejects_invalid_revision_or_object_metadata(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str, diagnostic: str
+) -> None:
+    _publication_git(tmp_path, "init", "-q")
+    target = tmp_path / "docs/review/PR_42_FIXED_MAPPING.md"
+    target.parent.mkdir(parents=True)
+    target.write_text("mapping", encoding="utf-8")
+    _publication_git(tmp_path, "add", "docs")
+    _publication_git(tmp_path, "commit", "-qm", "mapping fixture")
+    commit = _publication_git(tmp_path, "rev-parse", "HEAD")
+    blob = _publication_git(tmp_path, "rev-parse", "HEAD:docs/review/PR_42_FIXED_MAPPING.md")
+    real_git = evidence._run_git
+
+    def git(root: Path, args: list[str], **kwargs: Any) -> bytes:
+        if fault == "size" and args == ["cat-file", "-s", blob]:
+            return b"07\n"
+        if fault == "leaf" and args == ["cat-file", "-t", blob]:
+            return b"tree\n"
+        return real_git(root, args, **kwargs)
+
+    monkeypatch.setattr(evidence, "_run_git", git)
+    if fault == "missing":
+        with pytest.raises(evidence.ReviewEvidenceError, match=diagnostic):
+            evidence._stale_seal_mapping_blob(tmp_path, commit_sha=commit, pr_number=43)
+    else:
+        with pytest.raises(
+            ValueError if fault == "size" else evidence.ReviewEvidenceError, match=diagnostic
+        ):
+            evidence.read_regular_mapping_blob(
+                tmp_path, commit_sha=blob if fault == "revision" else commit, pr_number=42
+            )
 
 
 def _ordinary_retirement_closeout_fixture(

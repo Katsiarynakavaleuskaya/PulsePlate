@@ -14,7 +14,7 @@ import os
 import re
 from pathlib import Path
 import shutil
-import subprocess  # nosec B404: native Docker/OpenSSL/psql protocol has no safer bounded replacement (remove-by: 2026-10-27, ref: PR-2486)
+import subprocess  # nosec B404: native Docker/OpenSSL/psql protocol has no safer bounded replacement (remove-by: 2026-11-11, ref: PR-2497)
 import sys
 import tempfile
 import time
@@ -56,7 +56,7 @@ def native(
     binary = shutil.which(arguments[0])
     if binary is None:
         raise ProbeError(f"Required native executable unavailable: {arguments[0]}")
-    result = subprocess.run(  # nosec B603: resolved argv, binary input, no shell, bounded timeout and redacted errors (remove-by: 2026-10-27, ref: PR-2486)
+    result = subprocess.run(  # nosec B603: resolved argv, binary input, no shell, bounded timeout and redacted errors (remove-by: 2026-11-11, ref: PR-2497)
         [binary, *arguments[1:]],
         input=data,
         capture_output=True,

@@ -5,6 +5,18 @@ name: CI
 # Periodically update these SHAs to newer versions for security updates and bug fixes.
 
 env:
+  # ROOT creates C, independently reviews/designates it, then pins C before one normal C,H push.
+  ALERTMANAGER_CONTROLLER_SOURCE: '41f275fc6bec94dbf04c02338d560446bb846e0c' # Public immutable controller commit
+  ALERTMANAGER_PREPARATION_MINUTES: '14'
+  ALERTMANAGER_PREP_SECONDS: '600'
+  ALERTMANAGER_PAIR_SECONDS: '1800'
+  ALERTMANAGER_SECURITY_SECONDS: '1800'
+  ALERTMANAGER_NATIVE_SECONDS: '2400'
+  ALERTMANAGER_PUBLICATION_SECONDS: '1800'
+  ALERTMANAGER_CLEANUP_SECONDS: '45'
+  ALERTMANAGER_NATIVE_CLEANUP_SECONDS: '120'
+  ALERTMANAGER_SCAN_TIMEOUT_SECONDS: '300'
+  ALERTMANAGER_SCAN_PROCESS_SECONDS: '330'
   PYTHON_VERSION: "3.13.14"
   FRONTEND_NODE_VERSION_FILE: ".nvmrc"
   CONTRACT_RISK_CLEANUP_SECONDS: "5"
@@ -374,7 +386,7 @@ jobs:
           fi
 
           if [ "${PR5_SOURCE_CORPUS_CHANGED}" -eq 1 ]; then
-            echo "PR-5 source corpus guard changed; checking source index and all touched paths."
+            echo "Checking canonical corpus integrity and applicable scope/credentials for all touched paths."
             python scripts/ci/check_philosophy_source_corpus_index.py --check \
               --base-ref "$BASE_REF" --files "${ALL_CHANGED_FILES[@]}"
           fi
@@ -718,17 +730,22 @@ jobs:
   lint:
     needs: [private_python_proxy_health]
     if: ${{ !cancelled() }}
-    runs-on: ubuntu-latest
-    timeout-minutes: ${{ fromJSON(vars.CI_LINT_TIMEOUT_MINUTES || '90') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: &am-ci-lint-timeout ${{ fromJSON(vars.CI_LINT_TIMEOUT_MINUTES || '190') }}
     permissions:
       contents: read
       actions: read
       packages: read
     env:
+      ALERTMANAGER_JOB_TIMEOUT_MINUTES: *am-ci-lint-timeout
+      ALERTMANAGER_CALLER_KIND: ci-lint
+      ALERTMANAGER_GENERIC_NATIVE_MINUTES: ${{ vars.OBS2A_NATIVE_JOB_TIMEOUT_MINUTES || '40' }}
+      ALERTMANAGER_LINT_CHECK_MINUTES: ${{ vars.CI_LINT_CHECKS_TIMEOUT_MINUTES || '60' }}
       PROMETHEUS_CONSUME_SECONDS: '900'
       PROMETHEUS_CLEANUP_SECONDS: '120'
     steps:
       - name: Enforce prerequisite results
+        timeout-minutes: 1
         env:
           PRIVATE_PYTHON_PROXY_HEALTH_RESULT: ${{ needs.private_python_proxy_health.result }}
         run: |
@@ -738,6 +755,7 @@ jobs:
           fi
 
       - name: Checkout
+        timeout-minutes: 1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
@@ -745,6 +763,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Select native OBS2A material before PR startup
+        timeout-minutes: 1
         id: checkpoint-selection
         if: github.event_name == 'pull_request'
         env:
@@ -770,6 +789,8 @@ jobs:
             deploy/systemd scripts/ops/notify_premium_alias_checkpoint_failure.py deploy/prometheus/image-manifest.json \
             scripts/ci/prometheus_source_image.py .github/workflows/build.yml deploy/prometheus/Containerfile \
             scripts/verify_premium_alias_telemetry.py tests/test_notify_premium_alias_checkpoint_failure.py \
+            scripts/ci/fetch_docker_source_artifacts.py deploy/alertmanager/alertmanager.yml deploy/alertmanager/trivy-ignore.yaml \
+            deploy/docker-compose.staging.yaml deploy/docker-compose.production.yaml deploy/docker-compose.production.selfhosted.yaml \
             .github/workflows/ci.yml .github/workflows/cd.yml scripts/deploy.sh scripts/deploy_production.sh; then
             diff_status=0
           else
@@ -781,7 +802,69 @@ jobs:
             *) echo "Native surface discovery failed" >&2; exit "$diff_status" ;;
           esac
 
+      - name: Require separately designated AM controller
+        if: github.event_name == 'pull_request' && steps.checkpoint-selection.outputs.selected == 'true'
+        timeout-minutes: 1
+        run: |
+          set -euo pipefail
+          [[ "$ALERTMANAGER_CONTROLLER_SOURCE" =~ ^[0-9a-f]{40}$ ]]
+          test ! -e artifacts/orchestration/alertmanager-control
+          test ! -L artifacts/orchestration/alertmanager-control
+
+      - name: Checkout separately designated AM controller
+        id: alertmanager-control
+        if: github.event_name == 'pull_request' && steps.checkpoint-selection.outputs.selected == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        timeout-minutes: 3
+        with:
+          ref: ${{ env.ALERTMANAGER_CONTROLLER_SOURCE }}
+          persist-credentials: false
+          fetch-depth: 0
+          path: artifacts/orchestration/alertmanager-control
+
+      - name: Prepare exact AM subject before material execution
+        id: alertmanager-image
+        if: github.event_name == 'pull_request' && steps.checkpoint-selection.outputs.selected == 'true'
+        timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_PREPARATION_MINUTES) }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_READ_TOKEN: ${{ github.event_name != 'pull_request' && secrets.GHCR_READ_TOKEN || '' }}
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          umask 077
+          material="$GITHUB_WORKSPACE"
+          controller="$material/artifacts/orchestration/alertmanager-control"
+          test ! -L "$controller"
+          test "$(git -C "$controller" rev-parse HEAD)" = "$ALERTMANAGER_CONTROLLER_SOURCE"
+          docker version --format 'client={{json .Client.Version}} server={{json .Server.Version}}'
+          docker info --format 'driver={{json .Driver}} driver_status={{json .DriverStatus}} os={{json .OSType}} arch={{json .Architecture}}'
+          cd "$controller"
+          python3 -E -s -S -m scripts.ci.fetch_docker_source_artifacts \
+            --artifact alertmanager --alertmanager-stage candidate-check --alertmanager-prepare-only \
+            --source-sha "$SOURCE_SHA" --material-root "$material" \
+            --alertmanager-controller-source "$ALERTMANAGER_CONTROLLER_SOURCE" \
+            --alertmanager-qualification-run 43808505545 --alertmanager-qualification-artifact 14199242996 \
+            --alertmanager-qualification-source e91033b4528a83782de3e7dc1e73e6def398348a \
+            --alertmanager-support-run 43810186398 --alertmanager-support-artifact 14200227448 \
+            --alertmanager-support-source e91033b4528a83782de3e7dc1e73e6def398348a \
+            --alertmanager-candidate-run 43811981051 --alertmanager-candidate-artifact 14202207192 \
+            --alertmanager-candidate-source e91033b4528a83782de3e7dc1e73e6def398348a \
+            --output-dir "$RUNNER_TEMP/alertmanager-consumer-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
+
+      - name: Remove designated AM controller after credential cleanup
+        if: always() && (steps.alertmanager-control.outcome == 'success' || steps.alertmanager-control.outcome == 'failure')
+        timeout-minutes: 1
+        run: |
+          set -euo pipefail
+          controller="$GITHUB_WORKSPACE/artifacts/orchestration/alertmanager-control"
+          test ! -L "$controller"
+          rm -rf -- "$controller"
+          test ! -e "$controller" && test ! -L "$controller"
+
       - name: Require fresh fixed Prometheus control checkout
+        timeout-minutes: 1
         if: github.event_name == 'pull_request' && steps.checkpoint-selection.outputs.selected == 'true'
         run: |
           set -euo pipefail
@@ -792,17 +875,19 @@ jobs:
           done
 
       - name: Checkout fixed trusted Prometheus control
+        timeout-minutes: 3
         id: prometheus-control-checkout
         if: github.event_name == 'pull_request' && steps.checkpoint-selection.outputs.selected == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ef9e369052751d47c04f651f7d615714d918fc16 # pragma: allowlist secret - public trusted control commit
+          ref: 2ebe53024febe8e026c4a1f1e056f19482f0fca9 # pragma: allowlist secret - public trusted control commit
           persist-credentials: false
           path: artifacts/orchestration/prometheus-control
           sparse-checkout: scripts/ci/prometheus_source_image.py
           sparse-checkout-cone-mode: false
 
       - name: Classify the fixed regular Prometheus source blobs
+        timeout-minutes: 1
         id: checkpoint-route
         if: github.event_name == 'pull_request' && steps.checkpoint-selection.outputs.selected == 'true'
         env:
@@ -873,21 +958,21 @@ jobs:
                       raise SystemExit("Prometheus_control_path_HOLD")
                   if path != helper and not stat.S_ISDIR(info.st_mode):
                       raise SystemExit("Prometheus_control_path_HOLD")
-              if not helper.is_file() or stat.S_IMODE(helper.stat().st_mode) != 0o644:
+              if not helper.is_file() or helper.stat().st_nlink != 1 or stat.S_IMODE(helper.stat().st_mode) != 0o644:
                   raise SystemExit("Prometheus_control_mode_HOLD")
               raw = helper.read_bytes()
-              if len(raw) != 328857 or hashlib.sha256(raw).hexdigest() != "0fedf3e9ac865fe2b89a3367e5e4065e1c0c28fca88465c7f2b41775dbf4070a":  # pragma: allowlist secret - public trusted control digest
+              if len(raw) != 501077 or hashlib.sha256(raw).hexdigest() != "caeef6254bb44aa0a1ac54c069e0f88c095d91bd17da1adc568c0d57d400e858":  # pragma: allowlist secret - public trusted control digest
                   raise SystemExit("Prometheus_control_bytes_HOLD")
               environment = {"PATH": "/usr/bin:/bin", "LANG": "C", "GIT_NO_REPLACE_OBJECTS": "1",
                              "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_COUNT": "0"}
               revision = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
                                          "rev-parse", "HEAD"], env=environment, capture_output=True, check=True)
-              if revision.stdout.strip() != b"ef9e369052751d47c04f651f7d615714d918fc16":  # pragma: allowlist secret - public trusted control commit
+              if revision.stderr or revision.stdout != b"2ebe53024febe8e026c4a1f1e056f19482f0fca9" + b"\n":  # pragma: allowlist secret - public trusted control commit
                   raise SystemExit("Prometheus_control_revision_HOLD")
               object_row = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
                                           "ls-tree", "-z", "HEAD", "--", "scripts/ci/prometheus_source_image.py"],
                                          env=environment, capture_output=True, check=True)
-              if object_row.stdout != b"100644 blob 9d921263edf33797988e0200015f27469ba848ec\tscripts/ci/prometheus_source_image.py\0":  # pragma: allowlist secret - public trusted control blob
+              if object_row.stderr or object_row.stdout != b"100644 blob 0db1e4cbb72cd85da8f684a5c57615092105ab6f\tscripts/ci/prometheus_source_image.py\0":  # pragma: allowlist secret - public trusted control blob
                   raise SystemExit("Prometheus_control_object_HOLD")
               trusted = runpy.run_path(str(helper))
               if not all(callable(trusted.get(name)) for name in
@@ -907,18 +992,133 @@ jobs:
               output.write("mode=" + mode + "\nhead=" + head + "\nbase=" + base + "\n")
           PY
 
+      - name: Select authenticated Prometheus PR evidence
+        timeout-minutes: 4
+        id: checkpoint-evidence
+        if: github.event_name == 'pull_request' && steps.checkpoint-selection.outputs.selected == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROMETHEUS_ROUTE_HEAD: ${{ steps.checkpoint-route.outputs.head }}
+          PROMETHEUS_ROUTE_BASE: ${{ steps.checkpoint-route.outputs.base }}
+          PROMETHEUS_CLASSIFIED_MODE: ${{ steps.checkpoint-route.outputs.mode }}
+          PROMETHEUS_SELECT_SECONDS: "60"
+        run: |
+          set -euo pipefail
+          python3 -I -S - <<'PY'
+          import hashlib, os, re, runpy, signal, stat, subprocess, time
+          from pathlib import Path
+
+          if not os.environ.get("GH_TOKEN") or not os.environ.get("GITHUB_TOKEN"):
+              raise SystemExit("Prometheus_selection_API_credential_HOLD")
+          if any(os.environ.get(key) for key in ("GHCR_READ_TOKEN", "GHCR_TOKEN", "DOCKER_CONFIG", "DOCKER_AUTH_CONFIG",
+                                                 "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN")):
+              raise SystemExit("Prometheus_selection_credentials_HOLD")
+          material = Path(os.environ["GITHUB_WORKSPACE"])
+          control = material / "artifacts/orchestration/prometheus-control"
+          helper = control / "scripts/ci/prometheus_source_image.py"
+          for path in (material / "artifacts", material / "artifacts/orchestration", control,
+                       control / "scripts", control / "scripts/ci", helper):
+              info = path.lstat()
+              if info.st_uid != os.getuid() or stat.S_ISLNK(info.st_mode):
+                  raise SystemExit("Prometheus_control_path_HOLD")
+              if path != helper and not stat.S_ISDIR(info.st_mode):
+                  raise SystemExit("Prometheus_control_path_HOLD")
+          if not helper.is_file() or helper.stat().st_nlink != 1 or stat.S_IMODE(helper.stat().st_mode) != 0o644:
+              raise SystemExit("Prometheus_control_mode_HOLD")
+          raw = helper.read_bytes()
+          if len(raw) != 501077 or hashlib.sha256(raw).hexdigest() != "caeef6254bb44aa0a1ac54c069e0f88c095d91bd17da1adc568c0d57d400e858":  # pragma: allowlist secret - public trusted control digest
+              raise SystemExit("Prometheus_control_bytes_HOLD")
+          environment = {"PATH": "/usr/bin:/bin", "LANG": "C", "GIT_NO_REPLACE_OBJECTS": "1",
+                         "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_COUNT": "0"}
+          revision = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
+                                     "rev-parse", "HEAD"], env=environment, capture_output=True, check=True)
+          if revision.stderr or revision.stdout != b"2ebe53024febe8e026c4a1f1e056f19482f0fca9" + b"\n":  # pragma: allowlist secret - public trusted control commit
+              raise SystemExit("Prometheus_control_revision_HOLD")
+          object_row = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
+                                      "ls-tree", "-z", "HEAD", "--", "scripts/ci/prometheus_source_image.py"],
+                                     env=environment, capture_output=True, check=True)
+          if object_row.stderr or object_row.stdout != b"100644 blob 0db1e4cbb72cd85da8f684a5c57615092105ab6f\tscripts/ci/prometheus_source_image.py\0":  # pragma: allowlist secret - public trusted control blob
+              raise SystemExit("Prometheus_control_object_HOLD")
+          trusted = runpy.run_path(str(helper))
+          if not all(callable(trusted.get(name)) for name in
+                     ("select_pr_evidence_route", "GitHubRead", "fresh_directory", "one_object", "interrupt", "diagnostic_code", "require", "check_deadline")):
+              raise SystemExit("Prometheus_control_interface_HOLD")
+          event_head = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(material),
+                                      "rev-parse", "HEAD"], env=environment, capture_output=True, check=True)
+          event = trusted["one_object"](Path(os.environ["GITHUB_EVENT_PATH"]).read_bytes())
+          head, base = os.environ["PROMETHEUS_ROUTE_HEAD"], os.environ["PROMETHEUS_ROUTE_BASE"]
+          pr = event.get("pull_request", {})
+          if not (os.environ["GITHUB_EVENT_NAME"] == "pull_request"
+                  and os.environ["GITHUB_REPOSITORY"].lower() == "katsiarynakavaleuskaya/pulseplate"
+                  and type(event.get("number")) is int and event["number"] > 0
+                  and os.environ["GITHUB_REF"] == "refs/pull/" + str(event["number"]) + "/merge"
+                  and event.get("repository", {}).get("id") == 1043311030
+                  and pr.get("head", {}).get("repo", {}).get("id") == 1043311030
+                  and pr.get("base", {}).get("repo", {}).get("id") == 1043311030
+                  and pr.get("base", {}).get("ref") == "main"
+                  and re.fullmatch("[0-9a-f]{40}", head) and re.fullmatch("[0-9a-f]{40}", base)
+                  and not event_head.stderr and event_head.stdout == (head + "\n").encode("ascii")
+                  and pr["head"].get("sha") == head and pr["base"].get("sha") == base):
+              raise SystemExit("Prometheus_material_revision_HOLD")
+          seconds, cleanup = int(os.environ["PROMETHEUS_SELECT_SECONDS"]), int(os.environ["PROMETHEUS_CLEANUP_SECONDS"])
+          reserved_minutes = 87 + int(os.environ["ALERTMANAGER_GENERIC_NATIVE_MINUTES"]) + int(os.environ["ALERTMANAGER_LINT_CHECK_MINUTES"])
+          if int(os.environ["ALERTMANAGER_JOB_TIMEOUT_MINUTES"]) < reserved_minutes:
+              raise SystemExit("Prometheus_selection_enclosing_budget_HOLD")
+          if seconds != 60 or cleanup != 120:
+              raise SystemExit("Prometheus_selection_budget_HOLD")
+          deadline = time.monotonic() + seconds
+          work = Path(os.environ["RUNNER_TEMP"]) / ("prometheus-pr-selection-" + os.environ["GITHUB_RUN_ID"] + "-" + os.environ["GITHUB_RUN_ATTEMPT"])
+          trusted["fresh_directory"](work)
+          evidence = work / "evidence"
+          trusted["fresh_directory"](evidence)
+          private = work / "GitHub-private"
+          signal.signal(signal.SIGTERM, trusted["interrupt"])
+          signal.signal(signal.SIGINT, trusted["interrupt"])
+          primary = cleanup_error = None
+          api = None
+          try:
+              api = trusted["GitHubRead"](private, evidence, deadline, cleanup)
+              mode = trusted["select_pr_evidence_route"](api, material, event, head)
+              classified = os.environ["PROMETHEUS_CLASSIFIED_MODE"]
+              compatible = {"changed_pr_candidate": ("changed_pr_candidate",),
+                            "historical_pr_candidate": ("historical_pr_candidate",),
+                            "unchanged_pr_published": ("unchanged_pr_published", "historical_pr_candidate")}
+              trusted["require"](mode in compatible.get(classified, ()), "consumer_route_binding")
+              trusted["check_deadline"](deadline)
+          except (Exception, KeyboardInterrupt) as error:
+              primary = trusted["diagnostic_code"](error) or type(error).__name__
+          finally:
+              if api is not None:
+                  try:
+                      api.close()
+                  except (Exception, KeyboardInterrupt) as error:
+                      cleanup_error = trusted["diagnostic_code"](error) or type(error).__name__
+          if private.exists() or private.is_symlink():
+              cleanup_error = cleanup_error or "Prometheus_selection_cleanup_HOLD"
+          if primary or cleanup_error:
+              raise SystemExit("Prometheus_selection_HOLD:" + ",".join(filter(None, (primary, cleanup_error))))
+          trusted["require"](not trusted["INTERRUPTIONS"], "selection_interrupted")
+          trusted["check_deadline"](deadline + cleanup)
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
+              output.write("mode=" + mode + "\nhead=" + head + "\nbase=" + base + "\n")
+          PY
+
       - name: Consume exact Prometheus subject before PR startup
+        timeout-minutes: 18
         id: checkpoint-image
         if: github.event_name == 'pull_request' && steps.checkpoint-selection.outputs.selected == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GHCR_READ_TOKEN: ${{ steps.checkpoint-route.outputs.mode == 'unchanged_pr_published' && secrets.GITHUB_TOKEN || '' }}
-          PROMETHEUS_CREDENTIAL_ROUTE: ${{ steps.checkpoint-route.outputs.mode }}
+          GHCR_READ_TOKEN: ${{ steps.checkpoint-evidence.outcome == 'success' && steps.checkpoint-evidence.outputs.mode == 'unchanged_pr_published' && secrets.GITHUB_TOKEN || '' }}
+          PROMETHEUS_CREDENTIAL_ROUTE: ${{ steps.checkpoint-evidence.outputs.mode }}
+          PROMETHEUS_ROUTE_HEAD: ${{ steps.checkpoint-evidence.outputs.head }}
+          PROMETHEUS_ROUTE_BASE: ${{ steps.checkpoint-evidence.outputs.base }}
         run: |
           set -euo pipefail
           python3 -I -S - <<'PY'
-          import hashlib, os, runpy, signal, stat, subprocess
+          import hashlib, os, re, runpy, signal, stat, subprocess
           from pathlib import Path
 
           material = Path(os.environ["GITHUB_WORKSPACE"])
@@ -931,21 +1131,21 @@ jobs:
                   raise SystemExit("Prometheus_control_path_HOLD")
               if path != helper and not stat.S_ISDIR(info.st_mode):
                   raise SystemExit("Prometheus_control_path_HOLD")
-          if not helper.is_file() or stat.S_IMODE(helper.stat().st_mode) != 0o644:
+          if not helper.is_file() or helper.stat().st_nlink != 1 or stat.S_IMODE(helper.stat().st_mode) != 0o644:
               raise SystemExit("Prometheus_control_mode_HOLD")
           raw = helper.read_bytes()
-          if len(raw) != 328857 or hashlib.sha256(raw).hexdigest() != "0fedf3e9ac865fe2b89a3367e5e4065e1c0c28fca88465c7f2b41775dbf4070a":  # pragma: allowlist secret - public trusted control digest
+          if len(raw) != 501077 or hashlib.sha256(raw).hexdigest() != "caeef6254bb44aa0a1ac54c069e0f88c095d91bd17da1adc568c0d57d400e858":  # pragma: allowlist secret - public trusted control digest
               raise SystemExit("Prometheus_control_bytes_HOLD")
           environment = {"PATH": "/usr/bin:/bin", "LANG": "C", "GIT_NO_REPLACE_OBJECTS": "1",
                          "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_COUNT": "0"}
           revision = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
                                      "rev-parse", "HEAD"], env=environment, capture_output=True, check=True)
-          if revision.stdout.strip() != b"ef9e369052751d47c04f651f7d615714d918fc16":  # pragma: allowlist secret - public trusted control commit
+          if revision.stderr or revision.stdout != b"2ebe53024febe8e026c4a1f1e056f19482f0fca9" + b"\n":  # pragma: allowlist secret - public trusted control commit
               raise SystemExit("Prometheus_control_revision_HOLD")
           object_row = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
                                       "ls-tree", "-z", "HEAD", "--", "scripts/ci/prometheus_source_image.py"],
                                      env=environment, capture_output=True, check=True)
-          if object_row.stdout != b"100644 blob 9d921263edf33797988e0200015f27469ba848ec\tscripts/ci/prometheus_source_image.py\0":  # pragma: allowlist secret - public trusted control blob
+          if object_row.stderr or object_row.stdout != b"100644 blob 0db1e4cbb72cd85da8f684a5c57615092105ab6f\tscripts/ci/prometheus_source_image.py\0":  # pragma: allowlist secret - public trusted control blob
               raise SystemExit("Prometheus_control_object_HOLD")
           trusted = runpy.run_path(str(helper))
           if not all(callable(trusted.get(name)) for name in
@@ -954,7 +1154,19 @@ jobs:
           event_head = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(material),
                                       "rev-parse", "HEAD"], env=environment, capture_output=True, check=True)
           event = trusted["one_object"](Path(os.environ["GITHUB_EVENT_PATH"]).read_bytes())
-          if os.environ["GITHUB_EVENT_NAME"] != "pull_request" or event_head.stdout.strip().decode() != event["pull_request"]["head"]["sha"]:
+          head, base = os.environ["PROMETHEUS_ROUTE_HEAD"], os.environ["PROMETHEUS_ROUTE_BASE"]
+          pr = event.get("pull_request", {})
+          if not (os.environ["GITHUB_EVENT_NAME"] == "pull_request"
+                  and os.environ["GITHUB_REPOSITORY"].lower() == "katsiarynakavaleuskaya/pulseplate"
+                  and type(event.get("number")) is int and event["number"] > 0
+                  and os.environ["GITHUB_REF"] == "refs/pull/" + str(event["number"]) + "/merge"
+                  and event.get("repository", {}).get("id") == 1043311030
+                  and pr.get("head", {}).get("repo", {}).get("id") == 1043311030
+                  and pr.get("base", {}).get("repo", {}).get("id") == 1043311030
+                  and pr.get("base", {}).get("ref") == "main"
+                  and re.fullmatch("[0-9a-f]{40}", head) and re.fullmatch("[0-9a-f]{40}", base)
+                  and not event_head.stderr and event_head.stdout == (head + "\n").encode("ascii")
+                  and pr["head"].get("sha") == head and pr["base"].get("sha") == base):
               raise SystemExit("Prometheus_material_revision_HOLD")
           route = os.environ["PROMETHEUS_CREDENTIAL_ROUTE"]
           if route not in ("changed_pr_candidate", "historical_pr_candidate", "unchanged_pr_published"):
@@ -991,6 +1203,7 @@ jobs:
           PY
 
       - name: Remove fixed trusted Prometheus control checkout
+        timeout-minutes: 1
         if: always() && github.event_name == 'pull_request' && (steps.prometheus-control-checkout.outcome == 'success' || steps.prometheus-control-checkout.outcome == 'failure')
         run: |
           set -euo pipefail
@@ -1000,6 +1213,7 @@ jobs:
           test ! -e "$control" && test ! -L "$control"
 
       - name: Restore lint workflow revision
+        timeout-minutes: 2
         if: github.event_name == 'pull_request'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1009,6 +1223,7 @@ jobs:
           clean: false
 
       - name: Verify lint workflow revision
+        timeout-minutes: 1
         if: github.event_name == 'pull_request'
         run: |
           set -euo pipefail
@@ -1016,6 +1231,7 @@ jobs:
           test "$restored_sha" = "$GITHUB_SHA"
 
       - name: Setup Python environment
+        timeout-minutes: 20
         uses: ./.github/actions/python-setup
         env:
           DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_USER || '' }}
@@ -1026,22 +1242,105 @@ jobs:
           install-mode: direct-proxy
 
       - name: Setup Node.js
+        timeout-minutes: 3
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with: {node-version-file: "${{ env.FRONTEND_NODE_VERSION_FILE }}",
                cache: npm, cache-dependency-path: frontend/package-lock.json}
 
-      - {uses: ./.github/actions/npm-ci-with-retry, with: {working-directory: frontend}}
+      - {uses: ./.github/actions/npm-ci-with-retry, timeout-minutes: 6, with: {working-directory: frontend}}
       - name: Pre-commit (lint/format/security quick checks)
-        timeout-minutes: ${{ fromJSON(vars.CI_LINT_CHECKS_TIMEOUT_MINUTES || '40') }}
-        run: pre-commit run --all-files --show-diff-on-failure
+        timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_LINT_CHECK_MINUTES) }}
+        run: |
+          set -euo pipefail
+          : "${RUNNER_TEMP:?RUNNER_TEMP is required for the owned pip seed.}"
+          pip_seed_root="$(mktemp -d "$RUNNER_TEMP/pulseplate-hook-seed.XXXXXXXX")"
+          trap 'rm -rf -- "$pip_seed_root"' EXIT
+          env -u PULSEPLATE_PSYCOPG_C_SDK python - "$pip_seed_root" <<'PY'
+          import json
+          from pathlib import Path
+          import sys
+          from scripts.ci.install_locked_python_requirements import (
+              acquire_locked_wheelhouse,
+              _validate_exact_wheelhouse,
+              resolve_private_proxy_settings,
+          )
+
+          root = Path(sys.argv[1])
+          requirement = root / "pip-seed.txt"
+          requirement.write_text("pip==26.2.2\n", encoding="utf-8")
+          index, trusted_host = resolve_private_proxy_settings(index_url=None, trusted_host=None)
+          acquire_locked_wheelhouse(
+              python_executable=sys.executable, requirement_files=[requirement],
+              constraints_file=None, wheelhouse=root / "wheels",
+              index_url=index, trusted_host=trusted_host, sdk=None,
+          )
+          artifacts = _validate_exact_wheelhouse(
+              wheelhouse=root / "wheels", expected=frozenset({("pip", "26.2.2")}),
+          )
+          seed = artifacts[0]
+          if (seed.path.name != "pip-26.2.2-py3-none-any.whl"
+              or seed.snapshot.size != 1819850
+              or seed.snapshot.digest != "fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70"):
+              raise SystemExit("Missing or incorrect reviewed pip seed")
+          print(json.dumps({"pip_seed": seed.path.name, "bytes": seed.snapshot.size,
+                            "sha256": seed.snapshot.digest}))
+          PY
+          export VIRTUALENV_PIP=26.2.2
+          export VIRTUALENV_EXTRA_SEARCH_DIR="$pip_seed_root/wheels"
+          export VIRTUALENV_NO_PERIODIC_UPDATE=true
+          export VIRTUALENV_DOWNLOAD=false
+          export VIRTUALENV_APP_DATA="$pip_seed_root/app-data"
+          export PRE_COMMIT_HOME="$pip_seed_root/pre-commit"
+          mkdir -m 700 "$PRE_COMMIT_HOME"
+          pip_observation='import hashlib, importlib.metadata, json, sys
+          from pathlib import Path
+          import pip._vendor.certifi as certifi
+          version = importlib.metadata.version("pip")
+          trust = hashlib.sha256(Path(certifi.where()).read_bytes()).hexdigest()
+          print(json.dumps({"python": sys.executable, "prefix": sys.prefix,
+                            "base_prefix": sys.base_prefix, "pip": version,
+                            "embedded_trust_store_sha256": trust}))
+          assert sys.prefix != sys.base_prefix
+          assert version == "26.2.2"
+          assert trust == "50f79f98dac192b20dbf73f35c56f0b0c557ab267ff5199d1117cc1180b70785"
+          '
+          python -m virtualenv --no-download --no-periodic-update \
+            --app-data "$VIRTUALENV_APP_DATA" "$pip_seed_root/probe"
+          "$pip_seed_root/probe/bin/python" -I -c "$pip_observation"
+          if pre-commit run --all-files --show-diff-on-failure; then
+            pre_commit_status=0
+          else
+            pre_commit_status=$?
+          fi
+          shopt -s nullglob
+          hook_pythons=("$PRE_COMMIT_HOME"/repo*/py_env-*/bin/python)
+          observation_status=0
+          if [[ "${#hook_pythons[@]}" -eq 0 ]]; then
+            echo "::error::No fresh Python hook interpreter was observed."
+            observation_status=1
+          fi
+          for hook_python in "${hook_pythons[@]}"; do
+            if ! "$hook_python" -I -c "$pip_observation"; then
+              observation_status=1
+            fi
+          done
+          if [[ "$pre_commit_status" -ne 0 ]]; then
+            exit "$pre_commit_status"
+          fi
+          exit "$observation_status"
         env:
           SKIP: no-commit-to-branch
+          BACKEND_HOOK_CI_EVENT: ${{ github.event_name }}
+          BACKEND_HOOK_CI_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          BACKEND_HOOK_CI_HEAD: ${{ github.sha }}
 
       - name: Native OBS2A checkpoint lifecycle and owned-task challenge
         id: checkpoint-native
         if: github.event_name == 'pull_request' && steps.checkpoint-selection.outputs.selected == 'true'
-        timeout-minutes: ${{ fromJSON(vars.OBS2A_NATIVE_JOB_TIMEOUT_MINUTES || '40') }}
+        timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_GENERIC_NATIVE_MINUTES) }}
         env:
+          AM_IMAGE_ID: ${{ steps.alertmanager-image.outputs.image_id }}
+          AM_CONFIG_SHA256: ${{ steps.alertmanager-image.outputs.config_sha256 }}
           PROMETHEUS_RUNTIME_REF: ${{ steps.checkpoint-image.outputs.runtime_ref }}
         run: |
           set -euo pipefail
@@ -1049,7 +1348,8 @@ jobs:
           mkdir -p artifacts/orchestration/obs2a_pr3
           if {
             sudo /usr/bin/env -i PATH=/usr/local/bin:/usr/bin:/bin LANG=C HOME=/tmp PYTHONDONTWRITEBYTECODE=1 \
-            "$native_python" -m tests.test_notify_premium_alias_checkpoint_failure --native
+            "$native_python" -m tests.test_notify_premium_alias_checkpoint_failure --native \
+              --alertmanager-image-id "$AM_IMAGE_ID" --alertmanager-config-sha256 "$AM_CONFIG_SHA256"
           } 2>&1 | tee artifacts/orchestration/obs2a_pr3/native-result.log; then
             pipeline_status=("${PIPESTATUS[@]}")
           else
@@ -1063,6 +1363,7 @@ jobs:
           exit "$capture_status"
 
       - name: Retain selected PR OBS2A native observations
+        timeout-minutes: 5
         if: always() && github.event_name == 'pull_request' && (steps.checkpoint-selection.outputs.selected == 'true' || steps.checkpoint-selection.outcome == 'failure')
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
         with:
@@ -1071,6 +1372,9 @@ jobs:
             artifacts/orchestration/obs2a_pr3/selection.log
             artifacts/orchestration/obs2a_pr3/native-result.log
             ${{ runner.temp }}/prometheus-obs2a-consumer-${{ github.run_id }}-${{ github.run_attempt }}/evidence/
+            ${{ runner.temp }}/alertmanager-consumer-${{ github.run_id }}-${{ github.run_attempt }}/consumer-observation.json
+            ${{ runner.temp }}/alertmanager-consumer-${{ github.run_id }}-${{ github.run_attempt }}/github-read-evidence/
+            ${{ runner.temp }}/alertmanager-consumer-${{ github.run_id }}-${{ github.run_attempt }}/preparation/evidence/
           if-no-files-found: error
           retention-days: 7
 
@@ -1253,6 +1557,7 @@ jobs:
           fi
 
       - name: Checkout
+        id: checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: {fetch-depth: 0, persist-credentials: false}
 
@@ -1319,7 +1624,7 @@ jobs:
           set -euo pipefail
           python -m coverage erase
           python -m coverage run -m pytest -q \
-            tests/edges tests/test_remaining_modules.py tests/test_web_session_security.py \
+            tests/edges tests/test_remaining_modules.py tests/test_web_session_security.py tests/test_execution_sandbox.py \
             tests/core/evidence \
             tests/test_frontend_dependency_guards.py \
             tests/test_root_npm_dependency_guards.py \
@@ -1910,7 +2215,7 @@ jobs:
           python -m coverage xml
 
       - name: Clean Python cache (post-test)
-        if: always()
+        if: always() && steps.checkout.outcome == 'success'
         uses: ./.github/actions/clean-python-cache
 
       - name: Upload coverage artifact (single coverage runtime)
@@ -2068,6 +2373,7 @@ jobs:
           fi
 
       - name: Checkout
+        id: checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: {fetch-depth: 0, persist-credentials: false}
 
@@ -2600,7 +2906,7 @@ jobs:
           python -m coverage xml
 
       - name: Clean Python cache (post-test)
-        if: always()
+        if: always() && steps.checkout.outcome == 'success'
         uses: ./.github/actions/clean-python-cache
 
       - name: Upload coverage artifact (single coverage runtime)
@@ -2693,11 +2999,11 @@ jobs:
         # Per-shard watchdog remains 4800s; test work is unchanged.
         include:
           - python-version: '3.11'
-            timeout-minutes: 120
+            timeout-minutes: 180
           - python-version: '3.12'
-            timeout-minutes: 120
+            timeout-minutes: 180
           - python-version: '3.13'
-            timeout-minutes: 120
+            timeout-minutes: 180
 
     steps:
       - name: Enforce prerequisite results
@@ -2715,6 +3021,7 @@ jobs:
           fi
 
       - name: Checkout
+        id: checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
@@ -2871,10 +3178,41 @@ jobs:
             MAIN_TEST_SHARDS=16
             MAIN_TEST_MAX_PARALLEL=4
             export MAIN_TEST_SHARD_TIMEOUT_SECONDS=4800
+            # Preserve the normal matrix run and expose its actual diagnostic inputs.
+            export PYTEST_ADDOPTS="${PYTEST_ADDOPTS:-} -vv --trace-config"
+            python - <<'PY_DIAG'
+          import hashlib
+          import importlib.metadata as metadata
+          import json
+          from pathlib import Path
+          import platform
+          import sys
+          import tomllib
+          import _pytest.faulthandler as handler
+
+          packages = {}
+          for name in ("pytest", "pytest-cov", "coverage"):
+              dist = metadata.distribution(name)
+              packages[name] = {"version": dist.version, "metadata_text_sha256": {
+                  member: hashlib.sha256(raw.encode()).hexdigest() if raw is not None else None
+                  for member in ("METADATA", "RECORD")
+                  for raw in (dist.read_text(member),)}}
+          config = tomllib.loads(Path("pyproject.toml").read_text())["tool"]["pytest"]["ini_options"]
+          files = ("pyproject.toml", ".coveragerc", "conftest.py", "tests/conftest.py",
+                   "scripts/ci/run_main_test_shards.py")
+          print("PY312_DIAGNOSTIC_IDENTITY " + json.dumps({
+              "python": sys.version, "executable": sys.executable, "platform": platform.platform(),
+              "packages": packages, "faulthandler_source_sha256": hashlib.sha256(Path(handler.__file__).read_bytes()).hexdigest(),
+              "source_sha256": {name: hashlib.sha256(Path(name).read_bytes()).hexdigest() for name in files},
+              "configured_ini": {name: config.get(name) for name in ("faulthandler_timeout", "faulthandler_exit_on_timeout")},
+              "effective_getini": "Not observed from a live per-shard pytest.Config; source/config identity only.",
+              "plugins": "Built-in --trace-config in the same normal pytest invocations records actual registration."
+          }, sort_keys=True), flush=True)
+          PY_DIAG
           elif [[ "$PYVER" == 3.13* ]]; then
             MAIN_TEST_SHARDS=32
-            MAIN_TEST_MAX_PARALLEL=8
-            export MAIN_TEST_SHARD_TIMEOUT_SECONDS=4800
+            MAIN_TEST_MAX_PARALLEL=4
+            export MAIN_TEST_SHARD_TIMEOUT_SECONDS=5400
           else
             PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)
           fi
@@ -2907,7 +3245,7 @@ jobs:
           exit "$test_exit_code"
 
       - name: Clean Python cache (post-test)
-        if: always()
+        if: always() && steps.checkout.outcome == 'success'
         uses: ./.github/actions/clean-python-cache
 
       - name: Upload coverage artifact (all Python versions)
@@ -3177,16 +3515,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Select Xcode (require exact 27.0 and iOS 27 SDK)
+      - name: Select Xcode (require exact 27.2 and iOS 27.2 SDK)
         id: select-xcode
         shell: bash
         run: |
           set -euo pipefail
 
-          # Prefer exact Xcode 27.0 aliases; verify the fallback version.
+          # Prefer exact Xcode 27.2 aliases; verify the fallback version.
           CANDIDATES=(
-            "/Applications/Xcode_27.0.0.app/Contents/Developer"
-            "/Applications/Xcode_27.0.app/Contents/Developer"
+            "/Applications/Xcode_27.2.0.app/Contents/Developer"
+            "/Applications/Xcode_27.2.app/Contents/Developer"
             "/Applications/Xcode.app/Contents/Developer"
           )
 
@@ -3199,7 +3537,7 @@ jobs:
           done
 
           if [ -z "$SELECTED" ]; then
-            echo "::error::No Xcode 27.0 installation found in /Applications."
+            echo "::error::No Xcode 27.2 installation found in /Applications."
             echo "::error::Available Xcode apps:"
             for app in /Applications/Xcode*.app; do
               [ -e "$app" ] && echo " - $app"
@@ -3220,11 +3558,11 @@ jobs:
 
           # Extract Xcode version for cache key (avoid broken pipe from pipe consumers like head/sed)
           XCODEBUILD_VERSION="$(xcodebuild -version)"
-          # First line must be "Xcode 27.0".
+          # First line must be "Xcode 27.2".
           XCODE_VERSION="${XCODEBUILD_VERSION#Xcode }"
           XCODE_VERSION="${XCODE_VERSION%%$'\n'*}"
-          if [ "$XCODE_VERSION" != "27.0" ]; then
-            echo "::error::Selected Xcode must be exactly 27.0. Got $XCODE_VERSION"
+          if [ "$XCODE_VERSION" != "27.2" ]; then
+            echo "::error::Selected Xcode must be exactly 27.2. Got $XCODE_VERSION"
             exit 1
           fi
           echo "xcode_version=$XCODE_VERSION" >> "$GITHUB_OUTPUT"
@@ -3237,14 +3575,14 @@ jobs:
           SWIFT_VERSION_OUTPUT="$(swift --version)"
           echo "$SWIFT_VERSION_OUTPUT"
           if [[ "$SWIFT_VERSION_OUTPUT" != *"Apple Swift version 6.4"* ]]; then
-            echo "::error::Expected Apple Swift 6.4 under Xcode 27.0"
+            echo "::error::Expected Apple Swift 6.4 under Xcode 27.2"
             exit 1
           fi
           for sdk in iphoneos iphonesimulator; do
             sdk_version="$(xcrun --sdk "$sdk" --show-sdk-version)"
             echo "$sdk SDK: $sdk_version"
-            if [ "$sdk_version" != "27.0" ]; then
-              echo "::error::Expected $sdk SDK 27.0, got $sdk_version"
+            if [ "$sdk_version" != "27.2" ]; then
+              echo "::error::Expected $sdk SDK 27.2, got $sdk_version"
               exit 1
             fi
           done
@@ -3575,7 +3913,7 @@ jobs:
       fail-fast: false
       matrix:
         family: [iphone, ipad]
-    # Sequential caps total 30m; nominal 15m setup/diagnostic headroom.
+    # Sequential caps total 35m with 10m nominal setup/diagnostic headroom.
     timeout-minutes: 45
     if: |
       needs.changes.outputs.ios == 'true' && (
@@ -3587,15 +3925,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Select Xcode (require exact 27.0 and iOS 27 SDK)
+      - name: Select Xcode (require exact 27.2 and iOS 27.2 SDK)
         id: select-xcode
         shell: bash
         run: |
           set -euo pipefail
 
           CANDIDATES=(
-            "/Applications/Xcode_27.0.0.app/Contents/Developer"
-            "/Applications/Xcode_27.0.app/Contents/Developer"
+            "/Applications/Xcode_27.2.0.app/Contents/Developer"
+            "/Applications/Xcode_27.2.app/Contents/Developer"
             "/Applications/Xcode.app/Contents/Developer"
           )
 
@@ -3608,7 +3946,7 @@ jobs:
           done
 
           if [ -z "$SELECTED" ]; then
-            echo "::error::No Xcode 27.0 installation found in /Applications."
+            echo "::error::No Xcode 27.2 installation found in /Applications."
             echo "::error::Available Xcode apps:"
             for app in /Applications/Xcode*.app; do
               [ -e "$app" ] && echo " - $app"
@@ -3622,11 +3960,11 @@ jobs:
 
           # Extract Xcode version for cache key (avoid broken pipe from pipe consumers like head/sed)
           XCODEBUILD_VERSION="$(xcodebuild -version)"
-          # First line must be "Xcode 27.0".
+          # First line must be "Xcode 27.2".
           XCODE_VERSION="${XCODEBUILD_VERSION#Xcode }"
           XCODE_VERSION="${XCODE_VERSION%%$'\n'*}"
-          if [ "$XCODE_VERSION" != "27.0" ]; then
-            echo "::error::Selected Xcode must be exactly 27.0. Got $XCODE_VERSION"
+          if [ "$XCODE_VERSION" != "27.2" ]; then
+            echo "::error::Selected Xcode must be exactly 27.2. Got $XCODE_VERSION"
             exit 1
           fi
           echo "xcode_version=$XCODE_VERSION" >> "$GITHUB_OUTPUT"
@@ -3639,14 +3977,14 @@ jobs:
           SWIFT_VERSION_OUTPUT="$(swift --version)"
           echo "$SWIFT_VERSION_OUTPUT"
           if [[ "$SWIFT_VERSION_OUTPUT" != *"Apple Swift version 6.4"* ]]; then
-            echo "::error::Expected Apple Swift 6.4 under Xcode 27.0"
+            echo "::error::Expected Apple Swift 6.4 under Xcode 27.2"
             exit 1
           fi
           for sdk in iphoneos iphonesimulator; do
             sdk_version="$(xcrun --sdk "$sdk" --show-sdk-version)"
             echo "$sdk SDK: $sdk_version"
-            if [ "$sdk_version" != "27.0" ]; then
-              echo "::error::Expected $sdk SDK 27.0, got $sdk_version"
+            if [ "$sdk_version" != "27.2" ]; then
+              echo "::error::Expected $sdk SDK 27.2, got $sdk_version"
               exit 1
             fi
           done
@@ -3682,6 +4020,7 @@ jobs:
         env:
           DEVELOPER_DIR: ${{ steps.select-xcode.outputs.developer_dir }}
           UI_SMOKE_FOREGROUND_TIMEOUT_SECONDS: "90"
+          IOS_UI_SMOKE_BUILD_TIMEOUT_SECONDS: 900
         run: |
           set -euo pipefail
 
@@ -3753,7 +4092,6 @@ jobs:
             echo "✓ System services ready"
           fi
 
-          echo "=== Building for testing (timeout: 10 minutes) ==="
           python3 - << 'PY'
           import subprocess
           import sys
@@ -3763,6 +4101,21 @@ jobs:
           if not destination:
               print("::error::DESTINATION is empty", file=sys.stderr)
               sys.exit(1)
+
+          try:
+              timeout_s = int(os.environ["IOS_UI_SMOKE_BUILD_TIMEOUT_SECONDS"])
+          except (KeyError, ValueError):
+              print(
+                  "::error::IOS_UI_SMOKE_BUILD_TIMEOUT_SECONDS must be a positive integer",
+                  file=sys.stderr,
+              )
+              sys.exit(2)
+          if timeout_s <= 0:
+              print(
+                  "::error::IOS_UI_SMOKE_BUILD_TIMEOUT_SECONDS must be a positive integer",
+                  file=sys.stderr,
+              )
+              sys.exit(2)
 
           cmd = [
               "xcodebuild", "build-for-testing",
@@ -3775,10 +4128,11 @@ jobs:
               "-enableCodeCoverage", "NO",
           ]
 
+          print(f"=== Building for testing (timeout: {timeout_s}s) ===", flush=True)
           try:
-              subprocess.run(cmd, timeout=600, check=True)
+              subprocess.run(cmd, timeout=timeout_s, check=True)
           except subprocess.TimeoutExpired:
-              print("::error::xcodebuild build-for-testing timed out after 10 minutes", file=sys.stderr)
+              print(f"::error::xcodebuild build-for-testing timed out after {timeout_s}s", file=sys.stderr)
               sys.exit(1)
           except subprocess.CalledProcessError as e:
               sys.exit(e.returncode)
