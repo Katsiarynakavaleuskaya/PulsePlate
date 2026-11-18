@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -790,13 +791,65 @@ def test_native_trivy_binary_requires_real_absolute_executable(
     with pytest.raises(ValueError, match="not an executable"):
         native_policy._trivy_binary()
     binary.chmod(0o700)
+    monkeypatch.setattr(
+        native_policy, "LINUX_X86_64_TRIVY_SHA256", hashlib.sha256(binary.read_bytes()).hexdigest()
+    )
+    monkeypatch.setattr(native_policy.sys, "platform", "linux")
+    monkeypatch.setattr(native_policy.platform, "machine", lambda: "x86_64")
     assert native_policy._trivy_binary() == str(binary.resolve())
+
+    def unreadable(_path: Path, _mode: str) -> None:
+        raise PermissionError("synthetic read failure")
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(Path, "open", unreadable)
+        with pytest.raises(ValueError, match="Unable to hash"):
+            native_policy._trivy_binary()
     binary.unlink()
     with pytest.raises(ValueError, match="Unable to resolve"):
         native_policy._trivy_binary()
 
 
+def test_native_trivy_linux_executable_digest_matches_reviewed_scanner() -> None:
+    from scripts.ci.fetch_docker_source_artifacts import _ALERT_TRIVY_SHA256
+
+    assert native_policy.LINUX_X86_64_TRIVY_SHA256 == _ALERT_TRIVY_SHA256
+
+
+@pytest.mark.parametrize(
+    ("system", "machine", "reject"),
+    [
+        ("linux", "x86_64", True),
+        ("linux", "aarch64", False),
+        ("darwin", "arm64", False),
+    ],
+)
+def test_native_trivy_matching_version_cannot_bypass_linux_binary_identity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, system: str, machine: str, reject: bool
+) -> None:
+    private = tmp_path / "private"
+    private.mkdir()
+    executable = tmp_path / "candidate"
+    executable.write_text("#!/bin/sh\nprintf tested > invoked\nprintf 'Version: 0.74.0\\n'\n")
+    executable.chmod(0o700)
+    link = tmp_path / "trivy"
+    link.symlink_to(executable)
+    monkeypatch.setattr(native_policy.sys, "platform", system)
+    monkeypatch.setattr(native_policy.platform, "machine", lambda: machine)
+    monkeypatch.setattr(native_policy.shutil, "which", lambda _name: str(link))
+    monkeypatch.setenv("GITHUB_ACTIONS", "false")
+    if reject:
+        with pytest.raises(ValueError, match="executable SHA-256 differs"):
+            native_policy._require_version(native_policy._trivy_binary(), private)
+        assert not (private / "invoked").exists()
+    else:
+        assert native_policy._trivy_binary() == str(executable.resolve())
+        native_policy._require_version(native_policy._trivy_binary(), private)
+        assert (private / "invoked").read_text() == "tested"
+
+
 def test_native_trivy_runner_distinguishes_timeout_and_start_failure(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def timeout(*_args: object, **_kwargs: object) -> None:
@@ -804,19 +857,33 @@ def test_native_trivy_runner_distinguishes_timeout_and_start_failure(
 
     monkeypatch.setattr(native_policy.subprocess, "run", timeout)
     with pytest.raises(ValueError, match="timed out"):
-        native_policy._invoke(["/usr/bin/trivy", "convert"])
+        native_policy._invoke(["/usr/bin/trivy", "convert"], tmp_path)
 
     def cannot_start(*_args: object, **_kwargs: object) -> None:
         raise OSError("synthetic failure")
 
     monkeypatch.setattr(native_policy.subprocess, "run", cannot_start)
     with pytest.raises(ValueError, match="could not start"):
-        native_policy._invoke(["/usr/bin/trivy", "convert"])
+        native_policy._invoke(["/usr/bin/trivy", "convert"], tmp_path)
 
 
+@pytest.mark.parametrize("payload", [None, b"synthetic"])
 def test_native_trivy_runner_uses_fixed_local_subprocess_boundary(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    payload: bytes | None,
 ) -> None:
+    for key in (
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "GHCR_READ_TOKEN",
+        "HTTP_PROXY",
+        "TRIVY_CONFIG",
+        "LD_PRELOAD",
+        "PYTHONPATH",
+        "BASH_ENV",
+    ):
+        monkeypatch.setenv(key, "synthetic-parent-only")
     captured: dict[str, object] = {}
 
     def run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
@@ -824,19 +891,30 @@ def test_native_trivy_runner_uses_fixed_local_subprocess_boundary(
         return subprocess.CompletedProcess(argv, 0, b"{}", b"")
 
     monkeypatch.setattr(native_policy.subprocess, "run", run)
-    payload = b"synthetic"
-    result = native_policy._invoke(["/usr/bin/trivy", "convert"], payload=payload)
+    command = "convert" if payload is not None else "--version"
+    result = native_policy._invoke(["/usr/bin/trivy", command], tmp_path, payload=payload)
 
     assert result.returncode == 0
-    assert captured["argv"] == ["/usr/bin/trivy", "convert"]
+    assert captured["argv"] == ["/usr/bin/trivy", command]
     assert captured["input"] == payload
-    assert captured["cwd"] == native_policy.REPO_ROOT
+    assert captured["stdin"] == (subprocess.DEVNULL if payload is None else None)
+    assert captured["cwd"] == tmp_path
+    assert captured["env"] == {
+        "PATH": "/usr/bin:/bin",
+        "LANG": "C",
+        "LC_ALL": "C",
+        "HOME": str(tmp_path),
+        "XDG_CACHE_HOME": str(tmp_path / "cache"),
+        "TMPDIR": str(tmp_path / "tmp"),
+    }
     assert captured["timeout"] == native_policy.TIMEOUT_SECONDS
     assert captured["check"] is False
     assert "shell" not in captured
 
 
-def test_native_trivy_version_requires_exact_pinned_cli(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_native_trivy_version_requires_exact_pinned_cli(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     for returncode, stdout in (
         (0, b"Version: 0.74.0\n"),
         (1, b"Version: 0.74.0\n"),
@@ -845,15 +923,15 @@ def test_native_trivy_version_requires_exact_pinned_cli(monkeypatch: pytest.Monk
         monkeypatch.setattr(
             native_policy,
             "_invoke",
-            lambda _argv, *, payload=None: subprocess.CompletedProcess(
+            lambda _argv, _private, *, payload=None: subprocess.CompletedProcess(
                 args=[], returncode=returncode, stdout=stdout, stderr=b""
             ),
         )
         if returncode == 0 and stdout == b"Version: 0.74.0\n":
-            native_policy._require_version("/usr/bin/trivy")
+            native_policy._require_version("/usr/bin/trivy", tmp_path)
         else:
             with pytest.raises(ValueError, match="exactly version 0.74.0"):
-                native_policy._require_version("/usr/bin/trivy")
+                native_policy._require_version("/usr/bin/trivy", tmp_path)
 
 
 def test_native_trivy_output_requires_exact_schema_identity_count_and_finding() -> None:
@@ -888,6 +966,7 @@ def test_native_trivy_output_requires_exact_schema_identity_count_and_finding() 
 
 
 def test_native_trivy_contract_runs_each_case_with_fixed_argv(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     cases = (
@@ -900,7 +979,7 @@ def test_native_trivy_contract_runs_each_case_with_fixed_argv(
     calls: list[list[str]] = []
 
     def convert(
-        argv: list[str], *, payload: bytes | None = None
+        argv: list[str], private: Path, *, payload: bytes | None = None
     ) -> subprocess.CompletedProcess[bytes]:
         case_id, finding, expected = cases[len(calls)]
         calls.append(argv)
@@ -912,7 +991,7 @@ def test_native_trivy_contract_runs_each_case_with_fixed_argv(
         return subprocess.CompletedProcess(argv, 0, _native_report_output(finding, expected), b"")
 
     monkeypatch.setattr(native_policy, "_invoke", convert)
-    assert native_policy._run_contract("/usr/bin/trivy", Path("/tmp/policy.rego")) == 122
+    assert native_policy._run_contract("/usr/bin/trivy", Path("/tmp/policy.rego"), tmp_path) == 122
     assert len(calls) == 122
     assert all(
         call
@@ -933,37 +1012,39 @@ def test_native_trivy_contract_runs_each_case_with_fixed_argv(
 
 
 def test_native_trivy_contract_rejects_other_errors_and_wrong_counts(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     case_id, finding, _ = native_policy._cases()[0]
 
     def failure(
-        argv: list[str], *, payload: bytes | None = None
+        argv: list[str], private: Path, *, payload: bytes | None = None
     ) -> subprocess.CompletedProcess[bytes]:
         return subprocess.CompletedProcess(argv, 1, b"", b"network error")
 
     monkeypatch.setattr(native_policy, "_invoke", failure)
     with pytest.raises(ValueError, match="conversion failed"):
-        native_policy._run_contract("/usr/bin/trivy", Path("/tmp/policy.rego"))
+        native_policy._run_contract("/usr/bin/trivy", Path("/tmp/policy.rego"), tmp_path)
 
     def wrong_count(
-        argv: list[str], *, payload: bytes | None = None
+        argv: list[str], private: Path, *, payload: bytes | None = None
     ) -> subprocess.CompletedProcess[bytes]:
         return subprocess.CompletedProcess(argv, 0, _native_report_output(finding, 0), b"")
 
     monkeypatch.setattr(native_policy, "_invoke", wrong_count)
     with pytest.raises(ValueError, match="finding count"):
-        native_policy._run_contract("/usr/bin/trivy", Path("/tmp/policy.rego"))
+        native_policy._run_contract("/usr/bin/trivy", Path("/tmp/policy.rego"), tmp_path)
 
 
 def test_native_trivy_integer_case_rejects_unrelated_process_error(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     cases = native_policy._cases()
     calls = 0
 
     def convert(
-        argv: list[str], *, payload: bytes | None = None
+        argv: list[str], private: Path, *, payload: bytes | None = None
     ) -> subprocess.CompletedProcess[bytes]:
         nonlocal calls
         _, finding, expected = cases[calls]
@@ -974,7 +1055,7 @@ def test_native_trivy_integer_case_rejects_unrelated_process_error(
 
     monkeypatch.setattr(native_policy, "_invoke", convert)
     with pytest.raises(ValueError, match="expected native FixedVersion type rejection"):
-        native_policy._run_contract("/usr/bin/trivy", Path("/tmp/policy.rego"))
+        native_policy._run_contract("/usr/bin/trivy", Path("/tmp/policy.rego"), tmp_path)
     assert calls == 9
 
 
@@ -988,10 +1069,31 @@ def test_native_trivy_main_fails_closed_and_passes_bound_inputs(
     monkeypatch.setattr(native_policy, "SOURCE_POLICY", source)
     monkeypatch.setattr(native_policy, "SCAN_POLICY", scan_copy)
     monkeypatch.setattr(native_policy, "_trivy_binary", lambda: "/usr/bin/trivy")
-    monkeypatch.setattr(native_policy, "_require_version", lambda _binary: None)
-    monkeypatch.setattr(native_policy, "_run_contract", lambda _binary, _policy: 122)
+    contexts: list[Path] = []
+
+    def version(_binary: str, private: Path) -> None:
+        contexts.append(private)
+        assert private.stat().st_mode & 0o777 == 0o700
+        assert (private / "cache").is_dir() and (private / "tmp").is_dir()
+
+    def contract(_binary: str, policy: Path, private: Path) -> int:
+        assert contexts[-1] == private and policy == scan_copy
+        return 122
+
+    monkeypatch.setattr(native_policy, "_require_version", version)
+    monkeypatch.setattr(native_policy, "_run_contract", contract)
     assert native_policy.main() == 0
     assert "passed: 122 cases" in capsys.readouterr().out
+    assert len(contexts) == 1 and not contexts[0].exists()
+
+    def reject(_binary: str, policy: Path, private: Path) -> int:
+        assert contexts[-1] == private and policy == scan_copy
+        raise ValueError("synthetic conversion failure")
+
+    monkeypatch.setattr(native_policy, "_run_contract", reject)
+    assert native_policy.main() == 1
+    assert "synthetic conversion failure" in capsys.readouterr().err
+    assert len(contexts) == 2 and not contexts[1].exists()
     scan_copy.write_bytes(b"drift")
     assert native_policy.main() == 1
     assert "differs" in capsys.readouterr().err
@@ -1654,7 +1756,7 @@ def test_openssl_native_cases_keep_distinct_members_and_adversarial_inputs() -> 
 @pytest.mark.parametrize("kind", ("integer", "float", "bool", "array", "object"))
 @pytest.mark.parametrize("fault", ("success", "stdout", "decoder", "field", "type"))
 def test_openssl_native_type_controls_require_actual_decode_rejection(
-    kind: str, fault: str, monkeypatch: pytest.MonkeyPatch
+    kind: str, fault: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     cases = (
         native_policy._cases()
@@ -1667,9 +1769,10 @@ def test_openssl_native_type_controls_require_actual_decode_rejection(
     calls = 0
 
     def convert(
-        argv: list[str], *, payload: bytes | None = None
+        argv: list[str], private: Path, *, payload: bytes | None = None
     ) -> subprocess.CompletedProcess[bytes]:
         nonlocal calls
+        assert private == tmp_path
         case_id, finding, expected = cases[calls]
         calls += 1
         assert json.loads(payload or b"")["Results"][0]["Vulnerabilities"] == [finding]
@@ -1690,7 +1793,7 @@ def test_openssl_native_type_controls_require_actual_decode_rejection(
 
     monkeypatch.setattr(native_policy, "_invoke", convert)
     with pytest.raises(ValueError, match="expected native FixedVersion type rejection"):
-        native_policy._run_contract("/usr/bin/trivy", Path("/tmp/policy.rego"))
+        native_policy._run_contract("/usr/bin/trivy", Path("/tmp/policy.rego"), tmp_path)
     assert cases[calls - 1][0] == target
 
 
@@ -1708,7 +1811,7 @@ def test_openssl_native_type_controls_require_actual_decode_rejection(
     ),
 )
 def test_openssl_native_negatives_require_retained_finding_identity(
-    package: str, kind: str, monkeypatch: pytest.MonkeyPatch
+    package: str, kind: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     cases = (
         native_policy._cases()
@@ -1721,9 +1824,10 @@ def test_openssl_native_negatives_require_retained_finding_identity(
     calls = 0
 
     def convert(
-        argv: list[str], *, payload: bytes | None = None
+        argv: list[str], private: Path, *, payload: bytes | None = None
     ) -> subprocess.CompletedProcess[bytes]:
         nonlocal calls
+        assert private == tmp_path
         case_id, finding, expected = cases[calls]
         calls += 1
         if case_id == target:
@@ -1738,7 +1842,7 @@ def test_openssl_native_negatives_require_retained_finding_identity(
 
     monkeypatch.setattr(native_policy, "_invoke", convert)
     with pytest.raises(ValueError, match="different finding identity"):
-        native_policy._run_contract("/usr/bin/trivy", Path("/tmp/policy.rego"))
+        native_policy._run_contract("/usr/bin/trivy", Path("/tmp/policy.rego"), tmp_path)
     assert cases[calls - 1][0] == target
 
 
@@ -1810,7 +1914,10 @@ def test_native_identity_and_retirement_inventory_is_complete() -> None:
 )
 @pytest.mark.parametrize("fault", ["count", "identity", "absent-output", "execution"])
 def test_new_native_negatives_fail_closed_on_output_or_execution_error(
-    case: tuple[str, dict[str, object], int | None], fault: str, monkeypatch: pytest.MonkeyPatch
+    case: tuple[str, dict[str, object], int | None],
+    fault: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     target = case[0]
     cases = (
@@ -1823,9 +1930,10 @@ def test_new_native_negatives_fail_closed_on_output_or_execution_error(
     calls = 0
 
     def convert(
-        argv: list[str], *, payload: bytes | None = None
+        argv: list[str], private: Path, *, payload: bytes | None = None
     ) -> subprocess.CompletedProcess[bytes]:
         nonlocal calls
+        assert private == tmp_path
         case_id, finding, expected = cases[calls]
         calls += 1
         if case_id == target:
@@ -1852,29 +1960,10 @@ def test_new_native_negatives_fail_closed_on_output_or_execution_error(
         "execution": "conversion failed",
     }[fault]
     with pytest.raises(ValueError, match=message):
-        native_policy._run_contract("/usr/bin/trivy", Path("/tmp/policy.rego"))
+        native_policy._run_contract("/usr/bin/trivy", Path("/tmp/policy.rego"), tmp_path)
     assert cases[calls - 1][0] == target
 
 
-@pytest.mark.parametrize(
-    ("today", "expected"),
-    [
-        (date(2026, 10, 30), []),
-        (date(2026, 10, 31), ["Stale"]),
-        (date(2026, 11, 4), ["Stale"]),
-        (date(2026, 11, 5), ["Expired", "Stale"]),
-    ],
-)
-def test_caddy_D_has_independent_review_and_hard_expiry(today: date, expected: list[str]) -> None:
-    policy = REPO_ROOT / "trivy/ignore-policy-caddy-go-jose-v3.rego"
-    failures = evaluate_policy_file(policy, today=today)
-    assert len(failures) == len(expected)
-    assert all(any(word in error for error in failures) for word in expected)
-    text = policy.read_text()
-    assert 'input.PkgName == "github.com/go-jose/go-jose/v3"' in text
-    assert 'input.PkgIdentifier.PURL == "pkg:golang/github.com/go-jose/go-jose/v3@v3.0.5"' in text
-    assert 'input.Severity == "HIGH"' in text and 'input.Status == "affected"' in text
-    assert "input.Target" not in text and "input.Image" not in text
-    assert 'time.parse_rfc3339_ns("2026-10-31T00:00:00Z")' in text
-    assert 'time.parse_rfc3339_ns("2026-11-05T00:00:00Z")' in text
+def test_retired_caddy_v3_policy_is_absent_without_weakening_strict_policy() -> None:
+    assert not (REPO_ROOT / "trivy/ignore-policy-caddy-go-jose-v3.rego").exists()
     assert POLICY_PATH.read_text() == "package trivy\n\nimport rego.v1\n\ndefault ignore := false\n"

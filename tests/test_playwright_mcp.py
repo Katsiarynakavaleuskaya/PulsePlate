@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -158,42 +161,132 @@ def test_main_doctor_json_output(
     assert payload == [{"name": "node-version", "ok": True, "detail": "ok", "remediation": None}]
 
 
+@pytest.mark.parametrize("cache", [None, "0", "relative cache", "/explicit/cache"])
+@pytest.mark.parametrize("status", [0, 7])
 def test_install_browser_runs_repo_local_playwright_install(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, cache: str | None, status: int
 ) -> None:
+    _configure_fake_repo_paths(tmp_path, monkeypatch)
+    node = tmp_path / "node"
+    node.write_bytes(b"synthetic executable")
+    node.chmod(0o700)
+    package = playwright_mcp.PLAYWRIGHT_PACKAGE_PATH
+    metadata = {"name": "playwright", "version": "1.2.3", "bin": {"playwright": "cli.js"}}
+    (package / "package.json").write_text(json.dumps(metadata))
+    (package / "cli.js").write_text("// fixture only")
+    (playwright_mcp.FRONTEND_DIR / "package-lock.json").write_text(
+        json.dumps({"lockfileVersion": 3, "packages": {"node_modules/playwright": metadata}})
+    )
+    monkeypatch.setattr(playwright_mcp, "_resolve_binary", lambda _name: str(node))
     monkeypatch.setattr(
         playwright_mcp,
-        "_build_doctor_report",
-        lambda: [
-            playwright_mcp.CheckResult(name="node-version", ok=True, detail="ok"),
-            playwright_mcp.CheckResult(name="npm", ok=True, detail="ok"),
-            playwright_mcp.CheckResult(name="npx", ok=True, detail="ok"),
-            playwright_mcp.CheckResult(name="frontend-node-modules", ok=True, detail="ok"),
-        ],
+        "_current_node_version",
+        lambda path: "24.16.0" if path == str(node) else None,
     )
-    monkeypatch.setattr(playwright_mcp, "_resolve_binary", lambda name: f"/usr/local/bin/{name}")
+    if cache is None:
+        monkeypatch.delenv("PLAYWRIGHT_BROWSERS_PATH", raising=False)
+    else:
+        monkeypatch.setenv("PLAYWRIGHT_BROWSERS_PATH", cache)
+    monkeypatch.setenv("PLAYWRIGHT_CHROMIUM_DOWNLOAD_HOST", "https://fixture.invalid")
+    monkeypatch.setenv("HTTPS_PROXY", "http://local-proxy.invalid")
+    for name in ("GH_TOKEN", "GITHUB_TOKEN", "NODE_OPTIONS", "NODE_PATH", "LD_PRELOAD"):
+        monkeypatch.setenv(name, "synthetic-private")
+    calls = []
 
-    recorded: dict[str, object] = {}
-
-    def fake_run(argv: list[str], cwd: Path, check: bool) -> object:
-        recorded["argv"] = argv
-        recorded["cwd"] = cwd
-        recorded["check"] = check
-        return type("Process", (), {"returncode": 0})()
+    def fake_run(
+        argv: list[str], *, cwd: Path, check: bool, env: dict[str, str]
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(argv)
+        assert cwd == playwright_mcp.FRONTEND_DIR and not check
+        assert env.get("PLAYWRIGHT_BROWSERS_PATH") == cache
+        assert env["PLAYWRIGHT_CHROMIUM_DOWNLOAD_HOST"] == "https://fixture.invalid"
+        assert env["HTTPS_PROXY"] == "http://local-proxy.invalid"
+        assert "synthetic-private" not in env.values()
+        return subprocess.CompletedProcess(argv, status)
 
     monkeypatch.setattr(playwright_mcp.subprocess, "run", fake_run)
+    assert playwright_mcp.main(["install-browser"]) == status
+    assert calls == [[str(node), str(package / "cli.js"), "install", "chromium"]]
 
-    exit_code = playwright_mcp.main(["install-browser"])
 
-    assert exit_code == 0
-    assert recorded["argv"] == [
-        "/usr/local/bin/npx",
-        "playwright",
-        "install",
-        "chromium",
-    ]
-    assert recorded["cwd"] == playwright_mcp.FRONTEND_DIR
-    assert recorded["check"] is False
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "missing-lock",
+        "missing-package",
+        "name",
+        "version",
+        "wrong-bin",
+        "absolute",
+        "escape",
+        "missing-cli",
+        "cli-symlink",
+        "hardlink",
+        "package-symlink",
+        "node-modules-symlink",
+        "changed-node",
+        "relative-node",
+    ],
+)
+def test_install_rebind_rejects_without_install_or_npx(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str
+) -> None:
+    _configure_fake_repo_paths(tmp_path, monkeypatch)
+    # Successful initial doctor observations precede the damaged/replaced at-use state.
+    monkeypatch.setattr(playwright_mcp, "_build_doctor_report", lambda: [])
+    package = playwright_mcp.PLAYWRIGHT_PACKAGE_PATH
+    lock = playwright_mcp.FRONTEND_DIR / "package-lock.json"
+    node = tmp_path / "node"
+    node.write_text("fixture")
+    node.chmod(0o700)
+    monkeypatch.setattr(
+        playwright_mcp,
+        "_resolve_binary",
+        lambda name: (
+            ("bin/node" if fault == "relative-node" else str(node))
+            if name == "node"
+            else pytest.fail("unexpected npx")
+        ),
+    )
+    monkeypatch.setattr(
+        playwright_mcp,
+        "_current_node_version",
+        lambda _: "25.0.0" if fault == "changed-node" else "24.16.0",
+    )
+    entry = {"absolute": str(tmp_path / "outside.js"), "escape": "../outside.js"}.get(
+        fault, "cli.js"
+    )
+    expected = {"version": "1.2.3", "bin": {"playwright": entry}}
+    actual = {
+        "name": "wrong" if fault == "name" else "playwright",
+        "version": "1.2.4" if fault == "version" else "1.2.3",
+        "bin": {"playwright": "other.js" if fault == "wrong-bin" else entry},
+    }
+    if fault != "missing-lock":
+        lock.write_text(
+            json.dumps({"lockfileVersion": 3, "packages": {"node_modules/playwright": expected}})
+        )
+    if fault != "missing-package":
+        (package / "package.json").write_text(json.dumps(actual))
+    foreign = tmp_path / "outside.js"
+    foreign.write_text("foreign sentinel")
+    cli = package / "cli.js"
+    if fault == "cli-symlink":
+        cli.symlink_to(foreign)
+    elif fault == "hardlink":
+        os.link(foreign, cli)
+    elif fault != "missing-cli":
+        cli.write_text("fixture")
+    if fault in ("package-symlink", "node-modules-symlink"):
+        path = package if fault == "package-symlink" else package.parent
+        moved = tmp_path / "foreign-tree"
+        path.rename(moved)
+        path.symlink_to(moved, target_is_directory=True)
+    monkeypatch.setattr(
+        playwright_mcp.subprocess, "run", lambda *a, **kw: pytest.fail("install escaped")
+    )
+    assert playwright_mcp.main(["install-browser"]) == 1
+    assert foreign.read_text() == "foreign sentinel"
 
 
 def test_install_browser_refuses_when_local_playwright_package_is_missing(
@@ -274,3 +367,111 @@ def test_playwright_browser_cache_requires_chromium_payload(
     (cache_dir / "chromium-1234").mkdir()
 
     assert playwright_mcp._playwright_browser_cache_present() is True
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "valid",
+        "prerelease",
+        "relative",
+        "missing",
+        "directory",
+        "non-executable",
+        "timeout",
+        "launch",
+        "nonzero",
+        "encoding",
+        "malformed",
+        "multiline",
+    ],
+)
+def test_doctor_node_probe_is_bounded_and_unavailable_on_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: str
+) -> None:
+    node = tmp_path / "node"
+    node.write_bytes(b"synthetic executable fixture")
+    node.chmod(0o600 if case == "non-executable" else 0o700)
+    selected = {
+        "relative": Path("bin/node"),
+        "missing": tmp_path / "absent",
+        "directory": tmp_path,
+    }.get(case, node)
+    secret = "synthetic-node-credential"
+    for name in (
+        "NODE_OPTIONS",
+        "NODE_PATH",
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "HTTPS_PROXY",
+        "LD_PRELOAD",
+    ):
+        monkeypatch.setenv(name, secret)
+    calls = []
+
+    def run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        calls.append(argv)
+        assert argv == [str(node.resolve()), "-p", "process.versions.node"]
+        assert kwargs["cwd"] == playwright_mcp.REPO_ROOT and kwargs["timeout"] == 10
+        assert kwargs.get("shell", False) is False
+        assert kwargs["stdin"] == kwargs["stderr"] == subprocess.DEVNULL
+        assert secret not in repr(kwargs["env"])
+        if case == "timeout":
+            raise subprocess.TimeoutExpired([secret], 10, output="24.22.1", stderr=secret)
+        if case == "launch":
+            raise OSError(secret)
+        if case == "encoding":
+            raise UnicodeDecodeError("utf8", b"\xff", 0, 1, secret)
+        output = {
+            "prerelease": "24.0.0-rc.1\n",
+            "malformed": secret,
+            "multiline": "24.22.1\n" + secret,
+        }.get(case, "24.22.1\n")
+        return subprocess.CompletedProcess(
+            argv, 1 if case == "nonzero" else 0, stdout=output, stderr=secret
+        )
+
+    monkeypatch.setattr(playwright_mcp.subprocess, "run", run)
+    assert playwright_mcp._current_node_version(str(selected)) == {
+        "valid": "24.22.1",
+        "prerelease": "24.0.0-rc.1",
+    }.get(case)
+    assert len(calls) == (
+        0 if case in {"relative", "missing", "directory", "non-executable"} else 1
+    )
+
+
+def test_doctor_real_node_excludes_inherited_preload(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    selected = shutil.which("node")
+    assert (
+        selected is not None and Path(selected).is_absolute()
+    ), "qualified Node required for preload control"
+    marker = tmp_path / "preload-marker"
+    preload = tmp_path / "probe.cjs"
+    preload.write_text(
+        "require('node:fs').writeFileSync(" + json.dumps(str(marker)) + ", process.env.GH_TOKEN);\n"
+    )
+    options = "--require " + json.dumps(str(preload))
+    token = "synthetic-node-preload"
+    monkeypatch.setenv("NODE_OPTIONS", options)
+    monkeypatch.setenv("NODE_PATH", str(tmp_path))
+    monkeypatch.setenv("GH_TOKEN", token)
+    monkeypatch.setenv("GITHUB_TOKEN", token)
+    monkeypatch.setattr(playwright_mcp, "REPO_ROOT", tmp_path)
+    control = subprocess.run(
+        [selected, "-p", "process.versions.node"],
+        cwd=tmp_path,
+        env={"PATH": os.defpath, "LC_ALL": "C", "NODE_OPTIONS": options, "GH_TOKEN": token},
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=True,
+    )
+    assert marker.read_text() == token
+    marker.unlink()
+    expected = control.stdout.strip()
+    assert expected and playwright_mcp._current_node_version(selected) == expected
+    assert not marker.exists()

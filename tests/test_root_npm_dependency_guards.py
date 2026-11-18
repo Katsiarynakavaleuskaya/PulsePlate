@@ -2988,3 +2988,153 @@ def test_react_router_guard_allows_future_exact_safe_carrier(
     )
 
     test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges()
+
+
+@pytest.mark.parametrize(
+    "arguments,location,npm_status,checker_status,expected_status,applies",
+    [
+        (["--prefix", "frontend", "ci"], "root", 0, 0, 0, True),
+        (["--prefix", "frontend", "ci", "--no-audit", "--no-fund"], "root", 0, 0, 0, True),
+        (["ci"], "frontend", 0, 0, 0, True),
+        (["ci"], "root", 0, 0, 0, False),
+        (["--prefix", "frontend", "audit"], "root", 0, 0, 0, False),
+        (["--prefix", "frontend", "ci", "--package-lock-only"], "root", 0, 0, 0, False),
+        (["--prefix", "frontend", "install", "--package-lock-only"], "root", 0, 0, 0, False),
+        (["--prefix", "frontend/subdir", "ci"], "root", 0, 0, 0, False),
+        (["--prefix", "frontend", "ci"], "root", 17, 0, 17, False),
+        (["--prefix", "frontend", "ci"], "root", 0, 23, 23, True),
+    ],
+)
+def test_frontend_npm_checked_install_is_finite_and_preserves_failures(
+    tmp_path: Path,
+    arguments: list[str],
+    location: str,
+    npm_status: int,
+    checker_status: int,
+    expected_status: int,
+    applies: bool,
+) -> None:
+    bash = shutil.which("bash")
+    assert bash is not None
+    root = tmp_path / "repo"
+    (root / "scripts").mkdir(parents=True)
+    (root / "frontend").mkdir()
+    (root / ".nvmrc").write_text("24.22.1\n")
+    wrapper = root / "scripts/frontend_npm.sh"
+    wrapper.write_bytes((REPO_ROOT / "scripts/frontend_npm.sh").read_bytes())
+    binaries = tmp_path / "bin"
+    binaries.mkdir()
+    log = tmp_path / "calls"
+    for name, body in {
+        "node": 'if [ "$1" = "-p" ]; then echo 24.22.1; exit 0; fi\nprintf "checker:%s\\n" "$*" >> "$CALL_LOG"\nexit "$CHECKER_STATUS"\n',
+        "npm": 'printf "npm:%s\\n" "$*" >> "$CALL_LOG"\nexit "$NPM_STATUS"\n',
+    }.items():
+        executable = binaries / name
+        executable.write_text("#!/bin/sh\n" + body)
+        executable.chmod(0o755)
+    env = {
+        "PATH": str(binaries) + ":/usr/bin:/bin",
+        "CALL_LOG": str(log),
+        "NPM_STATUS": str(npm_status),
+        "CHECKER_STATUS": str(checker_status),
+    }
+    result = subprocess.run(
+        [str(Path(bash).resolve()), str(wrapper), *arguments],
+        cwd=root if location == "root" else root / "frontend",
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert result.returncode == expected_status, result.stderr
+    lines = log.read_text().splitlines()
+    assert len([line for line in lines if line.startswith("npm:")]) == 1
+    checks = [line for line in lines if line.startswith("checker:")]
+    assert len(checks) == int(applies)
+    if applies:
+        assert (
+            lines[-1]
+            == "checker:" + str(root / "frontend/scripts/check-redocly-compat.mjs") + " apply"
+        )
+
+
+def test_composite_checker_is_after_retry_and_cached_make_requires_verify() -> None:
+    action = (REPO_ROOT / ".github/actions/npm-ci-with-retry/action.yml").read_text()
+    assert "--fetch-retry-maxtimeout=120000; then\n            break" in action
+    assert action.index("        done") < action.index(
+        "node scripts/check-redocly-compat.mjs apply"
+    )
+    assert 'if [[ "$NORMALIZED_WORKING_DIRECTORY" == "frontend" ]]' in action
+    assert "&& exit 0" not in action
+    make = (
+        (REPO_ROOT / "Makefile").read_text().split("frontend-install: ##", 1)[1].split("\n\n", 1)[0]
+    )
+    assert make.count("node frontend/scripts/check-redocly-compat.mjs verify &&") == 2
+    assert make.rindex("check-redocly-compat.mjs verify") < make.index(
+        "cp frontend/package-lock.json"
+    )
+    local = (REPO_ROOT / "scripts/run-ci-local.sh").read_text()
+    assert "ci || ./scripts/frontend_npm.sh --prefix frontend install" not in local
+
+
+@pytest.mark.parametrize(
+    "directory,npm_status,checker_status,expected,installs,checks",
+    [
+        ("frontend", 0, 0, 0, 1, 1),
+        ("frontend", 0, 29, 29, 1, 1),
+        ("frontend", 19, 0, 1, 3, 0),
+        (".", 0, 0, 0, 1, 0),
+        ("frontend/subdir", 0, 0, 0, 1, 0),
+    ],
+)
+def test_npm_composite_checker_failure_never_reenters_install_retry(
+    tmp_path: Path,
+    directory: str,
+    npm_status: int,
+    checker_status: int,
+    expected: int,
+    installs: int,
+    checks: int,
+) -> None:
+    import textwrap
+
+    bash = shutil.which("bash")
+    assert bash is not None
+    source = (REPO_ROOT / ".github/actions/npm-ci-with-retry/action.yml").read_text()
+    script = textwrap.dedent(source.split("      run: |\n", 1)[1])
+    root = tmp_path / "repo"
+    (root / "frontend/subdir").mkdir(parents=True)
+    binaries = tmp_path / "bin"
+    binaries.mkdir()
+    log = tmp_path / "calls"
+    for name, body in {
+        "npm": 'echo npm >> "$CALL_LOG"; exit "$NPM_STATUS"',
+        "node": 'echo checker >> "$CALL_LOG"; exit "$CHECKER_STATUS"',
+        "sleep": "exit 0",
+    }.items():
+        program = binaries / name
+        program.write_text("#!/bin/sh\n" + body + "\n")
+        program.chmod(0o755)
+    env = {
+        "PATH": str(binaries) + ":/usr/bin:/bin",
+        "CALL_LOG": str(log),
+        "WORKING_DIRECTORY": directory,
+        "NPM_STATUS": str(npm_status),
+        "CHECKER_STATUS": str(checker_status),
+    }
+    result = subprocess.run(
+        [str(Path(bash).resolve()), "-c", script],
+        cwd=root,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert result.returncode == expected, result.stderr
+    lines = log.read_text().splitlines()
+    assert lines.count("npm") == installs
+    assert lines.count("checker") == checks
+    if checks:
+        assert lines[-1] == "checker"

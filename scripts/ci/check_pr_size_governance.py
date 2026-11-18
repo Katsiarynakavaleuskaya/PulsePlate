@@ -7,16 +7,16 @@ EN: Enforces the tiered PR-scope policy using changed-file counts and PR-body pr
 
 from __future__ import annotations
 
+from contextlib import closing
+import http.client
 import json
 from pathlib import Path
-import subprocess  # nosec B404 # B404: subprocess is required for bounded local git diff execution (remove-by: 2026-10-30, ref: PR3-risk-topology)
+import subprocess  # nosec B404 # B404: subprocess is required for bounded local git diff execution; owned call sites individually reviewed (remove-by: 2027-01-31, ref: PR3-risk-topology)
 import sys
 import re
 import shutil
 import os
 import urllib.error
-import urllib.parse
-import urllib.request
 
 _REPO_ROOT_OVERRIDE = os.environ.get("PULSEPLATE_SIZE_GOVERNANCE_REPO_ROOT", "").strip()
 REPO_ROOT = Path(_REPO_ROOT_OVERRIDE or Path(__file__).resolve().parents[2]).resolve()
@@ -28,6 +28,7 @@ PRIVILEGED_TARGET_FILES = 10
 PRIVILEGED_HARD_CAP_FILES = 15
 EMERGENCY_MAX_FILES = 30
 GIT_BINARY = shutil.which("git")
+GIT_COMMAND_TIMEOUT_SECONDS = 30
 SPLIT_JUSTIFICATION_INLINE_PATTERN = re.compile(
     r"(?im)^(?:[-*]\s*)?(?:\*\*)?split justification:\s*(\S.+)$",
 )
@@ -116,23 +117,49 @@ def _fetch_pr_metadata_from_api(pr_number: int, repo_full_name: str) -> dict[str
     if not token:
         return {}
 
-    owner, repo = repo_full_name.split("/", maxsplit=1)
-    request = urllib.request.Request(
-        f"https://api.github.com/repos/{urllib.parse.quote(owner)}/{urllib.parse.quote(repo)}/pulls/{pr_number}",
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Accept": "application/vnd.github+json",
-            "X-GitHub-Api-Version": "2022-11-28",
-            "User-Agent": "pulseplate-size-governance",
-        },
-    )
+    components = repo_full_name.split("/")
+    if (
+        type(pr_number) is not int
+        or pr_number <= 0
+        or len(components) != 2
+        or any(
+            component in (".", "..") or not re.fullmatch(r"[A-Za-z0-9_.-]+", component)
+            for component in components
+        )
+    ):
+        return {}
 
-    with urllib.request.urlopen(  # nosec B310 # B310: fallback PR body fetch is read-only API access for size governance; remove-by: 2026-10-31, ref: PR3-risk-topology
-        request,
-        timeout=10,
-    ) as response:
-        payload = response.read().decode("utf-8")
-    pull_request = json.loads(payload)
+    # HTTPSConnection performs one verified request and does not follow Location.
+    try:
+        with closing(http.client.HTTPSConnection("api.github.com", timeout=10)) as connection:
+            connection.request(
+                "GET",
+                f"/repos/{repo_full_name}/pulls/{pr_number}",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Accept": "application/vnd.github+json",
+                    "X-GitHub-Api-Version": "2022-11-28",
+                    "User-Agent": "pulseplate-size-governance",
+                },
+            )
+            with connection.getresponse() as response:
+                if response.status != 200:
+                    return {}
+                limit = 4 * 1024**2
+                declared = None if response.chunked else response.getheader("Content-Length")
+                expected = None
+                if declared is not None:
+                    if not re.fullmatch(r"[0-9]+", declared):
+                        return {}
+                    expected = int(declared)
+                    if expected > limit:
+                        return {}
+                raw = response.read(limit + 1)
+                if len(raw) > limit or (expected is not None and len(raw) != expected):
+                    return {}
+                pull_request = json.loads(raw.decode("utf-8"))
+    except (OSError, http.client.HTTPException, ValueError, RecursionError):
+        return {}
     if not isinstance(pull_request, dict):
         return {}
     return pull_request
@@ -578,18 +605,24 @@ def collect_numstat_output(*, base_sha: str, head_sha: str) -> str:
     """Collect git --numstat output between two revisions."""
     if GIT_BINARY is None:
         raise RuntimeError("git executable not found in PATH")
-    result = subprocess.run(  # nosec B603 # B603: resolved Git, fixed diff --numstat query and workflow revision arguments; no shell (remove-by: 2026-10-30, ref: PR3-risk-topology)
-        [
-            GIT_BINARY,
-            "diff",
-            "--numstat",
-            f"{base_sha}...{head_sha}",
-        ],
-        cwd=REPO_ROOT,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+    try:
+        result = subprocess.run(  # nosec B603 # B603: resolved Git, fixed diff --numstat query and workflow revision arguments; no shell, 30s timeout and terminal timeout errors (remove-by: 2027-01-31, ref: PR3-risk-topology)
+            [
+                GIT_BINARY,
+                "diff",
+                "--numstat",
+                f"{base_sha}...{head_sha}",
+            ],
+            cwd=REPO_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=GIT_COMMAND_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(
+            f"Git numstat diff timed out after {GIT_COMMAND_TIMEOUT_SECONDS} seconds"
+        ) from None
     return result.stdout
 
 
@@ -597,20 +630,26 @@ def collect_changed_files(*, base_sha: str, head_sha: str) -> tuple[list[str], f
     """Return all changed paths and both endpoints of emitted rename/copy records."""
     if GIT_BINARY is None:
         raise RuntimeError("git executable not found in PATH")
-    result = subprocess.run(  # nosec B603 # B603: resolved Git, fixed diff --name-status -z query and workflow revision arguments; no shell (remove-by: 2026-10-30, ref: PR3-risk-topology)
-        [
-            GIT_BINARY,
-            "diff",
-            "--name-status",
-            "-z",
-            "--diff-filter=ACDMRT",
-            f"{base_sha}...{head_sha}",
-        ],
-        cwd=REPO_ROOT,
-        check=True,
-        capture_output=True,
-        text=False,
-    )
+    try:
+        result = subprocess.run(  # nosec B603 # B603: resolved Git, fixed diff --name-status -z query and workflow revision arguments; no shell, 30s timeout and terminal timeout errors (remove-by: 2027-01-31, ref: PR3-risk-topology)
+            [
+                GIT_BINARY,
+                "diff",
+                "--name-status",
+                "-z",
+                "--diff-filter=ACDMRT",
+                f"{base_sha}...{head_sha}",
+            ],
+            cwd=REPO_ROOT,
+            check=True,
+            capture_output=True,
+            text=False,
+            timeout=GIT_COMMAND_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(
+            f"Git changed-path diff timed out after {GIT_COMMAND_TIMEOUT_SECONDS} seconds"
+        ) from None
     output = result.stdout
     if not isinstance(output, bytes):
         raise ValueError("Git name-status output must be bytes")
@@ -648,22 +687,28 @@ def collect_regular_generated_openapi_paths(*, head_sha: str) -> frozenset[str]:
     """Admit exact generated paths only when the requested head records regular blobs."""
     if GIT_BINARY is None:
         raise RuntimeError("git executable not found in PATH")
-    result = subprocess.run(  # nosec B603 # B603: fixed Git argv reads two exact tree paths (remove-by: 2026-12-31, ref: PR-2461)
-        [
-            GIT_BINARY,
-            "ls-tree",
-            "-r",
-            "-z",
-            "--full-tree",
-            head_sha,
-            "--",
-            *sorted(GENERATED_OPENAPI_CONTRACT_PATHS),
-        ],
-        cwd=REPO_ROOT,
-        check=True,
-        capture_output=True,
-        text=False,
-    )
+    try:
+        result = subprocess.run(  # nosec B603 # B603: fixed Git argv reads two exact tree paths (remove-by: 2026-12-31, ref: PR-2461)
+            [
+                GIT_BINARY,
+                "ls-tree",
+                "-r",
+                "-z",
+                "--full-tree",
+                head_sha,
+                "--",
+                *sorted(GENERATED_OPENAPI_CONTRACT_PATHS),
+            ],
+            cwd=REPO_ROOT,
+            check=True,
+            capture_output=True,
+            text=False,
+            timeout=GIT_COMMAND_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(
+            f"Git generated-path tree timed out after {GIT_COMMAND_TIMEOUT_SECONDS} seconds"
+        ) from None
     output = result.stdout
     if not isinstance(output, bytes):
         raise ValueError("Git tree output must be bytes")

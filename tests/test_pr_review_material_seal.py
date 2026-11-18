@@ -11049,3 +11049,170 @@ def test_inspected_stale_seal_update_metadata_keeps_negative_native_bindings(
             assert bound == baseline_bindings[url]
     assert tuple(state[key] for key in protected_keys) == protected
     assert state["mapping"].read_bytes() == mapping_before
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "get-object",
+        "get-list",
+        "query",
+        "boundary",
+        "oversize",
+        "duplicate",
+        "invalid-utf8",
+        "invalid-json",
+        "non-json",
+        "invalid-number",
+        "constructor",
+        "request",
+        "read",
+        "close",
+        "read-and-close",
+        "decode-and-close",
+        "404-and-close",
+        "422-and-close",
+        "403-and-close",
+        "same-origin-redirect",
+        "cross-origin-redirect",
+        "no-content",
+        "partial-content",
+        "422-specific",
+        "422-near",
+        "rate-limited",
+        "service-error",
+    ],
+)
+def test_readonly_github_request_status_privacy_and_cleanup(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], case: str
+) -> None:
+    import traceback
+
+    sentinel = "synthetic-private-transport-marker"
+    token = "synthetic-private-bearer"
+    for name in ("GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN"):
+        monkeypatch.delenv(name, raising=False)
+    events = []
+    status = {
+        "404-and-close": 404,
+        "422-and-close": 422,
+        "403-and-close": 403,
+        "same-origin-redirect": 302,
+        "cross-origin-redirect": 307,
+        "no-content": 204,
+        "partial-content": 206,
+        "422-specific": 422,
+        "422-near": 422,
+        "rate-limited": 429,
+        "service-error": 503,
+    }.get(case, 200)
+    raw = b'{"ok":true}'
+    if case == "get-list":
+        raw = b"[]"
+    elif case in {"boundary", "oversize"}:
+        raw = raw.ljust(4 * 1024**2 + (case == "oversize"), b" ")
+    elif case == "duplicate":
+        raw = json.dumps({sentinel: 1}).replace("}", ', "' + sentinel + '":2}').encode()
+    elif case == "invalid-utf8":
+        raw = b"\xff" + sentinel.encode()
+    elif case in {"invalid-json", "decode-and-close"}:
+        raw = sentinel.encode()
+    elif case == "invalid-number":
+        raw = b'{"x":NaN}'
+    elif case == "422-and-close":
+        raw = b'{"message":"No commit found for SHA"}'
+    elif case in {"422-specific", "422-near"}:
+        raw = json.dumps(
+            {"message": "No commit found for SHA: " + FIX_SHA + ("!" if case == "422-near" else "")}
+        ).encode()
+    request_path = "/graphql" if case == "query" else "/repos/owner/repo/commits/" + FIX_SHA
+
+    class Response:
+        status: int
+        reason = sentinel
+
+        def getheader(self, name: str) -> str | None:
+            if name == "Location":
+                return (
+                    "https://api.github.com/"
+                    if case == "same-origin-redirect"
+                    else "https://foreign.invalid/"
+                ) + sentinel
+            if name == "Content-Type":
+                return (
+                    "text/notjson"
+                    if case == "non-json"
+                    else "application/vnd.github+json; charset=utf-8"
+                )
+            return None
+
+        def read(self, maximum: int) -> bytes:
+            events.append("read")
+            assert maximum == 4 * 1024**2 + 1
+            if case in {"read", "read-and-close"}:
+                raise http.client.IncompleteRead(sentinel.encode())
+            return raw
+
+    class Connection:
+        def __init__(self, host: str, *, timeout: int) -> None:
+            assert host == "api.github.com" and timeout == 30
+            events.append("init")
+            if case == "constructor":
+                raise OSError(sentinel)
+
+        def request(
+            self, *, method: str, url: str, body: bytes | None, headers: dict[str, str]
+        ) -> None:
+            events.append("request")
+            assert method == ("POST" if case == "query" else "GET") and url == request_path
+            assert headers["Authorization"] == "Bearer " + token
+            if case == "request":
+                raise OSError(sentinel)
+
+        def getresponse(self) -> Response:
+            response = Response()
+            response.status = status
+            return response
+
+        def close(self) -> None:
+            events.append("close")
+            if case == "close" or case.endswith("-and-close"):
+                raise OSError(sentinel)
+
+    monkeypatch.setattr(http.client, "HTTPSConnection", Connection)
+
+    def request() -> Any:
+        return identity_module.github_api_request(
+            "https://api.github.com" + request_path,
+            token=token,
+            method="POST" if case == "query" else "GET",
+            payload={"query": "query { viewer { login } }"} if case == "query" else None,
+        )
+
+    if case in {"get-object", "get-list", "query", "boundary"}:
+        assert request() == ([] if case == "get-list" else {"ok": True})
+    else:
+        with pytest.raises(CommitIdentityError) as caught:
+            request()
+        if status != 200:
+            assert isinstance(caught.value, GitHubHttpError) and caught.value.status == status
+            if case == "422-and-close":
+                assert caught.value.api_message == "No commit found for SHA"
+        if case.endswith("-and-close"):
+            assert caught.value.__notes__ == ["GitHub API connection cleanup failed"]
+        if case == "close":
+            assert str(caught.value) == "GitHub API connection cleanup failed"
+        diagnostic = "".join(traceback.format_exception(caught.value)) + repr(caught.value)
+        assert token not in diagnostic and sentinel not in diagnostic
+        assert caught.value.__cause__ is None and caught.value.__context__ is None
+    assert events.count("request") == (case != "constructor")
+    assert events.count("close") == (case != "constructor")
+    if status != 200:
+        events.clear()
+        classified = identity_module.classify_commit_ref(FIX_SHA, _snapshot(), token=token)
+        unavailable = case in {"404-and-close", "422-and-close", "422-specific"}
+        assert classified.kind is (
+            CommitRefKind.REVIEW_REF_UNAVAILABLE if unavailable else CommitRefKind.API_UNKNOWN
+        )
+        assert events == ["init", "request", "read", "close"]
+    assert capsys.readouterr() == ("", "")

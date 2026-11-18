@@ -13,7 +13,7 @@ import os
 import re
 import shutil
 import stat
-import subprocess  # nosec B404: # fixed reader process (remove-by: 2026-10-31, ref: PR-2497)
+import subprocess  # nosec B404: # stdlib subprocess required for the isolated verifier manifest reader (remove-by: 2026-12-21, ref: PR-2494)
 import sys
 import tarfile
 from contextlib import suppress
@@ -1011,6 +1011,8 @@ class DockerPromtoolClient:
             result = subprocess.run(
                 [
                     sys.executable,
+                    "-I",
+                    "-S",
                     str(helper),
                     "--operation",
                     "read-manifest",
@@ -1020,11 +1022,12 @@ class DockerPromtoolClient:
                     "runtime_ref",
                 ],
                 check=True,
+                stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
                 timeout=COMMAND_TIMEOUT_SECONDS,
                 env={"PATH": os.defpath, "LANG": "C.UTF-8"},
-            )  # nosec B603: # fixed reader, no shell (remove-by: 2026-10-31, ref: PR-2497)
+            )  # nosec B603: # fixed isolated reader argv, closed input, canonical ref and 30s bound before Compose (remove-by: 2026-12-21, ref: PR-2494)
             raw = result.stdout
             if (
                 not 1 < len(raw) <= 512

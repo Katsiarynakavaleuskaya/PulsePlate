@@ -1,5 +1,95 @@
 # Inline nosec TTL reassessment — 2026-09-30
 
+
+## Current individual reassessment — 2026-10-31, PR #2494
+
+Owner: Security/SRE. The original October30 review deadline was missed; this is
+an actual October31 reassessment, not retrospective completion or calendar-only
+renewal. Of the original45 annotations, B323 was removed by the verified-TLS fix;
+43 existing conservative warnings were individually reviewed, and the remaining
+domain B603 was qualified only after correcting its hostname/option ambiguity.
+The44 surviving comments retain their rule and original reference. No new
+suppression, scanner/config weakening, alias relocation or allowlist entry is added.
+
+Manual review checkpoints are November30, December31 and January31. Hard remove-by
+is2027-01-31 under the unchanged guard. Necessary native CLI operations and the
+public reason key justify this finite interval; it is not an unfixed-CVE waiver.
+No automatic renewal follows. Reassess immediately when executable/argv/caller
+input, environment/trust, timeout/error behavior or a relevant finding changes.
+The table records each site's actual controls and no-safe-equivalent rationale;
+trusted checkout/PATH/CLI/daemon assumptions are bounded, not hostile-host proof.
+
+Consumed native evidence: candidate7 mypy0,319 TLS cases including54 real TLS cases,
+250 deadline cases and945 workflow cases; ordinary18-file Bandit0 findings/0errors,
+unsuppressed54 findings/0errors and B323zero. Candidate9 domain mypy0 and118cases
+with0failures/0errors/0skips; its fresh unsuppressed Bandit reports exactly B404/B603
+with0errors. The domain fix rejects invalid/option-like names and derived-www
+overflow before effects, explicitly binds dig -q/-t, and preserves verified HTTPS.
+It does not establish DNS ownership, safe resolved addresses or general TLS safety.
+Source/test anchors: `scripts/check_domain_tls.py:60`,
+`tests/test_check_domain_tls.py:331`,
+`scripts/ci/install_locked_python_requirements.py:2640`,
+`tests/test_install_locked_python_requirements.py:1`.
+ROOT consumption hashes are0a6624caeb7614ce914ce269def398834b19e44f2bfccf8318014df59aaaa9c1,
+da16bfac6fca978e48e10c783819b1b040b1f724d380b5c533565a5c628feb96 and
+453a3942c731f2fb5bce2ba61c110f4c47265a6d0f3db5344f035af4a0396f46.
+The independent candidate9 Mako ordering failure is retained and corrected in its
+own slice; it is not waived by domain success. Full final-material NoSec and
+configured scanner reruns remain pending after these comment edits.
+
+Ten additional findings retain their existing annotation terms. AM05 nine, N7,
+TrivyD and original39 remain separate. Historical September/October material
+below remains unchanged and applies only to its original bytes.
+
+| Original site | Rule | Current source anchor / result | Individual controls and no-safe-equivalent rationale |
+| --- | --- | --- | --- |
+| `app/security/goplus_agentguard_bridge.py:16` | B404 | `app/security/goplus_agentguard_bridge.py:16`; Individually qualified conservative warning (NOT-A-BUG) | Import-only conservative warning; necessary native subprocess ownership. Feature/test opt-in gates; resolved Node, fixed repo scanner; user text/filename are JSON stdin, not argv; cwd repo; timeout5; nonzero/empty/malformed output degrades to None. PATH, script and inherited env remain trusted. Import itself executes no child; its call sites retain separate individual dispositions. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: PR-main-nightly-nosec-ttl. |
+| `app/security/goplus_agentguard_bridge.py:85` | B603 | `app/security/goplus_agentguard_bridge.py:85`; Individually qualified conservative warning (NOT-A-BUG) | Feature/test opt-in gates; resolved Node, fixed repo scanner; user text/filename are JSON stdin, not argv; cwd repo; timeout5; nonzero/empty/malformed output degrades to None. PATH, script and inherited env remain trusted. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: PR-main-nightly-nosec-ttl. |
+| `scripts/check_domain_tls.py:14` | B404 | `scripts/check_domain_tls.py:14`; Individually qualified conservative warning (NOT-A-BUG) | Import-only conservative warning; necessary native subprocess ownership. Resolved dig/curl callers; fixed diagnostic flags; per-call HTTP_TIMEOUT_SEC; curl HEAD without redirect option; native DNS fallback. Hostname data and host CLI/env remain trust inputs. Import itself executes no child; its call sites retain separate individual dispositions. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: PR-main-nightly-nosec-ttl. |
+| `scripts/check_domain_tls.py:91` | B603 | `scripts/check_domain_tls.py:97`; Corrected domain option/name defect; remaining B603 is individually qualified conservative warning | ASCII LDH labels1..63/total253, both apex and www validated before effects; dig -q/-t; resolved binaries/no shell/15s; native118 cases and mypy0, scannerexactB404+B603. No general DNS/address/TLS safety claim. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: PR-main-nightly-nosec-ttl. |
+| `scripts/ci/check_docker_provenance_attestation.py:19` | B404 | `scripts/ci/check_docker_provenance_attestation.py:19`; Individually qualified conservative warning (NOT-A-BUG) | Import-only conservative warning; necessary native subprocess ownership. Resolved gh; check=True; configured bounded timeout; attestation verify exact artifact/repository/signer/source-ref, bundle-from-oci and deny-self-hosted-runners. Replacing gh with ordinary HTTP would discard native verification semantics. Import itself executes no child; its call sites retain separate individual dispositions. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: PR-docker-signed-provenance. |
+| `scripts/ci/check_docker_provenance_attestation.py:106` | B603 | `scripts/ci/check_docker_provenance_attestation.py:106`; Individually qualified conservative warning (NOT-A-BUG) | Resolved gh; check=True; configured bounded timeout; attestation verify exact artifact/repository/signer/source-ref, bundle-from-oci and deny-self-hosted-runners. Replacing gh with ordinary HTTP would discard native verification semantics. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: PR-docker-signed-provenance. |
+| `scripts/ci/check_docker_runtime_dependency_surface.py:22` | B404 | `scripts/ci/check_docker_runtime_dependency_surface.py:22`; Individually qualified conservative warning (NOT-A-BUG) | Import-only conservative warning; necessary native subprocess ownership. Resolved Docker; check=True; DOCKER_TIMEOUT_SECONDS; UTF-8 strict path and controlled run/inspect callers. Docker daemon and qualified image/native runtime remain trusted; no shell=True. Import itself executes no child; its call sites retain separate individual dispositions. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: PR-docker-runtime-slimming. |
+| `scripts/ci/check_docker_runtime_dependency_surface.py:151` | B603 | `scripts/ci/check_docker_runtime_dependency_surface.py:151`; Individually qualified conservative warning (NOT-A-BUG) | Resolved Docker; check=True; DOCKER_TIMEOUT_SECONDS; UTF-8 strict path and controlled run/inspect callers. Docker daemon and qualified image/native runtime remain trusted; no shell=True. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: PR-docker-runtime-slimming. |
+| `scripts/ci/check_pr_merge_readiness.py:17` | B404 | `scripts/ci/check_pr_merge_readiness.py:17`; Individually qualified conservative warning (NOT-A-BUG) | Import-only conservative warning; necessary native subprocess ownership. Resolved Git; fixed status/rev-parse queries; timeout30; owning checkout and isolated Git config/replacement environment; strict return/output interpretation. Import itself executes no child; its call sites retain separate individual dispositions. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: PR-governance-material-seal. |
+| `scripts/ci/check_pr_merge_readiness.py:384` | B603 | `scripts/ci/check_pr_merge_readiness.py:384`; Individually qualified conservative warning (NOT-A-BUG) | Resolved Git; fixed status/rev-parse queries; timeout30; owning checkout and isolated Git config/replacement environment; strict return/output interpretation. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: PR-strict-closeout-precommit-guard. |
+| `scripts/ci/check_pr_merge_readiness.py:864` | B603 | `scripts/ci/check_pr_merge_readiness.py:864`; Individually qualified conservative warning (NOT-A-BUG) | Resolved Git; fixed status/rev-parse queries; timeout30; owning checkout and isolated Git config/replacement environment; strict return/output interpretation. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: PR-governance-material-seal. |
+| `scripts/ci/check_pr_size_governance.py:12` | B404 | `scripts/ci/check_pr_size_governance.py:12`; Individually qualified conservative warning (NOT-A-BUG) | Import-only conservative warning; necessary native subprocess ownership. Resolved Git; actual workflow supplies GitHub base/head SHAs and fixed diff queries; no shell; check=True; all three calls now timeout30 with terminal sanitized errors. Local CLI/operator, checkout, executable/PATH and inherited Git configuration are trusted inputs, not arbitrary remote input admission. Import itself executes no child; its call sites retain separate individual dispositions. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: PR3-risk-topology. |
+| `scripts/ci/check_pr_size_governance.py:581` | B603 | `scripts/ci/check_pr_size_governance.py:583`; Individually qualified conservative warning (NOT-A-BUG) | Resolved Git; actual workflow supplies GitHub base/head SHAs and fixed diff queries; no shell; check=True; all three calls now timeout30 with terminal sanitized errors. Local CLI/operator, checkout, executable/PATH and inherited Git configuration are trusted inputs, not arbitrary remote input admission. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: PR3-risk-topology. |
+| `scripts/ci/check_pr_size_governance.py:600` | B603 | `scripts/ci/check_pr_size_governance.py:608`; Individually qualified conservative warning (NOT-A-BUG) | Resolved Git; actual workflow supplies GitHub base/head SHAs and fixed diff queries; no shell; check=True; all three calls now timeout30 with terminal sanitized errors. Local CLI/operator, checkout, executable/PATH and inherited Git configuration are trusted inputs, not arbitrary remote input admission. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: PR3-risk-topology. |
+| `scripts/ci/check_release_control_plane.py:33` | B105 | `scripts/ci/check_release_control_plane.py:33`; Individually qualified conservative warning (NOT-A-BUG) | REASON_ORDER public reason key rag_gate_result_not_pass maps to integer80 and is used in deterministic public failure ordering/emission. No authentication, secret comparison, secret read or credential storage. Renaming it would alter public reason semantics without fixing a vulnerability. Public reason is not a credential; retain stable reason vocabulary. Original ref: PR-main-nightly-nosec-ttl. |
+| `scripts/ci/ci_risk_profile.py:15` | B404 | `scripts/ci/ci_risk_profile.py:15`; Individually qualified conservative warning (NOT-A-BUG) | Import-only conservative warning; necessary native subprocess ownership. Resolved Git; fixed --no-renames --name-only -z range, owning checkout, check=True, GIT_DIFF_TIMEOUT_SECONDS and TimeoutExpired handling; native output supplies both changed endpoints. Import itself executes no child; its call sites retain separate individual dispositions. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: PR3-risk-topology. |
+| `scripts/ci/ci_risk_profile.py:519` | B603 | `scripts/ci/ci_risk_profile.py:519`; Individually qualified conservative warning (NOT-A-BUG) | Resolved Git; fixed --no-renames --name-only -z range, owning checkout, check=True, GIT_DIFF_TIMEOUT_SECONDS and TimeoutExpired handling; native output supplies both changed endpoints. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: PR3-risk-topology. |
+| `scripts/ci/docker_image_telemetry.py:19` | B404 | `scripts/ci/docker_image_telemetry.py:19`; Individually qualified conservative warning (NOT-A-BUG) | Import-only conservative warning; necessary native subprocess ownership. Resolved Docker; only image inspect/history caller families; check=True and DOCKER_TIMEOUT_SECONDS; read-only telemetry parsing. Docker CLI/env/daemon remain trusted. Import itself executes no child; its call sites retain separate individual dispositions. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: PR-docker-telemetry-baseline. |
+| `scripts/ci/docker_image_telemetry.py:86` | B603 | `scripts/ci/docker_image_telemetry.py:86`; Individually qualified conservative warning (NOT-A-BUG) | Resolved Docker; only image inspect/history caller families; check=True and DOCKER_TIMEOUT_SECONDS; read-only telemetry parsing. Docker CLI/env/daemon remain trusted. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: PR-docker-telemetry-baseline. |
+| `scripts/ci/fetch_docker_image_baseline.py:16` | B404 | `scripts/ci/fetch_docker_image_baseline.py:16`; Individually qualified conservative warning (NOT-A-BUG) | Import-only conservative warning; necessary native subprocess ownership. Resolved gh; fixed API/auth calls, supplied env and GH_TIMEOUT_SECONDS; artifact call is read-only API zip, bounded subprocess plus temporary archive processing. Native auth/download behavior must be retained. Import itself executes no child; its call sites retain separate individual dispositions. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: PR-docker-image-budget-telemetry. |
+| `scripts/ci/fetch_docker_image_baseline.py:54` | B603 | `scripts/ci/fetch_docker_image_baseline.py:54`; Individually qualified conservative warning (NOT-A-BUG) | Resolved gh; fixed API/auth calls, supplied env and GH_TIMEOUT_SECONDS; artifact call is read-only API zip, bounded subprocess plus temporary archive processing. Native auth/download behavior must be retained. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: PR-docker-image-budget-telemetry. |
+| `scripts/ci/fetch_docker_image_baseline.py:183` | B603 | `scripts/ci/fetch_docker_image_baseline.py:183`; Individually qualified conservative warning (NOT-A-BUG) | Resolved gh; fixed API/auth calls, supplied env and GH_TIMEOUT_SECONDS; artifact call is read-only API zip, bounded subprocess plus temporary archive processing. Native auth/download behavior must be retained. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: PR-docker-image-budget-telemetry. |
+| `scripts/ci/install_locked_python_requirements.py:2725` | B323 | Removed; verified TLS and terminal error propagation; no replacement suppression | Actual safe code fix applied. Native TLS matrix and proxy evidence above; no blind warning renewal. |
+| `scripts/metatron_lab/compose_guard.py:6` | B404 | `scripts/metatron_lab/compose_guard.py:6`; Individually qualified conservative warning (NOT-A-BUG) | Import-only conservative warning; necessary native subprocess ownership. validate_all_profiles resolves Docker, chooses repo compose file and exactly two LAB_PROFILES; argv list/no shell; config -q only,30s; timeout124/nonzero stop iteration. Direct helper is an internal seam, not remote arbitrary-command API; Docker/checkout/environment trusted. Import itself executes no child; its call sites retain separate individual dispositions. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: PR-main-nightly-nosec-ttl. |
+| `scripts/metatron_lab/compose_guard.py:46` | B603 | `scripts/metatron_lab/compose_guard.py:48`; Individually qualified conservative warning (NOT-A-BUG) | validate_all_profiles resolves Docker, chooses repo compose file and exactly two LAB_PROFILES; argv list/no shell; config -q only,30s; timeout124/nonzero stop iteration. Direct helper is an internal seam, not remote arbitrary-command API; Docker/checkout/environment trusted. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: PR-main-nightly-nosec-ttl. |
+| `scripts/orchestration/check_codex_ollama_operator.py:17` | B404 | `scripts/orchestration/check_codex_ollama_operator.py:17`; Individually qualified conservative warning (NOT-A-BUG) | Import-only conservative warning; necessary native subprocess ownership. Resolved CLI supplied by callers; fixed version requests; shell=False, timeout10; timeout reported124. This pass did not execute local/provider CLI. Import itself executes no child; its call sites retain separate individual dispositions. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: PR-main-nightly-nosec-ttl. |
+| `scripts/orchestration/check_codex_ollama_operator.py:71` | B603 | `scripts/orchestration/check_codex_ollama_operator.py:71`; Individually qualified conservative warning (NOT-A-BUG) | Resolved CLI supplied by callers; fixed version requests; shell=False, timeout10; timeout reported124. This pass did not execute local/provider CLI. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: PR-main-nightly-nosec-ttl. |
+| `scripts/orchestration/check_merge_ready.py:10` | B404 | `scripts/orchestration/check_merge_ready.py:10`; Individually qualified conservative warning (NOT-A-BUG) | Import-only conservative warning; necessary native subprocess ownership. sys.executable+fixed gate scripts with per-gate timeout; resolved gh auth/pr view; selected repo/PR args and cwd; native failure propagation; strict pre-closeout requires both opaque tokens before auth. No replacement HTTP implementation proposed. Import itself executes no child; its call sites retain separate individual dispositions. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: PR-main-nightly-nosec-ttl. |
+| `scripts/orchestration/check_merge_ready.py:118` | B603 | `scripts/orchestration/check_merge_ready.py:118`; Individually qualified conservative warning (NOT-A-BUG) | sys.executable+fixed gate scripts with per-gate timeout; resolved gh auth/pr view; selected repo/PR args and cwd; native failure propagation; strict pre-closeout requires both opaque tokens before auth. No replacement HTTP implementation proposed. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: PR-main-nightly-nosec-ttl. |
+| `scripts/orchestration/check_merge_ready.py:158` | B603 | `scripts/orchestration/check_merge_ready.py:158`; Individually qualified conservative warning (NOT-A-BUG) | sys.executable+fixed gate scripts with per-gate timeout; resolved gh auth/pr view; selected repo/PR args and cwd; native failure propagation; strict pre-closeout requires both opaque tokens before auth. No replacement HTTP implementation proposed. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: PR-main-nightly-nosec-ttl. |
+| `scripts/orchestration/check_merge_ready.py:187` | B603 | `scripts/orchestration/check_merge_ready.py:187`; Individually qualified conservative warning (NOT-A-BUG) | sys.executable+fixed gate scripts with per-gate timeout; resolved gh auth/pr view; selected repo/PR args and cwd; native failure propagation; strict pre-closeout requires both opaque tokens before auth. No replacement HTTP implementation proposed. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: PR-main-nightly-nosec-ttl. |
+| `scripts/orchestration/check_merge_ready.py:241` | B603 | `scripts/orchestration/check_merge_ready.py:241`; Individually qualified conservative warning (NOT-A-BUG) | sys.executable+fixed gate scripts with per-gate timeout; resolved gh auth/pr view; selected repo/PR args and cwd; native failure propagation; strict pre-closeout requires both opaque tokens before auth. No replacement HTTP implementation proposed. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: PR-main-nightly-nosec-ttl. |
+| `scripts/orchestration/check_preflight.py:13` | B404 | `scripts/orchestration/check_preflight.py:13`; Individually qualified conservative warning (NOT-A-BUG) | Import-only conservative warning; necessary native subprocess ownership. Literal Git or sys.executable with fixed repo consistency script; no shell; Git30s and consistency120s; timeout returns124 and cannot pass. Only fixed status/ls-files/consistency callers are reachable in this CLI. Import itself executes no child; its call sites retain separate individual dispositions. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: PR-main-nightly-nosec-ttl. |
+| `scripts/orchestration/check_preflight.py:78` | B603 | `scripts/orchestration/check_preflight.py:84`; Individually qualified conservative warning (NOT-A-BUG) | Literal Git or sys.executable with fixed repo consistency script; no shell; Git30s and consistency120s; timeout returns124 and cannot pass. Only fixed status/ls-files/consistency callers are reachable in this CLI. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: PR-main-nightly-nosec-ttl. |
+| `scripts/orchestration/creative_pilot_workspace_contract.py:16` | B404 | `scripts/orchestration/creative_pilot_workspace_contract.py:16`; Individually qualified conservative warning (NOT-A-BUG) | Import-only conservative warning; necessary native subprocess ownership. Resolved Git; cat-file/rev-parse/ls-tree/show caller families; repo cwd; timeout15, checked return and bytes/text distinction. Native Git object grammar retained; env is inherited at this seam. Import itself executes no child; its call sites retain separate individual dispositions. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: ledger-p1-agent-experimentation-lane. |
+| `scripts/orchestration/creative_pilot_workspace_contract.py:927` | B603 | `scripts/orchestration/creative_pilot_workspace_contract.py:927`; Individually qualified conservative warning (NOT-A-BUG) | Resolved Git; cat-file/rev-parse/ls-tree/show caller families; repo cwd; timeout15, checked return and bytes/text distinction. Native Git object grammar retained; env is inherited at this seam. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: ledger-p1-agent-experimentation-lane. |
+| `scripts/orchestration/pr_review_closeout.py:16` | B404 | `scripts/orchestration/pr_review_closeout.py:16`; Individually qualified conservative warning (NOT-A-BUG) | Import-only conservative warning; necessary native subprocess ownership. Resolved Git; isolated Git environment, active-graft rejection and timeout30 at both calls; exact native object/status/hash semantics and checked returns. Import itself executes no child; its call sites retain separate individual dispositions. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: PR-governance-material-seal. |
+| `scripts/orchestration/pr_review_closeout.py:209` | B603 | `scripts/orchestration/pr_review_closeout.py:209`; Individually qualified conservative warning (NOT-A-BUG) | Resolved Git; isolated Git environment, active-graft rejection and timeout30 at both calls; exact native object/status/hash semantics and checked returns. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: PR-governance-material-seal. |
+| `scripts/orchestration/pr_review_closeout.py:235` | B603 | `scripts/orchestration/pr_review_closeout.py:235`; Individually qualified conservative warning (NOT-A-BUG) | Resolved Git; isolated Git environment, active-graft rejection and timeout30 at both calls; exact native object/status/hash semantics and checked returns. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: PR-governance-material-seal. |
+| `scripts/orchestration/pr_review_evidence.py:17` | B404 | `scripts/orchestration/pr_review_evidence.py:17`; Individually qualified conservative warning (NOT-A-BUG) | Import-only conservative warning; necessary native subprocess ownership. Resolved Git; sanitized environment, timeout30/default override, active-graft and selected shallow-ancestry rejection. merge-base exits0/1 are distinct from tool errors. Exact real Git topology cannot be replaced by string tests. Import itself executes no child; its call sites retain separate individual dispositions. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: PR-governance-seal. |
+| `scripts/orchestration/pr_review_evidence.py:1958` | B603 | `scripts/orchestration/pr_review_evidence.py:1958`; Individually qualified conservative warning (NOT-A-BUG) | Resolved Git; sanitized environment, timeout30/default override, active-graft and selected shallow-ancestry rejection. merge-base exits0/1 are distinct from tool errors. Exact real Git topology cannot be replaced by string tests. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: PR-governance-seal. |
+| `scripts/orchestration/pr_review_evidence.py:1982` | B603 | `scripts/orchestration/pr_review_evidence.py:1982`; Individually qualified conservative warning (NOT-A-BUG) | Resolved Git; sanitized environment, timeout30/default override, active-graft and selected shallow-ancestry rejection. merge-base exits0/1 are distinct from tool errors. Exact real Git topology cannot be replaced by string tests. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: PR-governance-seal. |
+| `scripts/orchestration/pr_review_evidence.py:2002` | B603 | `scripts/orchestration/pr_review_evidence.py:2002`; Individually qualified conservative warning (NOT-A-BUG) | Resolved Git; sanitized environment, timeout30/default override, active-graft and selected shallow-ancestry rejection. merge-base exits0/1 are distinct from tool errors. Exact real Git topology cannot be replaced by string tests. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: PR-governance-seal. |
+| `scripts/orchestration/pr_review_evidence.py:2036` | B603 | `scripts/orchestration/pr_review_evidence.py:2036`; Individually qualified conservative warning (NOT-A-BUG) | Resolved Git; sanitized environment, timeout30/default override, active-graft and selected shallow-ancestry rejection. merge-base exits0/1 are distinct from tool errors. Exact real Git topology cannot be replaced by string tests. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: PR-governance-seal. |
+| `scripts/orchestration/pr_review_evidence.py:2103` | B603 | `scripts/orchestration/pr_review_evidence.py:2103`; Individually qualified conservative warning (NOT-A-BUG) | Resolved Git; sanitized environment, timeout30/default override, active-graft and selected shallow-ancestry rejection. merge-base exits0/1 are distinct from tool errors. Exact real Git topology cannot be replaced by string tests. Keep required native CLI semantics and visible subprocess; API alias/wrapper relocation would only conceal warning. Original ref: PR-governance-seal. |
+
+
 <!-- markdownlint-disable MD013 -->
 
 ## Scope and current truth
@@ -460,3 +550,246 @@ regression and import-failure privacy regressions are authored in the existing
 test owner; their execution and fresh material gates remain Root-owned and
 pending. Retained native PCRE2/local scanner evidence above remains local proof;
 it does not establish hosted current-head or closeout readiness for this fix.
+
+## November 1 reassessment of the two iOS simulator selector sites
+
+CI/iOS explicitly adopted the event-driven schedule for the two existing PR-2460
+annotations. Security/SRE concurred separately on each warning. The October 31
+removal deadline was missed. CI/iOS withdrew its proposed November 9 deadline.
+The adopted schedule covers these two reviewed operations.
+
+| Site | Qualified behavior | Reassessment and removal |
+| --- | --- | --- |
+| B404 at `scripts/ci/select_ios_simulator.py:11` | The standard-library import supplies the native inventory process and its typed failure handling. Moving the import would leave the execution boundary intact. | Reassess immediately if the subprocess consumers or inventory owner change. Remove the annotation when the import is retired or qualified scanning ceases to report it. |
+| B603 at `scripts/ci/select_ios_simulator.py:137` | The managed runner resolves an absolute xcrun executable. Two fixed, shell-free argv lists read available devices and device types. Each has a 30-second timeout. Failure precedes destination publication. This depends on the runner’s PATH and developer-directory ownership. | Reassess immediately on changes to the runner/toolchain, PATH, DEVELOPER_DIR, arguments, shell, timeout, error handling or destination-write order. Remove upon retirement, qualification of a safer equivalent, or disappearance of the finding in a qualified scan. |
+
+The material 27 Linux selector module passed all 35 cases with zero skips. Five
+mocked subprocess cases checked both argv lists, bounded failures and output
+preservation. The preceding whole-file ordinary scan reported zero selector
+findings. Its unsuppressed counterpart reported exactly B404 and B603, both LOW
+severity with HIGH confidence. These observations precede the comment changes.
+
+At the first eligible hosted execution on pinned Xcode 27.0, CI/iOS records the
+material commit, native run/job IDs, verified runner, toolchain, iOS runtime and
+selector outcome. Review an adverse signal immediately. Record the two iPhone
+and two iPad outcomes across the unit and UI-smoke jobs as they become available.
+The four current-head hosted outcomes remain pending.
+
+At the **January 11, 2027** evidence checkpoint, CI/iOS records any missing jobs
+or runtime evidence and arranges the next qualified verification. Security/SRE
+reassesses each row. The hard removal date is **January 31, 2027 inclusive** on
+the evaluating host’s local calendar. An unresolved row expires on February 1.
+Rollback restores the prior comment and exposes the original expiry condition.
+Repeat the owning selector tests, both Bandit modes and the actual-calendar guard
+against final material.
+
+## November 1 reassessment of the six PR-985 disposition-checker sites
+
+CI/orchestration and Security/SRE individually adopted maintenance of the six
+warnings below. Their original PR-985 removal date of October 31, 2026 was
+missed. Record the first applicable observation for each row with the material,
+operation and sanitized outcome. Reopen the affected row immediately if its
+conditions change or a control fails.
+
+| Site in `scripts/orchestration/check_review_threads_disposition.py` | Qualified operation | First observation and immediate review triggers |
+| --- | --- | --- |
+| B404 at line 26 | The standard-library import supplies Git and gh execution and typed failures. | At the next source inventory verify both tool families. Review any new or retired executable family or change of process owner. |
+| B603 at line 133 | The closed gh dispatcher validates dynamic REST operands and bounds each invocation to 60 seconds. Successful auth-token output remains private. | At the next applicable dispatch inspect the operation category and sanitized outcome. Review changes to command or operand grammar, executable, host, credentials, timeout or output handling. |
+| B603 at line 207 | The local native Git reader binds the CLI checkout, validates unambiguous commit identity, and reads time, subject and NUL-delimited paths with a 15-second per-process limit. | At the next local strict read verify the checkout and individual predicates. Review executable, config, ref/object grammar, graft/shallow handling, output parsing or time-source changes. |
+| B603 at line 932 | The fixed gh GraphQL operation sends its request on stdin and rejects transport, decoding and response-envelope failures. | At the next applicable GraphQL operation inspect its sanitized outcome. Review transport, authentication, request channel, response shape and diagnostics changes. |
+| B603 at line 1190 | Advisory gh auth status returns availability under a five-second bound. | Observe the next advisory routing opportunity and its success/unavailable controls. Review changes to callers, executable, timeout or advisory SKIP semantics. A strict-only run does not exercise this site. |
+| B603 at line 1246 | Strict preflight requires the token before the ten-second gh auth-status check and blocks GraphQL on failure. | At the next applicable strict run inspect token-before-auth-before-GraphQL ordering and the rejection path. Review credential precedence, executable, timeout, ordering or diagnostic changes. |
+
+Material 29 ran the complete strict module (121/121) and readiness module
+(229/229), with zero failures, errors or skips. The ordinary and unsuppressed
+Bandit reports covered all 1,354 lines of the same checker and recorded zero
+scanner errors. Ordinary contributed zero checker findings. Unsuppressed
+reported the six LOW-severity, HIGH-confidence sites above. Those observations
+precede this comment-only change. The gh calls rely on the intended installed
+CLI, host and authentication context. Local Git identity alone cannot establish
+the independent server push-time and live review predicates.
+
+By **January 18, 2027**, record any unobserved operation or missing negative
+control and arrange its next qualified observation. The hard remove-by date for
+each row is **February 1, 2027 inclusive**, on the evaluating host's local
+calendar. February 2 rejects. A missed observation cannot extend the term.
+Remove each annotation when the operation retires, a qualified safer equivalent
+is available or the scanner ceases to report it. Rollback restores the prior
+comments and the original expiry condition. Recheck both full-file Bandit modes,
+the actual-calendar guard and applicable owning checks on final material. The
+independent HTTP and pagination findings retain their separate remediation.
+
+## November 1 maintenance of ten existing CI and Python reader annotations
+
+CI/orchestration adopted the three shard and three Phase2 decisions. The Python
+supply-chain implementation owner and CI adopted the two startup and two carrier
+decisions. Security/SRE concurred individually on all ten. Their original
+October 31, 2026 removal deadlines were missed. Each row retains its introduction
+reference. Record the material, operation and outcome at its first applicable
+event and reopen the affected row immediately when its stated conditions change.
+
+| Site and original ref | First event and reassessment triggers | 2027 evidence checkpoint / inclusive hard removal |
+| --- | --- | --- |
+| `scripts/ci/run_main_test_shards.py:15`, B404, PR-1748 | At the next CI runner inventory, review the import's launch, observation, signalling and coverage consumers. Reopen for a new process family or wait owner. | January 4 / January 25 |
+| Shard runner line 525, B603, PR-1748 | Record the next test-main material and ordinary exit. At the first cancellation, verify original-group custody, the TERM-resistant child and the unaffected peer. Reopen on interpreter, argv, job environment, signal, platform, census or timeout changes. | January 4 / January 25 |
+| Shard runner line 799, B603, PR-2020 | Observe the next combine, XML and applicable HTML/report sequence. Reopen on interpreter, coverage plugin/configuration, inherited environment, command or timeout changes. The bound applies to each direct process. | January 4 / January 25 |
+| `scripts/ci/check_python_startup_hooks.py:11`, B404, PR-litellm-private-proxy | At the next guarded installation, review the selected-interpreter inspection and exception consumers. Reopen for a different process family, interpreter or owner. | January 11 / February 1 |
+| Startup guard line 218, B603, PR-litellm-private-proxy | At the next stage/target inspection verify the selected venv invocation, prefixes, real home, user-site paths, closed environment, diagnostics and 30-second bound. Reopen on changes to those inputs or the target platform. The outer installer has separate findings. | January 11 / February 1 |
+| `scripts/ci/dependabot_requirement_carriers.py:24`, B404, PR-2181 | At the next dependency or policy discovery, confirm the import still serves the two index queries. Reopen on an additional native operation, new process owner or broader filesystem discovery. | January 11 / February 1 |
+| Carrier reader line 473, B603, PR-2181 | At the next requirements/policy change, exercise populated and empty indexes and hostile Git configuration. Reopen on executable, checkout, environment, NUL parsing or the ten-second per-query bound. The child retains non-Git environment variables. | January 11 / February 1 |
+| `scripts/ci/check_pr_body_phase2_gates.py:8`, B404, experiment-runner-oracle-attribution-semantics | At the next Phase2 source inventory, verify log and trailer consumers. Reopen on any added Git operation or process-owner change. | January 18 / February 8 |
+| Phase2 checker line 637, B603, same attribution ref | Observe the next branch log read and its distinct optional fallback where applicable. Reopen on executable, checkout/config isolation, selected range, diagnostics, or 15-second per-attempt bound. An empty successful log stops the lookup. | January 18 / February 8 |
+| Phase2 checker line 671, B603, same attribution ref | At the next attributed commit, verify native trailer parsing, exact match and negative control. Reopen on Git/config, grammar, stdin/output handling, advisory semantics or five-second per-message bound. | January 18 / February 8 |
+
+Material 30's owning module results were 87/87 shard, 40/40 startup, 212/212
+carrier and 119/119 Phase2 tests. Each row appeared once in the unsuppressed
+production scan and had no ordinary match. The ordinary scan separately reported
+the visible B603 at shard runner line 565. The ten decisions grant no term for
+that call. The material 30 calendar snapshot recorded 47 expired rows. Final
+scanner counts and calendar results require observation on the changed bytes.
+
+The Linux shard evidence covers the controlled resistant child and original-group
+cleanup. Darwin evidence covers native nonreaping readiness, BSD group census,
+direct reap and socket EOF. Darwin fallback point-query behavior remains
+unqualified. Each checkpoint leaves 21 days for follow-up. If a first event has
+not occurred, record the missing evidence and arrange qualification. Each hard
+removal is inclusive on the actual evaluating host's calendar. Remove the row
+upon retirement, qualification of a safer equivalent, or verified disappearance
+of the raw warning. Rollback restores the prior comments and corresponding expiry
+failure. Recheck ordinary and unsuppressed scans, the actual-calendar guard and
+the affected owning behaviors against final material.
+
+## November 1 reassessment of 15 transferred inline Bandit sites
+
+The original October 31, 2026 removal obligations were missed. On source tree 00e13260f97d7fd9240fc94bcd90dbfbe1dd1287 the four scoped native checks passed: corpus/promotion 228/228, creative builder 22/22, local verifier 40/40 and Playwright 49/49. No real browser installation or creative model/promotion was performed for these tests. The original material31 date guard failed with 28 rows, including the 15 below. The remaining 13 are outside this decision.
+
+| Individual site and historical ref | Evidence, limits and first event triggering re-review | Review checkpoint / inclusive hard removal |
+|---|---|---|
+| Local verify B404 :21 PR-1243 | Required fixed stock guard and native failure handling; review at next verify-env use or change of subprocess family. | Dec 1, 2026 / Jan 1, 2027 |
+| Local verify B603 :101 PR-1243 | Qualified repo interpreter and guard, controlled real site inputs, bounded deadline and complete stock response; recheck failure/nonempty/mixed report and identity on next guard change. | Dec 1, 2026 / Jan 1, 2027 |
+| Corpus B404 :14 PR-2446 | Required native Git object reads; review new reader/client or replacement of its owner. | Jan 1 / Feb 1, 2027 |
+| Corpus B603 :1252 PR-2446 | Fixed read-only Git operations, replacement isolation, 30s and categorical failure; recheck changes in tree/blob/diff or errors. No total stdout bound implied. | Jan 1 / Feb 1, 2027 |
+| Corpus fixture B603 :45 PR-2446 | Remove the expired test annotation, expose the ordinary warning; retain test-owned fixed Git operation/30s and replacement negative. | Remove; no new term |
+| Creative executor B404 :8 PR-2 | Required stdin execution and typed failure handling; review on executor/tooling contract change. | Dec 1, 2026 / Jan 1, 2027 |
+| Creative executor B603 :126 PR-2 | Explicit model executable and bounded process with stdout/stderr counts only; synthetic failure controls. No real model execution or byte cap implied. Review on prompt/argv/env/error projection changes. | Dec 1, 2026 / Jan 1, 2027 |
+| Creative workspace B404 :13 PR-2 | Required Git for private generation checkout; review change of command set or workspace ownership. | Dec 1, 2026 / Jan 1, 2027 |
+| Creative workspace B603 :392 PR-2 | Generation reserves and verifies its own directory, retains uncertain mutation and verifies base; actual size-dependent clone/status not subject to a universal cap. Reassess on tool, mutation, parent/child identity, retry or cleanup change. Separate validation-checkout caller remains a separate boundary. | HOLD; no change |
+| Creative promotion B404 :18 PR-3 | Required actual Git/gh and validation families; review next caller/authorization or tool change. | Dec 1, 2026 / Jan 1, 2027 |
+| Creative promotion B603 :347 PR-3 | Selected fixed command transports with existing bounded calls, sanitized failures and native rc2/porcelain ambiguity semantics; isolated tests only, no real push/PR. Reassess before changing command/credentials/rollback. | Dec 1, 2026 / Jan 1, 2027 |
+| Promotion fixture B603 :961 PR-2455 | Remove expired test annotation so ordinary test scan displays warning. Keep actual temporary-ref suffix case and 30s cap. | Remove; no new term |
+| Browser B404 :11 PR-playwright-mcp-node22 | Required read-only Node lookup and explicit Chromium command as separate operations. Review on adding subprocess families. | Jan 1 / Feb 1, 2027 |
+| Browser doctor B603 :99 PR-playwright-mcp-node22 | Fixed version query/qualified absolute Node, controlled startup and 10s; unavailable does not install. Recheck optional/required selection and failure routing. | Dec 1, 2026 / Jan 1, 2027 |
+| Browser install B603 :450 PR-playwright-mcp-node22 | Qualified Node plus installed lock-matched local CLI, literal install chromium; actual cache/mirror/proxy operands preserved and no npx package acquisition. Mock selection/rejection/return evidence only. No live installation, universal deadline, exclusive shared-cache ownership or verified browser launchability. Reassess on CLI/toolchain/cache/child handling change. | Nov 15 / Dec 1, 2026 |
+
+Source-bound four-profile Bandit recorded zero scan errors and one matching unsuppressed finding for each of the 15 sites, six B404 imports and nine B603 calls. On stage31 the production ordinary/unsuppressed counts were 1/62 and test ordinary/unsuppressed 176/182. The production ordinary finding is a different site, the shard ps invocation. CI/tooling, backend component and Security/SRE decisions support exactly twelve existing production terms and two test retirements. Tooling explicitly adopted the shorter browser install checkpoint and hard term. Workspace :392 retains its expired historical annotation until the checked shared Git error stops disclosing argv and raw stderr/stdout through its callers and the separate validation-checkout cleanup defect is resolved on qualified material. The interrupted validation writer and partial/shared cache states are not accepted residual risks.
+
+Earlier relevant events or changed/failed controls require immediate review. If no event occurred by a named checkpoint, record the missing observation and run the scoped owner control. Hard removal uses the evaluating host’s local date. Retire earlier if a safe equivalent exists, the operation retires or the raw scanner finding disappears on positively scanned source. Rollback restores only the corresponding original comments and expired state. The two removed test annotations should increase ordinary B603 visibility by exactly two while the underlying raw findings remain. Evidence anchors: scripts/ci/check_local_verify_environment.py:101, scripts/ci/check_philosophy_source_corpus_index.py:1252, scripts/orchestration/creative_code_patch_executor.py:126, scripts/orchestration/creative_code_patch_workspace.py:392, scripts/orchestration/creative_code_pr_promotion.py:347 and scripts/playwright_mcp.py:450.
+
+## November 1 single-site B603 disposition for the shard process census
+
+| Site | Operation and evidence | Review and removal |
+|---|---|---|
+| `scripts/ci/run_main_test_shards.py:565`, B603, PR-2494 | The two callers query the reserved direct-child PID with system `ps -p` or its group with `ps -g`. The command reads fixed PID, PPID, PGID and state fields with closed stdin, an explicit system PATH and C locale, and the remaining phase deadline. The reader requires the owned leader as a witness. | CI/test-main and Security/SRE review the first affected cancellation or runner/toolchain change. Evidence checkpoint **January 4, 2027**. Hard removal **January 25, 2027 inclusive** on the evaluator’s local calendar. |
+
+The operator explicitly authorized this one census annotation on November 1,
+2026 after CI/test-main and Security/SRE reviewed this exact call. The direct
+reply was “Разрешаю этот один B603” (“I authorize this one B603”). On material 30 the configured pre-commit
+hook reported this single LOW-severity, HIGH-confidence B603 and exited 1
+(receipt `ea268a14d709863323d3d055909241dad77c7918957b62142f955696907b31e6`).
+The ordinary and unsuppressed production reports both contained the finding.
+
+The Linux control observed the previously TERM-resistant child become terminal,
+the owned group become inactive and the leader be reaped. The owning module
+passed 87/87 cases. On Darwin the native WNOWAIT and BSD group census were
+observed. The non-WNOWAIT BSD point-query fallback remains unqualified.
+The claim covers the original owned group on a trusted system-tool installation.
+It does not establish an output-byte limit or custody of escaped descendants.
+The broader Prometheus census reads different fields across the host and does
+not replace the required held-leader observation.
+
+At the first review, retain material identity, scanner profile, group/leader
+provenance, a positive resistant-child witness and the independent peer result.
+If no qualifying event occurs by January 4, record that gap and exercise the
+owned fixture. Reopen immediately on changes to callers, selectors, executable
+trust, environment, fields, parser, OS, deadline or wait ownership, or on a
+failed custody observation or new finding. Remove on retirement, a demonstrated
+safer equivalent, or verified disappearance from a qualified unsuppressed scan.
+An unresolved annotation expires January 26. Rollback removes this one comment
+and its record and restores ordinary visibility. Recheck the configured hook,
+both scanner modes, owning controls and actual-calendar guard on final material.
+
+## November 1 maintenance of thirteen remaining process warnings
+
+The October 31, 2026 deadlines below were missed. Component and Security/SRE
+reviews compared each warning with the frozen material32 source and its raw
+Bandit span. The eight focused groups passed all 138 native cases. The ordinary
+production scan found zero warnings and the unsuppressed scan retained 62.
+These decisions cover the listed imports and calls. The sandbox Popen warning
+still requires the separate executable-resolution correction and native proof.
+
+| Source and original reference | Necessary operation and retained boundary | First review / checkpoint / inclusive removal |
+|---|---|---|
+| app/security/execution_sandbox.py:14, B404, PR-1010 | Sandbox process launch and typed failure handling | First applicable use or relevant change / 2027-01-04 / 2027-02-01 |
+| scripts/ci/install_locked_python_requirements.py:31, B404, PR-litellm-hardening | Selected Python/pip process and error handling | First applicable use or relevant change / 2027-01-04 / 2027-02-01 |
+| scripts/ci/install_locked_python_requirements.py:1948, B603, PR-2017 | Isolated selected-target metadata, fixed flags, 30-second bound, unqualified provider rejected | First applicable use or relevant change / 2026-12-01 / 2027-01-01 |
+| scripts/ci/install_locked_python_requirements.py:3348, B603, PR-litellm-hardening | Selected CPython prefix discovery without site execution, identity checks and 30-second bound | First applicable use or relevant change / 2026-12-01 / 2027-01-01 |
+| scripts/ci/install_locked_python_requirements.py:3519, B603, PR-litellm-hardening | Owned Python/pip argv, private completed-result evidence and fixed public errors; caller may select timeout=None | First applicable use or relevant change / 2026-12-01 / 2027-01-01 |
+| scripts/ci/install_locked_python_requirements.py:3662, B603, PR-litellm-hardening | Stock or explicit custom guard with controlled startup/env and 60-second bound; findings fail closed | First applicable use or relevant change / 2026-12-01 / 2027-01-01 |
+| scripts/orchestration/creative_code_patch_workspace.py:393, B603, PR-2 | Generation/validation ownership and categorical checked errors; only metadata callers have the recorded short deadline | First applicable use or relevant change / 2026-12-01 / 2027-01-01 |
+| scripts/orchestration/experiment_contract.py:15, B404, ledger-p1-experiment-runner-oracle-only-governance-reviewer | Git tracked-context lookup and typed failures | First applicable use or relevant change / 2027-01-04 / 2027-02-01 |
+| scripts/orchestration/experiment_contract.py:346, B603, ledger-p1-experiment-runner-oracle-only-governance-reviewer | Fixed read-only tracked-context Git query with 30-second bound | First applicable use or relevant change / 2026-12-01 / 2027-01-01 |
+| scripts/orchestration/experiment_runner.py:20, B404, PR-1082 | Git operations used by candidate and Oracle paths | First applicable use or relevant change / 2027-01-04 / 2027-02-01 |
+| scripts/orchestration/experiment_runner.py:303, B603, PR-1082 | Owned Git operands and private nonzero evidence; ambiguous mutation is retained, general mutation has no fixed deadline | First applicable use or relevant change / 2026-12-01 / 2027-01-01 |
+| scripts/orchestration/experiment_runner_dispatch.py:25, B404, ledger-p1-experiment-runner-macos-strict-backend | Selected backend probe and runtime process support | First applicable use or relevant change / 2027-01-04 / 2027-02-01 |
+| scripts/orchestration/experiment_runner_dispatch.py:352, B603, ledger-p1-experiment-runner-macos-strict-backend | Absolute selected executable, per-caller timeout and fixed exception; explicit env/secret inputs are intentional | First applicable use or relevant change / 2026-12-01 / 2027-01-01 |
+
+The original owning component and Security/SRE review the first applicable
+operation and any change to executable, argv, environment, metadata grammar,
+caller, cleanup, trust or native toolchain before the stated checkpoint.
+Missing observations are recorded at that checkpoint. No automatic renewal
+follows. Remove an annotation when the operation retires, a safe replacement
+is verified or the raw warning disappears on a positively scanned source.
+Rollback restores its original comment and expired state.
+
+Captured subprocess output has no general byte-size bound. The optional
+Git/pip deadlines and intentional runtime inputs remain caller-specific.
+The current external-target rejection and the separately approved shard-ps
+annotation retain their own decisions. Final local, hosted, image, coverage
+and review gates require their actual results.
+
+
+## November 1 sandbox launch warning after executable and CLI repair
+
+The sandbox/Experiment Runner component and Security/SRE adopted the remaining
+B603 at app/security/execution_sandbox.py:466 after the complete material34
+module passed all 76 cases. The material33 result of 73 passed and 3 failed
+remains recorded. The corrected direct CLI supplies its own repository import
+path, and its original three tests pass with PYTHONPATH removed.
+
+The selected executable is anchored before the child cwd change. Its final
+venv invocation symlink is preserved, and the resolved target must be a regular
+executable. Controlled native tests exercise competing parent/child PATH
+locations, the actual venv prefix, rejected targets, terminal process handling
+and completed output readers. Both current file scans contain complete
+positive file metrics. Ordinary Bandit exits 0 with no finding, while the
+unsuppressed scan exits 1 with the B404 import and the B603 launch at lines
+14 and 466. The retained scan aggregator exits 2 because it incorrectly expects
+four reports for this deliberately two-profile operation. ROOT independently
+checked both actual reports and preserved that accounting failure.
+
+Review the first actual enabled sandbox call and any change to executable
+selection, venv, PATH/cwd, process family, platform, configured limits, inputs,
+caller or cleanup. The calendar evidence checkpoint is **December 1, 2026**.
+The inclusive hard removal date is **January 1, 2027**, evaluated on the host's
+local calendar. Preserve original ref PR-1010 and its missed October 31, 2026
+deadline. Record missing evidence at the checkpoint and reassess immediately on
+an uncertain cleanup or new finding. Remove sooner on retirement, a verified
+safe replacement or qualified disappearance of the warning. No automatic
+renewal follows.
+
+The executable check is an observation before launch. Concurrent replacement
+by the same user remains outside that check. Initial execution and subsequent
+cleanup have separate time intervals, and escaped descendants have no global
+absence claim. Rollback removes this term or restores the original annotation,
+making the warning or historical expiry visible again. The final local and
+current-head checks still require their own complete evidence.

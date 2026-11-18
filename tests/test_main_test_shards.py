@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import math
 import os
 import signal
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from concurrent.futures import Future
 from pathlib import Path
+from types import SimpleNamespace
 from typing import cast
 
 import pytest
@@ -469,6 +472,8 @@ def test_run_shard_invokes_explicit_child_interpreter(
         weight=10,
     )
     captured: dict[str, object] = {}
+    monkeypatch.setattr(runner, "_terminal_ready", lambda proc, deadline: True)
+    monkeypatch.setattr(runner.time, "monotonic", lambda: 10.0)
 
     class FakeProcess:
         pid = 999_999
@@ -562,6 +567,9 @@ def test_run_shard_fails_timeout_even_with_clean_artifacts(
     def fake_terminate_process_group(process: FakeTimeoutProcess) -> None:
         terminated_processes.append(process)
 
+    monkeypatch.setattr(runner, "_terminal_ready", lambda *_: False)
+    ticks = iter((10.0, 10.0 + runner.DEFAULT_SHARD_TIMEOUT_SECONDS))
+    monkeypatch.setattr(runner.time, "monotonic", lambda: next(ticks))
     monkeypatch.setattr(subprocess, "Popen", fake_popen)
     monkeypatch.setattr(runner, "_terminate_process_group", fake_terminate_process_group)
 
@@ -602,6 +610,9 @@ def test_run_shard_fails_timeout_without_clean_artifacts(
     def fake_terminate_process_group(process: FakeTimeoutProcess) -> None:
         terminated_processes.append(process)
 
+    monkeypatch.setattr(runner, "_terminal_ready", lambda *_: False)
+    ticks = iter((10.0, 10.0 + runner.DEFAULT_SHARD_TIMEOUT_SECONDS))
+    monkeypatch.setattr(runner.time, "monotonic", lambda: next(ticks))
     monkeypatch.setattr(subprocess, "Popen", fake_popen)
     monkeypatch.setattr(runner, "_terminate_process_group", fake_terminate_process_group)
 
@@ -618,12 +629,13 @@ def test_terminate_process_group_sends_sigterm_on_posix(
 
     class FakeProcess:
         pid = 12_345
+        returncode = None
 
         def poll(self) -> None:
             return None
 
         def wait(self, *, timeout: int) -> int:
-            assert timeout == 10
+            assert 0 <= timeout <= 10
             return 0
 
     def fake_killpg(pid: int, signum: signal.Signals) -> None:
@@ -631,6 +643,22 @@ def test_terminate_process_group_sends_sigterm_on_posix(
 
     monkeypatch.setattr(runner.os, "name", "posix")
     monkeypatch.setattr(runner.os, "killpg", fake_killpg)
+    monkeypatch.setattr(runner.os, "getpgid", lambda pid: pid)
+    monkeypatch.setattr(runner.os, "getsid", lambda pid: pid)
+    monkeypatch.setattr(runner, "_terminal_ready", lambda proc, deadline: True)
+    clock = [0.0]
+    monkeypatch.setattr(runner.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(
+        runner.time, "sleep", lambda seconds: clock.__setitem__(0, clock[0] + seconds)
+    )
+
+    def census(
+        pid: int, selector: str, deadline: float, *, repeat_term_poll: bool = False
+    ) -> list[tuple[int, int, int, str]]:
+        rows = [(pid, os.getpid(), pid, "Z")]
+        return rows
+
+    monkeypatch.setattr(runner, "_shard_ps", census)
 
     runner._terminate_process_group(cast(subprocess.Popen[bytes], FakeProcess()))
 
@@ -645,14 +673,13 @@ def test_terminate_process_group_escalates_to_sigkill_on_timeout(
 
     class FakeProcess:
         pid = 12_345
+        returncode = None
 
         def poll(self) -> None:
             return None
 
         def wait(self, *, timeout: int) -> int:
             waits.append(timeout)
-            if len(waits) == 1:
-                raise subprocess.TimeoutExpired(cmd=["pytest"], timeout=timeout)
             return 0
 
     def fake_killpg(pid: int, signum: signal.Signals) -> None:
@@ -660,6 +687,24 @@ def test_terminate_process_group_escalates_to_sigkill_on_timeout(
 
     monkeypatch.setattr(runner.os, "name", "posix")
     monkeypatch.setattr(runner.os, "killpg", fake_killpg)
+    monkeypatch.setattr(runner.os, "getpgid", lambda pid: pid)
+    monkeypatch.setattr(runner.os, "getsid", lambda pid: pid)
+    monkeypatch.setattr(runner, "_terminal_ready", lambda proc, deadline: True)
+    clock = [0.0]
+    monkeypatch.setattr(runner.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(
+        runner.time, "sleep", lambda seconds: clock.__setitem__(0, clock[0] + seconds)
+    )
+
+    def census(
+        pid: int, selector: str, deadline: float, *, repeat_term_poll: bool = False
+    ) -> list[tuple[int, int, int, str]]:
+        rows = [(pid, os.getpid(), pid, "Z")]
+        if len(signals_sent) == 1:
+            rows.append((pid + 1, 1, pid, "S"))
+        return rows
+
+    monkeypatch.setattr(runner, "_shard_ps", census)
 
     runner._terminate_process_group(cast(subprocess.Popen[bytes], FakeProcess()))
 
@@ -667,7 +712,7 @@ def test_terminate_process_group_escalates_to_sigkill_on_timeout(
         (12_345, signal.SIGTERM),
         (12_345, signal.SIGKILL),
     ]
-    assert waits == [10, 10]
+    assert waits == [10]
 
 
 def test_run_shard_child_forces_exit_after_pytest_returns(
@@ -772,6 +817,13 @@ def test_run_all_shards_stops_refilling_after_first_failure(
                 return return_code
             return None
 
+        def wait(self, *, timeout: float) -> int:
+            result = self.poll()
+            assert result is not None
+            return result
+
+    monkeypatch.setattr(runner, "_terminal_ready", lambda proc, deadline: proc.poll() is not None)
+
     def fake_start_shard_process(
         repo_root: Path,
         shard: runner.TestShard,
@@ -832,6 +884,13 @@ def test_run_all_shards_times_out_and_reports_selected_files(
 
         def poll(self) -> None:
             return None
+
+        def wait(self, *, timeout: float) -> int:
+            result = self.poll()
+            assert result is not None
+            return result
+
+    monkeypatch.setattr(runner, "_terminal_ready", lambda proc, deadline: proc.poll() is not None)
 
     def fake_start_shard_process(
         repo_root: Path,
@@ -969,6 +1028,13 @@ def test_run_all_shards_combines_serial_coverage_before_parallel_shards(
         def poll(self) -> int:
             return 0
 
+        def wait(self, *, timeout: float) -> int:
+            result = self.poll()
+            assert result is not None
+            return result
+
+    monkeypatch.setattr(runner, "_terminal_ready", lambda proc, deadline: proc.poll() is not None)
+
     def fake_start_shard_process(
         repo_root: Path,
         submitted_shard: runner.TestShard,
@@ -1039,6 +1105,13 @@ def test_run_all_shards_generates_htmlcov_when_requested(
         def poll(self) -> int:
             return 0
 
+        def wait(self, *, timeout: float) -> int:
+            result = self.poll()
+            assert result is not None
+            return result
+
+    monkeypatch.setattr(runner, "_terminal_ready", lambda proc, deadline: proc.poll() is not None)
+
     def fake_start_shard_process(
         repo_root: Path,
         submitted_shard: runner.TestShard,
@@ -1049,7 +1122,7 @@ def test_run_all_shards_generates_htmlcov_when_requested(
         return runner.RunningShard(
             shard=submitted_shard,
             process=cast(subprocess.Popen[bytes], FakeProcess()),
-            started_at=0.0,
+            started_at=time.monotonic(),
             timeout_seconds=120,
         )
 
@@ -1396,3 +1469,635 @@ def test_run_coverage_command_reports_timeout(
     assert "MAIN_TEST_COVERAGE_COMMAND_TIMEOUT phase=combine timeout_seconds=60" in (
         capsys.readouterr().err
     )
+
+
+@pytest.mark.parametrize("mode", ["serial", "parallel"])
+@pytest.mark.parametrize("when", ["launch", "terminal-observation"])
+@pytest.mark.skipif(os.name != "posix", reason="POSIX shard session and signal contract")
+def test_recorded_shard_signal_settles_only_after_child_registration(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, mode: str, when: str
+) -> None:
+    shard = runner.TestShard(index=1)
+    calls: list[str] = []
+    previous = {sig: signal.getsignal(sig) for sig in (signal.SIGTERM, signal.SIGINT)}
+
+    def interrupt() -> None:
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            handler = signal.getsignal(sig)
+            assert callable(handler)
+            handler(sig, None)
+
+    class Child:
+        pid = 777
+
+        def wait(self, *, timeout: float) -> int:
+            pytest.fail("cancelled leader was reaped at normal settlement")
+
+    def start(*args: object) -> runner.RunningShard:
+        calls.append("start")
+        if when == "launch":
+            interrupt()
+        return runner.RunningShard(
+            shard, cast(subprocess.Popen[bytes], Child()), time.monotonic(), 20
+        )
+
+    def ready(*args: object) -> bool:
+        assert when == "terminal-observation"
+        interrupt()
+        return True
+
+    monkeypatch.setattr(runner, "start_shard_process", start)
+    monkeypatch.setattr(runner, "_terminal_ready", ready)
+    monkeypatch.setattr(runner, "_terminate_process_group", lambda proc: calls.append("cleanup"))
+    with pytest.raises(SystemExit) as failure:
+        if mode == "serial":
+            runner.run_shard(tmp_path, shard, {})
+        else:
+            runner.run_all_shards(tmp_path, [shard, runner.TestShard(index=2)], 1, {})
+    assert failure.value.code == 128 + signal.SIGTERM
+    assert calls == ["start", "cleanup"]
+    assert all(signal.getsignal(sig) == old for sig, old in previous.items())
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX shard session and signal contract")
+def test_lost_shard_custody_cannot_signal_or_reap(monkeypatch: pytest.MonkeyPatch) -> None:
+    class Child:
+        pid = 888
+        returncode = None
+
+        def wait(self, *, timeout: float) -> int:
+            pytest.fail("lost direct child was reaped")
+
+    def lost(*args: object) -> bool:
+        raise ChildProcessError("synthetic ECHILD")
+
+    monkeypatch.setattr(runner, "_terminal_ready", lost)
+    monkeypatch.setattr(runner.os, "killpg", lambda *args: pytest.fail("unowned PGID signal"))
+    with pytest.raises(ChildProcessError):
+        runner._terminate_process_group(cast(subprocess.Popen[bytes], Child()))
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX shard session and signal contract")
+def test_shard_group_cleanup_observes_live_resistant_child_before_escalating(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Use finite local fixture processes only; the outside session must remain responsive."""
+    worker = tmp_path / "worker.py"
+    worker.write_text(
+        "import os, signal, sys, time\nfrom pathlib import Path\n"
+        "role = sys.argv[1]\n"
+        "signal.alarm(35)\n"
+        "if role == 'leader':\n"
+        "    if os.fork():\n"
+        "        while not Path('stop').exists(): time.sleep(.02)\n"
+        "        sys.exit(0)\n"
+        "    signal.alarm(35)\n"
+        "    role = 'resistant'\n"
+        "    signal.signal(signal.SIGTERM, lambda *_: Path('term-seen').touch())\n"
+        "Path(role + '-ready').write_text(str(os.getpid()))\n"
+        "while not Path('stop').exists():\n"
+        "    challenge = Path(role + '-challenge')\n"
+        "    if challenge.exists():\n"
+        "        pending = Path(role + '-ack.tmp')\n"
+        "        pending.write_bytes(challenge.read_bytes())\n"
+        "        pending.replace(Path(role + '-ack'))\n"
+        "    time.sleep(.02)\n"
+    )
+
+    def publish_challenge(role: str, value: bytes) -> None:
+        # Each challenge/ack has one writer and is published on the same filesystem.
+        pending = tmp_path / f"{role}-challenge.tmp"
+        pending.write_bytes(value)
+        pending.replace(tmp_path / f"{role}-challenge")
+
+    def start(role: str) -> subprocess.Popen[bytes]:
+        return subprocess.Popen(
+            [sys.executable, "-I", "-S", str(worker), role],
+            cwd=tmp_path,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+
+    def wait_file(path: Path, expected: bytes | None = None) -> bytes:
+        deadline = time.monotonic() + 4
+        while time.monotonic() < deadline:
+            if path.is_file():
+                raw = path.read_bytes()
+                if raw and (expected is None or raw == expected):
+                    return raw
+            time.sleep(0.02)
+        pytest.fail("fixture readiness/response missing")
+
+    outside = start("outside")
+    leader = None
+    try:
+        wait_file(tmp_path / "outside-ready")
+        leader = start("leader")
+        resistant = int(wait_file(tmp_path / "resistant-ready"))
+        assert os.getpgid(resistant) == os.getsid(resistant) == leader.pid
+        assert os.getsid(outside.pid) == outside.pid != leader.pid
+        samples = []
+        census = runner._shard_ps
+        challenge = b"after-leader-exit"
+
+        def observe(
+            pid: int, select: str, deadline: float, *, repeat_term_poll: bool = False
+        ) -> list[tuple[int, int, int, str]]:
+            rows = census(pid, select, deadline, repeat_term_poll=repeat_term_poll)
+            if select == "-g":
+                samples.append(rows)
+                if (tmp_path / "term-seen").is_file():
+                    publish_challenge("resistant", challenge)
+            return rows
+
+        monkeypatch.setattr(runner, "_shard_ps", observe)
+        runner._terminate_process_group(leader)
+        assert leader.returncode == -signal.SIGTERM
+        assert (tmp_path / "resistant-ack").read_bytes() == challenge
+        assert any(
+            any(pid == resistant and not state.startswith("Z") for pid, _, _, state in sample)
+            for sample in samples
+        )
+        assert samples and all(
+            state.startswith("Z") for _, _, pgid, state in samples[-1] if pgid == leader.pid
+        )
+        publish_challenge("outside", b"after-owned-cleanup")
+        wait_file(tmp_path / "outside-ack", b"after-owned-cleanup")
+    finally:
+        (tmp_path / "stop").touch()
+        if leader is not None and leader.returncode is None:
+            leader.wait(timeout=4)
+        outside.wait(timeout=4)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX shard session and signal contract")
+def test_signal_after_settlement_cancels_only_remaining_registered_peer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls = []
+
+    class Child:
+        def __init__(self, index: int) -> None:
+            self.pid = index
+
+        def wait(self, *, timeout: float) -> int:
+            assert self.pid == 1
+            calls.append(("reap", self.pid))
+            handler = signal.getsignal(signal.SIGINT)
+            assert callable(handler)
+            handler(signal.SIGINT, None)
+            return 0
+
+    def start(_root: Path, shard: runner.TestShard, *args: object) -> runner.RunningShard:
+        calls.append(("launch", shard.index))
+        return runner.RunningShard(
+            shard, cast(subprocess.Popen[bytes], Child(shard.index)), time.monotonic(), 10
+        )
+
+    def cleanup(process: subprocess.Popen[bytes]) -> None:
+        calls.append(("cleanup", process.pid))
+        handler = signal.getsignal(signal.SIGTERM)
+        assert callable(handler)
+        handler(signal.SIGTERM, None)
+
+    monkeypatch.setattr(runner, "start_shard_process", start)
+    monkeypatch.setattr(runner, "_terminal_ready", lambda *_: True)
+    monkeypatch.setattr(runner, "_terminate_process_group", cleanup)
+    with pytest.raises(SystemExit) as failure:
+        runner.run_all_shards(tmp_path, [runner.TestShard(index=i) for i in (1, 2, 3)], 2, {})
+    assert failure.value.code == 128 + signal.SIGINT
+    assert calls == [("launch", 1), ("launch", 2), ("reap", 1), ("cleanup", 2)]
+
+
+def test_cleanup_uncertainty_preserves_timeout_result(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    class Child:
+        pid = 777
+
+    child = cast(subprocess.Popen[bytes], Child())
+    running = runner.RunningShard(runner.TestShard(index=1), child, 0.0, 1)
+
+    def unavailable(*args: object) -> None:
+        raise RuntimeError("synthetic private detail")
+
+    monkeypatch.setattr(runner, "_terminate_process_group", unavailable)
+    monkeypatch.setattr(runner, "_terminal_ready", lambda *_: False)
+    assert runner.wait_for_shard_process(running, []) == 124
+    err = capsys.readouterr().err
+    assert "MAIN_TEST_SHARD_TIMEOUT_FAILED" in err and "MAIN_TEST_SHARD_CLEANUP_FAILED" in err
+    assert "synthetic private detail" not in err
+
+
+@pytest.mark.parametrize("mode", ["serial", "parallel"])
+@pytest.mark.parametrize("ready", [False, True])
+def test_watchdog_observes_terminal_status_at_deadline_before_timeout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    mode: str,
+    ready: bool,
+) -> None:
+    events = []
+    shard = runner.TestShard(index=1)
+
+    class Child:
+        pid = 100
+
+        def wait(self, *, timeout: float) -> int:
+            assert timeout == 0
+            events.append("reap")
+            return 7
+
+    process = cast(subprocess.Popen[bytes], Child())
+    running = runner.RunningShard(shard, process, 40, 5)
+    monkeypatch.setattr(runner.time, "monotonic", lambda: 45.0)
+
+    def observe(child: object, deadline: float) -> bool:
+        assert child is process and deadline == 45
+        events.append("observe")
+        return ready
+
+    monkeypatch.setattr(runner, "_terminal_ready", observe)
+    monkeypatch.setattr(runner, "_terminate_process_group", lambda proc: events.append("cancel"))
+    monkeypatch.setattr(runner, "start_shard_process", lambda *args: running)
+    if mode == "serial":
+        assert runner.wait_for_shard_process(running, []) == (7 if ready else 124)
+    else:
+        assert runner.run_all_shards(tmp_path, [shard], 1, {}) == 1
+    assert events == ["observe", "reap" if ready else "cancel"]
+    assert ("MAIN_TEST_SHARD_TIMEOUT_FAILED" in capsys.readouterr().err) == (not ready)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX nonreaping readiness and group census")
+@pytest.mark.parametrize("fault", ["point-before-term", "point-during-grace", "group-after-term"])
+def test_failed_shard_instrument_preserves_lease_escalation_and_reap(
+    monkeypatch: pytest.MonkeyPatch, fault: str
+) -> None:
+    clock = [0.0]
+    signals = []
+    calls = []
+
+    class Child:
+        pid = 4567
+        returncode = None
+
+        def wait(self, *, timeout: float) -> int:
+            assert 0 <= timeout <= 10 and signals == [signal.SIGTERM, signal.SIGKILL]
+            calls.append("reap")
+            return -signal.SIGTERM
+
+    monkeypatch.setattr(
+        runner.os,
+        "waitid",
+        lambda *args: (_ for _ in ()).throw(NotImplementedError()),
+        raising=False,
+    )
+    monkeypatch.setattr(runner.os, "getpgid", lambda pid: pid)
+    monkeypatch.setattr(runner.os, "getsid", lambda pid: pid)
+    monkeypatch.setattr(runner.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(runner.time, "sleep", lambda delay: clock.__setitem__(0, clock[0] + delay))
+
+    def send(pid: int, sig: signal.Signals) -> None:
+        assert pid == Child.pid
+        signals.append(sig)
+
+    monkeypatch.setattr(runner.os, "killpg", send)
+
+    def census(
+        pid: int, selector: str, deadline: float, *, repeat_term_poll: bool = False
+    ) -> list[tuple[int, int, int, str]]:
+        assert pid == Child.pid and deadline > clock[0]
+        if (
+            fault == "point-before-term"
+            and not signals
+            or fault == "point-during-grace"
+            and selector == "-p"
+            and signals == [signal.SIGTERM]
+            or fault == "group-after-term"
+            and selector == "-g"
+            and signals == [signal.SIGTERM]
+        ):
+            clock[0] = deadline
+            raise RuntimeError("unavailable instrument")
+        rows = [(pid, os.getpid(), pid, "Z")]
+        if selector == "-g" and len(signals) == 1:
+            rows.append((pid + 1, 1, pid, "S"))
+        return rows
+
+    monkeypatch.setattr(runner, "_shard_ps", census)
+    with pytest.raises(RuntimeError, match="observation was incomplete"):
+        runner._terminate_process_group(cast(subprocess.Popen[bytes], Child()))
+    assert calls == ["reap"] and clock[0] <= 20
+
+
+def test_nonposix_shard_cleanup_keeps_direct_child_behavior(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = []
+
+    class Child:
+        pid = 4567
+
+        def poll(self) -> None:
+            return None
+
+        def terminate(self) -> None:
+            calls.append("terminate")
+
+        def kill(self) -> None:
+            calls.append("kill")
+
+        def wait(self, *, timeout: float) -> int:
+            calls.append(timeout)
+            if len(calls) == 2:
+                raise subprocess.TimeoutExpired("fixture", timeout)
+            return 0
+
+    with monkeypatch.context() as isolated:
+        isolated.setattr(runner.os, "name", "nt")
+        runner._terminate_process_group(cast(subprocess.Popen[bytes], Child()))
+    assert calls == ["terminate", 10, "kill", 10]
+
+
+@pytest.mark.parametrize("mode", ["serial", "parallel"])
+def test_watchdog_echild_cannot_reacquire_pid_in_finally(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: str
+) -> None:
+    class Child:
+        pid = 777
+
+    shard = runner.TestShard(index=1)
+    running = runner.RunningShard(
+        shard, cast(subprocess.Popen[bytes], Child()), time.monotonic(), 15
+    )
+    calls = []
+
+    def lost(*args: object) -> bool:
+        calls.append("observe")
+        raise ChildProcessError("synthetic ECHILD")
+
+    monkeypatch.setattr(runner, "_terminal_ready", lost)
+    monkeypatch.setattr(runner, "start_shard_process", lambda *_: running)
+    monkeypatch.setattr(
+        runner, "_terminate_process_group", lambda *_: pytest.fail("lease reacquired")
+    )
+    with pytest.raises(ChildProcessError):
+        if mode == "serial":
+            runner.wait_for_shard_process(running, [])
+        else:
+            runner.run_all_shards(tmp_path, [shard], 1, {})
+    assert running.custody_lost and calls == ["observe"]
+
+
+@pytest.mark.parametrize(
+    "fault",
+    (
+        "baseline",
+        "prestart",
+        "partial_slot",
+        "started_timeout",
+        "prior_failure",
+        "prior_failure_then_defer",
+        "missing_ps",
+        "relative_ps",
+        "kill_expiry",
+        "short_probe",
+        "watchdog",
+    ),
+)
+def test_shard_census_prestart_expiry_preserves_phase_and_failure_boundaries(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], fault: str
+) -> None:
+    """Exercise the actual cleanup, readiness and census bodies at native/clock seams."""
+    now = 0.0
+    group_attempts = 0
+    lookups = 0
+    sleeps = 0
+    expiry_observed = False
+    signals: list[int] = []
+    native: list[tuple[str, float]] = []
+    waits: list[float] = []
+    pid, parent = 4567, 1234
+
+    def which(name: str, *, path: str) -> str | None:
+        nonlocal now, lookups, expiry_observed
+        assert name == "ps" and path == "/synthetic-system-path"
+        lookups += 1
+        assert lookups < 12
+        if fault in {"partial_slot", "prior_failure_then_defer"} and lookups == (
+            3 if fault == "prior_failure_then_defer" else 2
+        ):
+            # The caller had a full slot. Tool lookup consumed part of it.
+            assert now == 9.875 and signals == [signal.SIGTERM]
+            now = 9.999
+            expiry_observed = True
+        elif fault in {"short_probe", "watchdog"} and lookups == 1:
+            assert now == 0.0
+            now = 0.251
+            expiry_observed = True
+        elif (
+            fault in {"prestart", "prior_failure", "missing_ps", "relative_ps", "kill_expiry"}
+            and signals == [signal.SIGTERM]
+            and group_attempts == (2 if fault == "prior_failure" else 1)
+            and not expiry_observed
+        ):
+            assert now == 9.999
+            now = 10.001
+            expiry_observed = True
+            if fault == "missing_ps":
+                return None
+            if fault == "relative_ps":
+                return "relative-ps"
+        elif fault == "kill_expiry" and signals == [signal.SIGTERM, signal.SIGKILL]:
+            assert now == 10.001
+            now = 20.002
+        return "/synthetic-system-bin/ps"
+
+    def sleep(delay: float) -> None:
+        nonlocal now, sleeps
+        assert 0 <= delay <= 0.1
+        sleeps += 1
+        assert sleeps <= 3
+        if sleeps == 1 and fault == "prior_failure_then_defer":
+            now = 9.75
+        elif sleeps == 1:
+            now = (
+                9.875
+                if fault
+                in {
+                    "baseline",
+                    "partial_slot",
+                    "started_timeout",
+                    "prior_failure",
+                    "short_probe",
+                }
+                else 9.999
+            )
+        elif fault == "prior_failure" and sleeps == 2:
+            now = 9.999
+        elif fault == "prior_failure_then_defer" and sleeps == 2:
+            now = 9.875
+        else:
+            now += delay
+
+    def ps_run(
+        argv: list[str],
+        *,
+        stdin: int,
+        capture_output: bool,
+        timeout: float,
+        check: bool,
+        env: dict[str, str],
+    ) -> subprocess.CompletedProcess[bytes]:
+        nonlocal now, group_attempts
+        assert argv[0] == "/synthetic-system-bin/ps"
+        assert argv[1] in {"-p", "-g"}
+        assert argv[2:] == [str(pid), "-o", "pid=,ppid=,pgid=,stat="]
+        assert stdin == subprocess.DEVNULL and capture_output and not check
+        assert env == {"PATH": "/synthetic-system-path", "LC_ALL": "C"}
+        assert 0 < timeout <= 10
+        native.append((argv[1], timeout))
+        rows = f"{pid} {parent} {pid} Zs\n"
+        if argv[1] == "-g":
+            group_attempts += 1
+            if group_attempts == 1:
+                rows += f"{pid + 1} 1 {pid} S\n"
+            elif fault == "started_timeout" and group_attempts == 2:
+                assert timeout == 0.125 and now < 10
+                now = 10.001
+                raise subprocess.TimeoutExpired(argv, timeout)
+            elif fault in {"prior_failure", "prior_failure_then_defer"} and group_attempts == 2:
+                return subprocess.CompletedProcess(argv, 1, stdout=b"", stderr=b"")
+            else:
+                rows += f"{pid + 1} 1 {pid} Z\n"
+        return subprocess.CompletedProcess(argv, 0, stdout=rows.encode(), stderr=b"")
+
+    def send(target: int, sig: int) -> None:
+        assert target == pid
+        signals.append(sig)
+        assert signals in ([signal.SIGTERM], [signal.SIGTERM, signal.SIGKILL])
+
+    class Child:
+        returncode: int | None = None
+
+        def __init__(self) -> None:
+            self.pid = pid
+
+        def wait(self, *, timeout: float) -> int:
+            assert not waits and 0 <= timeout <= 10
+            waits.append(timeout)
+            self.returncode = -signal.SIGTERM
+            return self.returncode
+
+    child = cast(subprocess.Popen[bytes], Child())
+    synthetic_os = SimpleNamespace(
+        name="posix",
+        defpath="/synthetic-system-path",
+        path=SimpleNamespace(isabs=lambda value: value.startswith("/")),
+        getpid=lambda: parent,
+        getpgid=lambda target: target,
+        getsid=lambda target: target,
+        killpg=send,
+    )
+    if fault not in {"short_probe", "watchdog"}:
+        synthetic_os.waitid = lambda *_: SimpleNamespace(si_pid=pid)
+        synthetic_os.P_PID = 1
+        synthetic_os.WEXITED = 2
+        synthetic_os.WNOHANG = 4
+        synthetic_os.WNOWAIT = 8
+    monkeypatch.setattr(runner, "os", synthetic_os)
+    monkeypatch.setattr(runner, "time", SimpleNamespace(monotonic=lambda: now, sleep=sleep))
+    monkeypatch.setattr(runner, "shutil", SimpleNamespace(which=which))
+    monkeypatch.setattr(
+        runner,
+        "signal",
+        SimpleNamespace(
+            SIGTERM=signal.SIGTERM,
+            SIGKILL=signal.SIGKILL,
+            SIGCHLD=signal.SIGCHLD,
+            SIG_DFL=signal.SIG_DFL,
+            getsignal=lambda _: signal.SIG_DFL,
+        ),
+    )
+    monkeypatch.setattr(
+        runner,
+        "subprocess",
+        SimpleNamespace(
+            run=ps_run,
+            DEVNULL=subprocess.DEVNULL,
+            SubprocessError=subprocess.SubprocessError,
+            TimeoutExpired=subprocess.TimeoutExpired,
+        ),
+    )
+
+    if fault == "watchdog":
+        running = runner.RunningShard(runner.TestShard(index=1), child, 0.0, 1)
+        assert runner._ready_at_watchdog(running, 0.25) is False
+        assert expiry_observed and now == 0.251
+        assert not native and not waits and not signals
+        assert "MAIN_TEST_SHARD_OBSERVATION_FAILED" in capsys.readouterr().err
+        return
+    if fault in {"baseline", "prestart", "partial_slot"}:
+        runner._terminate_process_group(child)
+    else:
+        message = (
+            "Shard group cleanup not verified within TERM/KILL limits"
+            if fault == "kill_expiry"
+            else "Shard cleanup observation was incomplete"
+        )
+        with pytest.raises(RuntimeError, match=f"^{message}$") as raised:
+            runner._terminate_process_group(child)
+        if fault == "started_timeout":
+            assert str(raised.value.__cause__) == "Shard SIGTERM group census: TimeoutExpired"
+        elif fault in {"prior_failure", "prior_failure_then_defer"}:
+            assert str(raised.value.__cause__) == "Shard SIGTERM group census: RuntimeError"
+    assert len(waits) == 1 and child.returncode == -signal.SIGTERM
+    assert signals == (
+        [signal.SIGTERM]
+        if fault in {"baseline", "short_probe"}
+        else [signal.SIGTERM, signal.SIGKILL]
+    )
+    assert group_attempts == (
+        1
+        if fault == "kill_expiry"
+        else 3 if fault in {"started_timeout", "prior_failure", "prior_failure_then_defer"} else 2
+    )
+    if fault == "kill_expiry":
+        assert waits == [0] and now == 20.002
+    elif fault == "partial_slot":
+        assert now == 10.0 and lookups == 3
+        assert [timeout for selector, timeout in native if selector == "-g"] == [10.0, 10.0]
+    elif fault == "prior_failure_then_defer":
+        assert now == 10.0 and lookups == 4
+    elif fault in {"baseline", "short_probe"}:
+        assert now == 9.875
+    else:
+        assert now == 10.001
+    if fault not in {"baseline", "started_timeout"}:
+        assert expiry_observed
+
+
+def test_only_repeated_term_census_requires_a_full_polling_interval(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    timeouts: list[float] = []
+
+    def ps(
+        argv: list[str], *, timeout: float, **kwargs: object
+    ) -> subprocess.CompletedProcess[bytes]:
+        timeouts.append(timeout)
+        return subprocess.CompletedProcess(argv, 0, f"42 {os.getpid()} 42 Z\n".encode(), b"")
+
+    monkeypatch.setattr(runner, "time", SimpleNamespace(monotonic=lambda: 0.0))
+    monkeypatch.setattr(runner, "shutil", SimpleNamespace(which=lambda *a, **kw: "/bin/ps"))
+    monkeypatch.setattr(runner, "subprocess", SimpleNamespace(run=ps, DEVNULL=subprocess.DEVNULL))
+    slot = runner._CLEANUP_POLL_INTERVAL
+    below = math.nextafter(slot, 0.0)
+    assert runner._shard_ps(42, "-g", slot, repeat_term_poll=True) == [(42, os.getpid(), 42, "Z")]
+    with pytest.raises(runner._TermPollDeferred):
+        runner._shard_ps(42, "-g", below, repeat_term_poll=True)
+    assert runner._shard_ps(42, "-g", below) == [(42, os.getpid(), 42, "Z")]
+    assert timeouts == [slot, below]

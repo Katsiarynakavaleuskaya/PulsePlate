@@ -26,16 +26,38 @@ REL_INDEX = "docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.json"
 REL_SCHEMA = "docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.schema.json"
 
 
-def _fixture_git(repo: Path, *args: str) -> bytes:
-    git = shutil.which("git")
-    assert git is not None
-    fixture_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
-    fixture_env.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1")
-    completed = subprocess.run(  # nosec B603: resolved Git binary with test-owned argv (remove-by: 2026-10-31, ref: PR-2446)
-        [git, "-C", str(repo), *args],
+def _fixture_git(repo: Path, *args: str, allow_replacement_control: bool = False) -> bytes:
+    git = shutil.which("git", path=os.defpath)
+    assert git is not None and Path(git).is_absolute() and Path(git).is_file()
+    fixture_env = {
+        "PATH": os.defpath,
+        "HOME": str(repo),
+        "LC_ALL": "C",
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_TERMINAL_PROMPT": "0",
+        "GIT_NO_REPLACE_OBJECTS": "1",
+        "GIT_ALLOW_PROTOCOL": "file",
+    }
+    if allow_replacement_control:
+        assert args[:1] == ("show",)
+        del fixture_env["GIT_NO_REPLACE_OBJECTS"]
+    completed = subprocess.run(
+        [
+            git,
+            "-c",
+            f"core.hooksPath={os.devnull}",
+            "-c",
+            "init.templateDir=",
+            "-C",
+            str(repo),
+            *args,
+        ],
         check=True,
         capture_output=True,
         env=fixture_env,
+        stdin=subprocess.DEVNULL,
+        timeout=30,
     )
     return completed.stdout.strip()
 
@@ -1127,7 +1149,10 @@ def test_source_corpus_differential_ignores_git_replacement_objects(
         "replacement",
     ).decode("ascii")
     _fixture_git(tmp_path, "replace", base_ref, replacement)
-    assert _fixture_git(tmp_path, "show", f"{base_ref}:{path}") == head_data.strip()
+    assert (
+        _fixture_git(tmp_path, "show", f"{base_ref}:{path}", allow_replacement_control=True)
+        == head_data.strip()
+    )
     monkeypatch.setattr(corpus, "REPO_ROOT", tmp_path)
 
     assert (
@@ -1823,3 +1848,438 @@ def test_philosophy_source_corpus_index_phase1_docs_gate_rejects_page_count_drif
         error.startswith(f"{REL_INDEX}: analytic_linguistic_audit.page_count must be 22")
         for error in errors
     )
+
+
+@pytest.mark.parametrize("fault", ["timeout", "launch"])
+def test_corpus_git_exception_drops_private_child_context(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], fault: str
+) -> None:
+    secret = "synthetic-private-corpus-marker"
+
+    def fail(*args: object, **kwargs: object) -> None:
+        if fault == "timeout":
+            raise subprocess.TimeoutExpired([secret], 30, output=secret, stderr=secret)
+        raise OSError(secret)
+
+    monkeypatch.setattr(corpus.subprocess, "run", fail)
+    with pytest.raises(
+        ValueError, match="^source corpus Git cat-file object check unavailable$"
+    ) as caught:
+        corpus._corpus_git_bytes("cat-file", "-e", "a" * 40)
+    assert caught.value.__cause__ is None and caught.value.__context__ is None
+    assert secret not in str(caught.value) + repr(caught.value.args)
+    assert capsys.readouterr() == ("", "")
+
+
+def _maintenance_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[str, list[str]]:
+    """A real Git tree with all canonical artifacts and a separate changed runtime path."""
+    for name in corpus.SOURCE_CORPUS_PATHS:
+        relative = name.decode("utf-8")
+        target = tmp_path / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((REPO_ROOT / relative).read_bytes())
+        target.chmod(0o644)
+    runtime = tmp_path / "app/maintenance.py"
+    runtime.parent.mkdir()
+    runtime.write_text("safe = 1\n")
+    _fixture_git(tmp_path, "init", "--quiet")
+    _maintenance_commit(tmp_path)
+    base = _fixture_git(tmp_path, "rev-parse", "HEAD").decode("ascii")
+    runtime.write_text("safe = 2\n")
+    _maintenance_commit(tmp_path)
+    monkeypatch.setattr(corpus, "REPO_ROOT", tmp_path)
+    arguments = ["--check", "--base-ref", base]
+    for flag, original in (
+        ("--index", DEFAULT_INDEX),
+        ("--schema", DEFAULT_SCHEMA),
+        ("--roadmap", DEFAULT_ROADMAP),
+        ("--gate-report", DEFAULT_GATE_REPORT),
+    ):
+        arguments.extend([flag, str(tmp_path / original.relative_to(REPO_ROOT))])
+    return base, arguments
+
+
+def _maintenance_commit(repo: Path) -> None:
+    _fixture_git(repo, "add", ".")
+    _fixture_git(
+        repo,
+        "-c",
+        "user.name=CI Test",
+        "-c",
+        "user.email=ci@example.test",
+        "commit",
+        "--quiet",
+        "-m",
+        "bounded corpus fixture",
+    )
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        'integrity="sha512-aaaa+' + "/public/path/digest" + '"\n',
+        'member="src/__tests__' + "/fixtures/example.yaml" + '"\n',
+        'metadata="quote' + "\\\\value\\nsynthetic" + '"\n',
+        'tool="' + "/synthetic/bin/tool" + '"\n',
+    ],
+)
+def test_corpus_maintenance_preserves_legacy_full_scan_without_runtime_scope(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, content: str
+) -> None:
+    base, arguments = _maintenance_fixture(tmp_path, monkeypatch)
+    target = tmp_path / "app/maintenance.py"
+    target.write_text(content)
+    _maintenance_commit(tmp_path)
+    assert corpus.main([*arguments, "--files", "app/maintenance.py"]) == 0
+    # Direct full scanning still rejects the same exact lexical evidence.
+    assert validate_new_file_contents(["app/maintenance.py"], base_ref=base)
+    no_base = [value for value in arguments]
+    position = no_base.index("--base-ref")
+    del no_base[position : position + 2]
+    assert corpus.main([*no_base, "--files", "app/maintenance.py"]) == 1
+
+
+@pytest.mark.parametrize("family", ("signed_url", "aws_key", "query_token", "provider"))
+def test_corpus_maintenance_keeps_credentials_on_noncorpus_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    family: str,
+) -> None:
+    _base, arguments = _maintenance_fixture(tmp_path, monkeypatch)
+    assert corpus.main([*arguments, "--files", "app/maintenance.py"]) == 0
+    value = {
+        "signed_url": "X-" + "Amz-Signature=" + "a" * 20,
+        "aws_key": "AWS_" + "ACCESS_KEY_ID=" + "b" * 20,
+        "query_token": "token" + "=" + "c" * 20,
+        "provider": "sk" + "-" + "d" * 20,
+    }[family]
+    (tmp_path / "app/maintenance.py").write_text(value + "\n")
+    _maintenance_commit(tmp_path)
+    assert corpus.main([*arguments, "--files", "app/maintenance.py"]) == 1
+    output = capsys.readouterr().out
+    assert "app/maintenance.py: new forbidden local path or credential-like token" in output
+    assert value not in output
+
+
+@pytest.mark.parametrize("canonical", sorted(path.decode() for path in corpus.SOURCE_CORPUS_PATHS))
+def test_corpus_actual_delta_attaches_scope_even_when_omitted_from_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    canonical: str,
+) -> None:
+    _base, arguments = _maintenance_fixture(tmp_path, monkeypatch)
+    assert corpus.main([*arguments, "--files", "app/maintenance.py"]) == 0
+    artifact = tmp_path / canonical
+    artifact.write_bytes(artifact.read_bytes() + b"\n")
+    _maintenance_commit(tmp_path)
+    assert corpus.main([*arguments, "--files", "app/maintenance.py"]) == 1
+    assert "app/maintenance.py: PR-5 is docs/governance/test-only" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("fault", ("dirty", "mode", "symlink", "hardlink", "parent-alias"))
+def test_corpus_maintenance_requires_actual_regular_canonical_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fault: str,
+) -> None:
+    _base, arguments = _maintenance_fixture(tmp_path, monkeypatch)
+    assert corpus.main([*arguments, "--files", "app/maintenance.py"]) == 0
+    artifact = tmp_path / REL_INDEX
+    if fault == "dirty":
+        artifact.write_bytes(artifact.read_bytes() + b"\n")
+    elif fault == "mode":
+        artifact.chmod(0o755)
+    elif fault == "parent-alias":
+        parent = artifact.parent
+        saved = tmp_path / "saved-contracts"
+        parent.rename(saved)
+        parent.symlink_to(saved, target_is_directory=True)
+    else:
+        saved = tmp_path / "saved-index"
+        artifact.rename(saved)
+        if fault == "symlink":
+            artifact.symlink_to(saved)
+        else:
+            artifact.hardlink_to(saved)
+    assert corpus.main([*arguments, "--files", "app/maintenance.py"]) == 1
+    output = capsys.readouterr().out
+    assert "canonical corpus" in output or "validated corpus bytes" in output
+
+
+def test_corpus_alternate_artifact_input_cannot_grant_maintenance(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _base, arguments = _maintenance_fixture(tmp_path, monkeypatch)
+    assert corpus.main([*arguments, "--files", "app/maintenance.py"]) == 0
+    alternate = tmp_path / "alternate-index.json"
+    alternate.write_bytes((tmp_path / REL_INDEX).read_bytes())
+    arguments[arguments.index("--index") + 1] = str(alternate)
+    assert corpus.main([*arguments, "--files", "app/maintenance.py"]) == 1
+    assert "app/maintenance.py: PR-5 is docs/governance/test-only" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("operation", ("copy", "rename"))
+def test_corpus_maintenance_does_not_hide_canonical_moves(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    operation: str,
+) -> None:
+    _base, arguments = _maintenance_fixture(tmp_path, monkeypatch)
+    assert corpus.main([*arguments, "--files", "app/maintenance.py"]) == 0
+    source = tmp_path / REL_INDEX
+    destination = tmp_path / "docs/copied-index.json"
+    if operation == "copy":
+        destination.write_bytes(source.read_bytes())
+    else:
+        source.rename(destination)
+        # Preserve current file availability as a dirty copy so the Git move is decisive.
+    _maintenance_commit(tmp_path)
+    if operation == "rename":
+        source.write_bytes(destination.read_bytes())
+    assert corpus.main([*arguments, "--files", "app/maintenance.py"]) == 1
+    assert "rename/copy ambiguity" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("fault", ("outside", "absent", "binary", "symlink", "bad-base"))
+def test_corpus_maintenance_keeps_all_changed_file_structural_checks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fault: str,
+) -> None:
+    _base, arguments = _maintenance_fixture(tmp_path, monkeypatch)
+    assert corpus.main([*arguments, "--files", "app/maintenance.py"]) == 0
+    target = "app/maintenance.py"
+    expected = {
+        "outside": "escapes repo root",
+        "absent": "absent from both exact Git trees",
+        "binary": "binary or ambiguous text encoding",
+        "symlink": "symlink",
+        "bad-base": "full lowercase commit SHA",
+    }[fault]
+    if fault == "outside":
+        target = "../outside.py"
+    elif fault == "absent":
+        target = "app/missing.py"
+    elif fault == "bad-base":
+        arguments[arguments.index("--base-ref") + 1] = "HEAD"
+    else:
+        path = tmp_path / target
+        if fault == "binary":
+            path.write_bytes(b"\x7fELF\x00")
+        else:
+            path.unlink()
+            path.symlink_to("/" + "outside/private")
+        _maintenance_commit(tmp_path)
+    assert corpus.main([*arguments, "--files", target]) == 1
+    assert expected in capsys.readouterr().out
+
+
+def test_corpus_maintenance_always_checks_complete_canonical_privacy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _base, arguments = _maintenance_fixture(tmp_path, monkeypatch)
+    assert corpus.main([*arguments, "--files", "app/maintenance.py"]) == 0
+    roadmap = tmp_path / DEFAULT_ROADMAP.relative_to(REPO_ROOT)
+    roadmap.write_text(roadmap.read_text() + "\nsource=" + "/" + "private/corpus.pdf\n")
+    assert corpus.main([*arguments, "--files", "app/maintenance.py"]) == 1
+    assert "semantic-cache roadmap: forbidden local path" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("state", ("missing", "symlink", "executable"))
+def test_corpus_canonical_base_transition_cannot_be_maintenance(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    state: str,
+) -> None:
+    _base, arguments = _maintenance_fixture(tmp_path, monkeypatch)
+    assert corpus.main([*arguments, "--files", "app/maintenance.py"]) == 0
+    artifact = tmp_path / REL_INDEX
+    original = artifact.read_bytes()
+    if state == "executable":
+        artifact.chmod(0o755)
+    else:
+        artifact.unlink()
+        if state == "symlink":
+            artifact.symlink_to("historical-alias.json")
+    _maintenance_commit(tmp_path)
+    arguments[arguments.index("--base-ref") + 1] = _fixture_git(
+        tmp_path, "rev-parse", "HEAD"
+    ).decode("ascii")
+    if artifact.is_symlink():
+        artifact.unlink()
+    artifact.write_bytes(original)
+    artifact.chmod(0o644)
+    _maintenance_commit(tmp_path)
+    assert corpus.main([*arguments, "--files", "app/maintenance.py"]) == 1
+    expected = (
+        "base alias is ambiguous" if state == "symlink" else "PR-5 is docs/governance/test-only"
+    )
+    assert expected in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("state", ("missing", "executable"))
+def test_corpus_current_head_requires_every_regular_canonical_artifact(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    state: str,
+) -> None:
+    _base, arguments = _maintenance_fixture(tmp_path, monkeypatch)
+    assert corpus.main([*arguments, "--files", "app/maintenance.py"]) == 0
+    artifact = tmp_path / REL_INDEX
+    original = artifact.read_bytes()
+    if state == "missing":
+        artifact.unlink()
+    else:
+        artifact.chmod(0o755)
+    _maintenance_commit(tmp_path)
+    if state == "missing":
+        # Valid dirty bytes cannot replace a missing committed canonical member.
+        artifact.write_bytes(original)
+        artifact.chmod(0o644)
+    assert corpus.main([*arguments, "--files", "app/maintenance.py"]) == 1
+    assert "requires a regular head artifact" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("fault", ("invalid-head", "head-drift", "unreadable"))
+def test_corpus_maintenance_rejects_unavailable_current_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fault: str,
+) -> None:
+    _base, arguments = _maintenance_fixture(tmp_path, monkeypatch)
+    assert corpus.main([*arguments, "--files", "app/maintenance.py"]) == 0
+    original = corpus._corpus_git_bytes
+    reads = 0
+
+    def git(*args: str) -> bytes:
+        nonlocal reads
+        if args[:1] == ("rev-parse",):
+            reads += 1
+            if fault == "unreadable":
+                raise OSError("synthetic-private-inspection")
+            if fault == "invalid-head":
+                return b"not-a-commit\n"
+            if reads == 2:
+                return b"f" * 40 + b"\n"
+        return original(*args)
+
+    monkeypatch.setattr(corpus, "_corpus_git_bytes", git)
+    assert corpus.main([*arguments, "--files", "app/maintenance.py"]) == 1
+    output = capsys.readouterr().out
+    expected = {
+        "invalid-head": "head identity is unavailable",
+        "head-drift": "head changed during inspection",
+        "unreadable": "file inspection unavailable: OSError",
+    }[fault]
+    assert expected in output and "synthetic-private-inspection" not in output
+
+
+@pytest.mark.parametrize("permissions", (0o444, 0o640))
+def test_corpus_maintenance_accepts_readable_nonexecutable_canonical_permissions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, permissions: int
+) -> None:
+    _base, arguments = _maintenance_fixture(tmp_path, monkeypatch)
+    assert corpus.main([*arguments, "--files", "app/maintenance.py"]) == 0
+    artifact = tmp_path / REL_INDEX
+    artifact.chmod(permissions)
+    try:
+        assert corpus.main([*arguments, "--files", "app/maintenance.py"]) == 0
+    finally:
+        artifact.chmod(0o644)
+
+
+@pytest.mark.parametrize("fault", ("local_path", "credential", "runtime"))
+def test_corpus_valid_docs_only_delta_retains_full_content_and_scope_checks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fault: str,
+) -> None:
+    _base, arguments = _maintenance_fixture(tmp_path, monkeypatch)
+    # Advance the trusted base so this new PR delta contains only documentation.
+    arguments[arguments.index("--base-ref") + 1] = _fixture_git(
+        tmp_path, "rev-parse", "HEAD"
+    ).decode("ascii")
+    relative_roadmap = DEFAULT_ROADMAP.relative_to(REPO_ROOT).as_posix()
+    roadmap = tmp_path / relative_roadmap
+    roadmap.write_text(roadmap.read_text() + "\nCorpus metadata remains reference evidence.\n")
+    document = tmp_path / "docs/maintenance.md"
+    document.write_text("Bounded documentation update.\n")
+    _maintenance_commit(tmp_path)
+    paths = [relative_roadmap, "docs/maintenance.md"]
+    assert corpus.main([*arguments, "--files", *paths]) == 0
+    capsys.readouterr()
+
+    if fault == "runtime":
+        (tmp_path / "app/maintenance.py").write_text("safe = 3\n")
+        paths.append("app/maintenance.py")
+        expected = "app/maintenance.py: PR-5 is docs/governance/test-only"
+    else:
+        value = (
+            "/" + "private/corpus-update.pdf" if fault == "local_path" else "token" + "=" + "z" * 20
+        )
+        document.write_text(document.read_text() + value + "\n")
+        expected = "docs/maintenance.md: new forbidden local path or credential-like token"
+    _maintenance_commit(tmp_path)
+    assert corpus.main([*arguments, "--files", *paths]) == 1
+    assert expected in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("phase", ("after_applicability", "during_walker"))
+def test_corpus_maintenance_rejects_head_mutation_across_applicability_and_scan(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    phase: str,
+) -> None:
+    _base, arguments = _maintenance_fixture(tmp_path, monkeypatch)
+    assert corpus.main([*arguments, "--files", "app/maintenance.py"]) == 0
+    capsys.readouterr()
+    frozen = _fixture_git(tmp_path, "rev-parse", "HEAD").decode("ascii")
+    mutated = False
+    observed_scan_refs: list[str] = []
+    original_applicability = corpus._canonical_corpus_changed
+    original_tree = corpus._corpus_tree_blob
+
+    def mutate_head() -> None:
+        nonlocal mutated
+        assert not mutated
+        roadmap = tmp_path / DEFAULT_ROADMAP.relative_to(REPO_ROOT)
+        roadmap.write_text(roadmap.read_text() + "\nA concurrent canonical change.\n")
+        _maintenance_commit(tmp_path)
+        assert _fixture_git(tmp_path, "rev-parse", "HEAD").decode("ascii") != frozen
+        mutated = True
+
+    def applicability(
+        base_ref: str, supplied: tuple[Path, ...], validated: tuple[str, ...], *, head_ref: str
+    ) -> bool:
+        changed = original_applicability(base_ref, supplied, validated, head_ref=head_ref)
+        assert not changed and head_ref == frozen
+        if phase == "after_applicability":
+            mutate_head()
+        return changed
+
+    def tree(ref: str, path: str) -> tuple[str, bytes] | None:
+        if path == "app/maintenance.py":
+            observed_scan_refs.append(ref)
+            if phase == "during_walker" and not mutated:
+                mutate_head()
+        return original_tree(ref, path)
+
+    monkeypatch.setattr(corpus, "_canonical_corpus_changed", applicability)
+    monkeypatch.setattr(corpus, "_corpus_tree_blob", tree)
+    assert corpus.main([*arguments, "--files", "app/maintenance.py"]) == 1
+    assert mutated
+    assert observed_scan_refs == [_base, frozen]
+    assert capsys.readouterr().out.splitlines() == [
+        "ERROR: philosophy source corpus index check failed:",
+        "- source corpus head changed during inspection",
+    ]

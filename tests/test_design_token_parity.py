@@ -20,9 +20,6 @@ TOKENS_CORE_COLOR = REPO_ROOT / "tokens" / "00_core" / "color.json"
 TOKENS_SEMANTIC_COLOR = REPO_ROOT / "tokens" / "10_semantic" / "color.json"
 TOKENS_PRODUCT_COLOR = REPO_ROOT / "tokens" / "20_product" / "color.json"
 TOKENS_IOS_PLATFORM = REPO_ROOT / "tokens" / "30_platform" / "ios.json"
-STYLE_DICTIONARY_PACKAGE_JSON = (
-    REPO_ROOT / "frontend" / "node_modules" / "style-dictionary" / "package.json"
-)
 
 CSS_VAR_RE = re.compile(r"--(?P<name>[a-z0-9-]+):\s*(?P<value>[^;]+);", re.IGNORECASE)
 CSS_VAR_REF_RE = re.compile(r"var\(--(?P<name>[a-z0-9-]+)\)", re.IGNORECASE)
@@ -105,56 +102,13 @@ def _read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def _style_dictionary_export_entrypoint(package_json: Path) -> Path:
-    package_data = json.loads(package_json.read_text(encoding="utf-8"))
-    package_root = package_json.parent
-    exports = package_data.get("exports")
-    entrypoint: str | None = None
-    if isinstance(exports, dict):
-        root_export = exports.get(".")
-        if isinstance(root_export, str):
-            entrypoint = root_export
-        elif isinstance(root_export, dict):
-            for key in ("node", "import", "default"):
-                candidate = root_export.get(key)
-                if isinstance(candidate, str):
-                    entrypoint = candidate
-                    break
-    if entrypoint is None:
-        main = package_data.get("main")
-        if isinstance(main, str):
-            entrypoint = main
-    if entrypoint is None:
-        pytest.fail(
-            f"{package_json}: style-dictionary package metadata must define an "
-            "exports['.'] or main entrypoint"
-        )
-    resolved_entrypoint = (package_root / entrypoint).resolve()
-    if not resolved_entrypoint.is_relative_to(package_root.resolve()):
-        pytest.fail(f"{package_json}: style-dictionary entrypoint must stay inside package root")
-    return resolved_entrypoint
-
-
-def _require_style_dictionary_toolchain(
-    package_json: Path = STYLE_DICTIONARY_PACKAGE_JSON,
-) -> Path:
-    if not package_json.is_file():
-        message = (
-            "Token parity determinism test requires frontend/style-dictionary "
-            "toolchain; run `cd frontend && npm ci`."
-        )
+def _require_node() -> str:
+    node = shutil.which("node")
+    if node is None:
         if os.environ.get("CI") == "true":
-            pytest.fail(message)
-        pytest.skip(message)
-
-    entrypoint = _style_dictionary_export_entrypoint(package_json)
-    if not entrypoint.is_file():
-        pytest.fail(
-            f"style-dictionary package entrypoint is missing: {entrypoint}. "
-            "The frontend toolchain install is partial or corrupt; run "
-            "`cd frontend && npm ci`."
-        )
-    return entrypoint
+            pytest.fail("Node.js is required for token loader validation")
+        pytest.skip("Node.js is required for token loader validation")
+    return node
 
 
 def _normalize_hex(value: str) -> str:
@@ -165,7 +119,15 @@ def _normalize_hex(value: str) -> str:
 
 
 def _load_json(path: Path) -> dict:
-    return json.loads(path.read_text(encoding="utf-8"))
+    def unique_pairs(pairs: list[tuple[str, object]]) -> dict:
+        result = {}
+        for key, value in pairs:
+            if key in result or key in {"__proto__", "prototype", "constructor"}:
+                raise ValueError("Duplicate or unsafe token key")
+            result[key] = value
+        return result
+
+    return json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=unique_pairs)
 
 
 def _load_token_authoring_tree() -> dict:
@@ -176,6 +138,8 @@ def _load_token_authoring_tree() -> dict:
 
 
 def _token_payload_value(payload: dict) -> object:
+    if "$value" in payload and "value" in payload:
+        raise ValueError("Ambiguous token value")
     if "$value" in payload:
         return payload["$value"]
     if "value" in payload:
@@ -593,52 +557,10 @@ def test_swift_asset_extension_routes_heart_to_brand_red() -> None:
     assert "static let heart = PPDesignTokens.Brand.red" in extension_text
 
 
-def test_style_dictionary_readiness_uses_package_export_target(tmp_path: Path) -> None:
-    package_json = tmp_path / "style-dictionary" / "package.json"
-    entrypoint = package_json.parent / "lib" / "StyleDictionary.js"
-    entrypoint.parent.mkdir(parents=True)
-    entrypoint.write_text("export default class StyleDictionary {}\n", encoding="utf-8")
-    package_json.write_text(
-        json.dumps({"exports": {".": "./lib/StyleDictionary.js"}}),
-        encoding="utf-8",
-    )
-
-    assert _style_dictionary_export_entrypoint(package_json) == entrypoint.resolve()
-
-
-def test_style_dictionary_readiness_rejects_partial_install(tmp_path: Path) -> None:
-    package_json = tmp_path / "style-dictionary" / "package.json"
-    package_json.parent.mkdir(parents=True)
-    package_json.write_text(
-        json.dumps({"exports": {".": "./lib/StyleDictionary.js"}}),
-        encoding="utf-8",
-    )
-
-    with pytest.raises(pytest.fail.Exception, match="partial or corrupt"):
-        _require_style_dictionary_toolchain(package_json)
-
-
-def test_style_dictionary_readiness_rejects_entrypoint_traversal(
-    tmp_path: Path,
-) -> None:
-    package_json = tmp_path / "style-dictionary" / "package.json"
-    package_json.parent.mkdir(parents=True)
-    package_json.write_text(
-        json.dumps({"exports": {".": "../evil.js"}}),
-        encoding="utf-8",
-    )
-
-    with pytest.raises(pytest.fail.Exception, match="inside package root"):
-        _style_dictionary_export_entrypoint(package_json)
-
-
 def test_token_build_script_is_deterministic() -> None:
     tracked_paths = [TOKENS_CSS, TOKENS_TS, SWIFT_GENERATED]
     before = {path: _read_text(path) for path in tracked_paths}
-    node_path = shutil.which("node")
-    if node_path is None:
-        pytest.skip("Node.js is required for token parity checks")
-    _require_style_dictionary_toolchain()
+    node_path = _require_node()
 
     snapshots: list[dict[Path, str]] = []
     for _ in range(2):
@@ -648,9 +570,164 @@ def test_token_build_script_is_deterministic() -> None:
             capture_output=True,
             text=True,
             check=False,
+            timeout=30,
         )
         assert result.returncode == 0, result.stderr or result.stdout
         snapshots.append({path: _read_text(path) for path in tracked_paths})
 
     assert snapshots[0] == before
     assert snapshots[0] == snapshots[1]
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "duplicate",
+        "escaped_duplicate",
+        "unsafe",
+        "malformed",
+        "trailing",
+        "extra",
+        "missing",
+        "symlink",
+        "directory",
+        "collision",
+        "platform_collision",
+        "dual_value",
+        "wrong_type",
+        "overflow",
+        "missing_reference",
+        "group_reference",
+        "cycle",
+        "prototype_reference",
+        "empty_segment",
+        "bad_typography",
+        "metadata",
+    ],
+)
+def test_token_loader_rejects_invalid_sources_before_writes(tmp_path: Path, mutation: str) -> None:
+    node = _require_node()
+    for relative in [
+        "frontend/style-dictionary.config.mjs",
+        "frontend/scripts/build-tokens.mjs",
+        "frontend/src/styles/tokens.css",
+        "frontend/src/styles/tokens.ts",
+        "ios/PulsePlate/DesignSystem/DesignTokens.generated.swift",
+    ]:
+        destination = tmp_path / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(REPO_ROOT / relative, destination)
+    shutil.copytree(REPO_ROOT / "tokens", tmp_path / "tokens")
+    target = tmp_path / "tokens/00_core/shadow.json"
+    original = target.read_text()
+    leaf: dict[str, object] = {"$type": "string", "$value": "literal"}
+    payload = {"unused": leaf}
+    if mutation == "duplicate":
+        target.write_text('{"unused":{},"unused":{}}')
+    elif mutation == "escaped_duplicate":
+        target.write_text('{"unused":{},"\\u0075nused":{}}')
+    elif mutation == "unsafe":
+        target.write_text('{"unused":{"constructor":{}}}')
+    elif mutation in {"malformed", "trailing"}:
+        target.write_text(original + ("," if mutation == "malformed" else " {}"))
+    elif mutation == "extra":
+        (target.parent / "extra.json").write_text("{}")
+    elif mutation in {"missing", "symlink", "directory"}:
+        target.unlink()
+        if mutation == "symlink":
+            target.symlink_to(tmp_path / "tokens/00_core/color.json")
+        elif mutation == "directory":
+            target.mkdir()
+    elif mutation == "collision":
+        target.write_text('{"color":{}}')
+    elif mutation == "platform_collision":
+        target.write_text('{"platform":{"ios":{}}}')
+    else:
+        if mutation == "dual_value":
+            leaf["value"] = "other"
+        elif mutation == "wrong_type":
+            leaf["$value"] = 12
+        elif mutation == "overflow":
+            target.write_text('{"unused":{"$type":"number","$value":1e999}}')
+        elif mutation == "bad_typography":
+            leaf.update({"$type": "typography", "$value": {"fontFamily": "Inter"}})
+        elif mutation == "metadata":
+            leaf["unexpected"] = "value"
+        else:
+            leaf["$value"] = {
+                "missing_reference": "{missing.leaf}",
+                "group_reference": "{color}",
+                "cycle": "{unused}",
+                "prototype_reference": "{color.constructor}",
+                "empty_segment": "{color..navy}",
+            }[mutation]
+        if mutation != "overflow":
+            target.write_text(json.dumps(payload))
+    outputs = [
+        tmp_path / path.relative_to(REPO_ROOT) for path in (TOKENS_CSS, TOKENS_TS, SWIFT_GENERATED)
+    ]
+    before = [path.read_bytes() for path in outputs]
+    result = subprocess.run(
+        [node, "frontend/scripts/build-tokens.mjs"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    assert result.returncode != 0
+    assert [path.read_bytes() for path in outputs] == before
+
+
+def test_independent_token_reader_rejects_decoded_duplicates(tmp_path: Path) -> None:
+    source = tmp_path / "duplicate.json"
+    source.write_text('{"a":1,"\\u0061":2}')
+    with pytest.raises(ValueError, match="Duplicate"):
+        _load_json(source)
+
+
+def test_token_loader_preserves_supported_values_and_key_order(tmp_path: Path) -> None:
+    node = _require_node()
+    loader = tmp_path / "frontend/style-dictionary.config.mjs"
+    loader.parent.mkdir()
+    shutil.copyfile(REPO_ROOT / "frontend/style-dictionary.config.mjs", loader)
+    shutil.copytree(REPO_ROOT / "tokens", tmp_path / "tokens")
+    source = tmp_path / "tokens/00_core/shadow.json"
+    payload = json.loads(source.read_text())
+    payload["ordering"] = {
+        "z": {"$type": "string", "value": 'literal "key": {text}'},
+        "10": {"$type": "number", "$value": 10},
+        "2": {"$type": "number", "$value": 2},
+        "a": {"$type": "string", "$value": "{ordering.z}"},
+    }
+    source.write_text(json.dumps(payload))
+    program = (
+        'import {loadTokenTree} from "./frontend/style-dictionary.config.mjs"; '
+        "const tree = await loadTokenTree(); "
+        "console.log(JSON.stringify({keys:Object.keys(tree.ordering), "
+        "legacy:tree.ordering.z.value, alias:tree.ordering.a.$value, "
+        "typography:tree.typography.textStyle.caption.$value, "
+        "platform:Object.keys(tree.platform)}));"
+    )
+    result = subprocess.run(
+        [node, "--input-type=module", "-e", program],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    observed = json.loads(result.stdout)
+    assert observed == {
+        "keys": ["2", "10", "z", "a"],
+        "legacy": 'literal "key": {text}',
+        "alias": "{ordering.z}",
+        "typography": {
+            "fontFamily": "Inter",
+            "fontWeight": "400",
+            "lineHeight": "1.375",
+            "fontSize": "0.875rem",
+        },
+        "platform": ["ios", "web"],
+    }

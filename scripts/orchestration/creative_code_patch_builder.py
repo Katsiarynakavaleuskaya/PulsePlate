@@ -30,6 +30,7 @@ from scripts.orchestration.creative_code_patch_executor import (
 from scripts.orchestration.creative_code_patch_workspace import (
     REPO_ROOT,
     CreativeCodePatchWorkspaceError,
+    _reserved_patch_checkout,
     cleanup_run_dir,
     destroy_generation_checkout,
     exclusive_patch_run_lock,
@@ -428,20 +429,13 @@ def _check_patch_applies_cleanly(*, patch_text: str, base_commit_sha: str, run_d
     validation_checkout = run_dir / "validation_checkout"
     if validation_checkout.exists() or validation_checkout.is_symlink():
         raise CreativeCodePatchBuilderError("validation checkout already exists.")
-    try:
-        run_git(
-            ["clone", "--no-hardlinks", str(REPO_ROOT), str(validation_checkout)], cwd=REPO_ROOT
-        )
-        run_git(["checkout", "--detach", base_commit_sha], cwd=validation_checkout)
-        remotes = run_git(["remote"], cwd=validation_checkout).stdout.strip()
-        if remotes:
-            run_git(["remote", "remove", "origin"], cwd=validation_checkout)
-        run_git(["apply", "--check"], cwd=validation_checkout, input_text=patch_text)
-    finally:
-        if validation_checkout.exists() and not validation_checkout.is_symlink():
-            import shutil
-
-            shutil.rmtree(validation_checkout)
+    with _reserved_patch_checkout(run_dir, "validation_checkout") as (checkout, mutate, verify):
+        mutate(["clone", "--no-hardlinks", str(REPO_ROOT), str(checkout)], REPO_ROOT, None)
+        mutate(["checkout", "--detach", base_commit_sha], checkout, None)
+        verify()
+        if run_git(["remote"], cwd=checkout).stdout.strip():
+            mutate(["remote", "remove", "origin"], checkout, None)
+        mutate(["apply", "--check"], checkout, patch_text)
 
 
 def _patch_metadata(

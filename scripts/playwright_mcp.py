@@ -7,7 +7,8 @@ import argparse
 import json
 import os
 import shutil
-import subprocess  # nosec B404: subprocess is required for bounded local Node/Playwright diagnostics with absolute binaries only (remove-by: 2026-10-31, ref: PR-playwright-mcp-node22)
+import re
+import subprocess  # nosec B404: subprocess is required for bounded local Node/Playwright diagnostics with absolute binaries only (remove-by: 2027-02-01, ref: PR-playwright-mcp-node22)
 import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -85,17 +86,38 @@ def _resolve_binary(name: str) -> str | None:
 
 def _current_node_version(node_bin: str) -> str | None:
     """Return the current Node runtime version without a leading `v`."""
-    process = subprocess.run(  # nosec B603: argv uses absolute node path from shutil.which() with fixed diagnostic flags only (remove-by: 2026-10-31, ref: PR-playwright-mcp-node22)
-        [node_bin, "-p", "process.versions.node"],
-        cwd=REPO_ROOT,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
+    selected = Path(node_bin)
+    if not selected.is_absolute():
+        return None
+    try:
+        node = selected.resolve(strict=True)
+        if not node.is_file() or not os.access(node, os.X_OK):
+            return None
+        env = {"PATH": os.defpath, "LC_ALL": "C"}
+        if os.name == "nt" and os.environ.get("SystemRoot"):
+            env["SystemRoot"] = os.environ["SystemRoot"]
+        process = subprocess.run(  # nosec B603: argv uses absolute node path from shutil.which() with fixed diagnostic flags only (remove-by: 2027-01-01, ref: PR-playwright-mcp-node22)
+            [str(node), "-p", "process.versions.node"],
+            cwd=REPO_ROOT,
+            env=env,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            encoding="utf-8",
+            timeout=10,
+            check=False,
+        )
+    except (OSError, RuntimeError, ValueError, subprocess.TimeoutExpired):
+        return None
     if process.returncode != 0:
         return None
-    version = _normalize_node_version(process.stdout or "")
-    return version or None
+    version = (process.stdout or "").removesuffix("\n")
+    if re.fullmatch(
+        r"[vV]?[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?",
+        version,
+    ):
+        return _normalize_node_version(version)
+    return None
 
 
 def _playwright_browser_cache_present() -> bool:
@@ -284,6 +306,61 @@ def _doctor_exit_code(results: list[CheckResult]) -> int:
     return 0 if all(result.ok for result in results) else 1
 
 
+def _installed_playwright_cli() -> Path:
+    """Select the installed package's regular CLI from the matching frontend lock row."""
+    package = FRONTEND_DIR / "node_modules" / "playwright"
+    if FRONTEND_DIR != REPO_ROOT / "frontend" or package.resolve(strict=True) != package:
+        raise ValueError("Invalid Playwright package location")
+
+    def object_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("Duplicate Playwright metadata field")
+            result[key] = value
+        return result
+
+    def record(path: Path) -> dict[str, object]:
+        if path.is_symlink() or not path.is_file() or path.stat().st_nlink != 1:
+            raise ValueError("Invalid Playwright metadata file")
+        data = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=object_pairs)
+        if not isinstance(data, dict):
+            raise ValueError("Invalid Playwright metadata")
+        return data
+
+    lock = record(FRONTEND_DIR / "package-lock.json")
+    packages = lock.get("packages")
+    expected = packages.get("node_modules/playwright") if isinstance(packages, dict) else None
+    actual = record(package / "package.json")
+    if (
+        not isinstance(expected, dict)
+        or expected.get("link")
+        or expected.get("name", "playwright") != "playwright"
+        or actual.get("name") != "playwright"
+        or not isinstance(expected.get("version"), str)
+        or not expected["version"]
+        or expected["version"] != actual.get("version")
+    ):
+        raise ValueError("Playwright installation does not match the lock")
+    declared = expected.get("bin")
+    installed = actual.get("bin")
+    entry = declared.get("playwright") if isinstance(declared, dict) else None
+    if (
+        not isinstance(entry, str)
+        or not entry
+        or not isinstance(installed, dict)
+        or installed.get("playwright") != entry
+        or "\\" in entry
+        or Path(entry).is_absolute()
+        or ".." in Path(entry).parts
+    ):
+        raise ValueError("Invalid Playwright CLI declaration")
+    cli = package / entry
+    if cli.resolve(strict=True) != cli or not cli.is_file() or cli.stat().st_nlink != 1:
+        raise ValueError("Invalid Playwright CLI file")
+    return cli
+
+
 def _run_install_browser() -> int:
     """Install the Chromium browser payload used by the repo Playwright flows."""
     results = _build_doctor_report()
@@ -308,15 +385,77 @@ def _run_install_browser() -> int:
         )
         return 1
 
-    npx_bin = _resolve_binary("npx")
-    if npx_bin is None:  # pragma: no cover - defensive fallback after guarded precheck
-        print("npx is not available on PATH.", file=sys.stderr)
+    selected = _resolve_binary("node")
+    try:
+        baseline = _read_expected_node_version()
+        if not selected or not Path(selected).is_absolute() or not baseline:
+            raise ValueError("Missing selected Node")
+        node = Path(selected).resolve(strict=True)
+        if (
+            not node.is_file()
+            or not os.access(node, os.X_OK)
+            or _current_node_version(str(node)) != baseline
+        ):
+            raise ValueError("Selected Node no longer matches the repo baseline")
+        cli = _installed_playwright_cli()
+    except (ValueError, OSError, RuntimeError, RecursionError):
+        print(
+            "Refusing to install Playwright browsers: local toolchain binding failed.",
+            file=sys.stderr,
+        )
         return 1
-    process = subprocess.run(  # nosec B603: argv uses absolute npx path from shutil.which() with fixed Playwright install args only (remove-by: 2026-10-31, ref: PR-playwright-mcp-node22)
-        [npx_bin, "playwright", "install", "chromium"],
-        cwd=FRONTEND_DIR,
-        check=False,
+    # Keep the caller's browser destination and download transport settings.
+    names = {
+        "HOME",
+        "USERPROFILE",
+        "LOCALAPPDATA",
+        "APPDATA",
+        "SYSTEMROOT",
+        "TMPDIR",
+        "TEMP",
+        "TMP",
+        "XDG_CACHE_HOME",
+        "LANG",
+        "LC_ALL",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "NO_PROXY",
+        "NPM_CONFIG_PROXY",
+        "NPM_CONFIG_HTTP_PROXY",
+        "NPM_CONFIG_HTTPS_PROXY",
+        "NPM_CONFIG_NOPROXY",
+        "NODE_EXTRA_CA_CERTS",
+        "SSL_CERT_FILE",
+        "SSL_CERT_DIR",
+        "PLAYWRIGHT_BROWSERS_PATH",
+        "PLAYWRIGHT_SKIP_BROWSER_GC",
+        "PLAYWRIGHT_HOST_PLATFORM_OVERRIDE",
+        "INIT_CWD",
+        "PLAYWRIGHT_DOWNLOAD_HOST",
+        "PLAYWRIGHT_CHROMIUM_DOWNLOAD_HOST",
+        "PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT",
+    }
+    names.update(
+        {
+            prefix + name
+            for name in tuple(names)
+            if name.startswith("PLAYWRIGHT_")
+            for prefix in ("NPM_CONFIG_", "NPM_PACKAGE_CONFIG_")
+        }
     )
+    env = {key: value for key, value in os.environ.items() if key.upper() in names}
+    env["PATH"] = str(node.parent) + os.pathsep + os.defpath
+    try:
+        process = subprocess.run(  # nosec B603: qualified Node runs the locked local Playwright CLI with fixed install arguments (remove-by: 2026-12-01, ref: PR-playwright-mcp-node22)
+            [str(node), str(cli), "install", "chromium"],
+            cwd=FRONTEND_DIR,
+            env=env,
+            check=False,
+        )
+    except OSError:
+        print("Unable to start the local Playwright browser installer.", file=sys.stderr)
+        return 1
     return process.returncode
 
 

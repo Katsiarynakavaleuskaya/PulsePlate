@@ -21,7 +21,7 @@ from pathlib import Path, PurePath, PurePosixPath
 import re
 import shutil
 import stat
-import subprocess  # nosec B404: read-only Git index query has no safe in-process API (remove-by: 2026-10-31, ref: PR-2181)
+import subprocess  # nosec B404: read-only Git index query has no safe in-process API (remove-by: 2027-02-01, ref: PR-2181)
 
 DEPENDABOT_REQUIREMENT_SUFFIXES = frozenset({".in", ".txt"})
 DEPENDABOT_REQUIREMENT_MAX_DEPTH = 1
@@ -458,14 +458,19 @@ def _record_candidate(
 def _run_git_bytes(repo_root: Path, *args: str) -> bytes:
     """Run one fixed Git query without executable checkout configuration."""
 
-    if GIT_BINARY is None:
+    if (
+        GIT_BINARY is None
+        or not Path(GIT_BINARY).is_absolute()
+        or not Path(GIT_BINARY).is_file()
+        or not os.access(GIT_BINARY, os.X_OK)
+    ):
         raise DependabotRequirementDiscoveryError(".")
     git_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
     git_env["GIT_CONFIG_GLOBAL"] = os.devnull
     git_env["GIT_CONFIG_NOSYSTEM"] = "1"
     git_env["GIT_TERMINAL_PROMPT"] = "0"
     try:
-        result = subprocess.run(  # nosec B603: resolved Git binary with fixed read-only argv (remove-by: 2026-10-31, ref: PR-2181)
+        result = subprocess.run(  # nosec B603: resolved Git binary with fixed read-only argv (remove-by: 2027-02-01, ref: PR-2181)
             [GIT_BINARY, *SAFE_GIT_CONFIG_ARGS, "-C", os.fspath(repo_root), *args],
             cwd=repo_root,
             check=True,
@@ -484,12 +489,12 @@ def _run_git_bytes(repo_root: Path, *args: str) -> bytes:
 def _git_index_source_paths(repo_root: Path) -> tuple[PurePosixPath, ...]:
     """Return the exact Git-index path set for one repository top level."""
 
+    top_level_payload = _run_git_bytes(repo_root, "rev-parse", "--show-toplevel")
     try:
         resolved_repo_root = repo_root.resolve(strict=True)
     except OSError as exc:
         raise DependabotRequirementDiscoveryError(".") from exc
 
-    top_level_payload = _run_git_bytes(repo_root, "rev-parse", "--show-toplevel")
     if (
         not top_level_payload.endswith(b"\n")
         or b"\0" in top_level_payload

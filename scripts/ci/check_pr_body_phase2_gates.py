@@ -5,7 +5,7 @@ import json
 import os
 import re
 import shutil
-import subprocess  # nosec B404: bounded git log advisory for local co-author diagnostics (remove-by: 2026-10-31, ref: experiment-runner-oracle-attribution-semantics)
+import subprocess  # nosec B404: bounded git log advisory for local co-author diagnostics (remove-by: 2027-02-08, ref: experiment-runner-oracle-attribution-semantics)
 import sys
 from enum import Enum
 from pathlib import Path
@@ -583,68 +583,115 @@ def _validate_git_commit_range_arg(value: str, *, arg_name: str) -> str:
     return value
 
 
+def _attribution_git(repo_root: Path) -> tuple[list[str], dict[str, str]] | None:
+    """Resolve the installed Git and isolate read-only attribution in the selected checkout."""
+    git = shutil.which("git", path=os.defpath)
+    if (
+        not git
+        or not Path(git).is_absolute()
+        or not Path(git).is_file()
+        or not os.access(git, os.X_OK)
+    ):
+        return None
+    return (
+        [
+            git,
+            "--no-pager",
+            "--no-replace-objects",
+            "-c",
+            f"core.hooksPath={os.devnull}",
+            "-c",
+            "log.showSignature=false",
+        ],
+        {
+            "PATH": os.defpath,
+            "LC_ALL": "C",
+            "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_NO_REPLACE_OBJECTS": "1",
+            "GIT_OPTIONAL_LOCKS": "0",
+            "GIT_TERMINAL_PROMPT": "0",
+            "GIT_CEILING_DIRECTORIES": str(repo_root.absolute().parent),
+        },
+    )
+
+
 def _git_commit_messages(
     commit_range: str = "origin/main..HEAD",
     *,
     fallback_range: str = "",
+    repo_root: Path = REPO_ROOT,
 ) -> str | None:
     """Read branch commit messages, or None when local inspection is unavailable."""
 
-    git_bin = shutil.which("git")
-    if git_bin is None:
+    selection = _attribution_git(repo_root)
+    if selection is None:
         return None
+    git_argv, env = selection
 
     ranges = [commit_range]
     if fallback_range and fallback_range != commit_range:
         ranges.append(fallback_range)
     for resolved_range in ranges:
         try:
-            completed = subprocess.run(  # nosec B603: absolute git binary, fixed log command, no shell (remove-by: 2026-10-31, ref: experiment-runner-oracle-attribution-semantics)
+            completed = subprocess.run(  # nosec B603: absolute git binary, fixed log command, no shell (remove-by: 2027-02-08, ref: experiment-runner-oracle-attribution-semantics)
                 [
-                    git_bin,
+                    *git_argv,
                     "log",
                     f"--format=%B{COMMIT_MESSAGE_SEPARATOR}",
                     "--end-of-options",
                     resolved_range,
                     "--",
                 ],
-                cwd=REPO_ROOT,
+                cwd=repo_root,
+                env=env,
+                stdin=subprocess.DEVNULL,
                 text=True,
-                capture_output=True,
+                encoding="utf-8",
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
                 check=False,
                 timeout=15,
             )
-        except (OSError, subprocess.TimeoutExpired):
+        except (OSError, UnicodeError, subprocess.TimeoutExpired):
             continue
         if completed.returncode == 0:
             return completed.stdout
     return None
 
 
-def _commit_message_has_expected_coauthor_trailer(message: str) -> bool:
-    git_bin = shutil.which("git")
-    if git_bin is None:
+def _commit_message_has_expected_coauthor_trailer(
+    message: str, *, repo_root: Path = REPO_ROOT
+) -> bool:
+    selection = _attribution_git(repo_root)
+    if selection is None:
         return False
+    git_argv, env = selection
     try:
-        completed = subprocess.run(  # nosec B603: absolute git binary parses local commit-message text without shell (remove-by: 2026-10-31, ref: experiment-runner-oracle-attribution-semantics)
-            [git_bin, "interpret-trailers", "--parse", "--no-divider"],
-            cwd=REPO_ROOT,
+        completed = subprocess.run(  # nosec B603: absolute git binary parses local commit-message text without shell (remove-by: 2027-02-08, ref: experiment-runner-oracle-attribution-semantics)
+            [*git_argv, "interpret-trailers", "--parse", "--no-divider"],
+            cwd=repo_root,
+            env=env,
             input=message,
             text=True,
-            capture_output=True,
+            encoding="utf-8",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
             check=False,
             timeout=5,
         )
-    except (OSError, subprocess.TimeoutExpired):
+    except (OSError, UnicodeError, subprocess.TimeoutExpired):
         return False
     if completed.returncode != 0:
         return False
     return any(line.strip() == EXPECTED_CO_AUTHOR_TRAILER for line in completed.stdout.splitlines())
 
 
-def _commit_messages_have_expected_coauthor_trailer(commit_messages: str) -> bool:
+def _commit_messages_have_expected_coauthor_trailer(
+    commit_messages: str, *, repo_root: Path = REPO_ROOT
+) -> bool:
     return any(
-        _commit_message_has_expected_coauthor_trailer(message)
+        _commit_message_has_expected_coauthor_trailer(message, repo_root=repo_root)
         for message in commit_messages.split(COMMIT_MESSAGE_SEPARATOR)
     )
 
@@ -658,7 +705,7 @@ def check_experiment_runner_coauthor_advisory(
     """Warn when a local runner artifact requires co-authoring but commits lack it."""
 
     has_expected_trailer = commit_messages is not None and (
-        _commit_messages_have_expected_coauthor_trailer(commit_messages)
+        _commit_messages_have_expected_coauthor_trailer(commit_messages, repo_root=repo_root)
     )
 
     warnings: list[str] = []
