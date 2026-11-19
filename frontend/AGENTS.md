@@ -199,6 +199,11 @@ Redocly1.34.15 adaptation has no lifecycle hook. For a direct manual frontend
 runs verify before the CLI. Cached Make installs also verify the complete
 installed payload before use. A checker failure is terminal: do not reinstall,
 retry npm, bypass verify or rewrite lock integrity to derived source hashes.
+
+On Tailwind updates, qualify the WASI bundle against its parent npm archive
+and native dependency graph before changing its lock-record digest in the
+Redocly checker. Run both the bundle provenance tests and Redocly apply/verify
+on a clean frontend install.
 Root, audit and lock-only operations do not apply the adaptation. Preserve the
 fixed687 original/derived members and measured modes, exact parent dependency
 resolution and existing brace-expansion floors. Use canonical `make openapi`

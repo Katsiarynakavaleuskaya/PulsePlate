@@ -65,6 +65,12 @@
   shallow fallback must run in parallel, isolate it in a temporary repository
   or assign it to a serialized owner instead of mutating shared refs,
   replacement objects, grafts, or `.git/shallow`.
+- The Prometheus workflow contracts read the designated controller commit from
+  local Git. After a donor branch is squash-merged and deleted, a normal fetch
+  of main can omit that commit. Before running the contracts in a fresh clone,
+  fetch the exact public controller revision named by the workflow into the
+  material repository without a depth limit. CI prepares the object before lint
+  and parallel main tests. The tests themselves remain offline.
 - Workflow tests for pinned external verifier output must exercise the successful
   consumer path using an observed native output shape, as well as rejection
   paths. Keep statement-schema and predicate-schema versions independent;

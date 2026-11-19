@@ -583,14 +583,13 @@ handoff after any governed input change.
   their existing behavior; binary-only installs retain target-Python selection.
   Dedicated SDK builds reject an explicit target-Python option because the
   unchanged four-input build uses its loader interpreter.
-- Review and trust the checkout before explicitly running `make docker-source-artifacts`
-  on the host, then choose **Dev Containers: Reopen in Container**. For the CLI,
-  `make dc-up` already includes this prerequisite. Source acquisition must retain
-  the fetcher's hash, path and expiry checks and propagate failures before the build.
-  Keep host-side preparation out of automatic devcontainer lifecycle commands.
-  Run `make devcontainer-bootstrap` manually inside the trusted container.
-  Keep the project `.env`, host credentials and general host HOME out of automatic
-  bootstrap. See the Dev Container section in `CONTRIBUTING.md`.
+- Dev Containers and Codespaces build the verified source context before the native
+  SDK from a clean checkout. Keep the source producer free of credentials and
+  export just the four manifest-pinned SDK archives. The SDK acquisition service
+  uses the approved credential-free package proxy and its optional scoped netrc.
+  The CLI `make dc-up` keeps host-side source preparation through the canonical
+  fetcher. Keep automatic lifecycle hooks off the host and run
+  `make devcontainer-bootstrap` manually inside the trusted container.
 - `make dc-up` credential forwarding is explicit opt-in through
   `PULSEPLATE_NATIVE_SDK_NETRC_FILE`, defaulting to `/dev/null`. Use only a temporary
   read-only file scoped to the approved package host after reviewing/trusting the
