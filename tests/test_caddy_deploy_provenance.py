@@ -7430,6 +7430,8 @@ def test_caddy_checkout_inventory_rejects_unbound_native_input(
         "2495-failed-producer",
         "2495-ambiguous-producer",
         "2495-stale-and-current",
+        "2495-superseded-unfetchable",
+        "2495-eligible-unfetchable",
         "2495-expired-and-current",
         "2495-lock-change",
         "2495-frontend-change",
