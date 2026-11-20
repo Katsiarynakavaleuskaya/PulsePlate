@@ -3343,6 +3343,7 @@ def test_caddy062_current_generated_metadata_bindings_match_exact_observed_DATA(
         "equal-package-replacement",
         "finish",
         "recovery-build",
+        "train-build",
         "transition-build",
         "recovery-stale",
         "transition-substitute",
@@ -3442,17 +3443,16 @@ def test_caddy062_charge_step_requires_independently_reviewed_same_run_outputs(
         "current_run_attempt": 1,
         "inputs": inputs,
     }
-    owner_build = str(fault).startswith(("recovery-", "transition-"))
-    branch = (
-        "codex/alertmanager-controller-transition"
-        if str(fault).startswith("transition-")
-        else (
-            "codex/npm-braces-build-prerequisite"
-            if owner_build
-            else "codex/dependency-alertmanager-remediation"
-        )
-    )
+    branch_by_lane = {
+        "train": "codex/cab07c-eslint-pages-features",
+        "recovery": "codex/npm-braces-build-prerequisite",
+        "transition": "codex/alertmanager-controller-transition",
+    }
+    pr_lane = str(fault).partition("-")[0]
+    owner_build = pr_lane in branch_by_lane
+    branch = branch_by_lane.get(pr_lane, "codex/dependency-alertmanager-remediation")
     if owner_build:
+        assert f"github.ref == 'refs/heads/{branch}'" in charge_step["env"]["GH_TOKEN"]
         state["source_branch"] = branch
         sender = {"type": "User", "login": "Katsiarynakavaleuskaya", "id": 73}
         event = tmp_path / "dispatch.json"
@@ -3656,7 +3656,7 @@ def test_caddy062_charge_step_requires_independently_reviewed_same_run_outputs(
         assert expected == inputs["scripts/ci/prometheus_source_image.py"]["sha256"]
 
         def get(endpoint: str) -> Any:
-            number = 9999 if branch == "codex/alertmanager-controller-transition" else 2495
+            number = {"transition": 9999, "recovery": 2495, "train": 2484}[pr_lane]
             if endpoint.startswith("/pulls?"):
                 assert number == 9999
                 return [{"number": number}]
@@ -3682,7 +3682,7 @@ def test_caddy062_charge_step_requires_independently_reviewed_same_run_outputs(
     program = compile(
         charge_step["run"].split("<<'PY'\n", 1)[1].rsplit("\nPY", 1)[0], "<caddy-prebuild>", "exec"
     )
-    if fault in (None, "recovery-build", "transition-build"):
+    if fault in (None, "recovery-build", "transition-build", "train-build"):
         exec(program, {})
         assert order == ["finished", "BUILD"]
     else:

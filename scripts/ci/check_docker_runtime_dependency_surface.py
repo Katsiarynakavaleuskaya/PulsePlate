@@ -619,6 +619,7 @@ def _caddy_xnet062_profile(
 CADDY_ORIGINAL_BRANCH = "codex/dependency-alertmanager-remediation"
 CADDY_TRANSITION_BRANCH = "codex/alertmanager-controller-transition"
 CADDY_PR_NUMBERS: dict[str, int | None] = {
+    "codex/cab07c-eslint-pages-features": 2484,
     CADDY_ORIGINAL_BRANCH: 2494,
     "codex/npm-braces-build-prerequisite": 2495,
     CADDY_TRANSITION_BRANCH: None,

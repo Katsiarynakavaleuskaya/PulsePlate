@@ -6986,6 +6986,7 @@ def test_caddy_candidate_release_requires_current_source_control_and_cleanup_con
     head = "1" * 40
     number = 2494 if fault == "legacy" else 2495
     branches = {
+        2484: "codex/cab07c-eslint-pages-features",
         2494: "codex/dependency-alertmanager-remediation",
         2495: "codex/npm-braces-build-prerequisite",
     }
@@ -7264,6 +7265,13 @@ def test_caddy_checkout_inventory_rejects_unbound_native_input(
 @pytest.mark.parametrize(
     "case",
     [
+        "2484-build",
+        "2484-reuse",
+        "2484-main",
+        "2484-wrong-PR",
+        "2484-wrong-branch",
+        "2484-dispatch-sha",
+        "2484-second-attempt",
         "transition-build",
         "transition-reuse",
         "transition-main",
@@ -7366,9 +7374,13 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
     root.mkdir()
     monkeypatch.chdir(root)
     head, old_head = "1" * 40, "2" * 40
-    number = 9999 if case.startswith("transition-") else 2495 if case.startswith("2495-") else 2494
-    case = case.removeprefix("2495-").removeprefix("transition-")
+    lane, separator, variant = case.partition("-")
+    lanes = {"transition": 9999, "2495": 2495, "2484": 2484}
+    number = lanes.get(lane, 2494)
+    if separator and lane in lanes:
+        case = variant
     branches = {
+        2484: "codex/cab07c-eslint-pages-features",
         2494: "codex/dependency-alertmanager-remediation",
         2495: "codex/npm-braces-build-prerequisite",
         9999: "codex/alertmanager-controller-transition",
@@ -7632,7 +7644,7 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
             calls.append(url)
             if url.endswith(f"/pulls/{number}"):
                 value = pr
-            elif main and any(url.endswith(f"/pulls/{n}") for n in (2494, 2495)):
+            elif main and any(url.endswith(f"/pulls/{n}") for n in (2484, 2494, 2495)):
                 foreign_number = int(url.rsplit("/", 1)[1])
                 value = {
                     **pr,

@@ -1441,7 +1441,7 @@ jobs:
         if: ${{ steps.caddy-admission.outputs.mode == 'build' && steps.caddy-metadata.outcome == 'success' }}
         env:
           CADDY_ACTION: ${{ inputs.caddy_action }}
-          GH_TOKEN: ${{ (github.ref == 'refs/heads/codex/npm-braces-build-prerequisite' || github.ref == 'refs/heads/codex/alertmanager-controller-transition') && github.token || '' }}
+          GH_TOKEN: ${{ (github.ref == 'refs/heads/codex/cab07c-eslint-pages-features' || github.ref == 'refs/heads/codex/npm-braces-build-prerequisite' || github.ref == 'refs/heads/codex/alertmanager-controller-transition') && github.token || '' }}
           CADDY_METADATA_BINDING: ${{ steps.caddy-metadata.outputs.prebuild_binding }}
         run: |
           python3 - <<'PY'
