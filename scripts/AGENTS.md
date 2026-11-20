@@ -509,7 +509,10 @@ and the unique same-repository PR from
 `caddy_source_sha` equal to the frozen published head. A build start spends that
 head's authorization. Ordinary PR and exact merged-main runs require one
 successful original artifact from the same designated PR and identical governed
-inputs. The historical #2494 designated branch retains its manual route.
+inputs. At prebuild, confirm the admitted PR number and exact source head. Stage the
+verified tracked frontend files in a fresh private Docker build context so ignored
+checkout files cannot enter the image. The historical #2494 designated branch
+retains its manual route.
 
 - Keep source content identity separate from Docker's native identity: requested
   reference or index, selected platform manifest, raw config, compressed layer
