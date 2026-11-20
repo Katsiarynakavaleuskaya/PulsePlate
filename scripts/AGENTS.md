@@ -502,7 +502,13 @@ the next authorized same-source producer step and its owner in the existing
 coordinator handoff. If no producer step is admissible yet, record the blocking
 prerequisite and its owner. Keep source preparation on HOLD for Caddy until
 authenticated same-source native producer evidence is available, and recheck the
-handoff after any governed input change.
+handoff after any governed input change. For #2495 on
+`codex/npm-braces-build-prerequisite` and the unique same-repository PR from
+`codex/alertmanager-controller-transition` to main, the owner dispatches `candidate-D` with
+`caddy_source_sha` equal to the frozen published head. A build start spends that
+head's authorization. Ordinary PR and exact merged-main runs require one
+successful original artifact from the same designated PR and identical governed
+inputs. The historical #2494 designated branch retains its manual route.
 
 - Keep source content identity separate from Docker's native identity: requested
   reference or index, selected platform manifest, raw config, compressed layer
