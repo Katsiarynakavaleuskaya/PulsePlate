@@ -18210,6 +18210,13 @@ def test_alertmanager_negative_control_062_exact_fourteen_and_all_severity_ident
     for row in report["Results"]:
         row["Vulnerabilities"].append(
             {
+                "VulnerabilityID": "CVE-2026-97054",
+                "Severity": "UNKNOWN",
+                "PkgIdentifier": {"PURL": "pkg:golang/stdlib@v1.26.8"},
+            }
+        )
+        row["Vulnerabilities"].append(
+            {
                 "VulnerabilityID": "CVE-2026-78661",
                 "Severity": "HIGH",
                 "PkgIdentifier": {"PURL": "pkg:golang/golang.org/x/net@v0.58.0"},
@@ -18299,30 +18306,64 @@ def test_alertmanager_negative_control_consumed_identity_types_before_hash(
         )
 
 
-@pytest.mark.parametrize("fault", [None, "missing", "duplicate", "wrong-severity", "candidate-row"])
-def test_alertmanager_fresh_old_control_requires_exact_two_new_go_rows(fault: str | None) -> None:
+@pytest.mark.parametrize(
+    ("fresh", "severity", "expected_high"),
+    [(False, "UNKNOWN", 14), (True, "MEDIUM", 14), (True, "HIGH", 16)],
+)
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "missing",
+        "duplicate",
+        "mixed",
+        "low",
+        "critical",
+        "wrong-purl",
+        "wrong-target",
+        "extra-high",
+        "extra-critical",
+    ],
+)
+def test_alertmanager_062_old_control_requires_exact_vendor_pair(
+    fresh: bool, severity: str, expected_high: int, fault: str | None
+) -> None:
     report = _synthetic_AM_negative_control(True)
     plan = {
         "derivation_epoch": alertmanager_source._ALERT_XNET062_METADATA_EPOCH,
         "command_module_inputs": {"alertmanager": {}, "amtool": {}},
     }
     for row in report["Results"]:
-        for cve, purl in (
-            ("CVE-2026-78661", "pkg:golang/golang.org/x/net@v0.58.0"),
-            ("CVE-2026-97054", "pkg:golang/stdlib@v1.26.8"),
+        for cve, level, purl in (
+            ("CVE-2026-78661", "HIGH", "pkg:golang/golang.org/x/net@v0.58.0"),
+            ("CVE-2026-97054", severity, "pkg:golang/stdlib@v1.26.8"),
         ):
             row["Vulnerabilities"].append(
-                {"VulnerabilityID": cve, "Severity": "HIGH", "PkgIdentifier": {"PURL": purl}}
+                {"VulnerabilityID": cve, "Severity": level, "PkgIdentifier": {"PURL": purl}}
             )
-    row = report["Results"][0]
+    first, second = report["Results"]
+    finding = first["Vulnerabilities"][-1]
     if fault == "missing":
-        row["Vulnerabilities"].pop()
+        first["Vulnerabilities"].pop()
     elif fault == "duplicate":
-        row["Vulnerabilities"].append(row["Vulnerabilities"][-1])
-    elif fault == "wrong-severity":
-        row["Vulnerabilities"][-1]["Severity"] = "MEDIUM"
-    elif fault == "candidate-row":
-        row["Target"] = "usr/bin/alertmanager"
+        first["Vulnerabilities"].append(finding.copy())
+    elif fault == "mixed":
+        finding["Severity"] = "HIGH" if severity == "MEDIUM" else "MEDIUM"
+    elif fault in ("low", "critical"):
+        for row in report["Results"]:
+            row["Vulnerabilities"][-1]["Severity"] = fault.upper()
+    elif fault == "wrong-purl":
+        finding["PkgIdentifier"] = {"PURL": "pkg:golang/stdlib@v1.26.9"}
+    elif fault == "wrong-target":
+        second["Vulnerabilities"].append(first["Vulnerabilities"].pop())
+    elif fault in ("extra-high", "extra-critical"):
+        first["Vulnerabilities"].append(
+            {
+                **finding,
+                "VulnerabilityID": "CVE-unexpected",
+                "Severity": fault.split("-")[1].upper(),
+            }
+        )
     if fault is None:
         assert (
             alertmanager_source._alertmanager_vulnerability_control(
@@ -18330,26 +18371,22 @@ def test_alertmanager_fresh_old_control_requires_exact_two_new_go_rows(fault: st
                 "synthetic-control",
                 current=True,
                 qualification_plan=plan,
-                fresh_scan=True,
+                fresh_scan=fresh,
             )["known_HIGH_occurrences"]
-            == 16
+            == expected_high
         )
-        with pytest.raises(prometheus_source.QualificationError):
-            alertmanager_source._alertmanager_vulnerability_control(
-                report,
-                "synthetic-control",
-                current=True,
-                qualification_plan=plan,
-            )
-    else:
-        with pytest.raises(prometheus_source.QualificationError):
-            alertmanager_source._alertmanager_vulnerability_control(
-                report,
-                "synthetic-control",
-                current=True,
-                qualification_plan=plan,
-                fresh_scan=True,
-            )
+        fresh = not fresh
+    diagnostic = "AM_known_vulnerable_control_inventory_changed_HOLD"
+    if fault == "duplicate":
+        diagnostic += "_duplicate_or_identity"
+    with pytest.raises(prometheus_source.QualificationError, match=f"^{diagnostic}$"):
+        alertmanager_source._alertmanager_vulnerability_control(
+            report,
+            "synthetic-control",
+            current=True,
+            qualification_plan=plan,
+            fresh_scan=fresh,
+        )
 
 
 @pytest.mark.parametrize(
@@ -18490,7 +18527,106 @@ def test_alertmanager_transition_binds_real_git_successor(
     if case in ("pins", "mapping"):
         alertmanager_source._alertmanager_transition_successor(API(), repo, head, controller, 17)
     else:
-        with pytest.raises(prometheus_source.QualificationError):
+        diagnostic = {
+            "extra": "AM_transition_only_two_callers",
+            "altered-caller": "AM_transition_exact_caller_pin",
+            "wrong-mapping": "AM_transition_closeout_only",
+            "wrong-workflow": "AM_transition_executing_tree",
+            "nonbytes-git": "AM_transition_native_Git_bytes",
+            "null-parents": "AM_transition_direct_parent",
+            "nonstr-parent": "AM_transition_direct_parent",
+            "boolean-pr": "AM_transition_controller_designation",
+        }[case]
+        with pytest.raises(prometheus_source.QualificationError, match=diagnostic):
             alertmanager_source._alertmanager_transition_successor(
                 API(), repo, head, controller, True if case == "boolean-pr" else 17
             )
+
+
+def test_alertmanager_transition_merge_proves_distant_native_ancestry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import time
+
+    git = shutil.which("git")
+    assert git is not None
+    root = tmp_path / "full"
+    root.mkdir()
+    env = git_env_without_parent_state()
+
+    def command(*args: str, payload: bytes | None = None) -> str:
+        result = subprocess.run(
+            [git, *safe_git_config_args(), "-C", str(root), *args],
+            check=True,
+            capture_output=True,
+            input=payload,
+            env=env,
+        )
+        return result.stdout.decode().strip()
+
+    command("init", "-q")
+    command("symbolic-ref", "HEAD", "refs/heads/main")
+    commits = []
+    for i in range(1, 254):
+        parent = f"from :{i-1}\n" if i > 1 else ""
+        commits.append(
+            f"commit refs/heads/main\nmark :{i}\ncommitter Fixture <test@example.invalid> 1000000000 +0000\ndata 1\nx\n{parent}\n"
+        )
+    command("fast-import", "--quiet", payload="".join(commits).encode())
+    base = command("rev-parse", "HEAD~252")
+    merged = command("rev-parse", "HEAD~251")
+    head = command("rev-parse", "HEAD")
+    monkeypatch.setattr(alertmanager_source, "_ALERT_TRANSITION_BASE", base)
+    calls: list[str] = []
+
+    class API:
+        deadline = time.monotonic() + 60
+
+        def json(self, endpoint: str) -> dict[str, Any]:
+            calls.append(endpoint)
+            assert endpoint == "/repos/Katsiarynakavaleuskaya/PulsePlate/pulls/2501"
+            return {
+                "number": 2501,
+                "state": "closed",
+                "merged": True,
+                "merge_commit_sha": merged,
+                "head": {
+                    "ref": alertmanager_source._ALERT_TRANSITION_BRANCH,
+                    "repo": {"id": 1043311030},
+                },
+                "base": {"ref": "main", "repo": {"id": 1043311030}},
+            }
+
+    api = API()
+    assert (
+        alertmanager_source._alertmanager_merged_ref(
+            api,
+            alertmanager_source._ALERT_TRANSITION_BRANCH,
+            head,
+            root,
+            number=2501,
+        )
+        == merged
+    )
+    assert len(calls) == 1
+    with pytest.raises(prometheus_source.QualificationError, match="^native_failed$"):
+        alertmanager_source._alertmanager_native_ancestor(api, root, head, base)
+    unrelated = command(
+        "-c",
+        "user.name=Fixture",
+        "-c",
+        "user.email=test@example.invalid",
+        "commit-tree",
+        command("rev-parse", "HEAD^{tree}"),
+        "-m",
+        "unrelated root",
+    )
+    with pytest.raises(prometheus_source.QualificationError, match="^native_failed$"):
+        alertmanager_source._alertmanager_native_ancestor(api, root, unrelated, head)
+    shallow = tmp_path / "shallow"
+    command("clone", "--quiet", "--depth", "1", root.as_uri(), str(shallow))
+    with pytest.raises(prometheus_source.QualificationError, match="^AM_ancestry_shallow_history$"):
+        alertmanager_source._alertmanager_native_ancestor(api, shallow, head, head)
+    (root / ".git/info/grafts").write_text(f"{head} {base}\n")
+    with pytest.raises(prometheus_source.QualificationError, match="^AM_ancestry_grafts$"):
+        alertmanager_source._alertmanager_native_ancestor(api, root, base, head)

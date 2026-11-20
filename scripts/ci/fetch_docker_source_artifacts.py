@@ -4148,21 +4148,69 @@ def _alertmanager_2495_publisher_consumer_bytes(
     )
 
 
+def _alertmanager_native_ancestor(api: GitHubRead, root: Path, ancestor: str, head: str) -> None:
+    """Prove a relation between two authenticated commits in the full selected checkout."""
+    import shutil
+    from scripts.ci.prometheus_source_image import Native, require
+
+    git = shutil.which("git")
+    require(
+        root.is_absolute()
+        and root.is_dir()
+        and git is not None
+        and Path(git).is_absolute()
+        and all(
+            type(sha) is str and re.fullmatch(r"[0-9a-f]{40}", sha) is not None
+            for sha in (ancestor, head)
+        ),
+        "AM_ancestry_native_arguments",
+    )
+    with tempfile.TemporaryDirectory(prefix="pulseplate-am-ancestry-") as temporary:
+        work = Path(temporary).resolve(strict=True)
+        native = Native(work, min(api.deadline, time.monotonic() + 15), 0)
+        env = {
+            "PATH": "/usr/bin:/bin",
+            "HOME": str(work),
+            "LANG": "C",
+            "GIT_NO_REPLACE_OBJECTS": "1",
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_ALLOW_PROTOCOL": "",
+        }
+        prefix = [
+            cast(str, git),
+            "--no-replace-objects",
+            "-c",
+            "core.fsmonitor=false",
+            "-c",
+            "core.hooksPath=/dev/null",
+        ]
+
+        def query(label: str, *args: str) -> bytes:
+            raw: object = native.run(
+                [*prefix, *args], label, env, cwd=root, maximum_seconds=8, output_bound=4096
+            )
+            require(type(raw) is bytes, "AM_ancestry_native_bytes")
+            return cast(bytes, raw)
+
+        require(
+            query("full-history", "rev-parse", "--is-shallow-repository") == b"false\n",
+            "AM_ancestry_shallow_history",
+        )
+        graft_path = root / os.fsdecode(
+            query("graft-location", "rev-parse", "--git-path", "info/grafts").rstrip(b"\n")
+        )
+        require(not graft_path.exists() and not graft_path.is_symlink(), "AM_ancestry_grafts")
+        query("eligible-ancestor", "merge-base", "--is-ancestor", ancestor, head)
+
+
 def _alertmanager_merged_ref(
-    api: GitHubRead, branch: str, descendant: str, *, number: int | None = None
+    api: GitHubRead, branch: str, descendant: str, root: Path, *, number: int
 ) -> str:
-    """Require one actual merged same-repository PR from the designated exact branch."""
-    from scripts.ci.prometheus_source_image import require, require_native_ancestor
+    """Require the designated merged same-repository PR from its exact branch."""
+    from scripts.ci.prometheus_source_image import require
 
     endpoint = "/repos/Katsiarynakavaleuskaya/PulsePlate"
-    if number is None:
-        query = endpoint + "/pulls?state=closed&base=main&head=Katsiarynakavaleuskaya:" + branch
-        rows = api.json(query + "&per_page=2&page=1")
-        require(
-            type(rows) is list and len(rows) == 1 and type(rows[0]) is dict,
-            "AM_unique_closed_transition_PR",
-        )
-        number = rows[0].get("number")
     require(type(number) is int and number > 0, "AM_merged_source_PR_number")
     pr = api.json(endpoint + "/pulls/" + str(number))
     require(
@@ -4185,10 +4233,10 @@ def _alertmanager_merged_ref(
         type(merge) is str and re.fullmatch(r"[0-9a-f]{40}", merge) is not None,
         "AM_merged_source_SHA",
     )
-    require_native_ancestor(api, merge, descendant)
+    _alertmanager_native_ancestor(api, root, merge, descendant)
     if branch == _ALERT_TRANSITION_BRANCH:
         require(merge != _ALERT_TRANSITION_BASE, "AM_transition_requires_new_main")
-        require_native_ancestor(api, _ALERT_TRANSITION_BASE, merge)
+        _alertmanager_native_ancestor(api, root, _ALERT_TRANSITION_BASE, merge)
     return cast(str, merge)
 
 
@@ -4291,8 +4339,10 @@ def _alertmanager_publication_predecessor(
             if not _alertmanager_2495_publisher_consumer_bytes(name, raw, actual):
                 return None
             if not consumer_2495:
-                _alertmanager_merged_ref(api, _ALERT_2495_BRANCH, revision, number=2495)
-        _alertmanager_merged_ref(api, _ALERT_TRANSITION_BRANCH, publisher)
+                _alertmanager_merged_ref(api, _ALERT_2495_BRANCH, revision, root, number=2495)
+        _alertmanager_merged_ref(
+            api, _ALERT_TRANSITION_BRANCH, publisher, root, number=_ALERT_TRANSITION_PR
+        )
         observed_dir = work / (str(run["id"]) + "-current-observations")
         fresh_directory(observed_dir)
         source_hashes = {
@@ -7233,18 +7283,13 @@ def _alertmanager_vulnerability_control(
         for cve, purl in identities
     }
     controlled_ids = {cve for cve, _ in identities} | {"CVE-2026-111943"}
-    if fresh_scan and xnet062:
-        expected.update(
-            (target, "CVE-2026-97054", "pkg:golang/stdlib@v1.26.8", "HIGH")
-            for target in ("bin/alertmanager", "bin/amtool")
-        )
-        controlled_ids.add("CVE-2026-97054")
     if xnet062:
         expected |= {
             (target, "CVE-2026-78661", "pkg:golang/golang.org/x/net@v0.58.0", "HIGH")
             for target in ("bin/alertmanager", "bin/amtool")
         }
-        controlled_ids.add("CVE-2026-78661")
+        require(type(fresh_scan) is bool, "AM_control_062_scan_phase")
+        controlled_ids.update(("CVE-2026-78661", "CVE-2026-97054"))
     found, targets, ca_findings, controlled = [], [], [], []
     for row in report["Results"]:
         require(
@@ -7304,8 +7349,23 @@ def _alertmanager_vulnerability_control(
         )
         expected |= {item for item in ca_findings if item[3] == "HIGH"}
     controlled_expected = expected | {item for item in ca_findings if item[3] == "MEDIUM"}
+    controlled_rows = set(controlled)
+    if xnet062:
+        # The same old binary pair was reclassified by the scanner database.
+        # Match one whole observed pair from the independently selected scan phase.
+        vendor_pairs = [
+            {
+                (target, "CVE-2026-97054", "pkg:golang/stdlib@v1.26.8", severity)
+                for target in ("bin/alertmanager", "bin/amtool")
+            }
+            for severity in (("HIGH", "MEDIUM") if fresh_scan else ("UNKNOWN",))
+        ]
+        matched = [pair for pair in vendor_pairs if pair <= controlled_rows]
+        require(len(matched) == 1, "AM_known_vulnerable_control_inventory_changed_HOLD")
+        controlled_expected |= matched[0]
+        expected |= {row for row in matched[0] if row[3] == "HIGH"}
     require(
-        len(controlled) == len(controlled_expected) and set(controlled) == controlled_expected,
+        len(controlled) == len(controlled_expected) and controlled_rows == controlled_expected,
         "AM_known_vulnerable_control_inventory_changed_HOLD_duplicate_or_identity",
     )
     require(
@@ -10461,7 +10521,10 @@ def _alertmanager_live_security(args: argparse.Namespace) -> None:
                 "AM_live_native_report_missing",
             )
             target.chmod(0o600)
-            report = one_object(target.read_bytes())
+            with target.open("rb") as stream:
+                raw_report = stream.read(64 * 1024**2 + 1)
+            require(0 < len(raw_report) <= 64 * 1024**2, "AM_live_native_report_missing")
+            report = one_object(raw_report)
             require(
                 type(report.get("SchemaVersion")) is int and report["SchemaVersion"] == 2,
                 "AM_live_native_schema",
@@ -10471,7 +10534,7 @@ def _alertmanager_live_security(args: argparse.Namespace) -> None:
                 and {name: file_hash(cache / name) for name in database} == database,
                 "AM_live_scanner_DB_post_drift",
             )
-            result["report_sha256"][label] = file_hash(target)
+            result["report_sha256"][label] = sha256(raw_report).hexdigest()
             return cast(dict[str, Any], report)
 
         result: dict[str, Any] = {
@@ -11438,6 +11501,7 @@ def _alertmanager_original_lineage(
 
 
 _ALERT_2495_BRANCH = "codex/npm-braces-build-prerequisite"
+_ALERT_TRANSITION_PR = 2501
 _ALERT_TRANSITION_BRANCH = "codex/alertmanager-controller-transition"
 _ALERT_TRANSITION_BASE = "2d1df880c8ac2fb1ea53bf09836905194fb47121"
 _ALERT_INCUMBENT_CONTROLLER = "41f275fc6bec94dbf04c02338d560446bb846e0c"
@@ -11669,12 +11733,18 @@ def _alertmanager_reader_route(
             number != own_pr or pr["head"].get("ref") == own_branch,
             "AM_receiver_branch",
         )
-        if pr["head"].get("ref") == _ALERT_TRANSITION_BRANCH:
+        require(
+            (number == _ALERT_TRANSITION_PR) == (pr["head"].get("ref") == _ALERT_TRANSITION_BRANCH),
+            "AM_transition_PR_identity",
+        )
+        if number == _ALERT_TRANSITION_PR:
             require(
                 current_main == _ALERT_TRANSITION_BASE
                 and upstream == "0.34.2"
                 and _alertmanager_original_lineage(api) == upstream
-                and _alertmanager_merged_ref(api, _ALERT_Q_BRANCH, current_main, number=2494)
+                and _alertmanager_merged_ref(
+                    api, _ALERT_Q_BRANCH, current_main, args.material_root, number=2494
+                )
                 == current_main,
                 "AM_transition_original_lineage_and_base",
             )
@@ -11998,7 +12068,9 @@ def _alertmanager_pull_published(
     if base_templates != templates and _alertmanager_2495_compose_sources(
         templates, base_templates
     ):
-        _alertmanager_merged_ref(api, _ALERT_2495_BRANCH, route["base"], number=2495)
+        _alertmanager_merged_ref(
+            api, _ALERT_2495_BRANCH, route["base"], args.material_root, number=2495
+        )
         templates = base_templates
     _alertmanager_render_source_contract(
         base,
@@ -12510,7 +12582,9 @@ def _alertmanager_publish(
             ),
             "AM_separate_human_merge_observed",
         )
-        _alertmanager_merged_ref(api, _ALERT_TRANSITION_BRANCH, args.source_sha)
+        _alertmanager_merged_ref(
+            api, _ALERT_TRANSITION_BRANCH, args.source_sha, REPO_ROOT, number=_ALERT_TRANSITION_PR
+        )
         count = pr.get("commits")
         require(type(count) is int and 0 < count <= 250, "AM_publication_PR_commit_inventory")
         commits = api.pages(endpoint + "/pulls/2494/commits", None, count)
@@ -13509,7 +13583,7 @@ def _alertmanager_new_source_admission(
     api: GitHubRead, source: str, *, support_only: bool
 ) -> dict[str, Any]:
     """Admit disjoint real PR2494 qualification C and actual merged-main H runs."""
-    from scripts.ci.prometheus_source_image import require, require_native_ancestor
+    from scripts.ci.prometheus_source_image import require
 
     branch = "main" if os.environ.get("GITHUB_REF") == "refs/heads/main" else _ALERT_Q_BRANCH
     endpoint = "/repos/Katsiarynakavaleuskaya/PulsePlate"
@@ -13579,8 +13653,10 @@ def _alertmanager_new_source_admission(
         )
         merge = cast(str, merge)
         # Squash merges need merge_commit -> H, never the false premerge C -> H relation.
-        require_native_ancestor(api, merge, source)
-        _alertmanager_merged_ref(api, _ALERT_TRANSITION_BRANCH, source)
+        _alertmanager_native_ancestor(api, REPO_ROOT, merge, source)
+        _alertmanager_merged_ref(
+            api, _ALERT_TRANSITION_BRANCH, source, REPO_ROOT, number=_ALERT_TRANSITION_PR
+        )
         if not support_only:
             expected_candidate = _alertmanager_accepted_producer()
             count = pr.get("commits")

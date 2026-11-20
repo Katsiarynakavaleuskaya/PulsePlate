@@ -686,6 +686,20 @@ def caddy_bound_pr(api: Callable[[str], Any], selected: str) -> dict[str, Any]:
             ):
                 raise ValueError("Caddy transition PR identity differs")
         pr = api(f"/pulls/{expected_number}")
+        if kind == "push":
+            state, merged, merge_sha = pr["state"], pr["merged"], pr["merge_commit_sha"]
+            if (
+                state not in ("open", "closed")
+                or type(merged) is not bool
+                or (merged and (state != "closed" or merge_sha is None))
+                or (
+                    merge_sha is not None
+                    and (type(merge_sha) is not str or not re.fullmatch(r"[0-9a-f]{40}", merge_sha))
+                )
+            ):
+                raise ValueError("Caddy main merge evidence is invalid")
+            if not merged or merge_sha != selected:
+                continue
         records = [event["pull_request"], pr] if kind == "pull_request" else [pr]
         for record in records:
             try:
@@ -697,15 +711,69 @@ def caddy_bound_pr(api: Callable[[str], Any], selected: str) -> dict[str, Any]:
                     exact_data(record[side]["repo"]["id"], 1043311030)
             except QualificationError as exc:
                 raise ValueError("Caddy original PR identity differs") from exc
-            if kind != "push" and (record["state"] != "open" or record["head"]["sha"] != selected):
+            source = record["head"]["sha"]
+            if type(source) is not str or not re.fullmatch(r"[0-9a-f]{40}", source):
+                raise ValueError("Caddy PR source head is invalid")
+            if kind != "push" and (record["state"] != "open" or source != selected):
                 raise ValueError("Caddy current authenticated PR source changed")
-        if kind != "push" or (
-            pr["state"] == "closed" and pr["merged"] is True and pr["merge_commit_sha"] == selected
-        ):
-            matches.append(pr)
+        matches.append(pr)
     if len(matches) != 1:
         raise ValueError("Caddy observation requires one exact accepted PR or main merge")
     return dict(matches[0])
+
+
+def caddy_producer_in_pr(
+    api: Callable[[str], Any], number: int, source: str, final: str, branch: str
+) -> bool:
+    """Return false only for a producer absent from a complete authenticated PR graph."""
+    from types import SimpleNamespace
+    from typing import cast
+
+    from scripts.ci.prometheus_source_image import (
+        GitHubRead,
+        QualificationError,
+        authenticate_pr_source,
+    )
+
+    prefix = "/repos/" + CADDY_REPOSITORY
+
+    def read(endpoint: str) -> Any:
+        return api(endpoint.removeprefix(prefix))
+
+    proof_api = SimpleNamespace(json=read)
+
+    def pages(endpoint: str, key: str | None, count: int) -> list[dict[str, Any]]:
+        commits: list[dict[str, Any]] = GitHubRead.pages(
+            cast(GitHubRead, proof_api), endpoint, key, count
+        )
+        heads = [row.get("sha") for row in commits]
+        if (
+            any(type(sha) is not str or not re.fullmatch(r"[0-9a-f]{40}", sha) for sha in heads)
+            or len(set(heads)) != count
+            or final not in heads
+        ):
+            raise ValueError("Caddy authenticated PR commit inventory differs")
+        for row in commits:
+            parents = row.get("parents")
+            if type(parents) is not list or any(
+                type(parent) is not dict
+                or type(parent.get("sha")) is not str
+                or not re.fullmatch(r"[0-9a-f]{40}", parent["sha"])
+                for parent in parents
+            ):
+                raise ValueError("Caddy authenticated PR parent inventory differs")
+        return commits
+
+    proof_api.pages = pages
+    try:
+        authenticate_pr_source(
+            cast(GitHubRead, proof_api), number, source, final, "refs/heads/" + branch
+        )
+    except QualificationError as exc:
+        if str(exc) not in {"producer_and_final_within_PR", "producer_ancestor_within_PR"}:
+            raise
+        return False
+    return True
 
 
 def caddy_owner_dispatch(head: str) -> None:
@@ -735,8 +803,8 @@ def caddy_owner_dispatch(head: str) -> None:
 
 def validate_caddy_prebuild(
     work: Path, inputs: dict[str, dict[str, object]], checked_head: str, deadline: float
-) -> None:
-    """Bind the current metadata step's completed observation before a BUILD charge."""
+) -> dict[str, Any]:
+    """Bind the current metadata step and return the checked build admission."""
     from scripts.ci.prometheus_source_image import (
         canonical_data,
         exact_data,
@@ -783,6 +851,9 @@ def validate_caddy_prebuild(
     }
     if env["GITHUB_REF"] != "refs/heads/" + CADDY_ORIGINAL_BRANCH:
         expected_state["source_branch"] = env["GITHUB_REF"].removeprefix("refs/heads/")
+        expected_state["pr_head"] = checked_head
+        if type(state.get("source_pr")) is not int or state["source_pr"] <= 0:
+            raise ValueError("Caddy admitted PR number is invalid")
     exact_data({key: state.get(key) for key in expected_state}, expected_state)
     metadata = work / "caddy-xnet062-metadata"
     report, report_hash = read_object(metadata / "evidence/qualification.json", 16 * 1024**2)
@@ -867,6 +938,7 @@ def validate_caddy_prebuild(
             != CADDY_XNET062_PROFILE_SHA256
         ):
             raise ValueError("Caddy reviewed selected-source profile differs")
+    return state
 
 
 # The original module checksum remains pre-replacement source evidence.
@@ -1166,6 +1238,55 @@ def caddy_ci_source_inventory(root: Path, paths: list[str]) -> dict[str, dict[st
             "mode": stat.S_IMODE(path.stat().st_mode),
         }
     return inventory
+
+
+def clean_staged_caddy_build_context(work: Path, context: Path) -> None:
+    """Remove the context created for this job without following an aliased path."""
+    if context.parent != work or not context.name.startswith("caddy-build-context-"):
+        raise ValueError("Caddy staged build context ownership differs")
+    shutil.rmtree(context)
+
+
+def stage_caddy_build_context(
+    root: Path,
+    work: Path,
+    inputs: dict[str, dict[str, object]],
+    remaining: Callable[[float], float],
+) -> Path:
+    """Populate a fresh Docker context with only the verified tracked frontend bytes."""
+    context = Path(tempfile.mkdtemp(prefix="caddy-build-context-", dir=work))
+    try:
+        for name, expected in inputs.items():
+            if not name.startswith("frontend/"):
+                continue
+            remaining(1)
+            source = root / name
+            with os.fdopen(
+                os.open(source, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK), "rb"
+            ) as stream:
+                info = os.fstat(stream.fileno())
+                if not stat.S_ISREG(info.st_mode) or info.st_size != expected["bytes"]:
+                    raise ValueError("Caddy build context source changed before staging")
+                raw = stream.read(info.st_size + 1)
+            mode = stat.S_IMODE(info.st_mode)
+            if {
+                "sha256": hashlib.sha256(raw).hexdigest(),
+                "bytes": len(raw),
+                "mode": mode,
+            } != expected:
+                raise ValueError("Caddy build context source changed before staging")
+            target = context / source.relative_to(root / "frontend")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with target.open("xb") as stream:
+                stream.write(raw)
+            target.chmod(mode)
+    except BaseException as error:
+        try:
+            clean_staged_caddy_build_context(work, context)
+        except OSError as cleanup_error:
+            error.add_note(f"Caddy staged build context cleanup failed: {cleanup_error}")
+        raise
+    return context
 
 
 _CADDY_SYNTHETIC_ENVIRONMENT = (

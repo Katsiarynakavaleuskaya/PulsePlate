@@ -933,39 +933,26 @@ def test_finite_arm_sdk_origin_is_manual_canonical_static_and_not_tool_trust() -
 
 
 def _am_transition_merge_response(endpoint: str, head: str) -> Any:
-    base = docker_sources._ALERT_TRANSITION_BASE
-    branch = docker_sources._ALERT_TRANSITION_BRANCH
-    prefix = "/repos/Katsiarynakavaleuskaya/PulsePlate"
-    if (
-        endpoint
-        == prefix
-        + "/pulls?state=closed&base=main&head=Katsiarynakavaleuskaya:"
-        + branch
-        + "&per_page=2&page=1"
-    ):
-        return [{"number": 999}]
-    if endpoint == prefix + "/pulls/999":
+    if endpoint == "/repos/Katsiarynakavaleuskaya/PulsePlate/pulls/2501":
         return {
-            "number": 999,
+            "number": 2501,
             "state": "closed",
             "merged": True,
             "merge_commit_sha": head,
-            "head": {"repo": {"id": 1043311030}, "ref": branch},
+            "head": {"repo": {"id": 1043311030}, "ref": docker_sources._ALERT_TRANSITION_BRANCH},
             "base": {"repo": {"id": 1043311030}, "ref": "main"},
         }
-    if endpoint == prefix + "/git/commits/" + head:
-        return {"sha": head}
-    if endpoint == prefix + "/compare/" + base + "..." + head:
-        return {
-            "base_commit": {"sha": base},
-            "merge_base_commit": {"sha": base},
-            "status": "ahead",
-            "behind_by": 0,
-            "ahead_by": 1,
-            "total_commits": 1,
-            "commits": [{"sha": head, "parents": [{"sha": base}]}],
-        }
     return None
+
+
+def _am_fixture_transition_git(monkeypatch: pytest.MonkeyPatch, head: str) -> None:
+    """The synthetic API subjects have just the two explicitly admitted native Git relations."""
+
+    def observed(api: Any, root: Path, ancestor: str, descendant: str) -> None:
+        assert root.is_absolute() and descendant == head
+        assert ancestor in (head, docker_sources._ALERT_TRANSITION_BASE)
+
+    monkeypatch.setattr(docker_sources, "_alertmanager_native_ancestor", observed)
 
 
 def _load_workflow(path: Path) -> dict[str, object]:
@@ -4252,7 +4239,11 @@ def test_alertmanager_module_mode_is_manual_first_attempt_and_build_is_held() ->
     assert 'test "$ALERTMANAGER_MODE" = module-qualify' in first
     assert 'test "$SOURCE_SHA" = "$GITHUB_SHA"' in first
     checkout = _step_by_name(job, "Checkout authenticated Alertmanager preparation")
-    assert checkout["with"] == {"ref": "${{ github.sha }}", "persist-credentials": False}
+    assert checkout["with"] == {
+        "ref": "${{ github.sha }}",
+        "fetch-depth": 0,
+        "persist-credentials": False,
+    }
     qualification = _step_by_name(
         job, "Qualify exact inputs and modules under one metadata-only clock"
     )
@@ -11859,6 +11850,13 @@ def test_alertmanager_native_producers_keep_qualified_runner(job_name: str) -> N
     """Keep native config-ID consumers on their qualified Docker runner environment."""
     workflow = _load_workflow(WORKFLOWS_DIR / "cd.yml")
     assert workflow["jobs"][job_name]["runs-on"] == "ubuntu-24.04"
+    checkouts = [
+        step
+        for step in workflow["jobs"][job_name]["steps"]
+        if step.get("uses", "").startswith("actions/checkout@")
+    ]
+    assert len(checkouts) == 1 and checkouts[0]["with"]["fetch-depth"] == 0
+    assert checkouts[0]["with"]["persist-credentials"] is False
 
 
 @pytest.fixture
@@ -14419,6 +14417,7 @@ def test_am_current_source_admission_keeps_squash_C_and_H_separate(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: str, fault: str | None
 ) -> None:
     head, candidate = "a" * 40, "b" * 40
+    _am_fixture_transition_git(monkeypatch, head)
     branch = "main" if mode == "H" else docker_sources._ALERT_Q_BRANCH
     for name, value in {
         "GITHUB_REF": "refs/heads/" + branch,
@@ -15237,6 +15236,7 @@ def test_alertmanager_real_publisher_body_holds_effects_and_retains_observed_wri
     from scripts.ci import prometheus_source_image as transport
 
     h, c, merge = "a" * 40, "c" * 40, "d" * 40
+    _am_fixture_transition_git(monkeypatch, h)
     graph = {
         "manifest": {"digest": "sha256:" + "1" * 64},
         "config": {"digest": "sha256:" + "2" * 64},
@@ -15930,6 +15930,7 @@ def test_alertmanager_current_durable_predecessor_requires_complete_H_publicatio
     root, work = tmp_path / "checkout", tmp_path / "proof"
     root.mkdir()
     h, c, merge, base, tree = (letter * 40 for letter in ("a", "b", "c", "d", "e"))
+    _am_fixture_transition_git(monkeypatch, h)
     names = [
         *docker_sources._ALERT_Q_SOURCE_FILES,
         "tests/test_notify_premium_alias_checkpoint_failure.py",
@@ -16946,6 +16947,7 @@ def test_alertmanager_main_support_metadata_can_lack_C_but_build_cannot(
     fault: str | None,
 ) -> None:
     head = "a" * 40
+    _am_fixture_transition_git(monkeypatch, head)
     for name, value in {
         "GITHUB_REF": "refs/heads/main",
         "GITHUB_EVENT_NAME": "workflow_dispatch",
