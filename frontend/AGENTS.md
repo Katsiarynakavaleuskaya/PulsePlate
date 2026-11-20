@@ -24,7 +24,9 @@
   contracts bind reviewed wiring only; actual ESLint execution is separate evidence.
 - Tailwind uses the existing PostCSS configuration and explicit `@config`/`@source`
   declarations in `src/index.css`; keep source discovery limited to `index.html`
-  and `src/**/*.{ts,tsx}`. Generated token mirrors and their import order stay
+  and `src/**/*.{ts,tsx}`. When changing discovery, verify that adding an in-scope
+  TSX file updates the running app’s stylesheet without navigation and that a
+  file outside the source root contributes no utility. Generated token mirrors and their import order stay
   authoritative. For build-stack changes, compare actual compiled styles,
   class-merge winners, keyboard/forced-color focus and a genuine dev/HMR update;
   selector presence alone does not establish compatibility. `npm run smoke:css`

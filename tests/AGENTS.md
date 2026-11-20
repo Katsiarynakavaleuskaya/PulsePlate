@@ -70,7 +70,8 @@
   of main can omit that commit. Before running the contracts in a fresh clone,
   fetch the exact public controller revision named by the workflow into the
   material repository without a depth limit. CI prepares the object before lint
-  and parallel main tests. The tests themselves remain offline.
+  and parallel main tests. The Nightly Full Tests workflow prepares it before
+  starting its shards. The tests themselves remain offline.
 - Workflow tests for pinned external verifier output must exercise the successful
   consumer path using an observed native output shape, as well as rejection
   paths. Keep statement-schema and predicate-schema versions independent;

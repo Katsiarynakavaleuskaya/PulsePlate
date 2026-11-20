@@ -23,8 +23,9 @@ both main and the original candidate. The development client now includes its
 loaded stylesheet in the update when a TypeScript file is created under
 `src/` (`frontend/vite.config.ts:10`). In the running Chromium app a new
 in-scope utility produced 137px, while a file outside the source root produced
-no 139px utility. Edits to the existing index and source produced 143px and
-145px, respectively. The browser kept its document through these updates.
+no 139px utility. The browser kept the same document when the file was added.
+Editing the existing HTML index produced 143px through a normal page reload.
+Editing an existing TSX file produced 145px through a stylesheet update.
 The fixtures were restored. A separate cold check passed. Both macOS production
 builds, before and after this development-only change, produced identical bytes
 for all 34 files.
