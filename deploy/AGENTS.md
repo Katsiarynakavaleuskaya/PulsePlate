@@ -240,7 +240,7 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
 
 - The sole repository image record is
   `deploy/postgres-pgvector/image-manifest.json`. It binds the exact DHI
-  PostgreSQL 15.19 Alpine 3.23 runtime/dev platform manifests, pgvector 0.8.6
+  PostgreSQL 15.20 Alpine 3.23 runtime/dev platform manifests, pgvector 0.8.6
   source commit/archive hash, exact APK build closure and acquisition record,
   supplier-signed index, pinned Buildx/BuildKit inputs, reproducible build
   epoch, Containerfile hash, derived GHCR platform/config digests, and Trivy
@@ -446,7 +446,8 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   platform/config/labels, and remove credentials. An existing self-hosted
   transition then captures container/image/volume identity, quiesces worker,
   Caddy, and app, and requires the closed predecessor/current image identity,
-  UID 70, exact PGDATA, PostgreSQL 15.19, stable runtime identity, and a
+  UID 70, exact PGDATA, PostgreSQL 15.19 for a predecessor or 15.20 for the
+  selected current image, stable runtime identity, and a
   mode-0600 custom dump accepted by `pg_restore --list` from the still-running
   old database before stopping it. Only then may the candidate use
   `--pull never`; orphan or ambiguous identities/volumes fail closed. Hosts

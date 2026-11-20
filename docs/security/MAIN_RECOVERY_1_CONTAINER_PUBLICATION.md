@@ -1507,3 +1507,47 @@ derivations require a new source-bound native result. Original failed output
 and charged attempts remain recorded. Evidence
 `scripts/ci/prometheus_source_image.py:3588` and
 `tests/test_prometheus_source_image.py:11785`.
+
+## November 18 PostgreSQL 15.20 image qualification
+
+[Main CD publisher job 135120888117](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/44392698299/job/135120888117)
+rejected all four PostgreSQL 15.19 scan subjects. Artifact `14469975395`
+retained 294 HIGH/CRITICAL occurrences across the three public reports,
+covering 61 distinct vulnerability IDs. The final OCI report remained private.
+
+Docker Scout 1.24.0 verified the two replacement DHI 15.20 platform subjects.
+The versioned subject names and platform digests are checked by
+`.github/workflows/cd.yml:3402`. The original signed APK index is 2,703,401
+bytes. Its 41 selected archives produced 94 installed packages and 64
+installed pgvector artifacts. Two sequential no-cache linux/amd64 builds with
+the pinned Buildx and BuildKit versions produced byte-identical OCI archives
+with SHA-256 `b6b97a682cc8f245c981676b5b5a816574a6c904dfd5d83b34a08fa416707a3e`.
+The platform, config, source, input, closure and artifact identities are in
+`deploy/postgres-pgvector/image-manifest.json:6`. The 13 layers contain
+eight base layers and five derived layers. The empty compatibility mountpoint
+retains UID/GID 70 and mode 0700.
+
+Trivy 0.74.0 used the same frozen database for all four native subjects.
+Its database SHA-256 was `d06c4389045c2eb4a755b6a25de8c0716007e6fcf287cf9c3778dbbaab560175`
+(updated November 18 at 19:07 UTC). Full collection and the unsuppressed
+HIGH/CRITICAL gate each exited 0 for every subject. The four reports
+recorded zero HIGH/CRITICAL findings and zero secret findings.
+
+| Subject | Platform or builder image SHA-256 | Full report SHA-256 |
+| --- | --- | --- |
+| DHI runtime | `ac5f0af144f2123cfb0fd89d9e38843ece6bfaef6bb7240d9ed7e6da88565325` | `53398ec79f98f6427f920fd4b941f7de42217a4e712fb021a3e2da419e8e0223` |
+| DHI developer | `d518873fc4894f792f948bca16ab195f34212057dddc78ff2f0e4329469ecacd` | `cdcc6ebab24c382b91a7cd10bfc63a4f8e70d99f8a973f5be41b84cb0d6bf28b` |
+| Compiled builder | `f29b620d585a3803d4acc49be253402f78f478235b63a1363e17b94b9400f34e` | `4405859b3437423d100136506ba486f38e565b681591ceb37a8c7cf246a64860` |
+| Final OCI | `5b81202040bbcfbf4fc29ee32c6e6a8c824c27c50aa41c80e62418c5c2ec3adc` | `934983a6b19e5b154a5c3c610c641e7a415c684e941f213089b1b5cfe39d58b4` |
+
+The trusted main publisher must still verify both historical 15.19 volume
+transitions, the exact 15.20 registry publication, signed evidence and pullback.
+Staging and production activation require their separate host gates.
+
+## PostgreSQL and Prometheus after the Alertmanager prerequisite
+
+On November 20, the [main PostgreSQL publisher](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/44825238208/job/136599518246) rejected all four 15.19 image subjects on merge `29c1eeaf2ab32d36abe00718e7fdd9e8db861dca`. The three public reports in artifact `14674751492` contained 294 HIGH/CRITICAL occurrences across 61 distinct advisories, the same 61 as in artifact `14469975395`. The runtime and developer images each had 59 HIGH findings. The compiled stage had 175 HIGH and one CRITICAL finding. The final OCI recorded a failing HIGH/CRITICAL scan and retained its raw report privately.
+
+The 15.20 revalidation used the identical Trivy 0.74.0 executable and database bytes. The database SHA-256 was `1c7f2883070385e7540c75c0bb31bbb6840edc05c76785a3075ff49933028d56`, updated November 20 at 18:59:53 UTC. The runtime, developer image, compiled stage and final OCI had 49, 53, 94 and 49 package occurrences respectively. Full scans and HIGH/CRITICAL checks exited zero on all four, with zero vulnerability and secret findings in the reports. The three retained image archives were verified against their original identities. Rebuilding the compiled stage produced `sha256:4db8361130256e93dfd0787f33c691c8a55771539e7463cc888779c47341f504`: the eight developer-base layers and recorded package inventory matched, while four rebuilt layers changed. The 64-file compiled-output check passed. The final platform digest remained `sha256:5b81202040bbcfbf4fc29ee32c6e6a8c824c27c50aa41c80e62418c5c2ec3adc`. The trusted-main PostgreSQL publisher must exercise the two volume transitions, publish that image and verify its signed evidence and pullback after merge. The manifest is in `deploy/postgres-pgvector/image-manifest.json:6`.
+
+The [main Docker workflow](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/44825238223) built, scanned and published the backend image. Its Prometheus publisher stopped at `publication_predecessor_failed`. The #2495 ORAS correction selects the destination registry credentials for promotion and the source registry credentials for immutable pullback. The existing native publisher and registry readback remain the acceptance checks.

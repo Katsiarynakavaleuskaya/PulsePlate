@@ -167,6 +167,40 @@ function admitRecord(record) {
     }
 }
 
+// This exact seven-record lock projection was qualified by the canonical Python
+// archive/SRI/physical-Arborist producer. It is not general bundle admission.
+// Record property order is part of this finite projection; the whole lock is not pinned.
+const reviewedTailwindBundleRoot = "node_modules/@tailwindcss/oxide-wasm32-wasi";
+const reviewedTailwindBundleDigest = "a3053d7dd9644632a9189be009da66eaa5c0f460d9f723c41e04b528f21dd6d6";
+const reviewedTailwindBundleKeys = [
+    reviewedTailwindBundleRoot,
+    ...[
+        "@emnapi/core",
+        "@emnapi/runtime",
+        "@emnapi/wasi-threads",
+        "@napi-rs/wasm-runtime",
+        "@tybys/wasm-util",
+        "tslib",
+    ].map((name) => `${reviewedTailwindBundleRoot}/node_modules/${name}`),
+];
+
+function admitReviewedTailwindBundle(packages) {
+    const keys = Object.keys(packages)
+        .filter(
+            (key) =>
+                key === reviewedTailwindBundleRoot ||
+                key.startsWith(`${reviewedTailwindBundleRoot}/`),
+        )
+        .sort();
+    if (keys.length === 0) return new Set();
+    if (JSON.stringify(keys) !== JSON.stringify(reviewedTailwindBundleKeys))
+        fail("reviewed Tailwind bundle inventory");
+    const projection = Buffer.from(JSON.stringify(keys.map((key) => [key, packages[key]])), "utf8");
+    if (digest(projection) !== reviewedTailwindBundleDigest)
+        fail("reviewed Tailwind bundle content");
+    return new Set(keys);
+}
+
 function admitSha512(value) {
     if (typeof value !== "string" || !value.startsWith("sha512-"))
         fail("integrity must use sha512 SRI");
@@ -184,7 +218,10 @@ function dependency(data) {
     if (!ordinaryObject(lock) || lock.lockfileVersion !== 3 || !ordinaryObject(lock.packages))
         fail("lock graph");
     const packages = lock.packages;
-    for (const row of Object.values(packages)) admitRecord(row);
+    const reviewedBundle = admitReviewedTailwindBundle(packages);
+    for (const [key, row] of Object.entries(packages)) {
+        if (!reviewedBundle.has(key)) admitRecord(row);
+    }
     const parentRecord = packages["node_modules/@redocly/openapi-core"];
     if (
         !parentRecord ||
