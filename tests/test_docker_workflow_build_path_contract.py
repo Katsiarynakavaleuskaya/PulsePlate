@@ -932,6 +932,42 @@ def test_finite_arm_sdk_origin_is_manual_canonical_static_and_not_tool_trust() -
             assert result.stderr.decode().strip() == expected_error
 
 
+def _am_transition_merge_response(endpoint: str, head: str) -> Any:
+    base = docker_sources._ALERT_TRANSITION_BASE
+    branch = docker_sources._ALERT_TRANSITION_BRANCH
+    prefix = "/repos/Katsiarynakavaleuskaya/PulsePlate"
+    if (
+        endpoint
+        == prefix
+        + "/pulls?state=closed&base=main&head=Katsiarynakavaleuskaya:"
+        + branch
+        + "&per_page=2&page=1"
+    ):
+        return [{"number": 999}]
+    if endpoint == prefix + "/pulls/999":
+        return {
+            "number": 999,
+            "state": "closed",
+            "merged": True,
+            "merge_commit_sha": head,
+            "head": {"repo": {"id": 1043311030}, "ref": branch},
+            "base": {"repo": {"id": 1043311030}, "ref": "main"},
+        }
+    if endpoint == prefix + "/git/commits/" + head:
+        return {"sha": head}
+    if endpoint == prefix + "/compare/" + base + "..." + head:
+        return {
+            "base_commit": {"sha": base},
+            "merge_base_commit": {"sha": base},
+            "status": "ahead",
+            "behind_by": 0,
+            "ahead_by": 1,
+            "total_commits": 1,
+            "commits": [{"sha": head, "parents": [{"sha": base}]}],
+        }
+    return None
+
+
 def _load_workflow(path: Path) -> dict[str, object]:
     workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
     assert isinstance(workflow, dict)
@@ -4015,7 +4051,7 @@ def test_alertmanager_bootstrap_is_isolated_guarded_and_precedes_all_host_effect
     if job_name == "alertmanager-retained-candidate":
         preparation = _step_by_name(job, "Prepare exact AM subject before material execution")
         assert _step_index(job, preparation["name"]) < _step_index(job, setup["name"])
-        assert "python3 -E -s -S -m" in preparation["run"]
+        assert "python3 -B -E -s -S -m" in preparation["run"]
         assert "--alertmanager-prepare-only" in preparation["run"]
     assert (
         _step_index(job, "Validate existing credential-free AM native Python proxy")
@@ -11708,10 +11744,10 @@ print("observation=synthetic-observation")
     shim = commands / "python3"
     shim.write_text(
         f"#!{sys.executable}\nimport os,sys\nfrom pathlib import Path\n"
-        "assert sys.argv[1:6] == ['-E','-s','-S','-m','scripts.ci.fetch_docker_source_artifacts']\n"
+        "assert sys.argv[1:7] == ['-B','-E','-s','-S','-m','scripts.ci.fetch_docker_source_artifacts']\n"
         "env=dict(os.environ); env['CONTROL_CHECKOUT']=str(Path.cwd())\n"
         "os.chdir(env['CONTROL_REPO_ROOT'])\n"
-        f"os.execve(sys.executable,[sys.executable,'-E','-s','-S','-c',{program!r},*sys.argv[6:]],env)\n"
+        f"os.execve(sys.executable,[sys.executable,'-E','-s','-S','-c',{program!r},*sys.argv[7:]],env)\n"
     )
     shim.chmod(0o700)
     gh = commands / "gh"
@@ -14452,6 +14488,9 @@ def test_am_current_source_admission_keeps_squash_C_and_H_separate(
             self.private.mkdir()
 
         def json(self, endpoint: str) -> dict[str, Any]:
+            transition = _am_transition_merge_response(endpoint, head)
+            if transition is not None:
+                return transition
             calls.append(endpoint)
             if endpoint.endswith("/pulls/2494"):
                 return pr
@@ -15232,6 +15271,9 @@ def test_alertmanager_real_publisher_body_holds_effects_and_retains_observed_wri
         private = tmp_path / "private"
 
         def json(self, endpoint: str) -> dict[str, Any]:
+            transition = _am_transition_merge_response(endpoint, h)
+            if transition is not None:
+                return transition
             if endpoint.endswith("/git/ref/heads/main"):
                 drift = (
                     fault == "rebind-main"
@@ -16160,6 +16202,9 @@ def test_alertmanager_current_durable_predecessor_requires_complete_H_publicatio
         deadline = time.monotonic() + 600
 
         def json(self, endpoint: str) -> dict[str, Any]:
+            transition = _am_transition_merge_response(endpoint, h)
+            if transition is not None:
+                return transition
             calls.append(endpoint)
             if endpoint.endswith("/pulls/2494"):
                 return {
@@ -16926,6 +16971,9 @@ def test_alertmanager_main_support_metadata_can_lack_C_but_build_cannot(
 
         def json(self, endpoint: str) -> dict[str, Any]:
             calls.append(endpoint)
+            transition = _am_transition_merge_response(endpoint, head)
+            if transition is not None:
+                return transition
             if endpoint.endswith("/actions/workflows/cd.yml"):
                 return {"id": 7, "path": ".github/workflows/cd.yml"}
             if endpoint.endswith("/actions/runs/100"):

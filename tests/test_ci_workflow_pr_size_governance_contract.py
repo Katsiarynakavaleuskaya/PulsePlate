@@ -610,13 +610,18 @@ _FRONTEND_CADDY_DISPATCH = {
     "inputs": {
         "caddy_action": {
             "description": (
-                "Import a qualified PR2494 candidate, inspect metadata, or explicitly build "
+                "Import a qualified Caddy candidate, inspect metadata, or explicitly build "
                 "the patched source"
             ),
             "type": "choice",
             "default": "contract",
             "options": ["contract", "xnet062-metadata", "candidate-D"],
-        }
+        },
+        "caddy_source_sha": {
+            "description": "Exact owner-selected qualification head for candidate-D",
+            "type": "string",
+            "required": False,
+        },
     }
 }
 _CONCURRENCY_WORKFLOW_CONTRACTS = (

@@ -112,10 +112,14 @@ on:
   workflow_dispatch:
     inputs:
       caddy_action:
-        description: Import a qualified PR2494 candidate, inspect metadata, or explicitly build the patched source
+        description: Import a qualified Caddy candidate, inspect metadata, or explicitly build the patched source
         type: choice
         default: contract
         options: [contract, xnet062-metadata, candidate-D]
+      caddy_source_sha:
+        description: Exact owner-selected qualification head for candidate-D
+        type: string
+        required: false
 jobs:
   changes:
     runs-on: ubuntu-latest
@@ -618,7 +622,7 @@ jobs:
               import subprocess
               from types import SimpleNamespace
               import urllib.request
-              from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_source_inventory, caddy_ci_phase
+              from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_checkout_inventory
 
               root = Path.cwd()
               repo = "Katsiarynakavaleuskaya/PulsePlate"
@@ -637,22 +641,9 @@ jobs:
                   raise ValueError("git unavailable")
               if subprocess.check_output([git, "rev-parse", "HEAD"], text=True, timeout=remaining(30)).strip() != selected:
                   raise ValueError("Caddy checkout is not selected source head")
-              if event_name == "pull_request":
-                  pr = event["pull_request"]
-                  if type(pr["number"]) is not int or pr["number"] != 2494 or pr["head"]["repo"]["full_name"] != repo or pr["head"]["sha"] != selected:
-                      raise ValueError("Caddy source PR scope differs")
-              elif event_name == "push":
-                  if os.environ["GITHUB_REF"] != "refs/heads/main" or selected != os.environ["GITHUB_SHA"]:
-                      raise ValueError("Caddy source main scope differs")
-              elif event_name != "workflow_dispatch":
-                  raise ValueError("Caddy source event not admitted")
-
               from scripts.ci.check_docker_runtime_dependency_surface import CADDY_CI_FIXED_SOURCES
               fixed = sorted(CADDY_CI_FIXED_SOURCES)
-              tracked = subprocess.check_output([git, "ls-files", "-z", "--", "frontend/"], timeout=remaining(60)).decode().split("\0")[:-1]
-              if subprocess.check_output([git, "status", "--porcelain", "--", "frontend/", *fixed], timeout=remaining(60)):
-                  raise ValueError("Caddy build context is dirty")
-              inputs = caddy_ci_source_inventory(root, tracked + fixed)
+              inputs = caddy_ci_checkout_inventory(root, git, remaining)
 
               from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_reader
               api = readers.enter_context(caddy_ci_reader(
@@ -701,20 +692,15 @@ jobs:
                       raise ValueError("Caddy API same-count inventory replacement") from None
                   return observations[0]
 
-              pr = api("/pulls/2494")
-              if (type(pr["number"]) is not int or pr["number"] != 2494
-                      or pr["head"]["repo"]["full_name"] != repo or pr["base"]["ref"] != "main"
-                      or positive_id(pr["head"]["repo"]["id"]) != 1043311030
-                      or positive_id(pr["base"]["repo"]["id"]) != 1043311030):
-                  raise ValueError("Caddy original PR identity differs")
-              if event_name in ("workflow_dispatch", "pull_request") and (pr["state"] != "open" or selected != pr["head"]["sha"]
-                      or (event_name == "workflow_dispatch" and os.environ["GITHUB_REF"] != "refs/heads/" + pr["head"]["ref"])):
-                  raise ValueError("Caddy dispatch must select current accepted PR head")
-              if event_name == "push" and (pr["merged"] is not True or pr["merge_commit_sha"] != selected):
-                  raise ValueError("Caddy main observation is only the accepted PR merge")
+              from scripts.ci.check_docker_runtime_dependency_surface import caddy_bound_pr, caddy_owner_dispatch
+              pr = caddy_bound_pr(api, selected)
+              number = pr["number"]
+              owner_build = action == "candidate-D" and number != 2494
+              if owner_build:
+                  caddy_owner_dispatch(selected)
               state_dir = Path(os.environ["RUNNER_TEMP"]) / "caddy-admission"
               budget = json.loads((state_dir / "admission.json").read_bytes())["budget"]
-              state = {"current_head": selected, "current_run_id": positive_id(int(os.environ["GITHUB_RUN_ID"])),
+              state = {"source_branch": pr["head"]["ref"], "source_pr": number, "pr_head": pr["head"]["sha"], "current_head": selected, "current_run_id": positive_id(int(os.environ["GITHUB_RUN_ID"])),
                        "current_run_attempt": positive_id(int(os.environ["GITHUB_RUN_ATTEMPT"])), "inputs": inputs,
                        "repository": repo, "repository_id": 1043311030, "producer": None, "mode": None, "budget": budget}
               workflow_id = positive_id(api("/actions/workflows/frontend-ci.yml")["id"])
@@ -724,7 +710,7 @@ jobs:
               build_name = "Build source-patched Caddy candidate"
               decision_name = "Decide source-qualified Caddy inventory and current native controls"
               # Historical PR2497 starts stay visible in the complete observed history.
-              # They are not permissions or a remaining-attempt counter for PR2494.
+              # Earlier starts do not authorize a build on the current PR.
               runs = pages("/actions/workflows/frontend-ci.yml/runs?created=%3E%3D2026-10-28T00%3A00%3A00Z", "workflow_runs")
               spent, current_runs, current_jobs, candidates = [], [], [], []
               for run in runs:
@@ -766,6 +752,10 @@ jobs:
                                   and run["conclusion"] == job["conclusion"] == step["conclusion"] == "success"
                                   and job["run_attempt"] == run["run_attempt"] == 1
                                   and positive_id(run["head_repository"]["id"]) == 1043311030
+                                  and run["head_repository"]["full_name"] == repo and job["head_branch"] == branch
+                                  and (number == 2494 or (run["actor"]["login"] == repo.split("/")[0]
+                                       and run["actor"]["type"] == "User" and positive_id(run["triggering_actor"]["id"]) == positive_id(run["actor"]["id"])
+                                       and run["triggering_actor"]["login"] == run["actor"]["login"] and run["triggering_actor"]["type"] == "User"))
                                   and len(accepted) == 1 and accepted[0]["status"] == "completed" and accepted[0]["conclusion"] == "success"):
                               candidates.append((run, job, step))
               state["observed_build_history"] = spent
@@ -785,6 +775,11 @@ jobs:
                           or any(positive_id(run[key]["id"]) != 1043311030 or run[key]["full_name"] != repo
                                  for key in ("repository", "head_repository"))):
                       raise ValueError("Caddy current native run identity differs")
+                  if owner_build:
+                      sender = event["sender"]
+                      for key in ("actor", "triggering_actor"):
+                          exact_data([run[key][field] for field in ("login", "id", "type")],
+                                     [sender[field] for field in ("login", "id", "type")])
                   if run["status"] not in ("queued", active) or run["conclusion"] is not None:
                       raise ValueError("Caddy current native run state invalid")
                   return run["status"]
@@ -835,51 +830,65 @@ jobs:
               proof_api = SimpleNamespace(json=lambda endpoint: api(endpoint.removeprefix(prefix)))
               proof_api.pages = lambda endpoint, key, count: GitHubRead.pages(proof_api, endpoint, key, count)
               if action == "xnet062-metadata":
+                  if number != 2494:
+                      raise ValueError("Caddy standalone metadata is outside this PR qualification")
                   state["mode"] = "metadata"
               elif action == "candidate-D":
                   if event_name != "workflow_dispatch" or state["current_run_attempt"] != 1:
                       raise ValueError("Caddy build requires actual current PR manual invocation")
+                  if owner_build and any(row["branch"] == branch and row["source"] == selected for row in spent):
+                      raise ValueError("Caddy candidate build already started on this frozen source")
                   state["mode"] = "build"
-              elif candidates:
-                  run, job, step = max(candidates, key=lambda row: (row[0]["created_at"], row[0]["id"]))
-                  authenticate_pr_source(proof_api, 2494, run["head_sha"], pr["head"]["sha"], "refs/heads/" + branch)
-                  # Native Git resolves original regular blobs; no manifest-authored input claim is trusted.
-                  git_env = {"PATH": os.environ["PATH"], "LANG": "C.UTF-8", "GIT_CONFIG_NOSYSTEM": "1",
-                             "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_NO_REPLACE_OBJECTS": "1"}
-                  original_head = run["head_sha"]
-                  subprocess.run([git, "--no-replace-objects", "fetch", "--no-tags", "--depth=1",
-                                  "https://github.com/" + repo + ".git", original_head], env=git_env, check=True, timeout=remaining(120))
-                  original_paths = subprocess.check_output([git, "--no-replace-objects", "ls-tree", "-r", "-z", "--name-only",
-                                  original_head, "--", "frontend/", *fixed], env=git_env, timeout=remaining(60)).decode().split("\0")[:-1]
-                  if len(original_paths) != len(set(original_paths)) or set(original_paths) != set(inputs):
-                      raise ValueError("Caddy actual producer source inventory differs")
-                  original_inputs = {}
-                  for name in original_paths:
-                      row = subprocess.check_output([git, "--no-replace-objects", "ls-tree", "--format=%(objectmode) %(objecttype) %(objectname)",
-                                  original_head, "--", name], env=git_env, timeout=remaining(30)).decode().split()
-                      if len(row) != 3 or row[0] not in ("100644", "100755") or row[1] != "blob" or re.fullmatch(r"[0-9a-f]{40}", row[2]) is None:
-                          raise ValueError("Caddy original source is not one regular Git blob")
-                      raw = subprocess.check_output([git, "--no-replace-objects", "cat-file", "blob", row[2]], env=git_env, timeout=remaining(30))
-                      original_inputs[name] = {"mode": int(row[0], 8) & 0o777, "bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest()}
-                  if original_inputs != inputs:
-                      raise ValueError("Caddy authenticated original Git source differs from current source")
-                  artifacts = pages("/actions/runs/" + str(run["id"]) + "/artifacts", "artifacts")
-                  for artifact in artifacts:
-                      relation = artifact["workflow_run"]
-                      if (positive_id(relation["id"]) != run["id"] or relation["head_sha"] != run["head_sha"]
-                              or positive_id(relation["repository_id"]) != 1043311030
-                              or positive_id(relation["head_repository_id"]) != 1043311030
-                              or relation["head_branch"] != run["head_branch"]):
-                          raise ValueError("Caddy native artifact/run relationship differs")
-                  artifacts = [a for a in artifacts if a["name"] == "caddy-contract-evidence"]
-                  if len(artifacts) != 1 or artifacts[0]["expired"] is not False:
-                      raise ValueError("Caddy original producer artifact unavailable")
-                  if re.fullmatch(r"sha256:[0-9a-f]{64}", artifacts[0].get("digest", "")) is None:
-                      raise ValueError("Caddy native artifact digest unavailable")
-                  state.update(mode="reuse", producer={"run_id": run["id"], "run_attempt": 1,
-                      "head": run["head_sha"], "job_id": job["id"], "artifact": artifacts[0], "git_inputs": original_inputs})
               else:
-                  raise ValueError("Caddy requires a real successful same-source PR2494 producer; no automatic build")
+                  qualified = []
+                  unavailable_artifact = False
+                  for run, job, step in candidates:
+                      # Native Git resolves original regular blobs; no manifest-authored input claim is trusted.
+                      git_env = {"PATH": os.environ["PATH"], "LANG": "C.UTF-8", "GIT_CONFIG_NOSYSTEM": "1",
+                                 "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_NO_REPLACE_OBJECTS": "1"}
+                      original_head = run["head_sha"]
+                      subprocess.run([git, "--no-replace-objects", "fetch", "--no-tags", "--depth=1",
+                                      "https://github.com/" + repo + ".git", original_head], env=git_env, check=True, timeout=remaining(120))
+                      original_paths = subprocess.check_output([git, "--no-replace-objects", "ls-tree", "-r", "-z", "--name-only",
+                                      original_head, "--", "frontend/", *fixed], env=git_env, timeout=remaining(60)).decode().split("\0")[:-1]
+                      if len(original_paths) != len(set(original_paths)):
+                          raise ValueError("Caddy actual producer source inventory is ambiguous")
+                      if set(original_paths) != set(inputs):
+                          continue
+                      original_inputs = {}
+                      for name in original_paths:
+                          row = subprocess.check_output([git, "--no-replace-objects", "ls-tree", "--format=%(objectmode) %(objecttype) %(objectname)",
+                                      original_head, "--", name], env=git_env, timeout=remaining(30)).decode().split()
+                          if len(row) != 3 or row[0] not in ("100644", "100755") or row[1] != "blob" or re.fullmatch(r"[0-9a-f]{40}", row[2]) is None:
+                              raise ValueError("Caddy original source is not one regular Git blob")
+                          raw = subprocess.check_output([git, "--no-replace-objects", "cat-file", "blob", row[2]], env=git_env, timeout=remaining(30))
+                          original_inputs[name] = {"mode": int(row[0], 8) & 0o777, "bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest()}
+                      if original_inputs != inputs:
+                          continue
+                      authenticate_pr_source(proof_api, number, run["head_sha"], pr["head"]["sha"], "refs/heads/" + branch)
+                      artifacts = pages("/actions/runs/" + str(run["id"]) + "/artifacts", "artifacts")
+                      for artifact in artifacts:
+                          relation = artifact["workflow_run"]
+                          if (positive_id(relation["id"]) != run["id"] or relation["head_sha"] != run["head_sha"]
+                                  or positive_id(relation["repository_id"]) != 1043311030
+                                  or positive_id(relation["head_repository_id"]) != 1043311030
+                                  or relation["head_branch"] != run["head_branch"]):
+                              raise ValueError("Caddy native artifact/run relationship differs")
+                      artifacts = [a for a in artifacts if a["name"] == "caddy-contract-evidence"]
+                      if not artifacts or (len(artifacts) == 1 and artifacts[0]["expired"] is True):
+                          unavailable_artifact = True
+                          continue
+                      if len(artifacts) != 1 or artifacts[0]["expired"] is not False:
+                          raise ValueError("Caddy original producer artifact ambiguous or invalid")
+                      if re.fullmatch(r"sha256:[0-9a-f]{64}", artifacts[0].get("digest", "")) is None:
+                          raise ValueError("Caddy native artifact digest unavailable")
+                      qualified.append({"run_id": run["id"], "run_attempt": 1,
+                          "head": run["head_sha"], "job_id": job["id"], "artifact": artifacts[0], "git_inputs": original_inputs})
+                  if not qualified and unavailable_artifact:
+                      raise ValueError("Caddy original producer artifact unavailable")
+                  if len(qualified) != 1:
+                      raise ValueError("Caddy requires one successful same-source producer; no automatic build")
+                  state.update(mode="reuse", producer=qualified[0])
           state["budget"] = json.loads((state_dir / "admission.json").read_bytes())["budget"]
           (state_dir / "admission.json").write_text(json.dumps(state, indent=2))
           with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
@@ -1432,6 +1441,7 @@ jobs:
         if: ${{ steps.caddy-admission.outputs.mode == 'build' && steps.caddy-metadata.outcome == 'success' }}
         env:
           CADDY_ACTION: ${{ inputs.caddy_action }}
+          GH_TOKEN: ${{ (github.ref == 'refs/heads/codex/cab07c-eslint-pages-features' || github.ref == 'refs/heads/codex/npm-braces-build-prerequisite' || github.ref == 'refs/heads/codex/alertmanager-controller-transition') && github.token || '' }}
           CADDY_METADATA_BINDING: ${{ steps.caddy-metadata.outputs.prebuild_binding }}
         run: |
           python3 - <<'PY'
@@ -1441,21 +1451,23 @@ jobs:
           import time
           from pathlib import Path
           from scripts.ci.check_docker_runtime_dependency_surface import (
-              CADDY_CI_FIXED_SOURCES, caddy_ci_charge_action, caddy_ci_phase,
-              caddy_ci_source_inventory, validate_caddy_prebuild,
+              caddy_ci_charge_action, caddy_ci_phase, caddy_ci_checkout_inventory, validate_caddy_prebuild,
           )
           with caddy_ci_phase("PROCESSING") as remaining:
               git = shutil.which("git")
               if git is None:
                   raise ValueError("git unavailable")
               root = Path.cwd()
-              fixed = sorted(CADDY_CI_FIXED_SOURCES)
-              if subprocess.check_output([git, "status", "--porcelain", "--", "frontend/", *fixed], timeout=remaining(60)):
-                  raise ValueError("Caddy build context is dirty before build")
-              tracked = subprocess.check_output([git, "ls-files", "-z", "--", "frontend/"], timeout=remaining(60)).decode().split("\0")[:-1]
               checked_head = subprocess.check_output([git, "rev-parse", "HEAD"], text=True, timeout=remaining(30)).strip()
-              validate_caddy_prebuild(Path(os.environ["RUNNER_TEMP"]), caddy_ci_source_inventory(root, tracked + fixed),
-                                      checked_head, time.monotonic() + remaining(300))
+              work = Path(os.environ["RUNNER_TEMP"])
+              inputs = caddy_ci_checkout_inventory(root, git, remaining)
+              validate_caddy_prebuild(work, inputs, checked_head, time.monotonic() + remaining(300))
+          from scripts.ci.check_docker_runtime_dependency_surface import CADDY_ORIGINAL_BRANCH, caddy_bound_pr, caddy_ci_reader
+          if os.environ["GITHUB_REF"] != "refs/heads/" + CADDY_ORIGINAL_BRANCH:
+              with caddy_ci_phase("ADMISSION") as remaining, caddy_ci_reader(
+                  root, work / "caddy-admission/prebuild-api", remaining, inputs["scripts/ci/prometheus_source_image.py"]["sha256"]
+              ) as api:
+                  caddy_bound_pr(api, checked_head)
           caddy_ci_charge_action("BUILD")
           PY
 
@@ -2455,7 +2467,7 @@ jobs:
           import subprocess
           import time
           from scripts.ci.check_docker_runtime_dependency_surface import (
-              observe_caddy_ci_runtime, caddy_ci_phase, caddy_ci_source_inventory,
+              observe_caddy_ci_runtime, caddy_ci_phase, caddy_ci_checkout_inventory,
           )
 
           work = Path(os.environ["RUNNER_TEMP"])
@@ -2485,7 +2497,9 @@ jobs:
           (runtime_dir / "observation.json").write_text(json.dumps(loaded, indent=2))
           decision["strict_conversion"] = {"native_exit": result.returncode, "sha256": hashlib.sha256(output.read_bytes()).hexdigest()}
           with caddy_ci_phase("PROCESSING") as remaining:
-              if caddy_ci_source_inventory(Path.cwd(), list(admission["inputs"])) != admission["inputs"]:
+              import shutil
+              git = shutil.which("git")
+              if git is None or caddy_ci_checkout_inventory(Path.cwd(), git, remaining) != admission["inputs"]:
                   raise ValueError("Caddy complete source changed before release")
               for name, expected in subject["frozen_db"].items():
                   remaining(1)
@@ -2501,15 +2515,13 @@ jobs:
                   raise ValueError("Caddy scanner changed before release")
           with caddy_ci_phase("ADMISSION") as remaining:
               from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_api
-              pr = caddy_ci_api(Path.cwd(), private / "final-api", "/pulls/2494", remaining,
-                                admission["inputs"]["scripts/ci/prometheus_source_image.py"]["sha256"])
-              from scripts.ci.prometheus_source_image import QualificationError, exact_data
-              try:
-                  exact_data([pr["number"], pr["head"]["repo"]["id"]], [2494, 1043311030])
-              except QualificationError:
-                  raise ValueError("Caddy current authenticated PR source changed") from None
-              if ((os.environ["GITHUB_EVENT_NAME"] != "push" and (pr["state"] != "open" or pr["head"]["sha"] != admission["current_head"])) or
-                      (os.environ["GITHUB_EVENT_NAME"] == "push" and (pr["merged"] is not True or pr["merge_commit_sha"] != admission["current_head"]))):
+              from scripts.ci.check_docker_runtime_dependency_surface import caddy_bound_pr
+              def read_pr(endpoint):
+                  label = "branch" if endpoint.startswith("/pulls?") else endpoint.rsplit("/", 1)[1]
+                  return caddy_ci_api(Path.cwd(), private / ("final-api-" + label), endpoint, remaining,
+                                      admission["inputs"]["scripts/ci/prometheus_source_image.py"]["sha256"])
+              pr = caddy_bound_pr(read_pr, admission["current_head"])
+              if pr["number"] != admission["source_pr"] or pr["head"]["sha"] != admission["pr_head"]:
                   raise ValueError("Caddy current authenticated PR source changed")
           # Only positively owned control image is removed; candidate and official survive.
           with caddy_ci_phase("CONTROL_CLEANUP") as remaining:

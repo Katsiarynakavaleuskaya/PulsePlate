@@ -15986,6 +15986,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 - November 15 Python remediation in [PR #2494](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2494) (OPEN). The ten-lock audit at `a90d31b5` covered 561 package occurrences with zero findings. Nine affected installed compositions passed `pip check` and the bounded DNS, EmailStr and tracing checks. Current-head review, CI and post-merge acceptance remain open. [Python remediation evidence](../security/PR_2494_NOV15_PYTHON_REMEDIATION.md)
 
+  - **Controller prerequisite for #2495 (2026-11-20).** Owner: DevOps and security-auditor. Priority: P0. Target: `codex/alertmanager-controller-transition`. Status: in progress. The previous main support run stopped before compilation when its historical vulnerable control gained two HIGH occurrences. The accepted image passed a separate current-database HIGH/CRITICAL and secret check. Before the transition merge, require an independently designated controller and callers, complete native checks and fresh security results for the retained image. Then verify the actual merged-main rebuild, publication and immutable digest pullback before #2495 consumes it. [Evidence and original runs](../security/CVE-2026-84445-alertmanager.md#november-20-controller-transition)
+
 <a id="ledger-p2-alertmanager-collector-subprocess-reassessment"></a>
 - [ ] **P2 — Reassess three bounded Alertmanager native-boundary annotations**
   - Owner: security-auditor / dev-operator.

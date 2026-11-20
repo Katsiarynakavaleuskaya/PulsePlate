@@ -16468,7 +16468,8 @@ def test_alertmanager_current_four_controls_live_steps_are_in_same_trusted_consu
             assert 'cd "$controller"' in live_step["run"]
             assert 'test "$(git -C "$controller" rev-parse HEAD)"' in live_step["run"]
             assert (
-                "python3 -E -s -S -m scripts.ci.fetch_docker_source_artifacts" in live_step["run"]
+                "python3 -B -E -s -S -m scripts.ci.fetch_docker_source_artifacts"
+                in live_step["run"]
             )
             assert steps[cleanup]["if"] == (
                 "always() && (steps.alertmanager-control.outcome == 'success' || "
@@ -18296,3 +18297,180 @@ def test_alertmanager_negative_control_consumed_identity_types_before_hash(
         alertmanager_source._alertmanager_vulnerability_control(
             report, "synthetic-control", current=True
         )
+
+
+@pytest.mark.parametrize("fault", [None, "missing", "duplicate", "wrong-severity", "candidate-row"])
+def test_alertmanager_fresh_old_control_requires_exact_two_new_go_rows(fault: str | None) -> None:
+    report = _synthetic_AM_negative_control(True)
+    plan = {
+        "derivation_epoch": alertmanager_source._ALERT_XNET062_METADATA_EPOCH,
+        "command_module_inputs": {"alertmanager": {}, "amtool": {}},
+    }
+    for row in report["Results"]:
+        for cve, purl in (
+            ("CVE-2026-78661", "pkg:golang/golang.org/x/net@v0.58.0"),
+            ("CVE-2026-97054", "pkg:golang/stdlib@v1.26.8"),
+        ):
+            row["Vulnerabilities"].append(
+                {"VulnerabilityID": cve, "Severity": "HIGH", "PkgIdentifier": {"PURL": purl}}
+            )
+    row = report["Results"][0]
+    if fault == "missing":
+        row["Vulnerabilities"].pop()
+    elif fault == "duplicate":
+        row["Vulnerabilities"].append(row["Vulnerabilities"][-1])
+    elif fault == "wrong-severity":
+        row["Vulnerabilities"][-1]["Severity"] = "MEDIUM"
+    elif fault == "candidate-row":
+        row["Target"] = "usr/bin/alertmanager"
+    if fault is None:
+        assert (
+            alertmanager_source._alertmanager_vulnerability_control(
+                report,
+                "synthetic-control",
+                current=True,
+                qualification_plan=plan,
+                fresh_scan=True,
+            )["known_HIGH_occurrences"]
+            == 16
+        )
+        with pytest.raises(prometheus_source.QualificationError):
+            alertmanager_source._alertmanager_vulnerability_control(
+                report,
+                "synthetic-control",
+                current=True,
+                qualification_plan=plan,
+            )
+    else:
+        with pytest.raises(prometheus_source.QualificationError):
+            alertmanager_source._alertmanager_vulnerability_control(
+                report,
+                "synthetic-control",
+                current=True,
+                qualification_plan=plan,
+                fresh_scan=True,
+            )
+
+
+@pytest.mark.parametrize(
+    "fault", [None, "missing-swap", "extra-byte", "duplicate-source", "policy"]
+)
+def test_alertmanager_2495_only_the_two_regular_compose_images(fault: str | None) -> None:
+    files = alertmanager_source._ALERT_SELECTION_FILES
+    base = {path: b"other data\n" for path in files}
+    old = b"    image: ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@sha256:d4437ad4970b4099e4cb7d05b7fa625c7e6959949d1374f1f2d4bd4149ae5fa3\n"
+    new = b"    image: ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.20-pgvector0.8.6-alpine3.23@sha256:5b81202040bbcfbf4fc29ee32c6e6a8c824c27c50aa41c80e62418c5c2ec3adc\n"
+    head = base.copy()
+    for path in (files[0], files[2]):
+        base[path] += old
+        head[path] += new
+    if fault == "missing-swap":
+        head[files[2]] = base[files[2]]
+    elif fault == "extra-byte":
+        head[files[0]] += b" "
+    elif fault == "duplicate-source":
+        base[files[0]] += old
+    elif fault == "policy":
+        head[files[4]] += b"# altered\n"
+    assert alertmanager_source._alertmanager_2495_compose_sources(base, head) is (fault is None)
+
+
+@pytest.mark.parametrize(
+    "case", ["pins", "mapping", "extra", "altered-caller", "wrong-mapping", "wrong-workflow"]
+)
+def test_alertmanager_transition_binds_real_git_successor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: str
+) -> None:
+    git = shutil.which("git")
+    assert git is not None
+    repo = tmp_path / "repository"
+    repo.mkdir()
+
+    def command(*args: str) -> bytes:
+        return subprocess.run(
+            [git, *safe_git_config_args(), "-C", str(repo), *args],
+            check=True,
+            capture_output=True,
+            env=git_env_without_parent_state(),
+        ).stdout
+
+    def commit(subject: str) -> str:
+        command("add", ".")
+        command(
+            "-c",
+            "user.name=Example",
+            "-c",
+            "user.email=example@example.invalid",
+            "commit",
+            "-qm",
+            subject,
+        )
+        return command("rev-parse", "HEAD").decode().strip()
+
+    command("init", "-q")
+    (repo / "policy").write_text("frozen\n")
+    base = commit("base")
+    monkeypatch.setattr(alertmanager_source, "_ALERT_TRANSITION_BASE", base)
+    incumbent = alertmanager_source._ALERT_INCUMBENT_CONTROLLER
+    for name in alertmanager_source._ALERT_CALLERS:
+        file = repo / name
+        file.parent.mkdir(parents=True, exist_ok=True)
+        file.write_text(f"  ALERTMANAGER_CONTROLLER_SOURCE: '{incumbent}'\n")
+    for name in (
+        "scripts/ci/prometheus_source_image.py",
+        "scripts/ops/notify_premium_alias_checkpoint_failure.py",
+        "tests/__init__.py",
+        "tests/test_notify_premium_alias_checkpoint_failure.py",
+    ):
+        fixture = repo / name
+        fixture.parent.mkdir(parents=True, exist_ok=True)
+        fixture.write_text("reviewed native dependency\n")
+    controller = commit("controller")
+    for name in alertmanager_source._ALERT_CALLERS:
+        file = repo / name
+        file.write_text(file.read_text().replace(incumbent, controller))
+    if case == "extra":
+        (repo / "other").write_text("drift")
+    if case == "altered-caller":
+        file.write_text(file.read_text() + "# altered caller\n")
+    head = commit("pin controller")
+    if case in ("mapping", "wrong-mapping"):
+        mapping = (
+            repo
+            / "docs/review"
+            / ("PR_17_FIXED_MAPPING.md" if case == "mapping" else "PR_18_FIXED_MAPPING.md")
+        )
+        mapping.parent.mkdir(parents=True)
+        mapping.write_text("closeout\n")
+        head = commit("mapping")
+    monkeypatch.setenv(
+        "GITHUB_WORKFLOW_REF",
+        "Katsiarynakavaleuskaya/PulsePlate/.github/workflows/ci.yml@refs/pull/17/merge",
+    )
+    monkeypatch.setenv("GITHUB_WORKFLOW_SHA", base if case == "wrong-workflow" else head)
+
+    class API:
+        private = tmp_path
+
+        def json(self, endpoint: str) -> dict[str, Any]:
+            revision = endpoint.rsplit("/", 1)[1]
+            return {
+                "sha": revision,
+                "tree": {"sha": command("rev-parse", revision + "^{tree}").decode().strip()},
+                "parents": [
+                    {"sha": value}
+                    for value in command("log", "-1", "--format=%P", revision).decode().split()
+                ],
+            }
+
+        def _capture(self, argv: list[str], maximum: int, *, environment: dict[str, str]) -> bytes:
+            assert argv[0] == git and "--no-replace-objects" in argv
+            return subprocess.run(argv, env=environment, check=True, capture_output=True).stdout
+
+    if case in ("pins", "mapping"):
+        alertmanager_source._alertmanager_transition_successor(API(), repo, head, controller, 17)
+    else:
+        with pytest.raises(prometheus_source.QualificationError):
+            alertmanager_source._alertmanager_transition_successor(
+                API(), repo, head, controller, 17
+            )

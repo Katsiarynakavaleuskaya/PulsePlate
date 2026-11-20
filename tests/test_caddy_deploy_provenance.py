@@ -3502,6 +3502,8 @@ def test_alertmanager_PR_retained_candidate_has_no_registry_or_compiler_authorit
         "wrong-pr",
         "foreign-pr",
         "merge-invalid",
+        "missing-transition",
+        "wrong-transition",
         "not-ancestor",
         "shallow",
         "source-drift",
@@ -3534,7 +3536,10 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
     """Exercise the real H publisher with synthetic transport, never qualify a producer."""
     from scripts.ci import fetch_docker_source_artifacts as fetcher
     from scripts.ci import prometheus_source_image as transport
-    from tests.test_docker_workflow_build_path_contract import _alertmanager_proposal_arguments
+    from tests.test_docker_workflow_build_path_contract import (
+        _alertmanager_proposal_arguments,
+        _am_transition_merge_response,
+    )
 
     # Clock profiles use the same full publisher path as the main-before-copy control.
     import math
@@ -3723,7 +3728,14 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
             sessions.append(self)
             events.append(self.name + "-open")
 
-        def json(self, endpoint: str) -> dict[str, Any]:
+        def json(self, endpoint: str) -> Any:
+            transition = _am_transition_merge_response(endpoint, h)
+            if transition is not None and "/git/commits/" not in endpoint:
+                if case == "missing-transition" and "/pulls?" in endpoint:
+                    return []
+                if case == "wrong-transition" and endpoint.endswith("/pulls/999"):
+                    transition["head"]["ref"] = fetcher._ALERT_Q_BRANCH
+                return transition
             if "/git/ref/" in endpoint:
                 self.main_reads += 1
                 drift = (
@@ -4114,7 +4126,9 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
         }
         assert files.is_dir() and observed["scanner"] == scanner
         assert (
-            kwargs["current"] is True and kwargs["comparison_subject"] == graph["config"]["digest"]
+            kwargs["fresh_scan"] is True
+            and kwargs["current"] is True
+            and kwargs["comparison_subject"] == graph["config"]["digest"]
         )
         return {"synthetic_control_only": True, "subject": graph["config"]["digest"]}
 
@@ -4175,6 +4189,8 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
         return
 
     expected = {
+        "missing-transition": "AM_unique_closed_transition_PR",
+        "wrong-transition": "AM_authenticated_merged_source_PR",
         "proof-retention": "synthetic publication proof retention failed",
         "primary-proof-retention": "synthetic native Git exit1",
         "unmerged": "AM_separate_human_merge_observed",
@@ -4217,6 +4233,8 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
         "wrong-pr",
         "foreign-pr",
         "merge-invalid",
+        "missing-transition",
+        "wrong-transition",
         "not-ancestor",
         "shallow",
         "source-drift",
@@ -4271,30 +4289,42 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
         assert (root / drift_path).read_bytes() != sources[drift_path]
 
 
-@pytest.mark.parametrize("current_epoch", [False, True])
 @pytest.mark.parametrize(
-    "fault",
-    (
-        None,
-        "scanner-exit",
-        "missing-report",
-        "malformed",
-        "partial",
-        "wrong-subject",
-        "new-HIGH",
-        "target-Go-UNKNOWN",
-        "target-Go-LOW",
-        "target-Go-MEDIUM",
-        "target-Go-HIGH",
-        "target-Go-CRITICAL",
-        "secret",
-        "old-missing",
-        "positive-missing",
-        "negative-secret",
-        "DB-drift",
-        "observation-write",
-        "primary-and-observation",
-    ),
+    ("fault", "current_epoch"),
+    [
+        (fault, epoch)
+        for epoch in (False, True)
+        for fault in (
+            None,
+            "scanner-exit",
+            "missing-report",
+            "malformed",
+            "partial",
+            "wrong-subject",
+            "new-HIGH",
+            "target-Go-UNKNOWN",
+            "target-Go-LOW",
+            "target-Go-MEDIUM",
+            "target-Go-HIGH",
+            "target-Go-CRITICAL",
+            "secret",
+            "old-missing",
+            "positive-missing",
+            "negative-secret",
+            "DB-drift",
+            "observation-write",
+            "primary-and-observation",
+        )
+    ]
+    + [
+        (case, True)
+        for case in (
+            "fresh-ok",
+            "fresh-base-missing",
+            "fresh-base-wrong-subject",
+            "fresh-base-partial",
+        )
+    ],
 )
 def test_alertmanager_current_four_controls_retain_native_reports_and_reject_unproven_scans(
     tmp_path: Path,
@@ -4333,6 +4363,18 @@ def test_alertmanager_current_four_controls_retain_native_reports_and_reject_unp
     (cache / "db/metadata.json").write_text('{"Version":2,"UpdatedAt":"2026-10-18T00:00:00Z"}')
     monkeypatch.setattr(shutil, "which", lambda name: "/synthetic/" + name)
     acquisition_order: list[str] = []
+    fresh = fault is not None and fault.startswith("fresh-")
+    base_input = b"qualified synthetic base export"
+    base_identity = {"Id": transport.BASE_CONFIG}
+
+    def base_export(archive: Path, work: Path, *, current: bool) -> tuple[Any, ...]:
+        assert current and archive.name == "qualification.zip"
+        assert acquisition_order == ["open", "close"]
+        base = work / "base-image.tar"
+        base.write_bytes(base_input)
+        return base, base_identity, [], {}, {}
+
+    monkeypatch.setattr(fetcher, "_alertmanager_qualified_base_export", base_export)
 
     class Reader:
         def __init__(self, private: Path, evidence: Path, deadline: float, cleanup: int) -> None:
@@ -4362,9 +4404,18 @@ def test_alertmanager_current_four_controls_retain_native_reports_and_reject_unp
             "root_inputs": {
                 "go-toolchain.tar.gz": (
                     transport.RETAINED_GO if current_epoch else transport.GO
-                ).digest
+                ).digest,
+                "base-image.tar": hashlib.sha256(base_input).hexdigest(),
             },
-            "plan": {},
+            "loaded_base": base_identity,
+            "plan": (
+                {
+                    "derivation_epoch": fetcher._ALERT_XNET062_METADATA_EPOCH,
+                    "command_module_inputs": {"alertmanager": {}, "amtool": {}},
+                }
+                if fresh
+                else {}
+            ),
         },
     )
     calls: list[str] = []
@@ -4427,10 +4478,16 @@ def test_alertmanager_current_four_controls_retain_native_reports_and_reject_unp
         )
 
     def control(
-        *args: Any, current: bool = False, qualification_plan: dict[str, Any] | None = None
+        *args: Any,
+        current: bool = False,
+        qualification_plan: dict[str, Any] | None = None,
+        fresh_scan: bool = False,
     ) -> dict[str, Any]:
         forwarded.append(("old_control", current))
-        return control_owner(*args, current=current, qualification_plan=qualification_plan)
+        assert fresh_scan == fresh
+        return control_owner(
+            *args, current=current, qualification_plan=qualification_plan, fresh_scan=fresh_scan
+        )
 
     monkeypatch.setattr(fetcher, "_alertmanager_candidate_inventory", inventory)
     monkeypatch.setattr(fetcher, "_alertmanager_vulnerability_control", control)
@@ -4484,7 +4541,9 @@ def test_alertmanager_current_four_controls_retain_native_reports_and_reject_unp
             assert argv[argv.index("--severity") + 1] == "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL"
             assert "--list-all-pkgs" in argv and "--skip-db-update" in argv and "--scanners" in argv
             assert Path(argv[argv.index("--ignorefile") + 1]).read_bytes() == b""
-            if argv[1] == "image":
+            if label == "current-base-full-supported":
+                assert argv[-2] == "--input" and Path(argv[-1]).read_bytes() == base_input
+            elif argv[1] == "image":
                 assert argv[argv.index("--image-src") + 1] == "docker"
             if fault in ("scanner-exit", "primary-and-observation"):
                 self.records.append({"label": label, "exit": 2})
@@ -4496,7 +4555,16 @@ def test_alertmanager_current_four_controls_retain_native_reports_and_reject_unp
                 target.write_bytes(b"{")
                 return b""
             data = deepcopy(report)
-            if label == "current-candidate-full-supported":
+            if label == "current-base-full-supported":
+                if fault == "fresh-base-missing":
+                    return b""
+                data["Metadata"]["ImageID"] = (
+                    "incorrect" if fault == "fresh-base-wrong-subject" else transport.BASE_CONFIG
+                )
+                data["Results"] = [row for row in data["Results"] if row.get("Class") == "os-pkgs"]
+                if fault == "fresh-base-partial":
+                    data["Results"][0]["Packages"].pop()
+            elif label == "current-candidate-full-supported":
                 if fault == "partial":
                     data["Results"][1]["Packages"].pop()
                 elif fault == "wrong-subject":
@@ -4531,6 +4599,13 @@ def test_alertmanager_current_four_controls_retain_native_reports_and_reject_unp
                 ]
                 if current_epoch:
                     cases.append(("CVE-2026-111943", "stdlib@v1.26.8"))
+                if fresh:
+                    cases.extend(
+                        [
+                            ("CVE-2026-78661", "golang.org/x/net@v0.58.0"),
+                            ("CVE-2026-97054", "stdlib@v1.26.8"),
+                        ]
+                    )
                 data = {
                     "SchemaVersion": 2,
                     "ArtifactType": "container_image",
@@ -4587,12 +4662,13 @@ def test_alertmanager_current_four_controls_retain_native_reports_and_reject_unp
         "target-Go-LOW",
         "target-Go-MEDIUM",
     )
-    succeeds = fault is None or historical_target_observation
+    succeeds = fault in (None, "fresh-ok") or historical_target_observation
     if succeeds:
         fetcher._alertmanager_live_security(args)
         assert forwarded == [("candidate", current_epoch), ("old_control", current_epoch)]
         assert [name for name in calls if name.startswith("current-")] == [
             "current-scanner-version",
+            *(["current-base-full-supported"] if fresh else []),
             "current-candidate-full-supported",
             "current-known-vulnerable-control",
             "current-secret-positive",
@@ -4624,7 +4700,17 @@ def test_alertmanager_current_four_controls_retain_native_reports_and_reject_unp
     if historical_target_observation:
         assert record["candidate"]["findings"][0]["VulnerabilityID"] == "CVE-2026-111943"
     assert all(epoch is current_epoch for _, epoch in forwarded)
-    if fault not in ("scanner-exit", "missing-report"):
+    if fault == "fresh-ok":
+        assert record["base"]["packages"] and len(record["report_sha256"]) == 5
+        assert record["old_control"]["known_HIGH_occurrences"] == 16
+        assert record["elapsed_seconds"] < record["security_budget_seconds"] == 1800
+        assert not list(args.output_dir.glob("fresh-base-*"))
+    if fault not in (
+        "scanner-exit",
+        "missing-report",
+        "fresh-base-missing",
+        "fresh-base-wrong-subject",
+    ):
         assert (
             args.output_dir / "evidence/current-candidate-full-supported.private.json"
         ).is_file()
@@ -4656,6 +4742,7 @@ def test_alertmanager_actual_caller_steps_fit_distinct_enclosing_budgets_and_ret
         "Remove fixed trusted Prometheus control checkout",
         "Require separately designated AM controller",
         "Checkout separately designated AM controller",
+        "Verify designated AM controller checkout before credential use",
         "Remove designated AM controller after credential cleanup",
         "Select AM Python without dependency or SDK installation",
         "Install isolated AM host tools through the locked owner",
@@ -4672,9 +4759,9 @@ def test_alertmanager_actual_caller_steps_fit_distinct_enclosing_budgets_and_ret
     }
     pr = _job(workflow, "prometheus-image-security-pr")
     pr_total = sum(minutes(step) for step in shared if step["name"] not in excluded)
-    assert pr_total == 167 and "|| '170'" in pr["timeout-minutes"]
+    assert pr_total == 168 and "|| '170'" in pr["timeout-minutes"]
     selector = _named_step(shared, "Select authenticated Prometheus PR evidence")
-    assert selector["timeout-minutes"] == 4 and "reserved_minutes = 167" in selector["run"]
+    assert selector["timeout-minutes"] == 4 and "reserved_minutes = 168" in selector["run"]
     ci = _workflow(REPO_ROOT / ".github/workflows/ci.yml")
     lint = _job(ci, "lint")
     all_lint = _steps(lint)
@@ -4690,12 +4777,12 @@ def test_alertmanager_actual_caller_steps_fit_distinct_enclosing_budgets_and_ret
         for step in all_lint
         for value in (step["timeout-minutes"],)
     )
-    assert lint_total == 187 and "|| '190'" in lint["timeout-minutes"]
+    assert lint_total == 188 and "|| '190'" in lint["timeout-minutes"]
     lint_selector = _named_step(all_lint, "Select authenticated Prometheus PR evidence")
     assert (
-        lint_selector["timeout-minutes"] == 4 and "reserved_minutes = 87 +" in lint_selector["run"]
+        lint_selector["timeout-minutes"] == 4 and "reserved_minutes = 88 +" in lint_selector["run"]
     )
-    assert sum(map(minutes, _steps(_job(workflow, "alertmanager-retained-candidate")))) <= 78
+    assert sum(map(minutes, _steps(_job(workflow, "alertmanager-retained-candidate")))) == 79
     assert sum(map(minutes, _steps(_job(workflow, "obs2a-checkpoint-native")))) <= 102
     assert (
         "ALERTMANAGER_CD_PR_JOB_TIMEOUT_MINUTES"
@@ -6797,14 +6884,11 @@ def test_caddy_job_budget_is_complete_and_owned_only_by_existing_job() -> None:
     assert build["with"]["push"] is False
     assert "steps.caddy-admission.outputs.mode == 'build'" in build["if"]
     admission = _named_step(steps, "Admit existing Caddy producer or exact retained subject")["run"]
-    assert 'pr["number"] != 2494' in admission
+    assert "caddy_bound_pr(api, selected)" in admission
     assert 'state["observed_build_history"] = spent' in admission
     assert "len(spent) > 4" not in admission and "no fifth" not in admission
-    assert "authenticate_pr_source(proof_api, 2494," in admission
-    assert (
-        '"Caddy requires a real successful same-source PR2494 producer; no automatic build"'
-        in admission
-    )
+    assert "authenticate_pr_source(proof_api, number," in admission
+    assert '"Caddy requires one successful same-source producer; no automatic build"' in admission
     decision = _named_step(
         steps, "Decide source-qualified Caddy inventory and current native controls"
     )["run"]
@@ -6959,6 +7043,11 @@ def test_caddy_actual_scan_runner_contains_work_term_kill_in_one_envelope(
         "epoch",
         "cleanup",
         "API",
+        "branch",
+        "legacy",
+        "main",
+        "extra-tracked",
+        "merged-drift",
         "float-pr-number",
         "float-repo-id",
         "policy",
@@ -6981,7 +7070,23 @@ def test_caddy_candidate_release_requires_current_source_control_and_cleanup_con
         ):
             monkeypatch.delenv(key, raising=False)
     monkeypatch.setenv("GH_TOKEN", "synthetic-only-token")
-    monkeypatch.setenv("GITHUB_EVENT_NAME", "workflow_dispatch")
+    head = "1" * 40
+    number = 2494 if fault == "legacy" else 2495
+    branches = {
+        2484: "codex/cab07c-eslint-pages-features",
+        2494: "codex/dependency-alertmanager-remediation",
+        2495: "codex/npm-braces-build-prerequisite",
+    }
+    repo = {"id": 1043311030, "full_name": "Katsiarynakavaleuskaya/PulsePlate"}
+    main = fault in ("main", "merged-drift")
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "push" if main else "workflow_dispatch")
+    monkeypatch.setenv(
+        "GITHUB_REF", "refs/heads/main" if main else "refs/heads/" + branches[number]
+    )
+    monkeypatch.setenv("GITHUB_SHA", head)
+    event = tmp_path / "event.json"
+    event.write_text(json.dumps({"ref": "refs/heads/main", "after": head} if main else {}))
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event))
     monkeypatch.chdir(REPO_ROOT)
     runner = tmp_path / "runner"
     initial = _caddy_budget_fixture(runner, monkeypatch)
@@ -7054,8 +7159,9 @@ def test_caddy_candidate_release_requires_current_source_control_and_cleanup_con
         "trivy/ignore-policy.rego",
     ]
     inputs = owner.caddy_ci_source_inventory(REPO_ROOT, paths)
-    head = "1" * 40
     admission = {
+        "source_pr": number,
+        "pr_head": head,
         "mode": "build",
         "inputs": inputs,
         "current_head": head,
@@ -7124,6 +7230,25 @@ def test_caddy_candidate_release_requires_current_source_control_and_cleanup_con
             assert argv[:3] == ["/synthetic/docker", "image", "rm"]
         return subprocess.CompletedProcess(argv, 0, b"", b"")
 
+    def checkout_read(
+        self: Any, argv: list[str], name: str, env: dict[str, str], **kwargs: Any
+    ) -> bytes:
+        assert Path(argv[0]).is_absolute() and kwargs["cwd"] == REPO_ROOT
+        assert kwargs["maximum_seconds"] == 60 and kwargs["output_bound"] == 8 * 1024**2
+        assert "GH_TOKEN" not in env and "GITHUB_TOKEN" not in env
+        if name == "status":
+            assert "status" in argv
+            return b""
+        assert argv[-4:] == ["ls-files", "-z", "--", "frontend/"]
+        tracked = [path for path in paths if path.startswith("frontend/")]
+        if fault == "extra-tracked":
+            tracked.append("frontend/package.json")
+        return ("\0".join(tracked) + "\0").encode()
+
+    from scripts.ci.prometheus_source_image import Native
+
+    monkeypatch.setattr(Native, "run", checkout_read)
+
     def output(argv: list[str], **kwargs: Any) -> bytes:
         if argv[1:3] == ["image", "inspect"]:
             return json.dumps(
@@ -7138,29 +7263,6 @@ def test_caddy_candidate_release_requires_current_source_control_and_cleanup_con
         assert argv[1] == "ps"
         return b""
 
-    class Response:
-        def __enter__(self) -> "Response":
-            return self
-
-        def __exit__(self, *args: Any) -> None:
-            return None
-
-        def geturl(self) -> str:
-            return "https://api.github.com/repos/Katsiarynakavaleuskaya/PulsePlate/pulls/2494"
-
-        def read(self, bound: int) -> bytes:
-            assert bound == 8388609
-            return json.dumps(
-                {
-                    "number": 2494.0 if fault == "float-pr-number" else 2494,
-                    "state": "open",
-                    "head": {
-                        "repo": {"id": 1043311030.0 if fault == "float-repo-id" else 1043311030},
-                        "sha": "2" * 40 if fault == "API" else head,
-                    },
-                }
-            ).encode()
-
     monkeypatch.setattr(owner, "_run_docker", native)
     monkeypatch.setattr(owner, "_observe_validated_caddy_runtime", runtime)
     monkeypatch.setattr(subprocess, "run", run)
@@ -7169,14 +7271,34 @@ def test_caddy_candidate_release_requires_current_source_control_and_cleanup_con
     def api_call(
         selected_root: Path, directory: Path, endpoint: str, remaining: Any, expected: str
     ) -> Any:
-        assert selected_root == REPO_ROOT and endpoint == "/pulls/2494"
+        assert selected_root == REPO_ROOT
         assert expected == inputs["scripts/ci/prometheus_source_image.py"]["sha256"]
         assert 0 < remaining(30) <= 30
-        return json.loads(Response().read(8388609))
+        if main and endpoint.startswith("/pulls?"):
+            return []
+        live_number = int(endpoint.split("/")[-1])
+        assert main or live_number == number
+        return {
+            "number": float(live_number) if fault == "float-pr-number" else live_number,
+            "state": "closed" if main else "open",
+            "merged": main,
+            "merge_commit_sha": (
+                head if live_number == number and fault != "merged-drift" else "f" * 40
+            ),
+            "head": {
+                "repo": {
+                    **repo,
+                    "id": float(repo["id"]) if fault == "float-repo-id" else repo["id"],
+                },
+                "sha": "2" * 40 if fault == "API" else head,
+                "ref": "unrelated" if fault == "branch" else branches[live_number],
+            },
+            "base": {"repo": repo, "ref": "main"},
+        }
 
     monkeypatch.setattr(owner, "caddy_ci_api", api_call)
     script = _caddy_inline("Decide source-qualified Caddy inventory and current native controls")
-    if fault is None:
+    if fault in (None, "legacy", "main"):
         exec(compile(script, "<actual-current-Caddy-release>", "exec"), {})
         assert (evidence / "candidate.docker.tar").read_bytes() == image_bytes
         result = json.loads((evidence / "candidate.json").read_text())
@@ -7187,8 +7309,12 @@ def test_caddy_candidate_release_requires_current_source_control_and_cleanup_con
     else:
         identity_error = (
             "Caddy current authenticated PR source changed"
-            if fault in {"API", "float-pr-number", "float-repo-id"}
-            else None
+            if fault == "API"
+            else (
+                "original PR identity differs"
+                if fault in {"branch", "float-pr-number", "float-repo-id"}
+                else None
+            )
         )
         with pytest.raises(ValueError, match=identity_error):
             exec(compile(script, "<actual-current-Caddy-release>", "exec"), {})
@@ -7196,9 +7322,77 @@ def test_caddy_candidate_release_requires_current_source_control_and_cleanup_con
         assert not (evidence / "candidate.json").exists()
 
 
+@pytest.mark.parametrize("fault", ["relative-git", "substituted-git", "truncated-paths"])
+def test_caddy_checkout_inventory_rejects_unbound_native_input(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str
+) -> None:
+    from scripts.ci import check_docker_runtime_dependency_surface as owner
+    from scripts.ci.prometheus_source_image import Native
+
+    resolved = "/qualified/git"
+    git = {"relative-git": "git", "substituted-git": "/other/git"}.get(fault, resolved)
+    monkeypatch.setattr(shutil, "which", lambda name: resolved)
+    monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
+    calls = []
+
+    def read(self: Native, argv: list[str], name: str, env: dict[str, str], **kwargs: Any) -> bytes:
+        calls.append(name)
+        return b"" if name == "status" else b"frontend/unterminated"
+
+    monkeypatch.setattr(Native, "run", read)
+    with pytest.raises(
+        ValueError,
+        match="inventory is incomplete" if fault == "truncated-paths" else "resolved Git",
+    ):
+        owner.caddy_ci_checkout_inventory(tmp_path, git, lambda cap: min(60, cap))
+    assert calls == (["status", "tracked"] if fault == "truncated-paths" else [])
+    assert not list(tmp_path.iterdir())
+
+
 @pytest.mark.parametrize(
     "case",
     [
+        "2484-build",
+        "2484-reuse",
+        "2484-main",
+        "2484-wrong-PR",
+        "2484-wrong-branch",
+        "2484-dispatch-sha",
+        "2484-second-attempt",
+        "transition-build",
+        "transition-reuse",
+        "transition-main",
+        "transition-ambiguous-lookup",
+        "transition-empty-lookup",
+        "transition-wrong-number",
+        "transition-wrong-branch",
+        "transition-dispatch-sha",
+        "transition-wrong-merge",
+        "2495-metadata",
+        "2495-build",
+        "2495-reuse",
+        "2495-main",
+        "2495-wrong-merge",
+        "2495-ambiguous-merge",
+        "2495-dispatch-sha",
+        "2495-dispatch-actor",
+        "2495-dispatch-ref",
+        "2495-native-actor",
+        "2495-second-attempt",
+        "2495-spent",
+        "2495-wrong-branch",
+        "2495-foreign-repo",
+        "2495-expired-artifact",
+        "2495-failed-producer",
+        "2495-ambiguous-producer",
+        "2495-stale-and-current",
+        "2495-expired-and-current",
+        "2495-lock-change",
+        "2495-frontend-change",
+        "2495-fixed-change",
+        "2495-mode-change",
+        "2495-path-change",
+        "2495-wrong-ancestor",
         "build",
         "reuse",
         "metadata",
@@ -7267,7 +7461,21 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
     root.mkdir()
     monkeypatch.chdir(root)
     head, old_head = "1" * 40, "2" * 40
-    branch = "codex/dependency-alertmanager-remediation"
+    lane, separator, variant = case.partition("-")
+    lanes = {"transition": 9999, "2495": 2495, "2484": 2484}
+    number = lanes.get(lane, 2494)
+    if separator and lane in lanes:
+        case = variant
+    branches = {
+        2484: "codex/cab07c-eslint-pages-features",
+        2494: "codex/dependency-alertmanager-remediation",
+        2495: "codex/npm-braces-build-prerequisite",
+        9999: "codex/alertmanager-controller-transition",
+    }
+    branch = branches[number]
+    main = case in {"main", "wrong-merge", "ambiguous-merge"}
+    pr_head = "4" * 40 if main else head
+    sender = {"id": 321, "login": "Katsiarynakavaleuskaya", "type": "User"}
     repo = "Katsiarynakavaleuskaya/PulsePlate"
     fixed = [
         ".github/workflows/frontend-ci.yml",
@@ -7282,6 +7490,7 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
         "frontend/Dockerfile.caddy-spa",
         "frontend/package-lock.json",
         "frontend/.dockerignore",
+        "frontend/src/App.tsx",
         "frontend/scripts/check-redocly-compat.mjs",
         "frontend/patches/redocly-1.34.15-minimatch11.patch",
         "frontend/patches/redocly-1.34.15-minimatch11.inventory.json",
@@ -7298,28 +7507,73 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
         tracked.append("frontend/../trivy/ignore-policy.rego")
     repository = {"id": 1043311030, "full_name": repo}
     pr = {
-        "number": 2497 if case == "wrong-PR" else 2494,
-        "state": "open",
-        "merged": False,
-        "head": {"repo": dict(repository), "sha": head, "ref": branch},
+        "number": 2497 if case == "wrong-PR" else number,
+        "state": "closed" if main else "open",
+        "commits": 2,
+        "merge_commit_sha": old_head if case == "wrong-merge" else head,
+        "merged": main,
+        "head": {
+            "repo": dict(repository),
+            "sha": pr_head,
+            "ref": "unrelated" if case == "wrong-branch" else branch,
+        },
         "base": {"repo": dict(repository), "ref": "main"},
     }
     if case == "foreign-repo":
         pr["head"]["repo"]["id"] = 999
     refresh = case.removeprefix("refresh-") if case.startswith("refresh-") else None
-    reuse = case in {"reuse", "expired-artifact", "failed-producer"}
+    reuse = main or case in {
+        "reuse",
+        "expired-artifact",
+        "failed-producer",
+        "ambiguous-producer",
+        "stale-and-current",
+        "expired-and-current",
+        "lock-change",
+        "frontend-change",
+        "fixed-change",
+        "mode-change",
+        "path-change",
+        "wrong-ancestor",
+    }
     event_name = (
-        "pull_request"
-        if reuse or refresh == "ordinary" or case == "ordinary-no-producer"
-        else "workflow_dispatch"
+        "push"
+        if main
+        else (
+            "pull_request"
+            if reuse or refresh == "ordinary" or case == "ordinary-no-producer"
+            else "workflow_dispatch"
+        )
     )
     action = (
         ""
-        if event_name == "pull_request"
+        if event_name != "workflow_dispatch"
         else "xnet062-metadata" if case == "metadata" else "candidate-D"
     )
     event = runner / "event.json"
-    event.write_text(json.dumps({"pull_request": pr} if event_name == "pull_request" else {}))
+    payload = (
+        {"pull_request": pr}
+        if event_name == "pull_request"
+        else {
+            "sender": {**sender, "type": "Bot"} if case == "dispatch-actor" else sender,
+            "ref": "unrelated" if case == "dispatch-ref" else branch,
+            "inputs": {
+                "caddy_action": action,
+                "caddy_source_sha": old_head if case == "dispatch-sha" else head,
+            },
+        }
+    )
+    if number == 2494 and event_name == "workflow_dispatch":
+        del payload["inputs"]["caddy_source_sha"]
+    if main:
+        payload = {"after": head, "ref": "refs/heads/main"}
+    event.write_text(json.dumps(payload))
+    ref = (
+        "refs/heads/main"
+        if main
+        else f"refs/pull/{number}/merge" if event_name == "pull_request" else "refs/heads/" + branch
+    )
+    attempt = 2 if case == "second-attempt" else 1
     output = runner / "github-output"
     output.touch()
     for key, value in {
@@ -7331,9 +7585,11 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
         "GITHUB_SHA": head,
         "GITHUB_EVENT_PATH": str(event),
         "GITHUB_EVENT_NAME": event_name,
-        "GITHUB_REF": "refs/heads/other" if case == "wrong-ref" else "refs/heads/" + branch,
+        "GITHUB_REF": "refs/heads/other" if case == "wrong-ref" else ref,
+        "GITHUB_ACTOR": sender["login"],
+        "GITHUB_ACTOR_ID": str(sender["id"]),
         "GITHUB_RUN_ID": "11",
-        "GITHUB_RUN_ATTEMPT": "1",
+        "GITHUB_RUN_ATTEMPT": str(attempt),
         "GITHUB_OUTPUT": str(output),
     }.items():
         monkeypatch.setenv(key, value)
@@ -7346,9 +7602,11 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
         "workflow_id": 196310935,
         "path": ".github/workflows/frontend-ci.yml",
         "head_sha": head,
-        "head_branch": branch,
-        "run_attempt": 1,
+        "head_branch": "main" if main else branch,
+        "run_attempt": attempt,
         "event": event_name,
+        "actor": sender,
+        "triggering_actor": {**sender, "id": 987} if case == "native-actor" else sender,
         "status": "in_progress",
         "conclusion": None,
         "created_at": "2026-10-31T01:00:00Z",
@@ -7356,12 +7614,12 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
     current_job = {
         "id": 21,
         "run_id": 11,
-        "run_attempt": 1,
+        "run_attempt": attempt,
         "head_sha": head,
         "name": "caddy-contract",
         "status": "in_progress",
         "conclusion": None,
-        "head_branch": branch,
+        "head_branch": "main" if main else branch,
         "completed_at": None,
         "steps": [
             {
@@ -7393,11 +7651,12 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
             path.write_text(json.dumps(ledger))
     runs = [current_run]
     jobs = {11: [] if case == "missing-job" else [current_job]}
-    if reuse or case == "active-producer":
+    if reuse or case in {"active-producer", "spent"}:
         prior = {
             **current_run,
             "id": 12,
-            "head_sha": old_head,
+            "head_sha": head if case == "spent" else old_head,
+            "head_branch": branch,
             "event": "workflow_dispatch",
             "created_at": "2026-10-31T00:00:00Z",
             "updated_at": "2026-10-31T00:30:01Z",
@@ -7412,7 +7671,8 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
             **current_job,
             "id": 22,
             "run_id": 12,
-            "head_sha": old_head,
+            "head_sha": head if case == "spent" else old_head,
+            "head_branch": branch,
             "status": prior["status"],
             "conclusion": prior["conclusion"],
             "started_at": "2026-10-31T00:00:01Z",
@@ -7438,6 +7698,10 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
         }
         runs.append(prior)
         jobs[12] = [prior_job]
+        if case in {"ambiguous-producer", "stale-and-current", "expired-and-current"}:
+            stale_sha = "5" * 40 if case == "stale-and-current" else old_head
+            runs.append({**prior, "id": 13, "head_sha": stale_sha})
+            jobs[13] = [{**prior_job, "id": 23, "run_id": 13, "head_sha": stale_sha}]
     if case == "duplicate-run":
         runs.append(dict(current_run))
     calls: list[str] = []
@@ -7465,8 +7729,36 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
             assert 0 < timeout <= 30
             url = request.full_url
             calls.append(url)
-            if url.endswith("/pulls/2494"):
+            if url.endswith(f"/pulls/{number}"):
                 value = pr
+            elif main and any(url.endswith(f"/pulls/{n}") for n in (2484, 2494, 2495)):
+                foreign_number = int(url.rsplit("/", 1)[1])
+                value = {
+                    **pr,
+                    "number": foreign_number,
+                    "head": {**pr["head"], "ref": branches[foreign_number]},
+                    "merge_commit_sha": head if case == "ambiguous-merge" else old_head,
+                }
+            elif (
+                "/pulls?state=all&head=Katsiarynakavaleuskaya%3Acodex%2Falertmanager-controller-transition&base=main&per_page=2"
+                in url
+            ):
+                value = [{"number": number}] if number == 9999 else []
+                if case == "ambiguous-lookup":
+                    value.append({"number": 9998})
+                elif case == "empty-lookup":
+                    value = []
+                elif case == "wrong-number":
+                    value = [{"number": 2494}]
+
+            elif f"/pulls/{number}/commits?" in url:
+                value = [
+                    {"sha": old_head, "parents": []},
+                    {
+                        "sha": pr_head,
+                        "parents": [] if case == "wrong-ancestor" else [{"sha": old_head}],
+                    },
+                ]
             elif url.endswith("/actions/workflows/frontend-ci.yml"):
                 value = {"id": 196310935}
             elif "/actions/workflows/frontend-ci.yml/runs?" in url:
@@ -7528,16 +7820,18 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
                 elif refresh == "job-branch":
                     value["head_branch"] = "other"
             elif "/artifacts?" in url:
+                artifact_run = int(url.split("/runs/", 1)[1].split("/", 1)[0])
                 value = {
                     "total_count": 1,
                     "artifacts": [
                         {
                             "id": 31,
                             "name": "caddy-contract-evidence",
-                            "expired": case == "expired-artifact",
+                            "expired": case == "expired-artifact"
+                            or (case == "expired-and-current" and artifact_run == 13),
                             "digest": "sha256:" + "a" * 64,
                             "workflow_run": {
-                                "id": 12,
+                                "id": artifact_run,
                                 "head_sha": old_head,
                                 "repository_id": 1043311030,
                                 "head_repository_id": 1043311030,
@@ -7554,24 +7848,48 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
         assert argv[0] == "/synthetic/git" and 0 < kwargs["timeout"] <= 60
         if "rev-parse" in argv:
             return head + "\n"
-        if "ls-files" in argv:
-            return ("\0".join(tracked) + "\0").encode()
-        if "status" in argv:
-            return b""
         if "ls-tree" in argv and "--name-only" in argv:
-            return ("\0".join([*tracked, *fixed]) + "\0").encode()
+            paths = [*tracked, *fixed]
+            if case == "path-change" or "5" * 40 in argv:
+                paths.remove("frontend/src/App.tsx")
+            return ("\0".join(paths) + "\0").encode()
         if "ls-tree" in argv:
-            return ("100644 blob " + blob + "\n").encode()
+            mode = (
+                "100755"
+                if case == "mode-change" and argv[-1] == "frontend/src/App.tsx"
+                else "100644"
+            )
+            drift = {
+                "lock-change": "frontend/package-lock.json",
+                "frontend-change": "frontend/src/App.tsx",
+                "fixed-change": "scripts/ci/prometheus_source_image.py",
+            }
+            return (
+                mode + " blob " + ("a" * 40 if argv[-1] == drift.get(case) else blob) + "\n"
+            ).encode()
         if "cat-file" in argv:
-            return source_bytes
+            return b"other source" if argv[-1] == "a" * 40 else source_bytes
         raise AssertionError(argv)
 
+    def checkout_read(
+        self: Any, argv: list[str], name: str, env: dict[str, str], **kwargs: Any
+    ) -> bytes:
+        assert argv[0] == "/synthetic/git" and kwargs["cwd"] == root
+        assert env["GIT_OPTIONAL_LOCKS"] == "0" and "GH_TOKEN" not in env
+        assert "--no-replace-objects" in argv and "core.fsmonitor=false" in argv
+        if name == "status":
+            assert "--untracked-files=all" in argv
+            return b""
+        assert argv[-4:] == ["ls-files", "-z", "--", "frontend/"]
+        return ("\0".join(tracked) + "\0").encode()
+
+    monkeypatch.setattr(transport.Native, "run", checkout_read)
+
     def git_run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess:
-        assert "fetch" in argv and argv[-1] == old_head
+        assert "fetch" in argv and argv[-1] in {old_head, "5" * 40}
         assert kwargs["env"]["GIT_NO_REPLACE_OBJECTS"] == "1"
         return subprocess.CompletedProcess(argv, 0)
 
-    lineage: list[tuple] = []
     from scripts.ci import check_docker_runtime_dependency_surface as owner
     from urllib.request import Request
 
@@ -7611,29 +7929,57 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
             reader_events.append("closed")
 
     monkeypatch.setattr(owner, "caddy_ci_reader", phase_reader)
-    monkeypatch.setattr(transport, "authenticate_pr_source", lambda *args: lineage.append(args[1:]))
     monkeypatch.setattr(shutil, "which", lambda name: "/synthetic/" + name)
     monkeypatch.setattr(subprocess, "check_output", git_output)
     monkeypatch.setattr(subprocess, "run", git_run)
     code = _caddy_inline("Admit existing Caddy producer or exact retained subject")
-    if case in {"build", "reuse", "metadata"} or refresh in {"both", "mixed", "second"}:
+    if (
+        case in {"build", "reuse", "main", "stale-and-current", "expired-and-current"}
+        or (case == "metadata" and number == 2494)
+    ) or refresh in {"both", "mixed", "second"}:
         exec(compile(code, "<actual-Caddy-current-admission>", "exec"), {})
         result = json.loads((runner / "caddy-admission/admission.json").read_text())
-        mode = "build" if refresh else case
+        mode = "build" if refresh else "reuse" if reuse else case
         assert result["mode"] == mode
         assert reader_events == ["open", "closed"]
         assert output.read_text().startswith("mode=" + mode)
-        if case == "reuse":
+        if mode == "reuse":
             assert result["producer"]["git_inputs"] == result["inputs"]
             assert result["producer"]["artifact"]["id"] == 31
-            assert lineage == [(2494, old_head, head, "refs/heads/" + branch)]
+            assert any(f"/pulls/{number}/commits?" in url for url in calls)
+            assert result["pr_head"] == pr_head and result["source_pr"] == number
     else:
         expected_error = {
-            "ordinary-no-producer": "real successful same-source PR2494 producer",
+            "wrong-merge": "one exact accepted PR or main merge",
+            "ambiguous-merge": "one exact accepted PR or main merge",
+            "dispatch-sha": "exact frozen source dispatch",
+            "dispatch-actor": "exact frozen source dispatch",
+            "dispatch-ref": "exact frozen source dispatch",
+            "native-actor": "declared_data_value",
+            "second-attempt": "exact frozen source dispatch",
+            "spent": "already started",
+            "metadata": "standalone metadata is outside",
+            "ambiguous-lookup": "transition PR lookup is ambiguous",
+            "empty-lookup": "one exact accepted PR or main merge",
+            "wrong-number": "transition PR identity differs",
+            "wrong-branch": "original PR identity differs",
+            "wrong-ancestor": "producer_ancestor_within_PR",
+            **{
+                key: "one successful same-source producer"
+                for key in (
+                    "ambiguous-producer",
+                    "lock-change",
+                    "frontend-change",
+                    "fixed-change",
+                    "mode-change",
+                    "path-change",
+                )
+            },
+            "ordinary-no-producer": "one successful same-source producer",
             "wrong-PR": "original PR identity differs",
             "foreign-repo": "original PR identity differs",
             "wrong-head": "checkout is not selected source head",
-            "wrong-ref": "dispatch must select current accepted PR head",
+            "wrong-ref": "source branch is not designated",
             "missing-job": "current native run/job missing or ambiguous",
             "duplicate-run": "duplicate API identity",
             "inventory-drift": "same-count inventory replacement",
@@ -7642,15 +7988,15 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
             "active-producer": "another producer still active",
             "source-alias": "relevant source path alias",
             "expired-artifact": "original producer artifact unavailable",
-            "failed-producer": "real successful same-source PR2494 producer",
+            "failed-producer": "one successful same-source producer",
         }.get(case, "Caddy current")
         if refresh == "attempt":
             expected_error = "native positive ID required"
         if refresh == "ordinary":
-            expected_error = "real successful same-source PR2494 producer"
+            expected_error = "one successful same-source producer"
         if refresh in {"budget", "persistent"}:
             expected_error = "current state unresolved: run=11 job=21 attempt=1 statuses="
-        with pytest.raises(ValueError, match=expected_error):
+        with pytest.raises((ValueError, transport.QualificationError), match=expected_error):
             exec(compile(code, "<actual-Caddy-current-admission>", "exec"), {})
         assert output.read_text() == ""
         if case in {"inventory-drift", "inventory-bool-attempt", "inventory-float-attempt"}:
