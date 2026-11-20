@@ -6901,6 +6901,32 @@ def test_ci_lint_workflow_sha_verification_requires_native_git_success(
     assert result.returncode == expected_exit, result.stderr
 
 
+def test_ci_prepares_the_designated_controller_before_its_offline_consumers() -> None:
+    workflow = _load_ci_workflow()
+    control = _job_step_by_name(
+        workflow, job_id="lint", step_name="Checkout fixed trusted Prometheus control"
+    )
+    cd = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    cd_control = _job_step_by_name(
+        cd, job_id="prometheus-image-security-pr", step_name=control["name"]
+    )
+    prepare_name = "Prepare pinned Prometheus Git object for tests"
+    for job, consumer in (
+        ("lint", "Pre-commit (lint/format/security quick checks)"),
+        ("test-main", "Run tests with coverage"),
+    ):
+        steps = workflow["jobs"][job]["steps"]
+        prepare = _job_step_by_name(workflow, job_id=job, step_name=prepare_name)
+        assert steps.index(prepare) < steps.index(
+            _job_step_by_name(workflow, job_id=job, step_name=consumer)
+        )
+        assert "if" not in prepare and "continue-on-error" not in prepare
+        assert (
+            prepare["env"]["CONTROLLER_SHA"] == control["with"]["ref"] == cd_control["with"]["ref"]
+        )
+        assert "--depth" not in prepare["run"]
+
+
 def test_ci_main_matrix_uses_full_history_for_git_evidence_guards() -> None:
     workflow = _load_ci_workflow()
 

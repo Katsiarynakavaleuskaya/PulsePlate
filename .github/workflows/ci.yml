@@ -6,7 +6,7 @@ name: CI
 
 env:
   # ROOT creates C, independently reviews/designates it, then pins C before one normal C,H push.
-  ALERTMANAGER_CONTROLLER_SOURCE: '01744d22c617edcda978d28187c099f278d67b91' # pragma: allowlist secret - public immutable controller commit
+  ALERTMANAGER_CONTROLLER_SOURCE: '41f275fc6bec94dbf04c02338d560446bb846e0c' # pragma: allowlist secret - public immutable controller commit
   ALERTMANAGER_PREPARATION_MINUTES: '14'
   ALERTMANAGER_PREP_SECONDS: '600'
   ALERTMANAGER_PAIR_SECONDS: '1800'
@@ -896,7 +896,7 @@ jobs:
         if: github.event_name == 'pull_request' && steps.checkpoint-selection.outputs.selected == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: 2ebe53024febe8e026c4a1f1e056f19482f0fca9 # pragma: allowlist secret - public trusted control commit
+          ref: &prometheus_test_revision 2ebe53024febe8e026c4a1f1e056f19482f0fca9 # pragma: allowlist secret - public trusted control commit
           persist-credentials: false
           path: artifacts/orchestration/prometheus-control
           sparse-checkout: scripts/ci/prometheus_source_image.py
@@ -1078,7 +1078,8 @@ jobs:
                   and pr["head"].get("sha") == head and pr["base"].get("sha") == base):
               raise SystemExit("Prometheus_material_revision_HOLD")
           seconds, cleanup = int(os.environ["PROMETHEUS_SELECT_SECONDS"]), int(os.environ["PROMETHEUS_CLEANUP_SECONDS"])
-          reserved_minutes = 88 + int(os.environ["ALERTMANAGER_GENERIC_NATIVE_MINUTES"]) + int(os.environ["ALERTMANAGER_LINT_CHECK_MINUTES"])
+          # The fixed caps include two minutes to prepare the pinned controller object.
+          reserved_minutes = 90 + int(os.environ["ALERTMANAGER_GENERIC_NATIVE_MINUTES"]) + int(os.environ["ALERTMANAGER_LINT_CHECK_MINUTES"])
           if int(os.environ["ALERTMANAGER_JOB_TIMEOUT_MINUTES"]) < reserved_minutes:
               raise SystemExit("Prometheus_selection_enclosing_budget_HOLD")
           if seconds != 60 or cleanup != 120:
@@ -1245,6 +1246,26 @@ jobs:
           set -euo pipefail
           restored_sha="$(git rev-parse HEAD)"
           test "$restored_sha" = "$GITHUB_SHA"
+
+      - &prepare_prometheus_test_control
+        name: Prepare pinned Prometheus Git object for tests
+        timeout-minutes: 2
+        shell: bash
+        env:
+          CONTROLLER_SHA: *prometheus_test_revision
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_NO_REPLACE_OBJECTS: "1"
+        run: |
+          set -euo pipefail
+          [[ "$CONTROLLER_SHA" =~ ^[0-9a-f]{40}$ ]]
+          if ! git cat-file -e "$CONTROLLER_SHA^{commit}" 2>/dev/null; then
+            git -c credential.helper= -c http.extraHeader= -c http.https://github.com/.extraHeader= \
+              -c http.followRedirects=false fetch --no-tags --no-recurse-submodules \
+              --no-write-fetch-head --no-auto-maintenance \
+              https://github.com/Katsiarynakavaleuskaya/PulsePlate.git "$CONTROLLER_SHA"
+          fi
+          resolved="$(git rev-parse --verify --end-of-options "$CONTROLLER_SHA^{commit}")"
+          test "$resolved" = "$CONTROLLER_SHA"
 
       - name: Setup Python environment
         timeout-minutes: 20
@@ -3041,6 +3062,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+
+      - *prepare_prometheus_test_control
 
       - name: Resolve PR diagnostic package proxy
         if: github.event_name == 'pull_request'

@@ -4777,10 +4777,10 @@ def test_alertmanager_actual_caller_steps_fit_distinct_enclosing_budgets_and_ret
         for step in all_lint
         for value in (step["timeout-minutes"],)
     )
-    assert lint_total == 188 and "|| '190'" in lint["timeout-minutes"]
+    assert lint_total == 190 and "|| '190'" in lint["timeout-minutes"]
     lint_selector = _named_step(all_lint, "Select authenticated Prometheus PR evidence")
     assert (
-        lint_selector["timeout-minutes"] == 4 and "reserved_minutes = 88 +" in lint_selector["run"]
+        lint_selector["timeout-minutes"] == 4 and "reserved_minutes = 90 +" in lint_selector["run"]
     )
     assert sum(map(minutes, _steps(_job(workflow, "alertmanager-retained-candidate")))) == 79
     assert sum(map(minutes, _steps(_job(workflow, "obs2a-checkpoint-native")))) <= 102

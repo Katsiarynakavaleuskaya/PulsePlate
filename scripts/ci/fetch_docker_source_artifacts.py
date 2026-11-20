@@ -7355,7 +7355,7 @@ def _alertmanager_limits(*, caller: bool = False) -> dict[str, int]:
     if caller:
         kind = os.environ.get("ALERTMANAGER_CALLER_KIND", "")
         maintained = {
-            "ci-lint": (188, 2),
+            "ci-lint": (190, 0),
             "shared-pr": (168, 2),
             "shared-main": (285, 5),
             "standalone": (79, 1),

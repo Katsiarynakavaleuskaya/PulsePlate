@@ -572,7 +572,7 @@ os.execv(sys.executable, [sys.executable, "-I", "-S", "/dev/fd/" + str(fd), *sys
 }
 
 ALERTMANAGER_CONTRACT_HELPER="${ALERTMANAGER_CONTRACT_HELPER:-${DEPLOY_DIR}/scripts/ci/fetch_docker_source_artifacts.py}"
-ALERTMANAGER_CONTRACT_HELPER_SHA256="126c6e74818ff03c61cf60b3b5dd0580f53169cd16c8ab6db8db88c7cae29b04"
+ALERTMANAGER_CONTRACT_HELPER_SHA256="16bf6fdc584a1e8b778a4ea6a3da1efcf8416cfba96afe352cd9a5d7c3e597b2"
 readonly ALERTMANAGER_CONTRACT_HELPER ALERTMANAGER_CONTRACT_HELPER_SHA256
 
 run_prometheus_contract() {
