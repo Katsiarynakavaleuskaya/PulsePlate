@@ -841,6 +841,8 @@ jobs:
                       git_env = {"PATH": os.environ["PATH"], "LANG": "C.UTF-8", "GIT_CONFIG_NOSYSTEM": "1",
                                  "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_NO_REPLACE_OBJECTS": "1"}
                       original_head = run["head_sha"]
+                      if not caddy_producer_in_pr(api, number, original_head, pr["head"]["sha"], branch):
+                          continue
                       subprocess.run([git, "--no-replace-objects", "fetch", "--no-tags", "--depth=1",
                                       "https://github.com/" + repo + ".git", original_head], env=git_env, check=True, timeout=remaining(120))
                       tree = subprocess.check_output([git, "--no-replace-objects", "ls-tree", "-r", "-l", "-z",
@@ -885,8 +887,6 @@ jobs:
                       original_inputs = {name: {"mode": mode, "bytes": size, "sha256": blobs[oid]}
                                          for name, (mode, oid, size) in objects.items()}
                       if original_inputs != inputs:
-                          continue
-                      if not caddy_producer_in_pr(api, number, original_head, pr["head"]["sha"], branch):
                           continue
                       artifacts = pages("/actions/runs/" + str(run["id"]) + "/artifacts", "artifacts")
                       for artifact in artifacts:
@@ -1479,7 +1479,7 @@ jobs:
               stage_caddy_build_context, validate_caddy_prebuild,
           )
           work = Path(os.environ["RUNNER_TEMP"])
-          context = None
+          staged = None
           try:
               with caddy_ci_phase("PROCESSING") as remaining:
                   git = shutil.which("git")
@@ -1489,7 +1489,7 @@ jobs:
                   checked_head = subprocess.check_output([git, "rev-parse", "HEAD"], text=True, timeout=remaining(30)).strip()
                   inputs = caddy_ci_checkout_inventory(root, git, remaining)
                   admission = validate_caddy_prebuild(work, inputs, checked_head, time.monotonic() + remaining(300))
-                  context = stage_caddy_build_context(root, work, inputs, remaining)
+                  staged = stage_caddy_build_context(root, work, inputs, remaining)
               if os.environ["GITHUB_REF"] != "refs/heads/" + CADDY_ORIGINAL_BRANCH:
                   with caddy_ci_phase("ADMISSION") as remaining, caddy_ci_reader(
                       root, work / "caddy-admission/prebuild-api", remaining, inputs["scripts/ci/prometheus_source_image.py"]["sha256"]
@@ -1498,13 +1498,14 @@ jobs:
                       if pr["number"] != admission["source_pr"] or pr["head"]["sha"] != admission["pr_head"]:
                           raise ValueError("Caddy current authenticated PR source changed")
               caddy_ci_charge_action("BUILD")
+              context, (device, inode) = staged
               with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
-                  output.write(f"context={context}\n")
+                  output.write(f"context={context}\ncontext_device={device}\ncontext_inode={inode}\n")
           except BaseException as error:
-              if context is not None:
+              if staged is not None:
                   try:
-                      clean_staged_caddy_build_context(work, context)
-                  except OSError as cleanup_error:
+                      clean_staged_caddy_build_context(work, *staged)
+                  except (OSError, ValueError) as cleanup_error:
                       error.add_note(f"Caddy staged build context cleanup failed: {cleanup_error}")
               raise
           PY
@@ -2638,6 +2639,8 @@ jobs:
         if: ${{ always() && steps.caddy-build-budget.outputs.context != '' }}
         env:
           CADDY_BUILD_CONTEXT: ${{ steps.caddy-build-budget.outputs.context }}
+          CADDY_CONTEXT_DEVICE: ${{ steps.caddy-build-budget.outputs.context_device }}
+          CADDY_CONTEXT_INODE: ${{ steps.caddy-build-budget.outputs.context_inode }}
         run: |
           python3 - <<'PY'
           import os
@@ -2645,7 +2648,9 @@ jobs:
           from scripts.ci.check_docker_runtime_dependency_surface import clean_staged_caddy_build_context
 
           clean_staged_caddy_build_context(
-              Path(os.environ["RUNNER_TEMP"]), Path(os.environ["CADDY_BUILD_CONTEXT"])
+              Path(os.environ["RUNNER_TEMP"]),
+              Path(os.environ["CADDY_BUILD_CONTEXT"]),
+              (int(os.environ["CADDY_CONTEXT_DEVICE"]), int(os.environ["CADDY_CONTEXT_INODE"])),
           )
           PY
 

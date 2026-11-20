@@ -1240,11 +1240,20 @@ def caddy_ci_source_inventory(root: Path, paths: list[str]) -> dict[str, dict[st
     return inventory
 
 
-def clean_staged_caddy_build_context(work: Path, context: Path) -> None:
-    """Remove the context created for this job without following an aliased path."""
+def clean_staged_caddy_build_context(work: Path, context: Path, identity: tuple[int, int]) -> None:
+    """Remove only the staged directory observed at creation."""
     if context.parent != work or not context.name.startswith("caddy-build-context-"):
         raise ValueError("Caddy staged build context ownership differs")
-    shutil.rmtree(context)
+    parent = os.open(work, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        info = os.stat(context.name, dir_fd=parent, follow_symlinks=False)
+        if not stat.S_ISDIR(info.st_mode) or (info.st_dev, info.st_ino) != identity:
+            raise ValueError("Caddy staged build context identity differs")
+        if not shutil.rmtree.avoids_symlink_attacks:
+            raise ValueError("Caddy staged build context requires fd-safe cleanup")
+        shutil.rmtree(context.name, dir_fd=parent)
+    finally:
+        os.close(parent)
 
 
 def stage_caddy_build_context(
@@ -1252,9 +1261,11 @@ def stage_caddy_build_context(
     work: Path,
     inputs: dict[str, dict[str, object]],
     remaining: Callable[[float], float],
-) -> Path:
-    """Populate a fresh Docker context with only the verified tracked frontend bytes."""
+) -> tuple[Path, tuple[int, int]]:
+    """Populate the Docker context and retain its identity for the cleanup handoff."""
     context = Path(tempfile.mkdtemp(prefix="caddy-build-context-", dir=work))
+    created = context.lstat()
+    identity = (created.st_dev, created.st_ino)
     try:
         for name, expected in inputs.items():
             if not name.startswith("frontend/"):
@@ -1282,11 +1293,11 @@ def stage_caddy_build_context(
             target.chmod(mode)
     except BaseException as error:
         try:
-            clean_staged_caddy_build_context(work, context)
-        except OSError as cleanup_error:
+            clean_staged_caddy_build_context(work, context, identity)
+        except (OSError, ValueError) as cleanup_error:
             error.add_note(f"Caddy staged build context cleanup failed: {cleanup_error}")
         raise
-    return context
+    return context, identity
 
 
 _CADDY_SYNTHETIC_ENVIRONMENT = (

@@ -7572,6 +7572,8 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
         "failed-producer",
         "ambiguous-producer",
         "stale-and-current",
+        "superseded-unfetchable",
+        "eligible-unfetchable",
         "expired-and-current",
         "lock-change",
         "frontend-change",
@@ -7696,10 +7698,11 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
     runs = [current_run]
     jobs = {11: [] if case == "missing-job" else [current_job]}
     if reuse or case in {"active-producer", "spent"}:
+        prior_sha = "5" * 40 if case == "superseded-unfetchable" else old_head
         prior = {
             **current_run,
             "id": 12,
-            "head_sha": head if case == "spent" else old_head,
+            "head_sha": head if case == "spent" else prior_sha,
             "head_branch": branch,
             "event": "workflow_dispatch",
             "created_at": "2026-10-31T00:00:00Z",
@@ -7715,7 +7718,7 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
             **current_job,
             "id": 22,
             "run_id": 12,
-            "head_sha": head if case == "spent" else old_head,
+            "head_sha": head if case == "spent" else prior_sha,
             "head_branch": branch,
             "status": prior["status"],
             "conclusion": prior["conclusion"],
@@ -7742,13 +7745,20 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
         }
         runs.append(prior)
         jobs[12] = [prior_job]
-        if case in {"ambiguous-producer", "stale-and-current", "expired-and-current"}:
+        if case in {
+            "ambiguous-producer",
+            "stale-and-current",
+            "superseded-unfetchable",
+            "expired-and-current",
+        }:
             stale_sha = "5" * 40 if case == "stale-and-current" else old_head
             runs.append({**prior, "id": 13, "head_sha": stale_sha})
             jobs[13] = [{**prior_job, "id": 23, "run_id": 13, "head_sha": stale_sha}]
     if case == "duplicate-run":
         runs.append(dict(current_run))
     calls: list[str] = []
+    fetched: list[str] = []
+    blob_requests: list[list[str]] = []
 
     class Response:
         def __init__(self, url: str, value: dict) -> None:
@@ -7892,7 +7902,13 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
         assert argv[0] == "/synthetic/git" and 0 < kwargs["timeout"] <= 60
         if "rev-parse" in argv:
             return head + "\n"
-        other_source = b"other source"
+        other_source = (
+            source_bytes.replace(b"synthetic", b"alternate", 1)
+            if case == "frontend-change"
+            else b"other source"
+        )
+        if case == "frontend-change":
+            assert other_source != source_bytes and len(other_source) == len(source_bytes)
         other_blob = hashlib.sha1(
             b"blob " + str(len(other_source)).encode() + b"\0" + other_source, usedforsecurity=False
         ).hexdigest()
@@ -7921,7 +7937,9 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
         if "cat-file" in argv:
             assert argv[-2:] == ["cat-file", "--batch"]
             payload = []
-            for oid in kwargs["input"].decode("ascii").splitlines():
+            requested = kwargs["input"].decode("ascii").splitlines()
+            blob_requests.append(requested)
+            for oid in requested:
                 raw = {blob: source_bytes, other_blob: other_source}[oid]
                 payload.append(f"{oid} blob {len(raw)}\n".encode() + raw + b"\n")
             return b"".join(payload)
@@ -7944,6 +7962,13 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
     def git_run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess:
         assert "fetch" in argv and argv[-1] in {old_head, "5" * 40}
         assert kwargs["env"]["GIT_NO_REPLACE_OBJECTS"] == "1"
+        fetched.append(argv[-1])
+        if (
+            case == "superseded-unfetchable" and argv[-1] == "5" * 40
+        ) or case == "eligible-unfetchable":
+            raise subprocess.CalledProcessError(
+                128, argv, stderr=b"synthetic exact SHA unavailable"
+            )
         return subprocess.CompletedProcess(argv, 0)
 
     from scripts.ci import check_docker_runtime_dependency_surface as owner
@@ -7990,7 +8015,15 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
     monkeypatch.setattr(subprocess, "run", git_run)
     code = _caddy_inline("Admit existing Caddy producer or exact retained subject")
     if (
-        case in {"build", "reuse", "main", "stale-and-current", "expired-and-current"}
+        case
+        in {
+            "build",
+            "reuse",
+            "main",
+            "stale-and-current",
+            "superseded-unfetchable",
+            "expired-and-current",
+        }
         or (case == "metadata" and number == 2494)
     ) or refresh in {"both", "mixed", "second"}:
         exec(compile(code, "<actual-Caddy-current-admission>", "exec"), {})
@@ -8004,6 +8037,18 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
             assert result["producer"]["artifact"]["id"] == 31
             assert any(f"/pulls/{number}/commits?" in url for url in calls)
             assert result["pr_head"] == pr_head and result["source_pr"] == number
+            if case == "superseded-unfetchable":
+                assert result["producer"]["run_id"] == 13
+                assert fetched == [old_head]
+                assert not any("/actions/runs/12/artifacts?" in url for url in calls)
+    elif case == "eligible-unfetchable":
+        with pytest.raises(subprocess.CalledProcessError) as error:
+            exec(compile(code, "<actual-Caddy-current-admission>", "exec"), {})
+        assert error.value.returncode == 128
+        assert error.value.stderr == b"synthetic exact SHA unavailable"
+        assert fetched == [old_head] and not blob_requests
+        assert output.read_text() == ""
+        assert not any("/artifacts?" in url for url in calls)
     else:
         expected_error = {
             "wrong-merge": "one exact accepted PR or main merge",
@@ -8055,6 +8100,10 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
         with pytest.raises((ValueError, transport.QualificationError), match=expected_error):
             exec(compile(code, "<actual-Caddy-current-admission>", "exec"), {})
         assert output.read_text() == ""
+        if case == "frontend-change":
+            assert fetched == [old_head] and len(blob_requests) == 1
+            assert len(blob_requests[0]) == 2 and blob in blob_requests[0]
+            assert not any("/artifacts?" in url for url in calls)
         if case in {"inventory-drift", "inventory-bool-attempt", "inventory-float-attempt"}:
             assert sum("/actions/workflows/frontend-ci.yml/runs?" in url for url in calls) == 2
             assert not any("/jobs?filter=all" in url for url in calls)

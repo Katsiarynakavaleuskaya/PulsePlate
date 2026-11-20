@@ -3855,7 +3855,11 @@ def test_caddy062_charge_step_requires_independently_reviewed_same_run_outputs(
     ):
         exec(program, {})
         assert order == ["finished", "BUILD"]
-        context = Path(out.read_text().splitlines()[-1].removeprefix("context="))
+        outputs = dict(line.split("=", 1) for line in out.read_text().splitlines())
+        context = Path(outputs["context"])
+        created = context.stat()
+        assert outputs["context_device"] == str(created.st_dev)
+        assert outputs["context_inode"] == str(created.st_ino)
         assert context.parent == tmp_path and context.name.startswith("caddy-build-context-")
         assert context != other_context
         expected_paths = sorted(
@@ -3872,6 +3876,8 @@ def test_caddy062_charge_step_requires_independently_reviewed_same_run_outputs(
             assert (checkout / "frontend/dist/output.js").is_file()
             assert (checkout / "frontend/fixtures/untracked.js").is_file()
         monkeypatch.setenv("CADDY_BUILD_CONTEXT", str(context))
+        monkeypatch.setenv("CADDY_CONTEXT_DEVICE", outputs["context_device"])
+        monkeypatch.setenv("CADDY_CONTEXT_INODE", outputs["context_inode"])
         program = cleanup["run"].split("<<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
         exec(compile(program, "<caddy-build-cleanup>", "exec"), {})
         assert not context.exists()
@@ -3899,6 +3905,40 @@ def test_caddy062_charge_step_requires_independently_reviewed_same_run_outputs(
                 else []
             )
         )
+    assert other_context.is_dir()
+    assert list(tmp_path.glob("caddy-build-context-*")) == [other_context]
+
+
+@pytest.mark.parametrize("fault", ["wrong-parent", "wrong-prefix", "wrong-device", "replacement"])
+def test_caddy_staged_context_cleanup_rejects_unowned_directory(tmp_path: Path, fault: str) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    owned = workspace / "caddy-build-context-owned"
+    owned.mkdir()
+    original = owned.stat()
+    identity = (original.st_dev, original.st_ino)
+    if fault == "wrong-parent":
+        target = tmp_path / owned.name
+        owned.rename(target)
+    elif fault == "wrong-prefix":
+        target = workspace / "unowned"
+        owned.rename(target)
+    elif fault == "wrong-device":
+        identity = (original.st_dev + 1, original.st_ino)
+        target = owned
+    else:
+        retained = workspace / "retained"
+        owned.rename(retained)
+        owned.mkdir()
+        assert owned.stat().st_ino != original.st_ino
+        target = owned
+
+    sentinel = target / "keep"
+    sentinel.write_text("leave untouched")
+    diagnostic = "ownership" if fault in {"wrong-parent", "wrong-prefix"} else "identity"
+    with pytest.raises(ValueError, match=f"^Caddy staged build context {diagnostic} differs$"):
+        runtime_surface.clean_staged_caddy_build_context(workspace, target, identity)
+    assert sentinel.read_text() == "leave untouched"
 
 
 def test_caddy_metadata_native_identity_delegates_without_config_ID_alias() -> None:
