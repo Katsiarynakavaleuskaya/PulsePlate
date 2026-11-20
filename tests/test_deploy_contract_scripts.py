@@ -18376,7 +18376,19 @@ def test_alertmanager_2495_only_the_two_regular_compose_images(fault: str | None
 
 
 @pytest.mark.parametrize(
-    "case", ["pins", "mapping", "extra", "altered-caller", "wrong-mapping", "wrong-workflow"]
+    "case",
+    [
+        "pins",
+        "mapping",
+        "extra",
+        "altered-caller",
+        "wrong-mapping",
+        "wrong-workflow",
+        "nonbytes-git",
+        "null-parents",
+        "nonstr-parent",
+        "boolean-pr",
+    ],
 )
 def test_alertmanager_transition_binds_real_git_successor(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: str
@@ -18457,14 +18469,22 @@ def test_alertmanager_transition_binds_real_git_successor(
             return {
                 "sha": revision,
                 "tree": {"sha": command("rev-parse", revision + "^{tree}").decode().strip()},
-                "parents": [
-                    {"sha": value}
-                    for value in command("log", "-1", "--format=%P", revision).decode().split()
-                ],
+                "parents": (
+                    None
+                    if case == "null-parents"
+                    else [
+                        {"sha": True if case == "nonstr-parent" else value}
+                        for value in command("log", "-1", "--format=%P", revision).decode().split()
+                    ]
+                ),
             }
 
-        def _capture(self, argv: list[str], maximum: int, *, environment: dict[str, str]) -> bytes:
+        def _capture(
+            self, argv: list[str], maximum: int, *, environment: dict[str, str]
+        ) -> bytes | str:
             assert argv[0] == git and "--no-replace-objects" in argv
+            if case == "nonbytes-git":
+                return "malformed native output"
             return subprocess.run(argv, env=environment, check=True, capture_output=True).stdout
 
     if case in ("pins", "mapping"):
@@ -18472,5 +18492,5 @@ def test_alertmanager_transition_binds_real_git_successor(
     else:
         with pytest.raises(prometheus_source.QualificationError):
             alertmanager_source._alertmanager_transition_successor(
-                API(), repo, head, controller, 17
+                API(), repo, head, controller, True if case == "boolean-pr" else 17
             )

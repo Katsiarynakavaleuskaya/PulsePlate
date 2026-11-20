@@ -11471,7 +11471,7 @@ def _alertmanager_transition_successor(
     }
 
     def query(*args: str) -> bytes:
-        return api._capture(
+        raw: object = api._capture(
             [
                 cast(str, git),
                 "--no-replace-objects",
@@ -11486,21 +11486,25 @@ def _alertmanager_transition_successor(
             2 * 1024**2,
             environment=env,
         )
+        require(type(raw) is bytes, "AM_transition_native_Git_bytes")
+        return cast(bytes, raw)
 
     def parent(revision: str) -> str:
         node = api.json(endpoint + "/git/commits/" + revision)
         parents = node.get("parents") if type(node) is dict else None
+        parent_sha: object = (
+            parents[0].get("sha")
+            if type(parents) is list and len(parents) == 1 and type(parents[0]) is dict
+            else None
+        )
         require(
             type(node) is dict
             and node.get("sha") == revision
-            and type(parents) is list
-            and len(parents) == 1
-            and type(parents[0]) is dict
-            and type(parents[0].get("sha")) is str
-            and re.fullmatch(r"[0-9a-f]{40}", parents[0]["sha"]) is not None,
+            and type(parent_sha) is str
+            and re.fullmatch(r"[0-9a-f]{40}", parent_sha) is not None,
             "AM_transition_direct_parent",
         )
-        return cast(str, parents[0]["sha"])
+        return cast(str, parent_sha)
 
     def paths(before: str, after: str) -> list[bytes]:
         return query(
@@ -11632,8 +11636,9 @@ def _alertmanager_reader_route(
         "AM_current_main_binding",
     )
     if name == "pull_request":
-        number = event.get("number")
-        require(type(number) is int and number > 0, "AM_actual_PR_number")
+        raw_number: object = event.get("number")
+        require(type(raw_number) is int and raw_number > 0, "AM_actual_PR_number")
+        number = cast(int, raw_number)
         pr = api.json("/repos/Katsiarynakavaleuskaya/PulsePlate/pulls/" + str(number))
         event_pr = event.get("pull_request")
         require(
