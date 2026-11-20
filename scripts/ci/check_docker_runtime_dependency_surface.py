@@ -616,6 +616,122 @@ def _caddy_xnet062_profile(
     return hashlib.sha256(canonical_data(profile)).hexdigest()
 
 
+CADDY_ORIGINAL_BRANCH = "codex/dependency-alertmanager-remediation"
+CADDY_TRANSITION_BRANCH = "codex/alertmanager-controller-transition"
+CADDY_PR_NUMBERS: dict[str, int | None] = {
+    CADDY_ORIGINAL_BRANCH: 2494,
+    "codex/npm-braces-build-prerequisite": 2495,
+    CADDY_TRANSITION_BRANCH: None,
+}
+CADDY_REPOSITORY = "Katsiarynakavaleuskaya/PulsePlate"
+
+
+def caddy_bound_pr(api: Callable[[str], Any], selected: str) -> dict[str, Any]:
+    """Bind a designated receiver to the native PR, explicit dispatch or exact main merge."""
+    from urllib.parse import urlencode
+
+    from scripts.ci.prometheus_source_image import QualificationError, exact_data
+
+    env = os.environ
+    event = json.loads(Path(env["GITHUB_EVENT_PATH"]).read_bytes())
+    kind, ref = env["GITHUB_EVENT_NAME"], env["GITHUB_REF"]
+    if kind == "pull_request":
+        snapshot = event["pull_request"]
+        number = snapshot["number"]
+        if type(number) is not int or ref != f"refs/pull/{number}/merge":
+            raise ValueError("Caddy source PR scope differs")
+        branches = [snapshot["head"]["ref"]]
+    elif kind == "workflow_dispatch":
+        if not ref.startswith("refs/heads/") or selected != env["GITHUB_SHA"]:
+            raise ValueError("Caddy dispatch must select current accepted PR head")
+        branches = [ref.removeprefix("refs/heads/")]
+    elif kind == "push":
+        if (
+            ref != "refs/heads/main"
+            or event["ref"] != ref
+            or event["after"] != env["GITHUB_SHA"]
+            or selected != event["after"]
+        ):
+            raise ValueError("Caddy source main scope differs")
+        branches = list(CADDY_PR_NUMBERS)
+    else:
+        raise ValueError("Caddy source event not admitted")
+
+    matches = []
+    for branch in branches:
+        if branch not in CADDY_PR_NUMBERS:
+            raise ValueError("Caddy source branch is not designated")
+        expected_number = CADDY_PR_NUMBERS[branch]
+        if expected_number is None:
+            # Two records already prove ambiguity. One complete first page binds the only candidate.
+            query = urlencode(
+                {
+                    "state": "all",
+                    "head": CADDY_REPOSITORY.split("/")[0] + ":" + branch,
+                    "base": "main",
+                    "per_page": 2,
+                }
+            )
+            rows = api("/pulls?" + query)
+            if not isinstance(rows, list) or len(rows) > 1:
+                raise ValueError("Caddy transition PR lookup is ambiguous")
+            if not rows:
+                continue
+            expected_number = rows[0]["number"]
+            if (
+                type(expected_number) is not int
+                or expected_number <= 0
+                or expected_number in CADDY_PR_NUMBERS.values()
+            ):
+                raise ValueError("Caddy transition PR identity differs")
+        pr = api(f"/pulls/{expected_number}")
+        records = [event["pull_request"], pr] if kind == "pull_request" else [pr]
+        for record in records:
+            try:
+                exact_data(record["number"], expected_number)
+                exact_data(record["head"]["ref"], branch)
+                exact_data(record["base"]["ref"], "main")
+                for side in ("head", "base"):
+                    exact_data(record[side]["repo"]["full_name"], CADDY_REPOSITORY)
+                    exact_data(record[side]["repo"]["id"], 1043311030)
+            except QualificationError as exc:
+                raise ValueError("Caddy original PR identity differs") from exc
+            if kind != "push" and (record["state"] != "open" or record["head"]["sha"] != selected):
+                raise ValueError("Caddy current authenticated PR source changed")
+        if kind != "push" or (
+            pr["state"] == "closed" and pr["merged"] is True and pr["merge_commit_sha"] == selected
+        ):
+            matches.append(pr)
+    if len(matches) != 1:
+        raise ValueError("Caddy observation requires one exact accepted PR or main merge")
+    return dict(matches[0])
+
+
+def caddy_owner_dispatch(head: str) -> None:
+    """Bind the candidate build to the owner's exact dispatch input and sender."""
+    env = os.environ
+    event = json.loads(Path(env["GITHUB_EVENT_PATH"]).read_bytes())
+    sender = event["sender"]
+    if (
+        env["GITHUB_EVENT_NAME"] != "workflow_dispatch"
+        or env["GITHUB_RUN_ATTEMPT"] != "1"
+        or env["GITHUB_REF"]
+        not in {
+            "refs/heads/" + branch for branch in CADDY_PR_NUMBERS if branch != CADDY_ORIGINAL_BRANCH
+        }
+        or env["GITHUB_SHA"] != head
+        or event["ref"] not in (env["GITHUB_REF"].removeprefix("refs/heads/"), env["GITHUB_REF"])
+        or event["inputs"] != {"caddy_action": "candidate-D", "caddy_source_sha": head}
+        or sender["type"] != "User"
+        or sender["login"] != CADDY_REPOSITORY.split("/")[0]
+        or sender["login"] != env["GITHUB_ACTOR"]
+        or type(sender["id"]) is not int
+        or sender["id"] <= 0
+        or str(sender["id"]) != env["GITHUB_ACTOR_ID"]
+    ):
+        raise ValueError("Caddy requires the owner's exact frozen source dispatch")
+
+
 def validate_caddy_prebuild(
     work: Path, inputs: dict[str, dict[str, object]], checked_head: str, deadline: float
 ) -> None:
@@ -644,13 +760,15 @@ def validate_caddy_prebuild(
         or env["CADDY_ACTION"] != "candidate-D"
         or env["GITHUB_REPOSITORY"] != repository
         or env["GITHUB_REPOSITORY_ID"] != "1043311030"
-        or env["GITHUB_REF"] != "refs/heads/codex/dependency-alertmanager-remediation"
+        or env["GITHUB_REF"] not in {"refs/heads/" + branch for branch in CADDY_PR_NUMBERS}
         or not re.fullmatch(r"[0-9a-f]{40}", checked_head)
         or env["GITHUB_SHA"] != checked_head
         or env["GITHUB_RUN_ATTEMPT"] != "1"
         or not re.fullmatch(r"[1-9][0-9]*", env["GITHUB_RUN_ID"])
     ):
         raise ValueError("Caddy prebuild event or source differs")
+    if env["GITHUB_REF"] != "refs/heads/" + CADDY_ORIGINAL_BRANCH:
+        caddy_owner_dispatch(checked_head)
     run_id = int(env["GITHUB_RUN_ID"])
     state, _ = read_object(work / "caddy-admission/admission.json", 4 * 1024**2)
     expected_state = {
@@ -662,6 +780,8 @@ def validate_caddy_prebuild(
         "current_run_attempt": 1,
         "inputs": inputs,
     }
+    if env["GITHUB_REF"] != "refs/heads/" + CADDY_ORIGINAL_BRANCH:
+        expected_state["source_branch"] = env["GITHUB_REF"].removeprefix("refs/heads/")
     exact_data({key: state.get(key) for key in expected_state}, expected_state)
     metadata = work / "caddy-xnet062-metadata"
     report, report_hash = read_object(metadata / "evidence/qualification.json", 16 * 1024**2)
@@ -950,6 +1070,58 @@ CADDY_CI_FIXED_SOURCES = {
     "scripts/ci/check_trivy_ignore_policy_expiry.py",
     "trivy/ignore-policy.rego",
 }
+
+
+def caddy_ci_checkout_inventory(
+    root: Path, git: str, remaining: Callable[[float], float]
+) -> dict[str, dict[str, object]]:
+    """Re-enumerate all tracked frontend files and require a clean governed worktree."""
+    from scripts.ci.prometheus_source_image import Native
+
+    if not Path(git).is_absolute() or git != shutil.which("git"):
+        raise ValueError("Caddy checkout requires the resolved Git executable")
+    fixed = sorted(CADDY_CI_FIXED_SOURCES)
+    argv = [
+        git,
+        "--no-replace-objects",
+        "-c",
+        "core.fsmonitor=false",
+        "-c",
+        "core.hooksPath=" + os.devnull,
+    ]
+    env = {
+        "PATH": os.defpath,
+        "LANG": "C",
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_OPTIONAL_LOCKS": "0",
+        "GIT_TERMINAL_PROMPT": "0",
+    }
+    with tempfile.TemporaryDirectory(dir=os.environ["RUNNER_TEMP"]) as work:
+        native = Native(
+            Path(work).resolve(strict=True), time.monotonic() + remaining(float("inf")), 0
+        )
+        status = native.run(
+            [*argv, "status", "--porcelain", "--untracked-files=all", "--", "frontend/", *fixed],
+            "status",
+            env,
+            cwd=root,
+            maximum_seconds=60,
+            output_bound=8 * 1024**2,
+        )
+        if status:
+            raise ValueError("Caddy build context is dirty")
+        raw = native.run(
+            [*argv, "ls-files", "-z", "--", "frontend/"],
+            "tracked",
+            env,
+            cwd=root,
+            maximum_seconds=60,
+            output_bound=8 * 1024**2,
+        )
+    if not raw.endswith(b"\0"):
+        raise ValueError("Caddy tracked frontend inventory is incomplete")
+    return caddy_ci_source_inventory(root, raw[:-1].decode().split("\0") + fixed)
 
 
 def caddy_ci_source_inventory(root: Path, paths: list[str]) -> dict[str, dict[str, object]]:

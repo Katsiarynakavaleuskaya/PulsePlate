@@ -3342,6 +3342,11 @@ def test_caddy062_current_generated_metadata_bindings_match_exact_observed_DATA(
         "equal-wrong",
         "equal-package-replacement",
         "finish",
+        "recovery-build",
+        "transition-build",
+        "recovery-stale",
+        "transition-substitute",
+        "recovery-input",
         "charge",
     ],
 )
@@ -3351,6 +3356,8 @@ def test_caddy062_charge_step_requires_independently_reviewed_same_run_outputs(
     from contextlib import contextmanager
     import os
     import shutil
+    from collections.abc import Callable, Iterator
+    from typing import Any
 
     import yaml
 
@@ -3392,6 +3399,7 @@ def test_caddy062_charge_step_requires_independently_reviewed_same_run_outputs(
         "frontend/.dockerignore",
         "frontend/package-lock.json",
         "frontend/another",
+        "frontend/space and\r\nnewline",
     ]
     for name in selected:
         target = checkout / name
@@ -3434,6 +3442,37 @@ def test_caddy062_charge_step_requires_independently_reviewed_same_run_outputs(
         "current_run_attempt": 1,
         "inputs": inputs,
     }
+    owner_build = str(fault).startswith(("recovery-", "transition-"))
+    branch = (
+        "codex/alertmanager-controller-transition"
+        if str(fault).startswith("transition-")
+        else (
+            "codex/npm-braces-build-prerequisite"
+            if owner_build
+            else "codex/dependency-alertmanager-remediation"
+        )
+    )
+    if owner_build:
+        state["source_branch"] = branch
+        sender = {"type": "User", "login": "Katsiarynakavaleuskaya", "id": 73}
+        event = tmp_path / "dispatch.json"
+        event.write_text(
+            json.dumps(
+                {
+                    "sender": sender,
+                    "ref": branch,
+                    "inputs": {
+                        "caddy_action": "candidate-D",
+                        "caddy_source_sha": "0" * 40 if fault == "recovery-input" else head,
+                    },
+                }
+            )
+        )
+        monkeypatch.setenv("GITHUB_EVENT_PATH", str(event))
+        monkeypatch.setenv("GITHUB_ACTOR", sender["login"])
+        monkeypatch.setenv("GITHUB_ACTOR_ID", str(sender["id"]))
+        monkeypatch.setenv("GH_TOKEN", "synthetic-prebuild-reader")
+        monkeypatch.delenv("GITHUB_TOKEN", raising=False)
     if fault == "omitted-input":
         del inputs["frontend/another"]
     if fault == "dirty":
@@ -3570,7 +3609,7 @@ def test_caddy062_charge_step_requires_independently_reviewed_same_run_outputs(
     assert key == "prebuild_binding"
     for key, value in {
         "GITHUB_SHA": head,
-        "GITHUB_REF": "refs/heads/codex/dependency-alertmanager-remediation",
+        "GITHUB_REF": "refs/heads/" + branch,
         "GITHUB_EVENT_NAME": "workflow_dispatch",
         "GITHUB_REPOSITORY": "Katsiarynakavaleuskaya/PulsePlate",
         "GITHUB_REPOSITORY_ID": "1043311030",
@@ -3594,6 +3633,10 @@ def test_caddy062_charge_step_requires_independently_reviewed_same_run_outputs(
 
     @contextmanager
     def processing(phase: str):
+        if phase == "ADMISSION":
+            assert owner_build
+            yield float
+            return
         assert phase == "PROCESSING"
         yield float
         if fault == "finish":
@@ -3605,13 +3648,41 @@ def test_caddy062_charge_step_requires_independently_reviewed_same_run_outputs(
         if fault == "charge":
             raise ValueError("charge failed")
 
+    @contextmanager
+    def reader(
+        root: Path, directory: Path, remaining: Callable, expected: str
+    ) -> Iterator[Callable]:
+        assert owner_build and directory == tmp_path / "caddy-admission/prebuild-api"
+        assert expected == inputs["scripts/ci/prometheus_source_image.py"]["sha256"]
+
+        def get(endpoint: str) -> Any:
+            number = 9999 if branch == "codex/alertmanager-controller-transition" else 2495
+            if endpoint.startswith("/pulls?"):
+                assert number == 9999
+                return [{"number": number}]
+            assert endpoint == f"/pulls/{number}"
+            repo = {"id": 1043311030, "full_name": "Katsiarynakavaleuskaya/PulsePlate"}
+            return {
+                "number": number,
+                "state": "open",
+                "base": {"ref": "main", "repo": repo},
+                "head": {
+                    "repo": repo,
+                    "ref": "wrong" if fault == "transition-substitute" else branch,
+                    "sha": "f" * 40 if fault == "recovery-stale" else head,
+                },
+            }
+
+        yield get
+
+    monkeypatch.setattr(runtime_surface, "caddy_ci_reader", reader)
     monkeypatch.setattr(runtime_surface, "caddy_ci_phase", processing)
     monkeypatch.setattr(runtime_surface, "caddy_ci_charge_action", charge)
     monkeypatch.chdir(checkout)
     program = compile(
         charge_step["run"].split("<<'PY'\n", 1)[1].rsplit("\nPY", 1)[0], "<caddy-prebuild>", "exec"
     )
-    if fault is None:
+    if fault in (None, "recovery-build", "transition-build"):
         exec(program, {})
         assert order == ["finished", "BUILD"]
     else:
@@ -3630,7 +3701,11 @@ def test_caddy062_charge_step_requires_independently_reviewed_same_run_outputs(
         )
         with pytest.raises((OSError, KeyError, ValueError, QualificationError), match=message):
             exec(program, {})
-        assert order == (["finished", "BUILD"] if fault == "charge" else [])
+        assert order == (
+            ["finished", "BUILD"]
+            if fault == "charge"
+            else ["finished"] if fault in ("recovery-stale", "transition-substitute") else []
+        )
 
 
 def test_caddy_metadata_native_identity_delegates_without_config_ID_alias() -> None:
