@@ -1,5 +1,43 @@
 # npm:braces frontend build prerequisite
 
+## Browser, development server and nightly verification — 2026-11-20
+
+On Linux, tree `a03ae2c611ac3e3a4e494dc70b2bdfeefe9e3a28` produced a
+34-file production build and a 155-file Storybook site with 122 index entries.
+The combined browser command exceeded its 780-second limit. Separate runs of
+Chromium, Firefox and WebKit passed 29, 29 and 23 of their 29 cases. The six
+WebKit cases that exceeded their deadlines passed when run together with four
+CPUs. The test files, production assets, browser versions, one-worker setting,
+zero retries and per-case deadlines were the same. Across the four runs, each of
+the 87 distinct browser–case pairs has a passing native result.
+
+The two archived report sets have SHA-256 digests
+`0e00562ceaf04feecf978a1ea4ee4cc14c92b4e885285809ce686d65c4a8e792`
+and `877c27f685575ef6936b0bdba002bcf8c7d5b0e578a2272bcf14823b8c03b47a`.
+The production Home heading used its surface color at 320, 768 and 1440 pixels
+in each browser (`frontend/e2e/hpp-smoke.spec.ts:1478`).
+
+Vite expands PostCSS directory dependencies into their existing files. Creating
+a TypeScript file after server startup left the loaded stylesheet unchanged on
+both main and the original candidate. The development client now includes its
+loaded stylesheet in the update when a TypeScript file is created under
+`src/` (`frontend/vite.config.ts:10`). In the running Chromium app a new
+in-scope utility produced 137px, while a file outside the source root produced
+no 139px utility. Edits to the existing index and source produced 143px and
+145px, respectively. The browser kept its document through these updates.
+The fixtures were restored. A separate cold check passed. Both macOS production
+builds, before and after this development-only change, produced identical bytes
+for all 34 files.
+
+The November 20 Nightly Full Tests run on main reported 119 failures in tests
+that use the pinned Prometheus controller. A fresh checkout reproduced the
+missing Git object. The nightly workflow now prepares the same revision used
+by canonical CI before running the offline shards
+(`.github/workflows/nightly-tests.yml:33`). All 119 failing cases and one
+companion CD case passed after acquisition with Git HTTPS disabled. The next
+hosted run on the merged revision supplies the end-to-end nightly result.
+[Original nightly failure](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/44658443753)
+
 ## Main integration evidence — 2026-11-19
 
 Base: `2d1df880c8ac2fb1ea53bf09836905194fb47121`. Only Tailwind 4.3.3,

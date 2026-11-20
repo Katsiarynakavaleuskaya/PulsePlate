@@ -6910,14 +6910,13 @@ def test_ci_prepares_the_designated_controller_before_its_offline_consumers() ->
     cd_control = _job_step_by_name(
         cd, job_id="prometheus-image-security-pr", step_name=control["name"]
     )
+    prepare_name = "Prepare pinned Prometheus Git object for tests"
     for job, consumer in (
         ("lint", "Pre-commit (lint/format/security quick checks)"),
         ("test-main", "Run tests with coverage"),
     ):
         steps = workflow["jobs"][job]["steps"]
-        prepare = _job_step_by_name(
-            workflow, job_id=job, step_name="Prepare pinned Prometheus Git object for tests"
-        )
+        prepare = _job_step_by_name(workflow, job_id=job, step_name=prepare_name)
         assert steps.index(prepare) < steps.index(
             _job_step_by_name(workflow, job_id=job, step_name=consumer)
         )
@@ -6926,6 +6925,18 @@ def test_ci_prepares_the_designated_controller_before_its_offline_consumers() ->
             prepare["env"]["CONTROLLER_SHA"] == control["with"]["ref"] == cd_control["with"]["ref"]
         )
         assert "--depth" not in prepare["run"]
+
+    nightly = _load_workflow(NIGHTLY_FULL_TESTS_WORKFLOW_PATH)
+    nightly_steps = nightly["jobs"]["tests"]["steps"]
+    nightly_prepare = _job_step_by_name(nightly, job_id="tests", step_name=prepare_name)
+    checkout = _job_step_by_name(nightly, job_id="tests", step_name="Checkout")
+    shards = _job_step_by_name(
+        nightly, job_id="tests", step_name="Run full test suite with coverage (include slow/MC)"
+    )
+    assert sum(step.get("name") == prepare_name for step in nightly_steps) == 1
+    prepare_index = nightly_steps.index(nightly_prepare)
+    assert nightly_steps.index(checkout) < prepare_index < nightly_steps.index(shards)
+    assert nightly_prepare == _job_step_by_name(workflow, job_id="lint", step_name=prepare_name)
 
 
 def test_ci_main_matrix_uses_full_history_for_git_evidence_guards() -> None:
