@@ -2632,7 +2632,21 @@ same-repository `pull_request` published-subject branches for Prometheus and Ale
 existing authenticated event/PR binding, exact existing public package identity, immutable subject
 and positive publication predecessor before registry login. The canonical consumer owns stdin-only
 login and bounded credential/process cleanup before the secret-free native child. The changed-PR
-candidate branch performs no registry login. Alertmanager also requires its actual merged-own-PR/CD publication job predecessor, complete BASE native selection, exact six BASE/HEAD source blobs, the separately designated controller, and the exact public package/tag before login. Its historical initial own-PR retained route has no AM registry login; ordinary PR consumers require the positive publication predecessor. This exception adds no staging environment or
+candidate branch performs no registry login. Ordinary Alertmanager readers require the
+actual merged-PR/CD publication predecessor, a fully rendered BASE, the separately
+designated controller, verified BASE/HEAD material and the exact public package and
+immutable tag before login. For the CAB recovery, the controller recognizes only the
+two reviewed PostgreSQL reference replacements in the staging and self-hosted Compose
+blobs. Every other byte in those inputs stays bound to its independently reviewed source.
+
+The original Alertmanager producer PR and the owner-approved
+`codex/alertmanager-controller-transition` PR use retained-source admission without
+AM registry login. The transition requires independent designation of the exact
+controller and CI/CD callers, an authenticated open PR against the designated base,
+the accepted producer artifact and its complete native evidence, fresh candidate and
+base security scans, and the full native consumer checks. The exception ends with
+that transition PR. The ordinary #2495 reader still requires real trusted-main
+publication and immutable pullback. This exception adds no staging environment or
 long-lived secret to either PR job, creates no new secret, and grants no registry write, fallback, weaker
 verification, deployment, or merge authority. Other GHCR readers keep the existing
 environment-scoped GHCR_READ_TOKEN rule.

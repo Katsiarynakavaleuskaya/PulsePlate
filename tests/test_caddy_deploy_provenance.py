@@ -3502,6 +3502,8 @@ def test_alertmanager_PR_retained_candidate_has_no_registry_or_compiler_authorit
         "wrong-pr",
         "foreign-pr",
         "merge-invalid",
+        "missing-transition",
+        "wrong-transition",
         "not-ancestor",
         "shallow",
         "source-drift",
@@ -3534,7 +3536,11 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
     """Exercise the real H publisher with synthetic transport, never qualify a producer."""
     from scripts.ci import fetch_docker_source_artifacts as fetcher
     from scripts.ci import prometheus_source_image as transport
-    from tests.test_docker_workflow_build_path_contract import _alertmanager_proposal_arguments
+    from tests.test_docker_workflow_build_path_contract import (
+        _alertmanager_proposal_arguments,
+        _am_transition_merge_response,
+        _am_fixture_transition_git,
+    )
 
     # Clock profiles use the same full publisher path as the main-before-copy control.
     import math
@@ -3618,6 +3624,7 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
                 value = matched[1]
             monkeypatch.setenv(key, str(value))
     h, c = "a" * 40, "c" * 40
+    _am_fixture_transition_git(monkeypatch, h)
     merge = ("d" if case == "descendant" else "a") * 40
     for key, value in {
         "GITHUB_EVENT_NAME": "workflow_dispatch",
@@ -3723,7 +3730,14 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
             sessions.append(self)
             events.append(self.name + "-open")
 
-        def json(self, endpoint: str) -> dict[str, Any]:
+        def json(self, endpoint: str) -> Any:
+            transition = _am_transition_merge_response(endpoint, h)
+            if transition is not None and "/git/commits/" not in endpoint:
+                if case == "missing-transition":
+                    return {}
+                if case == "wrong-transition":
+                    transition["head"]["ref"] = fetcher._ALERT_Q_BRANCH
+                return transition
             if "/git/ref/" in endpoint:
                 self.main_reads += 1
                 drift = (
@@ -4114,7 +4128,9 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
         }
         assert files.is_dir() and observed["scanner"] == scanner
         assert (
-            kwargs["current"] is True and kwargs["comparison_subject"] == graph["config"]["digest"]
+            kwargs["fresh_scan"] is True
+            and kwargs["current"] is True
+            and kwargs["comparison_subject"] == graph["config"]["digest"]
         )
         return {"synthetic_control_only": True, "subject": graph["config"]["digest"]}
 
@@ -4175,6 +4191,8 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
         return
 
     expected = {
+        "missing-transition": "AM_authenticated_merged_source_PR",
+        "wrong-transition": "AM_authenticated_merged_source_PR",
         "proof-retention": "synthetic publication proof retention failed",
         "primary-proof-retention": "synthetic native Git exit1",
         "unmerged": "AM_separate_human_merge_observed",
@@ -4217,6 +4235,8 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
         "wrong-pr",
         "foreign-pr",
         "merge-invalid",
+        "missing-transition",
+        "wrong-transition",
         "not-ancestor",
         "shallow",
         "source-drift",
@@ -4271,30 +4291,43 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
         assert (root / drift_path).read_bytes() != sources[drift_path]
 
 
-@pytest.mark.parametrize("current_epoch", [False, True])
 @pytest.mark.parametrize(
-    "fault",
-    (
-        None,
-        "scanner-exit",
-        "missing-report",
-        "malformed",
-        "partial",
-        "wrong-subject",
-        "new-HIGH",
-        "target-Go-UNKNOWN",
-        "target-Go-LOW",
-        "target-Go-MEDIUM",
-        "target-Go-HIGH",
-        "target-Go-CRITICAL",
-        "secret",
-        "old-missing",
-        "positive-missing",
-        "negative-secret",
-        "DB-drift",
-        "observation-write",
-        "primary-and-observation",
-    ),
+    ("fault", "current_epoch"),
+    [
+        (fault, epoch)
+        for epoch in (False, True)
+        for fault in (
+            None,
+            "scanner-exit",
+            "missing-report",
+            "malformed",
+            "partial",
+            "wrong-subject",
+            "new-HIGH",
+            "target-Go-UNKNOWN",
+            "target-Go-LOW",
+            "target-Go-MEDIUM",
+            "target-Go-HIGH",
+            "target-Go-CRITICAL",
+            "secret",
+            "old-missing",
+            "positive-missing",
+            "negative-secret",
+            "DB-drift",
+            "observation-write",
+            "primary-and-observation",
+        )
+    ]
+    + [
+        (case, True)
+        for case in (
+            "fresh-ok",
+            "fresh-medium",
+            "fresh-base-missing",
+            "fresh-base-wrong-subject",
+            "fresh-base-partial",
+        )
+    ],
 )
 def test_alertmanager_current_four_controls_retain_native_reports_and_reject_unproven_scans(
     tmp_path: Path,
@@ -4324,6 +4357,14 @@ def test_alertmanager_current_four_controls_retain_native_reports_and_reject_unp
     monkeypatch.setenv("ALERTMANAGER_JOB_TIMEOUT_MINUTES", "170")
     scanner = tmp_path / "trivy"
     scanner.write_bytes(b"synthetic native tool")
+    original_hash = transport.file_hash
+
+    def hash_input(path: Path, *args: Any) -> str:
+        assert not path.name.endswith(".private.json"), "hash the exact bytes already checked"
+        return original_hash(path, *args)
+
+    monkeypatch.setattr(transport, "file_hash", hash_input)
+
     monkeypatch.setattr(
         fetcher, "_ALERT_TRIVY_SHA256", hashlib.sha256(scanner.read_bytes()).hexdigest()
     )
@@ -4333,6 +4374,18 @@ def test_alertmanager_current_four_controls_retain_native_reports_and_reject_unp
     (cache / "db/metadata.json").write_text('{"Version":2,"UpdatedAt":"2026-10-18T00:00:00Z"}')
     monkeypatch.setattr(shutil, "which", lambda name: "/synthetic/" + name)
     acquisition_order: list[str] = []
+    fresh = fault is not None and fault.startswith("fresh-")
+    base_input = b"qualified synthetic base export"
+    base_identity = {"Id": transport.BASE_CONFIG}
+
+    def base_export(archive: Path, work: Path, *, current: bool) -> tuple[Any, ...]:
+        assert current and archive.name == "qualification.zip"
+        assert acquisition_order == ["open", "close"]
+        base = work / "base-image.tar"
+        base.write_bytes(base_input)
+        return base, base_identity, [], {}, {}
+
+    monkeypatch.setattr(fetcher, "_alertmanager_qualified_base_export", base_export)
 
     class Reader:
         def __init__(self, private: Path, evidence: Path, deadline: float, cleanup: int) -> None:
@@ -4362,9 +4415,18 @@ def test_alertmanager_current_four_controls_retain_native_reports_and_reject_unp
             "root_inputs": {
                 "go-toolchain.tar.gz": (
                     transport.RETAINED_GO if current_epoch else transport.GO
-                ).digest
+                ).digest,
+                "base-image.tar": hashlib.sha256(base_input).hexdigest(),
             },
-            "plan": {},
+            "loaded_base": base_identity,
+            "plan": (
+                {
+                    "derivation_epoch": fetcher._ALERT_XNET062_METADATA_EPOCH,
+                    "command_module_inputs": {"alertmanager": {}, "amtool": {}},
+                }
+                if fresh
+                else {}
+            ),
         },
     )
     calls: list[str] = []
@@ -4427,10 +4489,16 @@ def test_alertmanager_current_four_controls_retain_native_reports_and_reject_unp
         )
 
     def control(
-        *args: Any, current: bool = False, qualification_plan: dict[str, Any] | None = None
+        *args: Any,
+        current: bool = False,
+        qualification_plan: dict[str, Any] | None = None,
+        fresh_scan: bool = False,
     ) -> dict[str, Any]:
         forwarded.append(("old_control", current))
-        return control_owner(*args, current=current, qualification_plan=qualification_plan)
+        assert fresh_scan == fresh
+        return control_owner(
+            *args, current=current, qualification_plan=qualification_plan, fresh_scan=fresh_scan
+        )
 
     monkeypatch.setattr(fetcher, "_alertmanager_candidate_inventory", inventory)
     monkeypatch.setattr(fetcher, "_alertmanager_vulnerability_control", control)
@@ -4484,7 +4552,9 @@ def test_alertmanager_current_four_controls_retain_native_reports_and_reject_unp
             assert argv[argv.index("--severity") + 1] == "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL"
             assert "--list-all-pkgs" in argv and "--skip-db-update" in argv and "--scanners" in argv
             assert Path(argv[argv.index("--ignorefile") + 1]).read_bytes() == b""
-            if argv[1] == "image":
+            if label == "current-base-full-supported":
+                assert argv[-2] == "--input" and Path(argv[-1]).read_bytes() == base_input
+            elif argv[1] == "image":
                 assert argv[argv.index("--image-src") + 1] == "docker"
             if fault in ("scanner-exit", "primary-and-observation"):
                 self.records.append({"label": label, "exit": 2})
@@ -4496,7 +4566,16 @@ def test_alertmanager_current_four_controls_retain_native_reports_and_reject_unp
                 target.write_bytes(b"{")
                 return b""
             data = deepcopy(report)
-            if label == "current-candidate-full-supported":
+            if label == "current-base-full-supported":
+                if fault == "fresh-base-missing":
+                    return b""
+                data["Metadata"]["ImageID"] = (
+                    "incorrect" if fault == "fresh-base-wrong-subject" else transport.BASE_CONFIG
+                )
+                data["Results"] = [row for row in data["Results"] if row.get("Class") == "os-pkgs"]
+                if fault == "fresh-base-partial":
+                    data["Results"][0]["Packages"].pop()
+            elif label == "current-candidate-full-supported":
                 if fault == "partial":
                     data["Results"][1]["Packages"].pop()
                 elif fault == "wrong-subject":
@@ -4531,6 +4610,13 @@ def test_alertmanager_current_four_controls_retain_native_reports_and_reject_unp
                 ]
                 if current_epoch:
                     cases.append(("CVE-2026-111943", "stdlib@v1.26.8"))
+                if fresh:
+                    cases.extend(
+                        [
+                            ("CVE-2026-78661", "golang.org/x/net@v0.58.0"),
+                            ("CVE-2026-97054", "stdlib@v1.26.8"),
+                        ]
+                    )
                 data = {
                     "SchemaVersion": 2,
                     "ArtifactType": "container_image",
@@ -4553,6 +4639,11 @@ def test_alertmanager_current_four_controls_retain_native_reports_and_reject_unp
                         for name in ("alertmanager", "amtool")
                     ],
                 }
+                if fault == "fresh-medium":
+                    for row in data["Results"]:
+                        vendor = row["Vulnerabilities"][-1]
+                        assert vendor["VulnerabilityID"] == "CVE-2026-97054"
+                        vendor["Severity"] = "MEDIUM"
                 if fault == "old-missing":
                     data["Results"][0]["Vulnerabilities"].pop()
             else:
@@ -4587,12 +4678,13 @@ def test_alertmanager_current_four_controls_retain_native_reports_and_reject_unp
         "target-Go-LOW",
         "target-Go-MEDIUM",
     )
-    succeeds = fault is None or historical_target_observation
+    succeeds = fault in (None, "fresh-ok", "fresh-medium") or historical_target_observation
     if succeeds:
         fetcher._alertmanager_live_security(args)
         assert forwarded == [("candidate", current_epoch), ("old_control", current_epoch)]
         assert [name for name in calls if name.startswith("current-")] == [
             "current-scanner-version",
+            *(["current-base-full-supported"] if fresh else []),
             "current-candidate-full-supported",
             "current-known-vulnerable-control",
             "current-secret-positive",
@@ -4601,6 +4693,13 @@ def test_alertmanager_current_four_controls_retain_native_reports_and_reject_unp
     else:
         with pytest.raises((RuntimeError, ValueError, OSError)) as observed:
             fetcher._alertmanager_live_security(args)
+        fresh_base_failures = {
+            "fresh-base-missing": "AM_live_native_report_missing",
+            "fresh-base-wrong-subject": "AM_live_base_scan_subject",
+            "fresh-base-partial": "AM_live_candidate_qualified_base_OS_inventory",
+        }
+        if fault in fresh_base_failures:
+            assert str(observed.value) == fresh_base_failures[fault]
         if fault in ("target-Go-UNKNOWN", "target-Go-LOW", "target-Go-MEDIUM"):
             assert current_epoch and str(observed.value) == "AM_current_Go_CVE_still_present"
             assert forwarded == [("candidate", True)]
@@ -4624,7 +4723,22 @@ def test_alertmanager_current_four_controls_retain_native_reports_and_reject_unp
     if historical_target_observation:
         assert record["candidate"]["findings"][0]["VulnerabilityID"] == "CVE-2026-111943"
     assert all(epoch is current_epoch for _, epoch in forwarded)
-    if fault not in ("scanner-exit", "missing-report"):
+    if fault in ("fresh-ok", "fresh-medium"):
+        for label, digest in record["report_sha256"].items():
+            checked_raw = args.output_dir / "evidence" / (label + ".private.json")
+            assert hashlib.sha256(checked_raw.read_bytes()).hexdigest() == digest
+        assert record["base"]["packages"] and len(record["report_sha256"]) == 5
+        assert record["old_control"]["known_HIGH_occurrences"] == (
+            14 if fault == "fresh-medium" else 16
+        )
+        assert record["elapsed_seconds"] < record["security_budget_seconds"] == 1800
+        assert not list(args.output_dir.glob("fresh-base-*"))
+    if fault not in (
+        "scanner-exit",
+        "missing-report",
+        "fresh-base-missing",
+        "fresh-base-wrong-subject",
+    ):
         assert (
             args.output_dir / "evidence/current-candidate-full-supported.private.json"
         ).is_file()
@@ -4656,6 +4770,7 @@ def test_alertmanager_actual_caller_steps_fit_distinct_enclosing_budgets_and_ret
         "Remove fixed trusted Prometheus control checkout",
         "Require separately designated AM controller",
         "Checkout separately designated AM controller",
+        "Verify designated AM controller checkout before credential use",
         "Remove designated AM controller after credential cleanup",
         "Select AM Python without dependency or SDK installation",
         "Install isolated AM host tools through the locked owner",
@@ -4672,9 +4787,9 @@ def test_alertmanager_actual_caller_steps_fit_distinct_enclosing_budgets_and_ret
     }
     pr = _job(workflow, "prometheus-image-security-pr")
     pr_total = sum(minutes(step) for step in shared if step["name"] not in excluded)
-    assert pr_total == 167 and "|| '170'" in pr["timeout-minutes"]
+    assert pr_total == 168 and "|| '170'" in pr["timeout-minutes"]
     selector = _named_step(shared, "Select authenticated Prometheus PR evidence")
-    assert selector["timeout-minutes"] == 4 and "reserved_minutes = 167" in selector["run"]
+    assert selector["timeout-minutes"] == 4 and "reserved_minutes = 168" in selector["run"]
     ci = _workflow(REPO_ROOT / ".github/workflows/ci.yml")
     lint = _job(ci, "lint")
     all_lint = _steps(lint)
@@ -4690,12 +4805,12 @@ def test_alertmanager_actual_caller_steps_fit_distinct_enclosing_budgets_and_ret
         for step in all_lint
         for value in (step["timeout-minutes"],)
     )
-    assert lint_total == 189 and "|| '190'" in lint["timeout-minutes"]
+    assert lint_total == 190 and "|| '190'" in lint["timeout-minutes"]
     lint_selector = _named_step(all_lint, "Select authenticated Prometheus PR evidence")
     assert (
-        lint_selector["timeout-minutes"] == 4 and "reserved_minutes = 89 +" in lint_selector["run"]
+        lint_selector["timeout-minutes"] == 4 and "reserved_minutes = 90 +" in lint_selector["run"]
     )
-    assert sum(map(minutes, _steps(_job(workflow, "alertmanager-retained-candidate")))) <= 78
+    assert sum(map(minutes, _steps(_job(workflow, "alertmanager-retained-candidate")))) == 79
     assert sum(map(minutes, _steps(_job(workflow, "obs2a-checkpoint-native")))) <= 102
     assert (
         "ALERTMANAGER_CD_PR_JOB_TIMEOUT_MINUTES"
@@ -6793,6 +6908,11 @@ def test_caddy_job_budget_is_complete_and_owned_only_by_existing_job() -> None:
         "cancel-in-progress": False,
     }
     build = _named_step(steps, "Build source-patched Caddy candidate")
+    assert build["with"]["context"] == "${{ steps.caddy-build-budget.outputs.context }}"
+    assert (
+        build["with"]["file"]
+        == "${{ steps.caddy-build-budget.outputs.context }}/Dockerfile.caddy-spa"
+    )
     assert build["with"]["no-cache-filters"] == "caddy-build"
     assert build["with"]["push"] is False
     assert "steps.caddy-admission.outputs.mode == 'build'" in build["if"]
@@ -6800,7 +6920,7 @@ def test_caddy_job_budget_is_complete_and_owned_only_by_existing_job() -> None:
     assert "caddy_bound_pr(api, selected)" in admission
     assert 'state["observed_build_history"] = spent' in admission
     assert "len(spent) > 4" not in admission and "no fifth" not in admission
-    assert "authenticate_pr_source(proof_api, number," in admission
+    assert "if not caddy_producer_in_pr(api, number, original_head," in admission
     assert '"Caddy requires one successful same-source producer; no automatic build"' in admission
     decision = _named_step(
         steps, "Decide source-qualified Caddy inventory and current native controls"
@@ -6992,6 +7112,7 @@ def test_caddy_candidate_release_requires_current_source_control_and_cleanup_con
     }
     repo = {"id": 1043311030, "full_name": "Katsiarynakavaleuskaya/PulsePlate"}
     main = fault in ("main", "merged-drift")
+    pr_head = "3" * 40 if main else head
     monkeypatch.setenv("GITHUB_EVENT_NAME", "push" if main else "workflow_dispatch")
     monkeypatch.setenv(
         "GITHUB_REF", "refs/heads/main" if main else "refs/heads/" + branches[number]
@@ -7074,8 +7195,8 @@ def test_caddy_candidate_release_requires_current_source_control_and_cleanup_con
     inputs = owner.caddy_ci_source_inventory(REPO_ROOT, paths)
     admission = {
         "source_pr": number,
-        "pr_head": head,
-        "mode": "build",
+        "pr_head": pr_head,
+        "mode": "reuse" if main else "build",
         "inputs": inputs,
         "current_head": head,
         "current_run_id": 123,
@@ -7101,23 +7222,24 @@ def test_caddy_candidate_release_requires_current_source_control_and_cleanup_con
     candidate = private / "candidate"
     candidate.mkdir()
     image_bytes = b"synthetic image; never a native qualification claim"
-    (candidate / "candidate.docker.tar").write_bytes(
-        image_bytes + (b"changed" if fault == "archive" else b"")
-    )
-    (candidate / "candidate.json").write_text(
-        json.dumps(
-            {
-                "archive_bytes": len(image_bytes),
-                "archive_sha256": hashlib.sha256(image_bytes).hexdigest(),
-                "image_config_id": subject["image_config_id"],
-                "binary_sha256": binary_hash,
-                "inputs": inputs,
-                "producer_run_id": 123,
-                "producer_run_attempt": 1,
-                "producer_head": head,
-            }
+    if not main:
+        (candidate / "candidate.docker.tar").write_bytes(
+            image_bytes + (b"changed" if fault == "archive" else b"")
         )
-    )
+        (candidate / "candidate.json").write_text(
+            json.dumps(
+                {
+                    "archive_bytes": len(image_bytes),
+                    "archive_sha256": hashlib.sha256(image_bytes).hexdigest(),
+                    "image_config_id": subject["image_config_id"],
+                    "binary_sha256": binary_hash,
+                    "inputs": inputs,
+                    "producer_run_id": 123,
+                    "producer_run_attempt": 1,
+                    "producer_head": head,
+                }
+            )
+        )
 
     def native(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess:
         return subprocess.CompletedProcess(args, 0, args[-1] + "\n", "")
@@ -7203,7 +7325,7 @@ def test_caddy_candidate_release_requires_current_source_control_and_cleanup_con
                     **repo,
                     "id": float(repo["id"]) if fault == "float-repo-id" else repo["id"],
                 },
-                "sha": "2" * 40 if fault == "API" else head,
+                "sha": "2" * 40 if fault == "API" else pr_head,
                 "ref": "unrelated" if fault == "branch" else branches[live_number],
             },
             "base": {"repo": repo, "ref": "main"},
@@ -7213,6 +7335,11 @@ def test_caddy_candidate_release_requires_current_source_control_and_cleanup_con
     script = _caddy_inline("Decide source-qualified Caddy inventory and current native controls")
     if fault in (None, "legacy", "main"):
         exec(compile(script, "<actual-current-Caddy-release>", "exec"), {})
+        if main:
+            assert pr_head != head
+            assert not (evidence / "candidate.docker.tar").exists()
+            assert not (evidence / "candidate.json").exists()
+            return
         assert (evidence / "candidate.docker.tar").read_bytes() == image_bytes
         result = json.loads((evidence / "candidate.json").read_text())
         assert result["source_correction"] == "CVE-2026-116587"
@@ -7229,6 +7356,10 @@ def test_caddy_candidate_release_requires_current_source_control_and_cleanup_con
                 else None
             )
         )
+        if fault == "extra-tracked":
+            identity_error = "Caddy complete source changed before release"
+        elif fault == "merged-drift":
+            identity_error = "Caddy observation requires one exact accepted PR or main merge"
         with pytest.raises(ValueError, match=identity_error):
             exec(compile(script, "<actual-current-Caddy-release>", "exec"), {})
         assert not (evidence / "candidate.docker.tar").exists()
@@ -7299,6 +7430,8 @@ def test_caddy_checkout_inventory_rejects_unbound_native_input(
         "2495-failed-producer",
         "2495-ambiguous-producer",
         "2495-stale-and-current",
+        "2495-superseded-unfetchable",
+        "2495-eligible-unfetchable",
         "2495-expired-and-current",
         "2495-lock-change",
         "2495-frontend-change",
@@ -7441,6 +7574,8 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
         "failed-producer",
         "ambiguous-producer",
         "stale-and-current",
+        "superseded-unfetchable",
+        "eligible-unfetchable",
         "expired-and-current",
         "lock-change",
         "frontend-change",
@@ -7565,10 +7700,11 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
     runs = [current_run]
     jobs = {11: [] if case == "missing-job" else [current_job]}
     if reuse or case in {"active-producer", "spent"}:
+        prior_sha = "5" * 40 if case == "superseded-unfetchable" else old_head
         prior = {
             **current_run,
             "id": 12,
-            "head_sha": head if case == "spent" else old_head,
+            "head_sha": head if case == "spent" else prior_sha,
             "head_branch": branch,
             "event": "workflow_dispatch",
             "created_at": "2026-10-31T00:00:00Z",
@@ -7584,7 +7720,7 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
             **current_job,
             "id": 22,
             "run_id": 12,
-            "head_sha": head if case == "spent" else old_head,
+            "head_sha": head if case == "spent" else prior_sha,
             "head_branch": branch,
             "status": prior["status"],
             "conclusion": prior["conclusion"],
@@ -7611,13 +7747,20 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
         }
         runs.append(prior)
         jobs[12] = [prior_job]
-        if case in {"ambiguous-producer", "stale-and-current", "expired-and-current"}:
+        if case in {
+            "ambiguous-producer",
+            "stale-and-current",
+            "superseded-unfetchable",
+            "expired-and-current",
+        }:
             stale_sha = "5" * 40 if case == "stale-and-current" else old_head
             runs.append({**prior, "id": 13, "head_sha": stale_sha})
             jobs[13] = [{**prior_job, "id": 23, "run_id": 13, "head_sha": stale_sha}]
     if case == "duplicate-run":
         runs.append(dict(current_run))
     calls: list[str] = []
+    fetched: list[str] = []
+    blob_requests: list[list[str]] = []
 
     class Response:
         def __init__(self, url: str, value: dict) -> None:
@@ -7761,27 +7904,47 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
         assert argv[0] == "/synthetic/git" and 0 < kwargs["timeout"] <= 60
         if "rev-parse" in argv:
             return head + "\n"
-        if "ls-tree" in argv and "--name-only" in argv:
+        other_source = (
+            source_bytes.replace(b"synthetic", b"alternate", 1)
+            if case == "frontend-change"
+            else b"other source"
+        )
+        if case == "frontend-change":
+            assert other_source != source_bytes and len(other_source) == len(source_bytes)
+        other_blob = hashlib.sha1(
+            b"blob " + str(len(other_source)).encode() + b"\0" + other_source, usedforsecurity=False
+        ).hexdigest()
+        if "ls-tree" in argv:
+            assert "-z" in argv and "-r" in argv and "-l" in argv
             paths = [*tracked, *fixed]
             if case == "path-change" or "5" * 40 in argv:
                 paths.remove("frontend/src/App.tsx")
-            return ("\0".join(paths) + "\0").encode()
-        if "ls-tree" in argv:
-            mode = (
-                "100755"
-                if case == "mode-change" and argv[-1] == "frontend/src/App.tsx"
-                else "100644"
-            )
             drift = {
                 "lock-change": "frontend/package-lock.json",
                 "frontend-change": "frontend/src/App.tsx",
                 "fixed-change": "scripts/ci/prometheus_source_image.py",
             }
-            return (
-                mode + " blob " + ("a" * 40 if argv[-1] == drift.get(case) else blob) + "\n"
-            ).encode()
+            rows = []
+            for name in sorted(paths):
+                mode = (
+                    "100755"
+                    if case == "mode-change" and name == "frontend/src/App.tsx"
+                    else "100644"
+                )
+                changed = name == drift.get(case)
+                oid = other_blob if changed else blob
+                size = len(other_source if changed else source_bytes)
+                rows.append(f"{mode} blob {oid} {size:7d}\t{name}\0".encode())
+            return b"".join(rows)
         if "cat-file" in argv:
-            return b"other source" if argv[-1] == "a" * 40 else source_bytes
+            assert argv[-2:] == ["cat-file", "--batch"]
+            payload = []
+            requested = kwargs["input"].decode("ascii").splitlines()
+            blob_requests.append(requested)
+            for oid in requested:
+                raw = {blob: source_bytes, other_blob: other_source}[oid]
+                payload.append(f"{oid} blob {len(raw)}\n".encode() + raw + b"\n")
+            return b"".join(payload)
         raise AssertionError(argv)
 
     def checkout_read(
@@ -7801,6 +7964,13 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
     def git_run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess:
         assert "fetch" in argv and argv[-1] in {old_head, "5" * 40}
         assert kwargs["env"]["GIT_NO_REPLACE_OBJECTS"] == "1"
+        fetched.append(argv[-1])
+        if (
+            case == "superseded-unfetchable" and argv[-1] == "5" * 40
+        ) or case == "eligible-unfetchable":
+            raise subprocess.CalledProcessError(
+                128, argv, stderr=b"synthetic exact SHA unavailable"
+            )
         return subprocess.CompletedProcess(argv, 0)
 
     from scripts.ci import check_docker_runtime_dependency_surface as owner
@@ -7847,7 +8017,15 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
     monkeypatch.setattr(subprocess, "run", git_run)
     code = _caddy_inline("Admit existing Caddy producer or exact retained subject")
     if (
-        case in {"build", "reuse", "main", "stale-and-current", "expired-and-current"}
+        case
+        in {
+            "build",
+            "reuse",
+            "main",
+            "stale-and-current",
+            "superseded-unfetchable",
+            "expired-and-current",
+        }
         or (case == "metadata" and number == 2494)
     ) or refresh in {"both", "mixed", "second"}:
         exec(compile(code, "<actual-Caddy-current-admission>", "exec"), {})
@@ -7861,6 +8039,18 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
             assert result["producer"]["artifact"]["id"] == 31
             assert any(f"/pulls/{number}/commits?" in url for url in calls)
             assert result["pr_head"] == pr_head and result["source_pr"] == number
+            if case == "superseded-unfetchable":
+                assert result["producer"]["run_id"] == 13
+                assert fetched == [old_head]
+                assert not any("/actions/runs/12/artifacts?" in url for url in calls)
+    elif case == "eligible-unfetchable":
+        with pytest.raises(subprocess.CalledProcessError) as error:
+            exec(compile(code, "<actual-Caddy-current-admission>", "exec"), {})
+        assert error.value.returncode == 128
+        assert error.value.stderr == b"synthetic exact SHA unavailable"
+        assert fetched == [old_head] and not blob_requests
+        assert output.read_text() == ""
+        assert not any("/artifacts?" in url for url in calls)
     else:
         expected_error = {
             "wrong-merge": "one exact accepted PR or main merge",
@@ -7876,7 +8066,7 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
             "empty-lookup": "one exact accepted PR or main merge",
             "wrong-number": "transition PR identity differs",
             "wrong-branch": "original PR identity differs",
-            "wrong-ancestor": "producer_ancestor_within_PR",
+            "wrong-ancestor": "one successful same-source producer",
             **{
                 key: "one successful same-source producer"
                 for key in (
@@ -7912,6 +8102,10 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
         with pytest.raises((ValueError, transport.QualificationError), match=expected_error):
             exec(compile(code, "<actual-Caddy-current-admission>", "exec"), {})
         assert output.read_text() == ""
+        if case == "frontend-change":
+            assert fetched == [old_head] and len(blob_requests) == 1
+            assert len(blob_requests[0]) == 2 and blob in blob_requests[0]
+            assert not any("/artifacts?" in url for url in calls)
         if case in {"inventory-drift", "inventory-bool-attempt", "inventory-float-attempt"}:
             assert sum("/actions/workflows/frontend-ci.yml/runs?" in url for url in calls) == 2
             assert not any("/jobs?filter=all" in url for url in calls)

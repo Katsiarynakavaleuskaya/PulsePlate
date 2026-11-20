@@ -6,7 +6,7 @@ name: CI
 
 env:
   # ROOT creates C, independently reviews/designates it, then pins C before one normal C,H push.
-  ALERTMANAGER_CONTROLLER_SOURCE: '41f275fc6bec94dbf04c02338d560446bb846e0c' # Public immutable controller commit
+  ALERTMANAGER_CONTROLLER_SOURCE: 'ffc4b6f9e475c920bb936292a1c615996e6d1c37' # pragma: allowlist secret - public immutable controller commit
   ALERTMANAGER_PREPARATION_MINUTES: '14'
   ALERTMANAGER_PREP_SECONDS: '600'
   ALERTMANAGER_PAIR_SECONDS: '1800'
@@ -822,6 +822,22 @@ jobs:
           fetch-depth: 0
           path: artifacts/orchestration/alertmanager-control
 
+      - name: Verify designated AM controller checkout before credential use
+        if: steps.alertmanager-control.outcome == 'success'
+        timeout-minutes: 1
+        run: |
+          set -euo pipefail
+          export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_NO_REPLACE_OBJECTS=1
+          controller="$GITHUB_WORKSPACE/artifacts/orchestration/alertmanager-control"
+          test ! -L "$controller"
+          control_git=(git -C "$controller" -c core.fsmonitor=false -c core.hooksPath=/dev/null)
+          test "$("${control_git[@]}" rev-parse HEAD)" = "$ALERTMANAGER_CONTROLLER_SOURCE"
+          "${control_git[@]}" diff --quiet --no-ext-diff HEAD --
+          "${control_git[@]}" diff --cached --quiet --no-ext-diff HEAD --
+          untracked_bytes="$("${control_git[@]}" ls-files --others --exclude-standard -z | wc -c)"
+          ignored_bytes="$("${control_git[@]}" ls-files --others --ignored --exclude-standard -z | wc -c)"
+          test "$untracked_bytes" -eq 0 && test "$ignored_bytes" -eq 0
+
       - name: Prepare exact AM subject before material execution
         id: alertmanager-image
         if: github.event_name == 'pull_request' && steps.checkpoint-selection.outputs.selected == 'true'
@@ -841,7 +857,7 @@ jobs:
           docker version --format 'client={{json .Client.Version}} server={{json .Server.Version}}'
           docker info --format 'driver={{json .Driver}} driver_status={{json .DriverStatus}} os={{json .OSType}} arch={{json .Architecture}}'
           cd "$controller"
-          python3 -E -s -S -m scripts.ci.fetch_docker_source_artifacts \
+          python3 -B -E -s -S -m scripts.ci.fetch_docker_source_artifacts \
             --artifact alertmanager --alertmanager-stage candidate-check --alertmanager-prepare-only \
             --source-sha "$SOURCE_SHA" --material-root "$material" \
             --alertmanager-controller-source "$ALERTMANAGER_CONTROLLER_SOURCE" \
@@ -1063,7 +1079,7 @@ jobs:
               raise SystemExit("Prometheus_material_revision_HOLD")
           seconds, cleanup = int(os.environ["PROMETHEUS_SELECT_SECONDS"]), int(os.environ["PROMETHEUS_CLEANUP_SECONDS"])
           # The fixed caps include two minutes to prepare the pinned controller object.
-          reserved_minutes = 89 + int(os.environ["ALERTMANAGER_GENERIC_NATIVE_MINUTES"]) + int(os.environ["ALERTMANAGER_LINT_CHECK_MINUTES"])
+          reserved_minutes = 90 + int(os.environ["ALERTMANAGER_GENERIC_NATIVE_MINUTES"]) + int(os.environ["ALERTMANAGER_LINT_CHECK_MINUTES"])
           if int(os.environ["ALERTMANAGER_JOB_TIMEOUT_MINUTES"]) < reserved_minutes:
               raise SystemExit("Prometheus_selection_enclosing_budget_HOLD")
           if seconds != 60 or cleanup != 120:

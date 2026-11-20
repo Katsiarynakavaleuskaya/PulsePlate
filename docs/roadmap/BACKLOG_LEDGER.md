@@ -16015,6 +16015,18 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 - November 15 Python remediation in [PR #2494](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2494) (OPEN). The ten-lock audit at `a90d31b5` covered 561 package occurrences with zero findings. Nine affected installed compositions passed `pip check` and the bounded DNS, EmailStr and tracing checks. Current-head review, CI and post-merge acceptance remain open. [Python remediation evidence](../security/PR_2494_NOV15_PYTHON_REMEDIATION.md)
 
+  - **Controller prerequisite for #2495 (2026-11-20).** Owner: DevOps and security-auditor. Priority: P0. Target: [PR #2501](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2501). Status: open. The first hosted candidate and base scans reported zero HIGH/CRITICAL findings and zero secrets. The vulnerable control stopped on a severity change before the native checks. The previous main support run stopped before compilation when its historical vulnerable control gained two HIGH occurrences. The accepted image passed a separate current-database HIGH/CRITICAL and secret check. Before the transition merge, require an independently designated controller and callers, complete native checks and fresh security results for the retained image. Then verify the actual merged-main rebuild, publication and immutable digest pullback before #2495 consumes it. [Evidence and original runs](../security/CVE-2026-84445-alertmanager.md#november-20-controller-transition)
+
+<a id="ledger-p1-caddy-pending-producer-queue"></a>
+- [ ] **P1 — Retain pending Caddy producers in the shared Actions queue**
+  - Owner: DevOps / CI tooling
+  - Priority: P1
+  - Target PR: next substantive Actions tooling update with released queue support. Review by 2026-11-27 or earlier if a compatible Actionlint release appears. On that date, record adoption or an owner decision with a new deadline.
+  - Reason: GitHub can replace a pending job while the running job continues. An actual producer lost its pending slot before acquiring a runner. GitHub supports up to 100 pending jobs with `queue: max`. The pinned Actionlint v1.7.12 was the latest published release checked on 2026-11-20 and rejects this property on the job concurrency block.
+  - Links: [Cancelled job](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/44724450477/job/136248320293) · [GitHub queue semantics](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency) · [Actionlint release](https://github.com/rhysd/actionlint/releases/tag/v1.7.12)
+  - Interim operation: schedule one designated producer after ordinary jobs drain. Retain the source, run and job IDs if a pending run is replaced. A started build spends its authorization for that head. The consumer still requires a successful original with identical inputs. The residual risk is a delayed build and PR.
+  - DoD: verify the released checker against the actual workflow, enable the shared job queue and retain serialization, duplicate-start rejection and one original artifact per source. Demonstrate that two pending jobs survive behind one running job and that only one build starts for the same authorized source. [Owning review](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2501#pullrequestreview-5993314796)
+
 <a id="ledger-p2-alertmanager-collector-subprocess-reassessment"></a>
 - [ ] **P2 — Reassess three bounded Alertmanager native-boundary annotations**
   - Owner: security-auditor / dev-operator.

@@ -600,6 +600,7 @@ _METADATA_MATERIAL_CONCURRENCY_GROUP = (
 _CADDY_PRODUCER_CONCURRENCY_SUFFIX = (
     "${{ inputs.caddy_action == 'candidate-D' && '-caddy-D-producer' || '' }}"
 )
+_CADDY_PRODUCER_CANCEL_IN_PROGRESS = "${{ inputs.caddy_action != 'candidate-D' }}"
 _CONCURRENCY_GROUP_BY_WORKFLOW = {
     CI_WORKFLOW_PATH: _METADATA_MATERIAL_CONCURRENCY_GROUP,
     FRONTEND_CI_WORKFLOW_PATH: (
@@ -654,9 +655,12 @@ def _assert_metadata_material_concurrency_contract(
     assert isinstance(concurrency, dict)
     assert concurrency == {
         "group": _CONCURRENCY_GROUP_BY_WORKFLOW[path],
-        "cancel-in-progress": True,
+        "cancel-in-progress": (
+            _CADDY_PRODUCER_CANCEL_IN_PROGRESS if path == FRONTEND_CI_WORKFLOW_PATH else True
+        ),
     }
-    assert concurrency["cancel-in-progress"] is True
+    if path == CI_WORKFLOW_PATH:
+        assert concurrency["cancel-in-progress"] is True
     on_section = workflow.get("on")
     if on_section is None:
         on_section = cast(dict[object, object], workflow).get(True)
@@ -820,6 +824,7 @@ def test_ci_and_frontend_concurrency_contract_rejects_mutations(
         "producer-discriminator",
         "producer-suffix-value",
         "producer-fallback",
+        "producer-cancellation-enabled",
         "dispatch-input-missing",
         "dispatch-extra-input",
         "dispatch-description",
@@ -854,6 +859,8 @@ def test_frontend_caddy_producer_contract_rejects_independent_mutations(mutation
         concurrency["group"] = group.replace("'-caddy-D-producer'", "'-material'", 1)
     elif mutation == "producer-fallback":
         concurrency["group"] = group.replace("|| '' }}", "|| '-caddy-D-producer' }}", 1)
+    elif mutation == "producer-cancellation-enabled":
+        concurrency["cancel-in-progress"] = True
     else:
         on_section = workflow.get("on")
         if on_section is None:
