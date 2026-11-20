@@ -600,6 +600,7 @@ _METADATA_MATERIAL_CONCURRENCY_GROUP = (
 _CADDY_PRODUCER_CONCURRENCY_SUFFIX = (
     "${{ inputs.caddy_action == 'candidate-D' && '-caddy-D-producer' || '' }}"
 )
+_CADDY_PRODUCER_CANCEL_IN_PROGRESS = "${{ inputs.caddy_action != 'candidate-D' }}"
 _CONCURRENCY_GROUP_BY_WORKFLOW = {
     CI_WORKFLOW_PATH: _METADATA_MATERIAL_CONCURRENCY_GROUP,
     FRONTEND_CI_WORKFLOW_PATH: (
@@ -610,13 +611,18 @@ _FRONTEND_CADDY_DISPATCH = {
     "inputs": {
         "caddy_action": {
             "description": (
-                "Import a qualified PR2494 candidate, inspect metadata, or explicitly build "
+                "Import a qualified Caddy candidate, inspect metadata, or explicitly build "
                 "the patched source"
             ),
             "type": "choice",
             "default": "contract",
             "options": ["contract", "xnet062-metadata", "candidate-D"],
-        }
+        },
+        "caddy_source_sha": {
+            "description": "Exact owner-selected qualification head for candidate-D",
+            "type": "string",
+            "required": False,
+        },
     }
 }
 _CONCURRENCY_WORKFLOW_CONTRACTS = (
@@ -649,9 +655,12 @@ def _assert_metadata_material_concurrency_contract(
     assert isinstance(concurrency, dict)
     assert concurrency == {
         "group": _CONCURRENCY_GROUP_BY_WORKFLOW[path],
-        "cancel-in-progress": True,
+        "cancel-in-progress": (
+            _CADDY_PRODUCER_CANCEL_IN_PROGRESS if path == FRONTEND_CI_WORKFLOW_PATH else True
+        ),
     }
-    assert concurrency["cancel-in-progress"] is True
+    if path == CI_WORKFLOW_PATH:
+        assert concurrency["cancel-in-progress"] is True
     on_section = workflow.get("on")
     if on_section is None:
         on_section = cast(dict[object, object], workflow).get(True)
@@ -815,6 +824,7 @@ def test_ci_and_frontend_concurrency_contract_rejects_mutations(
         "producer-discriminator",
         "producer-suffix-value",
         "producer-fallback",
+        "producer-cancellation-enabled",
         "dispatch-input-missing",
         "dispatch-extra-input",
         "dispatch-description",
@@ -849,6 +859,8 @@ def test_frontend_caddy_producer_contract_rejects_independent_mutations(mutation
         concurrency["group"] = group.replace("'-caddy-D-producer'", "'-material'", 1)
     elif mutation == "producer-fallback":
         concurrency["group"] = group.replace("|| '' }}", "|| '-caddy-D-producer' }}", 1)
+    elif mutation == "producer-cancellation-enabled":
+        concurrency["cancel-in-progress"] = True
     else:
         on_section = workflow.get("on")
         if on_section is None:
@@ -6894,6 +6906,32 @@ def test_ci_lint_workflow_sha_verification_requires_native_git_success(
         check=False,
     )
     assert result.returncode == expected_exit, result.stderr
+
+
+def test_ci_prepares_the_designated_controller_before_its_offline_consumers() -> None:
+    workflow = _load_ci_workflow()
+    control = _job_step_by_name(
+        workflow, job_id="lint", step_name="Checkout fixed trusted Prometheus control"
+    )
+    cd = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    cd_control = _job_step_by_name(
+        cd, job_id="prometheus-image-security-pr", step_name=control["name"]
+    )
+    prepare_name = "Prepare pinned Prometheus Git object for tests"
+    for job, consumer in (
+        ("lint", "Pre-commit (lint/format/security quick checks)"),
+        ("test-main", "Run tests with coverage"),
+    ):
+        steps = workflow["jobs"][job]["steps"]
+        prepare = _job_step_by_name(workflow, job_id=job, step_name=prepare_name)
+        assert steps.index(prepare) < steps.index(
+            _job_step_by_name(workflow, job_id=job, step_name=consumer)
+        )
+        assert "if" not in prepare and "continue-on-error" not in prepare
+        assert (
+            prepare["env"]["CONTROLLER_SHA"] == control["with"]["ref"] == cd_control["with"]["ref"]
+        )
+        assert "--depth" not in prepare["run"]
 
 
 def test_ci_main_matrix_uses_full_history_for_git_evidence_guards() -> None:

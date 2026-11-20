@@ -2172,6 +2172,131 @@ def test_caddy_reuse_input_inventory_binds_all_caller_enumerated_files(
             runtime_surface.caddy_ci_source_inventory(tmp_path, paths)
 
 
+@pytest.mark.parametrize(
+    ("fault", "result", "diagnostic"),
+    [
+        (None, True, None),
+        ("nonmember", False, None),
+        ("nonancestor", False, None),
+        ("unavailable", None, "synthetic API unavailable"),
+        ("short", None, "GitHub_complete_distinct_pages"),
+        ("missing-final", None, "Caddy authenticated PR commit inventory differs"),
+        ("duplicate-sha", None, "Caddy authenticated PR commit inventory differs"),
+        ("invalid-parent", None, "Caddy authenticated PR parent inventory differs"),
+        ("wrong-base", None, "candidate_same_repository_PR"),
+    ],
+)
+def test_caddy_skip_only_confirmed_nonmatching_producer(
+    fault: str | None, result: bool | None, diagnostic: str | None
+) -> None:
+    from typing import Any
+
+    from scripts.ci.prometheus_source_image import QualificationError
+
+    final, source, other = "1" * 40, "2" * 40, "3" * 40
+    branch = "codex/alertmanager-controller-transition"
+
+    def read(endpoint: str) -> Any:
+        if endpoint == "/pulls/2501":
+            return {
+                "number": 2501,
+                "head": {"sha": final, "ref": branch, "repo": {"id": 1043311030}},
+                "base": {
+                    "ref": "retargeted" if fault == "wrong-base" else "main",
+                    "repo": {"id": 1043311030},
+                },
+                "commits": 2,
+            }
+        assert endpoint == "/pulls/2501/commits?per_page=100&page=1"
+        if fault == "unavailable":
+            raise ValueError("synthetic API unavailable")
+        prior = other if fault == "nonmember" else source
+        if fault == "short":
+            return [{"sha": final, "parents": []}]
+        linked_parent = {"sha": prior}
+        if fault == "invalid-parent":
+            linked_parent["sha"] = "wrong"
+        return [
+            {"sha": prior, "parents": [], "id": 7},
+            {
+                "sha": (
+                    {"missing-final": other, "duplicate-sha": prior}.get(fault, final)
+                    if fault
+                    else final
+                ),
+                "parents": [] if fault == "nonancestor" else [linked_parent],
+                "id": 8,
+            },
+        ]
+
+    if fault == "nonmember":
+        assert not runtime_surface.caddy_producer_in_pr(read, 2501, source, final, branch)
+        assert runtime_surface.caddy_producer_in_pr(read, 2501, other, final, branch)
+    elif diagnostic is not None:
+        with pytest.raises((ValueError, QualificationError), match="^" + diagnostic + "$"):
+            runtime_surface.caddy_producer_in_pr(read, 2501, source, final, branch)
+    else:
+        assert runtime_surface.caddy_producer_in_pr(read, 2501, source, final, branch) is result
+
+
+@pytest.mark.parametrize("fault", [None, "matching-retarget", "ambiguous", "invalid-merge"])
+def test_caddy_push_selects_only_one_exact_merged_main_pr(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str | None
+) -> None:
+    from typing import Any
+
+    selected, other, final = "1" * 40, "2" * 40, "3" * 40
+    event = tmp_path / "event.json"
+    ref = "refs/heads/main"
+    event.write_text(json.dumps({"ref": ref, "after": selected}))
+    for name, value in {
+        "GITHUB_EVENT_NAME": "push",
+        "GITHUB_EVENT_PATH": str(event),
+        "GITHUB_REF": ref,
+        "GITHUB_SHA": selected,
+    }.items():
+        monkeypatch.setenv(name, value)
+
+    repo = {"id": 1043311030, "full_name": "Katsiarynakavaleuskaya/PulsePlate"}
+    branches = {
+        2484: "codex/cab07c-eslint-pages-features",
+        2494: "codex/dependency-alertmanager-remediation",
+        2495: "codex/npm-braces-build-prerequisite",
+        2501: "codex/alertmanager-controller-transition",
+    }
+
+    def read(endpoint: str) -> Any:
+        if endpoint.startswith("/pulls?"):
+            return [{"number": 2501}]
+        number = int(endpoint.removeprefix("/pulls/"))
+        participating = number == 2501 or (
+            (fault == "matching-retarget" and number == 2484)
+            or (fault == "ambiguous" and number == 2495)
+        )
+        return {
+            "number": number,
+            "state": "closed",
+            "merged": True,
+            "merge_commit_sha": (
+                selected if participating else "bad" if fault == "invalid-merge" else other
+            ),
+            "base": {"ref": "retargeted" if number == 2484 else "main", "repo": repo},
+            "head": {"ref": branches[number], "sha": final, "repo": repo},
+        }
+
+    if fault is None:
+        result = runtime_surface.caddy_bound_pr(read, selected)
+        assert result["number"] == 2501 and result["head"]["sha"] == final
+    else:
+        diagnostic = {
+            "matching-retarget": "^Caddy original PR identity differs$",
+            "ambiguous": "^Caddy observation requires one exact accepted PR or main merge$",
+            "invalid-merge": "^Caddy main merge evidence is invalid$",
+        }
+        with pytest.raises(ValueError, match=diagnostic[fault]):
+            runtime_surface.caddy_bound_pr(read, selected)
+
+
 def _caddy_control_fixture(directory: Path, *, local_layer: bool = False) -> tuple[dict, dict]:
     from copy import deepcopy
 
@@ -3342,6 +3467,15 @@ def test_caddy062_current_generated_metadata_bindings_match_exact_observed_DATA(
         "equal-wrong",
         "equal-package-replacement",
         "finish",
+        "recovery-build",
+        "train-build",
+        "transition-build",
+        "recovery-stale",
+        "transition-substitute",
+        "transition-replacement",
+        "recovery-input",
+        "allow-ignored-outputs",
+        "stage-drift",
         "charge",
     ],
 )
@@ -3351,6 +3485,8 @@ def test_caddy062_charge_step_requires_independently_reviewed_same_run_outputs(
     from contextlib import contextmanager
     import os
     import shutil
+    from collections.abc import Callable, Iterator
+    from typing import Any
 
     import yaml
 
@@ -3379,6 +3515,17 @@ def test_caddy062_charge_step_requires_independently_reviewed_same_run_outputs(
         == "${{ steps.caddy-admission.outputs.mode == 'build' && steps.caddy-metadata.outcome == 'success' }}"
     )
     assert not charge_step.get("continue-on-error")
+    workflow = yaml.safe_load((root / ".github/workflows/frontend-ci.yml").read_text())
+    concurrency = workflow["concurrency"]
+    assert "inputs.caddy_action == 'candidate-D' && '-caddy-D-producer'" in concurrency["group"]
+    assert concurrency["cancel-in-progress"] == "${{ inputs.caddy_action != 'candidate-D' }}"
+    assert build["with"]["context"] == "${{ steps.caddy-build-budget.outputs.context }}"
+    assert (
+        build["with"]["file"]
+        == "${{ steps.caddy-build-budget.outputs.context }}/Dockerfile.caddy-spa"
+    )
+    cleanup = next(s for s in steps if s["name"] == "Clean staged Caddy build context")
+    assert cleanup["if"] == "${{ always() && steps.caddy-build-budget.outputs.context != '' }}"
     assert (
         charge_step["env"]["CADDY_METADATA_BINDING"]
         == "${{ steps.caddy-metadata.outputs.prebuild_binding }}"
@@ -3392,6 +3539,7 @@ def test_caddy062_charge_step_requires_independently_reviewed_same_run_outputs(
         "frontend/.dockerignore",
         "frontend/package-lock.json",
         "frontend/another",
+        "frontend/space and\r\nnewline",
     ]
     for name in selected:
         target = checkout / name
@@ -3399,6 +3547,11 @@ def test_caddy062_charge_step_requires_independently_reviewed_same_run_outputs(
         target.write_bytes(
             (root / name).read_bytes() if name == "frontend/Dockerfile.caddy-spa" else b"fixture"
         )
+    (checkout / "frontend/another").chmod(0o755)
+    (checkout / ".gitignore").write_text(
+        "/frontend/dist/\n/frontend/node_modules/\n/frontend/fixtures/\n"
+        "/frontend/Dockerfile.caddy-spa.dockerignore\n"
+    )
     git = shutil.which("git")
     assert git
     env = git_env_without_parent_state()
@@ -3425,6 +3578,12 @@ def test_caddy062_charge_step_requires_independently_reviewed_same_run_outputs(
         [git, "rev-parse", "HEAD"], cwd=checkout, env=env, text=True
     ).strip()
     inputs = runtime_surface.caddy_ci_source_inventory(checkout, selected)
+    if fault == "allow-ignored-outputs":
+        for path in ("dist/output.js", "node_modules/module.js", "fixtures/untracked.js"):
+            ignored = checkout / "frontend" / path
+            ignored.parent.mkdir()
+            ignored.write_bytes(b"ignored")
+        (checkout / "frontend/Dockerfile.caddy-spa.dockerignore").write_bytes(b"!fixtures\n")
     state = {
         "mode": "build",
         "repository": "Katsiarynakavaleuskaya/PulsePlate",
@@ -3434,6 +3593,37 @@ def test_caddy062_charge_step_requires_independently_reviewed_same_run_outputs(
         "current_run_attempt": 1,
         "inputs": inputs,
     }
+    branch_by_lane = {
+        "train": "codex/cab07c-eslint-pages-features",
+        "recovery": "codex/npm-braces-build-prerequisite",
+        "transition": "codex/alertmanager-controller-transition",
+    }
+    pr_lane = str(fault).partition("-")[0]
+    owner_build = pr_lane in branch_by_lane
+    branch = branch_by_lane.get(pr_lane, "codex/dependency-alertmanager-remediation")
+    number_by_lane = {"transition": 9999, "recovery": 2495, "train": 2484}
+    if owner_build:
+        assert f"github.ref == 'refs/heads/{branch}'" in charge_step["env"]["GH_TOKEN"]
+        state.update(source_branch=branch, source_pr=number_by_lane[pr_lane], pr_head=head)
+        sender = {"type": "User", "login": "Katsiarynakavaleuskaya", "id": 73}
+        event = tmp_path / "dispatch.json"
+        event.write_text(
+            json.dumps(
+                {
+                    "sender": sender,
+                    "ref": branch,
+                    "inputs": {
+                        "caddy_action": "candidate-D",
+                        "caddy_source_sha": "0" * 40 if fault == "recovery-input" else head,
+                    },
+                }
+            )
+        )
+        monkeypatch.setenv("GITHUB_EVENT_PATH", str(event))
+        monkeypatch.setenv("GITHUB_ACTOR", sender["login"])
+        monkeypatch.setenv("GITHUB_ACTOR_ID", str(sender["id"]))
+        monkeypatch.setenv("GH_TOKEN", "synthetic-prebuild-reader")
+        monkeypatch.delenv("GITHUB_TOKEN", raising=False)
     if fault == "omitted-input":
         del inputs["frontend/another"]
     if fault == "dirty":
@@ -3570,7 +3760,7 @@ def test_caddy062_charge_step_requires_independently_reviewed_same_run_outputs(
     assert key == "prebuild_binding"
     for key, value in {
         "GITHUB_SHA": head,
-        "GITHUB_REF": "refs/heads/codex/dependency-alertmanager-remediation",
+        "GITHUB_REF": "refs/heads/" + branch,
         "GITHUB_EVENT_NAME": "workflow_dispatch",
         "GITHUB_REPOSITORY": "Katsiarynakavaleuskaya/PulsePlate",
         "GITHUB_REPOSITORY_ID": "1043311030",
@@ -3594,6 +3784,10 @@ def test_caddy062_charge_step_requires_independently_reviewed_same_run_outputs(
 
     @contextmanager
     def processing(phase: str):
+        if phase == "ADMISSION":
+            assert owner_build
+            yield float
+            return
         assert phase == "PROCESSING"
         yield float
         if fault == "finish":
@@ -3605,32 +3799,146 @@ def test_caddy062_charge_step_requires_independently_reviewed_same_run_outputs(
         if fault == "charge":
             raise ValueError("charge failed")
 
+    @contextmanager
+    def reader(
+        root: Path, directory: Path, remaining: Callable, expected: str
+    ) -> Iterator[Callable]:
+        assert owner_build and directory == tmp_path / "caddy-admission/prebuild-api"
+        assert expected == inputs["scripts/ci/prometheus_source_image.py"]["sha256"]
+
+        def get(endpoint: str) -> Any:
+            number = 9998 if fault == "transition-replacement" else number_by_lane[pr_lane]
+            if endpoint.startswith("/pulls?"):
+                assert pr_lane == "transition"
+                return [{"number": number}]
+            assert endpoint == f"/pulls/{number}"
+            repo = {"id": 1043311030, "full_name": "Katsiarynakavaleuskaya/PulsePlate"}
+            return {
+                "number": number,
+                "state": "open",
+                "base": {"ref": "main", "repo": repo},
+                "head": {
+                    "repo": repo,
+                    "ref": "wrong" if fault == "transition-substitute" else branch,
+                    "sha": "f" * 40 if fault == "recovery-stale" else head,
+                },
+            }
+
+        yield get
+
+    validate_original = runtime_surface.validate_caddy_prebuild
+
+    def validate(
+        work: Path, inventory: dict[str, dict[str, object]], checked_head: str, deadline: float
+    ) -> dict[str, Any]:
+        admission = validate_original(work, inventory, checked_head, deadline)
+        if fault == "stage-drift":
+            (checkout / "frontend/another").write_bytes(b"changed")
+        return admission
+
+    monkeypatch.setattr(runtime_surface, "validate_caddy_prebuild", validate)
+    monkeypatch.setattr(runtime_surface, "caddy_ci_reader", reader)
     monkeypatch.setattr(runtime_surface, "caddy_ci_phase", processing)
     monkeypatch.setattr(runtime_surface, "caddy_ci_charge_action", charge)
     monkeypatch.chdir(checkout)
     program = compile(
         charge_step["run"].split("<<'PY'\n", 1)[1].rsplit("\nPY", 1)[0], "<caddy-prebuild>", "exec"
     )
-    if fault is None:
+    other_context = tmp_path / "caddy-build-context-unowned"
+    other_context.mkdir()
+    if fault in (
+        None,
+        "recovery-build",
+        "transition-build",
+        "train-build",
+        "allow-ignored-outputs",
+    ):
         exec(program, {})
         assert order == ["finished", "BUILD"]
-    else:
-        message = (
-            "reviewed selected-source profile differs"
-            if fault in {"equal-wrong", "equal-package-replacement"}
-            else (
-                "^declared_data_value$"
-                if fault == "old-recipe"
-                else (
-                    "^Caddy qualification identity or cleanup differs$"
-                    if fault in {"old-platform", "old-Go-version"}
-                    else None
-                )
-            )
+        outputs = dict(line.split("=", 1) for line in out.read_text().splitlines())
+        context = Path(outputs["context"])
+        created = context.stat()
+        assert outputs["context_device"] == str(created.st_dev)
+        assert outputs["context_inode"] == str(created.st_ino)
+        assert context.parent == tmp_path and context.name.startswith("caddy-build-context-")
+        assert context != other_context
+        expected_paths = sorted(
+            name.removeprefix("frontend/") for name in selected if name.startswith("frontend/")
         )
+        assert (
+            sorted(path.relative_to(context).as_posix() for path in context.rglob("*"))
+            == expected_paths
+        )
+        for name in expected_paths:
+            assert (context / name).read_bytes() == (checkout / "frontend" / name).read_bytes()
+        assert (context / "another").stat().st_mode & 0o777 == 0o755
+        if fault == "allow-ignored-outputs":
+            assert (checkout / "frontend/dist/output.js").is_file()
+            assert (checkout / "frontend/fixtures/untracked.js").is_file()
+        monkeypatch.setenv("CADDY_BUILD_CONTEXT", str(context))
+        monkeypatch.setenv("CADDY_CONTEXT_DEVICE", outputs["context_device"])
+        monkeypatch.setenv("CADDY_CONTEXT_INODE", outputs["context_inode"])
+        program = cleanup["run"].split("<<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
+        exec(compile(program, "<caddy-build-cleanup>", "exec"), {})
+        assert not context.exists()
+    else:
+        message = {
+            "equal-wrong": "reviewed selected-source profile differs",
+            "equal-package-replacement": "reviewed selected-source profile differs",
+            "old-recipe": "^declared_data_value$",
+            "old-platform": "^Caddy qualification identity or cleanup differs$",
+            "old-Go-version": "^Caddy qualification identity or cleanup differs$",
+            "recovery-input": "^Caddy requires the owner's exact frozen source dispatch$",
+            "recovery-stale": "^Caddy current authenticated PR source changed$",
+            "transition-replacement": "^Caddy current authenticated PR source changed$",
+            "transition-substitute": "^Caddy original PR identity differs$",
+            "stage-drift": "^Caddy build context source changed before staging$",
+        }.get(fault)
         with pytest.raises((OSError, KeyError, ValueError, QualificationError), match=message):
             exec(program, {})
-        assert order == (["finished", "BUILD"] if fault == "charge" else [])
+        assert order == (
+            ["finished", "BUILD"]
+            if fault == "charge"
+            else (
+                ["finished"]
+                if fault in ("recovery-stale", "transition-substitute", "transition-replacement")
+                else []
+            )
+        )
+    assert other_context.is_dir()
+    assert list(tmp_path.glob("caddy-build-context-*")) == [other_context]
+
+
+@pytest.mark.parametrize("fault", ["wrong-parent", "wrong-prefix", "wrong-device", "replacement"])
+def test_caddy_staged_context_cleanup_rejects_unowned_directory(tmp_path: Path, fault: str) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    owned = workspace / "caddy-build-context-owned"
+    owned.mkdir()
+    original = owned.stat()
+    identity = (original.st_dev, original.st_ino)
+    if fault == "wrong-parent":
+        target = tmp_path / owned.name
+        owned.rename(target)
+    elif fault == "wrong-prefix":
+        target = workspace / "unowned"
+        owned.rename(target)
+    elif fault == "wrong-device":
+        identity = (original.st_dev + 1, original.st_ino)
+        target = owned
+    else:
+        retained = workspace / "retained"
+        owned.rename(retained)
+        owned.mkdir()
+        assert owned.stat().st_ino != original.st_ino
+        target = owned
+
+    sentinel = target / "keep"
+    sentinel.write_text("leave untouched")
+    diagnostic = "ownership" if fault in {"wrong-parent", "wrong-prefix"} else "identity"
+    with pytest.raises(ValueError, match=f"^Caddy staged build context {diagnostic} differs$"):
+        runtime_surface.clean_staged_caddy_build_context(workspace, target, identity)
+    assert sentinel.read_text() == "leave untouched"
 
 
 def test_caddy_metadata_native_identity_delegates_without_config_ID_alias() -> None:
