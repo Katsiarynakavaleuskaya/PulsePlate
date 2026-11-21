@@ -12276,7 +12276,7 @@ def _alertmanager_pull_published(
     output: Path,
     deadline: float,
 ) -> dict[str, Any]:
-    """Read a positively published S with stdin-only credentials and no artifact-expiry dependency."""
+    """Validate required publication evidence before pulling the immutable subject with stdin-only login."""
     import shutil
     from scripts.ci.prometheus_source_image import (
         existing_public_package,

@@ -18421,6 +18421,8 @@ def test_alertmanager_2495_only_the_two_regular_compose_images(fault: str | None
         "altered-caller",
         "wrong-mapping",
         "wrong-workflow",
+        "synthetic-merge",
+        "synthetic-wrong-base",
         "nonbytes-git",
         "null-parents",
         "nonstr-parent",
@@ -18503,7 +18505,29 @@ def test_alertmanager_transition_binds_real_git_successor(
         "GITHUB_WORKFLOW_REF",
         "Katsiarynakavaleuskaya/PulsePlate/.github/workflows/ci.yml@refs/pull/17/merge",
     )
-    monkeypatch.setenv("GITHUB_WORKFLOW_SHA", base if case == "wrong-workflow" else head)
+    workflow_sha = base if case == "wrong-workflow" else head
+    if case in ("synthetic-merge", "synthetic-wrong-base"):
+        first_parent = base if case == "synthetic-merge" else controller
+        workflow_sha = (
+            command(
+                "-c",
+                "user.name=Example",
+                "-c",
+                "user.email=example@example.invalid",
+                "commit-tree",
+                head + "^{tree}",
+                "-p",
+                first_parent,
+                "-p",
+                head,
+                "-m",
+                "GitHub PR test merge",
+            )
+            .decode()
+            .strip()
+        )
+        assert workflow_sha != head
+    monkeypatch.setenv("GITHUB_WORKFLOW_SHA", workflow_sha)
 
     class API:
         private = tmp_path
@@ -18531,7 +18555,7 @@ def test_alertmanager_transition_binds_real_git_successor(
                 return "malformed native output"
             return subprocess.run(argv, env=environment, check=True, capture_output=True).stdout
 
-    if case in ("pins", "mapping"):
+    if case in ("pins", "mapping", "synthetic-merge"):
         alertmanager_source._alertmanager_transition_successor(
             API(), repo, head, controller, 17, corrective=corrective
         )
@@ -18541,6 +18565,7 @@ def test_alertmanager_transition_binds_real_git_successor(
             "altered-caller": "AM_transition_exact_caller_pin",
             "wrong-mapping": "AM_transition_closeout_only",
             "wrong-workflow": "AM_transition_executing_tree",
+            "synthetic-wrong-base": "AM_transition_executing_tree",
             "nonbytes-git": "AM_transition_native_Git_bytes",
             "null-parents": "AM_transition_direct_parent",
             "nonstr-parent": "AM_transition_direct_parent",
@@ -18750,15 +18775,16 @@ def test_corrective_squash_preserves_controller_callers_and_original_producer(
             publisher if fault == "wrong-parent" else base,
         ),
     }
+    required_edges = {
+        (source._ALERT_TRANSITION_BASE, base),
+        (base, merged),
+        (merged, publisher),
+    }
     seen: list[tuple[str, str]] = []
 
     def ancestor(api: Any, root: Path, a: str, b: str) -> None:
         assert root == tmp_path
-        assert (a, b) in {
-            (base, merged),
-            (source._ALERT_TRANSITION_BASE, base),
-            (merged, publisher),
-        }
+        assert (a, b) in required_edges
         if fault == "stale-publisher" and a == merged:
             raise RuntimeError("publisher predates correction")
         seen.append((a, b))
@@ -18832,7 +18858,7 @@ def test_corrective_squash_preserves_controller_callers_and_original_producer(
 
     if fault in (None, "no-closeout", "approved-executing-PR"):
         source._alertmanager_copy_merge(API(), tmp_path, publisher)
-        assert (merged, publisher) in seen
+        assert set(seen) == required_edges
     else:
         diagnostic = {
             "old-failure": "AM_corrective_merged_PR_and_controller",
