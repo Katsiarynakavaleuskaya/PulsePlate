@@ -2639,17 +2639,26 @@ immutable tag before login. For the CAB recovery, the controller recognizes only
 two reviewed PostgreSQL reference replacements in the staging and self-hosted Compose
 blobs. Every other byte in those inputs stays bound to its independently reviewed source.
 
-The original Alertmanager producer PR and the owner-approved
-`codex/alertmanager-controller-transition` PR use retained-source admission without
-AM registry login. The transition requires independent designation of the exact
-controller and CI/CD callers, an authenticated open PR against the designated base,
-the accepted producer artifact and its complete native evidence, fresh candidate and
-base security scans, and the full native consumer checks. The exception ends with
-that transition PR. The ordinary #2495 reader still requires real trusted-main
-publication and immutable pullback. This exception adds no staging environment or
-long-lived secret to either PR job, creates no new secret, and grants no registry write, fallback, weaker
-verification, deployment, or merge authority. Other GHCR readers keep the existing
-environment-scoped GHCR_READ_TOKEN rule.
+The original Alertmanager producer, #2501 and #2502 retain their historical
+source and caller bindings. For a subsequent publisher repair, the human
+repository owner independently inspects the exact controller, both CI/CD
+callers and credential-bearing workflow sources, and names the accepted image
+and permitted reads in one authenticated, unedited OWNER comment on the actual
+repair PR. The same designation covers the reviewed caller commit and its sole
+direct mapping-only successor. Each invocation verifies its actual workflow,
+source, attempt and job. These PR reads use the retained qualified subject,
+fresh security and native checks, with no Alertmanager registry login. The
+participating jobs may read PRs to verify that decision. See the
+[operator procedure](scripts/AGENTS.md#publisher-repair-designation).
+
+Ordinary #2495 and subsequent main readers require a genuine successful
+trusted-main publication, immutable digest pullback and full native evidence.
+Across an intervening repair, the reader verifies the original CI and CD
+native results within the grant window as well as the merged source. Caddy
+qualifies its own complete inputs and requires a separate owner dispatch for
+a fresh candidate build. Production registry writes remain with the existing
+trusted-main publisher. Merge and deployment retain their separate authority.
+Other GHCR readers keep the existing environment-scoped GHCR_READ_TOKEN rule.
 
 **Verification checklist:**
 
