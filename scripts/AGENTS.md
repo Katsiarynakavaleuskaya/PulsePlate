@@ -296,6 +296,14 @@ phase budget, and its failure still blocks a successful cleanup result.
   Ordinary readers require an actual positive publication predecessor, never
   tag existence or retained-image fallback. Manual publication is a separately
   authorized operation; code adoption/merge does not prove publication.
+- For the Alertmanager ORAS copy correction, bind the sole PR for
+  `codex/alertmanager-oras-copy-fix` to the actual #2501 merge and the
+  independently reviewed controller and callers. Run the full native checks
+  against the retained subject before merge. Qualify the merged source, build
+  the candidate, then publish it with ORAS `cp --to-registry-config` and read
+  it back by digest with `cp --from-registry-config`. Record an existing-tag
+  pullback separately from a successful new copy. The #2495 reader requires
+  the successful trusted-main publisher and its complete native evidence.
 - Validate complete original source/payload/OCI/config/ordered-layer/diffID,
   binary/probe/CA, tool/DB and positive/negative scan inventories. Historical
   scanner evidence is separate from the required fresh supported scan. Failed
