@@ -7130,6 +7130,8 @@ def test_caddy_actual_scan_runner_contains_work_term_kill_in_one_envelope(
 def test_caddy_candidate_release_requires_current_source_control_and_cleanup_conjunction(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str | None
 ) -> None:
+    from collections.abc import Iterator
+    from contextlib import contextmanager
     from scripts.ci import check_docker_runtime_dependency_surface as owner
     from tests.test_docker_runtime_dependency_surface import (
         _caddy_control_fixture,
@@ -7353,12 +7355,10 @@ def test_caddy_candidate_release_requires_current_source_control_and_cleanup_con
     monkeypatch.setattr(subprocess, "run", run)
     monkeypatch.setattr(subprocess, "check_output", output)
 
-    def api_call(
-        selected_root: Path, directory: Path, endpoint: str, remaining: Any, expected: str
-    ) -> Any:
-        assert selected_root == REPO_ROOT
-        assert expected == inputs["scripts/ci/prometheus_source_image.py"]["sha256"]
-        assert 0 < remaining(30) <= 30
+    calls: list[str] = []
+
+    def api_call(endpoint: str) -> Any:
+        calls.append(endpoint)
         if main and endpoint.startswith("/pulls?"):
             return []
         if endpoint == f"/commits/{head}/pulls?per_page=2":
@@ -7385,11 +7385,27 @@ def test_caddy_candidate_release_requires_current_source_control_and_cleanup_con
             "base": {"repo": repo, "ref": "main"},
         }
 
-    monkeypatch.setattr(owner, "caddy_ci_api", api_call)
+    @contextmanager
+    def final_reader(
+        selected_root: Path, directory: Path, remaining: Any, expected: str
+    ) -> Iterator[Callable[[str], Any]]:
+        assert selected_root == REPO_ROOT and directory == private / "final-api"
+        assert expected == inputs["scripts/ci/prometheus_source_image.py"]["sha256"]
+        assert 0 < remaining(30) <= 30
+        assert not calls
+        calls.append("authenticate")
+        try:
+            yield api_call
+        finally:
+            calls.append("close")
+
+    monkeypatch.setattr(owner, "caddy_ci_reader", final_reader)
     script = _caddy_inline("Decide source-qualified Caddy inventory and current native controls")
     if fault in (None, "legacy", "main"):
         exec(compile(script, "<actual-current-Caddy-release>", "exec"), {})
+        assert calls[0] == "authenticate" and calls[-1] == "close"
         if main:
+            assert len(calls[1:-1]) > 1
             assert pr_head != head
             assert not (evidence / "candidate.docker.tar").exists()
             assert not (evidence / "candidate.json").exists()
@@ -7418,6 +7434,8 @@ def test_caddy_candidate_release_requires_current_source_control_and_cleanup_con
             exec(compile(script, "<actual-current-Caddy-release>", "exec"), {})
         assert not (evidence / "candidate.docker.tar").exists()
         assert not (evidence / "candidate.json").exists()
+        if calls:
+            assert calls[0] == "authenticate" and calls[-1] == "close"
 
 
 @pytest.mark.parametrize("fault", ["relative-git", "substituted-git", "truncated-paths"])
@@ -8380,13 +8398,16 @@ urllib.request.HTTPSHandler.https_open = response
     monkeypatch.setattr(transport.GitHubRead, "close", close)
     started = time.monotonic()
     directory = tmp_path / "call"
+
+    def read_pr() -> Any:
+        with owner.caddy_ci_reader(root, directory, lambda cap: min(cap, 6), expected) as get:
+            return get("/pulls/2494")
+
     if fault is None:
-        assert owner.caddy_ci_api(
-            root, directory, "/pulls/2494", lambda cap: min(cap, 6), expected
-        ) == {"ok": True}
+        assert read_pr() == {"ok": True}
     elif fault == "slow-body":
         with pytest.raises(ValueError, match="Caddy API failure") as expired:
-            owner.caddy_ci_api(root, directory, "/pulls/2494", lambda cap: min(cap, 6), expected)
+            read_pr()
         assert (
             json.loads(str(expired.value).removeprefix("Caddy API failure "))["category"]
             == "deadline"
@@ -8394,7 +8415,7 @@ urllib.request.HTTPSHandler.https_open = response
         assert time.monotonic() >= deadlines[0]
     else:
         with pytest.raises((ValueError, transport.QualificationError)):
-            owner.caddy_ci_api(root, directory, "/pulls/2494", lambda cap: min(cap, 6), expected)
+            read_pr()
     if fault in ("source", "directory-alias"):
         assert deadlines == [] and not directory.exists()
     elif fault == "source-after-auth":
@@ -8576,9 +8597,8 @@ def test_caddy_authenticated_reader_lifetime(
         assert workers[0][0] != workers[1][0] and all(not Path(w[0]).exists() for w in workers)
         assert [w[2] for w in workers] == [18, 20]
         assert workers[1][1] <= phase_end - 10
-        assert caddy_surface.caddy_ci_api(
-            root, tmp_path / "final", "/pulls/2494", remaining, expected
-        ) == {"ok": True}
+        with caddy_surface.caddy_ci_reader(root, tmp_path / "final", remaining, expected) as get:
+            assert get("/pulls/2494") == {"ok": True}
         assert events == ["auth", "get", "get", "close", "auth", "get", "close"]
         assert owners[0] is not owners[1] and not (tmp_path / "caddy-contract").exists()
         return

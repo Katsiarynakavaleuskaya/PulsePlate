@@ -2533,13 +2533,12 @@ jobs:
           import json
           import os
           from pathlib import Path
-          from typing import Any
           import re
           import stat
           import subprocess
           import time
           from scripts.ci.check_docker_runtime_dependency_surface import (
-              observe_caddy_ci_runtime, caddy_ci_phase, caddy_ci_checkout_inventory,
+              observe_caddy_ci_runtime, caddy_ci_phase, caddy_ci_checkout_inventory, caddy_bound_pr, caddy_ci_reader,
           )
 
           work = Path(os.environ["RUNNER_TEMP"])
@@ -2585,15 +2584,10 @@ jobs:
                       raise ValueError("Caddy control epoch drift before release")
               if hashlib.sha256(Path(subject["scanner"]).read_bytes()).hexdigest() != subject["scanner_sha256"]:
                   raise ValueError("Caddy scanner changed before release")
-          with caddy_ci_phase("ADMISSION") as remaining:
-              from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_api
-              from scripts.ci.check_docker_runtime_dependency_surface import caddy_bound_pr
-              from itertools import count
-              sequence = count(1)
-              def read_pr(endpoint: str) -> Any:
-                  return caddy_ci_api(Path.cwd(), private / ("final-api-" + str(next(sequence))), endpoint, remaining,
-                                      admission["inputs"]["scripts/ci/prometheus_source_image.py"]["sha256"])
-              pr = caddy_bound_pr(read_pr, admission["current_head"])
+          with caddy_ci_phase("ADMISSION") as remaining, caddy_ci_reader(
+              Path.cwd(), private / "final-api", remaining, admission["inputs"]["scripts/ci/prometheus_source_image.py"]["sha256"]
+          ) as api:
+              pr = caddy_bound_pr(api, admission["current_head"])
               if (pr["number"] != admission["source_pr"] or pr["head"]["sha"] != admission["pr_head"]
                       or pr.get("publisher_repair") != admission.get("publisher_repair")):
                   raise ValueError("Caddy current authenticated PR source changed")
@@ -2733,7 +2727,10 @@ jobs:
           try:
               if os.environ.get("CADDY_REPAIR_TRANSPORT") == "true":
                   with caddy_ci_phase("RETENTION") as remaining:
-                      size, digest = pack_caddy_repair_evidence(work / "caddy-contract", target, time.monotonic() + remaining(float("inf")))
+                      size, digest = pack_caddy_repair_evidence(
+                          work / "caddy-contract", target, time.monotonic() + remaining(float("inf")),
+                          producer=(int(os.environ["GITHUB_RUN_ID"]), os.environ["GITHUB_SHA"]),
+                      )
                       packed = True
                       state = json.loads((work / "caddy-admission/admission.json").read_bytes())
                       horizon = state["publisher_repair"]["source_horizon"]

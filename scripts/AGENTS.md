@@ -272,8 +272,9 @@ operand with `publisher_repair_input` on the independently inspected PR,
 B/K/W, Q/S/C, candidate ZIP, manifest and selected action. The owner-account
 event, job and original inputs identify the technical invocation. Read the
 original attempt-one job when a later rerun exists. Before starting the
-build, verify that the remaining work through upload and cleanup fits both
-the job deadline and the 24-hour dispatch window.
+build, verify that the remaining work through upload and cleanup fits the
+job deadline and finishes before both the 24-hour dispatch expiry and the
+earliest actual expiry of the original Q/S/C artifacts.
 
 A build start spends W’s build allowance. If the build starts and the run
 ends without a qualifying retained artifact, preserve the failed job and
@@ -282,9 +283,11 @@ correction and a separately bound dispatch. When admission stops before
 the build starts, preserve the skipped build step and diagnose the failed
 condition before another invocation.
 
-After successful artifact verification, use a subsequent supported PR
-event on the same material for the CI and CD native reads. Check the
-original event, attempt, job and completed steps. The 24-hour window starts
+After successful artifact verification, both CI and CD accept the original
+`pull_request.reopened` event. To start the reads on unchanged W, close and
+reopen the same unmerged PR with its topic branch intact. Verify the PR
+number, open state, W and main base after reopening. Check the new event’s
+creation time, attempt, job and completed steps. The 24-hour window starts
 at the original dispatch creation. An authentic `contract` import can open
 a later window on unchanged W while the qualified original D is available.
 Verify its digest and the complete matching Caddy input inventory. A repair

@@ -5001,15 +5001,31 @@ def test_caddy_complete_two_page_workflow_lifecycle_evidence(
 
 
 @pytest.mark.parametrize(
-    ("window_slack", "job_slack", "eligible"),
-    [(1, 0, True), (0, 0, False), (-1, 0, False), (1, -1, False), (-479, -479, False)],
+    ("window_slack", "job_slack", "source_slack", "eligible"),
+    [
+        (1, 0, 60, True),
+        (0, 0, 60, False),
+        (-1, 0, 60, False),
+        (1, -1, 60, False),
+        (-479, -479, 60, False),
+        (60, 0, 1, True),
+        (60, 0, 0, False),
+        (60, 0, -1, False),
+        (60, 0, -11040, False),
+    ],
 )
 def test_prebuild_covers_usable_output_before_absolute_expiry(
-    monkeypatch: pytest.MonkeyPatch, window_slack: int, job_slack: int, eligible: bool
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    window_slack: int,
+    job_slack: int,
+    source_slack: int,
+    eligible: bool,
 ) -> None:
     from datetime import datetime, timedelta, timezone
 
     import yaml
+    from tests.test_caddy_deploy_provenance import _caddy_budget_fixture
     from scripts.ci.prometheus_source_image import QualificationError
 
     class Clock(datetime):
@@ -5048,22 +5064,159 @@ def test_prebuild_covers_usable_output_before_absolute_expiry(
     for phase, cap in caps.items():
         monkeypatch.setenv("CADDY_PHASE_" + phase, str(cap))
     expiry = Clock.now() + timedelta(seconds=required + window_slack)
-    state = {
-        "publisher_repair": {
-            "started": runtime_surface._publisher_utc(expiry - timedelta(days=1)),
-            "expires": runtime_surface._publisher_utc(expiry),
-        },
-        "budget": {
-            "started": clock_now - (sum(caps.values()) - required - job_slack),
-            "seconds": sum(caps.values()),
-            "charged": dict.fromkeys(caps, 0),
-        },
+    source_horizon = Clock.now() + timedelta(seconds=required + source_slack)
+    state = _caddy_budget_fixture(tmp_path, monkeypatch)
+    state["mode"] = "build"
+    state["publisher_repair"] = {
+        "started": runtime_surface._publisher_utc(expiry - timedelta(days=1)),
+        "expires": runtime_surface._publisher_utc(expiry),
+        "source_horizon": runtime_surface._publisher_utc(source_horizon),
     }
-    if eligible:
-        runtime_surface.require_caddy_build_window(state)
-    else:
+    state["budget"].update(
+        started=clock_now - (sum(caps.values()) - required - job_slack),
+        charged={phase: caps[phase] if phase in finished else 0 for phase in caps},
+    )
+    if job_slack:
         with pytest.raises(QualificationError, match="publisher_repair_build_usable_window"):
             runtime_surface.require_caddy_build_window(state)
+        return
+
+    ledger = tmp_path / "caddy-admission/admission.json"
+    ledger.write_text(json.dumps(state))
+    if eligible:
+        assert runtime_surface.caddy_ci_charge_action("BUILD") == caps["BUILD"]
+    else:
+        with pytest.raises(QualificationError, match="publisher_repair_build_usable_window"):
+            runtime_surface.caddy_ci_charge_action("BUILD")
+    budget = json.loads(ledger.read_bytes())["budget"]
+    assert budget["charged"]["BUILD"] == (caps["BUILD"] if eligible else 0)
+    assert ("BUILD" in budget["action_deadlines"]) is eligible
+
+
+@pytest.mark.parametrize(
+    "name,mib",
+    [
+        ("source-decision.json", 2),
+        ("admission.json", 2),
+        ("controls/native-controls.json", 2),
+        ("loaded-runtime/observation.json", 2),
+        ("strict-control.raw.json", 32),
+        ("candidate.json", 2),
+        ("candidate.docker.tar", 512),
+        ("original-producer.json", 2),
+    ],
+)
+def test_caddy_repair_member_size_before_any_zip(tmp_path: Path, name: str, mib: int) -> None:
+    import time
+    from scripts.ci.prometheus_source_image import QualificationError
+
+    source = tmp_path / "evidence"
+    member = source / name
+    member.parent.mkdir(parents=True)
+    limit = mib * 1024**2
+    runtime_surface._require_caddy_repair_member_size(name, limit)
+    with pytest.raises(QualificationError, match="^publisher_repair_bounded_native_member$"):
+        runtime_surface._require_caddy_repair_member_size(name, 0)
+    with member.open("wb") as handle:
+        handle.truncate(limit + 1)
+    target = tmp_path / "caddy-contract-evidence.zip"
+    # An exclusive target collision would otherwise fail first, before packaging.
+    target.write_bytes(b"original")
+    with pytest.raises(QualificationError, match="^publisher_repair_bounded_native_member$"):
+        runtime_surface.pack_caddy_repair_evidence(source, target, time.monotonic() + 10)
+    assert target.read_bytes() == b"original"
+
+
+@pytest.mark.parametrize(
+    ("action", "fault", "diagnostic"),
+    [
+        ("candidate-D", None, None),
+        ("contract", None, None),
+        ("ordinary", None, None),
+        ("candidate-D", "directory", "publisher_repair_zip_directory_bound"),
+        ("candidate-D", "wrong-image-bytes", "publisher_repair_retained_build_bytes"),
+        ("candidate-D", "missing-strict", "publisher_repair_missing_checked_input_record"),
+        ("contract", "cleanup-failed", "publisher_repair_retained_native_decision"),
+        ("contract", "missing-original", "publisher_repair_missing_checked_input_record"),
+    ],
+)
+def test_caddy_qualifying_upload_step_checks_same_zip_as_reader(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    action: str,
+    fault: str | None,
+    diagnostic: str | None,
+) -> None:
+    import io
+    import zipfile
+    from scripts.ci.prometheus_source_image import QualificationError
+    from tests.test_caddy_deploy_provenance import _caddy_budget_fixture, _caddy_inline
+
+    head = "3" * 40
+    material = {
+        "pr": "81",
+        "base": "1" * 40,
+        "controller": "2" * 40,
+        "callers": head,
+        **_repair_subject_fixture()[0],
+    }
+    pr = {"number": 81, "head": {"ref": "fixture/repair"}}
+    api = _DispatchNativeFixture(pr, material)
+    api.add(api.projection())
+    api.fault = fault
+    run_id = 73 if action == "candidate-D" else 75
+    projection = api.projection(run_id, "contract" if action == "ordinary" else action)
+    api.add(projection)
+    run, _, artifact, original_zip = api.records[run_id]
+    state = _caddy_budget_fixture(tmp_path, monkeypatch)
+    state["publisher_repair"] = projection
+    ledger = tmp_path / "caddy-admission/admission.json"
+    ledger.write_text(json.dumps(state))
+    output = tmp_path / "step-output"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+    monkeypatch.setenv("GITHUB_RUN_ID", str(run_id))
+    monkeypatch.setenv("GITHUB_SHA", head)
+    monkeypatch.setenv("CADDY_REPAIR_TRANSPORT", "false" if action == "ordinary" else "true")
+    path = tmp_path / "caddy-contract-evidence.zip"
+    if fault == "directory":
+        monkeypatch.setattr(runtime_surface, "_CADDY_REPAIR_DIRECTORY_MAX", 100)
+    missing = {
+        "missing-original": "original-producer.json",
+        "missing-strict": "strict-control.raw.json",
+    }.get(fault or "")
+    with zipfile.ZipFile(io.BytesIO(original_zip)) as z:
+        for name in z.namelist():
+            if name != missing:
+                dest = tmp_path / "caddy-contract" / name
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                dest.write_bytes(z.read(name))
+
+    code = compile(
+        _caddy_inline("Charge Upload Caddy contract evidence budget"),
+        "<actual-repair-upload-budget>",
+        "exec",
+    )
+    if diagnostic:
+        with pytest.raises(QualificationError, match=f"^{diagnostic}$"):
+            exec(code, {})
+        assert not path.exists() and not output.exists()
+        assert json.loads(ledger.read_bytes())["budget"]["charged"]["UPLOAD"] == 0
+        return
+    exec(code, {})
+    if action == "ordinary":
+        assert not path.exists() and not output.exists()
+        return
+    raw = path.read_bytes()
+    digest = hashlib.sha256(raw).hexdigest()
+    assert output.read_text().splitlines() == [
+        "repair_zip=true",
+        f"bytes={len(raw)}",
+        f"digest={digest}",
+        "horizon=" + projection["source_horizon"],
+    ]
+    artifact.update(size_in_bytes=len(raw), digest="sha256:" + digest)
+    record = runtime_surface._publisher_artifact_record(lambda _: raw, artifact, run, {})
+    assert record["input"] == projection["input"] and record["action"] == action
 
 
 def test_caddy_repair_exact_zip_cap_and_mutating_member(

@@ -28,7 +28,7 @@ import re
 import stat
 import subprocess  # nosec B404 # B404: subprocess is required for bounded local Docker inspection; owned call sites individually reviewed (remove-by: 2027-01-31, ref: PR-docker-runtime-slimming)
 import sys
-from typing import Any, Callable
+from typing import Any, BinaryIO, Callable
 import uuid
 
 DOCKER_BINARY = shutil.which("docker")
@@ -1388,9 +1388,28 @@ _REPAIR_UPLOAD_STEP = "Upload Caddy contract evidence"
 
 _CADDY_REPAIR_ZIP_NAME = "caddy-contract-evidence.zip"
 _REPAIR_UPLOAD_CHECK = "Verify published repair evidence transport"
+_CADDY_REPAIR_DIRECTORY_MAX = 2 * 1024**2
+_CADDY_REPAIR_MEMBER_LIMITS = {
+    "source-decision.json": 2 * 1024**2,
+    "admission.json": 2 * 1024**2,
+    "controls/native-controls.json": 2 * 1024**2,
+    "loaded-runtime/observation.json": 2 * 1024**2,
+    "strict-control.raw.json": 32 * 1024**2,
+    "candidate.json": 2 * 1024**2,
+    "candidate.docker.tar": 512 * 1024**2,
+    "original-producer.json": 2 * 1024**2,
+}
 
 
-def pack_caddy_repair_evidence(source: Path, target: Path, deadline: float) -> tuple[int, str]:
+def _require_caddy_repair_member_size(name: str, size: int) -> None:
+    from scripts.ci.prometheus_source_image import require
+
+    require(0 < size <= _CADDY_REPAIR_MEMBER_LIMITS[name], "publisher_repair_bounded_native_member")
+
+
+def pack_caddy_repair_evidence(
+    source: Path, target: Path, deadline: float, *, producer: tuple[int, str] | None = None
+) -> tuple[int, str]:
     """Produce the actual single ZIP sent by the repair uploader, preserving logical paths and modes."""
     from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
     from scripts.ci.prometheus_source_image import (
@@ -1430,12 +1449,14 @@ def pack_caddy_repair_evidence(source: Path, target: Path, deadline: float) -> t
                 stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and len(files) < 4096,
                 "publisher_repair_transport_member",
             )
+            if name in _CADDY_REPAIR_MEMBER_LIMITS:
+                _require_caddy_repair_member_size(name, info.st_size)
             files[name] = info
         require(bool(files), "publisher_repair_empty_transport")
         return files
 
     files = inventory()
-    with target.open("xb") as output:
+    with target.open("x+b") as output:
         try:
             with ZipFile(output, "w", compression=ZIP_DEFLATED, compresslevel=6) as archive:
                 for name, info in sorted(files.items()):
@@ -1484,6 +1505,8 @@ def pack_caddy_repair_evidence(source: Path, target: Path, deadline: float) -> t
                 "publisher_repair_transport_source_drift",
             )
             output.flush()
+            if producer is not None:
+                _publisher_zip_record(output, size, *producer, deadline=deadline)
             digest = file_hash(target, deadline, maximum_bytes=_REPAIR_ARCHIVE_MAX)
         except BaseException as primary:
             try:
@@ -1641,8 +1664,7 @@ def _publisher_artifact_record(
     cache: dict[tuple[int, str], dict[str, str]],
 ) -> dict[str, str]:
     from io import BytesIO
-    from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile, ZipInfo
-    from scripts.ci.prometheus_source_image import one_object, require
+    from scripts.ci.prometheus_source_image import require
 
     ident, digest = artifact["id"], artifact["digest"]
     require(
@@ -1669,157 +1691,174 @@ def _publisher_artifact_record(
             and "sha256:" + hashlib.sha256(raw).hexdigest() == digest,
             "publisher_repair_native_artifact_bytes",
         )
-
-        # The service ZIP is data. Only the bounded checked record is read; nothing is extracted.
-        class DirectoryStream(BytesIO):
-            inspecting = True
-
-            def read(self, size: int | None = -1, /) -> bytes:
-                if self.inspecting:
-                    requested = len(raw) - self.tell() if size is None or size < 0 else size
-                    require(requested <= 2 * 1024**2, "publisher_repair_zip_directory_bound")
-                return super().read(size)
-
-        stream = DirectoryStream(raw)
-        with ZipFile(stream) as archive:
-            stream.inspecting = False
-            members = archive.infolist()
-            require(
-                0 < len(members) <= 4096 and len({m.filename for m in members}) == len(members),
-                "publisher_repair_artifact_member_inventory",
-            )
-
-            def member(name: str, maximum: int) -> ZipInfo:
-                matches = [m for m in members if m.filename == name]
-                require(len(matches) == 1, "publisher_repair_missing_checked_input_record")
-                item = matches[0]
-                require(
-                    item.orig_filename == name
-                    and not item.is_dir()
-                    and not item.flag_bits & 1
-                    and stat.S_IFMT(item.external_attr >> 16) in (0, stat.S_IFREG)
-                    and item.compress_type in (ZIP_STORED, ZIP_DEFLATED)
-                    and 0 < item.file_size <= maximum,
-                    "publisher_repair_bounded_native_member",
-                )
-                return item
-
-            decision_raw = archive.read(member("source-decision.json", 2 * 1024**2))
-            decision = one_object(decision_raw)
-            data = decision.get("publisher_dispatch")
-            require(type(data) is dict, "publisher_repair_missing_checked_input_record")
-            admission = one_object(archive.read(member("admission.json", 2 * 1024**2)))
-            control = one_object(archive.read(member("controls/native-controls.json", 2 * 1024**2)))
-            runtime = archive.read(member("loaded-runtime/observation.json", 2 * 1024**2))
-            initial = {
-                key: value
-                for key, value in data.items()
-                if key
-                not in {"producer_run", "producer_head", "producer_artifact", "producer_digest"}
-            }
-            if data.get("action") == "candidate-D":
-                initial["producer_run"] = str(run["id"])
-            require(
-                admission.get("publisher_repair") == initial,
-                "publisher_repair_archived_admission_differs",
-            )
-            strict = archive.read(member("strict-control.raw.json", 32 * 1024**2))
-            require(
-                decision.get("decision") == "source_CVE116587_correction_with_unsuppressed_scan"
-                and decision.get("CD_release_accepted") is False
-                and decision.get("runtime_observation_sha256")
-                == hashlib.sha256(runtime).hexdigest()
-                and control.get("cleanup") is True
-                and type(decision["strict_conversion"].get("native_exit")) is int
-                and decision["strict_conversion"]["native_exit"] == 0
-                and decision["strict_conversion"].get("sha256")
-                == hashlib.sha256(strict).hexdigest()
-                and admission.get("current_head") == run["head_sha"]
-                and admission.get("current_run_id") == run["id"]
-                and admission.get("current_run_attempt") == 1
-                and str(admission.get("source_pr")) == data["pr"]
-                and isinstance(admission.get("inputs"), dict)
-                and bool(admission["inputs"]),
-                "publisher_repair_retained_native_decision",
-            )
-            if data.get("action") == "candidate-D":
-                candidate = one_object(archive.read(member("candidate.json", 2 * 1024**2)))
-                image = member("candidate.docker.tar", 512 * 1024**2)
-                require(
-                    admission["mode"] == "build"
-                    and candidate["inputs"] == admission["inputs"]
-                    and candidate["producer_run_id"] == run["id"]
-                    and candidate["producer_run_attempt"] == 1
-                    and candidate["producer_head"] == run["head_sha"]
-                    and candidate["archive_bytes"] == image.file_size
-                    and candidate["image_config_id"] == decision["image"]
-                    and candidate["source_decision_sha256"]
-                    == hashlib.sha256(decision_raw).hexdigest(),
-                    "publisher_repair_retained_build",
-                )
-                digest_image = hashlib.sha256()
-                with archive.open(image) as stream_image:
-                    for chunk in iter(lambda: stream_image.read(1024**2), b""):
-                        digest_image.update(chunk)
-                require(
-                    digest_image.hexdigest() == candidate["archive_sha256"],
-                    "publisher_repair_retained_build_bytes",
-                )
-            elif data.get("action") == "contract":
-                prior = one_object(archive.read(member("original-producer.json", 2 * 1024**2)))
-                require(
-                    admission["mode"] == "reuse"
-                    and prior == admission["producer"]
-                    and prior["git_inputs"] == admission["inputs"]
-                    and (
-                        str(prior["run_id"]),
-                        prior["head"],
-                        str(prior["artifact"]["id"]),
-                        prior["artifact"]["digest"],
-                    )
-                    == (
-                        data["producer_run"],
-                        data["producer_head"],
-                        data["producer_artifact"],
-                        data["producer_digest"],
-                    )
-                    and not {"candidate.json", "candidate.docker.tar"}.intersection(
-                        m.filename for m in members
-                    ),
-                    "publisher_repair_retained_import",
-                )
-        keys = {
-            "pr",
-            "base",
-            "controller",
-            "callers",
-            "source",
-            "q",
-            "s",
-            "c",
-            "zip",
-            "manifest",
-            "action",
-            "input",
-            "run",
-            "job",
-            "started",
-            "producer_run",
-            "source_horizon",
-            "expires",
-        }
-        keys.add("producer_head")
-        if isinstance(data, dict) and data.get("action") == "contract":
-            keys.update(("producer_artifact", "producer_digest"))
-        require(
-            type(data) is dict
-            and set(data) == keys
-            and all(type(v) is str for v in data.values())
-            and decision.get("current_head") == run["head_sha"],
-            "publisher_repair_missing_checked_input_record",
-        )
-        cache[key] = dict(data)
+        cache[key] = _publisher_zip_record(BytesIO(raw), len(raw), run["id"], run["head_sha"])
     return dict(cache[key])
+
+
+def _publisher_zip_record(
+    source: BinaryIO, size: int, run_id: int, head_sha: str, *, deadline: float | None = None
+) -> dict[str, str]:
+    """Check the same ZIP bytes and native decision before upload and after authenticated download."""
+    from io import BufferedIOBase
+    from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile, ZipInfo
+    from scripts.ci.prometheus_source_image import check_deadline, one_object, require
+
+    class DirectoryStream(BufferedIOBase):
+        inspecting = True
+
+        def read(self, length: int | None = -1, /) -> bytes:
+            check_deadline(deadline)
+            if self.inspecting:
+                requested = size - source.tell() if length is None or length < 0 else length
+                require(
+                    requested <= _CADDY_REPAIR_DIRECTORY_MAX, "publisher_repair_zip_directory_bound"
+                )
+            return source.read(-1 if length is None else length)
+
+        def seek(self, offset: int, whence: int = 0, /) -> int:
+            return source.seek(offset, whence)
+
+        def tell(self) -> int:
+            return source.tell()
+
+        def seekable(self) -> bool:
+            return source.seekable()
+
+    stream = DirectoryStream()
+    with ZipFile(stream) as archive:
+        stream.inspecting = False
+        members = archive.infolist()
+        require(
+            0 < len(members) <= 4096 and len({m.filename for m in members}) == len(members),
+            "publisher_repair_artifact_member_inventory",
+        )
+
+        def member(name: str) -> ZipInfo:
+            matches = [m for m in members if m.filename == name]
+            require(len(matches) == 1, "publisher_repair_missing_checked_input_record")
+            item = matches[0]
+            require(
+                item.orig_filename == name
+                and not item.is_dir()
+                and not item.flag_bits & 1
+                and stat.S_IFMT(item.external_attr >> 16) in (0, stat.S_IFREG)
+                and item.compress_type in (ZIP_STORED, ZIP_DEFLATED),
+                "publisher_repair_bounded_native_member",
+            )
+            _require_caddy_repair_member_size(name, item.file_size)
+            return item
+
+        decision_raw = archive.read(member("source-decision.json"))
+        decision = one_object(decision_raw)
+        data = decision.get("publisher_dispatch")
+        require(type(data) is dict, "publisher_repair_missing_checked_input_record")
+        admission = one_object(archive.read(member("admission.json")))
+        control = one_object(archive.read(member("controls/native-controls.json")))
+        runtime = archive.read(member("loaded-runtime/observation.json"))
+        initial = {
+            key: value
+            for key, value in data.items()
+            if key not in {"producer_run", "producer_head", "producer_artifact", "producer_digest"}
+        }
+        if data.get("action") == "candidate-D":
+            initial["producer_run"] = str(run_id)
+        require(
+            admission.get("publisher_repair") == initial,
+            "publisher_repair_archived_admission_differs",
+        )
+        strict = archive.read(member("strict-control.raw.json"))
+        require(
+            decision.get("decision") == "source_CVE116587_correction_with_unsuppressed_scan"
+            and decision.get("CD_release_accepted") is False
+            and decision.get("runtime_observation_sha256") == hashlib.sha256(runtime).hexdigest()
+            and control.get("cleanup") is True
+            and type(decision["strict_conversion"].get("native_exit")) is int
+            and decision["strict_conversion"]["native_exit"] == 0
+            and decision["strict_conversion"].get("sha256") == hashlib.sha256(strict).hexdigest()
+            and admission.get("current_head") == head_sha
+            and admission.get("current_run_id") == run_id
+            and admission.get("current_run_attempt") == 1
+            and str(admission.get("source_pr")) == data["pr"]
+            and isinstance(admission.get("inputs"), dict)
+            and bool(admission["inputs"]),
+            "publisher_repair_retained_native_decision",
+        )
+        if data.get("action") == "candidate-D":
+            candidate = one_object(archive.read(member("candidate.json")))
+            image = member("candidate.docker.tar")
+            require(
+                admission["mode"] == "build"
+                and candidate["inputs"] == admission["inputs"]
+                and candidate["producer_run_id"] == run_id
+                and candidate["producer_run_attempt"] == 1
+                and candidate["producer_head"] == head_sha
+                and candidate["archive_bytes"] == image.file_size
+                and candidate["image_config_id"] == decision["image"]
+                and candidate["source_decision_sha256"] == hashlib.sha256(decision_raw).hexdigest(),
+                "publisher_repair_retained_build",
+            )
+            digest_image = hashlib.sha256()
+            with archive.open(image) as stream_image:
+                for chunk in iter(lambda: stream_image.read(1024**2), b""):
+                    digest_image.update(chunk)
+            require(
+                digest_image.hexdigest() == candidate["archive_sha256"],
+                "publisher_repair_retained_build_bytes",
+            )
+        elif data.get("action") == "contract":
+            prior = one_object(archive.read(member("original-producer.json")))
+            require(
+                admission["mode"] == "reuse"
+                and prior == admission["producer"]
+                and prior["git_inputs"] == admission["inputs"]
+                and (
+                    str(prior["run_id"]),
+                    prior["head"],
+                    str(prior["artifact"]["id"]),
+                    prior["artifact"]["digest"],
+                )
+                == (
+                    data["producer_run"],
+                    data["producer_head"],
+                    data["producer_artifact"],
+                    data["producer_digest"],
+                )
+                and not {"candidate.json", "candidate.docker.tar"}.intersection(
+                    m.filename for m in members
+                ),
+                "publisher_repair_retained_import",
+            )
+    keys = {
+        "pr",
+        "base",
+        "controller",
+        "callers",
+        "source",
+        "q",
+        "s",
+        "c",
+        "zip",
+        "manifest",
+        "action",
+        "input",
+        "run",
+        "job",
+        "started",
+        "producer_run",
+        "source_horizon",
+        "expires",
+    }
+    keys.add("producer_head")
+    if isinstance(data, dict) and data.get("action") == "contract":
+        keys.update(("producer_artifact", "producer_digest"))
+    require(
+        type(data) is dict
+        and set(data) == keys
+        and all(type(v) is str for v in data.values())
+        and decision.get("current_head") == head_sha,
+        "publisher_repair_missing_checked_input_record",
+    )
+    return dict(data)
 
 
 def _publisher_dispatch_inventory(
@@ -4400,14 +4439,6 @@ def caddy_ci_reader(
             primary.add_note(str(close_error))
 
 
-def caddy_ci_api(
-    root: Path, directory: Path, endpoint: str, remaining: Callable[[float], float], expected: str
-) -> Any:
-    """The final source reread independently authenticates and closes its owner."""
-    with caddy_ci_reader(root, directory, remaining, expected) as get:
-        return get(endpoint)
-
-
 def require_caddy_build_window(state: dict[str, Any]) -> None:
     """Prove remaining time through a usable upload before the irreversible build charge."""
     from scripts.ci.prometheus_source_image import require
@@ -4418,6 +4449,7 @@ def require_caddy_build_window(state: dict[str, Any]) -> None:
     budget = state["budget"]
     expiry = _publisher_time(receipt["started"]) + _REPAIR_WINDOW
     require(expiry == _publisher_time(receipt["expires"]), "publisher_repair_absolute_expiry")
+    horizon = min(expiry, _publisher_time(receipt["source_horizon"]))
     now = datetime.now(timezone.utc)
     # Setup and compiler/metadata preparation have completed. The remaining named phases
     # include the late source checks, controls, actual ZIP, upload and configured safety reserve.
@@ -4446,7 +4478,7 @@ def require_caddy_build_window(state: dict[str, Any]) -> None:
     require(
         left > 0
         and left <= job_left
-        and now + timedelta(microseconds=math.ceil(left * 1000000)) < expiry,
+        and now + timedelta(microseconds=math.ceil(left * 1000000)) < horizon,
         "publisher_repair_build_usable_window",
     )
 
