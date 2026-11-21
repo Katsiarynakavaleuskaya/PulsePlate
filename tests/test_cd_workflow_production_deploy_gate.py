@@ -366,6 +366,7 @@ def test_prometheus_security_job_owns_only_pr_and_schedule_execution() -> None:
     assert security_job["permissions"] == {
         "contents": "read",
         "actions": "read",
+        "pull-requests": "read",
         "packages": "read",
     }
     assert "environment" not in security_job
@@ -759,7 +760,12 @@ def test_checkpoint_native_consumer_precedes_secret_free_child(
 ) -> None:
     workflow = yaml.safe_load((REPO_ROOT / ".github/workflows" / filename).read_text())
     selected = workflow["jobs"][job]
-    assert selected["permissions"] == {"contents": "read", "actions": "read", "packages": "read"}
+    assert selected["permissions"] == {
+        "contents": "read",
+        "actions": "read",
+        "pull-requests": "read",
+        "packages": "read",
+    }
     if filename == "ci.yml":
         assert "environment" not in selected
     else:
@@ -993,8 +999,10 @@ def test_am_current_Q_S_producer_have_closed_sources_and_complete_owned_budgets(
     assert '--output-dir "$RUNNER_TEMP/alertmanager-module-' in qualifier["run"]
     assert "build/docker-sources" not in qualifier["run"]
     support = jobs["alertmanager-input-inspection"]
-    assert support["timeout-minutes"] == 60
-    assert sum(step["timeout-minutes"] for step in support["steps"]) == 59
+    assert support["timeout-minutes"] == 61
+    assert (
+        sum(step["timeout-minutes"] for step in support["steps"]) == support["timeout-minutes"] - 1
+    )
     producer = jobs["alertmanager-candidate-build"]
     assert (
         producer["timeout-minutes"]
@@ -1035,7 +1043,12 @@ def test_am_current_Q_S_producer_have_closed_sources_and_complete_owned_budgets(
         if step["name"] == "Select AM Python without dependency or SDK installation"
     )
     assert install["with"]["skip-base-install"] == "true"
-    assert producer["permissions"] == {"contents": "read", "actions": "read", "packages": "read"}
+    assert producer["permissions"] == {
+        "contents": "read",
+        "actions": "read",
+        "pull-requests": "read",
+        "packages": "read",
+    }
 
 
 def test_alertmanager_publication_owns_complete_budget_without_other_job_changes() -> None:
@@ -1074,7 +1087,12 @@ def test_alertmanager_publication_owns_complete_budget_without_other_job_changes
         == "${{ fromJSON(env.ALERTMANAGER_PUBLISHER_STEP_MINUTES) }}"
     )
     assert int(env["ALERTMANAGER_PUBLISHER_STEP_MINUTES"]) * 60 >= helper + 120
-    assert job["permissions"] == {"contents": "read", "actions": "read", "packages": "write"}
+    assert job["permissions"] == {
+        "contents": "read",
+        "actions": "read",
+        "pull-requests": "read",
+        "packages": "write",
+    }
     assert workflow["jobs"]["alertmanager-retained-candidate"]["timeout-minutes"] == 80
 
 

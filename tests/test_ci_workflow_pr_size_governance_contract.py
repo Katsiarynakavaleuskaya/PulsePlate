@@ -619,7 +619,10 @@ _FRONTEND_CADDY_DISPATCH = {
             "options": ["contract", "xnet062-metadata", "candidate-D"],
         },
         "caddy_source_sha": {
-            "description": "Exact owner-selected qualification head for candidate-D",
+            "description": (
+                "Exact qualification commit, or repair-v1 technical binding for a delegated "
+                "contract or candidate-D"
+            ),
             "type": "string",
             "required": False,
         },

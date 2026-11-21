@@ -15971,6 +15971,7 @@ def test_alertmanager_payload_C_H_scope_reaches_binary_owner_only_with_exact_bin
     [
         None,
         "weaker-CD",
+        "current-CD-reverted",
         "weaker-P",
         "missing-publication",
         "missing-H",
@@ -16347,7 +16348,13 @@ def test_alertmanager_current_durable_predecessor_requires_complete_H_publicatio
             if "cat-file" in argv:
                 revision, name = argv[-1].split(":", 1)
                 assert revision in {h, base} and name in source
-                return source[name]
+                return source[name] + (
+                    b"new authenticated BASE bytes"
+                    if fault == "current-CD-reverted"
+                    and revision == base
+                    and name == ".github/workflows/cd.yml"
+                    else b""
+                )
             assert argv[-2:] == ["--git-path", "info/grafts"]
             return b".git/info/grafts\n"
 
@@ -16421,6 +16428,7 @@ def test_alertmanager_current_durable_predecessor_requires_complete_H_publicatio
             "missing-UI": "AM_current_H_native_UI_inventory",
             "malformed-UI": "AM_current_H_native_UI_inventory",
             "weaker-CD": "AM_positive_publication_predecessor_missing",
+            "current-CD-reverted": "AM_positive_publication_predecessor_missing",
             "weaker-P": "AM_positive_publication_predecessor_missing",
             "missing-publication": "AM_current_publication_artifact_unique_HOLD",
             "missing-H": "controlled-required-H-authentication-HOLD",
@@ -17927,7 +17935,7 @@ def test_publisher_repair_routes_only_the_designated_read(
     )
     monkeypatch.setattr(
         authority,
-        "publisher_repair_designation",
+        "publisher_repair_dispatch",
         lambda *a, **kw: None if fault == "absent" else grant,
     )
     monkeypatch.setattr(authority, "publisher_repair_run", run)

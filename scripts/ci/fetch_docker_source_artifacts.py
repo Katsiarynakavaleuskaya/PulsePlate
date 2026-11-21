@@ -4496,16 +4496,11 @@ def _alertmanager_publication_predecessor(
                 leaf.is_file() and not leaf.is_symlink(), "AM_regular_publisher_consumer_material"
             )
             actual = leaf.read_bytes()
-            if actual == raw:
-                continue
-            # The protected-history walk covers the historical P's ancestors through
-            # current BASE. A pending #2495 head still needs its exact directional bytes.
-            if revision != publisher:
-                if raw != query("cat-file", "blob", publisher + ":" + name):
-                    return None
-                base_blob = query("cat-file", "blob", revision + ":" + name)
-            else:
-                base_blob = raw
+            if raw != query("cat-file", "blob", publisher + ":" + name):
+                return None
+            base_blob = (
+                raw if revision == publisher else query("cat-file", "blob", revision + ":" + name)
+            )
             if actual == base_blob:
                 continue
             if not consumer_2495 or not _alertmanager_2495_publisher_consumer_bytes(
@@ -11788,8 +11783,7 @@ def _alertmanager_publisher_history(
     import shutil
     from scripts.ci.prometheus_source_image import require
     from scripts.ci.check_docker_runtime_dependency_surface import (
-        publisher_repair_designation,
-        publisher_repair_completed_reads,
+        publisher_repair_dispatch,
         require_publisher_repair_paths,
     )
 
@@ -11946,7 +11940,7 @@ def _alertmanager_publisher_history(
         require(
             pr["number"] not in (2484, 2494, 2497, 2501), "AM_history_ordinary_PR_cannot_be_repair"
         )
-        require(set(_ALERT_CALLERS) <= names, "AM_history_protected_repair_designation")
+        require(set(_ALERT_CALLERS) <= names, "AM_history_protected_repair_dispatch")
         coordinates = {}
         for kind in ("qualification", "support"):
             prefix = f"--alertmanager-{kind}-".encode()
@@ -11962,10 +11956,8 @@ def _alertmanager_publisher_history(
         subject = _alertmanager_repair_subject(
             selected, coordinates["qualification"], coordinates["support"]
         )
-        grant = publisher_repair_designation(read, pr, historical=True, subject=subject)
-        require(
-            grant is not None and grant["base"] == old, "AM_history_protected_repair_designation"
-        )
+        grant = publisher_repair_dispatch(read, pr, historical=True, subject=subject)
+        require(grant is not None and grant["base"] == old, "AM_history_protected_repair_dispatch")
         grant = cast(dict[str, str], grant)
         full = query(
             "diff",
@@ -11983,7 +11975,6 @@ def _alertmanager_publisher_history(
         if pr["head"]["sha"] != grant["callers"]:
             full_delta.discard(f"docs/review/PR_{pr['number']}_FIXED_MAPPING.md")
         require_publisher_repair_paths(full_delta)
-        publisher_repair_completed_reads(read, pr, grant)
         # The shared verifier has bound K to the exact authorized base and complete tree.
         import base64
 
@@ -12164,14 +12155,14 @@ def _alertmanager_repair_subject(accepted: dict[str, Any], q: str, support: str)
 
 
 def _alertmanager_repair_reader(api: GitHubRead) -> Callable[[str], Any]:
-    from scripts.ci.check_docker_runtime_dependency_surface import verify_publisher_comment_revision
+    from scripts.ci.check_docker_runtime_dependency_surface import _REPAIR_ARCHIVE_MAX
     from scripts.ci.prometheus_source_image import GHCR_REPOSITORY
 
     def read(endpoint: str) -> Any:
-        value = api.json("/repos/" + GHCR_REPOSITORY + endpoint)
-        if re.fullmatch(r"/issues/comments/[1-9][0-9]{0,18}", endpoint):
-            verify_publisher_comment_revision(api, value)
-        return value
+        path = "/repos/" + GHCR_REPOSITORY + endpoint
+        if re.fullmatch(r"/actions/artifacts/[1-9][0-9]{0,18}/zip", endpoint):
+            return api.raw(path, maximum=_REPAIR_ARCHIVE_MAX)
+        return api.json(path)
 
     return read
 
@@ -12524,7 +12515,7 @@ def _alertmanager_reader_route(
             }
         if os.environ.get("ALERTMANAGER_REPAIR_PIN_CHANGED") == "true":
             from scripts.ci.check_docker_runtime_dependency_surface import (
-                publisher_repair_designation,
+                publisher_repair_dispatch,
                 publisher_repair_run,
             )
 
@@ -12539,9 +12530,9 @@ def _alertmanager_reader_route(
                 f"{args.alertmanager_qualification_run}/{args.alertmanager_qualification_artifact}",
                 f"{args.alertmanager_support_run}/{args.alertmanager_support_artifact}",
             )
-            designation = publisher_repair_designation(read, pr, subject=subject)
-            require(designation is not None, "AM_repair_owner_designation_required")
-            grant = cast(dict[str, str], designation)
+            dispatch = publisher_repair_dispatch(read, pr, subject=subject)
+            require(dispatch is not None, "AM_repair_qualifying_dispatch_required")
+            grant = cast(dict[str, str], dispatch)
             require(
                 grant["base"] == current_main
                 and grant["controller"] == args.alertmanager_controller_source
@@ -12568,7 +12559,7 @@ def _alertmanager_reader_route(
                 "pr": number,
                 "head": args.source_sha,
                 "base": current_main,
-                "designation": grant,
+                "dispatch": grant,
             }
         return {
             "mode": "ordinary_published_PR",

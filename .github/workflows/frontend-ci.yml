@@ -117,7 +117,7 @@ on:
         default: contract
         options: [contract, xnet062-metadata, candidate-D]
       caddy_source_sha:
-        description: Exact owner-selected qualification head for candidate-D
+        description: Exact qualification commit, or repair-v1 technical binding for a delegated contract or candidate-D
         type: string
         required: false
 jobs:
@@ -696,7 +696,7 @@ jobs:
               owner_build = action == "candidate-D" and number != 2494
               if owner_build:
                   if pr.get("publisher_repair"):
-                      caddy_owner_dispatch(selected, repair_branch=pr["head"]["ref"])
+                      caddy_owner_dispatch(selected, repair_branch=pr["head"]["ref"], repair_input=pr["publisher_repair"]["input"])
                   else:
                       caddy_owner_dispatch(selected)
               state_dir = Path(os.environ["RUNNER_TEMP"]) / "caddy-admission"
@@ -829,15 +829,16 @@ jobs:
                       raise ValueError(f"Caddy current job read budget exhausted: job={job_id} attempt={attempt}")
                   current_job = api(f"/actions/jobs/{job_id}")
               from scripts.ci.check_docker_runtime_dependency_surface import caddy_producer_in_pr
+              fresh_build = action == "candidate-D"
+              if fresh_build and (event_name != "workflow_dispatch" or state["current_run_attempt"] != 1):
+                  raise ValueError("Caddy build requires actual current PR manual invocation")
+              if fresh_build and owner_build and any(row["branch"] == branch and row["source"] == selected for row in spent):
+                  raise ValueError("Caddy candidate build already started on this frozen source")
               if action == "xnet062-metadata":
                   if number != 2494:
                       raise ValueError("Caddy standalone metadata is outside this PR qualification")
                   state["mode"] = "metadata"
-              elif action == "candidate-D":
-                  if event_name != "workflow_dispatch" or state["current_run_attempt"] != 1:
-                      raise ValueError("Caddy build requires actual current PR manual invocation")
-                  if owner_build and any(row["branch"] == branch and row["source"] == selected for row in spent):
-                      raise ValueError("Caddy candidate build already started on this frozen source")
+              elif fresh_build and not pr.get("publisher_repair"):
                   state["mode"] = "build"
               else:
                   qualified = []
@@ -847,7 +848,8 @@ jobs:
                       git_env = {"PATH": os.environ["PATH"], "LANG": "C.UTF-8", "GIT_CONFIG_NOSYSTEM": "1",
                                  "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_NO_REPLACE_OBJECTS": "1"}
                       original_head = run["head_sha"]
-                      if pr.get("publisher_repair") and not caddy_repair_d_admitted(pr["publisher_repair"], pr["head"]["sha"], original_head, step["started_at"]):
+                      if (pr.get("publisher_repair") and event_name != "workflow_dispatch"
+                              and not caddy_repair_d_admitted(pr["publisher_repair"], original_head, run["id"])):
                           continue
                       if not caddy_producer_in_pr(api, number, original_head, pr["head"]["sha"], branch):
                           continue
@@ -914,19 +916,40 @@ jobs:
                           raise ValueError("Caddy native artifact digest unavailable")
                       qualified.append({"run_id": run["id"], "run_attempt": 1,
                           "head": run["head_sha"], "job_id": job["id"], "artifact": artifacts[0], "git_inputs": original_inputs})
-                  if not qualified and unavailable_artifact:
-                      raise ValueError("Caddy original producer artifact unavailable")
-                  if len(qualified) != 1:
-                      raise ValueError("Caddy requires one successful same-source producer; no automatic build")
-                  state.update(mode="reuse", producer=qualified[0])
+                  if fresh_build:
+                      if qualified:
+                          raise ValueError("Caddy qualifying same-PR source already exists; use contract")
+                      state["mode"] = "build"
+                  else:
+                      if not qualified and unavailable_artifact:
+                          raise ValueError("Caddy original producer artifact unavailable")
+                      if len(qualified) != 1:
+                          raise ValueError("Caddy requires one successful same-source producer; no automatic build")
+                      state.update(mode="reuse", producer=qualified[0])
           state["budget"] = json.loads((state_dir / "admission.json").read_bytes())["budget"]
           (state_dir / "admission.json").write_text(json.dumps(state, indent=2))
           with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
               output.write("mode=" + state["mode"] + "\n")
               if state["mode"] == "build" and owner_build:
                   output.write("owner_prebuild=true\n")
+              if state.get("publisher_repair") and event_name == "workflow_dispatch":
+                  output.write("repair_dispatch=true\n")
               if state["mode"] == "reuse":
                   output.write("producer_run=" + str(state["producer"]["run_id"]) + "\nartifact_id=" + str(state["producer"]["artifact"]["id"]) + "\n")
+          PY
+
+      - name: Verify delegated publisher repair input
+        if: ${{ steps.caddy-admission.outputs.repair_dispatch == 'true' }}
+        timeout-minutes: 1
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_phase, verify_caddy_dispatch_projection
+          with caddy_ci_phase("ADMISSION") as remaining:
+              state = json.loads((Path(os.environ["RUNNER_TEMP"])/"caddy-admission/admission.json").read_bytes())
+              verify_caddy_dispatch_projection(state)
+              remaining(1)
           PY
 
       - name: Charge Download original retained Caddy candidate budget
@@ -2566,12 +2589,14 @@ jobs:
           with caddy_ci_phase("ADMISSION") as remaining:
               from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_api
               from scripts.ci.check_docker_runtime_dependency_surface import caddy_bound_pr
+              from itertools import count
+              sequence = count(1)
               def read_pr(endpoint: str) -> Any:
-                  label = "branch" if endpoint.startswith("/pulls?") else endpoint.rsplit("/", 1)[1]
-                  return caddy_ci_api(Path.cwd(), private / ("final-api-" + label), endpoint, remaining,
+                  return caddy_ci_api(Path.cwd(), private / ("final-api-" + str(next(sequence))), endpoint, remaining,
                                       admission["inputs"]["scripts/ci/prometheus_source_image.py"]["sha256"])
               pr = caddy_bound_pr(read_pr, admission["current_head"])
-              if pr["number"] != admission["source_pr"] or pr["head"]["sha"] != admission["pr_head"]:
+              if (pr["number"] != admission["source_pr"] or pr["head"]["sha"] != admission["pr_head"]
+                      or pr.get("publisher_repair") != admission.get("publisher_repair")):
                   raise ValueError("Caddy current authenticated PR source changed")
           # Only positively owned control image is removed; candidate and official survive.
           with caddy_ci_phase("CONTROL_CLEANUP") as remaining:
@@ -2589,6 +2614,9 @@ jobs:
               state_path.write_text(json.dumps(subject, sort_keys=True))
           decision["runtime_observation_sha256"] = hashlib.sha256((runtime_dir / "observation.json").read_bytes()).hexdigest()
           decision["current_head"] = admission["current_head"]
+          if os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch" and admission.get("publisher_repair"):
+              from scripts.ci.check_docker_runtime_dependency_surface import verify_caddy_dispatch_projection
+              decision["publisher_dispatch"] = verify_caddy_dispatch_projection(admission)
           decision["policy_sha256"] = hashlib.sha256(Path("trivy/ignore-policy.rego").read_bytes()).hexdigest()
           (evidence / "source-decision.json").write_text(json.dumps(decision, indent=2))
           with caddy_ci_phase("PROCESSING") as remaining:

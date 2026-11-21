@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+from typing import Any
 import subprocess
 import traceback
 
@@ -4147,432 +4148,492 @@ def test_caddy_metadata_custody_accepts_only_the_observed_typed_transition(
     assert json.dumps([before, actual], sort_keys=True) == snapshot
 
 
-@pytest.mark.parametrize("number,branch", [(17, "repair/first"), (54, "unrelated-spelling")])
-@pytest.mark.parametrize(
-    "fault",
-    [
-        None,
-        "missing",
-        "author",
-        "fake-app",
-        "expired",
-        "edited",
-        "duplicate",
-        "actual-edited",
-        "wrong-pr",
-        "drift",
-        "wrong-job",
-        "earlier-job",
-        "earlier-run",
-        "corrected",
-        "corrected-mapping",
-        "stale-only",
-        "competing",
-        "other-subject",
-        "mixed-product",
-        "rename-product",
-        "truncated-tree",
-        "mode-drift",
-        "baseline-id",
-        "baseline-verification",
-        "baseline-duplicate",
-        "baseline-filter",
-        "baseline-delete",
-    ],
-)
-def test_publisher_repair_exact_human_decision_and_native_job(
-    number: int, branch: str, fault: str | None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    from copy import deepcopy
-    from typing import Any
-    from scripts.ci.prometheus_source_image import QualificationError
+def _repair_subject_fixture() -> tuple[dict[str, str], dict[str, Any]]:
+    from scripts.ci.fetch_docker_source_artifacts import _alertmanager_accepted_producer
 
-    repo_name = runtime_surface.CADDY_REPOSITORY
-    repo = {"id": 1043311030, "full_name": repo_name, "owner": {"id": 169792616, "type": "User"}}
-    import shutil
-    from scripts.orchestration.creative_code_patch_workspace import (
-        git_env_without_parent_state,
-        safe_git_config_args,
-    )
+    selected = _alertmanager_accepted_producer()
+    return {
+        "source": selected["source"],
+        "q": "43808505545/14199242996",
+        "s": "43810186398/14200227448",
+        "c": f'{selected["run"]}/{selected["artifact"]}',
+        "zip": "sha256:" + selected["zip_sha256"],
+        "manifest": selected["graph"]["manifest"]["digest"],
+    }, selected
 
-    git = shutil.which("git")
-    assert git is not None
 
-    def command(*args: str) -> str:
-        return subprocess.run(
-            [git, *safe_git_config_args(), "-C", str(tmp_path), *args],
-            env=git_env_without_parent_state(),
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout
+class _DispatchNativeFixture:
+    """Native response and ZIP fixtures. No network, actual credentials or registered GitHub runs."""
 
-    def commit(label: str) -> str:
-        command("add", "-A")
-        command(
-            "-c",
-            "user.name=Fixture",
-            "-c",
-            "user.email=fixture@example.invalid",
-            "commit",
-            "-qm",
-            label,
-        )
-        return command("rev-parse", "HEAD").strip()
+    def __init__(
+        self, pr: dict[str, Any], material: dict[str, str], fault: str | None = None
+    ) -> None:
+        self.pr, self.material, self.fault = pr, material, fault
+        self.repo = {"id": 1043311030, "full_name": runtime_surface.CADDY_REPOSITORY}
+        self.actor = {"id": 169792616, "login": "Katsiarynakavaleuskaya", "type": "User"}
+        self.records: dict[int, tuple[dict[str, Any], dict[str, Any], dict[str, Any], bytes]] = {}
+        self.lists = 0
+        self.live_id = 73
+        self.subject, self.original = _repair_subject_fixture()
 
-    command("init", "-q")
-    primary = tmp_path / "scripts/ci/check_docker_runtime_dependency_surface.py"
-    primary.parent.mkdir(parents=True)
-    primary.write_text("base controller")
-    product = tmp_path / ("frontend/feature.ts" if number == 54 else "app/ordinary.py")
-    product.parent.mkdir(parents=True)
-    product.write_text("prior product")
-    for filename in ("ci.yml", "cd.yml"):
-        caller_path = tmp_path / ".github/workflows" / filename
-        caller_path.parent.mkdir(exist_ok=True, parents=True)
-        caller_path.write_text("  ALERTMANAGER_CONTROLLER_SOURCE: '" + "a" * 40 + "'\n")
-    baseline_file = tmp_path / ".secrets.baseline"
-    finding = {
-        "filename": "fixture",
-        "hashed_secret": hashlib.sha256(b"synthetic finding for baseline test").hexdigest(),
-        "is_verified": False,
-        "line_number": 1,
-        "type": "synthetic",
-    }
-    baseline = {
-        "generated_at": "2026-01-01T00:00:00Z",
-        "version": "1.5.0",
-        "filters_used": [],
-        "plugins_used": [],
-        "results": {"fixture": [finding]},
-    }
-    baseline_file.write_text(json.dumps(baseline))
-    base = commit("base")
-    repeated = fault in (
-        "corrected",
-        "corrected-mapping",
-        "stale-only",
-        "competing",
-        "other-subject",
-    )
-    if repeated:
-        primary.write_text("reviewed first repair")
-        k1 = commit("first controller")
-        for name in ("ci.yml", "cd.yml"):
-            caller_path = tmp_path / ".github/workflows" / name
-            caller_path.write_text(caller_path.read_text().replace("a" * 40, k1))
-        w1 = commit("pin first controller")
-        for name in ("ci.yml", "cd.yml"):
-            caller_path = tmp_path / ".github/workflows" / name
-            caller_path.write_text(caller_path.read_text().replace(k1, "a" * 40))
-    primary.write_text("reviewed controller on " + branch)
-    finding["line_number"] = 4
-    baseline["generated_at"] = "2026-01-02T00:00:00Z"
-    if fault == "baseline-id":
-        finding["hashed_secret"] = hashlib.sha256(b"changed synthetic finding").hexdigest()
-    elif fault == "baseline-verification":
-        finding["is_verified"] = True
-    elif fault == "baseline-duplicate":
-        baseline["results"]["fixture"].append(finding)
-    elif fault == "baseline-filter":
-        baseline["filters_used"].append("new filter")
-    baseline_file.write_text(json.dumps(baseline))
-    if fault == "baseline-delete":
-        baseline_file.unlink()
-    if fault == "mixed-product":
-        product.write_text("unrelated change")
-    elif fault == "rename-product":
-        product.rename(tmp_path / "AGENTS.md")
-    elif fault == "mode-drift":
-        primary.chmod(0o755)
-    controller = commit("controller")
-    for filename in ("ci.yml", "cd.yml"):
-        path = tmp_path / ".github/workflows" / filename
-        path.parent.mkdir(exist_ok=True, parents=True)
-        path.write_text(path.read_text().replace("a" * 40, controller))
-    w = head = commit("callers")
-    if fault == "corrected-mapping":
-        mapping = tmp_path / f"docs/review/PR_{number}_FIXED_MAPPING.md"
-        mapping.parent.mkdir(parents=True)
-        mapping.write_text("regular mapping successor")
-        head = commit("mapping-only successor")
+    def projection(
+        self,
+        run: int = 73,
+        action: str = "candidate-D",
+        started: str = "2026-01-01T00:00:00Z",
+        producer: int = 73,
+    ) -> dict[str, str]:
+        material = self.material
+        return {
+            **material,
+            "action": action,
+            "input": runtime_surface.publisher_repair_input(material, action),
+            "run": str(run),
+            "job": str(run + 1000),
+            "started": started,
+            "producer_run": str(producer),
+        }
 
-    producer = hashlib.sha1(str(number).encode(), usedforsecurity=False).hexdigest()
-    owner = {"id": 169792616, "type": "User", "login": repo_name.split("/")[0]}
-    pr: dict[str, Any] = {
-        "number": number,
-        "comments": 1,
-        "state": "open",
-        "merged": False,
-        "head": {"sha": head, "ref": branch, "repo": repo},
-        "base": {"sha": base, "ref": "main", "repo": repo},
-    }
-    identity = 6000000000 + number
-    grant = (
-        f"OWNER PUBLISHER-REPAIR v1 repo=1043311030 pr={number} base={base} controller={controller} callers={w} "
-        f"producer={producer} q=1/2 s=3/4 c=5/6 zip=sha256:{'a'*64} manifest=sha256:{'b'*64} "
-        "reads=ci-lint,cd-pr,caddy-reuse,owner-candidate-D heads=callers-or-direct-mapping expires=2099-01-02T00:00:00Z"
-    )
-    api_root = "https://api.github.com/repos/" + repo_name
-    row = {
-        "id": identity,
-        "node_id": "opaque+/node",
-        "url": f"{api_root}/issues/comments/{identity}",
-        "issue_url": f"{api_root}/issues/{number}",
-        "html_url": f"https://github.com/{repo_name}/pull/{number}#issuecomment-{identity}",
-        "created_at": "2026-01-01T00:00:00Z",
-        "updated_at": "2026-01-01T00:00:00Z",
-        "performed_via_github_app": None,
-        "author_association": "OWNER",
-        "body": grant,
-        "user": owner,
-    }
-    if fault == "drift":
-        row["body"] = grant.replace("controller=" + controller, "controller=" + base)
-    if fault == "fake-app":
-        row["performed_via_github_app"] = {"id": 17}
-    if fault == "edited":
-        row["updated_at"] = "2026-01-02T00:00:00Z"
-    if fault == "author":
-        row["user"] = {**owner, "id": 19}
-    if fault == "expired":
-        row["body"] = grant.replace("2099-", "2000-")
-    if fault == "wrong-pr":
-        row["body"] = grant.replace(f" pr={number} ", f" pr={number+1} ")
-    caddy = number == 54
-    workflow_name, job_name, operation, attempt = (
-        ("frontend-ci.yml", "caddy-contract", "workflow_dispatch", 1)
-        if caddy
-        else ("ci.yml", "lint", "pull_request", 2)
-    )
-    workflow = ".github/workflows/" + workflow_name
-    event = {
-        "ref": branch,
-        "sender": owner,
-        "inputs": {"caddy_action": "candidate-D", "caddy_source_sha": head},
-    }
-    event_path = tmp_path / "event.json"
-    event_path.write_text(json.dumps(event))
+    def add(self, projection: dict[str, str], *, active: bool = False) -> None:
+        import io
+        import zipfile
+        from datetime import datetime, timedelta
 
-    run = {
-        "id": 23,
-        "run_attempt": attempt,
-        "path": workflow,
-        "event": operation,
-        "head_sha": head,
-        "status": "in_progress",
-        "run_started_at": row["created_at"] if fault == "earlier-run" else "2026-01-02T00:00:00Z",
-        "repository": repo,
-        "head_repository": repo,
-        "workflow_id": 123,
-    }
-    job = {
-        "id": 7,
-        "name": job_name if fault != "wrong-job" else "other",
-        "run_id": 23,
-        "run_attempt": attempt,
-        "head_sha": head,
-        "status": "in_progress",
-        "started_at": "2026-01-02T00:00:00Z" if fault != "earlier-job" else row["created_at"],
-    }
-    ref = "refs/heads/" + branch if caddy else f"refs/pull/{number}/merge"
-    for name, value in {
-        "GITHUB_REF": ref,
-        "GITHUB_RUN_ID": "23",
-        "GITHUB_RUN_ATTEMPT": str(attempt),
-        "GITHUB_JOB": job_name,
-        "GITHUB_WORKFLOW_REF": f"{repo_name}/{workflow}@{ref}",
-        "GITHUB_EVENT_NAME": operation,
-        "GITHUB_EVENT_PATH": str(event_path),
-        "GITHUB_ACTOR": owner["login"],
-        "GITHUB_ACTOR_ID": str(owner["id"]),
-        "GITHUB_SHA": head,
-        "GITHUB_REPOSITORY_ID": "1043311030",
-        "GITHUB_WORKFLOW_SHA": head,
-    }.items():
-        monkeypatch.setenv(name, value)
+        r = int(projection["run"])
+        w = projection["callers"]
+        created = projection["started"]
+        action = projection["action"]
 
-    issued = [] if fault == "missing" else [row, row] if fault == "duplicate" else [row]
-    if repeated:
-        old = deepcopy(row)
-        old.update(
-            id=identity + 1,
-            node_id="prior-native-node",
-            url=api_root + f"/issues/comments/{identity+1}",
-            html_url=f"https://github.com/{repo_name}/pull/{number}#issuecomment-{identity+1}",
-            created_at="2026-01-01T00:00:01Z",
-            updated_at="2026-01-01T00:00:01Z",
-        )
-        if fault == "other-subject":
-            old["body"] = grant.replace(
-                "manifest=sha256:" + "b" * 64, "manifest=sha256:" + "c" * 64
+        def later(minutes: int) -> str:
+            return (
+                datetime.strptime(created, "%Y-%m-%dT%H:%M:%SZ") + timedelta(minutes=minutes)
+            ).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        steps = []
+
+        def step(name: str, muted: bool = False) -> None:
+            i = len(steps) + 1
+            steps.append(
+                {
+                    "name": name,
+                    "number": i,
+                    "status": "completed",
+                    "conclusion": "skipped" if muted else "success",
+                    "started_at": None if muted else later(i),
+                    "completed_at": None if muted else later(i),
+                }
             )
-        elif fault != "competing":
-            old["body"] = grant.replace(controller, k1).replace(w, w1)
-        issued = [old] if fault == "stale-only" else [old, row] if number == 17 else [row, old]
-    pr["comments"] = len(issued)
 
-    class Reader:
-        gh = "/test/gh"
-
-        @staticmethod
-        def _capture(argv: list[str], maximum: int) -> bytes:
-            assert "graphql" in argv and maximum < 1024**2
-            observed = next(r for r in issued if "id=" + r["node_id"] in argv)
-            value = {
-                "id": observed["node_id"],
-                "body": observed["body"],
-                "url": observed["html_url"],
-                "createdAt": observed["created_at"],
-                "updatedAt": observed["updated_at"],
-                "lastEditedAt": "2026-01-01T00:00:00Z" if fault == "actual-edited" else None,
-                "authorAssociation": "OWNER",
-                "author": {"login": owner["login"]},
-            }
-            return json.dumps({"data": {"node": value}}).encode()
-
-    def read(path: str) -> Any:
-        if path == f"/issues/{number}/comments?per_page=100&page=1":
-            return issued
-        if path.startswith("/issues/comments/"):
-            # Native list/detail return different presentation and reaction metadata.
-            detail = deepcopy(next(r for r in issued if path.endswith("/" + str(r["id"]))))
-            detail["pin"] = None
-            detail["user"]["avatar_url"] = "unused"
-            runtime_surface.verify_publisher_comment_revision(Reader(), detail)
-            return detail
-        if path == f"/compare/{base}...{controller}":
-            commits = [
-                {"sha": line.split()[0], "parents": [{"sha": p} for p in line.split()[1:]]}
-                for line in command(
-                    "rev-list", "--reverse", "--parents", base + ".." + controller
-                ).splitlines()
-            ]
-            return {
-                "status": "ahead",
-                "base_commit": {"sha": base},
-                "merge_base_commit": {"sha": base},
-                "behind_by": 0,
-                "ahead_by": len(commits),
-                "total_commits": len(commits),
-                "commits": commits,
-            }
-        if path.startswith("/commits/") and path.endswith("?per_page=100&page=1"):
-            rev = path.split("/")[2].split("?")[0]
-            files = []
-            for line in command(
-                "diff-tree", "--no-commit-id", "-r", "--name-status", rev
-            ).splitlines():
-                status, name = line.split("\t")
-                files.append(
-                    {
-                        "filename": name,
-                        "status": {"M": "modified", "A": "added"}[status],
-                        "sha": command("rev-parse", rev + ":" + name).strip(),
-                    }
-                )
-            return {
-                "sha": rev,
-                "parents": [{"sha": command("rev-parse", rev + "^").strip()}],
-                "files": files,
-                "commit": {"tree": {"sha": command("rev-parse", rev + "^{tree}").strip()}},
-            }
-        if path.startswith("/git/blobs/"):
-            import base64
-
-            oid = path.rsplit("/", 1)[1]
-            raw = command("cat-file", "blob", oid).encode()
-            return {
-                "sha": oid,
-                "size": len(raw),
-                "encoding": "base64",
-                "content": base64.b64encode(raw).decode(),
-            }
-        if path.startswith("/git/commits/"):
-            revision = path.rsplit("/", 1)[1]
-            return {
-                "sha": revision,
-                "tree": {"sha": command("rev-parse", revision + "^{tree}").strip()},
-            }
-        if path.startswith("/git/trees/"):
-            oid = path.rsplit("/", 1)[1]
-            rows = []
-            for line in command("ls-tree", oid).splitlines():
-                header, name = line.split("\t")
-                mode, kind, blob = header.split()
-                rows.append({"path": name, "mode": mode, "type": kind, "sha": blob})
-            return {"sha": oid, "truncated": fault == "truncated-tree", "tree": rows}
-        replies = {
-            "": repo,
-            f"/pulls/{number}": pr,
-            "/git/ref/heads/main": {
-                "ref": "refs/heads/main",
-                "object": {"type": "commit", "sha": base},
+        step("Admit existing Caddy producer or exact retained subject")
+        step("Verify delegated publisher repair input", self.fault == "skipped-input")
+        step("Download original retained Caddy candidate", action != "contract")
+        step("Import and bind exact retained Caddy candidate", action != "contract")
+        step("Charge Build source-patched Caddy candidate budget", action != "candidate-D")
+        step("Build source-patched Caddy candidate", action != "candidate-D")
+        step(
+            "Decide source-qualified Caddy inventory and current native controls",
+            self.fault == "skipped-decision",
+        )
+        step("Upload Caddy contract evidence", self.fault == "skipped-upload")
+        run = {
+            "id": r,
+            "run_attempt": 1,
+            "head_branch": self.pr["head"]["ref"],
+            "head_sha": w,
+            "workflow_id": 196310935,
+            "path": ".github/workflows/frontend-ci.yml",
+            "event": "workflow_dispatch",
+            "repository": self.repo,
+            "head_repository": self.repo,
+            "actor": self.actor,
+            "triggering_actor": self.actor,
+            "created_at": created,
+            "run_started_at": created,
+            "status": "in_progress" if active else "completed",
+            "conclusion": None if active else "success",
+        }
+        job = {
+            "id": r + 1000,
+            "run_id": r,
+            "run_attempt": 1,
+            "head_sha": w,
+            "head_branch": run["head_branch"],
+            "name": "caddy-contract",
+            "started_at": created,
+            "completed_at": None if active else later(9),
+            "status": run["status"],
+            "conclusion": run["conclusion"],
+            "steps": steps,
+        }
+        bound = dict(projection)
+        if action == "candidate-D":
+            bound.update(producer_run=str(r), producer_head=w)
+        elif not active:
+            old = self.records[int(projection["producer_run"])]
+            bound.update(
+                producer_head=old[0]["head_sha"],
+                producer_artifact=str(old[2]["id"]),
+                producer_digest=old[2]["digest"],
+            )
+        runtime_raw = b'{"fixture":"successful checked runtime"}'
+        strict = b'{"native":"strict report"}'
+        decision = {
+            "current_head": w,
+            "publisher_dispatch": bound,
+            "decision": "source_CVE116587_correction_with_unsuppressed_scan",
+            "CD_release_accepted": False,
+            "runtime_observation_sha256": hashlib.sha256(runtime_raw).hexdigest(),
+            "image": "sha256:" + "1" * 64,
+            "strict_conversion": {"native_exit": 0, "sha256": hashlib.sha256(strict).hexdigest()},
+        }
+        if self.fault == "missing-projection":
+            del decision["publisher_dispatch"]
+        inputs = {"fixture": "exact"}
+        admission = {
+            "mode": "build" if action == "candidate-D" else "reuse",
+            "current_head": w,
+            "current_run_id": r,
+            "current_run_attempt": 1,
+            "source_pr": self.pr["number"],
+            "publisher_repair": {
+                key: v
+                for key, v in bound.items()
+                if key
+                not in ("producer_run", "producer_head", "producer_artifact", "producer_digest")
             },
-            f"/actions/runs/23/attempts/{attempt}": run,
-            "/actions/workflows/" + workflow_name: {"id": 123, "path": workflow},
-            f"/actions/runs/23/attempts/{attempt}/jobs?per_page=100&page=1": {
-                "total_count": 1,
-                "jobs": [job],
+            "inputs": inputs,
+        }
+        if action == "candidate-D":
+            admission["publisher_repair"]["producer_run"] = str(r)
+        if self.fault == "changed-admission":
+            admission["publisher_repair"]["input"] = "replaced technical operand"
+        raw = io.BytesIO()
+        with zipfile.ZipFile(raw, "w", compression=zipfile.ZIP_DEFLATED) as z:
+            decision_raw = json.dumps(decision).encode()
+            z.writestr("source-decision.json", decision_raw)
+            z.writestr("strict-control.raw.json", strict)
+            z.writestr("loaded-runtime/observation.json", runtime_raw)
+            z.writestr(
+                "controls/native-controls.json",
+                json.dumps({"cleanup": self.fault != "cleanup-failed"}),
+            )
+            if action == "candidate-D":
+                tar = b"synthetic test image bytes"
+                manifest = {
+                    "producer_run_id": r,
+                    "producer_run_attempt": 1,
+                    "producer_head": w,
+                    "inputs": inputs,
+                    "image_config_id": decision["image"],
+                    "archive_bytes": len(tar),
+                    "archive_sha256": hashlib.sha256(tar).hexdigest(),
+                    "source_decision_sha256": hashlib.sha256(decision_raw).hexdigest(),
+                }
+                z.writestr("candidate.json", json.dumps(manifest))
+                z.writestr(
+                    "candidate.docker.tar",
+                    tar if self.fault != "wrong-image-bytes" else b"?" * len(tar),
+                )
+            elif not active:
+                prior = {
+                    "run_id": int(bound["producer_run"]),
+                    "head": bound["producer_head"],
+                    "artifact": {
+                        "id": int(bound["producer_artifact"]),
+                        "digest": bound["producer_digest"],
+                    },
+                    "git_inputs": inputs,
+                }
+                admission["producer"] = prior
+                z.writestr("original-producer.json", json.dumps(prior))
+            z.writestr("admission.json", json.dumps(admission))
+        archive = raw.getvalue()
+        artifact = {
+            "id": r + 10000,
+            "name": "caddy-contract-evidence",
+            "expired": False,
+            "size_in_bytes": len(archive),
+            "digest": "sha256:" + hashlib.sha256(archive).hexdigest(),
+            "workflow_run": {
+                "id": r,
+                "head_sha": w,
+                "repository_id": 1043311030,
+                "head_repository_id": 1043311030,
             },
         }
-        return replies[path]
+        self.records[r] = (run, job, artifact, archive)
 
-    if fault == "duplicate":
-        pr["comments"] = 2
-    if fault == "missing":
-        pr["comments"] = 0
+    def read(self, path: str) -> Any:
+        from copy import deepcopy
+        import re
 
-    def admitted() -> bool:
-        decision = runtime_surface.publisher_repair_designation(
-            read, pr, subject=None if caddy else {"manifest": "sha256:" + "b" * 64}
-        )
-        if decision is None:
-            return False
-        assert decision["comment"] == str(identity)
-        if caddy:
-            assert (
-                runtime_surface._caddy_repair_pr(read, pr, head, operation, event)[
-                    "publisher_repair"
-                ]
-                == decision
-            )
-        else:
-            runtime_surface.publisher_repair_run(read, decision, head, workflow_name, job_name)
-        return True
-
-    if fault in ("missing", "author", "drift", "stale-only"):
-        assert not admitted()
-    elif (
-        fault in (None, "corrected", "corrected-mapping") or fault == "other-subject" and not caddy
-    ):
-        assert admitted()
-    else:
-        with pytest.raises((ValueError, QualificationError)):
-            admitted()
+        if path == f"/pulls/{self.pr['number']}":
+            return deepcopy(self.pr)
+        if path == "/git/ref/heads/" + self.pr["head"]["ref"]:
+            return {
+                "ref": "refs/heads/" + self.pr["head"]["ref"],
+                "object": {"type": "commit", "sha": self.pr["head"]["sha"]},
+            }
+        if path == "/actions/workflows/frontend-ci.yml":
+            return {"id": 196310935, "path": ".github/workflows/frontend-ci.yml"}
+        if path == "/actions/workflows/cd.yml":
+            return {"id": 123, "path": ".github/workflows/cd.yml"}
+        for label, name, job_name in (
+            ("q", "alertmanager-module-qualification", "alertmanager-module-qualification"),
+            ("s", "alertmanager-input-inspection", "alertmanager-input-inspection"),
+            ("c", "alertmanager-candidate", "alertmanager-candidate-build"),
+        ):
+            run, artifact = map(int, self.subject[label].split("/"))
+            rev = self.subject["source"]
+            branch = "codex/dependency-alertmanager-remediation"
+            if path == f"/actions/artifacts/{artifact}":
+                return {
+                    "id": artifact,
+                    "name": f"{name}-{run}-1",
+                    "expired": False,
+                    "digest": (
+                        self.subject["zip"]
+                        if label == "c" and self.fault != "wrong-original-C"
+                        else "sha256:" + "f" * 64
+                    ),
+                    "workflow_run": {
+                        "id": run,
+                        "head_sha": (
+                            "f" * 40
+                            if (label, self.fault)
+                            in (("q", "wrong-original-Q"), ("s", "wrong-original-S"))
+                            else rev
+                        ),
+                        "head_branch": branch,
+                        "repository_id": 1043311030,
+                        "head_repository_id": 1043311030,
+                    },
+                }
+            attempt = f"/actions/runs/{run}/attempts/1"
+            if path == attempt:
+                return {
+                    "id": run,
+                    "event": "workflow_dispatch",
+                    "run_attempt": 1,
+                    "head_sha": rev,
+                    "head_branch": branch,
+                    "workflow_id": 123,
+                    "path": ".github/workflows/cd.yml",
+                    "repository": self.repo,
+                    "head_repository": self.repo,
+                    "status": "completed",
+                    "conclusion": "success",
+                }
+            if path == attempt + "/jobs?per_page=100&page=1":
+                return {
+                    "total_count": 1,
+                    "jobs": [
+                        {
+                            "id": self.original["job"] if label == "c" else run,
+                            "run_id": run,
+                            "run_attempt": 1,
+                            "head_sha": rev,
+                            "name": job_name,
+                            "status": "completed",
+                            "conclusion": "success",
+                        }
+                    ],
+                }
+        if path.startswith("/actions/workflows/frontend-ci.yml/runs?"):
+            self.lists += 1
+            head = re.search(r"head_sha=([0-9a-f]{40})", path).group(1)
+            runs = [v[0] for v in self.records.values() if v[0]["head_sha"] == head]
+            if self.fault == "list-drift" and self.lists % 2 == 0:
+                runs = []
+            return {"total_count": len(runs), "workflow_runs": deepcopy(runs)}
+        for r, (run, job, artifact, raw) in self.records.items():
+            if path == f"/actions/runs/{r}":
+                return deepcopy(run)
+            if path == f"/actions/runs/{r}/attempts/1":
+                return None if self.fault == "missing-attempt" else deepcopy(run)
+            if path == f"/actions/runs/{r}/attempts/1/jobs?per_page=100&page=1":
+                native_job = deepcopy(job)
+                if self.fault == "missing-job-attempt":
+                    del native_job["run_attempt"]
+                return {"total_count": 1, "jobs": [native_job]}
+            if path == f"/actions/runs/{r}/artifacts?per_page=100&page=1":
+                artifacts = [] if self.fault == "missing-artifact" else [deepcopy(artifact)]
+                return {"total_count": len(artifacts), "artifacts": artifacts}
+            if path == f"/actions/artifacts/{artifact['id']}":
+                return deepcopy(artifact)
+            if path == f"/actions/artifacts/{artifact['id']}/zip":
+                return raw + b"stale" if self.fault == "wrong-archive" else raw
+        raise KeyError(path)
 
 
 @pytest.mark.parametrize(
-    "source,started,build,accepted",
+    "fault,diagnostic",
     [
-        ("w", "2026-01-02T01:00:00Z", True, True),
-        ("r", "2026-01-02T01:00:00Z", True, True),
-        ("k", "2026-01-02T01:00:00Z", True, False),
-        ("w", "2026-01-01T00:00:00Z", True, False),
-        ("w", "2026-02-01T00:00:00Z", True, False),
-        ("w", "2026-01-02T01:00:00Z", False, False),
+        (None, None),
+        ("wrong-sender", "publisher_repair_actual_dispatch_input"),
+        ("wrong-input", "publisher_repair_actual_dispatch_input"),
+        ("wrong-trigger", "publisher_repair_live_native_dispatch"),
+        ("wrong-archive", "publisher_repair_native_artifact_bytes"),
+        ("missing-artifact", "publisher_repair_missing_native_artifact"),
+        ("missing-projection", "publisher_repair_missing_checked_input_record"),
+        ("wrong-image-bytes", "publisher_repair_retained_build_bytes"),
+        ("cleanup-failed", "publisher_repair_retained_native_decision"),
+        ("changed-admission", "publisher_repair_archived_admission_differs"),
+        ("skipped-decision", "publisher_repair_positive_native_step"),
+        ("skipped-upload", "publisher_repair_positive_native_step"),
+        ("skipped-input", None),
+        ("missing-attempt", "publisher_repair_missing_native_attempt"),
+        ("missing-job-attempt", "publisher_repair_attempt_job_identity"),
+        ("list-drift", "declared_data_"),
+        ("competing", "publisher_repair_competing_dispatches"),
+        ("wrong-subject", "publisher_repair_terminal_subject_or_input"),
+        ("stale-only", None),
+        ("legitimate-renewal", None),
+        ("prior-W-exact-inputs", None),
+        ("expired", None),
+        ("second-build", "publisher_repair_duplicate_spent_build"),
     ],
 )
-def test_caddy_historical_D_uses_original_build_authority(
-    source: str, started: str, build: bool, accepted: bool
+def test_delegated_caddy_dispatch_live_and_terminal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str | None, diagnostic: str | None
 ) -> None:
-    grant = {
-        "callers": "w",
-        "build": ",owner-candidate-D" if build else "",
-        "created": "2026-01-01T00:00:00Z",
-        "expires": "2026-02-01T00:00:00Z",
+    from datetime import datetime, timezone
+    from scripts.ci.prometheus_source_image import QualificationError
+
+    subject, _ = _repair_subject_fixture()
+    b, k, w = "1" * 40, "2" * 40, "3" * 40
+    material = {"pr": "81", "base": b, "controller": k, "callers": w, **subject}
+    repo = {"id": 1043311030, "full_name": runtime_surface.CADDY_REPOSITORY}
+    pr = {
+        "number": 81,
+        "created_at": "2025-12-31T00:00:00Z",
+        "state": "open",
+        "head": {"sha": w, "ref": "repair/selected", "repo": repo},
+        "base": {"sha": b, "ref": "main", "repo": repo},
     }
-    assert runtime_surface.caddy_repair_d_admitted(grant, "r", source, started) is accepted
+    api = _DispatchNativeFixture(pr, material)
+    projection = api.projection()
+    api.add(projection, active=True)
+    for key, val in {
+        "GITHUB_RUN_ID": "73",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "GITHUB_WORKFLOW_SHA": w,
+        "GITHUB_SHA": w,
+        "GITHUB_JOB": "caddy-contract",
+        "GITHUB_EVENT_NAME": "workflow_dispatch",
+        "GITHUB_REPOSITORY_ID": "1043311030",
+        "GITHUB_ACTOR_ID": "169792616",
+        "GITHUB_ACTOR": "Katsiarynakavaleuskaya",
+        "GITHUB_REF": "refs/heads/repair/selected",
+        "GITHUB_WORKFLOW_REF": runtime_surface.CADDY_REPOSITORY
+        + "/.github/workflows/frontend-ci.yml@refs/heads/repair/selected",
+    }.items():
+        monkeypatch.setenv(key, val)
+    event_path = tmp_path / "event.json"
+
+    def event(proj: dict[str, str]) -> None:
+        event_path.write_text(
+            json.dumps(
+                {
+                    "repository": api.repo,
+                    "ref": "repair/selected",
+                    "inputs": {
+                        "caddy_action": proj["action"],
+                        "caddy_source_sha": proj["input"] if fault != "wrong-input" else w,
+                    },
+                    "sender": {**api.actor, "id": 1} if fault == "wrong-sender" else api.actor,
+                }
+            )
+        )
+
+    event(projection)
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event_path))
+    monkeypatch.setattr(runtime_surface, "publisher_repair_head", lambda *a, **kw: (b, k, w))
+    monkeypatch.setattr(runtime_surface, "_publisher_repair_material", lambda *a: None)
+    monkeypatch.setattr(runtime_surface, "_publisher_input_source", lambda *a: subject)
+
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz: Any = None) -> datetime:
+            return datetime(
+                2026,
+                1,
+                3 if fault in ("legitimate-renewal", "prior-W-exact-inputs", "expired") else 1,
+                3,
+                tzinfo=timezone.utc,
+            )
+
+    monkeypatch.setattr(runtime_surface, "datetime", Clock)
+
+    def exercise() -> None:
+        if fault == "wrong-trigger":
+            api.records[73][0]["triggering_actor"] = {**api.actor, "id": 3}
+        live = runtime_surface.publisher_repair_dispatch(api.read, pr, current_event=True)
+        assert live == projection
+        if fault is None:
+            actual = runtime_surface._caddy_repair_pr(
+                api.read, pr, w, "workflow_dispatch", json.loads(event_path.read_bytes())
+            )
+            assert actual["publisher_repair"] == live
+        state = {"source_pr": 81, "current_head": w, "publisher_repair": live, "mode": "build"}
+        assert runtime_surface.verify_caddy_dispatch_projection(state) == {
+            **projection,
+            "producer_head": w,
+        }
+        api.fault = fault
+        if fault == "wrong-subject":
+            projection["manifest"] = "sha256:" + "f" * 64
+        if fault in ("stale-only", "prior-W-exact-inputs"):
+            projection["callers"] = "4" * 40
+        api.add(projection)
+        if fault == "competing":
+            other = api.projection(
+                74, action="contract", started="2026-01-01T01:00:00Z", producer=73
+            )
+            other["manifest"] = "sha256:" + "f" * 64
+            api.add(other)
+        if fault in ("legitimate-renewal", "prior-W-exact-inputs", "second-build"):
+            action = "candidate-D" if fault == "second-build" else "contract"
+            renewal = api.projection(74, action=action, started="2026-01-03T00:00:00Z")
+            api.add(renewal, active=True)
+            event(renewal)
+            monkeypatch.setenv("GITHUB_RUN_ID", "74")
+            result = runtime_surface.publisher_repair_dispatch(api.read, pr, current_event=True)
+            assert result == {key: value for key, value in renewal.items() if key != "producer_run"}
+            original_run, _, artifact, _ = api.records[73]
+            bound = runtime_surface.verify_caddy_dispatch_projection(
+                {
+                    **state,
+                    "publisher_repair": result,
+                    "mode": "reuse",
+                    "inputs": {"fixture": "exact"},
+                    "producer": {
+                        "run_id": 73,
+                        "run_attempt": 1,
+                        "head": original_run["head_sha"],
+                        "artifact": artifact,
+                        "git_inputs": {"fixture": "exact"},
+                    },
+                }
+            )
+            assert (
+                bound["producer_run"] == "73" and bound["producer_head"] == original_run["head_sha"]
+            )
+            api.add(bound)
+        terminal = runtime_surface.publisher_repair_dispatch(api.read, pr)
+        if fault in ("skipped-input", "stale-only", "expired"):
+            assert terminal is None
+        else:
+            assert terminal is not None and terminal["producer_run"] == "73"
+            assert terminal["run"] == (
+                "74" if fault in ("legitimate-renewal", "prior-W-exact-inputs") else "73"
+            )
+
+    if diagnostic:
+        with pytest.raises((QualificationError, ValueError), match=diagnostic):
+            exercise()
+    else:
+        exercise()
 
 
 @pytest.mark.parametrize(
@@ -4661,3 +4722,89 @@ def test_native_baseline_prunes_only_two_authenticated_public_pins(fault: str | 
             QualificationError, match="publisher_repair_baseline_finding_or_policy_changed"
         ):
             runtime_surface._publisher_baseline_change(read, changed)
+
+
+@pytest.mark.parametrize(
+    "fault,diagnostic",
+    [
+        (None, None),
+        ("old-event", "publisher_repair_original_event_after_dispatch"),
+        ("wrong-source", "publisher_repair_original_event_after_dispatch"),
+        ("expired-job", "publisher_repair_actual_job_after_dispatch"),
+        ("missing-job-attempt", "publisher_repair_attempt_job_identity"),
+    ],
+)
+def test_am_pr_read_starts_after_terminal_delegated_dispatch(
+    monkeypatch: pytest.MonkeyPatch, fault: str | None, diagnostic: str | None
+) -> None:
+    from scripts.ci.prometheus_source_image import QualificationError
+
+    w = "9" * 40
+    repo = {"id": 1043311030}
+    receipt = {
+        "created": "2026-01-01T00:09:00Z",
+        "expires": "2026-01-02T00:00:00Z",
+        "base": "1" * 40,
+    }
+    workflow = ".github/workflows/ci.yml"
+    run = {
+        "id": 22,
+        "run_attempt": 2,
+        "workflow_id": 12,
+        "path": workflow,
+        "event": "pull_request",
+        "head_sha": w,
+        "head_branch": "fixture/authorized-repair",
+        "repository": repo,
+        "head_repository": repo,
+        "status": "in_progress",
+        "run_started_at": "2026-01-01T01:00:00Z",
+    }
+    event = {
+        **run,
+        "created_at": "2026-01-01T00:08:59Z" if fault == "old-event" else "2026-01-01T00:30:00Z",
+    }
+    if fault == "wrong-source":
+        event["head_sha"] = "0" * 40
+    job = {
+        "id": 32,
+        "name": "lint",
+        "head_sha": w,
+        "run_id": 22,
+        "run_attempt": 2,
+        "status": "in_progress",
+        "started_at": "2026-01-02T00:00:00Z" if fault == "expired-job" else "2026-01-01T01:00:05Z",
+    }
+    if fault == "missing-job-attempt":
+        del job["run_attempt"]
+    for key, value in {
+        "GITHUB_RUN_ID": "22",
+        "GITHUB_RUN_ATTEMPT": "2",
+        "GITHUB_JOB": "lint",
+        "GITHUB_REPOSITORY_ID": "1043311030",
+        "GITHUB_WORKFLOW_SHA": w,
+        "GITHUB_EVENT_NAME": "pull_request",
+        "GITHUB_REF": "refs/pull/81/merge",
+        "GITHUB_WORKFLOW_REF": runtime_surface.CADDY_REPOSITORY
+        + "/"
+        + workflow
+        + "@refs/pull/81/merge",
+    }.items():
+        monkeypatch.setenv(key, value)
+
+    def read(path: str) -> Any:
+        return {
+            "/actions/runs/22/attempts/2": run,
+            "/actions/runs/22": event,
+            "/actions/workflows/ci.yml": {"id": 12, "path": workflow},
+            "/actions/runs/22/attempts/2/jobs?per_page=100&page=1": {
+                "total_count": 1,
+                "jobs": [job],
+            },
+        }[path]
+
+    if diagnostic:
+        with pytest.raises(QualificationError, match=diagnostic):
+            runtime_surface.publisher_repair_run(read, receipt, w, "ci.yml", "lint")
+    else:
+        runtime_surface.publisher_repair_run(read, receipt, w, "ci.yml", "lint")

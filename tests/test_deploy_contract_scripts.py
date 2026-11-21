@@ -18197,7 +18197,7 @@ def test_alertmanager_support_bounds_zip_metadata_without_restricting_member_rea
     monkeypatch.setattr(zipfile, "ZIP64_LIMIT", 1024)
     path = tmp_path / "S.zip"
     payload_size = 2 * 1024**2
-    with zipfile.ZipFile(path, "w") as producer:
+    with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_STORED) as producer:
         producer.comment = b"valid uploader comment"
         with producer.open("payload", "w", force_zip64=True) as member:
             member.write(b"a" * payload_size)
@@ -18206,6 +18206,7 @@ def test_alertmanager_support_bounds_zip_metadata_without_restricting_member_rea
             source.read()
         with zipfile.ZipFile(source) as archive:
             assert archive.comment == b"valid uploader comment"
+            assert archive.getinfo("payload").compress_type == zipfile.ZIP_STORED
             source.reading_directory = False
             assert archive.read("payload") == b"a" * payload_size
     bad_path = tmp_path / "oversized-directory.zip"
@@ -19101,7 +19102,20 @@ def _exercise_publisher_history(
         cmd("commit", "-qm", msg)
         return cmd("rev-parse", "HEAD").decode().strip()
 
+    from tests.test_docker_runtime_dependency_surface import (
+        _DispatchNativeFixture,
+        _repair_subject_fixture,
+    )
+
+    subject, original_accepted = _repair_subject_fixture()
+    declaration = ("_ALERT_ACCEPTED_CANDIDATE: dict = " + repr(original_accepted) + "\n").encode()
+    helper = "scripts/ci/fetch_docker_source_artifacts.py"
+
     def write(name: str, raw: bytes) -> None:
+        if name == helper and not raw.startswith(declaration):
+            raw = declaration + b"# " + raw
+        if fault == "wrong-base-compose" and name == "deploy/docker-compose.production.yaml":
+            raw = raw.replace(subject["manifest"].encode(), b"sha256:" + b"f" * 64)
         path = root / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(raw)
@@ -19111,9 +19125,28 @@ def _exercise_publisher_history(
     synthetic_pin = "a" * 40
     raw_callers = (
         f"  ALERTMANAGER_CONTROLLER_SOURCE: '{synthetic_pin}'\n"
-        "--alertmanager-qualification-run 43808505545 --alertmanager-qualification-artifact 14199242996\n"
-        "--alertmanager-support-run 43810186398 --alertmanager-support-artifact 14200227448\n"
+        + "".join(
+            f"--alertmanager-{kind}-run {subject[label].split('/')[0]} --alertmanager-{kind}-artifact {subject[label].split('/')[1]} "
+            + chr(92)
+            + "\n"
+            + f"    --alertmanager-{kind}-source {subject['source']} \n"
+            for kind, label in (("qualification", "q"), ("support", "s"), ("candidate", "c"))
+        )
     ).encode()
+    am_image = f"  alertmanager:\n    image: ghcr.io/katsiarynakavaleuskaya/pulseplate@{subject['manifest']}\n".encode()
+    for path in source._ALERT_SELECTION_FILES[:3]:
+        write(path, am_image)
+    overlay = {
+        path: tuple(
+            (
+                raw + am_image
+                if path in source._ALERT_SELECTION_FILES[:3] and b"  alertmanager:\n" not in raw
+                else raw
+            )
+            for raw in pair
+        )
+        for path, pair in overlay.items()
+    }
     for path in callers:
         write(path, raw_callers)
     for path, (old, _) in overlay.items():
@@ -19196,9 +19229,17 @@ def _exercise_publisher_history(
         assert raw.count(incumbent.encode()) >= 1
         pin = f"  ALERTMANAGER_CONTROLLER_SOURCE: '{incumbent}'".encode()
         write(path, raw.replace(pin, pin.replace(incumbent.encode(), controller.encode())))
+    if fault in ("extra-W-caller-byte", "extra-W-CD-byte"):
+        path = callers[1] if fault == "extra-W-CD-byte" else callers[0]
+        write(path, (root / path).read_bytes() + b"# not an immutable pin substitution\n")
     w = commit("Pin second controller K")
+    final_head = w
+    mapping = "docs/review/PR_81_FIXED_MAPPING.md"
+    if fault == "mapping-successor":
+        write(mapping, b"sole regular mapping successor")
+        final_head = commit("Mapping only")
     squash = (
-        cmd("commit-tree", w + "^{tree}", "-p", descendant, "-m", "Second repair squash")
+        cmd("commit-tree", final_head + "^{tree}", "-p", descendant, "-m", "Second repair squash")
         .decode()
         .strip()
     )
@@ -19229,42 +19270,22 @@ def _exercise_publisher_history(
             "base": {"sha": base, "ref": "main", "repo": github_repo},
         }
 
-    grant = (
-        f"OWNER PUBLISHER-REPAIR v1 repo=1043311030 pr=81 base={descendant} controller={controller} callers={w} "
-        f"producer={expected['source']} q=43808505545/14199242996 s=43810186398/14200227448 c={expected['run']}/{expected['artifact']} "
-        f"zip=sha256:{expected['zip_sha256']} manifest={expected['graph']['manifest']['digest']} reads=ci-lint,cd-pr,caddy-reuse "
-        "heads=callers-or-direct-mapping expires=2026-01-30T00:00:00Z"
-    )
     api_prefix = "/repos/" + GHCR_REPOSITORY
-    row = {
-        "id": 61,
-        "node_id": "opaque-id",
-        "body": grant,
-        "url": f"https://api.github.com{api_prefix}/issues/comments/61",
-        "issue_url": f"https://api.github.com{api_prefix}/issues/81",
-        "html_url": f"https://github.com/{GHCR_REPOSITORY}/pull/81#issuecomment-61",
-        "created_at": "2026-01-01T00:00:00Z",
-        "updated_at": "2026-01-01T00:00:00Z",
-        "performed_via_github_app": None,
-        "author_association": "OWNER",
-        "user": {"id": 169792616, "login": owner_name, "type": "User"},
-    }
-    repair = pr(81, w, squash, descendant, "a-distinct-repair")
-
-    issued = [row]
+    repair = pr(81, final_head, squash, descendant, "a-distinct-repair")
+    if fault == "post-merge-before-expiry":
+        repair["merged_at"] = "2026-01-01T01:45:00Z"
+    material = {"pr": "81", "base": descendant, "controller": controller, "callers": w, **subject}
+    dispatch = _DispatchNativeFixture(
+        repair,
+        material,
+        fault if fault in ("wrong-original-C", "wrong-original-Q", "wrong-original-S") else None,
+    )
+    if fault not in ("missing", "same-pr-stale-grant"):
+        dispatch.add(dispatch.projection())
     if corrected:
-        old = {
-            **row,
-            "id": 60,
-            "node_id": "old-owner-comment",
-            "created_at": "2025-12-31T23:59:00Z",
-            "updated_at": "2025-12-31T23:59:00Z",
-            "url": row["url"].replace("/61", "/60"),
-            "html_url": row["html_url"].replace("comment-61", "comment-60"),
-            "body": grant.replace(controller, k1).replace(w, w1),
-        }
-        issued = [old] if fault == "same-pr-stale-grant" else [old, row]
-        repair["comments"] = len(issued)
+        earlier = dispatch.projection(75, started="2025-12-29T00:00:00Z", producer=75)
+        earlier.update(controller=k1, callers=w1)
+        dispatch.add(earlier)
 
     class API:
         gh = "/synthetic/gh"
@@ -19272,26 +19293,14 @@ def _exercise_publisher_history(
         def _capture(
             self, argv: list[str], maximum: int, *, environment: dict[str, str] | None = None
         ) -> bytes:
-            if argv[0] == self.gh:
-                assert "graphql" in argv and "id=opaque-id" in argv
-                return json.dumps(
-                    {
-                        "data": {
-                            "node": {
-                                "id": row["node_id"],
-                                "body": grant,
-                                "url": row["html_url"],
-                                "createdAt": row["created_at"],
-                                "updatedAt": row["updated_at"],
-                                "lastEditedAt": None,
-                                "authorAssociation": "OWNER",
-                                "author": {"login": owner_name},
-                            }
-                        }
-                    }
-                ).encode()
             assert argv[0] == git and "--no-replace-objects" in argv
             return subprocess.run(argv, check=True, capture_output=True, env=environment).stdout
+
+        def raw(self, path: str, *, maximum: int) -> bytes:
+            assert re.fullmatch(re.escape(api_prefix) + r"/actions/artifacts/[1-9][0-9]*/zip", path)
+            raw = dispatch.read(path.removeprefix(api_prefix))
+            assert isinstance(raw, bytes) and len(raw) <= maximum
+            return raw
 
         def json(self, path: str) -> Any:
             assert path.startswith(api_prefix)
@@ -19302,8 +19311,6 @@ def _exercise_publisher_history(
                 "/pulls/2495": pr(2495, n, n, publisher, source._ALERT_2495_BRANCH),
                 f"/commits/{n}/pulls?per_page=2": [{"number": 2495}],
                 f"/commits/{squash}/pulls?per_page=2": [{"number": 81}],
-                "/issues/81/comments?per_page=100&page=1": [] if fault == "missing" else issued,
-                "/issues/comments/61": row,
             }
             if fault == "edit-revert" and path in {
                 f"/commits/{changed}/pulls?per_page=2",
@@ -19319,6 +19326,37 @@ def _exercise_publisher_history(
                     if fault != "ambiguous-original"
                     else [repair, {**repair, "number": 87}]
                 )
+            if final_head != w:
+                if path == f"/commits/{final_head}?per_page=100&page=1":
+                    return {
+                        "sha": final_head,
+                        "parents": [{"sha": w}],
+                        "files": [
+                            {
+                                "filename": mapping,
+                                "status": "added",
+                                "sha": cmd("rev-parse", final_head + ":" + mapping)
+                                .decode()
+                                .strip(),
+                            }
+                        ],
+                        "commit": {
+                            "tree": {
+                                "sha": cmd("rev-parse", final_head + "^{tree}").decode().strip()
+                            }
+                        },
+                    }
+                if (
+                    path.startswith("/actions/workflows/")
+                    and f"event=pull_request&head_sha={final_head}&" in path
+                ):
+                    return {"total_count": 0, "workflow_runs": []}
+            if path in records:
+                return records[path]
+            try:
+                return dispatch.read(path)
+            except KeyError:
+                pass
             for filename, job_name, run_id, required in (
                 (
                     "ci.yml",
@@ -19358,7 +19396,11 @@ def _exercise_publisher_history(
                         "created_at": (
                             "2025-11-01T00:00:00Z"
                             if fault == "original-before-PR"
-                            else "2025-12-31T00:00:00Z"
+                            else (
+                                "2025-12-31T23:59:59Z"
+                                if fault == "original-before-dispatch"
+                                else "2026-01-01T00:30:00Z"
+                            )
                         ),
                     }
                     runs = (
@@ -19389,18 +19431,18 @@ def _exercise_publisher_history(
                                 if attempt == 2
                                 else [{**repair, "head": {**repair["head"], "sha": w}}]
                             ),
-                            "created_at": "2026-01-02T01:00:01Z",
+                            "created_at": "2026-01-01T01:00:01Z",
                             "run_started_at": (
                                 "2025-12-31T00:00:00Z"
                                 if attempt == 1 or fault == "pre-grant"
-                                else "2026-01-02T01:00:00Z"
+                                else "2026-01-01T01:00:00Z"
                             ),
                         }
                     if path == attempt_path + "/jobs?per_page=100&page=1":
                         completed = (
-                            "2026-02-05T02:00:00Z"
+                            "2026-01-03T02:00:00Z"
                             if fault == "late-native"
-                            else "2026-01-02T02:00:00Z"
+                            else "2026-01-01T02:00:00Z"
                         )
                         row_job = {
                             "id": run_id + 1,
@@ -19408,15 +19450,15 @@ def _exercise_publisher_history(
                             "run_id": run_id,
                             "run_attempt": attempt,
                             "head_sha": w,
-                            "started_at": "2026-01-02T01:01:00Z",
+                            "started_at": "2026-01-01T01:01:00Z",
                             "completed_at": completed,
                             "status": "completed",
                             "conclusion": "success",
                             "steps": [
                                 {
                                     "name": name,
-                                    "started_at": "2026-01-02T01:02:00Z",
-                                    "completed_at": "2026-01-02T01:15:00Z",
+                                    "started_at": "2026-01-01T01:02:00Z",
+                                    "completed_at": "2026-01-01T01:15:00Z",
                                     "status": "completed",
                                     "conclusion": (
                                         "skipped"
@@ -19460,6 +19502,15 @@ def _exercise_publisher_history(
                         {"sha": x} for x in cmd("show", "-s", "--format=%P", rev).decode().split()
                     ],
                     "tree": {"sha": cmd("rev-parse", rev + "^{tree}").decode().strip()},
+                }
+            if path.startswith("/git/blobs/"):
+                oid = path.rsplit("/", 1)[1]
+                raw = cmd("cat-file", "blob", oid)
+                return {
+                    "sha": oid,
+                    "size": len(raw),
+                    "encoding": "base64",
+                    "content": base64.b64encode(raw).decode(),
                 }
             if path.startswith("/git/trees/"):
                 tree = path.split("/")[-1].split("?")[0]
@@ -19523,11 +19574,20 @@ def _exercise_publisher_history(
         "pre-grant",
         "skipped-native",
         "late-native",
+        "post-merge-before-expiry",
+        "extra-W-caller-byte",
+        "extra-W-CD-byte",
+        "wrong-base-compose",
+        "wrong-original-C",
+        "wrong-original-Q",
+        "wrong-original-S",
         "unassociated",
         "ambiguous-original",
         "mixed-squash",
         "original-before-PR",
+        "original-before-dispatch",
         "corrected-same-pr",
+        "mapping-successor",
         "old-native-only",
         "same-pr-stale-grant",
         "mixed-native",
@@ -19552,16 +19612,19 @@ def test_publisher_history_keeps_2495_and_unrelated_descendant_before_repair(
 
         monkeypatch.setattr(authority, "_publisher_repair_material", lambda *a, **kw: None)
     if fault == "missing":
-        with pytest.raises(ValueError, match="incomplete PR comment inventory"):
+        with pytest.raises(
+            prometheus_source.QualificationError, match="AM_history_protected_repair_dispatch"
+        ):
             _exercise_publisher_history(tmp_path / "native", overlay, fault=fault)
-    elif fault and fault != "corrected-same-pr":
+    elif fault and fault not in ("corrected-same-pr", "mapping-successor"):
         expected = {
             "edit-revert": "AM_history_exact_PR",
             "protected-merge": "AM_history_protected_squash",
             "protected-overflow": "AM_history_protected_change_bound",
             "unassociated": "publisher_repair_missing_authorized_native_lint",
             "old-native-only": "publisher_repair_missing_authorized_native_lint",
-            "same-pr-stale-grant": "AM_history_protected_repair_designation",
+            "same-pr-stale-grant": "AM_history_protected_repair_dispatch",
+            "original-before-dispatch": "publisher_repair_missing_authorized_native_lint",
             "original-before-PR": "publisher_repair_missing_authorized_native_lint",
             "mixed-squash": "publisher_repair_complete_maintenance_delta",
             "mixed-native": "publisher_repair_complete_maintenance_delta",
@@ -19569,6 +19632,13 @@ def test_publisher_history_keeps_2495_and_unrelated_descendant_before_repair(
             "missing-native": "publisher_repair_missing_authorized_native_prometheus-image-security-pr",
             "pre-grant": "publisher_repair_missing_authorized_native_lint",
             "skipped-native": "publisher_repair_missing_authorized_native_lint",
+            "extra-W-CD-byte": "publisher_repair_exact_caller_pin_bytes",
+            "extra-W-caller-byte": "publisher_repair_exact_caller_pin_bytes",
+            "wrong-base-compose": "publisher_repair_base_compose_manifest",
+            "wrong-original-C": "publisher_repair_original_candidate_zip",
+            "wrong-original-S": "publisher_repair_original_artifact",
+            "wrong-original-Q": "publisher_repair_original_artifact",
+            "post-merge-before-expiry": "publisher_repair_missing_authorized_native_lint",
             "late-native": "publisher_repair_missing_authorized_native_lint",
             "second-parent-only": "AM_history_first_parent",
         }

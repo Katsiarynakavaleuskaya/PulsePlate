@@ -5252,8 +5252,8 @@ def test_alertmanager_support_job_covers_aggregate_budgets_and_retains_screened_
     tool_fetch = _named_step(
         _steps(job), "Prepare exact existing Alertmanager support scanner and Buildx CLI"
     )
-    assert job["timeout-minutes"] == 60
-    assert sum(step["timeout-minutes"] for step in _steps(job)) == job["timeout-minutes"]
+    assert job["timeout-minutes"] == 61
+    assert sum(step["timeout-minutes"] for step in _steps(job)) == job["timeout-minutes"] - 1
     # The distinct existing API and Native owners each retain their own cleanup.
     # Keep at least five minutes for pure data inspection and artifact upload.
     acquisition = tool_fetch["run"].count("curl -q ") * int(
@@ -7424,6 +7424,9 @@ def test_caddy_checkout_inventory_rejects_unbound_native_input(
     "case",
     [
         "2484-build",
+        "delegated-build",
+        "delegated-duplicate",
+        "delegated-reuse",
         "2484-reuse",
         "2484-main",
         "2484-wrong-PR",
@@ -7540,11 +7543,12 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
     monkeypatch.chdir(root)
     head, old_head = "1" * 40, "2" * 40
     lane, separator, variant = case.partition("-")
-    lanes = {"historical": 2501, "transition": 9999, "2495": 2495, "2484": 2484}
+    lanes = {"delegated": 9981, "historical": 2501, "transition": 9999, "2495": 2495, "2484": 2484}
     number = lanes.get(lane, 2494)
     if separator and lane in lanes:
         case = variant
     branches = {
+        9981: "fixture/delegated-maintenance",
         2484: "codex/cab07c-eslint-pages-features",
         2494: "codex/dependency-alertmanager-remediation",
         2495: "codex/npm-braces-build-prerequisite",
@@ -7554,7 +7558,11 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
     branch = branches[number]
     main = case in {"main", "wrong-merge", "ambiguous-merge", "bad-main-parent"}
     pr_head = "4" * 40 if main else head
-    sender = {"id": 321, "login": "Katsiarynakavaleuskaya", "type": "User"}
+    sender = {
+        "id": 169792616 if lane == "delegated" else 321,
+        "login": "Katsiarynakavaleuskaya",
+        "type": "User",
+    }
     repo = "Katsiarynakavaleuskaya/PulsePlate"
     fixed = [
         ".github/workflows/frontend-ci.yml",
@@ -7632,6 +7640,10 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
         if event_name != "workflow_dispatch"
         else "xnet062-metadata" if case == "metadata" else "candidate-D"
     )
+    if lane == "delegated":
+        reuse = case in ("duplicate", "reuse")
+        event_name = "workflow_dispatch"
+        action = "contract" if case == "reuse" else "candidate-D"
     event = runner / "event.json"
     payload = (
         {"number": True if case == "bad-event" else number, "pull_request": pr}
@@ -7645,6 +7657,18 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
             },
         }
     )
+    if lane == "delegated":
+        binding = "repair-v1:" + head + ":" + "a" * 64
+        payload["inputs"]["caddy_source_sha"] = binding
+        # The shared authenticated event/subject binding is covered separately. Exercise the native D chooser here.
+        monkeypatch.setattr(
+            caddy_surface,
+            "caddy_bound_pr",
+            lambda _read, selected: {
+                **pr,
+                "publisher_repair": {"input": binding, "callers": selected},
+            },
+        )
     if number == 2494 and event_name == "workflow_dispatch":
         del payload["inputs"]["caddy_source_sha"]
     if main:
@@ -8111,6 +8135,7 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
             "native-actor": "declared_data_value",
             "second-attempt": "exact frozen source dispatch",
             "spent": "already started",
+            "duplicate": "qualifying same-PR source already exists",
             "metadata": "standalone metadata is outside",
             "moved-base": "corrective PR base or event differs",
             "bad-event": "corrective PR base or event differs",
