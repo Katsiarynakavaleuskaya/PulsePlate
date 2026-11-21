@@ -7,4 +7,4 @@ gem "fastlane", "= 2.237.0",
     ref: "1ac01395d37bf7e6b88b3d0bcba5f84af841fcbc"
 gem "public_suffix", "< 8"
 # CVE-2026-85396: use the native-regression-tested patched RubyZip release.
-gem "rubyzip", "= 3.4.0"
+gem "rubyzip", "3.7.0"
