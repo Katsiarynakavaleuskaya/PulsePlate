@@ -2654,7 +2654,11 @@ def test_caddy_full_observation_preserves_blocking_scan_and_exact_conditions() -
     assert (
         upload["with"]["archive"] == "${{ steps.caddy-upload-budget.outputs.repair_zip != 'true' }}"
     )
-    assert upload["with"]["retention-days"] == "${{ " + selected + " && 90 || 30 }}"
+    assert job["env"]["CADDY_REPAIR_RETENTION_DAYS"] == "90"
+    assert (
+        upload["with"]["retention-days"]
+        == "${{ " + selected + " && env.CADDY_REPAIR_RETENTION_DAYS || 30 }}"
+    )
     assert (
         _step_index(steps, "Scan hardened Caddy shell image")
         < _step_index(steps, "Prepare same-epoch full Caddy observation")
@@ -6932,8 +6936,9 @@ def test_caddy_job_budget_is_complete_and_owned_only_by_existing_job() -> None:
         == "${{ fromJSON(steps.caddy-upload-budget.outputs.repair_zip == 'true' && env.CADDY_ACTION_REPAIR_UPLOAD_MINUTES || env.CADDY_ACTION_UPLOAD_MINUTES) }}"
     )
     assert receipt["timeout-minutes"] == "${{ fromJSON(env.CADDY_ACTION_REPAIR_VERIFY_MINUTES) }}"
+    assert 'verification = int(os.environ["CADDY_REPAIR_UPLOAD_VERIFY_SECONDS"])' in charge["run"]
     assert (
-        'caddy_ci_charge_action("UPLOAD", int(os.environ["CADDY_PHASE_UPLOAD"]) - int(os.environ["CADDY_REPAIR_UPLOAD_VERIFY_SECONDS"]))'
+        'caddy_ci_charge_action("UPLOAD", int(os.environ["CADDY_PHASE_UPLOAD"]) - verification, reserve=verification)'
         in charge["run"]
     )
     assert 'caddy_ci_phase("UPLOAD")' in receipt["run"]

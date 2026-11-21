@@ -4449,7 +4449,8 @@ def require_caddy_build_window(state: dict[str, Any]) -> None:
     budget = state["budget"]
     expiry = _publisher_time(receipt["started"]) + _REPAIR_WINDOW
     require(expiry == _publisher_time(receipt["expires"]), "publisher_repair_absolute_expiry")
-    horizon = min(expiry, _publisher_time(receipt["source_horizon"]))
+    source_horizon = _publisher_time(receipt["source_horizon"])
+    horizon = min(expiry, source_horizon)
     now = datetime.now(timezone.utc)
     # Setup and compiler/metadata preparation have completed. The remaining named phases
     # include the late source checks, controls, actual ZIP, upload and configured safety reserve.
@@ -4481,9 +4482,22 @@ def require_caddy_build_window(state: dict[str, Any]) -> None:
         and now + timedelta(microseconds=math.ceil(left * 1000000)) < horizon,
         "publisher_repair_build_usable_window",
     )
+    # upload-artifact clamps the requested retention to this run's repository maximum.
+    retention = [
+        os.environ.get(name, "")
+        for name in ("CADDY_REPAIR_RETENTION_DAYS", "GITHUB_RETENTION_DAYS")
+    ]
+    require(
+        all(re.fullmatch(r"[1-9][0-9]*", value) for value in retention),
+        "publisher_repair_retention_days",
+    )
+    days, partial_day = divmod(source_horizon - now, timedelta(days=1))
+    require(
+        min(map(int, retention)) >= days + bool(partial_day), "publisher_repair_retention_horizon"
+    )
 
 
-def caddy_ci_charge_action(phase: str, seconds: int | None = None) -> int:
+def caddy_ci_charge_action(phase: str, seconds: int | None = None, *, reserve: int = 0) -> int:
     """Debit one existing action ceiling before its independently timed invocation."""
     with caddy_ci_phase(phase) as remaining:
         available = remaining(float("inf"))
@@ -4492,7 +4506,13 @@ def caddy_ci_charge_action(phase: str, seconds: int | None = None) -> int:
         if phase == "BUILD" and state.get("mode") == "build":
             require_caddy_build_window(state)
         cap = int(os.environ["CADDY_PHASE_" + phase]) if seconds is None else seconds
-        if type(cap) is not int or cap <= 0 or available < cap - 0.05:
+        if (
+            type(cap) is not int
+            or cap <= 0
+            or type(reserve) is not int
+            or reserve < 0
+            or available < cap + reserve - 0.05
+        ):
             raise ValueError("Caddy complete action ceiling is unavailable: " + phase)
         state["budget"]["action_deadlines"][phase] = time.monotonic() + available
         state["budget"]["charged"][phase] += cap

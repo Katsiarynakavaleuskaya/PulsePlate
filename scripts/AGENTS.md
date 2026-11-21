@@ -274,7 +274,9 @@ event, job and original inputs identify the technical invocation. Read the
 original attempt-one job when a later rerun exists. Before starting the
 build, verify that the remaining work through upload and cleanup fits the
 job deadline and finishes before both the 24-hour dispatch expiry and the
-earliest actual expiry of the original Q/S/C artifacts.
+earliest actual expiry of the original Q/S/C artifacts. Check the runner’s
+effective artifact retention against that source horizon before the build;
+the uploaded artifact’s actual expiry supplies the final confirmation.
 
 A build start spends W’s build allowance. If the build starts and the run
 ends without a qualifying retained artifact, preserve the failed job and
@@ -288,9 +290,12 @@ After successful artifact verification, both CI and CD accept the original
 reopen the same unmerged PR with its topic branch intact. Verify the PR
 number, open state, W and main base after reopening. Check the new event’s
 creation time, attempt, job and completed steps. The 24-hour window starts
-at the original dispatch creation. An authentic `contract` import can open
-a later window on unchanged W while the qualified original D is available.
-Verify its digest and the complete matching Caddy input inventory. A repair
+at the original dispatch creation. To renew on unchanged W, wait until the
+prior window expires. Derive a new `caddy_source_sha` with
+`publisher_repair_input` for action `contract`, and issue a new Frontend CI
+dispatch with `caddy_action=contract`. Verify that GitHub created the new run
+at or after the previous expiry. The import requires the original qualified
+D, its digest and the full matching Caddy input inventory. A repair
 uploads one prepacked `caddy-contract-evidence.zip` and checks GitHub’s
 artifact ID, size, SHA-256 and expiry. The existing by-ID downloader extracts
 its original member paths. The original Q/S/C expiry times bound the period

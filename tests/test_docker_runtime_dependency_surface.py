@@ -5063,6 +5063,7 @@ def test_prebuild_covers_usable_output_before_absolute_expiry(
     monkeypatch.setattr(runtime_surface.time, "monotonic", lambda: clock_now)
     for phase, cap in caps.items():
         monkeypatch.setenv("CADDY_PHASE_" + phase, str(cap))
+    monkeypatch.setenv("GITHUB_RETENTION_DAYS", "90")
     expiry = Clock.now() + timedelta(seconds=required + window_slack)
     source_horizon = Clock.now() + timedelta(seconds=required + source_slack)
     state = _caddy_budget_fixture(tmp_path, monkeypatch)
@@ -5076,21 +5077,110 @@ def test_prebuild_covers_usable_output_before_absolute_expiry(
         started=clock_now - (sum(caps.values()) - required - job_slack),
         charged={phase: caps[phase] if phase in finished else 0 for phase in caps},
     )
-    if job_slack:
-        with pytest.raises(QualificationError, match="publisher_repair_build_usable_window"):
-            runtime_surface.require_caddy_build_window(state)
-        return
-
     ledger = tmp_path / "caddy-admission/admission.json"
     ledger.write_text(json.dumps(state))
     if eligible:
         assert runtime_surface.caddy_ci_charge_action("BUILD") == caps["BUILD"]
     else:
-        with pytest.raises(QualificationError, match="publisher_repair_build_usable_window"):
+        with pytest.raises(QualificationError, match="^publisher_repair_build_usable_window$"):
             runtime_surface.caddy_ci_charge_action("BUILD")
     budget = json.loads(ledger.read_bytes())["budget"]
     assert budget["charged"]["BUILD"] == (caps["BUILD"] if eligible else 0)
     assert ("BUILD" in budget["action_deadlines"]) is eligible
+
+
+@pytest.mark.parametrize(
+    ("requested", "native", "horizon", "diagnostic"),
+    [
+        ("90", "7", (20, 0), "publisher_repair_retention_horizon"),
+        ("7", "90", (20, 0), "publisher_repair_retention_horizon"),
+        ("90", "7", (7, 0), None),
+        ("90", "7", (7, 1), "publisher_repair_retention_horizon"),
+        ("90", "90", (20, 0), None),
+        ("90", None, (20, 0), "publisher_repair_retention_days"),
+        ("90", "0", (20, 0), "publisher_repair_retention_days"),
+    ],
+)
+def test_caddy_repair_build_checks_run_native_retention_before_debit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    requested: str,
+    native: str | None,
+    horizon: tuple[int, int],
+    diagnostic: str | None,
+) -> None:
+    from datetime import datetime, timedelta, timezone
+    from scripts.ci.prometheus_source_image import QualificationError
+    from tests.test_caddy_deploy_provenance import _caddy_budget_fixture
+
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz: Any = None) -> datetime:
+            return datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+    monkeypatch.setattr(runtime_surface, "datetime", Clock)
+    monkeypatch.setattr(runtime_surface.time, "monotonic", lambda: 20000.0)
+    state = _caddy_budget_fixture(tmp_path, monkeypatch)
+    state.update(
+        mode="build",
+        publisher_repair={
+            "started": runtime_surface._publisher_utc(Clock.now()),
+            "expires": runtime_surface._publisher_utc(Clock.now() + timedelta(days=1)),
+            "source_horizon": runtime_surface._publisher_utc(
+                Clock.now() + timedelta(days=horizon[0], microseconds=horizon[1])
+            ),
+        },
+    )
+    ledger = tmp_path / "caddy-admission/admission.json"
+    ledger.write_text(json.dumps(state))
+    monkeypatch.setenv("CADDY_REPAIR_RETENTION_DAYS", requested)
+    if native is None:
+        monkeypatch.delenv("GITHUB_RETENTION_DAYS", raising=False)
+    else:
+        monkeypatch.setenv("GITHUB_RETENTION_DAYS", native)
+    if diagnostic is None:
+        assert runtime_surface.caddy_ci_charge_action("BUILD") == 1800
+    else:
+        with pytest.raises(QualificationError, match=f"^{diagnostic}$"):
+            runtime_surface.caddy_ci_charge_action("BUILD")
+    budget = json.loads(ledger.read_bytes())["budget"]
+    assert budget["charged"]["BUILD"] == (1800 if diagnostic is None else 0)
+    assert ("BUILD" in budget["action_deadlines"]) is (diagnostic is None)
+
+
+@pytest.mark.parametrize(
+    "remaining,eligible", [(555, False), (599.9, False), (600, True), (599.97, True)]
+)
+def test_caddy_upload_retains_actual_verification_slice(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, remaining: float, eligible: bool
+) -> None:
+    import os
+    from tests.test_caddy_deploy_provenance import _caddy_budget_fixture
+
+    now = 20000.0
+    monkeypatch.setattr(runtime_surface.time, "monotonic", lambda: now)
+    state = _caddy_budget_fixture(tmp_path, monkeypatch)
+    caps = {
+        key.removeprefix("CADDY_PHASE_"): int(value)
+        for key, value in os.environ.items()
+        if key.startswith("CADDY_PHASE_")
+    }
+    state["budget"].update(
+        started=now + remaining - sum(caps.values()),
+        charged={k: (0 if k in ("UPLOAD", "SAFETY") else v) for k, v in caps.items()},
+    )
+    ledger = tmp_path / "caddy-admission/admission.json"
+    ledger.write_text(json.dumps(state))
+    if eligible:
+        assert runtime_surface.caddy_ci_charge_action("UPLOAD", 540, reserve=60) == 540
+    else:
+        with pytest.raises(
+            ValueError, match="^Caddy complete action ceiling is unavailable: UPLOAD$"
+        ):
+            runtime_surface.caddy_ci_charge_action("UPLOAD", 540, reserve=60)
+    budget = json.loads(ledger.read_bytes())["budget"]
+    assert budget["charged"]["UPLOAD"] == (540 if eligible else 0)
+    assert ("UPLOAD" in budget["action_deadlines"]) is eligible
 
 
 @pytest.mark.parametrize(

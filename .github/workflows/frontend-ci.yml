@@ -543,6 +543,7 @@ jobs:
       CADDY_PHASE_RETENTION: '420'
       CADDY_PHASE_UPLOAD: '600'
       CADDY_REPAIR_UPLOAD_VERIFY_SECONDS: '60'
+      CADDY_REPAIR_RETENTION_DAYS: '90'
       CADDY_PHASE_SAFETY: '270'
     timeout-minutes: ${{ fromJSON(vars.CADDY_CONTRACT_TIMEOUT_MINUTES || '225') }}
     needs: changes
@@ -2735,7 +2736,8 @@ jobs:
                       state = json.loads((work / "caddy-admission/admission.json").read_bytes())
                       horizon = state["publisher_repair"]["source_horizon"]
               if packed:
-                  caddy_ci_charge_action("UPLOAD", int(os.environ["CADDY_PHASE_UPLOAD"]) - int(os.environ["CADDY_REPAIR_UPLOAD_VERIFY_SECONDS"]))
+                  verification = int(os.environ["CADDY_REPAIR_UPLOAD_VERIFY_SECONDS"])
+                  caddy_ci_charge_action("UPLOAD", int(os.environ["CADDY_PHASE_UPLOAD"]) - verification, reserve=verification)
               else:
                   caddy_ci_charge_action("UPLOAD")
               if packed:
@@ -2760,7 +2762,7 @@ jobs:
           path: ${{ steps.caddy-upload-budget.outputs.repair_zip == 'true' && format('{0}/caddy-contract-evidence.zip', runner.temp) || format('{0}/caddy-contract', runner.temp) }}
           archive: ${{ steps.caddy-upload-budget.outputs.repair_zip != 'true' }}
           if-no-files-found: ${{ steps.caddy-upload-budget.outputs.repair_zip == 'true' && 'error' || 'warn' }}
-          retention-days: ${{ steps.caddy-upload-budget.outputs.repair_zip == 'true' && 90 || 30 }}
+          retention-days: ${{ steps.caddy-upload-budget.outputs.repair_zip == 'true' && env.CADDY_REPAIR_RETENTION_DAYS || 30 }}
 
       - name: Verify published repair evidence transport
         if: ${{ always() && steps.caddy-upload-budget.outputs.repair_zip == 'true' }}
