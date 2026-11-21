@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+from typing import Any
 import subprocess
 import traceback
 
@@ -3514,6 +3515,13 @@ def test_caddy062_charge_step_requires_independently_reviewed_same_run_outputs(
         == charge_step["if"]
         == "${{ steps.caddy-admission.outputs.mode == 'build' && steps.caddy-metadata.outcome == 'success' }}"
     )
+    admission = next(step for step in steps if step.get("id") == "caddy-admission")
+    assert charge_step["env"]["GH_TOKEN"] == (
+        "${{ steps.caddy-admission.outputs.owner_prebuild == 'true' && github.token || '' }}"
+    )
+    emission = 'output.write("owner_prebuild=true\\n")'
+    assert admission["run"].count(emission) == 1
+    assert 'if state["mode"] == "build" and owner_build:\n        ' + emission in admission["run"]
     assert not charge_step.get("continue-on-error")
     workflow = yaml.safe_load((root / ".github/workflows/frontend-ci.yml").read_text())
     concurrency = workflow["concurrency"]
@@ -3603,7 +3611,6 @@ def test_caddy062_charge_step_requires_independently_reviewed_same_run_outputs(
     branch = branch_by_lane.get(pr_lane, "codex/dependency-alertmanager-remediation")
     number_by_lane = {"transition": 9999, "recovery": 2495, "train": 2484}
     if owner_build:
-        assert f"github.ref == 'refs/heads/{branch}'" in charge_step["env"]["GH_TOKEN"]
         state.update(source_branch=branch, source_pr=number_by_lane[pr_lane], pr_head=head)
         sender = {"type": "User", "login": "Katsiarynakavaleuskaya", "id": 73}
         event = tmp_path / "dispatch.json"
@@ -4139,3 +4146,665 @@ def test_caddy_metadata_custody_accepts_only_the_observed_typed_transition(
         with pytest.raises((ValueError, RuntimeError), match=message):
             runtime_surface.validate_caddy_metadata_custody(before, actual, started_id=attempted)
     assert json.dumps([before, actual], sort_keys=True) == snapshot
+
+
+def _repair_subject_fixture() -> tuple[dict[str, str], dict[str, Any]]:
+    from scripts.ci.fetch_docker_source_artifacts import _alertmanager_accepted_producer
+
+    selected = _alertmanager_accepted_producer()
+    return {
+        "source": selected["source"],
+        "q": "43808505545/14199242996",
+        "s": "43810186398/14200227448",
+        "c": f'{selected["run"]}/{selected["artifact"]}',
+        "zip": "sha256:" + selected["zip_sha256"],
+        "manifest": selected["graph"]["manifest"]["digest"],
+    }, selected
+
+
+class _DispatchNativeFixture:
+    """Native response and ZIP fixtures. No network, actual credentials or registered GitHub runs."""
+
+    def __init__(
+        self, pr: dict[str, Any], material: dict[str, str], fault: str | None = None
+    ) -> None:
+        self.pr, self.material, self.fault = pr, material, fault
+        self.repo = {"id": 1043311030, "full_name": runtime_surface.CADDY_REPOSITORY}
+        self.actor = {"id": 169792616, "login": "Katsiarynakavaleuskaya", "type": "User"}
+        self.records: dict[int, tuple[dict[str, Any], dict[str, Any], dict[str, Any], bytes]] = {}
+        self.lists = 0
+        self.live_id = 73
+        self.subject, self.original = _repair_subject_fixture()
+
+    def projection(
+        self,
+        run: int = 73,
+        action: str = "candidate-D",
+        started: str = "2026-01-01T00:00:00Z",
+        producer: int = 73,
+    ) -> dict[str, str]:
+        material = self.material
+        return {
+            **material,
+            "action": action,
+            "input": runtime_surface.publisher_repair_input(material, action),
+            "run": str(run),
+            "job": str(run + 1000),
+            "started": started,
+            "producer_run": str(producer),
+        }
+
+    def add(self, projection: dict[str, str], *, active: bool = False) -> None:
+        import io
+        import zipfile
+        from datetime import datetime, timedelta
+
+        r = int(projection["run"])
+        w = projection["callers"]
+        created = projection["started"]
+        action = projection["action"]
+
+        def later(minutes: int) -> str:
+            return (
+                datetime.strptime(created, "%Y-%m-%dT%H:%M:%SZ") + timedelta(minutes=minutes)
+            ).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        steps = []
+
+        def step(name: str, muted: bool = False) -> None:
+            i = len(steps) + 1
+            steps.append(
+                {
+                    "name": name,
+                    "number": i,
+                    "status": "completed",
+                    "conclusion": "skipped" if muted else "success",
+                    "started_at": None if muted else later(i),
+                    "completed_at": None if muted else later(i),
+                }
+            )
+
+        step("Admit existing Caddy producer or exact retained subject")
+        step("Verify delegated publisher repair input", self.fault == "skipped-input")
+        step("Download original retained Caddy candidate", action != "contract")
+        step("Import and bind exact retained Caddy candidate", action != "contract")
+        step("Charge Build source-patched Caddy candidate budget", action != "candidate-D")
+        step("Build source-patched Caddy candidate", action != "candidate-D")
+        step(
+            "Decide source-qualified Caddy inventory and current native controls",
+            self.fault == "skipped-decision",
+        )
+        step("Upload Caddy contract evidence", self.fault == "skipped-upload")
+        run = {
+            "id": r,
+            "run_attempt": 1,
+            "head_branch": self.pr["head"]["ref"],
+            "head_sha": w,
+            "workflow_id": 196310935,
+            "path": ".github/workflows/frontend-ci.yml",
+            "event": "workflow_dispatch",
+            "repository": self.repo,
+            "head_repository": self.repo,
+            "actor": self.actor,
+            "triggering_actor": self.actor,
+            "created_at": created,
+            "run_started_at": created,
+            "status": "in_progress" if active else "completed",
+            "conclusion": None if active else "success",
+        }
+        job = {
+            "id": r + 1000,
+            "run_id": r,
+            "run_attempt": 1,
+            "head_sha": w,
+            "head_branch": run["head_branch"],
+            "name": "caddy-contract",
+            "started_at": created,
+            "completed_at": None if active else later(9),
+            "status": run["status"],
+            "conclusion": run["conclusion"],
+            "steps": steps,
+        }
+        bound = dict(projection)
+        if action == "candidate-D":
+            bound.update(producer_run=str(r), producer_head=w)
+        elif not active:
+            old = self.records[int(projection["producer_run"])]
+            bound.update(
+                producer_head=old[0]["head_sha"],
+                producer_artifact=str(old[2]["id"]),
+                producer_digest=old[2]["digest"],
+            )
+        runtime_raw = b'{"fixture":"successful checked runtime"}'
+        strict = b'{"native":"strict report"}'
+        decision = {
+            "current_head": w,
+            "publisher_dispatch": bound,
+            "decision": "source_CVE116587_correction_with_unsuppressed_scan",
+            "CD_release_accepted": False,
+            "runtime_observation_sha256": hashlib.sha256(runtime_raw).hexdigest(),
+            "image": "sha256:" + "1" * 64,
+            "strict_conversion": {"native_exit": 0, "sha256": hashlib.sha256(strict).hexdigest()},
+        }
+        if self.fault == "missing-projection":
+            del decision["publisher_dispatch"]
+        inputs = {"fixture": "exact"}
+        admission = {
+            "mode": "build" if action == "candidate-D" else "reuse",
+            "current_head": w,
+            "current_run_id": r,
+            "current_run_attempt": 1,
+            "source_pr": self.pr["number"],
+            "publisher_repair": {
+                key: v
+                for key, v in bound.items()
+                if key
+                not in ("producer_run", "producer_head", "producer_artifact", "producer_digest")
+            },
+            "inputs": inputs,
+        }
+        if action == "candidate-D":
+            admission["publisher_repair"]["producer_run"] = str(r)
+        if self.fault == "changed-admission":
+            admission["publisher_repair"]["input"] = "replaced technical operand"
+        raw = io.BytesIO()
+        with zipfile.ZipFile(raw, "w", compression=zipfile.ZIP_DEFLATED) as z:
+            decision_raw = json.dumps(decision).encode()
+            z.writestr("source-decision.json", decision_raw)
+            z.writestr("strict-control.raw.json", strict)
+            z.writestr("loaded-runtime/observation.json", runtime_raw)
+            z.writestr(
+                "controls/native-controls.json",
+                json.dumps({"cleanup": self.fault != "cleanup-failed"}),
+            )
+            if action == "candidate-D":
+                tar = b"synthetic test image bytes"
+                manifest = {
+                    "producer_run_id": r,
+                    "producer_run_attempt": 1,
+                    "producer_head": w,
+                    "inputs": inputs,
+                    "image_config_id": decision["image"],
+                    "archive_bytes": len(tar),
+                    "archive_sha256": hashlib.sha256(tar).hexdigest(),
+                    "source_decision_sha256": hashlib.sha256(decision_raw).hexdigest(),
+                }
+                z.writestr("candidate.json", json.dumps(manifest))
+                z.writestr(
+                    "candidate.docker.tar",
+                    tar if self.fault != "wrong-image-bytes" else b"?" * len(tar),
+                )
+            elif not active:
+                prior = {
+                    "run_id": int(bound["producer_run"]),
+                    "head": bound["producer_head"],
+                    "artifact": {
+                        "id": int(bound["producer_artifact"]),
+                        "digest": bound["producer_digest"],
+                    },
+                    "git_inputs": inputs,
+                }
+                admission["producer"] = prior
+                z.writestr("original-producer.json", json.dumps(prior))
+            z.writestr("admission.json", json.dumps(admission))
+        archive = raw.getvalue()
+        artifact = {
+            "id": r + 10000,
+            "name": "caddy-contract-evidence",
+            "expired": False,
+            "size_in_bytes": len(archive),
+            "digest": "sha256:" + hashlib.sha256(archive).hexdigest(),
+            "workflow_run": {
+                "id": r,
+                "head_sha": w,
+                "repository_id": 1043311030,
+                "head_repository_id": 1043311030,
+            },
+        }
+        self.records[r] = (run, job, artifact, archive)
+
+    def read(self, path: str) -> Any:
+        from copy import deepcopy
+        import re
+
+        if path == f"/pulls/{self.pr['number']}":
+            return deepcopy(self.pr)
+        if path == "/git/ref/heads/" + self.pr["head"]["ref"]:
+            return {
+                "ref": "refs/heads/" + self.pr["head"]["ref"],
+                "object": {"type": "commit", "sha": self.pr["head"]["sha"]},
+            }
+        if path == "/actions/workflows/frontend-ci.yml":
+            return {"id": 196310935, "path": ".github/workflows/frontend-ci.yml"}
+        if path == "/actions/workflows/cd.yml":
+            return {"id": 123, "path": ".github/workflows/cd.yml"}
+        for label, name, job_name in (
+            ("q", "alertmanager-module-qualification", "alertmanager-module-qualification"),
+            ("s", "alertmanager-input-inspection", "alertmanager-input-inspection"),
+            ("c", "alertmanager-candidate", "alertmanager-candidate-build"),
+        ):
+            run, artifact = map(int, self.subject[label].split("/"))
+            rev = self.subject["source"]
+            branch = "codex/dependency-alertmanager-remediation"
+            if path == f"/actions/artifacts/{artifact}":
+                return {
+                    "id": artifact,
+                    "name": f"{name}-{run}-1",
+                    "expired": False,
+                    "digest": (
+                        self.subject["zip"]
+                        if label == "c" and self.fault != "wrong-original-C"
+                        else "sha256:" + "f" * 64
+                    ),
+                    "workflow_run": {
+                        "id": run,
+                        "head_sha": (
+                            "f" * 40
+                            if (label, self.fault)
+                            in (("q", "wrong-original-Q"), ("s", "wrong-original-S"))
+                            else rev
+                        ),
+                        "head_branch": branch,
+                        "repository_id": 1043311030,
+                        "head_repository_id": 1043311030,
+                    },
+                }
+            attempt = f"/actions/runs/{run}/attempts/1"
+            if path == attempt:
+                return {
+                    "id": run,
+                    "event": "workflow_dispatch",
+                    "run_attempt": 1,
+                    "head_sha": rev,
+                    "head_branch": branch,
+                    "workflow_id": 123,
+                    "path": ".github/workflows/cd.yml",
+                    "repository": self.repo,
+                    "head_repository": self.repo,
+                    "status": "completed",
+                    "conclusion": "success",
+                }
+            if path == attempt + "/jobs?per_page=100&page=1":
+                return {
+                    "total_count": 1,
+                    "jobs": [
+                        {
+                            "id": self.original["job"] if label == "c" else run,
+                            "run_id": run,
+                            "run_attempt": 1,
+                            "head_sha": rev,
+                            "name": job_name,
+                            "status": "completed",
+                            "conclusion": "success",
+                        }
+                    ],
+                }
+        if path.startswith("/actions/workflows/frontend-ci.yml/runs?"):
+            self.lists += 1
+            head = re.search(r"head_sha=([0-9a-f]{40})", path).group(1)
+            runs = [v[0] for v in self.records.values() if v[0]["head_sha"] == head]
+            if self.fault == "list-drift" and self.lists % 2 == 0:
+                runs = []
+            return {"total_count": len(runs), "workflow_runs": deepcopy(runs)}
+        for r, (run, job, artifact, raw) in self.records.items():
+            if path == f"/actions/runs/{r}":
+                return deepcopy(run)
+            if path == f"/actions/runs/{r}/attempts/1":
+                return None if self.fault == "missing-attempt" else deepcopy(run)
+            if path == f"/actions/runs/{r}/attempts/1/jobs?per_page=100&page=1":
+                native_job = deepcopy(job)
+                if self.fault == "missing-job-attempt":
+                    del native_job["run_attempt"]
+                return {"total_count": 1, "jobs": [native_job]}
+            if path == f"/actions/runs/{r}/artifacts?per_page=100&page=1":
+                artifacts = [] if self.fault == "missing-artifact" else [deepcopy(artifact)]
+                return {"total_count": len(artifacts), "artifacts": artifacts}
+            if path == f"/actions/artifacts/{artifact['id']}":
+                return deepcopy(artifact)
+            if path == f"/actions/artifacts/{artifact['id']}/zip":
+                return raw + b"stale" if self.fault == "wrong-archive" else raw
+        raise KeyError(path)
+
+
+@pytest.mark.parametrize(
+    "fault,diagnostic",
+    [
+        (None, None),
+        ("wrong-sender", "publisher_repair_actual_dispatch_input"),
+        ("wrong-input", "publisher_repair_actual_dispatch_input"),
+        ("wrong-trigger", "publisher_repair_live_native_dispatch"),
+        ("wrong-archive", "publisher_repair_native_artifact_bytes"),
+        ("missing-artifact", "publisher_repair_missing_native_artifact"),
+        ("missing-projection", "publisher_repair_missing_checked_input_record"),
+        ("wrong-image-bytes", "publisher_repair_retained_build_bytes"),
+        ("cleanup-failed", "publisher_repair_retained_native_decision"),
+        ("changed-admission", "publisher_repair_archived_admission_differs"),
+        ("skipped-decision", "publisher_repair_positive_native_step"),
+        ("skipped-upload", "publisher_repair_positive_native_step"),
+        ("skipped-input", None),
+        ("missing-attempt", "publisher_repair_missing_native_attempt"),
+        ("missing-job-attempt", "publisher_repair_attempt_job_identity"),
+        ("list-drift", "declared_data_"),
+        ("competing", "publisher_repair_competing_dispatches"),
+        ("wrong-subject", "publisher_repair_terminal_subject_or_input"),
+        ("stale-only", None),
+        ("legitimate-renewal", None),
+        ("prior-W-exact-inputs", None),
+        ("expired", None),
+        ("second-build", "publisher_repair_duplicate_spent_build"),
+    ],
+)
+def test_delegated_caddy_dispatch_live_and_terminal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str | None, diagnostic: str | None
+) -> None:
+    from datetime import datetime, timezone
+    from scripts.ci.prometheus_source_image import QualificationError
+
+    subject, _ = _repair_subject_fixture()
+    b, k, w = "1" * 40, "2" * 40, "3" * 40
+    material = {"pr": "81", "base": b, "controller": k, "callers": w, **subject}
+    repo = {"id": 1043311030, "full_name": runtime_surface.CADDY_REPOSITORY}
+    pr = {
+        "number": 81,
+        "created_at": "2025-12-31T00:00:00Z",
+        "state": "open",
+        "head": {"sha": w, "ref": "repair/selected", "repo": repo},
+        "base": {"sha": b, "ref": "main", "repo": repo},
+    }
+    api = _DispatchNativeFixture(pr, material)
+    projection = api.projection()
+    api.add(projection, active=True)
+    for key, val in {
+        "GITHUB_RUN_ID": "73",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "GITHUB_WORKFLOW_SHA": w,
+        "GITHUB_SHA": w,
+        "GITHUB_JOB": "caddy-contract",
+        "GITHUB_EVENT_NAME": "workflow_dispatch",
+        "GITHUB_REPOSITORY_ID": "1043311030",
+        "GITHUB_ACTOR_ID": "169792616",
+        "GITHUB_ACTOR": "Katsiarynakavaleuskaya",
+        "GITHUB_REF": "refs/heads/repair/selected",
+        "GITHUB_WORKFLOW_REF": runtime_surface.CADDY_REPOSITORY
+        + "/.github/workflows/frontend-ci.yml@refs/heads/repair/selected",
+    }.items():
+        monkeypatch.setenv(key, val)
+    event_path = tmp_path / "event.json"
+
+    def event(proj: dict[str, str]) -> None:
+        event_path.write_text(
+            json.dumps(
+                {
+                    "repository": api.repo,
+                    "ref": "repair/selected",
+                    "inputs": {
+                        "caddy_action": proj["action"],
+                        "caddy_source_sha": proj["input"] if fault != "wrong-input" else w,
+                    },
+                    "sender": {**api.actor, "id": 1} if fault == "wrong-sender" else api.actor,
+                }
+            )
+        )
+
+    event(projection)
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event_path))
+    monkeypatch.setattr(runtime_surface, "publisher_repair_head", lambda *a, **kw: (b, k, w))
+    monkeypatch.setattr(runtime_surface, "_publisher_repair_material", lambda *a: None)
+    monkeypatch.setattr(runtime_surface, "_publisher_input_source", lambda *a: subject)
+
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz: Any = None) -> datetime:
+            return datetime(
+                2026,
+                1,
+                3 if fault in ("legitimate-renewal", "prior-W-exact-inputs", "expired") else 1,
+                3,
+                tzinfo=timezone.utc,
+            )
+
+    monkeypatch.setattr(runtime_surface, "datetime", Clock)
+
+    def exercise() -> None:
+        if fault == "wrong-trigger":
+            api.records[73][0]["triggering_actor"] = {**api.actor, "id": 3}
+        live = runtime_surface.publisher_repair_dispatch(api.read, pr, current_event=True)
+        assert live == projection
+        if fault is None:
+            actual = runtime_surface._caddy_repair_pr(
+                api.read, pr, w, "workflow_dispatch", json.loads(event_path.read_bytes())
+            )
+            assert actual["publisher_repair"] == live
+        state = {"source_pr": 81, "current_head": w, "publisher_repair": live, "mode": "build"}
+        assert runtime_surface.verify_caddy_dispatch_projection(state) == {
+            **projection,
+            "producer_head": w,
+        }
+        api.fault = fault
+        if fault == "wrong-subject":
+            projection["manifest"] = "sha256:" + "f" * 64
+        if fault in ("stale-only", "prior-W-exact-inputs"):
+            projection["callers"] = "4" * 40
+        api.add(projection)
+        if fault == "competing":
+            other = api.projection(
+                74, action="contract", started="2026-01-01T01:00:00Z", producer=73
+            )
+            other["manifest"] = "sha256:" + "f" * 64
+            api.add(other)
+        if fault in ("legitimate-renewal", "prior-W-exact-inputs", "second-build"):
+            action = "candidate-D" if fault == "second-build" else "contract"
+            renewal = api.projection(74, action=action, started="2026-01-03T00:00:00Z")
+            api.add(renewal, active=True)
+            event(renewal)
+            monkeypatch.setenv("GITHUB_RUN_ID", "74")
+            result = runtime_surface.publisher_repair_dispatch(api.read, pr, current_event=True)
+            assert result == {key: value for key, value in renewal.items() if key != "producer_run"}
+            original_run, _, artifact, _ = api.records[73]
+            bound = runtime_surface.verify_caddy_dispatch_projection(
+                {
+                    **state,
+                    "publisher_repair": result,
+                    "mode": "reuse",
+                    "inputs": {"fixture": "exact"},
+                    "producer": {
+                        "run_id": 73,
+                        "run_attempt": 1,
+                        "head": original_run["head_sha"],
+                        "artifact": artifact,
+                        "git_inputs": {"fixture": "exact"},
+                    },
+                }
+            )
+            assert (
+                bound["producer_run"] == "73" and bound["producer_head"] == original_run["head_sha"]
+            )
+            api.add(bound)
+        terminal = runtime_surface.publisher_repair_dispatch(api.read, pr)
+        if fault in ("skipped-input", "stale-only", "expired"):
+            assert terminal is None
+        else:
+            assert terminal is not None and terminal["producer_run"] == "73"
+            assert terminal["run"] == (
+                "74" if fault in ("legitimate-renewal", "prior-W-exact-inputs") else "73"
+            )
+
+    if diagnostic:
+        with pytest.raises((QualificationError, ValueError), match=diagnostic):
+            exercise()
+    else:
+        exercise()
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "unrelated-removal",
+        "single-wrapper",
+        "changed-verification",
+        "extra-wrapper-edit",
+        "wrong-old-pin",
+    ],
+)
+def test_native_baseline_prunes_only_two_authenticated_public_pins(fault: str | None) -> None:
+    import base64
+    from copy import deepcopy
+    from typing import Any
+    from scripts.ci.prometheus_source_image import QualificationError
+
+    objects: dict[str, bytes] = {}
+
+    def blob(raw: bytes) -> str:
+        oid = hashlib.sha1(
+            b"blob " + str(len(raw)).encode() + b"\0" + raw, usedforsecurity=False
+        ).hexdigest()
+        objects[oid] = raw
+        return oid
+
+    def read(path: str) -> dict[str, Any]:
+        oid = path.rsplit("/", 1)[1]
+        raw = objects[oid]
+        return {
+            "sha": oid,
+            "size": len(raw),
+            "encoding": "base64",
+            "content": base64.b64encode(raw).decode(),
+        }
+
+    helper = "scripts/ci/fetch_docker_source_artifacts.py"
+    old, new = b"original test helper", b"reviewed test helper"
+    changed = {helper: (blob(old), blob(new))}
+    old_digest, new_digest = hashlib.sha256(old).hexdigest(), hashlib.sha256(new).hexdigest()
+    fingerprint = hashlib.sha1(old_digest.encode(), usedforsecurity=False).hexdigest()
+    baseline: dict[str, Any] = {
+        "version": "synthetic",
+        "generated_at": "2026-01-01T00:00:00Z",
+        "results": {},
+    }
+    target = deepcopy(baseline)
+    for path in ("scripts/deploy.sh", "scripts/deploy_production.sh"):
+        before = f'ALERTMANAGER_CONTRACT_HELPER_SHA256="{old_digest}"\n'.encode()
+        after = f'ALERTMANAGER_CONTRACT_HELPER_SHA256="{new_digest}"  # pragma: allowlist secret - public AM helper SHA-256\n'.encode()
+        if fault == "extra-wrapper-edit":
+            after += b"echo unrelated\n"
+        if fault == "wrong-old-pin":
+            before = before.replace(old_digest.encode(), new_digest.encode())
+        changed[path] = (blob(before), blob(after))
+        retired = {
+            "filename": path,
+            "type": "Hex High Entropy String",
+            "hashed_secret": fingerprint,
+            "is_verified": False,
+            "line_number": 1,
+        }
+        unrelated = {
+            **retired,
+            "hashed_secret": hashlib.sha256(b"unrelated synthetic finding").hexdigest(),
+            "line_number": 2,
+        }
+        baseline["results"][path] = [retired, unrelated]
+        target["results"][path] = [deepcopy(unrelated)]
+        if fault == "single-wrapper" and path == "scripts/deploy.sh":
+            target["results"][path].append(deepcopy(retired))
+        if fault == "changed-verification":
+            target["results"][path][0]["is_verified"] = True
+        if fault == "unrelated-removal":
+            target["results"][path].clear()
+    changed[".secrets.baseline"] = (
+        blob(json.dumps(baseline).encode()),
+        blob(json.dumps(target).encode()),
+    )
+    if fault is None:
+        runtime_surface._publisher_baseline_change(read, changed)
+    else:
+        with pytest.raises(
+            QualificationError, match="publisher_repair_baseline_finding_or_policy_changed"
+        ):
+            runtime_surface._publisher_baseline_change(read, changed)
+
+
+@pytest.mark.parametrize(
+    "fault,diagnostic",
+    [
+        (None, None),
+        ("old-event", "publisher_repair_original_event_after_dispatch"),
+        ("wrong-source", "publisher_repair_original_event_after_dispatch"),
+        ("expired-job", "publisher_repair_actual_job_after_dispatch"),
+        ("missing-job-attempt", "publisher_repair_attempt_job_identity"),
+    ],
+)
+def test_am_pr_read_starts_after_terminal_delegated_dispatch(
+    monkeypatch: pytest.MonkeyPatch, fault: str | None, diagnostic: str | None
+) -> None:
+    from scripts.ci.prometheus_source_image import QualificationError
+
+    w = "9" * 40
+    repo = {"id": 1043311030}
+    receipt = {
+        "created": "2026-01-01T00:09:00Z",
+        "expires": "2026-01-02T00:00:00Z",
+        "base": "1" * 40,
+    }
+    workflow = ".github/workflows/ci.yml"
+    run = {
+        "id": 22,
+        "run_attempt": 2,
+        "workflow_id": 12,
+        "path": workflow,
+        "event": "pull_request",
+        "head_sha": w,
+        "head_branch": "fixture/authorized-repair",
+        "repository": repo,
+        "head_repository": repo,
+        "status": "in_progress",
+        "run_started_at": "2026-01-01T01:00:00Z",
+    }
+    event = {
+        **run,
+        "created_at": "2026-01-01T00:08:59Z" if fault == "old-event" else "2026-01-01T00:30:00Z",
+    }
+    if fault == "wrong-source":
+        event["head_sha"] = "0" * 40
+    job = {
+        "id": 32,
+        "name": "lint",
+        "head_sha": w,
+        "run_id": 22,
+        "run_attempt": 2,
+        "status": "in_progress",
+        "started_at": "2026-01-02T00:00:00Z" if fault == "expired-job" else "2026-01-01T01:00:05Z",
+    }
+    if fault == "missing-job-attempt":
+        del job["run_attempt"]
+    for key, value in {
+        "GITHUB_RUN_ID": "22",
+        "GITHUB_RUN_ATTEMPT": "2",
+        "GITHUB_JOB": "lint",
+        "GITHUB_REPOSITORY_ID": "1043311030",
+        "GITHUB_WORKFLOW_SHA": w,
+        "GITHUB_EVENT_NAME": "pull_request",
+        "GITHUB_REF": "refs/pull/81/merge",
+        "GITHUB_WORKFLOW_REF": runtime_surface.CADDY_REPOSITORY
+        + "/"
+        + workflow
+        + "@refs/pull/81/merge",
+    }.items():
+        monkeypatch.setenv(key, value)
+
+    def read(path: str) -> Any:
+        return {
+            "/actions/runs/22/attempts/2": run,
+            "/actions/runs/22": event,
+            "/actions/workflows/ci.yml": {"id": 12, "path": workflow},
+            "/actions/runs/22/attempts/2/jobs?per_page=100&page=1": {
+                "total_count": 1,
+                "jobs": [job],
+            },
+        }[path]
+
+    if diagnostic:
+        with pytest.raises(QualificationError, match=diagnostic):
+            runtime_surface.publisher_repair_run(read, receipt, w, "ci.yml", "lint")
+    else:
+        runtime_surface.publisher_repair_run(read, receipt, w, "ci.yml", "lint")

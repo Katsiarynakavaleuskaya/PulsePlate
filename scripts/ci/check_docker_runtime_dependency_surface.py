@@ -19,7 +19,7 @@ import math
 from contextlib import contextmanager
 from typing import Iterator
 from dataclasses import asdict, dataclass
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 from pathlib import Path, PurePosixPath
@@ -630,6 +630,1556 @@ CADDY_PR_NUMBERS: dict[str, int | None] = {
 CADDY_REPOSITORY = "Katsiarynakavaleuskaya/PulsePlate"
 
 
+_REPAIR_SHA = r"[0-9a-f]{40}"
+_REPAIR_DIGEST = r"sha256:[0-9a-f]{64}"
+_REPAIR_ID = r"[1-9][0-9]{0,18}"
+_REPAIR_UTC = r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z"
+_REPAIR_WINDOW = timedelta(days=1)
+_REPAIR_CADDY_WORKFLOW = 196310935
+_REPAIR_ARCHIVE_MAX = 256 * 1024**2
+
+
+_PUBLISHER_REPAIR_CONTROLS = frozenset(
+    {
+        ".github/workflows/ci.yml",
+        ".github/workflows/cd.yml",
+        "scripts/ci/check_docker_runtime_dependency_surface.py",
+        "scripts/ci/fetch_docker_source_artifacts.py",
+    }
+)
+_PUBLISHER_REPAIR_FILES = _PUBLISHER_REPAIR_CONTROLS | {
+    ".github/workflows/frontend-ci.yml",
+    ".secrets.baseline",
+    "AGENTS.md",
+    "scripts/AGENTS.md",
+    "scripts/deploy.sh",
+    "scripts/deploy_production.sh",
+    "docs/security/CVE-2026-84445-alertmanager.md",
+    "docs/roadmap/BACKLOG_LEDGER.md",
+    "tests/test_caddy_deploy_provenance.py",
+    "tests/test_ci_workflow_pr_size_governance_contract.py",
+    "tests/test_cd_workflow_production_deploy_gate.py",
+    "tests/test_deploy_contract_scripts.py",
+    "tests/test_docker_runtime_dependency_surface.py",
+    "tests/test_docker_workflow_build_path_contract.py",
+}
+
+
+def require_publisher_repair_paths(changed: set[str]) -> None:
+    from scripts.ci.prometheus_source_image import require
+
+    require(
+        bool(changed & _PUBLISHER_REPAIR_CONTROLS) and changed <= _PUBLISHER_REPAIR_FILES,
+        "publisher_repair_complete_maintenance_delta",
+    )
+
+
+def _publisher_git_blob(read: Callable[[str], Any], oid: str) -> bytes:
+    """Authenticate bounded regular source bytes against the already-bound Git blob OID."""
+    import base64
+    from scripts.ci.prometheus_source_image import require
+
+    blob = read("/git/blobs/" + oid)
+    require(
+        blob["sha"] == oid
+        and blob["encoding"] == "base64"
+        and type(blob["size"]) is int
+        and 0 < blob["size"] <= 1024**2,
+        "publisher_repair_baseline_blob",
+    )
+    raw = base64.b64decode(blob["content"].replace("\n", ""), validate=True)
+    require(
+        len(raw) == blob["size"]
+        and hashlib.sha1(
+            b"blob " + str(len(raw)).encode() + b"\0" + raw, usedforsecurity=False
+        ).hexdigest()
+        == oid,
+        "publisher_repair_baseline_blob",
+    )
+    return raw
+
+
+def _publisher_baseline_projection(read: Callable[[str], Any], oid: str) -> bytes:
+    """Preserve all finding fields and configuration except generated time and line position."""
+    from scripts.ci.prometheus_source_image import canonical_data, one_object, require
+
+    raw = _publisher_git_blob(read, oid)
+    data = one_object(raw)
+    stamp = data.pop("generated_at")
+    require(
+        isinstance(stamp, str)
+        and re.fullmatch(_REPAIR_UTC, stamp) is not None
+        and type(data.get("results")) is dict,
+        "publisher_repair_baseline_schema",
+    )
+    for filename, rows in data["results"].items():
+        require(type(rows) is list, "publisher_repair_baseline_rows")
+        for row in rows:
+            require(
+                type(row) is dict
+                and row.get("filename") == filename
+                and type(row.get("line_number")) is int
+                and row["line_number"] > 0,
+                "publisher_repair_baseline_position",
+            )
+            del row["line_number"]
+        rows.sort(key=canonical_data)
+    normalized: bytes = canonical_data(data)
+    return normalized
+
+
+def _publisher_baseline_change(
+    read: Callable[[str], Any], changed: dict[str, tuple[str, str]]
+) -> None:
+    """Only the two retired public helper-pin rows may disappear when the native hook trims them."""
+    from scripts.ci.prometheus_source_image import canonical_data, one_object, require
+
+    prior, current = (
+        _publisher_baseline_projection(read, oid) for oid in changed[".secrets.baseline"]
+    )
+    if prior == current:
+        return
+    helper = "scripts/ci/fetch_docker_source_artifacts.py"
+    wrappers = ("scripts/deploy.sh", "scripts/deploy_production.sh")
+    diagnostic = "publisher_repair_baseline_finding_or_policy_changed"
+    require(all(path in changed for path in (helper, *wrappers)), diagnostic)
+    old_digest, new_digest = (
+        hashlib.sha256(_publisher_git_blob(read, oid)).hexdigest() for oid in changed[helper]
+    )
+    require(old_digest != new_digest, diagnostic)
+    original = one_object(prior)
+    old_pin = f'ALERTMANAGER_CONTRACT_HELPER_SHA256="{old_digest}"'.encode()
+    new_pin = (
+        f'ALERTMANAGER_CONTRACT_HELPER_SHA256="{new_digest}"'
+        "  # pragma: allowlist secret - public AM helper SHA-256"
+    ).encode()
+    fingerprint = hashlib.sha1(old_digest.encode("ascii"), usedforsecurity=False).hexdigest()
+    for path in wrappers:
+        old_wrapper, new_wrapper = (_publisher_git_blob(read, oid) for oid in changed[path])
+        require(
+            old_wrapper.splitlines().count(old_pin) == 1
+            and old_wrapper.count(old_digest.encode()) == 1
+            and old_wrapper.replace(old_pin, new_pin, 1) == new_wrapper,
+            diagnostic,
+        )
+        expected = {
+            "filename": path,
+            "type": "Hex High Entropy String",
+            "hashed_secret": fingerprint,
+            "is_verified": False,
+        }
+        rows = original["results"].get(path)
+        require(type(rows) is list, diagnostic)
+        matching = [
+            i for i, row in enumerate(rows) if canonical_data(row) == canonical_data(expected)
+        ]
+        require(len(matching) == 1, diagnostic)
+        del rows[matching[0]]
+    require(canonical_data(original) == current, diagnostic)
+
+
+def _publisher_repair_material(read: Callable[[str], Any], base: str, controller: str) -> None:
+    """Compare complete Git trees, descending only into changed, explicitly owned directories."""
+    from types import SimpleNamespace
+    from typing import cast
+    from scripts.ci.prometheus_source_image import GitHubRead, require, require_native_ancestor
+
+    prefix = "/repos/" + CADDY_REPOSITORY
+    proof = SimpleNamespace(json=lambda path: read(path.removeprefix(prefix)))
+    require_native_ancestor(cast(GitHubRead, proof), base, controller)
+
+    def root(revision: str) -> str:
+        commit = read("/git/commits/" + revision)
+        oid = commit["tree"]["sha"]
+        require(
+            commit["sha"] == revision
+            and isinstance(oid, str)
+            and re.fullmatch(_REPAIR_SHA, oid) is not None,
+            "publisher_repair_commit_tree",
+        )
+        return str(oid)
+
+    def entries(oid: str | None) -> dict[str, tuple[str, str]]:
+        if oid is None:
+            return {}
+        tree = read("/git/trees/" + oid)
+        require(
+            tree["sha"] == oid
+            and tree["truncated"] is False
+            and type(tree["tree"]) is list
+            and len(tree["tree"]) <= 25000,
+            "publisher_repair_complete_directory",
+        )
+        rows: dict[str, tuple[str, str]] = {}
+        kinds = {
+            "040000": "tree",
+            "100644": "blob",
+            "100755": "blob",
+            "120000": "blob",
+            "160000": "commit",
+        }
+        for row in tree["tree"]:
+            name, mode, sha = row["path"], row["mode"], row["sha"]
+            require(
+                isinstance(name, str)
+                and name not in ("", ".", "..")
+                and "/" not in name
+                and "\\" not in name
+                and "\x00" not in name
+                and name not in rows
+                and mode in kinds
+                and row["type"] == kinds[mode]
+                and isinstance(sha, str)
+                and re.fullmatch(_REPAIR_SHA, sha) is not None,
+                "publisher_repair_tree_entry",
+            )
+            rows[name] = (mode, sha)
+        return rows
+
+    pending: list[tuple[str, str | None, str | None]] = [("", root(base), root(controller))]
+    changed: set[str] = set()
+    changed_blobs: dict[str, tuple[str, str]] = {}
+    structural: set[str] = set()
+    while pending:
+        parent, before, after = pending.pop()
+        if before == after:
+            continue
+        left, right = entries(before), entries(after)
+        for name in left.keys() | right.keys():
+            old, new = left.get(name), right.get(name)
+            if old == new:
+                continue
+            path = parent + name
+            modes = {row[0] for row in (old, new) if row is not None}
+            if modes == {"040000"} and any(
+                p.startswith(path + "/") for p in _PUBLISHER_REPAIR_FILES
+            ):
+                structural.add(path + "/")
+                pending.append((path + "/", old[1] if old else None, new[1] if new else None))
+                continue
+            require(
+                path in _PUBLISHER_REPAIR_FILES
+                and len(modes) == 1
+                and modes <= {"100644", "100755"},
+                "publisher_repair_complete_maintenance_delta",
+            )
+            if path == ".secrets.baseline":
+                require(
+                    old is not None and new is not None and modes == {"100644"},
+                    "publisher_repair_existing_regular_baseline",
+                )
+            if old is not None and new is not None:
+                changed_blobs[path] = (old[1], new[1])
+            changed.add(path)
+    require(
+        all(any(path.startswith(directory) for path in changed) for directory in structural),
+        "publisher_repair_empty_directory_delta",
+    )
+    require_publisher_repair_paths(changed)
+    if ".secrets.baseline" in changed:
+        _publisher_baseline_change(read, changed_blobs)
+
+
+def publisher_repair_head(
+    read: Callable[[str], Any], pr: dict[str, Any], *, historical: bool
+) -> tuple[str, str, str]:
+    """Derive B/K/W from the authenticated open or landed head, independently of comments."""
+    from scripts.ci.prometheus_source_image import require
+
+    number, head = pr["number"], pr["head"]["sha"]
+    require(
+        pr["base"]["ref"] == "main"
+        and re.fullmatch(_REPAIR_SHA, head) is not None
+        and all(
+            pr[side]["repo"]["full_name"] == CADDY_REPOSITORY
+            and pr[side]["repo"]["id"] == 1043311030
+            for side in ("head", "base")
+        )
+        and (
+            pr["state"] == "closed" and pr["merged"] is True
+            if historical
+            else pr["state"] == "open" and pr["merged"] is False
+        ),
+        "publisher_repair_PR_material",
+    )
+
+    def direct(revision: str) -> tuple[dict[str, Any], str, list[dict[str, Any]]]:
+        record = read(f"/commits/{revision}?per_page=100&page=1")
+        parents, files = record["parents"], record["files"]
+        require(
+            record["sha"] == revision
+            and type(parents) is list
+            and len(parents) == 1
+            and isinstance(parents[0]["sha"], str)
+            and re.fullmatch(_REPAIR_SHA, parents[0]["sha"]) is not None
+            and type(files) is list
+            and 1 <= len(files) <= 2,
+            "publisher_repair_exact_direct_delta",
+        )
+        return dict(record), str(parents[0]["sha"]), files
+
+    callers = head
+    record, parent, files = direct(head)
+    mapping = f"docs/review/PR_{number}_FIXED_MAPPING.md"
+    if (
+        len(files) == 1
+        and files[0]["filename"] == mapping
+        and files[0]["status"] in ("modified", "added")
+    ):
+        tree = record["commit"]["tree"]["sha"]
+        for part, mode in (
+            ("docs", "040000"),
+            ("review", "040000"),
+            (mapping.rsplit("/", 1)[1], "100644"),
+        ):
+            observed = read("/git/trees/" + tree)
+            entries = [row for row in observed["tree"] if row["path"] == part]
+            require(
+                observed["sha"] == tree
+                and observed["truncated"] is False
+                and len(entries) == 1
+                and entries[0]["mode"] == mode
+                and entries[0]["type"] == ("blob" if mode == "100644" else "tree"),
+                "publisher_repair_regular_mapping_path",
+            )
+            tree = entries[0]["sha"]
+        require(tree == files[0]["sha"], "publisher_repair_mapping_blob")
+        callers = parent
+        _, parent, files = direct(callers)
+    controller = parent
+    require(
+        len(files) == 2
+        and {row["filename"] for row in files}
+        == {".github/workflows/ci.yml", ".github/workflows/cd.yml"}
+        and all(row["status"] == "modified" for row in files),
+        "publisher_repair_exact_direct_delta",
+    )
+    if historical:
+        squash = read("/git/commits/" + pr["merge_commit_sha"])
+        final = read("/git/commits/" + head)
+        require(
+            squash["sha"] == pr["merge_commit_sha"]
+            and final["sha"] == head
+            and len(squash["parents"]) == 1
+            and squash["tree"]["sha"] == final["tree"]["sha"],
+            "publisher_repair_exact_squash",
+        )
+        base = squash["parents"][0]["sha"]
+    else:
+        base = pr["base"]["sha"]
+        main = read("/git/ref/heads/main")
+        require(
+            main["ref"] == "refs/heads/main"
+            and main["object"]["type"] == "commit"
+            and main["object"]["sha"] == base,
+            "publisher_repair_live_base",
+        )
+    require(
+        isinstance(base, str)
+        and re.fullmatch(_REPAIR_SHA, base) is not None
+        and len({base, controller, callers}) == 3,
+        "publisher_repair_PR_material",
+    )
+    return str(base), controller, callers
+
+
+def _publisher_source_files(
+    read: Callable[[str], Any], revision: str, paths: tuple[str, ...]
+) -> dict[str, bytes]:
+    """Load only the requested regular, content-addressed source files."""
+    from scripts.ci.prometheus_source_image import require
+
+    commit = read("/git/commits/" + revision)
+    require(commit["sha"] == revision, "publisher_repair_source_commit")
+    directories = {}
+    files = {}
+    for path in paths:
+        tree = commit["tree"]["sha"]
+        parts = path.split("/")
+        for index, name in enumerate(parts):
+            if tree not in directories:
+                result = read("/git/trees/" + tree)
+                require(
+                    result["sha"] == tree
+                    and result["truncated"] is False
+                    and len(result["tree"]) <= 25000
+                    and len({r["path"] for r in result["tree"]}) == len(result["tree"]),
+                    "publisher_repair_source_directory",
+                )
+                directories[tree] = {r["path"]: r for r in result["tree"]}
+            entry = directories[tree][name]
+            leaf = index == len(parts) - 1
+            require(
+                (entry["mode"], entry["type"])
+                == (("100644", "blob") if leaf else ("040000", "tree"))
+                and re.fullmatch(_REPAIR_SHA, entry["sha"]) is not None,
+                "publisher_repair_source_regular_blob",
+            )
+            tree = entry["sha"]
+        files[path] = _publisher_git_blob(read, tree)
+    return files
+
+
+def _publisher_input_source(read: Callable[[str], Any], b: str, k: str, w: str) -> dict[str, str]:
+    """Bind both caller substitutions, original Q/S/C service records and independent BASE Compose subject."""
+    import ast
+    from scripts.ci.prometheus_source_image import require
+
+    callers = (".github/workflows/ci.yml", ".github/workflows/cd.yml")
+    compose = (
+        "deploy/docker-compose.staging.yaml",
+        "deploy/docker-compose.production.yaml",
+        "deploy/docker-compose.production.selfhosted.yaml",
+    )
+    helper = "scripts/ci/fetch_docker_source_artifacts.py"
+    base = _publisher_source_files(read, b, callers + compose + (helper,))
+    control = _publisher_source_files(read, k, callers + (helper,))
+    successor = _publisher_source_files(read, w, callers)
+    pin = rb"^  ALERTMANAGER_CONTROLLER_SOURCE: '([0-9a-f]{40})'(?=[ \t]*(?:#.*)?$)"
+    slots: dict[str, set[tuple[str, str, str]]] = {}
+    incumbents = set()
+    for path in callers:
+        old = re.findall(pin, base[path], re.M)
+        require(
+            len(old) == 1 and old == re.findall(pin, control[path], re.M) and old[0] != k.encode(),
+            "publisher_repair_incumbent_pin",
+        )
+        incumbents.add(old[0])
+        before = b"  ALERTMANAGER_CONTROLLER_SOURCE: '" + old[0] + b"'"
+        after = b"  ALERTMANAGER_CONTROLLER_SOURCE: '" + k.encode() + b"'"
+        require(
+            control[path].count(before) == 1
+            and control[path].replace(before, after, 1) == successor[path],
+            "publisher_repair_exact_caller_pin_bytes",
+        )
+        for kind in ("qualification", "support", "candidate"):
+            prefix = b"--alertmanager-" + kind.encode() + b"-"
+            pattern = (
+                prefix
+                + rb"run ([1-9][0-9]*) "
+                + prefix
+                + rb"artifact ([1-9][0-9]*)\s+\\\n\s+"
+                + prefix
+                + rb"source ([0-9a-f]{40})(?=\s)"
+            )
+            original = set(re.findall(pattern, base[path]))
+            require(
+                len(original) == 1 and original == set(re.findall(pattern, control[path])),
+                "publisher_repair_original_caller_coordinates",
+            )
+            slots.setdefault(kind, set()).add(
+                tuple(field.decode() for field in next(iter(original)))
+            )
+    require(
+        len(incumbents) == 1 and all(len(rows) == 1 for rows in slots.values()),
+        "publisher_repair_original_caller_coordinates",
+    )
+
+    # Read the accepted producer declaration as data from independently authenticated B.
+    # Existing AM execution separately applies its full accepted-producer and native archive checks.
+    def declared_producer(raw: bytes) -> dict[str, Any]:
+        declarations = [
+            node
+            for node in ast.parse(raw).body
+            if isinstance(node, ast.AnnAssign)
+            and isinstance(node.target, ast.Name)
+            and node.target.id == "_ALERT_ACCEPTED_CANDIDATE"
+        ]
+        require(
+            len(declarations) == 1 and isinstance(declarations[0].value, ast.Dict),
+            "publisher_repair_base_accepted_producer",
+        )
+        expression = declarations[0].value
+        if not isinstance(expression, ast.Dict):
+            raise ValueError("publisher_repair_base_accepted_producer")
+        value = ast.literal_eval(expression)
+        require(type(value) is dict, "publisher_repair_base_accepted_producer")
+        return dict(value)
+
+    from scripts.ci.prometheus_source_image import exact_data
+
+    accepted = declared_producer(base[helper])
+    exact_data(accepted, declared_producer(control[helper]))
+    image = accepted["graph"]["manifest"]["digest"]
+    require(re.fullmatch(_REPAIR_DIGEST, image) is not None, "publisher_repair_accepted_manifest")
+    for path in compose:
+        images = re.findall(
+            rb"^  alertmanager:\n    image: ghcr\.io/katsiarynakavaleuskaya/pulseplate@(sha256:[0-9a-f]{64})$",
+            base[path],
+            re.M,
+        )
+        require(
+            base[path].splitlines().count(b"  alertmanager:") == 1 and images == [image.encode()],
+            "publisher_repair_base_compose_manifest",
+        )
+    names = {
+        "qualification": ("q", "alertmanager-module-qualification"),
+        "support": ("s", "alertmanager-input-inspection"),
+        "candidate": ("c", "alertmanager-candidate"),
+    }
+    subject = {
+        "source": accepted["source"],
+        "manifest": image,
+        "zip": "sha256:" + accepted["zip_sha256"],
+    }
+    for kind, (label, artifact_name) in names.items():
+        run, artifact, source = next(iter(slots[kind]))
+        meta = read("/actions/artifacts/" + artifact)
+        require(
+            source == accepted["source"]
+            and type(meta["id"]) is int
+            and meta["id"] == int(artifact)
+            and meta["name"] == f"{artifact_name}-{run}-1"
+            and meta["expired"] is False
+            and re.fullmatch(_REPAIR_DIGEST, meta["digest"]) is not None
+            and meta["workflow_run"]["id"] == int(run)
+            and meta["workflow_run"]["head_sha"] == source
+            and meta["workflow_run"]["repository_id"]
+            == meta["workflow_run"]["head_repository_id"]
+            == 1043311030,
+            "publisher_repair_original_artifact",
+        )
+        job_name = {
+            "q": "alertmanager-module-qualification",
+            "s": "alertmanager-input-inspection",
+            "c": "alertmanager-candidate-build",
+        }[label]
+        production, native_job = _publisher_attempt_job(
+            read, int(run), 1, source, "cd.yml", job_name, "workflow_dispatch"
+        )
+        require(
+            native_job is not None
+            and production["status"] == native_job["status"] == "completed"
+            and production["conclusion"] == native_job["conclusion"] == "success"
+            and production["head_branch"]
+            == meta["workflow_run"]["head_branch"]
+            == "codex/dependency-alertmanager-remediation"
+            and (label != "c" or native_job["id"] == accepted["job"]),
+            "publisher_repair_original_native_producer",
+        )
+        if label == "c":
+            require(
+                (int(run), int(artifact), meta["digest"])
+                == (accepted["run"], accepted["artifact"], subject["zip"]),
+                "publisher_repair_original_candidate_zip",
+            )
+        subject[label] = run + "/" + artifact
+    return subject
+
+
+def publisher_repair_input(material: dict[str, str], action: str) -> str:
+    """Public workflow_dispatch operand. The sender's authority is checked separately."""
+    from scripts.ci.prometheus_source_image import canonical_data, require
+
+    require(action in ("contract", "candidate-D"), "publisher_repair_dispatch_action")
+    digest = hashlib.sha256(
+        canonical_data(
+            {
+                "domain": "pulseplate.publisher-repair.dispatch.v1",
+                "repository_id": 1043311030,
+                "workflow_id": _REPAIR_CADDY_WORKFLOW,
+                "material": material,
+                "action": action,
+                "reads": ["ci-lint", "cd-pr", "caddy-contract"],
+                "window_seconds": int(_REPAIR_WINDOW.total_seconds()),
+            }
+        )
+    ).hexdigest()
+    return "repair-v1:" + material["callers"] + ":" + digest
+
+
+def _publisher_account(actor: dict[str, Any]) -> bool:
+    return (actor.get("type"), actor.get("login"), actor.get("id")) == (
+        "User",
+        CADDY_REPOSITORY.split("/")[0],
+        169792616,
+    )
+
+
+def _publisher_event() -> dict[str, Any]:
+    from scripts.ci.prometheus_source_image import one_object, require
+
+    path = Path(os.environ["GITHUB_EVENT_PATH"])
+    info = path.lstat()
+    require(
+        stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and 0 < info.st_size <= 1024**2,
+        "publisher_repair_event_bound",
+    )
+    with path.open("rb") as stream:
+        raw = stream.read(1024**2 + 1)
+    require(len(raw) == info.st_size, "publisher_repair_event_bound")
+    event: dict[str, Any] = one_object(raw)
+    return event
+
+
+def _publisher_time(value: Any) -> datetime:
+    from scripts.ci.prometheus_source_image import require
+
+    require(
+        type(value) is str and re.fullmatch(_REPAIR_UTC, value) is not None,
+        "publisher_repair_native_timestamp",
+    )
+    return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+
+
+def _publisher_live_dispatch(
+    read: Callable[[str], Any], pr: dict[str, Any], material: dict[str, str]
+) -> dict[str, str]:
+    from scripts.ci.prometheus_source_image import require
+
+    env = os.environ
+    event = _publisher_event()
+    inputs = event["inputs"]
+    w = material["callers"]
+    action = inputs["caddy_action"]
+    source_input = publisher_repair_input(material, action)
+    ref = "refs/heads/" + pr["head"]["ref"]
+    from urllib.parse import quote
+
+    live_ref = read("/git/ref/heads/" + quote(pr["head"]["ref"], safe="/"))
+    require(
+        live_ref.get("ref") == ref
+        and live_ref["object"]["sha"] == w
+        and live_ref["object"]["type"] == "commit",
+        "publisher_repair_live_topic_ref",
+    )
+    require(
+        env["GITHUB_EVENT_NAME"] == "workflow_dispatch"
+        and env["GITHUB_RUN_ATTEMPT"] == "1"
+        and env["GITHUB_SHA"] == env["GITHUB_WORKFLOW_SHA"] == pr["head"]["sha"] == w
+        and env["GITHUB_REF"] == ref
+        and event["ref"] in (ref, pr["head"]["ref"])
+        and env["GITHUB_WORKFLOW_REF"]
+        == CADDY_REPOSITORY + "/.github/workflows/frontend-ci.yml@" + ref
+        and env["GITHUB_JOB"] == "caddy-contract"
+        and env["GITHUB_REPOSITORY_ID"] == "1043311030"
+        and env["GITHUB_ACTOR_ID"] == "169792616"
+        and env["GITHUB_ACTOR"] == CADDY_REPOSITORY.split("/")[0]
+        and event["repository"]["id"] == 1043311030
+        and event["repository"]["full_name"] == CADDY_REPOSITORY
+        and _publisher_account(event["sender"])
+        and inputs == {"caddy_action": action, "caddy_source_sha": source_input},
+        "publisher_repair_actual_dispatch_input",
+    )
+    require(
+        re.fullmatch(_REPAIR_ID, env["GITHUB_RUN_ID"]) is not None, "publisher_repair_live_run_id"
+    )
+    run_id = int(env["GITHUB_RUN_ID"])
+    run, job = _publisher_attempt_job(
+        read, run_id, 1, w, "frontend-ci.yml", "caddy-contract", "workflow_dispatch"
+    )
+    if job is None:
+        raise ValueError("publisher_repair_live_native_dispatch")
+    require(
+        run["workflow_id"] == _REPAIR_CADDY_WORKFLOW
+        and run["head_branch"] == pr["head"]["ref"]
+        and _publisher_account(run["actor"])
+        and _publisher_account(run["triggering_actor"])
+        and run["status"] == job["status"] == "in_progress"
+        and job["head_branch"] == pr["head"]["ref"]
+        and _publisher_time(run["run_started_at"]) <= _publisher_time(job["started_at"]),
+        "publisher_repair_live_native_dispatch",
+    )
+    original = read(f"/actions/runs/{run_id}")
+    require(
+        all(
+            original[key] == run[key]
+            for key in ("id", "event", "head_sha", "head_branch", "workflow_id", "path")
+        )
+        and original["repository"]["id"] == original["head_repository"]["id"] == 1043311030
+        and _publisher_time(pr["created_at"])
+        <= _publisher_time(original["created_at"])
+        <= _publisher_time(run["run_started_at"]),
+        "publisher_repair_original_dispatch_event",
+    )
+    return {
+        **material,
+        "action": action,
+        "input": source_input,
+        "run": str(run_id),
+        "job": str(job["id"]),
+        "started": original["created_at"],
+    }
+
+
+def verify_caddy_dispatch_projection(admission: dict[str, Any]) -> dict[str, str]:
+    """Bind the real checked event to its selected native build or same-PR retained import."""
+    from scripts.ci.prometheus_source_image import require
+
+    observed = admission["publisher_repair"]
+    material = {
+        key: observed[key]
+        for key in (
+            "pr",
+            "base",
+            "controller",
+            "callers",
+            "source",
+            "q",
+            "s",
+            "c",
+            "zip",
+            "manifest",
+        )
+    }
+    action = observed["action"]
+    inputs = _publisher_event()["inputs"]
+    require(
+        inputs
+        == {"caddy_action": action, "caddy_source_sha": publisher_repair_input(material, action)}
+        and observed["input"] == inputs["caddy_source_sha"]
+        and observed["callers"] == admission["current_head"] == os.environ["GITHUB_SHA"]
+        and observed["run"] == os.environ["GITHUB_RUN_ID"]
+        and os.environ["GITHUB_RUN_ATTEMPT"] == "1"
+        and str(admission["source_pr"]) == observed["pr"]
+        and admission["mode"] == ("build" if action == "candidate-D" else "reuse"),
+        "publisher_repair_executed_input_binding",
+    )
+    if action == "candidate-D":
+        return dict(observed, producer_run=observed["run"], producer_head=observed["callers"])
+    producer = admission["producer"]
+    require(
+        type(producer["run_id"]) is int
+        and producer["run_id"] > 0
+        and producer["run_attempt"] == 1
+        and str(producer["run_id"]) != observed["run"]
+        and re.fullmatch(_REPAIR_SHA, producer["head"]) is not None
+        and producer["git_inputs"] == admission["inputs"]
+        and type(producer["artifact"]["id"]) is int
+        and producer["artifact"]["id"] > 0
+        and re.fullmatch(_REPAIR_DIGEST, producer["artifact"]["digest"]) is not None,
+        "publisher_repair_imported_original_artifact",
+    )
+    return dict(
+        observed,
+        producer_run=str(producer["run_id"]),
+        producer_head=producer["head"],
+        producer_artifact=str(producer["artifact"]["id"]),
+        producer_digest=producer["artifact"]["digest"],
+    )
+
+
+_REPAIR_INPUT_STEP = "Verify delegated publisher repair input"
+_REPAIR_BUILD_STEP = "Build source-patched Caddy candidate"
+_REPAIR_IMPORT_STEP = "Import and bind exact retained Caddy candidate"
+_REPAIR_DECISION_STEP = "Decide source-qualified Caddy inventory and current native controls"
+_REPAIR_UPLOAD_STEP = "Upload Caddy contract evidence"
+
+
+def _publisher_artifact_record(
+    read: Callable[[str], Any],
+    artifact: dict[str, Any],
+    run: dict[str, Any],
+    cache: dict[tuple[int, str], dict[str, str]],
+) -> dict[str, str]:
+    from io import BytesIO
+    from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile, ZipInfo
+    from scripts.ci.prometheus_source_image import one_object, require
+
+    ident, digest = artifact["id"], artifact["digest"]
+    require(
+        type(ident) is int
+        and ident > 0
+        and re.fullmatch(_REPAIR_DIGEST, digest) is not None
+        and artifact["name"] == "caddy-contract-evidence"
+        and artifact["expired"] is False
+        and type(artifact["size_in_bytes"]) is int
+        and 0 < artifact["size_in_bytes"] <= _REPAIR_ARCHIVE_MAX
+        and artifact["workflow_run"]["id"] == run["id"]
+        and artifact["workflow_run"]["head_sha"] == run["head_sha"]
+        and artifact["workflow_run"]["repository_id"]
+        == artifact["workflow_run"]["head_repository_id"]
+        == 1043311030,
+        "publisher_repair_native_artifact_identity",
+    )
+    key = (ident, digest)
+    if key not in cache:
+        raw = read(f"/actions/artifacts/{ident}/zip")
+        require(
+            type(raw) is bytes
+            and len(raw) == artifact["size_in_bytes"]
+            and "sha256:" + hashlib.sha256(raw).hexdigest() == digest,
+            "publisher_repair_native_artifact_bytes",
+        )
+
+        # The service ZIP is data. Only the bounded checked record is read; nothing is extracted.
+        class DirectoryStream(BytesIO):
+            inspecting = True
+
+            def read(self, size: int | None = -1, /) -> bytes:
+                if self.inspecting:
+                    requested = len(raw) - self.tell() if size is None or size < 0 else size
+                    require(requested <= 2 * 1024**2, "publisher_repair_zip_directory_bound")
+                return super().read(size)
+
+        stream = DirectoryStream(raw)
+        with ZipFile(stream) as archive:
+            stream.inspecting = False
+            members = archive.infolist()
+            require(
+                0 < len(members) <= 4096 and len({m.filename for m in members}) == len(members),
+                "publisher_repair_artifact_member_inventory",
+            )
+
+            def member(name: str, maximum: int) -> ZipInfo:
+                matches = [m for m in members if m.filename == name]
+                require(len(matches) == 1, "publisher_repair_missing_checked_input_record")
+                item = matches[0]
+                require(
+                    item.orig_filename == name
+                    and not item.is_dir()
+                    and not item.flag_bits & 1
+                    and stat.S_IFMT(item.external_attr >> 16) in (0, stat.S_IFREG)
+                    and item.compress_type in (ZIP_STORED, ZIP_DEFLATED)
+                    and 0 < item.file_size <= maximum,
+                    "publisher_repair_bounded_native_member",
+                )
+                return item
+
+            decision_raw = archive.read(member("source-decision.json", 2 * 1024**2))
+            decision = one_object(decision_raw)
+            data = decision.get("publisher_dispatch")
+            require(type(data) is dict, "publisher_repair_missing_checked_input_record")
+            admission = one_object(archive.read(member("admission.json", 2 * 1024**2)))
+            control = one_object(archive.read(member("controls/native-controls.json", 2 * 1024**2)))
+            runtime = archive.read(member("loaded-runtime/observation.json", 2 * 1024**2))
+            initial = {
+                key: value
+                for key, value in data.items()
+                if key
+                not in {"producer_run", "producer_head", "producer_artifact", "producer_digest"}
+            }
+            if data.get("action") == "candidate-D":
+                initial["producer_run"] = str(run["id"])
+            require(
+                admission.get("publisher_repair") == initial,
+                "publisher_repair_archived_admission_differs",
+            )
+            strict = archive.read(member("strict-control.raw.json", 32 * 1024**2))
+            require(
+                decision.get("decision") == "source_CVE116587_correction_with_unsuppressed_scan"
+                and decision.get("CD_release_accepted") is False
+                and decision.get("runtime_observation_sha256")
+                == hashlib.sha256(runtime).hexdigest()
+                and control.get("cleanup") is True
+                and type(decision["strict_conversion"].get("native_exit")) is int
+                and decision["strict_conversion"]["native_exit"] == 0
+                and decision["strict_conversion"].get("sha256")
+                == hashlib.sha256(strict).hexdigest()
+                and admission.get("current_head") == run["head_sha"]
+                and admission.get("current_run_id") == run["id"]
+                and admission.get("current_run_attempt") == 1
+                and str(admission.get("source_pr")) == data["pr"]
+                and isinstance(admission.get("inputs"), dict)
+                and bool(admission["inputs"]),
+                "publisher_repair_retained_native_decision",
+            )
+            if data.get("action") == "candidate-D":
+                candidate = one_object(archive.read(member("candidate.json", 2 * 1024**2)))
+                image = member("candidate.docker.tar", 512 * 1024**2)
+                require(
+                    admission["mode"] == "build"
+                    and candidate["inputs"] == admission["inputs"]
+                    and candidate["producer_run_id"] == run["id"]
+                    and candidate["producer_run_attempt"] == 1
+                    and candidate["producer_head"] == run["head_sha"]
+                    and candidate["archive_bytes"] == image.file_size
+                    and candidate["image_config_id"] == decision["image"]
+                    and candidate["source_decision_sha256"]
+                    == hashlib.sha256(decision_raw).hexdigest(),
+                    "publisher_repair_retained_build",
+                )
+                digest_image = hashlib.sha256()
+                with archive.open(image) as stream_image:
+                    for chunk in iter(lambda: stream_image.read(1024**2), b""):
+                        digest_image.update(chunk)
+                require(
+                    digest_image.hexdigest() == candidate["archive_sha256"],
+                    "publisher_repair_retained_build_bytes",
+                )
+            elif data.get("action") == "contract":
+                prior = one_object(archive.read(member("original-producer.json", 2 * 1024**2)))
+                require(
+                    admission["mode"] == "reuse"
+                    and prior == admission["producer"]
+                    and prior["git_inputs"] == admission["inputs"]
+                    and (
+                        str(prior["run_id"]),
+                        prior["head"],
+                        str(prior["artifact"]["id"]),
+                        prior["artifact"]["digest"],
+                    )
+                    == (
+                        data["producer_run"],
+                        data["producer_head"],
+                        data["producer_artifact"],
+                        data["producer_digest"],
+                    )
+                    and not {"candidate.json", "candidate.docker.tar"}.intersection(
+                        m.filename for m in members
+                    ),
+                    "publisher_repair_retained_import",
+                )
+        keys = {
+            "pr",
+            "base",
+            "controller",
+            "callers",
+            "source",
+            "q",
+            "s",
+            "c",
+            "zip",
+            "manifest",
+            "action",
+            "input",
+            "run",
+            "job",
+            "started",
+            "producer_run",
+        }
+        keys.add("producer_head")
+        if isinstance(data, dict) and data.get("action") == "contract":
+            keys.update(("producer_artifact", "producer_digest"))
+        require(
+            type(data) is dict
+            and set(data) == keys
+            and all(type(v) is str for v in data.values())
+            and decision.get("current_head") == run["head_sha"],
+            "publisher_repair_missing_checked_input_record",
+        )
+        cache[key] = dict(data)
+    return dict(cache[key])
+
+
+def _publisher_dispatch_inventory(
+    read: Callable[[str], Any], pr: dict[str, Any], material: dict[str, str]
+) -> list[dict[str, str]]:
+    from scripts.ci.prometheus_source_image import exact_data, require
+
+    cache: dict[tuple[int, str], dict[str, str]] = {}
+    w = material["callers"]
+    endpoint = f"/actions/workflows/frontend-ci.yml/runs?event=workflow_dispatch&head_sha={w}&per_page=100&page=1"
+
+    def observe() -> tuple[list[Any], list[dict[str, str]]]:
+        listing = read(endpoint)
+        rows = listing["workflow_runs"]
+        require(
+            type(listing["total_count"]) is int
+            and type(rows) is list
+            and len(rows) == listing["total_count"] <= 100
+            and len({r["id"] for r in rows}) == len(rows),
+            "publisher_repair_complete_dispatch_inventory",
+        )
+        receipts = []
+        snapshot: list[Any] = [rows]
+        for listed in rows:
+            if (
+                listed["head_branch"] != pr["head"]["ref"]
+                or listed["status"] != "completed"
+                or listed["conclusion"] != "success"
+            ):
+                continue
+            if not _publisher_account(listed["actor"]) or not _publisher_account(
+                listed["triggering_actor"]
+            ):
+                continue
+            run_id = listed["id"]
+            require(
+                type(run_id) is int
+                and run_id > 0
+                and type(listed["run_attempt"]) is int
+                and listed["run_attempt"] == 1,
+                "publisher_repair_dispatch_first_attempt",
+            )
+            run, job = _publisher_attempt_job(
+                read, run_id, 1, w, "frontend-ci.yml", "caddy-contract", "workflow_dispatch"
+            )
+            require(
+                run["workflow_id"] == _REPAIR_CADDY_WORKFLOW
+                and all(
+                    run[key] == listed[key]
+                    for key in (
+                        "id",
+                        "event",
+                        "path",
+                        "head_sha",
+                        "head_branch",
+                        "workflow_id",
+                        "status",
+                        "conclusion",
+                    )
+                )
+                and _publisher_account(run["actor"])
+                and _publisher_account(run["triggering_actor"]),
+                "publisher_repair_terminal_run",
+            )
+            snapshot.append([run, job])
+            if job is None or job["status"] != "completed" or job["conclusion"] != "success":
+                continue
+            steps = job["steps"]
+            gates = [row for row in steps if row["name"] == _REPAIR_INPUT_STEP]
+            if not gates or (len(gates) == 1 and gates[0]["conclusion"] == "skipped"):
+                continue
+            require(
+                len(gates) == 1
+                and gates[0]["status"] == "completed"
+                and gates[0]["conclusion"] == "success",
+                "publisher_repair_terminal_input_gate",
+            )
+            artifacts = read(f"/actions/runs/{run_id}/artifacts?per_page=100&page=1")
+            require(
+                type(artifacts["total_count"]) is int
+                and len(artifacts["artifacts"]) == artifacts["total_count"] <= 100,
+                "publisher_repair_complete_run_artifacts",
+            )
+            snapshot.append(artifacts)
+            found = [
+                row for row in artifacts["artifacts"] if row["name"] == "caddy-contract-evidence"
+            ]
+            require(len(found) == 1, "publisher_repair_missing_native_artifact")
+            record = _publisher_artifact_record(read, found[0], run, cache)
+            action = record.get("action")
+            require(
+                action in ("candidate-D", "contract")
+                and record.get("run") == str(run_id)
+                and record.get("job") == str(job["id"])
+                and record.get("callers") == w
+                and record.get("pr") == str(pr["number"])
+                and record.get("started") == listed["created_at"],
+                "publisher_repair_terminal_record_binding",
+            )
+            if action == "candidate-D":
+                native = ("Charge Build source-patched Caddy candidate budget", _REPAIR_BUILD_STEP)
+                alternative = _REPAIR_IMPORT_STEP
+                require(
+                    record.get("producer_run") == str(run_id) and record.get("producer_head") == w,
+                    "publisher_repair_original_build",
+                )
+            else:
+                native = ("Download original retained Caddy candidate", _REPAIR_IMPORT_STEP)
+                alternative = _REPAIR_BUILD_STEP
+                require(
+                    re.fullmatch(_REPAIR_ID, record.get("producer_run", ""))
+                    and record["producer_run"] != str(run_id),
+                    "publisher_repair_original_reuse",
+                )
+                prior_id = int(record["producer_run"])
+                prior_head = record["producer_head"]
+                require(
+                    re.fullmatch(_REPAIR_SHA, prior_head) is not None
+                    and re.fullmatch(_REPAIR_ID, record["producer_artifact"])
+                    and re.fullmatch(_REPAIR_DIGEST, record["producer_digest"]),
+                    "publisher_repair_original_reuse",
+                )
+                earlier, original_job = _publisher_attempt_job(
+                    read,
+                    prior_id,
+                    1,
+                    prior_head,
+                    "frontend-ci.yml",
+                    "caddy-contract",
+                    "workflow_dispatch",
+                )
+                original_artifact = read("/actions/artifacts/" + record["producer_artifact"])
+                require(
+                    original_job is not None
+                    and earlier["head_branch"] == original_job["head_branch"] == pr["head"]["ref"]
+                    and earlier["status"] == original_job["status"] == "completed"
+                    and earlier["conclusion"] == original_job["conclusion"] == "success"
+                    and _publisher_account(earlier["actor"])
+                    and _publisher_account(earlier["triggering_actor"])
+                    and original_job["completed_at"] < listed["created_at"]
+                    and all(
+                        len(
+                            [
+                                s
+                                for s in original_job["steps"]
+                                if s["name"] == name
+                                and s["status"] == "completed"
+                                and s["conclusion"] == "success"
+                            ]
+                        )
+                        == 1
+                        for name in (_REPAIR_BUILD_STEP, _REPAIR_DECISION_STEP, _REPAIR_UPLOAD_STEP)
+                    )
+                    and original_artifact["id"] == int(record["producer_artifact"])
+                    and original_artifact["digest"] == record["producer_digest"]
+                    and original_artifact["name"] == "caddy-contract-evidence"
+                    and original_artifact["expired"] is False
+                    and original_artifact["workflow_run"]["id"] == prior_id
+                    and original_artifact["workflow_run"]["head_sha"] == prior_head
+                    and original_artifact["workflow_run"]["repository_id"]
+                    == original_artifact["workflow_run"]["head_repository_id"]
+                    == 1043311030,
+                    "publisher_repair_original_D_native_binding",
+                )
+                snapshot.append([earlier, original_job, original_artifact])
+            required = (
+                "Admit existing Caddy producer or exact retained subject",
+                _REPAIR_INPUT_STEP,
+                *native,
+                _REPAIR_DECISION_STEP,
+                _REPAIR_UPLOAD_STEP,
+            )
+            selected = [r for r in steps if r["name"] in required]
+            idle = [r for r in steps if r["name"] == alternative]
+            require(
+                len(idle) == 1
+                and idle[0]["conclusion"] == "skipped"
+                and [r["name"] for r in selected] == list(required),
+                "publisher_repair_selected_operation_steps",
+            )
+            start = _publisher_time(listed["created_at"])
+            complete = _publisher_time(job["completed_at"])
+            cursor = _publisher_time(job["started_at"])
+            require(
+                start <= _publisher_time(run["run_started_at"]) <= cursor
+                and cursor <= complete < start + _REPAIR_WINDOW,
+                "publisher_repair_dispatch_window",
+            )
+            for step in selected:
+                require(
+                    step["status"] == "completed" and step["conclusion"] == "success",
+                    "publisher_repair_positive_native_step",
+                )
+                begin, finish = _publisher_time(step["started_at"]), _publisher_time(
+                    step["completed_at"]
+                )
+                require(
+                    cursor <= begin <= finish <= complete, "publisher_repair_positive_native_step"
+                )
+                cursor = finish
+            record.update(
+                created=job["completed_at"],
+                expires=(start + _REPAIR_WINDOW).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                artifact=str(found[0]["id"]),
+                artifact_digest=found[0]["digest"],
+            )
+            receipts.append(record)
+        return snapshot, sorted(receipts, key=lambda r: (r["started"], r["run"]))
+
+    snapshot, first = observe()
+    later, second = observe()
+    exact_data(snapshot, later)
+    exact_data(first, second)
+    for old, new in zip(first, first[1:]):
+        require(old["expires"] <= new["started"], "publisher_repair_competing_dispatches")
+    # Only after counting competing native choices is their original input compared to the expected subject.
+    builds: set[str] = set()
+    for receipt in first:
+        require(
+            all(receipt.get(k) == v for k, v in material.items())
+            and receipt.get("input") == publisher_repair_input(material, receipt["action"]),
+            "publisher_repair_terminal_subject_or_input",
+        )
+        if receipt["action"] == "candidate-D":
+            require(not builds, "publisher_repair_duplicate_spent_build")
+            builds.add(receipt["run"])
+    return first
+
+
+def publisher_repair_dispatch(
+    read: Callable[[str], Any],
+    pr: dict[str, Any],
+    *,
+    historical: bool = False,
+    subject: dict[str, str] | None = None,
+    current_event: bool = False,
+) -> dict[str, str] | None:
+    from scripts.ci.prometheus_source_image import QualificationError, require
+
+    base, controller, callers = publisher_repair_head(read, pr, historical=historical)
+    _publisher_repair_material(read, base, controller)
+    accepted = _publisher_input_source(read, base, controller, callers)
+    require(subject is None or subject == accepted, "publisher_repair_independent_AM_subject")
+    data = {
+        "pr": str(pr["number"]),
+        "base": base,
+        "controller": controller,
+        "callers": callers,
+        **accepted,
+    }
+    result = _publisher_live_dispatch(read, pr, data) if current_event else None
+    records = _publisher_dispatch_inventory(read, pr, data)
+    fresh = read(f"/pulls/{pr['number']}")
+    require(
+        fresh["number"] == pr["number"]
+        and fresh["state"] == pr["state"]
+        and all(
+            fresh[side]["sha"] == pr[side]["sha"]
+            and fresh[side]["ref"] == pr[side]["ref"]
+            and fresh[side]["repo"]["id"] == pr[side]["repo"]["id"] == 1043311030
+            for side in ("head", "base")
+        )
+        and (
+            not historical
+            or (
+                fresh["merge_commit_sha"] == pr["merge_commit_sha"]
+                and fresh["merged_at"] == pr["merged_at"]
+            )
+        ),
+        "publisher_repair_PR_drift",
+    )
+    if result is not None:
+        from scripts.ci.prometheus_source_image import exact_data
+
+        exact_data(result, _publisher_live_dispatch(read, pr, data))
+        require(
+            not records or records[-1]["expires"] <= result["started"],
+            "publisher_repair_active_read_window",
+        )
+        prior = [r for r in records if r["action"] == "candidate-D"]
+        if result["action"] == "candidate-D":
+            require(not prior, "publisher_repair_duplicate_spent_build")
+            result["producer_run"] = result["run"]
+        return result
+    if historical:
+        failure = None
+        for receipt in reversed(records):
+            if receipt["created"] >= pr["merged_at"]:
+                continue
+            try:
+                publisher_repair_completed_reads(read, pr, receipt)
+            except QualificationError as exc:
+                if str(exc) not in {
+                    "publisher_repair_missing_authorized_native_" + job
+                    for _, job in _REPAIR_NATIVE_STEPS
+                }:
+                    raise
+                failure = exc
+            else:
+                return receipt
+        if failure is not None:
+            raise failure
+        if records:
+            raise QualificationError("publisher_repair_dispatch_after_merge")
+        return None
+    now = datetime.now(timezone.utc)
+    active = [
+        r for r in records if _publisher_time(r["created"]) <= now < _publisher_time(r["expires"])
+    ]
+    require(len(active) <= 1, "publisher_repair_competing_dispatches")
+    return active[0] if active else None
+
+
+def publisher_repair_run(
+    read: Callable[[str], Any], grant: dict[str, str], selected: str, workflow: str, job: str
+) -> None:
+    """Bind the actual named running job/attempt to independently designated source and time."""
+    from scripts.ci.prometheus_source_image import require
+
+    env = os.environ
+    run_id, attempt = env["GITHUB_RUN_ID"], env["GITHUB_RUN_ATTEMPT"]
+    require(
+        re.fullmatch(_REPAIR_ID, run_id) is not None
+        and re.fullmatch(_REPAIR_ID, attempt) is not None,
+        "publisher_repair_run_coordinates",
+    )
+    operation = env["GITHUB_EVENT_NAME"]
+    ref = env["GITHUB_REF"]
+    caller = ".github/workflows/" + workflow
+    require(
+        env["GITHUB_JOB"] == job
+        and env["GITHUB_WORKFLOW_REF"] == f"{CADDY_REPOSITORY}/{caller}@{ref}"
+        and env["GITHUB_REPOSITORY_ID"] == "1043311030",
+        "publisher_repair_job_source",
+    )
+    workflow_sha = env["GITHUB_WORKFLOW_SHA"]
+    require(
+        re.fullmatch(_REPAIR_SHA, workflow_sha) is not None
+        and operation in ("pull_request", "workflow_dispatch", "push"),
+        "publisher_repair_executing_workflow",
+    )
+    if workflow_sha != selected:
+        merge = read("/git/commits/" + workflow_sha)
+        head = read("/git/commits/" + selected)
+        require(
+            operation == "pull_request"
+            and merge["sha"] == workflow_sha
+            and head["sha"] == selected
+            and [parent["sha"] for parent in merge["parents"]] == [grant["base"], selected]
+            and merge["tree"]["sha"] == head["tree"]["sha"],
+            "publisher_repair_executing_merge",
+        )
+    run, matched = _publisher_attempt_job(
+        read, int(run_id), int(attempt), selected, workflow, job, operation
+    )
+    original = read(f"/actions/runs/{run_id}")
+    require(
+        all(
+            original[key] == run[key]
+            for key in ("id", "event", "head_sha", "head_branch", "workflow_id", "path")
+        )
+        and original["repository"]["id"] == original["head_repository"]["id"] == 1043311030
+        and grant["created"] < original["created_at"] <= run["run_started_at"],
+        "publisher_repair_original_event_after_dispatch",
+    )
+    require(
+        matched is not None
+        and run["status"] == matched["status"] == "in_progress"
+        and re.fullmatch(_REPAIR_UTC, matched["started_at"]) is not None
+        and re.fullmatch(_REPAIR_UTC, run["run_started_at"]) is not None
+        and grant["created"] < run["run_started_at"] <= matched["started_at"]
+        and (
+            matched["started_at"] < grant["expires"]
+            or (
+                operation == "push"
+                and ref == "refs/heads/main"
+                and job == "caddy-contract"
+                and workflow == "frontend-ci.yml"
+            )
+        ),
+        "publisher_repair_actual_job_after_dispatch",
+    )
+
+
+def _publisher_attempt_job(
+    read: Callable[[str], Any],
+    run_id: int,
+    attempt: int,
+    selected: str,
+    workflow: str,
+    job: str,
+    operation: str,
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    from scripts.ci.prometheus_source_image import require
+
+    try:
+        run = read(f"/actions/runs/{run_id}/attempts/{attempt}")
+    except (KeyError, RuntimeError, ValueError) as error:
+        raise ValueError("publisher_repair_missing_native_attempt") from error
+    require(type(run) is dict and bool(run), "publisher_repair_missing_native_attempt")
+    expected = read("/actions/workflows/" + workflow)
+    caller = ".github/workflows/" + workflow
+    require(
+        type(expected["id"]) is int
+        and expected["id"] > 0
+        and run["path"] == expected["path"] == caller
+        and run["workflow_id"] == expected["id"]
+        and run["event"] == operation
+        and type(run["id"]) is int
+        and run["id"] == run_id
+        and type(run["run_attempt"]) is int
+        and run["run_attempt"] == attempt
+        and run["repository"]["id"] == run["head_repository"]["id"] == 1043311030
+        and run["head_sha"] == selected,
+        "publisher_repair_actual_run_attempt",
+    )
+    path = f"/actions/runs/{run_id}/attempts/{attempt}/jobs?per_page=100&page="
+    first = read(path + "1")
+    count = first["total_count"]
+    require(type(count) is int and 0 <= count <= 1000, "publisher_repair_job_count")
+    jobs: list[dict[str, Any]] = []
+    for page in range(1, (count + 99) // 100 + 1):
+        result = first if page == 1 else read(path + str(page))
+        require(
+            result["total_count"] == count and len(result["jobs"]) == min(100, count - len(jobs)),
+            "publisher_repair_complete_job_inventory",
+        )
+        jobs.extend(result["jobs"])
+    require(len({row["id"] for row in jobs}) == count, "publisher_repair_distinct_jobs")
+    matches = [row for row in jobs if row["name"] == job]
+    require(len(matches) <= 1, "publisher_repair_unique_job")
+    if matches:
+        matched = matches[0]
+        require(
+            type(matched["id"]) is int
+            and matched["id"] > 0
+            and matched["run_id"] == run_id
+            and type(matched.get("run_attempt")) is int
+            and matched.get("run_attempt") == attempt
+            and matched["head_sha"] == selected,
+            "publisher_repair_attempt_job_identity",
+        )
+    return dict(run), matches[0] if matches else None
+
+
+_REPAIR_NATIVE_STEPS = {
+    ("ci.yml", "lint"): (
+        "Prepare exact AM subject before material execution",
+        "Native OBS2A checkpoint lifecycle and owned-task challenge",
+    ),
+    ("cd.yml", "prometheus-image-security-pr"): (
+        "Prepare exact AM subject before material execution",
+        "Scan accepted AM and execute all four current controls",
+        "Run full accepted AM native controls on this runner",
+    ),
+}
+
+
+def _publisher_original_pr(
+    read: Callable[[str], Any],
+    pr: dict[str, Any],
+    grant: dict[str, str],
+    run: dict[str, Any],
+    head: str,
+) -> bool:
+    """Bind an original PR event even after GitHub clears its run's PR list on merge."""
+    from urllib.parse import urlencode
+    from scripts.ci.prometheus_source_image import require
+
+    if any(
+        not isinstance(t, str) or re.fullmatch(_REPAIR_UTC, t) is None
+        for t in (pr["created_at"], run["created_at"], pr["merged_at"])
+    ):
+        return False
+    entries = run["pull_requests"]
+    if (
+        type(entries) is not list
+        or run["head_branch"] != pr["head"]["ref"]
+        or not pr["created_at"] <= run["created_at"] <= pr["merged_at"]
+    ):
+        return False
+
+    def matches(row: dict[str, Any]) -> bool:
+        return bool(
+            row["number"] == pr["number"]
+            and row["head"]["repo"]["id"] == row["base"]["repo"]["id"] == 1043311030
+            and row["base"]["ref"] == "main"
+        )
+
+    if entries:
+        return (
+            len(entries) == 1
+            and matches(entries[0])
+            and entries[0]["head"]["sha"] == head
+            and entries[0]["base"]["sha"] == grant["base"]
+        )
+    associated = read(f"/commits/{head}/pulls?per_page=2")
+    if (
+        type(associated) is not list
+        or len(associated) != 1
+        or not matches(associated[0])
+        or associated[0]["head"]["ref"] != run["head_branch"]
+    ):
+        return False
+    # Enumerating the head across ALL bases excludes a different contemporaneous
+    # PR on the same topic branch. Reuse of the branch later is harmless.
+    query = urlencode(
+        {
+            "state": "all",
+            "head": CADDY_REPOSITORY.split("/")[0] + ":" + run["head_branch"],
+            "per_page": 100,
+        }
+    )
+    rows = read("/pulls?" + query)
+    require(
+        type(rows) is list and len(rows) < 100 and len({r["number"] for r in rows}) == len(rows),
+        "publisher_repair_complete_original_ref_PRs",
+    )
+    possible = [
+        r
+        for r in rows
+        if r["head"]["repo"]["id"] == 1043311030
+        and r["head"]["ref"] == run["head_branch"]
+        and r["created_at"] <= run["created_at"]
+        and (r["closed_at"] is None or run["created_at"] <= r["closed_at"])
+    ]
+    return len(possible) == 1 and matches(possible[0])
+
+
+def publisher_repair_completed_reads(
+    read: Callable[[str], Any], pr: dict[str, Any], grant: dict[str, str]
+) -> None:
+    """Require both native PR job receipts from a permitted, pre-merge source and grant window."""
+    from scripts.ci.prometheus_source_image import require
+
+    end = min(pr["merged_at"], grant["expires"])
+    for (workflow, job), required_steps in _REPAIR_NATIVE_STEPS.items():
+        proven = False
+        for head in dict.fromkeys((pr["head"]["sha"], grant["callers"])):
+            endpoint = f"/actions/workflows/{workflow}/runs?event=pull_request&head_sha={head}&per_page=100&page=1"
+            result = read(endpoint)
+            runs, total = result["workflow_runs"], result["total_count"]
+            require(
+                type(total) is int
+                and 0 <= total == len(runs) <= 100
+                and len({r["id"] for r in runs}) == total,
+                "publisher_repair_complete_head_runs",
+            )
+            for candidate in runs:
+                run_id, latest = candidate["id"], candidate["run_attempt"]
+                require(
+                    type(run_id) is int
+                    and run_id > 0
+                    and type(latest) is int
+                    and 1 <= latest <= 100,
+                    "publisher_repair_attempt_inventory",
+                )
+                for attempt in range(latest, 0, -1):
+                    run, receipt = _publisher_attempt_job(
+                        read, run_id, attempt, head, workflow, job, "pull_request"
+                    )
+                    if (
+                        receipt is None
+                        or run["status"] != "completed"
+                        or receipt["status"] != "completed"
+                        or receipt["conclusion"] != "success"
+                    ):
+                        continue
+                    # The attempt endpoint timestamps a re-run independently. The list
+                    # row identifies the original event that must belong to this PR.
+                    require(
+                        all(
+                            candidate[key] == run[key]
+                            for key in (
+                                "id",
+                                "head_sha",
+                                "head_branch",
+                                "workflow_id",
+                                "event",
+                                "path",
+                            )
+                        )
+                        and candidate["repository"]["id"]
+                        == candidate["head_repository"]["id"]
+                        == 1043311030,
+                        "publisher_repair_original_run_identity",
+                    )
+                    if not _publisher_original_pr(read, pr, grant, candidate, head):
+                        continue
+                    started, job_start, completed = (
+                        run["run_started_at"],
+                        receipt["started_at"],
+                        receipt["completed_at"],
+                    )
+                    if not all(
+                        isinstance(t, str) and re.fullmatch(_REPAIR_UTC, t)
+                        for t in (started, job_start, completed)
+                    ):
+                        continue
+                    if (
+                        not grant["created"]
+                        < candidate["created_at"]
+                        <= started
+                        <= job_start
+                        <= completed
+                        < end
+                    ):
+                        continue
+                    selected_steps = [
+                        step for step in receipt["steps"] if step["name"] in required_steps
+                    ]
+                    if [row["name"] for row in selected_steps] == list(required_steps) and all(
+                        step["status"] == "completed"
+                        and step["conclusion"] == "success"
+                        and isinstance(step["started_at"], str)
+                        and isinstance(step["completed_at"], str)
+                        and re.fullmatch(_REPAIR_UTC, step["started_at"])
+                        and re.fullmatch(_REPAIR_UTC, step["completed_at"])
+                        and job_start <= step["started_at"] <= step["completed_at"] <= completed
+                        for step in selected_steps
+                    ):
+                        proven = True
+                        break
+                if proven:
+                    break
+            if proven:
+                break
+        require(proven, "publisher_repair_missing_authorized_native_" + job)
+
+
 def caddy_bound_pr(api: Callable[[str], Any], selected: str) -> dict[str, Any]:
     """Bind a designated receiver to the native PR, explicit dispatch or exact main merge."""
     from urllib.parse import urlencode
@@ -648,6 +2198,10 @@ def caddy_bound_pr(api: Callable[[str], Any], selected: str) -> dict[str, Any]:
     elif kind == "workflow_dispatch":
         if not ref.startswith("refs/heads/") or selected != env["GITHUB_SHA"]:
             raise ValueError("Caddy dispatch must select current accepted PR head")
+        if event.get("ref") not in (ref, ref.removeprefix("refs/heads/")):
+            raise ValueError(
+                "Caddy source branch is not designated by the owner's exact frozen source dispatch"
+            )
         branches = [ref.removeprefix("refs/heads/")]
     elif kind == "push":
         if (
@@ -663,9 +2217,8 @@ def caddy_bound_pr(api: Callable[[str], Any], selected: str) -> dict[str, Any]:
 
     matches = []
     for branch in branches:
-        if branch not in CADDY_PR_NUMBERS:
-            raise ValueError("Caddy source branch is not designated")
-        expected_number = CADDY_PR_NUMBERS[branch]
+        maintenance = branch not in CADDY_PR_NUMBERS
+        expected_number = CADDY_PR_NUMBERS.get(branch)
         listed = None
         if expected_number is None:
             # Two records already prove ambiguity. One complete first page binds the only candidate.
@@ -749,10 +2302,49 @@ def caddy_bound_pr(api: Callable[[str], Any], selected: str) -> dict[str, Any]:
                     )
                 ):
                     raise ValueError("Caddy corrective PR base or event differs")
+        if maintenance:
+            pr = _caddy_repair_pr(api, pr, selected, kind, event)
         matches.append(pr)
+    if kind == "push" and not matches:
+        rows = api(f"/commits/{selected}/pulls?per_page=2")
+        if type(rows) is list and len(rows) == 1:
+            pr = api(f"/pulls/{rows[0]['number']}")
+            if pr["head"]["ref"] not in CADDY_PR_NUMBERS and pr["merge_commit_sha"] == selected:
+                matches.append(_caddy_repair_pr(api, pr, selected, kind, event))
     if len(matches) != 1:
         raise ValueError("Caddy observation requires one exact accepted PR or main merge")
     return dict(matches[0])
+
+
+def _caddy_repair_pr(
+    read: Callable[[str], Any], pr: dict[str, Any], selected: str, kind: str, event: dict[str, Any]
+) -> dict[str, Any]:
+    historical = kind == "push"
+    if kind == "workflow_dispatch":
+        bound = event["inputs"].get("caddy_source_sha")
+        if (
+            not _publisher_account(event["sender"])
+            or not isinstance(bound, str)
+            or re.fullmatch("repair-v1:" + selected + r":[0-9a-f]{64}", bound) is None
+        ):
+            raise ValueError("Caddy requires exact delegated dispatch input")
+    if pr["number"] in (2484, 2494, 2495, 2497, 2501):
+        raise ValueError("Caddy ordinary PR cannot claim publisher repair")
+    receipt = publisher_repair_dispatch(
+        read, pr, historical=historical, current_event=kind == "workflow_dispatch"
+    )
+    if receipt is None:
+        raise ValueError("Caddy source has no qualifying publisher repair dispatch")
+    if historical and (event["before"] != receipt["base"] or selected != pr["merge_commit_sha"]):
+        raise ValueError("Caddy repair merge source differs")
+    if kind != "workflow_dispatch":
+        publisher_repair_run(read, receipt, selected, "frontend-ci.yml", "caddy-contract")
+    return {**pr, "publisher_repair": receipt}
+
+
+def caddy_repair_d_admitted(receipt: dict[str, str], source: str, run_id: int) -> bool:
+    """The original D must be the independently observed, source-bound build selected for reuse."""
+    return source == receipt["producer_head"] and str(run_id) == receipt["producer_run"]
 
 
 def caddy_producer_in_pr(
@@ -809,7 +2401,9 @@ def caddy_producer_in_pr(
     return True
 
 
-def caddy_owner_dispatch(head: str) -> None:
+def caddy_owner_dispatch(
+    head: str, *, repair_branch: str | None = None, repair_input: str | None = None
+) -> None:
     """Bind the candidate build to the owner's exact dispatch input and sender."""
     env = os.environ
     event = json.loads(Path(env["GITHUB_EVENT_PATH"]).read_bytes())
@@ -817,18 +2411,36 @@ def caddy_owner_dispatch(head: str) -> None:
     if (
         env["GITHUB_EVENT_NAME"] != "workflow_dispatch"
         or env["GITHUB_RUN_ATTEMPT"] != "1"
-        or env["GITHUB_REF"]
-        not in {
-            "refs/heads/" + branch for branch in CADDY_PR_NUMBERS if branch != CADDY_ORIGINAL_BRANCH
-        }
+        or not (
+            env["GITHUB_REF"]
+            in {
+                "refs/heads/" + branch
+                for branch in CADDY_PR_NUMBERS
+                if branch != CADDY_ORIGINAL_BRANCH
+            }
+            or repair_branch is not None
+            and env["GITHUB_REF"] == "refs/heads/" + repair_branch
+        )
         or env["GITHUB_SHA"] != head
         or event["ref"] not in (env["GITHUB_REF"].removeprefix("refs/heads/"), env["GITHUB_REF"])
-        or event["inputs"] != {"caddy_action": "candidate-D", "caddy_source_sha": head}
+        or (
+            repair_branch is not None
+            and (
+                not isinstance(repair_input, str)
+                or re.fullmatch("repair-v1:" + head + r":[0-9a-f]{64}", repair_input) is None
+            )
+        )
+        or event["inputs"]
+        != {
+            "caddy_action": "candidate-D",
+            "caddy_source_sha": repair_input if repair_branch is not None else head,
+        }
         or sender["type"] != "User"
         or sender["login"] != CADDY_REPOSITORY.split("/")[0]
         or sender["login"] != env["GITHUB_ACTOR"]
         or type(sender["id"]) is not int
         or sender["id"] <= 0
+        or (repair_branch is not None and sender["id"] != 169792616)
         or str(sender["id"]) != env["GITHUB_ACTOR_ID"]
     ):
         raise ValueError("Caddy requires the owner's exact frozen source dispatch")
@@ -856,13 +2468,14 @@ def validate_caddy_prebuild(
         return one_object(raw), hashlib.sha256(raw).hexdigest()
 
     env = os.environ
+    state, _ = read_object(work / "caddy-admission/admission.json", 4 * 1024**2)
     repository = "Katsiarynakavaleuskaya/PulsePlate"
     if (
         env["GITHUB_EVENT_NAME"] != "workflow_dispatch"
         or env["CADDY_ACTION"] != "candidate-D"
         or env["GITHUB_REPOSITORY"] != repository
         or env["GITHUB_REPOSITORY_ID"] != "1043311030"
-        or env["GITHUB_REF"] not in {"refs/heads/" + branch for branch in CADDY_PR_NUMBERS}
+        or not env["GITHUB_REF"].startswith("refs/heads/")
         or not re.fullmatch(r"[0-9a-f]{40}", checked_head)
         or env["GITHUB_SHA"] != checked_head
         or env["GITHUB_RUN_ATTEMPT"] != "1"
@@ -870,9 +2483,12 @@ def validate_caddy_prebuild(
     ):
         raise ValueError("Caddy prebuild event or source differs")
     if env["GITHUB_REF"] != "refs/heads/" + CADDY_ORIGINAL_BRANCH:
-        caddy_owner_dispatch(checked_head)
+        caddy_owner_dispatch(
+            checked_head,
+            repair_branch=state.get("source_branch") if state.get("publisher_repair") else None,
+            repair_input=state.get("publisher_repair", {}).get("input"),
+        )
     run_id = int(env["GITHUB_RUN_ID"])
-    state, _ = read_object(work / "caddy-admission/admission.json", 4 * 1024**2)
     expected_state = {
         "mode": "build",
         "repository": repository,
@@ -2360,6 +3976,19 @@ def caddy_ci_reader(
             if ordinal > 1:
                 reader.deadline = work_end()
             _caddy_api_source(root, expected)
+            if re.fullmatch(r"/actions/artifacts/[1-9][0-9]{0,18}/zip", endpoint):
+                # A retained image archive uses the declared download budget, within this same admission clock.
+                cap = int(os.environ["CADDY_REUSE_DOWNLOAD_SECONDS"])
+                if not 0 < cap <= 300:
+                    raise ValueError("Caddy artifact download budget")
+                reader.deadline = min(
+                    phase_work_end, time.monotonic() + min(cap, remaining(float("inf"))) - cleanup
+                )
+                raw_archive = reader.raw(
+                    "/repos/" + CADDY_REPOSITORY + endpoint, maximum=_REPAIR_ARCHIVE_MAX
+                )
+                usable = True
+                return raw_archive
             cache.mkdir(mode=0o700)
             pending_cache = cache
             seconds = reader.deadline - time.monotonic()

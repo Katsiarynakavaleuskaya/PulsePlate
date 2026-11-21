@@ -6,7 +6,7 @@ name: CI
 
 env:
   # ROOT creates C, independently reviews/designates it, then pins C before one normal C,H push.
-  ALERTMANAGER_CONTROLLER_SOURCE: 'f85bdd9d8a6f1598717afcd5e6b3db9dc93e14dd' # pragma: allowlist secret - public immutable controller commit
+  ALERTMANAGER_CONTROLLER_SOURCE: '47dcc127c37e825fce3df5d188d684c560062324' # pragma: allowlist secret - public immutable controller commit
   ALERTMANAGER_PREPARATION_MINUTES: '14'
   ALERTMANAGER_PREP_SECONDS: '600'
   ALERTMANAGER_PAIR_SECONDS: '1800'
@@ -735,6 +735,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      pull-requests: read
       packages: read
     env:
       ALERTMANAGER_JOB_TIMEOUT_MINUTES: *am-ci-lint-timeout
@@ -843,6 +844,7 @@ jobs:
         if: github.event_name == 'pull_request' && steps.checkpoint-selection.outputs.selected == 'true'
         timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_PREPARATION_MINUTES) }}
         env:
+          AM_PR_BASE: ${{ github.event.pull_request.base.sha }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GHCR_READ_TOKEN: ${{ github.event_name != 'pull_request' && secrets.GHCR_READ_TOKEN || '' }}
@@ -854,6 +856,13 @@ jobs:
           controller="$material/artifacts/orchestration/alertmanager-control"
           test ! -L "$controller"
           test "$(git -C "$controller" rev-parse HEAD)" = "$ALERTMANAGER_CONTROLLER_SOURCE"
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            old_pin="$(git --no-replace-objects -c core.fsmonitor=false -c core.hooksPath=/dev/null -C "$material" cat-file blob "$AM_PR_BASE:.github/workflows/ci.yml" | sed -nE "s/^  ALERTMANAGER_CONTROLLER_SOURCE: '([0-9a-f]{40})'.*$/\1/p")"
+            [[ "$old_pin" =~ ^[0-9a-f]{40}$ ]]
+            if [ "$old_pin" != "$ALERTMANAGER_CONTROLLER_SOURCE" ]; then
+              export ALERTMANAGER_REPAIR_PIN_CHANGED=true
+            fi
+          fi
           docker version --format 'client={{json .Client.Version}} server={{json .Server.Version}}'
           docker info --format 'driver={{json .Driver}} driver_status={{json .DriverStatus}} os={{json .OSType}} arch={{json .Architecture}}'
           cd "$controller"
