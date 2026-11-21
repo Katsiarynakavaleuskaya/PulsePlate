@@ -2640,25 +2640,20 @@ two reviewed PostgreSQL reference replacements in the staging and self-hosted Co
 blobs. Every other byte in those inputs stays bound to its independently reviewed source.
 
 The original Alertmanager producer, #2501 and #2502 retain their historical
-source and caller bindings. For a subsequent publisher repair, the human
-repository owner independently inspects the exact controller, both CI/CD
-callers and credential-bearing workflow sources, and names the accepted image
-and permitted reads in one authenticated, unedited OWNER comment on the actual
-repair PR. The same designation covers the reviewed caller commit and its sole
-direct mapping-only successor. Each invocation verifies its actual workflow,
-source, attempt and job. These PR reads use the retained qualified subject,
-fresh security and native checks, with no Alertmanager registry login. The
-participating jobs may read PRs to verify that decision. See the
-[operator procedure](scripts/AGENTS.md#publisher-repair-designation).
+source and caller bindings. For a subsequent repair, independently designate
+the exact controller, both caller workflows and the accepted Alertmanager
+image. The authorized operator uses the repository owner's existing account
+to run the read-only Frontend CI operation for that source. The native job
+checks its actual inputs. Its successful build or verified import and retained
+artifact bind subsequent CI and CD reads to the designated repair.
+[Operator procedure](scripts/AGENTS.md#publisher-repair-designation).
 
-Ordinary #2495 and subsequent main readers require a genuine successful
-trusted-main publication, immutable digest pullback and full native evidence.
-Across an intervening repair, the reader verifies the original CI and CD
-native results within the grant window as well as the merged source. Caddy
-qualifies its own complete inputs and requires a separate owner dispatch for
-a fresh candidate build. Production registry writes remain with the existing
-trusted-main publisher. Merge and deployment retain their separate authority.
-Other GHCR readers keep the existing environment-scoped GHCR_READ_TOKEN rule.
+Ordinary readers, including #2495, require successful trusted-main
+publication, pullback by immutable digest and full native evidence. Across
+an intervening repair, verify the original CI and CD results in their
+permitted window, the merged source and the protected files of the current
+base. The existing trusted-main publisher owns registry writes. Other GHCR
+readers keep the environment-scoped GHCR_READ_TOKEN rule.
 
 **Verification checklist:**
 

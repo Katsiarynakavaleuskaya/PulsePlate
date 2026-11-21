@@ -249,56 +249,41 @@ phase budget, and its failure still blocks a successful cleanup result.
 
 ## Publisher repair designation
 
-Freeze the checked main base B and the reviewed controller commit K. From K,
-make W as its direct child by replacing the previous controller pin once in
-each of the two existing AM CI/CD workflow files. Inspect the Git objects,
-regular modes, full executable controller and token-bearing callers on the
-trusted operator machine. Compare both pinned workflows, the Caddy workflow
-and helper, and the original Q/S/C and OCI identities with the material the
-owner has inspected. Open the actual same-repository PR against B.
-The shared head verifier compares the complete base and controller Git trees
-and admits only the finite maintenance files in `_PUBLISHER_REPAIR_FILES`.
-K must change at least one AM control file. A rename accounts for both raw Git
-paths. Preserve the regular mode of existing files. When the generated
-`.secrets.baseline` changes, only its generation time and finding line numbers
-may move. Preserve its configuration, fingerprint identities, verification states
-and per-file multiplicities. The native hook may also retire exactly the old
-public AM helper-pin row in each deploy wrapper when both authenticated old
-wrappers pin the base helper and their only change is the annotated new pin. W and its optional direct
-mapping-only successor keep their separate source rules.
+Freeze the current main base B and commit the reviewed controller as K with
+the incumbent pins from B. Create its direct child W by replacing only the
+controller pin in each of the CI and CD callers. Before dispatch, inspect
+the published Git objects, both complete callers, the Frontend CI workflow
+and the executable code they run with credentials. Check the accepted
+Alertmanager image in all three base Compose files and the original
+qualification (Q), support (S) and candidate (C) sources and artifact IDs.
 
-The human owner posts **one unedited issue comment for the inspected material** on that PR. This
-syntactic example uses fictional PR, B/K/W and expiry coordinates alongside
-the original producer subject. Replace them with the actual inspected values.
-Use one plain line with no Markdown. Include `owner-candidate-D` only when the
-owner intends to permit a separate native Caddy dispatch on that repair.
+The shared verifier admits only the maintenance files listed by
+`_PUBLISHER_REPAIR_FILES`. At least one controller file must change.
+Account for both endpoints of a rename and preserve regular file modes.
+For `.secrets.baseline`, preserve configuration, verification state,
+fingerprints and multiplicity. The hook can update line positions and its
+timestamp. It can retire the two old public deploy checksum fingerprints
+when the checked wrappers replace exactly those base-helper pins.
 
-```text
-OWNER PUBLISHER-REPAIR v1 repo=1043311030 pr=17 base=1111111111111111111111111111111111111111 controller=2222222222222222222222222222222222222222 callers=3333333333333333333333333333333333333333 producer=e91033b4528a83782de3e7dc1e73e6def398348a q=43808505545/14199242996 s=43810186398/14200227448 c=43811981051/14202207192 zip=sha256:4d0a39d1d1a94d5ef16ee57036366e36f1a5782e5e430222055eb57b2ce56dbf manifest=sha256:873bc6cfae14edcf9f2acf2d81f9863f98ee8f78623125a7e02642a66e3bbe27 reads=ci-lint,cd-pr,caddy-reuse,owner-candidate-D heads=callers-or-direct-mapping expires=2026-11-22T12:00:00Z
-```
+Use the existing Frontend CI manual action on the exact published W. The
+authorized operator supplies `candidate-D` and the technical
+`caddy_source_sha` operand `repair-v1:<W>:<binding SHA-256>`. Derive the
+operand with `publisher_repair_input` on the independently inspected PR,
+B/K/W, Q/S/C, candidate ZIP, manifest and selected action. The owner-account
+event, job and original inputs identify the technical invocation. A fresh
+build consumes the existing attempt-one budget. Its checked decision and
+retained artifact must match the source and digest before other jobs use it.
 
-Each `q`, `s` and `c` pair gives the original run ID and artifact ID.
-`zip` identifies the candidate ZIP and `manifest` identifies its OCI
-manifest. The CI and CD read-only attempts must start **after** the recorded
-owner act. If an opening run held for missing designation, rerun its existing
-failed jobs on the same source after the comment. The authenticated run
-attempt, job, selected native steps and terminal outcome provide the execution
-evidence. A separate commit or new owner message is unnecessary for a
-permitted repeat on identical material. When a review fix changes the material,
-keep the earlier comment and publish a new inspected K/W pair on the same PR.
-K retains the incumbent pin from B. The owner designates the new pair in a
-separate comment. Its CI/CD attempts must cover that pair or its verified
-mapping-only successor. Earlier grants and native jobs remain historical.
-Competing eligible owner comments for the same exact material block admission.
-
-For a fresh Caddy D, also dispatch the existing `candidate-D` action with
-`caddy_source_sha` set to the actual frozen PR head. Keep the existing
-attempt-one build limit and prebuild checks. Normal reuse requires the
-original successful same-PR build within its applicable grant window, the
-actual retained artifact, and complete current input equality. A later Caddy
-workflow edit changes that inventory, including an ordinary web lint edit.
-Caddy controls and AM publication evidence are verified by their respective
-consumers.
+After a successful dispatch, use a subsequent supported pull-request event
+on the same material for the CI lint and CD native reads. Verify the
+original event, attempt, selected job and completed native steps. The window
+ends 24 hours after the original dispatch was created. If a new window is
+needed on identical W, use the existing `contract` action to import the
+qualified original D. Check the original artifact and full Caddy input
+inventory. For a changed repair, inspect and publish the new K/W and bind a
+fresh technical operation to its material. CI may use the direct mapping-only
+successor when its source meets the same rules. Historical admission requires
+the verified original CI and CD reads before expiry and merge.
 
 ## Retained Alertmanager consumer admission
 
@@ -565,9 +550,9 @@ prerequisite and its owner. Keep source preparation on HOLD for Caddy until
 authenticated same-source native producer evidence is available, and recheck the
 handoff after any governed input change. For #2484 on
 `codex/cab07c-eslint-pages-features`, #2495 on `codex/npm-braces-build-prerequisite`,
-the historical controller and ORAS corrections, and a publisher repair designated
-under the procedure above, the owner dispatches `candidate-D` with
-`caddy_source_sha` equal to the frozen published head. A build start spends that
+and the historical controller and ORAS corrections, dispatch `candidate-D`
+with `caddy_source_sha` equal to the frozen published head. Subsequent publisher
+repairs use the source-bound operand in the publisher repair procedure above. A build start spends that
 head's authorization. Ordinary PR and exact merged-main runs require one
 successful original artifact from the same designated PR and identical governed
 inputs. At prebuild, confirm the admitted PR number and exact source head. Stage the
