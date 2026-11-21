@@ -542,6 +542,7 @@ jobs:
       CADDY_PHASE_CONTROL_CLEANUP: '360'
       CADDY_PHASE_RETENTION: '420'
       CADDY_PHASE_UPLOAD: '600'
+      CADDY_REPAIR_UPLOAD_VERIFY_SECONDS: '60'
       CADDY_PHASE_SAFETY: '270'
     timeout-minutes: ${{ fromJSON(vars.CADDY_CONTRACT_TIMEOUT_MINUTES || '225') }}
     needs: changes
@@ -583,6 +584,11 @@ jobs:
               checkout = int(os.environ["CADDY_CHECKOUT_SECONDS"])
               if not 0 < checkout < caps["SETUP"]:
                   raise ValueError("Caddy setup split")
+              verification = int(os.environ["CADDY_REPAIR_UPLOAD_VERIFY_SECONDS"])
+              if not 0 < verification < caps["UPLOAD"] or verification % 60 or caps["UPLOAD"] % 60:
+                  raise ValueError("Caddy upload/readback budget split")
+              output.write("CADDY_ACTION_REPAIR_UPLOAD_MINUTES=" + str((caps["UPLOAD"]-verification)//60) + "\n")
+              output.write("CADDY_ACTION_REPAIR_VERIFY_MINUTES=" + str(verification//60) + "\n")
               output.write("CADDY_ACTION_REUSE_DOWNLOAD_MINUTES=" + str(math.ceil(int(os.environ["CADDY_REUSE_DOWNLOAD_SECONDS"]) / 60)) + "\n")
               output.write("CADDY_ACTION_CHECKOUT_MINUTES=" + str(math.ceil(checkout / 60)) + "\n")
               output.write("CADDY_ACTION_BUILDX_MINUTES=" + str(math.ceil((caps["SETUP"] - checkout) / 60)) + "\n")
@@ -656,39 +662,9 @@ jobs:
                       raise ValueError("Caddy native positive ID required")
                   return value
 
+              from scripts.ci.check_docker_runtime_dependency_surface import CADDY_RUN_HISTORY_PATH, _publisher_time, caddy_stable_pages
               def pages(path, key):
-                  observations = []
-                  for observation in range(2):
-                      rows, identities, total = [], set(), None
-                      for page in range(1, 101):
-                          separator = "&" if "?" in path else "?"
-                          response = api(path + separator + "per_page=100&page=" + str(page))
-                          count = response["total_count"]
-                          if type(count) is not int or not 0 <= count <= 10000 or not isinstance(response[key], list):
-                              raise ValueError("Caddy API inventory shape")
-                          if total is None:
-                              total = count
-                          expected_page_size = min(100, total - len(rows))
-                          if count != total or len(response[key]) != expected_page_size:
-                              raise ValueError("Caddy API inventory incomplete or changed")
-                          for row in response[key]:
-                              if not isinstance(row, dict):
-                                  raise ValueError("Caddy API row shape")
-                              identity = positive_id(row.get("id"))
-                              if identity in identities:
-                                  raise ValueError("Caddy duplicate API identity")
-                              identities.add(identity)
-                              rows.append(row)
-                          if len(rows) == total:
-                              observations.append(rows)
-                              break
-                      else:
-                          raise ValueError("Caddy API pagination bound")
-                  try:
-                      exact_data(observations[0], observations[1])
-                  except QualificationError:
-                      raise ValueError("Caddy API same-count inventory replacement") from None
-                  return observations[0]
+                  return caddy_stable_pages(api, path, key, remaining)
 
               from scripts.ci.check_docker_runtime_dependency_surface import caddy_bound_pr, caddy_owner_dispatch, caddy_repair_d_admitted
               pr = caddy_bound_pr(api, selected)
@@ -714,7 +690,7 @@ jobs:
               decision_name = "Decide source-qualified Caddy inventory and current native controls"
               # Historical PR2497 starts stay visible in the complete observed history.
               # Earlier starts do not authorize a build on the current PR.
-              runs = pages("/actions/workflows/frontend-ci.yml/runs?created=%3E%3D2026-10-28T00%3A00%3A00Z", "workflow_runs")
+              runs = pages(CADDY_RUN_HISTORY_PATH, "workflow_runs")
               spent, current_runs, current_jobs, candidates = [], [], [], []
               for run in runs:
                   if (run["repository"]["full_name"] != repo or positive_id(run["repository"]["id"]) != 1043311030
@@ -740,27 +716,38 @@ jobs:
                               raise ValueError("Caddy native build history incomplete")
                           if step["status"] in ("pending", "queued") and step["started_at"] is None and step["conclusion"] is None:
                               continue
-                          if step["conclusion"] == "skipped" and step["status"] == "completed" and step["started_at"] == step["completed_at"]:
-                              continue
+                          if step["conclusion"] == "skipped" and step["status"] == "completed":
+                              start, end = step["started_at"], step["completed_at"]
+                              if start is None and end is None:
+                                  continue
+                              if start is not None and end is not None and _publisher_time(start) == _publisher_time(end):
+                                  continue
                           if step["started_at"] is None:
                               raise ValueError("Caddy build start missing")
                           spent.append({"run": run["id"], "attempt": job["run_attempt"], "job": job["id"],
                                         "source": run["head_sha"], "branch": run["head_branch"], "step": step})
+                          if pr.get("publisher_repair") and job["run_attempt"] != 1:
+                              continue
                           if step["name"] != build_name or run["head_branch"] != branch:
                               continue
                           if run["id"] != state["current_run_id"] and job["status"] != "completed":
                               raise ValueError("Caddy another producer still active")
                           accepted = [value for value in job["steps"] if value["name"] == decision_name]
-                          if (run["event"] == "workflow_dispatch" and run["status"] == job["status"] == "completed"
-                                  and run["conclusion"] == job["conclusion"] == step["conclusion"] == "success"
-                                  and job["run_attempt"] == run["run_attempt"] == 1
-                                  and positive_id(run["head_repository"]["id"]) == 1043311030
-                                  and run["head_repository"]["full_name"] == repo and job["head_branch"] == branch
-                                  and (number == 2494 or (run["actor"]["login"] == repo.split("/")[0]
-                                       and run["actor"]["type"] == "User" and positive_id(run["triggering_actor"]["id"]) == positive_id(run["actor"]["id"])
-                                       and run["triggering_actor"]["login"] == run["actor"]["login"] and run["triggering_actor"]["type"] == "User"))
+                          producer_run = run
+                          if pr.get("publisher_repair") and job["run_attempt"] == 1 and run["run_attempt"] != 1:
+                              producer_run = api(f"/actions/runs/{run['id']}/attempts/1")
+                              exact_data([producer_run[k] for k in ("id","head_sha","head_branch","event","path","workflow_id","repository","head_repository")],
+                                         [run[k] for k in ("id","head_sha","head_branch","event","path","workflow_id","repository","head_repository")])
+                          if (producer_run["event"] == "workflow_dispatch" and producer_run["status"] == job["status"] == "completed"
+                                  and producer_run["conclusion"] == job["conclusion"] == step["conclusion"] == "success"
+                                  and job["run_attempt"] == producer_run["run_attempt"] == 1
+                                  and positive_id(producer_run["head_repository"]["id"]) == 1043311030
+                                  and producer_run["head_repository"]["full_name"] == repo and job["head_branch"] == branch
+                                  and (number == 2494 or (producer_run["actor"]["login"] == repo.split("/")[0]
+                                       and producer_run["actor"]["type"] == "User" and positive_id(producer_run["triggering_actor"]["id"]) == positive_id(producer_run["actor"]["id"])
+                                       and producer_run["triggering_actor"]["login"] == producer_run["actor"]["login"] and producer_run["triggering_actor"]["type"] == "User"))
                                   and len(accepted) == 1 and accepted[0]["status"] == "completed" and accepted[0]["conclusion"] == "success"):
-                              candidates.append((run, job, step))
+                              candidates.append((producer_run, job, step))
               state["observed_build_history"] = spent
               if len(current_runs) != 1 or len(current_jobs) != 1:
                   raise ValueError("Caddy current native run/job missing or ambiguous")
@@ -906,7 +893,19 @@ jobs:
                                   or positive_id(relation["head_repository_id"]) != 1043311030
                                   or relation["head_branch"] != run["head_branch"]):
                               raise ValueError("Caddy native artifact/run relationship differs")
-                      artifacts = [a for a in artifacts if a["name"] == "caddy-contract-evidence"]
+                      bound_repair = any(s["name"] == "Verify delegated publisher repair input" and s["conclusion"] == "success" for s in job["steps"])
+                      transport_steps = [s for s in job["steps"] if s["name"] == "Verify published repair evidence transport"]
+                      raw_repair = bound_repair and bool(transport_steps)
+                      if raw_repair and (len(transport_steps) != 1 or transport_steps[0]["status"] != "completed" or transport_steps[0]["conclusion"] != "success"):
+                          raise ValueError("Caddy original repair transport check failed")
+                      artifact_name = "caddy-contract-evidence.zip" if raw_repair else "caddy-contract-evidence"
+                      artifacts = [a for a in artifacts if a["name"] == artifact_name]
+                      if raw_repair:
+                          uploads = [s for s in job["steps"] if s["name"] == "Upload Caddy contract evidence"]
+                          if len(uploads) != 1 or uploads[0]["status"] != "completed" or uploads[0]["conclusion"] != "success":
+                              raise ValueError("Caddy original repair upload did not succeed")
+                          artifacts = [a for a in artifacts if _publisher_time(uploads[0]["started_at"])
+                                       <= _publisher_time(a["created_at"]) <= _publisher_time(transport_steps[0]["completed_at"])]
                       if not artifacts or (len(artifacts) == 1 and artifacts[0]["expired"] is True):
                           unavailable_artifact = True
                           continue
@@ -2721,19 +2720,82 @@ jobs:
       - name: Charge Upload Caddy contract evidence budget
         id: caddy-upload-budget
         if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet062-metadata') && (always()) }}
+        env:
+          CADDY_REPAIR_TRANSPORT: ${{ steps.caddy-admission.outputs.repair_dispatch == 'true' && steps.caddy-source-decision.outcome == 'success' }}
         run: |
           python3 - <<'PY'
-          import os
-          from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_charge_action
-          caddy_ci_charge_action("UPLOAD")
+          import json, os, time
+          from pathlib import Path
+          from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_charge_action, caddy_ci_phase, pack_caddy_repair_evidence
+          work = Path(os.environ["RUNNER_TEMP"])
+          target = work / "caddy-contract-evidence.zip"
+          packed = False
+          try:
+              if os.environ.get("CADDY_REPAIR_TRANSPORT") == "true":
+                  with caddy_ci_phase("RETENTION") as remaining:
+                      size, digest = pack_caddy_repair_evidence(work / "caddy-contract", target, time.monotonic() + remaining(float("inf")))
+                      packed = True
+                      state = json.loads((work / "caddy-admission/admission.json").read_bytes())
+                      horizon = state["publisher_repair"]["source_horizon"]
+              if packed:
+                  caddy_ci_charge_action("UPLOAD", int(os.environ["CADDY_PHASE_UPLOAD"]) - int(os.environ["CADDY_REPAIR_UPLOAD_VERIFY_SECONDS"]))
+              else:
+                  caddy_ci_charge_action("UPLOAD")
+              if packed:
+                  with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
+                      print("repair_zip=true", f"bytes={size}", f"digest={digest}", f"horizon={horizon}", sep="\n", file=output)
+          except BaseException as primary:
+              if packed:
+                  try:
+                      target.unlink()
+                  except OSError as cleanup:
+                      primary.add_note("Caddy ZIP cleanup failed: " + type(cleanup).__name__)
+              raise
           PY
 
       - name: Upload Caddy contract evidence
-        timeout-minutes: ${{ fromJSON(env.CADDY_ACTION_UPLOAD_MINUTES) }}
+        id: caddy-contract-upload
+        timeout-minutes: ${{ fromJSON(steps.caddy-upload-budget.outputs.repair_zip == 'true' && env.CADDY_ACTION_REPAIR_UPLOAD_MINUTES || env.CADDY_ACTION_UPLOAD_MINUTES) }}
         if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet062-metadata') && (always()) && steps.caddy-upload-budget.outcome == 'success' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
         with:
-          name: caddy-contract-evidence
-          path: ${{ runner.temp }}/caddy-contract
-          if-no-files-found: warn
-          retention-days: 30
+          name: ${{ steps.caddy-upload-budget.outputs.repair_zip == 'true' && 'caddy-contract-evidence.zip' || 'caddy-contract-evidence' }}
+          path: ${{ steps.caddy-upload-budget.outputs.repair_zip == 'true' && format('{0}/caddy-contract-evidence.zip', runner.temp) || format('{0}/caddy-contract', runner.temp) }}
+          archive: ${{ steps.caddy-upload-budget.outputs.repair_zip != 'true' }}
+          if-no-files-found: ${{ steps.caddy-upload-budget.outputs.repair_zip == 'true' && 'error' || 'warn' }}
+          retention-days: ${{ steps.caddy-upload-budget.outputs.repair_zip == 'true' && 90 || 30 }}
+
+      - name: Verify published repair evidence transport
+        if: ${{ always() && steps.caddy-upload-budget.outputs.repair_zip == 'true' }}
+        timeout-minutes: ${{ fromJSON(env.CADDY_ACTION_REPAIR_VERIFY_MINUTES) }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CADDY_UPLOADED_ID: ${{ steps.caddy-contract-upload.outputs.artifact-id }}
+          CADDY_UPLOADED_DIGEST: ${{ steps.caddy-contract-upload.outputs.artifact-digest }}
+          CADDY_UPLOAD_OUTCOME: ${{ steps.caddy-contract-upload.outcome }}
+          CADDY_REPAIR_ZIP_BYTES: ${{ steps.caddy-upload-budget.outputs.bytes }}
+          CADDY_REPAIR_ZIP_SHA256: ${{ steps.caddy-upload-budget.outputs.digest }}
+          CADDY_SOURCE_HORIZON: ${{ steps.caddy-upload-budget.outputs.horizon }}
+        run: |
+          python3 - <<'PY'
+          import json, os, re, sys
+          from pathlib import Path
+          from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_phase, caddy_ci_reader, verify_repair_evidence_upload
+          work = Path(os.environ["RUNNER_TEMP"])
+          try:
+              if os.environ["CADDY_UPLOAD_OUTCOME"] != "success" or not re.fullmatch(r"[1-9][0-9]{0,18}", os.environ["CADDY_UPLOADED_ID"]):
+                  raise ValueError("Caddy repair ZIP upload did not produce an artifact")
+              state = json.loads((work / "caddy-admission/admission.json").read_bytes())
+              with caddy_ci_phase("UPLOAD") as remaining, caddy_ci_reader(
+                  Path.cwd(), work / "caddy-admission/upload-verification", remaining,
+                  state["inputs"]["scripts/ci/prometheus_source_image.py"]["sha256"]) as read:
+                  verify_repair_evidence_upload(read("/actions/artifacts/" + os.environ["CADDY_UPLOADED_ID"]), dict(os.environ))
+          finally:
+              primary = sys.exc_info()[1]
+              try:
+                  (work / "caddy-contract-evidence.zip").unlink()
+              except OSError as error:
+                  if primary is None:
+                      raise
+                  primary.add_note("Caddy ZIP cleanup failed: " + type(error).__name__)
+          PY

@@ -1020,7 +1020,9 @@ def _publisher_source_files(
     return files
 
 
-def _publisher_input_source(read: Callable[[str], Any], b: str, k: str, w: str) -> dict[str, str]:
+def _publisher_input_source(
+    read: Callable[[str], Any], b: str, k: str, w: str, horizons: list[datetime] | None = None
+) -> dict[str, str]:
     """Bind both caller substitutions, original Q/S/C service records and independent BASE Compose subject."""
     import ast
     from scripts.ci.prometheus_source_image import require
@@ -1139,6 +1141,10 @@ def _publisher_input_source(read: Callable[[str], Any], b: str, k: str, w: str) 
             == 1043311030,
             "publisher_repair_original_artifact",
         )
+        expiry = _publisher_time(meta.get("expires_at"))
+        require(expiry > datetime.now(timezone.utc), "publisher_repair_original_artifact_expired")
+        if horizons is not None:
+            horizons.append(expiry)
         job_name = {
             "q": "alertmanager-module-qualification",
             "s": "alertmanager-input-inspection",
@@ -1215,11 +1221,25 @@ def _publisher_event() -> dict[str, Any]:
 def _publisher_time(value: Any) -> datetime:
     from scripts.ci.prometheus_source_image import require
 
-    require(
-        type(value) is str and re.fullmatch(_REPAIR_UTC, value) is not None,
-        "publisher_repair_native_timestamp",
+    # Python datetimes compare exactly to microseconds. Reject finer wire precision
+    # instead of silently truncating an authenticated chronology witness.
+    valid = (
+        isinstance(value, str)
+        and re.fullmatch(
+            r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])",
+            value,
+        )
+        and not value.endswith("-00:00")
     )
-    return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    require(bool(valid), "publisher_repair_native_timestamp")
+    try:
+        return datetime.fromisoformat(value).astimezone(timezone.utc)
+    except (ValueError, OverflowError) as error:
+        raise ValueError("publisher_repair_native_timestamp") from error
+
+
+def _publisher_utc(value: datetime) -> str:
+    return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def _publisher_live_dispatch(
@@ -1366,6 +1386,254 @@ _REPAIR_DECISION_STEP = "Decide source-qualified Caddy inventory and current nat
 _REPAIR_UPLOAD_STEP = "Upload Caddy contract evidence"
 
 
+_CADDY_REPAIR_ZIP_NAME = "caddy-contract-evidence.zip"
+_REPAIR_UPLOAD_CHECK = "Verify published repair evidence transport"
+
+
+def pack_caddy_repair_evidence(source: Path, target: Path, deadline: float) -> tuple[int, str]:
+    """Produce the actual single ZIP sent by the repair uploader, preserving logical paths and modes."""
+    from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
+    from scripts.ci.prometheus_source_image import (
+        check_deadline,
+        file_hash,
+        real_directory,
+        require,
+    )
+
+    real_directory(source)
+    real_directory(target.parent)
+    require(
+        target.name == _CADDY_REPAIR_ZIP_NAME and not target.is_relative_to(source),
+        "publisher_repair_transport_path",
+    )
+
+    def inventory() -> dict[str, os.stat_result]:
+        files: dict[str, os.stat_result] = {}
+        for leaf in source.rglob("*"):
+            check_deadline(deadline)
+            relative = leaf.relative_to(source)
+            if any(part.startswith(".") for part in relative.parts):
+                # Preserve the existing upload-artifact default for hidden evidence.
+                continue
+            info = leaf.lstat()
+            name = relative.as_posix()
+            require(
+                not leaf.is_symlink()
+                and name.isascii()
+                and "\\" not in name
+                and all(part not in ("", ".", "..") for part in name.split("/")),
+                "publisher_repair_transport_path",
+            )
+            if stat.S_ISDIR(info.st_mode):
+                continue
+            require(
+                stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and len(files) < 4096,
+                "publisher_repair_transport_member",
+            )
+            files[name] = info
+        require(bool(files), "publisher_repair_empty_transport")
+        return files
+
+    files = inventory()
+    with target.open("xb") as output:
+        try:
+            with ZipFile(output, "w", compression=ZIP_DEFLATED, compresslevel=6) as archive:
+                for name, info in sorted(files.items()):
+                    check_deadline(deadline)
+                    path = source / name
+                    member = ZipInfo(name)
+                    member.create_system = 3
+                    member.external_attr = info.st_mode << 16
+                    member.compress_type = ZIP_DEFLATED
+                    member.file_size = info.st_size
+                    with (
+                        os.fdopen(
+                            os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK), "rb"
+                        ) as stream,
+                        archive.open(member, "w") as sink,
+                    ):
+                        before = os.fstat(stream.fileno())
+                        require(
+                            (before.st_dev, before.st_ino, before.st_size, before.st_ctime_ns)
+                            == (info.st_dev, info.st_ino, info.st_size, info.st_ctime_ns),
+                            "publisher_repair_transport_source_drift",
+                        )
+                        for chunk in iter(lambda: stream.read(1024**2), b""):
+                            check_deadline(deadline)
+                            sink.write(chunk)
+                            require(
+                                output.tell() <= _REPAIR_ARCHIVE_MAX,
+                                "publisher_repair_zip_transport_bound",
+                            )
+            size = output.tell()
+            require(0 < size <= _REPAIR_ARCHIVE_MAX, "publisher_repair_zip_transport_bound")
+            after = inventory()
+            require(
+                after.keys() == files.keys()
+                and all(
+                    (a.st_dev, a.st_ino, a.st_size, a.st_ctime_ns, a.st_mode)
+                    == (
+                        files[n].st_dev,
+                        files[n].st_ino,
+                        files[n].st_size,
+                        files[n].st_ctime_ns,
+                        files[n].st_mode,
+                    )
+                    for n, a in after.items()
+                ),
+                "publisher_repair_transport_source_drift",
+            )
+            output.flush()
+            digest = file_hash(target, deadline, maximum_bytes=_REPAIR_ARCHIVE_MAX)
+        except BaseException as primary:
+            try:
+                target.unlink()
+            except OSError as cleanup:
+                primary.add_note("Caddy ZIP scratch cleanup also failed: " + type(cleanup).__name__)
+            raise
+    return size, digest
+
+
+def verify_repair_evidence_upload(artifact: dict[str, Any], env: dict[str, str]) -> None:
+    from scripts.ci.prometheus_source_image import require
+
+    relation = artifact.get("workflow_run")
+    size = env["CADDY_REPAIR_ZIP_BYTES"]
+    ident = env["CADDY_UPLOADED_ID"]
+    digest = env["CADDY_REPAIR_ZIP_SHA256"]
+    require(
+        re.fullmatch(_REPAIR_ID, ident) is not None
+        and type(artifact.get("id")) is int
+        and artifact["id"] == int(ident)
+        and re.fullmatch(_REPAIR_ID, size) is not None
+        and type(artifact.get("size_in_bytes")) is int
+        and artifact["size_in_bytes"] == int(size) <= _REPAIR_ARCHIVE_MAX
+        and re.fullmatch(r"[0-9a-f]{64}", digest) is not None
+        and env["CADDY_UPLOADED_DIGEST"] == digest
+        and artifact.get("digest") == "sha256:" + digest
+        and artifact.get("name") == _CADDY_REPAIR_ZIP_NAME
+        and artifact.get("expired") is False
+        and _publisher_time(artifact["expires_at"]) >= _publisher_time(env["CADDY_SOURCE_HORIZON"])
+        and type(relation) is dict
+        and relation.get("id") == int(env["GITHUB_RUN_ID"])
+        and env["GITHUB_RUN_ATTEMPT"] == "1"
+        and relation.get("head_sha") == env["GITHUB_SHA"]
+        and relation.get("repository_id") == relation.get("head_repository_id") == 1043311030,
+        "publisher_repair_uploaded_transport",
+    )
+
+
+def caddy_forward_run_lifecycle(
+    previous: list[dict[str, Any]], current: list[dict[str, Any]]
+) -> bool:
+    """A single bounded re-read is eligible only for forward lifecycle-only movement."""
+    from scripts.ci.prometheus_source_image import QualificationError, exact_data
+
+    allowed = {
+        "requested": {"queued", "pending", "waiting", "in_progress", "completed"},
+        "queued": {"in_progress", "completed"},
+        "waiting": {"queued", "in_progress", "completed"},
+        "pending": {"queued", "in_progress", "completed"},
+        "in_progress": {"completed"},
+        "completed": set(),
+    }
+    endings = {
+        "success",
+        "failure",
+        "cancelled",
+        "skipped",
+        "timed_out",
+        "neutral",
+        "action_required",
+        "stale",
+        "startup_failure",
+    }
+    fields = {"status", "conclusion", "updated_at"}
+    if len(previous) != len(current):
+        return False
+    try:
+        for old, new in zip(previous, current, strict=True):
+            exact_data(
+                {k: v for k, v in old.items() if k not in fields},
+                {k: v for k, v in new.items() if k not in fields},
+            )
+            for row in (old, new):
+                if row["status"] not in allowed or (
+                    (row["conclusion"] not in endings)
+                    if row["status"] == "completed"
+                    else row["conclusion"] is not None
+                ):
+                    return False
+            if _publisher_time(new["updated_at"]) < _publisher_time(old["updated_at"]):
+                return False
+            if old["status"] == new["status"]:
+                if old["conclusion"] != new["conclusion"]:
+                    return False
+            elif new["status"] not in allowed[old["status"]]:
+                return False
+        return True
+    except (QualificationError, KeyError, TypeError, ValueError):
+        return False
+
+
+CADDY_RUN_HISTORY_PATH = (
+    "/actions/workflows/frontend-ci.yml/runs?created=%3E%3D2026-10-28T00%3A00%3A00Z"
+)
+
+
+def caddy_stable_pages(
+    read: Callable[[str], Any], path: str, key: str, remaining: Callable[[float], float]
+) -> list[dict[str, Any]]:
+    """Consume only equal complete inventories; a run's forward lifecycle can request one third read."""
+    from scripts.ci.prometheus_source_image import QualificationError, exact_data
+
+    previous = None
+    for observation in range(3):
+        rows: list[dict[str, Any]] = []
+        identities: set[int] = set()
+        total = None
+        for page in range(1, 101):
+            remaining(1)
+            separator = "&" if "?" in path else "?"
+            response = read(path + separator + "per_page=100&page=" + str(page))
+            count = response["total_count"]
+            if type(count) is not int or not 0 <= count <= 10000 or type(response[key]) is not list:
+                raise ValueError("Caddy API inventory shape")
+            if total is None:
+                total = count
+            if count != total or len(response[key]) != min(100, total - len(rows)):
+                raise ValueError("Caddy API inventory incomplete or changed")
+            for row in response[key]:
+                if type(row) is not dict:
+                    raise ValueError("Caddy API row shape")
+                identity = row.get("id")
+                if type(identity) is not int or identity <= 0:
+                    raise ValueError("Caddy native positive ID required")
+                if identity in identities:
+                    raise ValueError("Caddy duplicate API identity")
+                identities.add(identity)
+                rows.append(row)
+            if len(rows) == total:
+                break
+        else:
+            raise ValueError("Caddy API pagination bound")
+        if previous is not None:
+            try:
+                exact_data(previous, rows)
+            except QualificationError:
+                if (
+                    observation != 1
+                    or path != CADDY_RUN_HISTORY_PATH
+                    or key != "workflow_runs"
+                    or not caddy_forward_run_lifecycle(previous, rows)
+                ):
+                    raise ValueError("Caddy API same-count inventory replacement") from None
+            else:
+                return rows
+        previous = rows
+    raise ValueError("Caddy API same-count inventory replacement")
+
+
 def _publisher_artifact_record(
     read: Callable[[str], Any],
     artifact: dict[str, Any],
@@ -1381,7 +1649,7 @@ def _publisher_artifact_record(
         type(ident) is int
         and ident > 0
         and re.fullmatch(_REPAIR_DIGEST, digest) is not None
-        and artifact["name"] == "caddy-contract-evidence"
+        and artifact["name"] == _CADDY_REPAIR_ZIP_NAME
         and artifact["expired"] is False
         and type(artifact["size_in_bytes"]) is int
         and 0 < artifact["size_in_bytes"] <= _REPAIR_ARCHIVE_MAX
@@ -1537,6 +1805,8 @@ def _publisher_artifact_record(
             "job",
             "started",
             "producer_run",
+            "source_horizon",
+            "expires",
         }
         keys.add("producer_head")
         if isinstance(data, dict) and data.get("action") == "contract":
@@ -1553,7 +1823,7 @@ def _publisher_artifact_record(
 
 
 def _publisher_dispatch_inventory(
-    read: Callable[[str], Any], pr: dict[str, Any], material: dict[str, str]
+    read: Callable[[str], Any], pr: dict[str, Any], material: dict[str, str], horizon: str
 ) -> list[dict[str, str]]:
     from scripts.ci.prometheus_source_image import exact_data, require
 
@@ -1572,24 +1842,33 @@ def _publisher_dispatch_inventory(
             "publisher_repair_complete_dispatch_inventory",
         )
         receipts = []
-        snapshot: list[Any] = [rows]
+        snapshot: list[Any] = [
+            [
+                {
+                    key: r[key]
+                    for key in (
+                        "id",
+                        "event",
+                        "path",
+                        "head_sha",
+                        "head_branch",
+                        "workflow_id",
+                        "repository",
+                        "head_repository",
+                    )
+                }
+                for r in rows
+            ]
+        ]
         for listed in rows:
-            if (
-                listed["head_branch"] != pr["head"]["ref"]
-                or listed["status"] != "completed"
-                or listed["conclusion"] != "success"
-            ):
-                continue
-            if not _publisher_account(listed["actor"]) or not _publisher_account(
-                listed["triggering_actor"]
-            ):
+            if listed["head_branch"] != pr["head"]["ref"]:
                 continue
             run_id = listed["id"]
             require(
                 type(run_id) is int
                 and run_id > 0
                 and type(listed["run_attempt"]) is int
-                and listed["run_attempt"] == 1,
+                and listed["run_attempt"] >= 1,
                 "publisher_repair_dispatch_first_attempt",
             )
             run, job = _publisher_attempt_job(
@@ -1599,23 +1878,20 @@ def _publisher_dispatch_inventory(
                 run["workflow_id"] == _REPAIR_CADDY_WORKFLOW
                 and all(
                     run[key] == listed[key]
-                    for key in (
-                        "id",
-                        "event",
-                        "path",
-                        "head_sha",
-                        "head_branch",
-                        "workflow_id",
-                        "status",
-                        "conclusion",
-                    )
-                )
-                and _publisher_account(run["actor"])
-                and _publisher_account(run["triggering_actor"]),
+                    for key in ("id", "event", "path", "head_sha", "head_branch", "workflow_id")
+                ),
                 "publisher_repair_terminal_run",
             )
             snapshot.append([run, job])
-            if job is None or job["status"] != "completed" or job["conclusion"] != "success":
+            if (
+                not _publisher_account(run["actor"])
+                or not _publisher_account(run["triggering_actor"])
+                or run["status"] != "completed"
+                or run["conclusion"] != "success"
+                or job is None
+                or job["status"] != "completed"
+                or job["conclusion"] != "success"
+            ):
                 continue
             steps = job["steps"]
             gates = [row for row in steps if row["name"] == _REPAIR_INPUT_STEP]
@@ -1627,18 +1903,45 @@ def _publisher_dispatch_inventory(
                 and gates[0]["conclusion"] == "success",
                 "publisher_repair_terminal_input_gate",
             )
+            start = _publisher_time(listed["created_at"])
+            complete = _publisher_time(job["completed_at"])
+            if complete >= start + _REPAIR_WINDOW:
+                continue
+            uploads = [step for step in steps if step["name"] == _REPAIR_UPLOAD_STEP]
+            transport = [step for step in steps if step["name"] == _REPAIR_UPLOAD_CHECK]
+            require(
+                len(uploads) == len(transport) == 1
+                and all(
+                    item["status"] == "completed" and item["conclusion"] == "success"
+                    for item in (uploads[0], transport[0])
+                ),
+                "publisher_repair_positive_native_step",
+            )
             artifacts = read(f"/actions/runs/{run_id}/artifacts?per_page=100&page=1")
             require(
                 type(artifacts["total_count"]) is int
                 and len(artifacts["artifacts"]) == artifacts["total_count"] <= 100,
                 "publisher_repair_complete_run_artifacts",
             )
-            snapshot.append(artifacts)
             found = [
-                row for row in artifacts["artifacts"] if row["name"] == "caddy-contract-evidence"
+                row
+                for row in artifacts["artifacts"]
+                if row["name"] == _CADDY_REPAIR_ZIP_NAME
+                and _publisher_time(uploads[0]["started_at"])
+                <= _publisher_time(row["created_at"])
+                <= _publisher_time(transport[0]["completed_at"])
             ]
+            snapshot.append(found)
             require(len(found) == 1, "publisher_repair_missing_native_artifact")
             record = _publisher_artifact_record(read, found[0], run, cache)
+            require(
+                _publisher_time(found[0].get("expires_at")) >= _publisher_time(horizon)
+                and _publisher_time(record.get("expires"))
+                == _publisher_time(record["started"]) + _REPAIR_WINDOW
+                and _publisher_time(found[0]["expires_at"])
+                >= _publisher_time(record.get("source_horizon")),
+                "publisher_repair_evidence_lifetime",
+            )
             action = record.get("action")
             require(
                 action in ("candidate-D", "contract")
@@ -1646,7 +1949,7 @@ def _publisher_dispatch_inventory(
                 and record.get("job") == str(job["id"])
                 and record.get("callers") == w
                 and record.get("pr") == str(pr["number"])
-                and record.get("started") == listed["created_at"],
+                and _publisher_time(record.get("started")) == _publisher_time(listed["created_at"]),
                 "publisher_repair_terminal_record_binding",
             )
             if action == "candidate-D":
@@ -1682,6 +1985,19 @@ def _publisher_dispatch_inventory(
                     "workflow_dispatch",
                 )
                 original_artifact = read("/actions/artifacts/" + record["producer_artifact"])
+                original_uploads = [
+                    step
+                    for step in (original_job or {}).get("steps", [])
+                    if step["name"] == _REPAIR_UPLOAD_STEP
+                ]
+                prepared_repair = any(
+                    step["name"] == _REPAIR_INPUT_STEP and step["conclusion"] == "success"
+                    for step in (original_job or {}).get("steps", [])
+                )
+                raw_transport = prepared_repair and any(
+                    step["name"] == _REPAIR_UPLOAD_CHECK
+                    for step in (original_job or {}).get("steps", [])
+                )
                 require(
                     original_job is not None
                     and earlier["head_branch"] == original_job["head_branch"] == pr["head"]["ref"]
@@ -1689,7 +2005,8 @@ def _publisher_dispatch_inventory(
                     and earlier["conclusion"] == original_job["conclusion"] == "success"
                     and _publisher_account(earlier["actor"])
                     and _publisher_account(earlier["triggering_actor"])
-                    and original_job["completed_at"] < listed["created_at"]
+                    and _publisher_time(original_job["completed_at"])
+                    < _publisher_time(listed["created_at"])
                     and all(
                         len(
                             [
@@ -1705,7 +2022,25 @@ def _publisher_dispatch_inventory(
                     )
                     and original_artifact["id"] == int(record["producer_artifact"])
                     and original_artifact["digest"] == record["producer_digest"]
-                    and original_artifact["name"] == "caddy-contract-evidence"
+                    and original_artifact["name"]
+                    == (_CADDY_REPAIR_ZIP_NAME if raw_transport else "caddy-contract-evidence")
+                    and len(original_uploads) == 1
+                    and _publisher_time(original_uploads[0]["started_at"])
+                    <= _publisher_time(original_artifact["created_at"])
+                    <= _publisher_time(original_job["completed_at"])
+                    and (
+                        not raw_transport
+                        or len(
+                            [
+                                step
+                                for step in original_job["steps"]
+                                if step["name"] == _REPAIR_UPLOAD_CHECK
+                                and step["status"] == "completed"
+                                and step["conclusion"] == "success"
+                            ]
+                        )
+                        == 1
+                    )
                     and original_artifact["expired"] is False
                     and original_artifact["workflow_run"]["id"] == prior_id
                     and original_artifact["workflow_run"]["head_sha"] == prior_head
@@ -1721,6 +2056,7 @@ def _publisher_dispatch_inventory(
                 *native,
                 _REPAIR_DECISION_STEP,
                 _REPAIR_UPLOAD_STEP,
+                _REPAIR_UPLOAD_CHECK,
             )
             selected = [r for r in steps if r["name"] in required]
             idle = [r for r in steps if r["name"] == alternative]
@@ -1734,8 +2070,7 @@ def _publisher_dispatch_inventory(
             complete = _publisher_time(job["completed_at"])
             cursor = _publisher_time(job["started_at"])
             require(
-                start <= _publisher_time(run["run_started_at"]) <= cursor
-                and cursor <= complete < start + _REPAIR_WINDOW,
+                start <= _publisher_time(run["run_started_at"]) <= cursor and cursor <= complete,
                 "publisher_repair_dispatch_window",
             )
             for step in selected:
@@ -1750,21 +2085,33 @@ def _publisher_dispatch_inventory(
                     cursor <= begin <= finish <= complete, "publisher_repair_positive_native_step"
                 )
                 cursor = finish
+            upload = selected[-2]
+            require(
+                _publisher_time(upload["started_at"])
+                <= _publisher_time(found[0]["created_at"])
+                <= _publisher_time(selected[-1]["completed_at"]),
+                "publisher_repair_original_uploaded_artifact",
+            )
             record.update(
                 created=job["completed_at"],
-                expires=(start + _REPAIR_WINDOW).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                expires=_publisher_utc(start + _REPAIR_WINDOW),
                 artifact=str(found[0]["id"]),
                 artifact_digest=found[0]["digest"],
             )
             receipts.append(record)
-        return snapshot, sorted(receipts, key=lambda r: (r["started"], r["run"]))
+        return snapshot, sorted(
+            receipts, key=lambda r: (_publisher_time(r["started"]), int(r["run"]))
+        )
 
     snapshot, first = observe()
     later, second = observe()
     exact_data(snapshot, later)
     exact_data(first, second)
     for old, new in zip(first, first[1:]):
-        require(old["expires"] <= new["started"], "publisher_repair_competing_dispatches")
+        require(
+            _publisher_time(old["expires"]) <= _publisher_time(new["started"]),
+            "publisher_repair_competing_dispatches",
+        )
     # Only after counting competing native choices is their original input compared to the expected subject.
     builds: set[str] = set()
     for receipt in first:
@@ -1791,7 +2138,10 @@ def publisher_repair_dispatch(
 
     base, controller, callers = publisher_repair_head(read, pr, historical=historical)
     _publisher_repair_material(read, base, controller)
-    accepted = _publisher_input_source(read, base, controller, callers)
+    horizons: list[datetime] = []
+    accepted = _publisher_input_source(read, base, controller, callers, horizons)
+    require(len(horizons) == 3, "publisher_repair_source_horizon")
+    horizon = _publisher_utc(min(horizons))
     require(subject is None or subject == accepted, "publisher_repair_independent_AM_subject")
     data = {
         "pr": str(pr["number"]),
@@ -1801,7 +2151,7 @@ def publisher_repair_dispatch(
         **accepted,
     }
     result = _publisher_live_dispatch(read, pr, data) if current_event else None
-    records = _publisher_dispatch_inventory(read, pr, data)
+    records = _publisher_dispatch_inventory(read, pr, data, horizon)
     fresh = read(f"/pulls/{pr['number']}")
     require(
         fresh["number"] == pr["number"]
@@ -1826,8 +2176,15 @@ def publisher_repair_dispatch(
 
         exact_data(result, _publisher_live_dispatch(read, pr, data))
         require(
-            not records or records[-1]["expires"] <= result["started"],
+            not records
+            or _publisher_time(records[-1]["expires"]) <= _publisher_time(result["started"]),
             "publisher_repair_active_read_window",
+        )
+        result["source_horizon"] = horizon
+        result["expires"] = _publisher_utc(_publisher_time(result["started"]) + _REPAIR_WINDOW)
+        require(
+            datetime.now(timezone.utc) < _publisher_time(result["expires"]),
+            "publisher_repair_dispatch_window_elapsed",
         )
         prior = [r for r in records if r["action"] == "candidate-D"]
         if result["action"] == "candidate-D":
@@ -1837,7 +2194,7 @@ def publisher_repair_dispatch(
     if historical:
         failure = None
         for receipt in reversed(records):
-            if receipt["created"] >= pr["merged_at"]:
+            if _publisher_time(receipt["created"]) >= _publisher_time(pr["merged_at"]):
                 continue
             try:
                 publisher_repair_completed_reads(read, pr, receipt)
@@ -1912,17 +2269,19 @@ def publisher_repair_run(
             for key in ("id", "event", "head_sha", "head_branch", "workflow_id", "path")
         )
         and original["repository"]["id"] == original["head_repository"]["id"] == 1043311030
-        and grant["created"] < original["created_at"] <= run["run_started_at"],
+        and _publisher_time(grant["created"])
+        < _publisher_time(original["created_at"])
+        <= _publisher_time(run["run_started_at"]),
         "publisher_repair_original_event_after_dispatch",
     )
     require(
         matched is not None
         and run["status"] == matched["status"] == "in_progress"
-        and re.fullmatch(_REPAIR_UTC, matched["started_at"]) is not None
-        and re.fullmatch(_REPAIR_UTC, run["run_started_at"]) is not None
-        and grant["created"] < run["run_started_at"] <= matched["started_at"]
+        and _publisher_time(grant["created"])
+        < _publisher_time(run["run_started_at"])
+        <= _publisher_time(matched["started_at"])
         and (
-            matched["started_at"] < grant["expires"]
+            _publisher_time(matched["started_at"]) < _publisher_time(grant["expires"])
             or (
                 operation == "push"
                 and ref == "refs/heads/main"
@@ -2019,16 +2378,14 @@ def _publisher_original_pr(
     from urllib.parse import urlencode
     from scripts.ci.prometheus_source_image import require
 
-    if any(
-        not isinstance(t, str) or re.fullmatch(_REPAIR_UTC, t) is None
-        for t in (pr["created_at"], run["created_at"], pr["merged_at"])
-    ):
-        return False
+    original_created = _publisher_time(run["created_at"])
     entries = run["pull_requests"]
     if (
         type(entries) is not list
         or run["head_branch"] != pr["head"]["ref"]
-        or not pr["created_at"] <= run["created_at"] <= pr["merged_at"]
+        or not _publisher_time(pr["created_at"])
+        <= original_created
+        <= _publisher_time(pr["merged_at"])
     ):
         return False
 
@@ -2073,8 +2430,8 @@ def _publisher_original_pr(
         for r in rows
         if r["head"]["repo"]["id"] == 1043311030
         and r["head"]["ref"] == run["head_branch"]
-        and r["created_at"] <= run["created_at"]
-        and (r["closed_at"] is None or run["created_at"] <= r["closed_at"])
+        and _publisher_time(r["created_at"]) <= original_created
+        and (r["closed_at"] is None or original_created <= _publisher_time(r["closed_at"]))
     ]
     return len(possible) == 1 and matches(possible[0])
 
@@ -2085,7 +2442,7 @@ def publisher_repair_completed_reads(
     """Require both native PR job receipts from a permitted, pre-merge source and grant window."""
     from scripts.ci.prometheus_source_image import require
 
-    end = min(pr["merged_at"], grant["expires"])
+    end = min(_publisher_time(pr["merged_at"]), _publisher_time(grant["expires"]))
     for (workflow, job), required_steps in _REPAIR_NATIVE_STEPS.items():
         proven = False
         for head in dict.fromkeys((pr["head"]["sha"], grant["callers"])):
@@ -2139,19 +2496,12 @@ def publisher_repair_completed_reads(
                     )
                     if not _publisher_original_pr(read, pr, grant, candidate, head):
                         continue
-                    started, job_start, completed = (
-                        run["run_started_at"],
-                        receipt["started_at"],
-                        receipt["completed_at"],
-                    )
-                    if not all(
-                        isinstance(t, str) and re.fullmatch(_REPAIR_UTC, t)
-                        for t in (started, job_start, completed)
-                    ):
-                        continue
+                    started = _publisher_time(run["run_started_at"])
+                    job_start = _publisher_time(receipt["started_at"])
+                    completed = _publisher_time(receipt["completed_at"])
                     if (
-                        not grant["created"]
-                        < candidate["created_at"]
+                        not _publisher_time(grant["created"])
+                        < _publisher_time(candidate["created_at"])
                         <= started
                         <= job_start
                         <= completed
@@ -2164,11 +2514,10 @@ def publisher_repair_completed_reads(
                     if [row["name"] for row in selected_steps] == list(required_steps) and all(
                         step["status"] == "completed"
                         and step["conclusion"] == "success"
-                        and isinstance(step["started_at"], str)
-                        and isinstance(step["completed_at"], str)
-                        and re.fullmatch(_REPAIR_UTC, step["started_at"])
-                        and re.fullmatch(_REPAIR_UTC, step["completed_at"])
-                        and job_start <= step["started_at"] <= step["completed_at"] <= completed
+                        and job_start
+                        <= _publisher_time(step["started_at"])
+                        <= _publisher_time(step["completed_at"])
+                        <= completed
                         for step in selected_steps
                     ):
                         proven = True
@@ -4059,12 +4408,57 @@ def caddy_ci_api(
         return get(endpoint)
 
 
+def require_caddy_build_window(state: dict[str, Any]) -> None:
+    """Prove remaining time through a usable upload before the irreversible build charge."""
+    from scripts.ci.prometheus_source_image import require
+
+    receipt = state.get("publisher_repair")
+    if not receipt:
+        return
+    budget = state["budget"]
+    expiry = _publisher_time(receipt["started"]) + _REPAIR_WINDOW
+    require(expiry == _publisher_time(receipt["expires"]), "publisher_repair_absolute_expiry")
+    now = datetime.now(timezone.utc)
+    # Setup and compiler/metadata preparation have completed. The remaining named phases
+    # include the late source checks, controls, actual ZIP, upload and configured safety reserve.
+    phases = (
+        "ADMISSION",
+        "PROCESSING",
+        "BUILD",
+        "CAPTURE",
+        "RUNTIME_CONFIG",
+        "OFFICIAL_PULL",
+        "SOURCE16",
+        "FINAL_SUBJECT",
+        "SCANNER_BOOTSTRAP",
+        "RUNTIME",
+        "FIXTURE",
+        "SCANS",
+        "REPORT_BINDINGS",
+        "CONVERSION",
+        "CONTROL_CLEANUP",
+        "RETENTION",
+        "UPLOAD",
+        "SAFETY",
+    )
+    left = sum(int(os.environ["CADDY_PHASE_" + name]) - budget["charged"][name] for name in phases)
+    job_left = budget["started"] + budget["seconds"] - time.monotonic()
+    require(
+        left > 0
+        and left <= job_left
+        and now + timedelta(microseconds=math.ceil(left * 1000000)) < expiry,
+        "publisher_repair_build_usable_window",
+    )
+
+
 def caddy_ci_charge_action(phase: str, seconds: int | None = None) -> int:
     """Debit one existing action ceiling before its independently timed invocation."""
     with caddy_ci_phase(phase) as remaining:
         available = remaining(float("inf"))
         state_path = Path(os.environ["RUNNER_TEMP"]) / "caddy-admission/admission.json"
         state = json.loads(state_path.read_bytes())
+        if phase == "BUILD" and state.get("mode") == "build":
+            require_caddy_build_window(state)
         cap = int(os.environ["CADDY_PHASE_" + phase]) if seconds is None else seconds
         if type(cap) is not int or cap <= 0 or available < cap - 0.05:
             raise ValueError("Caddy complete action ceiling is unavailable: " + phase)

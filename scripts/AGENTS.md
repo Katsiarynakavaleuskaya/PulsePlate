@@ -270,20 +270,30 @@ authorized operator supplies `candidate-D` and the technical
 `caddy_source_sha` operand `repair-v1:<W>:<binding SHA-256>`. Derive the
 operand with `publisher_repair_input` on the independently inspected PR,
 B/K/W, Q/S/C, candidate ZIP, manifest and selected action. The owner-account
-event, job and original inputs identify the technical invocation. A fresh
-build consumes the existing attempt-one budget. Its checked decision and
-retained artifact must match the source and digest before other jobs use it.
+event, job and original inputs identify the technical invocation. Read the
+original attempt-one job when a later rerun exists. Before starting the
+build, verify that the remaining work through upload and cleanup fits both
+the job deadline and the 24-hour dispatch window.
 
-After a successful dispatch, use a subsequent supported pull-request event
-on the same material for the CI lint and CD native reads. Verify the
-original event, attempt, selected job and completed native steps. The window
-ends 24 hours after the original dispatch was created. If a new window is
-needed on identical W, use the existing `contract` action to import the
-qualified original D. Check the original artifact and full Caddy input
-inventory. For a changed repair, inspect and publish the new K/W and bind a
-fresh technical operation to its material. CI may use the direct mapping-only
-successor when its source meets the same rules. Historical admission requires
-the verified original CI and CD reads before expiry and merge.
+A build start spends W’s build allowance. If the build starts and the run
+ends without a qualifying retained artifact, preserve the failed job and
+stop build attempts on W. A new build requires a reviewed material
+correction and a separately bound dispatch. When admission stops before
+the build starts, preserve the skipped build step and diagnose the failed
+condition before another invocation.
+
+After successful artifact verification, use a subsequent supported PR
+event on the same material for the CI and CD native reads. Check the
+original event, attempt, job and completed steps. The 24-hour window starts
+at the original dispatch creation. An authentic `contract` import can open
+a later window on unchanged W while the qualified original D is available.
+Verify its digest and the complete matching Caddy input inventory. A repair
+uploads one prepacked `caddy-contract-evidence.zip` and checks GitHub’s
+artifact ID, size, SHA-256 and expiry. The existing by-ID downloader extracts
+its original member paths. The original Q/S/C expiry times bound the period
+for which the retained subject is available. Historical
+qualification requires the original CI and CD reads before expiry and merge.
+The direct mapping-only successor is eligible under the same source checks.
 
 ## Retained Alertmanager consumer admission
 

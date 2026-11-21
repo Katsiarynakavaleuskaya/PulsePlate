@@ -2641,7 +2641,20 @@ def test_caddy_full_observation_preserves_blocking_scan_and_exact_conditions() -
         upload["if"]
         == "${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet062-metadata') && (always()) && steps.caddy-upload-budget.outcome == 'success' }}"
     )
-    assert upload["with"]["path"] == "${{ runner.temp }}/caddy-contract"
+    selected = "steps.caddy-upload-budget.outputs.repair_zip == 'true'"
+    assert upload["with"]["path"] == (
+        "${{ "
+        + selected
+        + " && format('{0}/caddy-contract-evidence.zip', runner.temp) || format('{0}/caddy-contract', runner.temp) }}"
+    )
+    assert (
+        upload["with"]["name"]
+        == "${{ " + selected + " && 'caddy-contract-evidence.zip' || 'caddy-contract-evidence' }}"
+    )
+    assert (
+        upload["with"]["archive"] == "${{ steps.caddy-upload-budget.outputs.repair_zip != 'true' }}"
+    )
+    assert upload["with"]["retention-days"] == "${{ " + selected + " && 90 || 30 }}"
     assert (
         _step_index(steps, "Scan hardened Caddy shell image")
         < _step_index(steps, "Prepare same-epoch full Caddy observation")
@@ -6910,6 +6923,20 @@ def test_caddy_job_budget_is_complete_and_owned_only_by_existing_job() -> None:
     )
     assert caps["COMPILER_WORK"] == 1200 and caps["COMPILER_CLEANUP"] == 120
     assert caps["RUNTIME"] == 15 * 60 and caps["FIXTURE"] == 14 * 60 + 180 + 30
+    upload = _named_step(_steps(job), "Upload Caddy contract evidence")
+    receipt = _named_step(_steps(job), "Verify published repair evidence transport")
+    charge = _named_step(_steps(job), "Charge Upload Caddy contract evidence budget")
+    assert caps["UPLOAD"] == 600 and int(job["env"]["CADDY_REPAIR_UPLOAD_VERIFY_SECONDS"]) == 60
+    assert (
+        upload["timeout-minutes"]
+        == "${{ fromJSON(steps.caddy-upload-budget.outputs.repair_zip == 'true' && env.CADDY_ACTION_REPAIR_UPLOAD_MINUTES || env.CADDY_ACTION_UPLOAD_MINUTES) }}"
+    )
+    assert receipt["timeout-minutes"] == "${{ fromJSON(env.CADDY_ACTION_REPAIR_VERIFY_MINUTES) }}"
+    assert (
+        'caddy_ci_charge_action("UPLOAD", int(os.environ["CADDY_PHASE_UPLOAD"]) - int(os.environ["CADDY_REPAIR_UPLOAD_VERIFY_SECONDS"]))'
+        in charge["run"]
+    )
+    assert 'caddy_ci_phase("UPLOAD")' in receipt["run"]
     assert caps["SAFETY"] == 270 and "TERMINATION" not in caps
     steps = _steps(job)
     for step in steps:
@@ -7807,6 +7834,17 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
                 },
             ],
         }
+        if case == "reuse":
+            prior_job["steps"].append(
+                {
+                    "number": 23,
+                    "name": "Build accepted D Caddy candidate once",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "started_at": "2026-10-31T00:29:01.123Z",
+                    "completed_at": "2026-10-30T17:29:01.123000-07:00",
+                }
+            )
         runs.append(prior)
         jobs[12] = [prior_job]
         if case in {
@@ -8109,6 +8147,8 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
         assert reader_events == ["open", "closed"]
         assert output.read_text().startswith("mode=" + mode)
         if mode == "reuse":
+            if case == "reuse":
+                assert [h["step"]["name"] for h in result["observed_build_history"]] == [build_name]
             assert result["producer"]["git_inputs"] == result["inputs"]
             assert result["producer"]["artifact"]["id"] == 31
             assert any(f"/pulls/{number}/commits?" in url for url in calls)

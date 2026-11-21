@@ -17950,9 +17950,16 @@ def test_publisher_repair_routes_only_the_designated_read(
             "native_job",
         ]
     else:
-        with pytest.raises(QualificationError, match="AM_repair_"):
+        diagnostic = {
+            "absent": "AM_repair_qualifying_dispatch_required",
+            "ordinary": "AM_repair_distinct_maintenance_PR",
+            "manifest": "AM_repair_exact_accepted_subject",
+            "original-S": "AM_repair_exact_accepted_subject",
+            "wrong-job": "AM_repair_read_operation",
+        }[fault]
+        with pytest.raises(QualificationError, match="^" + diagnostic + "$"):
             route()
-        assert "native_job" not in events
+        assert events == (["topology"] if fault == "wrong-job" else [])
     if fault == "ordinary":
         monkeypatch.delenv("ALERTMANAGER_REPAIR_PIN_CHANGED")
         assert route()["mode"] == "ordinary_published_PR"
