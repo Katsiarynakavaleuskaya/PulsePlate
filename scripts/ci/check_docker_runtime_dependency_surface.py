@@ -618,11 +618,14 @@ def _caddy_xnet062_profile(
 
 CADDY_ORIGINAL_BRANCH = "codex/dependency-alertmanager-remediation"
 CADDY_TRANSITION_BRANCH = "codex/alertmanager-controller-transition"
+CADDY_COPY_BRANCH = "codex/alertmanager-oras-copy-fix"
+CADDY_COPY_BASE = "29c1eeaf2ab32d36abe00718e7fdd9e8db861dca"
 CADDY_PR_NUMBERS: dict[str, int | None] = {
     "codex/cab07c-eslint-pages-features": 2484,
     CADDY_ORIGINAL_BRANCH: 2494,
     "codex/npm-braces-build-prerequisite": 2495,
-    CADDY_TRANSITION_BRANCH: None,
+    CADDY_TRANSITION_BRANCH: 2501,
+    CADDY_COPY_BRANCH: None,
 }
 CADDY_REPOSITORY = "Katsiarynakavaleuskaya/PulsePlate"
 
@@ -663,6 +666,7 @@ def caddy_bound_pr(api: Callable[[str], Any], selected: str) -> dict[str, Any]:
         if branch not in CADDY_PR_NUMBERS:
             raise ValueError("Caddy source branch is not designated")
         expected_number = CADDY_PR_NUMBERS[branch]
+        listed = None
         if expected_number is None:
             # Two records already prove ambiguity. One complete first page binds the only candidate.
             query = urlencode(
@@ -678,7 +682,10 @@ def caddy_bound_pr(api: Callable[[str], Any], selected: str) -> dict[str, Any]:
                 raise ValueError("Caddy transition PR lookup is ambiguous")
             if not rows:
                 continue
-            expected_number = rows[0]["number"]
+            listed = rows[0]
+            if not isinstance(listed, dict):
+                raise ValueError("Caddy transition PR identity differs")
+            expected_number = listed.get("number")
             if (
                 type(expected_number) is not int
                 or expected_number <= 0
@@ -701,6 +708,12 @@ def caddy_bound_pr(api: Callable[[str], Any], selected: str) -> dict[str, Any]:
             if not merged or merge_sha != selected:
                 continue
         records = [event["pull_request"], pr] if kind == "pull_request" else [pr]
+        if listed is not None:
+            if listed.get("state") != pr["state"] or any(
+                listed.get(side, {}).get("sha") != pr[side].get("sha") for side in ("head", "base")
+            ):
+                raise ValueError("Caddy corrective PR listing changed")
+            records.append(listed)
         for record in records:
             try:
                 exact_data(record["number"], expected_number)
@@ -716,6 +729,26 @@ def caddy_bound_pr(api: Callable[[str], Any], selected: str) -> dict[str, Any]:
                 raise ValueError("Caddy PR source head is invalid")
             if kind != "push" and (record["state"] != "open" or source != selected):
                 raise ValueError("Caddy current authenticated PR source changed")
+        if branch == CADDY_COPY_BRANCH:
+            if kind == "push":
+                if event.get("before") != CADDY_COPY_BASE:
+                    raise ValueError("Caddy corrective main parent differs")
+            else:
+                main = api("/git/ref/heads/main")
+                if (
+                    any(record["base"].get("sha") != CADDY_COPY_BASE for record in records)
+                    or main.get("ref") != "refs/heads/main"
+                    or main.get("object", {}).get("type") != "commit"
+                    or main["object"].get("sha") != CADDY_COPY_BASE
+                    or (
+                        kind == "pull_request"
+                        and (
+                            type(event.get("number")) is not int
+                            or event["number"] != expected_number
+                        )
+                    )
+                ):
+                    raise ValueError("Caddy corrective PR base or event differs")
         matches.append(pr)
     if len(matches) != 1:
         raise ValueError("Caddy observation requires one exact accepted PR or main merge")

@@ -18421,14 +18421,17 @@ def test_alertmanager_2495_only_the_two_regular_compose_images(fault: str | None
         "altered-caller",
         "wrong-mapping",
         "wrong-workflow",
+        "synthetic-merge",
+        "synthetic-wrong-base",
         "nonbytes-git",
         "null-parents",
         "nonstr-parent",
         "boolean-pr",
     ],
 )
+@pytest.mark.parametrize("corrective", [False, True])
 def test_alertmanager_transition_binds_real_git_successor(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: str
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: str, corrective: bool
 ) -> None:
     git = shutil.which("git")
     assert git is not None
@@ -18459,8 +18462,14 @@ def test_alertmanager_transition_binds_real_git_successor(
     command("init", "-q")
     (repo / "policy").write_text("frozen\n")
     base = commit("base")
-    monkeypatch.setattr(alertmanager_source, "_ALERT_TRANSITION_BASE", base)
-    incumbent = alertmanager_source._ALERT_INCUMBENT_CONTROLLER
+    monkeypatch.setattr(
+        alertmanager_source, "_ALERT_COPY_BASE" if corrective else "_ALERT_TRANSITION_BASE", base
+    )
+    incumbent = (
+        alertmanager_source._ALERT_COPY_INCUMBENT
+        if corrective
+        else alertmanager_source._ALERT_INCUMBENT_CONTROLLER
+    )
     for name in alertmanager_source._ALERT_CALLERS:
         file = repo / name
         file.parent.mkdir(parents=True, exist_ok=True)
@@ -18496,7 +18505,29 @@ def test_alertmanager_transition_binds_real_git_successor(
         "GITHUB_WORKFLOW_REF",
         "Katsiarynakavaleuskaya/PulsePlate/.github/workflows/ci.yml@refs/pull/17/merge",
     )
-    monkeypatch.setenv("GITHUB_WORKFLOW_SHA", base if case == "wrong-workflow" else head)
+    workflow_sha = base if case == "wrong-workflow" else head
+    if case in ("synthetic-merge", "synthetic-wrong-base"):
+        first_parent = base if case == "synthetic-merge" else controller
+        workflow_sha = (
+            command(
+                "-c",
+                "user.name=Example",
+                "-c",
+                "user.email=example@example.invalid",
+                "commit-tree",
+                head + "^{tree}",
+                "-p",
+                first_parent,
+                "-p",
+                head,
+                "-m",
+                "GitHub PR test merge",
+            )
+            .decode()
+            .strip()
+        )
+        assert workflow_sha != head
+    monkeypatch.setenv("GITHUB_WORKFLOW_SHA", workflow_sha)
 
     class API:
         private = tmp_path
@@ -18524,14 +18555,17 @@ def test_alertmanager_transition_binds_real_git_successor(
                 return "malformed native output"
             return subprocess.run(argv, env=environment, check=True, capture_output=True).stdout
 
-    if case in ("pins", "mapping"):
-        alertmanager_source._alertmanager_transition_successor(API(), repo, head, controller, 17)
+    if case in ("pins", "mapping", "synthetic-merge"):
+        alertmanager_source._alertmanager_transition_successor(
+            API(), repo, head, controller, 17, corrective=corrective
+        )
     else:
         diagnostic = {
             "extra": "AM_transition_only_two_callers",
             "altered-caller": "AM_transition_exact_caller_pin",
             "wrong-mapping": "AM_transition_closeout_only",
             "wrong-workflow": "AM_transition_executing_tree",
+            "synthetic-wrong-base": "AM_transition_executing_tree",
             "nonbytes-git": "AM_transition_native_Git_bytes",
             "null-parents": "AM_transition_direct_parent",
             "nonstr-parent": "AM_transition_direct_parent",
@@ -18539,7 +18573,12 @@ def test_alertmanager_transition_binds_real_git_successor(
         }[case]
         with pytest.raises(prometheus_source.QualificationError, match=diagnostic):
             alertmanager_source._alertmanager_transition_successor(
-                API(), repo, head, controller, True if case == "boolean-pr" else 17
+                API(),
+                repo,
+                head,
+                controller,
+                True if case == "boolean-pr" else 17,
+                corrective=corrective,
             )
 
 
@@ -18630,3 +18669,215 @@ def test_alertmanager_transition_merge_proves_distant_native_ancestry(
     (root / ".git/info/grafts").write_text(f"{head} {base}\n")
     with pytest.raises(prometheus_source.QualificationError, match="^AM_ancestry_grafts$"):
         alertmanager_source._alertmanager_native_ancestor(api, root, base, head)
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "no-closeout",
+        "old-failure",
+        "wrong-parent",
+        "different-tree",
+        "wrong-mapping",
+        "wrong-pin",
+        "matching-foreign-pin",
+        "wrong-executing-PR",
+        "approved-executing-PR",
+        "unbound-content",
+        "symlink-final-caller",
+        "extra-W-file",
+        "wrong-controller-mode",
+        "wrong-owner",
+        "no-PR",
+        "two-PRs",
+        "reserved",
+        "stale-list",
+        "stale-publisher",
+    ],
+)
+def test_corrective_squash_preserves_controller_callers_and_original_producer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str | None
+) -> None:
+    """A deleted topic branch after squash still has authenticated PR commits and trees."""
+    source = alertmanager_source
+    base = source._ALERT_COPY_BASE
+    controller, pins, final, merged, publisher = (c * 40 for c in "12345")
+    repo = {"id": 1043311030, "full_name": prometheus_source.GHCR_REPOSITORY}
+    number = 2495 if fault == "reserved" else 1729
+    mapping = f"docs/review/PR_{number}_FIXED_MAPPING.md"
+    pr = {
+        "number": number,
+        "state": "closed",
+        "merged": True,
+        "merge_commit_sha": base if fault == "old-failure" else merged,
+        "head": {
+            "sha": pins if fault == "no-closeout" else final,
+            "ref": source._ALERT_COPY_BRANCH,
+            "repo": repo,
+        },
+        "base": {"ref": "main", "sha": base, "repo": repo},
+    }
+    reader_pr = fault in ("wrong-executing-PR", "approved-executing-PR")
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request" if reader_pr else "push")
+    monkeypatch.setenv("GITHUB_REF", "refs/pull/2495/merge" if reader_pr else "refs/heads/main")
+    monkeypatch.setenv("GITHUB_SHA", publisher)
+    monkeypatch.setenv(
+        "ALERTMANAGER_CONTROLLER_SOURCE",
+        controller if fault == "approved-executing-PR" else publisher,
+    )
+    foreign = "9" * 40
+    before = f"  ALERTMANAGER_CONTROLLER_SOURCE: '{source._ALERT_COPY_INCUMBENT}'\n".encode()
+    after = before.replace(source._ALERT_COPY_INCUMBENT.encode(), controller.encode())
+
+    def blob(data: bytes) -> str:
+        return hashlib.sha1(
+            b"blob " + str(len(data)).encode() + b"\0" + data, usedforsecurity=False
+        ).hexdigest()
+
+    callers = dict.fromkeys(source._ALERT_CALLERS, after)
+    if fault == "wrong-pin":
+        callers[source._ALERT_CALLERS[0]] = before
+    elif fault == "matching-foreign-pin":
+        callers = dict.fromkeys(
+            source._ALERT_CALLERS, after.replace(controller.encode(), foreign.encode())
+        )
+
+    trees = {}
+    for tree, raw in (("a" * 40, before), ("b" * 40, after), ("c" * 40, after)):
+        trees[tree] = {p: ("100644", blob(raw)) for p in source._ALERT_CALLERS}
+    for entries in trees.values():
+        entries["scripts/ci/fetch_docker_source_artifacts.py"] = (
+            "100644",
+            blob(b"reviewed publisher"),
+        )
+    trees["c" * 40][mapping] = ("100644", blob(b"mapping"))
+    if fault == "wrong-mapping":
+        trees["c" * 40]["unrelated"] = ("100644", blob(b"extra"))
+    for tree in ("b" * 40, "c" * 40):
+        for path, raw in callers.items():
+            trees[tree][path] = ("100644", blob(raw))
+        if fault == "symlink-final-caller":
+            trees[tree][source._ALERT_CALLERS[0]] = ("120000", blob(after))
+    if fault == "extra-W-file":
+        for tree in ("b" * 40, "c" * 40):
+            trees[tree]["extra"] = ("100644", blob(b"extra"))
+    if fault == "wrong-controller-mode":
+        trees["a" * 40][source._ALERT_CALLERS[0]] = ("120000", blob(before))
+    head_tree = "b" * 40 if fault == "no-closeout" else "c" * 40
+    commits = {
+        publisher: (head_tree, merged),
+        controller: ("a" * 40, base),
+        pins: ("b" * 40, controller),
+        final: ("c" * 40, pins),
+        merged: (
+            "d" * 40 if fault == "different-tree" else head_tree,
+            publisher if fault == "wrong-parent" else base,
+        ),
+    }
+    required_edges = {
+        (source._ALERT_TRANSITION_BASE, base),
+        (base, merged),
+        (merged, publisher),
+    }
+    seen: list[tuple[str, str]] = []
+
+    def ancestor(api: Any, root: Path, a: str, b: str) -> None:
+        assert root == tmp_path
+        assert (a, b) in required_edges
+        if fault == "stale-publisher" and a == merged:
+            raise RuntimeError("publisher predates correction")
+        seen.append((a, b))
+
+    monkeypatch.setattr(source, "_alertmanager_native_ancestor", ancestor)
+
+    class API:
+        def json(self, endpoint: str) -> Any:
+            path = endpoint.removeprefix("/repos/" + prometheus_source.GHCR_REPOSITORY)
+            if path.startswith("/pulls?"):
+                assert (
+                    path
+                    == "/pulls?state=all&head=Katsiarynakavaleuskaya%3Acodex%2Falertmanager-oras-copy-fix&base=main&per_page=2"
+                )
+                if fault == "no-PR":
+                    return []
+                if fault == "two-PRs":
+                    return [pr, pr]
+                listed = dict(pr)
+                if fault == "wrong-owner":
+                    listed["head"] = {**pr["head"], "repo": {**repo, "full_name": "foreign/fork"}}
+                if fault == "stale-list":
+                    listed["head"] = {**pr["head"], "sha": "9" * 40}
+                return [listed]
+            if path == f"/pulls/{number}":
+                return pr
+            if path == "/pulls/2501":
+                return {
+                    **pr,
+                    "number": 2501,
+                    "head": {**pr["head"], "ref": source._ALERT_TRANSITION_BRANCH},
+                    "merge_commit_sha": base,
+                }
+            if path == f"/compare/{base}...{foreign}":
+                return {"status": "diverged"}
+            if path == f"/compare/{base}...{controller}":
+                return {
+                    "base_commit": {"sha": base},
+                    "merge_base_commit": {"sha": base},
+                    "status": "ahead",
+                    "behind_by": 0,
+                    "total_commits": 1,
+                    "ahead_by": 1,
+                    "commits": [{"sha": controller, "parents": [{"sha": base}]}],
+                }
+            revision = path.rsplit("/", 1)[1]
+            if path.startswith("/git/commits/"):
+                tree, parent = commits[revision]
+                return {"sha": revision, "tree": {"sha": tree}, "parents": [{"sha": parent}]}
+            if path.startswith("/git/trees/"):
+                tree = revision.removesuffix("?recursive=1")
+                return {
+                    "sha": tree,
+                    "truncated": False,
+                    "tree": [
+                        {"path": k, "type": "blob", "mode": m, "sha": oid}
+                        for k, (m, oid) in trees[tree].items()
+                    ],
+                }
+            name = path.removeprefix("/contents/").removesuffix("?ref=" + merged)
+            raw = before if fault == "unbound-content" else callers[name]
+            assert name in source._ALERT_CALLERS
+            return {
+                "type": "file",
+                "path": name,
+                "encoding": "base64",
+                "size": len(raw),
+                "sha": blob(raw),
+                "content": base64.b64encode(raw).decode(),
+            }
+
+    if fault in (None, "no-closeout", "approved-executing-PR"):
+        source._alertmanager_copy_merge(API(), tmp_path, publisher)
+        assert set(seen) == required_edges
+    else:
+        diagnostic = {
+            "old-failure": "AM_corrective_merged_PR_and_controller",
+            "wrong-parent": "AM_corrective_exact_squash",
+            "different-tree": "AM_corrective_exact_squash",
+            "wrong-mapping": "AM_corrective_final_mapping_only",
+            "wrong-pin": "AM_corrective_matching_merged_pins",
+            "matching-foreign-pin": "native_ancestor_relation",
+            "wrong-executing-PR": "AM_corrective_PR_executing_controller",
+            "unbound-content": "AM_corrective_merged_caller_pin",
+            "symlink-final-caller": "AM_corrective_merged_caller_pin",
+            "extra-W-file": "AM_corrective_two_exact_caller_pins",
+            "wrong-controller-mode": "AM_corrective_original_pin",
+            "wrong-owner": "AM_corrective_native_PR_binding",
+            "no-PR": "AM_corrective_unique_PR",
+            "two-PRs": "AM_corrective_unique_PR",
+            "reserved": "AM_corrective_PR_number",
+            "stale-list": "AM_corrective_native_PR_binding",
+            "stale-publisher": "publisher predates correction",
+        }
+        with pytest.raises(RuntimeError, match=diagnostic[fault]):
+            source._alertmanager_copy_merge(API(), tmp_path, publisher)

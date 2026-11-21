@@ -952,6 +952,16 @@ def _am_fixture_transition_git(monkeypatch: pytest.MonkeyPatch, head: str) -> No
         assert root.is_absolute() and descendant == head
         assert ancestor in (head, docker_sources._ALERT_TRANSITION_BASE)
 
+    def corrective(api: Any, root: Path, publisher: str) -> None:
+        assert publisher == head
+        assert (
+            docker_sources._alertmanager_merged_ref(
+                api, docker_sources._ALERT_TRANSITION_BRANCH, publisher, root, number=2501
+            )
+            == head
+        )
+
+    monkeypatch.setattr(docker_sources, "_alertmanager_copy_merge", corrective)
     monkeypatch.setattr(docker_sources, "_alertmanager_native_ancestor", observed)
 
 
@@ -15315,14 +15325,43 @@ def test_alertmanager_real_publisher_body_holds_effects_and_retains_observed_wri
                 credential = self.private / "config/registry/config.json"
                 credential.write_text('{"auths":{}}')
                 credential.chmod(0o600)
-            elif "--from-oci-layout" in argv:
-                events.append("copy")
-                if fault == "copy":
-                    raise RuntimeError("controlled-copy-failure")
-                self.copied = True
-            elif "--to-oci-layout" in argv:
-                events.append("pullback")
-                (output / "pullback").mkdir()
+            elif "--from-oci-layout" in argv or "--to-oci-layout" in argv:
+                digest = graph["manifest"]["digest"]
+                package = "ghcr.io/katsiarynakavaleuskaya/pulseplate"
+                prefix = [str(output / "prepare-inputs/oras"), "cp"]
+                config = str(self.private / "config/registry/config.json")
+                assert kwargs == {
+                    "environment": {
+                        "PATH": "/usr/bin:/bin",
+                        "HOME": str(self.private / "home"),
+                        "DOCKER_CONFIG": str(self.private / "config/registry"),
+                        "LANG": "C.UTF-8",
+                    }
+                }
+                if "--from-oci-layout" in argv:
+                    assert argv == [
+                        *prefix,
+                        "--to-registry-config",
+                        config,
+                        "--from-oci-layout",
+                        str(output / "prepare-inputs/candidate/layout") + "@" + digest,
+                        package + ":alertmanager-0.34.2-" + digest.removeprefix("sha256:"),
+                    ]
+                    events.append("copy")
+                    if fault == "copy":
+                        raise RuntimeError("controlled-copy-failure")
+                    self.copied = True
+                else:
+                    assert argv == [
+                        *prefix,
+                        "--from-registry-config",
+                        config,
+                        "--to-oci-layout",
+                        package + "@" + digest,
+                        str(output / "pullback") + ":pullback",
+                    ]
+                    events.append("pullback")
+                    (output / "pullback").mkdir()
             else:
                 raise AssertionError(argv)
             return b""
@@ -15912,6 +15951,7 @@ def test_alertmanager_payload_C_H_scope_reaches_binary_owner_only_with_exact_bin
         "footer",
         "squash-ancestry",
         "ambiguous",
+        "rerun",
         "missing-UI",
         "malformed-UI",
     ],
@@ -16221,12 +16261,21 @@ def test_alertmanager_current_durable_predecessor_requires_complete_H_publicatio
             if endpoint.endswith("/actions/artifacts/100"):
                 return {"digest": "sha256:" + sha256(producer_zip).hexdigest()}
             return {
-                "total_count": 2 if fault == "ambiguous" and "status=success" in endpoint else 1
+                "total_count": (
+                    (3 if fault == "ambiguous" else 2) if "status=success" in endpoint else 1
+                )
             }
 
         def pages(self, endpoint: str, key: str, count: int) -> list[dict[str, Any]]:
             if "status=success" in endpoint:
-                return [run, {**run, "id": 67}] if fault == "ambiguous" else [run]
+                old = {
+                    **run,
+                    "id": 44832808636,
+                    "head_sha": docker_sources._ALERT_COPY_BASE,
+                    "conclusion": "failure",
+                }
+                current = {**run, "run_attempt": 2 if fault == "rerun" else 1}
+                return [old, current, {**run, "id": 67}] if fault == "ambiguous" else [old, current]
             if endpoint.endswith("/artifacts"):
                 run_id = int(endpoint.split("/runs/")[1].split("/")[0])
                 return (
@@ -16337,6 +16386,7 @@ def test_alertmanager_current_durable_predecessor_requires_complete_H_publicatio
             "missing-H": "controlled-required-H-authentication-HOLD",
             "producer-failed": "controlled-required-H-authentication-HOLD",
             "publisher-failed": "AM_positive_publication_predecessor_missing",
+            "rerun": "AM_positive_publication_predecessor_missing",
             "material-tree": "AM_current_H_complete_material_tree_HOLD",
             "material-member": "AM_H_material_all_tracked_members",
             "H-scope": "AM_current_full_H_native_scope",
@@ -17647,3 +17697,102 @@ def test_alertmanager_062_accepted_live_scan_rejects_crossed_compiler_context(
             upstream_version="0.34.2",
             compiler_artifact=source_image.RETAINED_GO,
         )
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "reused-branch",
+        "reserved",
+        "fork-event",
+        "stale-head",
+        "moved-base",
+        "wrong-ref",
+        "wrong-event-number",
+        "wrong-original-merge",
+        "wrong-transition-merge",
+    ],
+)
+def test_alertmanager_corrective_retained_route_requires_exact_open_subject(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str | None
+) -> None:
+    from argparse import Namespace
+
+    base, head, controller = docker_sources._ALERT_COPY_BASE, "7" * 40, "8" * 40
+    repo = {"id": 1043311030, "full_name": "Katsiarynakavaleuskaya/PulsePlate"}
+    number = 2495 if fault == "reserved" else 1729
+    branch = docker_sources._ALERT_COPY_BRANCH
+    pr = {
+        "number": number,
+        "state": "open",
+        "merged": False,
+        "head": {"ref": branch, "sha": head, "repo": dict(repo)},
+        "base": {"ref": "main", "sha": base, "repo": dict(repo)},
+    }
+    event = {"number": number, "repository": dict(repo), "pull_request": deepcopy(pr)}
+    if fault == "fork-event":
+        event["pull_request"]["head"]["repo"]["full_name"] = "other/PulsePlate"
+    if fault == "wrong-event-number":
+        event["pull_request"]["number"] = True
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
+    monkeypatch.setenv(
+        "GITHUB_REF", "refs/heads/main" if fault == "wrong-ref" else f"refs/pull/{number}/merge"
+    )
+    monkeypatch.setattr(docker_sources, "_alertmanager_upstream_identity", lambda **kw: "0.34.2")
+    monkeypatch.setattr(docker_sources, "_alertmanager_original_lineage", lambda *_: "0.34.2")
+
+    class API:
+        def json(self, endpoint: str) -> Any:
+            if endpoint.endswith("/git/ref/heads/main"):
+                return {"object": {"sha": head if fault == "moved-base" else base}}
+            if endpoint.endswith("/git/ref/heads/" + branch):
+                return {
+                    "ref": "refs/heads/" + branch,
+                    "object": {"type": "commit", "sha": base if fault == "stale-head" else head},
+                }
+            if "/pulls?" in endpoint:
+                return [pr, pr] if fault == "reused-branch" else [pr]
+            assert endpoint.endswith(f"/pulls/{number}")
+            return pr
+
+    def merged(api: Any, source_branch: str, rev: str, root: Path, *, number: int) -> str:
+        assert root == tmp_path and rev == base
+        if number == 2501:
+            assert source_branch == docker_sources._ALERT_TRANSITION_BRANCH
+            return head if fault == "wrong-transition-merge" else base
+        assert number == 2494 and source_branch == docker_sources._ALERT_Q_BRANCH
+        return head if fault == "wrong-original-merge" else docker_sources._ALERT_TRANSITION_BASE
+
+    calls = []
+
+    def topology(api: Any, root: Path, source: str, k: str, n: int, *, corrective: bool) -> None:
+        calls.append((root, source, k, n, corrective))
+
+    monkeypatch.setattr(docker_sources, "_alertmanager_merged_ref", merged)
+    monkeypatch.setattr(docker_sources, "_alertmanager_transition_successor", topology)
+    args = Namespace(
+        source_sha=head, material_root=tmp_path, alertmanager_controller_source=controller
+    )
+
+    def invoke() -> dict[str, Any]:
+        return docker_sources._alertmanager_reader_route(API(), args, event, tmp_path, 100)
+
+    if fault is None:
+        assert invoke() == {
+            "mode": "transition_PR_retained",
+            "upstream_version": "0.34.2",
+            "pr": number,
+            "head": head,
+            "base": base,
+        }
+        assert calls == [(tmp_path, head, controller, number, True)]
+    else:
+        marker = {
+            "reused-branch": "AM_corrective_unique_PR",
+            "reserved": "AM_corrective_PR_number",
+            "moved-base": "AM_actual_same_repository_open_PR",
+        }.get(fault, "AM_corrective_original_lineage_and_base")
+        with pytest.raises(RuntimeError, match=marker):
+            invoke()
+        assert calls == []
