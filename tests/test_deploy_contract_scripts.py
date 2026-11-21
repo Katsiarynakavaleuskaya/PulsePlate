@@ -4465,7 +4465,12 @@ def test_prometheus_cd_uses_authenticated_finite_consumer_and_retains_strict_sca
         assert "Prometheus_control_interface_HOLD" in program
     assert "historical_pr_candidate" in consumer["run"]
     assert 'trusted["one_object"](raw).get("admission")' in consumer["run"]
-    assert job["permissions"] == {"contents": "read", "actions": "read", "packages": "read"}
+    assert job["permissions"] == {
+        "contents": "read",
+        "actions": "read",
+        "packages": "read",
+        "pull-requests": "read",
+    }
     assert "environment" not in job
     assert job["env"] == {
         "PROMETHEUS_CONSUME_SECONDS": "900",
@@ -16431,6 +16436,7 @@ def test_alertmanager_current_four_controls_live_steps_are_in_same_trusted_consu
             assert job["permissions"] == {
                 "contents": "read",
                 "actions": "read",
+                "pull-requests": "read",
                 "packages": "read",
             }
             steps = job["steps"]
@@ -16535,7 +16541,7 @@ def test_prometheus_cd_separates_pr_and_staging_without_duplicating_steps() -> N
     assert (
         pr["permissions"]
         == trusted["permissions"]
-        == {"contents": "read", "actions": "read", "packages": "read"}
+        == {"contents": "read", "actions": "read", "packages": "read", "pull-requests": "read"}
     )
     assert gate["permissions"] == {}
     assert "environment" not in gate
@@ -18057,6 +18063,164 @@ def test_alertmanager_current_support_transport_is_complete(
 
 
 @pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "one-over",
+        "empty",
+        "expired",
+        "digest",
+        "other-run",
+        "other-source",
+        "foreign",
+        "other-name",
+        "wrong-id",
+    ],
+)
+def test_alertmanager_requires_actual_completed_S_upload(fault: str | None) -> None:
+    source = "1" * 40
+    env = {
+        "GITHUB_RUN_ID": "22",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "AM_ARTIFACT_ID": "33",
+        "AM_ARTIFACT_DIGEST": "a" * 64,
+        "GITHUB_SHA": source,
+    }
+    record = {
+        "id": 34 if fault == "wrong-id" else 33,
+        "expired": fault == "expired",
+        "size_in_bytes": (
+            0
+            if fault == "empty"
+            else alertmanager_source._ALERT_S_ARCHIVE_BYTES + int(fault == "one-over")
+        ),
+        "digest": "sha256:" + ("b" if fault == "digest" else "a") * 64,
+        "name": "other" if fault == "other-name" else "alertmanager-input-inspection-22-1",
+        "workflow_run": {
+            "id": 23 if fault == "other-run" else 22,
+            "head_sha": "2" * 40 if fault == "other-source" else source,
+            "repository_id": 1043311030,
+            "head_repository_id": 7 if fault == "foreign" else 1043311030,
+        },
+    }
+    if fault is None:
+        alertmanager_source._alertmanager_support_upload(record, env)
+    else:
+        with pytest.raises(
+            prometheus_source.QualificationError, match="AM_support_uploaded_archive_identity"
+        ):
+            alertmanager_source._alertmanager_support_upload(record, env)
+
+
+@pytest.mark.parametrize(
+    "name,minimum,maximum,diagnostic",
+    [
+        ("native-support/trivy-cache/db/trivy.db", 1, 1856 * 1024**2, "DB_size"),
+        ("native-support/trivy", 0, 192 * 1024**2, "native_size"),
+        ("native-support/artifact-payload-members.json", 1, 2 * 1024**2, "size"),
+        ("native-support/evidence/native-report.json", 0, 16 * 1024**2, "native_size"),
+        ("github-read-evidence/GitHub-1.stdout", 0, 16 * 1024**2, "API_size"),
+        ("input-inspection.json", 1, 2 * 1024**2, "inspection_size"),
+    ],
+)
+def test_alertmanager_support_file_resource_boundaries(
+    name: str, minimum: int, maximum: int, diagnostic: str
+) -> None:
+    budget = alertmanager_source._alertmanager_support_sizes
+    assert budget([(name, minimum)]) == minimum
+    assert budget([(name, maximum)]) == maximum
+    with pytest.raises(prometheus_source.QualificationError, match="size"):
+        budget([(name, minimum - 1)])
+    with pytest.raises(prometheus_source.QualificationError, match=diagnostic):
+        budget([(name, maximum + 1)])
+
+
+def test_alertmanager_support_accounts_for_all_four_classes_and_shared_space() -> None:
+    budget = alertmanager_source._alertmanager_support_sizes
+    mib = 1024**2
+    # Two admitted class limits can fill the independent expanded ceiling.
+    db = ("native-support/trivy-cache/db/trivy.db", 1856 * mib)
+    native = [("native-support/a", 192 * mib), ("native-support/b", 192 * mib - 3)]
+    footer = ("native-support/artifact-payload-members.json", 1)
+    api = ("github-read-evidence/GitHub-1.stdout", 1)
+    inspection = ("input-inspection.json", 1)
+    files = [db, *native, footer, api, inspection]
+    assert budget(files, complete=True) == 2240 * mib
+    for omitted in (db, footer, api, inspection):
+        with pytest.raises(prometheus_source.QualificationError, match="required_classes"):
+            budget((row for row in files if row != omitted), complete=True)
+    for extra, diagnostic in (
+        (("native-support/c", 1), "AM_support_size"),
+        (("native-support/c", 4), "AM_support_native_size"),
+        (db, "AM_support_DB_size"),
+        (("other", 0), "AM_support_inspection_size"),
+        (("github-read-evidence/other", 0), "AM_support_inspection_size"),
+    ):
+        with pytest.raises(prometheus_source.QualificationError, match=diagnostic):
+            budget([*files, extra], complete=True)
+    api_sizes = [(f"github-read-evidence/GitHub-{i}.stdout", 16 * mib) for i in (1, 2)]
+    assert budget(api_sizes) == 32 * mib
+    with pytest.raises(prometheus_source.QualificationError, match="API_size"):
+        budget([*api_sizes, ("github-read-evidence/GitHub-3.stdout", 1)])
+
+
+def test_alertmanager_support_member_counts_and_disk_reserve(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    budget = alertmanager_source._alertmanager_support_sizes
+    native = [(f"native-support/file-{i}", 0) for i in range(256)]
+    api = [(f"github-read-evidence/GitHub-{i+1}.stdout", 0) for i in range(768)]
+    assert budget(native + api) == 0
+    for members, extra, diagnostic in (
+        (native, ("native-support/extra", 0), "native_size"),
+        (api, ("github-read-evidence/GitHub-769.stderr", 0), "API_size"),
+        (native + api, ("input-inspection.json", 1), "AM_support_size"),
+    ):
+        with pytest.raises(prometheus_source.QualificationError, match=diagnostic):
+            budget([*members, extra])
+    current = shutil.disk_usage(tmp_path)
+    required = 8192
+    free_at_boundary = required + alertmanager_source._ALERT_S_FREE_RESERVE
+    for free in (free_at_boundary, free_at_boundary - 1):
+        monkeypatch.setattr(shutil, "disk_usage", lambda _: current._replace(free=free))
+        if free == free_at_boundary:
+            alertmanager_source._alertmanager_support_space(tmp_path, required)
+        else:
+            with pytest.raises(prometheus_source.QualificationError, match="AM_support_free_space"):
+                alertmanager_source._alertmanager_support_space(tmp_path, required)
+
+
+def test_alertmanager_support_bounds_zip_metadata_without_restricting_member_reads(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Force a real ZIP64 end record, including its locator, without a multi-GiB fixture.
+    monkeypatch.setattr(zipfile, "ZIP64_LIMIT", 1024)
+    path = tmp_path / "S.zip"
+    payload_size = 2 * 1024**2
+    with zipfile.ZipFile(path, "w") as producer:
+        producer.comment = b"valid uploader comment"
+        with producer.open("payload", "w", force_zip64=True) as member:
+            member.write(b"a" * payload_size)
+    with alertmanager_source._AlertmanagerSupportZipStream(io.FileIO(path, "rb")) as source:
+        with pytest.raises(prometheus_source.QualificationError, match="AM_support_ZIP_directory"):
+            source.read()
+        with zipfile.ZipFile(source) as archive:
+            assert archive.comment == b"valid uploader comment"
+            source.reading_directory = False
+            assert archive.read("payload") == b"a" * payload_size
+    bad_path = tmp_path / "oversized-directory.zip"
+    with zipfile.ZipFile(bad_path, "w") as producer:
+        for index in range(20):
+            producer.writestr(str(index) + "x" * 60000, b"")
+    with (
+        alertmanager_source._AlertmanagerSupportZipStream(io.FileIO(bad_path, "rb")) as source,
+        pytest.raises(prometheus_source.QualificationError, match="AM_support_ZIP_directory"),
+        zipfile.ZipFile(source),
+    ):
+        pytest.fail("an oversized ZIP directory was allocated")
+
+
+@pytest.mark.parametrize(
     "hook,job,accepted", [(60, 190, True), (40, 190, False), (60, 189, False), (60, 170, False)]
 )
 def test_alertmanager_ci_lint_budget_preserves_native_caps(
@@ -18429,10 +18593,13 @@ def test_alertmanager_2495_only_the_two_regular_compose_images(fault: str | None
         "boolean-pr",
     ],
 )
-@pytest.mark.parametrize("corrective", [False, True])
+@pytest.mark.parametrize("profile", ["transition", "corrective", "owner-first", "owner-second"])
 def test_alertmanager_transition_binds_real_git_successor(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: str, corrective: bool
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: str, profile: str
 ) -> None:
+    corrective = profile == "corrective"
+    designated = profile.startswith("owner-")
+    number = 29 if profile == "owner-second" else 17
     git = shutil.which("git")
     assert git is not None
     repo = tmp_path / "repository"
@@ -18461,10 +18628,6 @@ def test_alertmanager_transition_binds_real_git_successor(
 
     command("init", "-q")
     (repo / "policy").write_text("frozen\n")
-    base = commit("base")
-    monkeypatch.setattr(
-        alertmanager_source, "_ALERT_COPY_BASE" if corrective else "_ALERT_TRANSITION_BASE", base
-    )
     incumbent = (
         alertmanager_source._ALERT_COPY_INCUMBENT
         if corrective
@@ -18475,6 +18638,7 @@ def test_alertmanager_transition_binds_real_git_successor(
         file.parent.mkdir(parents=True, exist_ok=True)
         file.write_text(f"  ALERTMANAGER_CONTROLLER_SOURCE: '{incumbent}'\n")
     for name in (
+        "scripts/ci/check_docker_runtime_dependency_surface.py",
         "scripts/ci/prometheus_source_image.py",
         "scripts/ops/notify_premium_alias_checkpoint_failure.py",
         "tests/__init__.py",
@@ -18483,6 +18647,15 @@ def test_alertmanager_transition_binds_real_git_successor(
         fixture = repo / name
         fixture.parent.mkdir(parents=True, exist_ok=True)
         fixture.write_text("reviewed native dependency\n")
+    base = commit("base")
+    monkeypatch.setattr(
+        alertmanager_source, "_ALERT_COPY_BASE" if corrective else "_ALERT_TRANSITION_BASE", base
+    )
+    if designated:
+        command("checkout", "-b", "maintenance-a" if number == 17 else "another-owner-ref")
+    (repo / "scripts/ci/check_docker_runtime_dependency_surface.py").write_text(
+        "reviewed repair control: " + profile
+    )
     controller = commit("controller")
     for name in alertmanager_source._ALERT_CALLERS:
         file = repo / name
@@ -18492,18 +18665,19 @@ def test_alertmanager_transition_binds_real_git_successor(
     if case == "altered-caller":
         file.write_text(file.read_text() + "# altered caller\n")
     head = commit("pin controller")
+    grant = {"base": base, "controller": controller, "callers": head} if designated else None
     if case in ("mapping", "wrong-mapping"):
         mapping = (
             repo
             / "docs/review"
-            / ("PR_17_FIXED_MAPPING.md" if case == "mapping" else "PR_18_FIXED_MAPPING.md")
+            / (f"PR_{number}_FIXED_MAPPING.md" if case == "mapping" else "PR_18_FIXED_MAPPING.md")
         )
         mapping.parent.mkdir(parents=True)
         mapping.write_text("closeout\n")
         head = commit("mapping")
     monkeypatch.setenv(
         "GITHUB_WORKFLOW_REF",
-        "Katsiarynakavaleuskaya/PulsePlate/.github/workflows/ci.yml@refs/pull/17/merge",
+        f"Katsiarynakavaleuskaya/PulsePlate/.github/workflows/ci.yml@refs/pull/{number}/merge",
     )
     workflow_sha = base if case == "wrong-workflow" else head
     if case in ("synthetic-merge", "synthetic-wrong-base"):
@@ -18557,7 +18731,7 @@ def test_alertmanager_transition_binds_real_git_successor(
 
     if case in ("pins", "mapping", "synthetic-merge"):
         alertmanager_source._alertmanager_transition_successor(
-            API(), repo, head, controller, 17, corrective=corrective
+            API(), repo, head, controller, number, corrective=corrective, grant=grant
         )
     else:
         diagnostic = {
@@ -18577,8 +18751,9 @@ def test_alertmanager_transition_binds_real_git_successor(
                 repo,
                 head,
                 controller,
-                True if case == "boolean-pr" else 17,
+                True if case == "boolean-pr" else number,
                 corrective=corrective,
+                grant=grant,
             )
 
 
@@ -18791,6 +18966,13 @@ def test_corrective_squash_preserves_controller_callers_and_original_producer(
 
     monkeypatch.setattr(source, "_alertmanager_native_ancestor", ancestor)
 
+    def history(api: Any, root: Path, start: str, end: str, active: str) -> str:
+        assert root == tmp_path and start == merged and end == publisher
+        # The real first-parent recognizer has separate immutable Git fixtures.
+        return active
+
+    monkeypatch.setattr(source, "_alertmanager_publisher_history", history)
+
     class API:
         def json(self, endpoint: str) -> Any:
             path = endpoint.removeprefix("/repos/" + prometheus_source.GHCR_REPOSITORY)
@@ -18881,3 +19063,517 @@ def test_corrective_squash_preserves_controller_callers_and_original_producer(
         }
         with pytest.raises(RuntimeError, match=diagnostic[fault]):
             source._alertmanager_copy_merge(API(), tmp_path, publisher)
+
+
+def _exercise_publisher_history(
+    root: Path,
+    overlay: dict[str, tuple[bytes, bytes]],
+    *,
+    fault: str | None = None,
+    cab_workflow: tuple[bytes, bytes] = (b"prior frontend CI", b"CAB ordinary web lint"),
+) -> dict[str, str]:
+    """Replay exact supplied #2495 bytes, unrelated main material and a second owner-designated repair."""
+    from scripts.ci.prometheus_source_image import GHCR_REPOSITORY
+
+    source = alertmanager_source
+    git = shutil.which("git")
+    assert git is not None
+    root.mkdir()
+
+    def cmd(*args: str, data: bytes | None = None) -> bytes:
+        env = git_env_without_parent_state()
+        env.update(
+            GIT_AUTHOR_NAME="Native fixture",
+            GIT_COMMITTER_NAME="Native fixture",
+            GIT_AUTHOR_EMAIL="git@example.invalid",
+            GIT_COMMITTER_EMAIL="git@example.invalid",
+        )
+        return subprocess.run(
+            [git, *safe_git_config_args(), "-C", str(root), *args],
+            input=data,
+            capture_output=True,
+            check=True,
+            env=env,
+        ).stdout
+
+    def commit(msg: str) -> str:
+        cmd("add", ".")
+        cmd("commit", "-qm", msg)
+        return cmd("rev-parse", "HEAD").decode().strip()
+
+    def write(name: str, raw: bytes) -> None:
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(raw)
+
+    cmd("init", "-q")
+    callers = source._ALERT_CALLERS
+    synthetic_pin = "a" * 40
+    raw_callers = (
+        f"  ALERTMANAGER_CONTROLLER_SOURCE: '{synthetic_pin}'\n"
+        "--alertmanager-qualification-run 43808505545 --alertmanager-qualification-artifact 14199242996\n"
+        "--alertmanager-support-run 43810186398 --alertmanager-support-artifact 14200227448\n"
+    ).encode()
+    for path in callers:
+        write(path, raw_callers)
+    for path, (old, _) in overlay.items():
+        write(path, old)
+    helper = "scripts/ci/fetch_docker_source_artifacts.py"
+    write(helper, b"independently checked first repair")
+    write(".github/workflows/frontend-ci.yml", cab_workflow[0])
+    publisher = commit("First repair publication source")
+    incumbent = (
+        re.search(
+            rb"ALERTMANAGER_CONTROLLER_SOURCE: '([0-9a-f]{40})'", (root / callers[0]).read_bytes()
+        )
+        .group(1)
+        .decode()
+    )
+    for path, (_, new) in overlay.items():
+        write(path, new)
+    n = commit("Exact #2495 projected squash")
+    # Native Git builds 300 unrelated first-parent commits in one local process.
+    branch = "refs/heads/long-lived-main-fixture"
+    changes = []
+    churn_path = helper if fault == "protected-overflow" else "ordinary.txt"
+    previous = n
+    for index in range(300):
+        body = f"ordinary file change {index}".encode()
+        changes.append(
+            f"commit {branch}\nmark :{index+1}\ncommitter Native Fixture <git@example.invalid> 1770000000 +0000\ndata 7\nchurned\nfrom {previous}\nM 100644 inline {churn_path}\ndata {len(body)}\n".encode()
+            + body
+            + b"\n"
+        )
+        previous = ":" + str(index + 1)
+    cmd("fast-import", "--quiet", data=b"".join(changes) + b"done\n")
+    cmd("checkout", "-q", "--detach", branch)
+    if fault == "edit-revert":
+        original = (root / helper).read_bytes()
+        write(helper, b"unapproved intermediate controller")
+        changed = commit("Unapproved protected edit")
+        write(helper, original)
+        reverted = commit("Revert to identical protected input")
+    if fault in ("protected-merge", "second-parent-only"):
+        first = cmd("rev-parse", "HEAD").decode().strip()
+        write(helper, b"side branch changes protected material")
+        side = commit("Side change")
+        merged = (
+            cmd(
+                "commit-tree",
+                side + "^{tree}",
+                "-p",
+                first,
+                "-p",
+                side,
+                "-m",
+                "Merge side material",
+            )
+            .decode()
+            .strip()
+        )
+        cmd("checkout", "-q", "--detach", merged)
+    write("ordinary.txt", b"independent change")
+    descendant = commit("Unrelated main commit")
+    corrected = fault in ("corrected-same-pr", "old-native-only", "same-pr-stale-grant")
+    if corrected:
+        write(helper, b"first reviewed iteration on the second maintenance PR")
+        k1 = commit("K1 before review correction")
+        for path in callers:
+            write(path, (root / path).read_bytes().replace(incumbent.encode(), k1.encode()))
+        w1 = commit("W1 before review correction")
+        for path in callers:
+            write(path, (root / path).read_bytes().replace(k1.encode(), incumbent.encode()))
+    write(
+        helper,
+        b"second independently reviewed controller" if fault != "missing" else b"unauthorized",
+    )
+    write("docs/security/CVE-2026-84445-alertmanager.md", b"reviewed historical qualification note")
+    if fault in ("mixed-squash", "mixed-native"):
+        write("app/routers/ordinary.py", b"foreign application change")
+    controller = commit("Second controller")
+    for path in callers:
+        raw = (root / path).read_bytes()
+        assert raw.count(incumbent.encode()) >= 1
+        pin = f"  ALERTMANAGER_CONTROLLER_SOURCE: '{incumbent}'".encode()
+        write(path, raw.replace(pin, pin.replace(incumbent.encode(), controller.encode())))
+    w = commit("Pin second controller K")
+    squash = (
+        cmd("commit-tree", w + "^{tree}", "-p", descendant, "-m", "Second repair squash")
+        .decode()
+        .strip()
+    )
+    cmd("checkout", "-q", "--detach", squash)
+    write(".github/workflows/frontend-ci.yml", cab_workflow[1])
+    cab_main = commit("Ordinary CAB web lint squash")
+    write("ordinary.txt", b"a later ordinary consumer")
+    end = commit("Subsequent ordinary consumer")
+    expected = source._alertmanager_accepted_producer()
+    owner_name = GHCR_REPOSITORY.split("/")[0]
+    github_repo = {
+        "id": 1043311030,
+        "full_name": GHCR_REPOSITORY,
+        "owner": {"id": 169792616, "type": "User"},
+    }
+
+    def pr(number: int, head: str, merged: str, base: str, branch: str) -> dict[str, Any]:
+        return {
+            "number": number,
+            "state": "closed",
+            "merged": True,
+            "merge_commit_sha": merged,
+            "merged_at": "2026-02-01T00:00:00Z",
+            "created_at": "2025-12-01T00:00:00Z",
+            "closed_at": "2026-02-01T00:00:00Z",
+            "comments": 1,
+            "head": {"sha": head, "ref": branch, "repo": github_repo},
+            "base": {"sha": base, "ref": "main", "repo": github_repo},
+        }
+
+    grant = (
+        f"OWNER PUBLISHER-REPAIR v1 repo=1043311030 pr=81 base={descendant} controller={controller} callers={w} "
+        f"producer={expected['source']} q=43808505545/14199242996 s=43810186398/14200227448 c={expected['run']}/{expected['artifact']} "
+        f"zip=sha256:{expected['zip_sha256']} manifest={expected['graph']['manifest']['digest']} reads=ci-lint,cd-pr,caddy-reuse "
+        "heads=callers-or-direct-mapping expires=2026-01-30T00:00:00Z"
+    )
+    api_prefix = "/repos/" + GHCR_REPOSITORY
+    row = {
+        "id": 61,
+        "node_id": "opaque-id",
+        "body": grant,
+        "url": f"https://api.github.com{api_prefix}/issues/comments/61",
+        "issue_url": f"https://api.github.com{api_prefix}/issues/81",
+        "html_url": f"https://github.com/{GHCR_REPOSITORY}/pull/81#issuecomment-61",
+        "created_at": "2026-01-01T00:00:00Z",
+        "updated_at": "2026-01-01T00:00:00Z",
+        "performed_via_github_app": None,
+        "author_association": "OWNER",
+        "user": {"id": 169792616, "login": owner_name, "type": "User"},
+    }
+    repair = pr(81, w, squash, descendant, "a-distinct-repair")
+
+    issued = [row]
+    if corrected:
+        old = {
+            **row,
+            "id": 60,
+            "node_id": "old-owner-comment",
+            "created_at": "2025-12-31T23:59:00Z",
+            "updated_at": "2025-12-31T23:59:00Z",
+            "url": row["url"].replace("/61", "/60"),
+            "html_url": row["html_url"].replace("comment-61", "comment-60"),
+            "body": grant.replace(controller, k1).replace(w, w1),
+        }
+        issued = [old] if fault == "same-pr-stale-grant" else [old, row]
+        repair["comments"] = len(issued)
+
+    class API:
+        gh = "/synthetic/gh"
+
+        def _capture(
+            self, argv: list[str], maximum: int, *, environment: dict[str, str] | None = None
+        ) -> bytes:
+            if argv[0] == self.gh:
+                assert "graphql" in argv and "id=opaque-id" in argv
+                return json.dumps(
+                    {
+                        "data": {
+                            "node": {
+                                "id": row["node_id"],
+                                "body": grant,
+                                "url": row["html_url"],
+                                "createdAt": row["created_at"],
+                                "updatedAt": row["updated_at"],
+                                "lastEditedAt": None,
+                                "authorAssociation": "OWNER",
+                                "author": {"login": owner_name},
+                            }
+                        }
+                    }
+                ).encode()
+            assert argv[0] == git and "--no-replace-objects" in argv
+            return subprocess.run(argv, check=True, capture_output=True, env=environment).stdout
+
+        def json(self, path: str) -> Any:
+            assert path.startswith(api_prefix)
+            path = path.removeprefix(api_prefix)
+            records = {
+                "": github_repo,
+                "/pulls/81": repair,
+                "/pulls/2495": pr(2495, n, n, publisher, source._ALERT_2495_BRANCH),
+                f"/commits/{n}/pulls?per_page=2": [{"number": 2495}],
+                f"/commits/{squash}/pulls?per_page=2": [{"number": 81}],
+                "/issues/81/comments?per_page=100&page=1": [] if fault == "missing" else issued,
+                "/issues/comments/61": row,
+            }
+            if fault == "edit-revert" and path in {
+                f"/commits/{changed}/pulls?per_page=2",
+                f"/commits/{reverted}/pulls?per_page=2",
+            }:
+                return []
+            if path == f"/commits/{w}/pulls?per_page=2":
+                return [repair] if fault != "unassociated" else []
+            if path.startswith("/pulls?state=all&head="):
+                assert "&base=" not in path
+                return (
+                    [repair]
+                    if fault != "ambiguous-original"
+                    else [repair, {**repair, "number": 87}]
+                )
+            for filename, job_name, run_id, required in (
+                (
+                    "ci.yml",
+                    "lint",
+                    22,
+                    (
+                        "Prepare exact AM subject before material execution",
+                        "Native OBS2A checkpoint lifecycle and owned-task challenge",
+                    ),
+                ),
+                (
+                    "cd.yml",
+                    "prometheus-image-security-pr",
+                    23,
+                    (
+                        "Prepare exact AM subject before material execution",
+                        "Scan accepted AM and execute all four current controls",
+                        "Run full accepted AM native controls on this runner",
+                    ),
+                ),
+            ):
+                if (
+                    path
+                    == f"/actions/workflows/{filename}/runs?event=pull_request&head_sha={w}&per_page=100&page=1"
+                ):
+                    original_event = {
+                        "id": run_id,
+                        "run_attempt": 2,
+                        "event": "pull_request",
+                        "head_sha": w,
+                        "workflow_id": run_id + 100,
+                        "repository": github_repo,
+                        "head_repository": github_repo,
+                        "path": ".github/workflows/" + filename,
+                        "head_branch": repair["head"]["ref"],
+                        "pull_requests": [],
+                        "created_at": (
+                            "2025-11-01T00:00:00Z"
+                            if fault == "original-before-PR"
+                            else "2025-12-31T00:00:00Z"
+                        ),
+                    }
+                    runs = (
+                        []
+                        if fault == "old-native-only"
+                        or (fault == "missing-native" and run_id == 23)
+                        else [original_event]
+                    )
+                    return {"total_count": len(runs), "workflow_runs": runs}
+                if path == "/actions/workflows/" + filename:
+                    return {"id": run_id + 100, "path": ".github/workflows/" + filename}
+                for attempt in (1, 2):
+                    attempt_path = f"/actions/runs/{run_id}/attempts/{attempt}"
+                    if path == attempt_path:
+                        return {
+                            "id": run_id,
+                            "run_attempt": attempt,
+                            "workflow_id": run_id + 100,
+                            "path": ".github/workflows/" + filename,
+                            "event": "pull_request",
+                            "status": "completed",
+                            "repository": github_repo,
+                            "head_repository": github_repo,
+                            "head_sha": w,
+                            "head_branch": repair["head"]["ref"],
+                            "pull_requests": (
+                                []
+                                if attempt == 2
+                                else [{**repair, "head": {**repair["head"], "sha": w}}]
+                            ),
+                            "created_at": "2026-01-02T01:00:01Z",
+                            "run_started_at": (
+                                "2025-12-31T00:00:00Z"
+                                if attempt == 1 or fault == "pre-grant"
+                                else "2026-01-02T01:00:00Z"
+                            ),
+                        }
+                    if path == attempt_path + "/jobs?per_page=100&page=1":
+                        completed = (
+                            "2026-02-05T02:00:00Z"
+                            if fault == "late-native"
+                            else "2026-01-02T02:00:00Z"
+                        )
+                        row_job = {
+                            "id": run_id + 1,
+                            "name": job_name,
+                            "run_id": run_id,
+                            "run_attempt": attempt,
+                            "head_sha": w,
+                            "started_at": "2026-01-02T01:01:00Z",
+                            "completed_at": completed,
+                            "status": "completed",
+                            "conclusion": "success",
+                            "steps": [
+                                {
+                                    "name": name,
+                                    "started_at": "2026-01-02T01:02:00Z",
+                                    "completed_at": "2026-01-02T01:15:00Z",
+                                    "status": "completed",
+                                    "conclusion": (
+                                        "skipped"
+                                        if fault == "skipped-native" and name == required[-1]
+                                        else "success"
+                                    ),
+                                }
+                                for name in required
+                            ],
+                        }
+                        return {"total_count": 1, "jobs": [row_job]}
+            if path in records:
+                return records[path]
+            if corrected and path.startswith("/actions/workflows/") and f"head_sha={w1}&" in path:
+                # Authentic original receipts on W1 would exist, but cannot answer a query for W2.
+                raise AssertionError("selected historical native receipt from W1")
+            if path.startswith("/compare/"):
+                assert path == f"/compare/{descendant}...{controller}"
+                commits = [
+                    {"sha": line.split()[0], "parents": [{"sha": p} for p in line.split()[1:]]}
+                    for line in cmd(
+                        "rev-list", "--reverse", "--parents", descendant + ".." + controller
+                    )
+                    .decode()
+                    .splitlines()
+                ]
+                return {
+                    "status": "ahead",
+                    "base_commit": {"sha": descendant},
+                    "merge_base_commit": {"sha": descendant},
+                    "ahead_by": len(commits),
+                    "behind_by": 0,
+                    "total_commits": len(commits),
+                    "commits": commits,
+                }
+            if path.startswith("/git/commits/"):
+                rev = path.split("/")[-1]
+                return {
+                    "sha": rev,
+                    "parents": [
+                        {"sha": x} for x in cmd("show", "-s", "--format=%P", rev).decode().split()
+                    ],
+                    "tree": {"sha": cmd("rev-parse", rev + "^{tree}").decode().strip()},
+                }
+            if path.startswith("/git/trees/"):
+                tree = path.split("/")[-1].split("?")[0]
+                rows = []
+                depth = ["-r"] if path.endswith("?recursive=1") else []
+                for line in cmd("ls-tree", *depth, tree).decode().splitlines():
+                    mode, kind, rest = line.split(" ", 2)
+                    blob, name = rest.split("\t")
+                    rows.append({"mode": mode, "type": kind, "sha": blob, "path": name})
+                return {"sha": tree, "truncated": False, "tree": rows}
+            if path.startswith("/contents/"):
+                name, ref = path.removeprefix("/contents/").split("?ref=")
+                content = cmd("show", f"{ref}:{name}")
+                return {
+                    "type": "file",
+                    "path": name,
+                    "encoding": "base64",
+                    "content": base64.b64encode(content).decode(),
+                    "size": len(content),
+                    "sha": cmd("rev-parse", f"{ref}:{name}").decode().strip(),
+                }
+            assert path == f"/commits/{w}?per_page=100&page=1"
+            return {
+                "sha": w,
+                "parents": [{"sha": controller}],
+                "files": [{"filename": p, "status": "modified"} for p in callers],
+            }
+
+    api = API()
+    if fault == "second-parent-only":
+        source._alertmanager_publisher_history(api, root, side, end, incumbent)
+    assert (
+        source._alertmanager_publisher_history(api, root, publisher, descendant, incumbent)
+        == incumbent
+    )
+    assert (
+        source._alertmanager_publisher_history(api, root, publisher, end, incumbent) == controller
+    )
+    return {
+        "original_publisher": publisher,
+        "consumer_2495": n,
+        "unrelated": descendant,
+        "second_controller": controller,
+        "second_callers": w,
+        "second_squash": squash,
+        "CAB_main": cab_main,
+        "ordinary": end,
+    }
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "missing",
+        "edit-revert",
+        "protected-merge",
+        "protected-overflow",
+        "second-parent-only",
+        "missing-native",
+        "pre-grant",
+        "skipped-native",
+        "late-native",
+        "unassociated",
+        "ambiguous-original",
+        "mixed-squash",
+        "original-before-PR",
+        "corrected-same-pr",
+        "old-native-only",
+        "same-pr-stale-grant",
+        "mixed-native",
+    ],
+)
+def test_publisher_history_keeps_2495_and_unrelated_descendant_before_repair(
+    tmp_path: Path, fault: str | None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    prefix = b"    image: ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-"
+    old = (
+        prefix
+        + b"15.19-pgvector0.8.6-alpine3.23@sha256:d4437ad4970b4099e4cb7d05b7fa625c7e6959949d1374f1f2d4bd4149ae5fa3\n"
+    )
+    new = (
+        prefix
+        + b"15.20-pgvector0.8.6-alpine3.23@sha256:5b81202040bbcfbf4fc29ee32c6e6a8c824c27c50aa41c80e62418c5c2ec3adc\n"
+    )
+    overlay = {alertmanager_source._ALERT_SELECTION_FILES[i]: (old, new) for i in (0, 2)}
+    if fault == "mixed-native":
+        # Isolate the local squash check; a mixed K also fails the independent GitHub tree proof.
+        from scripts.ci import check_docker_runtime_dependency_surface as authority
+
+        monkeypatch.setattr(authority, "_publisher_repair_material", lambda *a, **kw: None)
+    if fault == "missing":
+        with pytest.raises(ValueError, match="incomplete PR comment inventory"):
+            _exercise_publisher_history(tmp_path / "native", overlay, fault=fault)
+    elif fault and fault != "corrected-same-pr":
+        expected = {
+            "edit-revert": "AM_history_exact_PR",
+            "protected-merge": "AM_history_protected_squash",
+            "protected-overflow": "AM_history_protected_change_bound",
+            "unassociated": "publisher_repair_missing_authorized_native_lint",
+            "old-native-only": "publisher_repair_missing_authorized_native_lint",
+            "same-pr-stale-grant": "AM_history_protected_repair_designation",
+            "original-before-PR": "publisher_repair_missing_authorized_native_lint",
+            "mixed-squash": "publisher_repair_complete_maintenance_delta",
+            "mixed-native": "publisher_repair_complete_maintenance_delta",
+            "ambiguous-original": "publisher_repair_missing_authorized_native_lint",
+            "missing-native": "publisher_repair_missing_authorized_native_prometheus-image-security-pr",
+            "pre-grant": "publisher_repair_missing_authorized_native_lint",
+            "skipped-native": "publisher_repair_missing_authorized_native_lint",
+            "late-native": "publisher_repair_missing_authorized_native_lint",
+            "second-parent-only": "AM_history_first_parent",
+        }
+        with pytest.raises(prometheus_source.QualificationError, match=expected[fault]):
+            _exercise_publisher_history(tmp_path / "native", overlay, fault=fault)
+    else:
+        observed = _exercise_publisher_history(tmp_path / "native", overlay, fault=fault)
+        assert len(set(observed.values())) == 8

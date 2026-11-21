@@ -206,6 +206,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      pull-requests: read
       packages: read
     env:
       PYTHONDONTWRITEBYTECODE: '1'
@@ -292,6 +293,7 @@ jobs:
             --output-dir "$RUNNER_TEMP/alertmanager-input-inspection-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
       - name: Retain Alertmanager input observations without compiler authority
         timeout-minutes: 5
+        id: support-upload
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
         with:
@@ -301,6 +303,24 @@ jobs:
             ${{ runner.temp }}/alertmanager-input-inspection-${{ github.run_id }}-${{ github.run_attempt }}/github-read-evidence/
             ${{ runner.temp }}/alertmanager-input-inspection-${{ github.run_id }}-${{ github.run_attempt }}/native-support/
           if-no-files-found: warn
+
+      - name: Verify the completed support upload identity and size
+        if: success()
+        timeout-minutes: 1
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AM_ARTIFACT_ID: ${{ steps.support-upload.outputs.artifact-id }}
+          AM_ARTIFACT_DIGEST: ${{ steps.support-upload.outputs.artifact-digest }}
+        run: |
+          set -euo pipefail
+          [[ "$AM_ARTIFACT_ID" =~ ^[1-9][0-9]{0,18}$ ]]
+          gh api --hostname github.com --method GET "repos/$GITHUB_REPOSITORY/actions/artifacts/$AM_ARTIFACT_ID" |
+            python3 -B -E -s -S -c 'import os,sys
+          from scripts.ci.fetch_docker_source_artifacts import _alertmanager_support_upload
+          from scripts.ci.prometheus_source_image import one_object
+          raw=sys.stdin.buffer.read(65537)
+          if len(raw)>65536: raise ValueError("Alertmanager artifact metadata exceeds its bound")
+          _alertmanager_support_upload(one_object(raw), os.environ)'
 
   alertmanager-candidate-build:
     if: >-
@@ -313,6 +333,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      pull-requests: read
       packages: read
     env:
       ALERTMANAGER_PRODUCER_JOB_MINUTES: *am-producer-job-timeout
@@ -835,6 +856,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      pull-requests: read
       packages: write
     steps:
       - name: Checkout exact AM executable proposal
@@ -1454,6 +1476,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      pull-requests: read
       packages: read
     steps: &prometheus-image-security-steps
       - name: Validate exact Prometheus checkout revisions
@@ -1984,6 +2007,7 @@ jobs:
         id: alertmanager-image
         timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_PREPARATION_MINUTES) }}
         env:
+          AM_PR_BASE: ${{ github.event.pull_request.base.sha }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GHCR_READ_TOKEN: ${{ github.event_name != 'pull_request' && secrets.GHCR_READ_TOKEN || '' }}
@@ -2006,6 +2030,13 @@ jobs:
           fi
           test ! -L "$controller"
           test "$(git -C "$controller" rev-parse HEAD)" = "$controller_source"
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            old_pin="$(git --no-replace-objects -c core.fsmonitor=false -c core.hooksPath=/dev/null -C "$material" cat-file blob "$AM_PR_BASE:.github/workflows/ci.yml" | sed -nE "s/^  ALERTMANAGER_CONTROLLER_SOURCE: '([0-9a-f]{40})'.*$/\1/p")"
+            [[ "$old_pin" =~ ^[0-9a-f]{40}$ ]]
+            if [ "$old_pin" != "$ALERTMANAGER_CONTROLLER_SOURCE" ]; then
+              export ALERTMANAGER_REPAIR_PIN_CHANGED=true
+            fi
+          fi
           export ALERTMANAGER_CONTROLLER_SOURCE="$controller_source"
           cd "$controller"
           python3 -B -E -s -S -m scripts.ci.fetch_docker_source_artifacts \
@@ -2657,6 +2688,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      pull-requests: read
       packages: read
     steps: *prometheus-image-security-steps
 
@@ -2717,6 +2749,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      pull-requests: read
       packages: read
     steps:
       - name: Checkout immutable OBS2A native contracts

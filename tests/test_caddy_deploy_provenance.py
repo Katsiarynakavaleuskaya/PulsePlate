@@ -1309,7 +1309,7 @@ def _assert_frontend_caddy_contract(workflow: dict[str, object]) -> None:
         "${{ !cancelled() && (needs.changes.outputs.caddy == 'true' "
         "|| github.event_name == 'workflow_dispatch') }}"
     )
-    assert job["permissions"] == {"contents": "read", "actions": "read"}
+    assert job["permissions"] == {"contents": "read", "actions": "read", "pull-requests": "read"}
     assert "environment" not in job
     steps = _steps(job)
     text = str(steps)
@@ -1732,6 +1732,7 @@ def _assert_checkpoint_native_job(workflow: dict[str, object]) -> None:
         "contents": "read",
         "actions": "read",
         "packages": "read",
+        "pull-requests": "read",
     }, "checkpoint_native_reader_permissions"
     assert job.get("environment") == "staging", "checkpoint_native_reader_environment"
     assert job["env"]["PROMETHEUS_CONSUME_SECONDS"] == "900"
@@ -2275,7 +2276,12 @@ def test_checkpoint_pr_native_is_independent_of_backend_risk_admission(
 def _assert_checkpoint_pr_native_job(workflow: dict[str, object]) -> None:
     lint = _job(workflow, "lint")
     assert lint["needs"] == ["private_python_proxy_health"]
-    assert lint["permissions"] == {"contents": "read", "actions": "read", "packages": "read"}
+    assert lint["permissions"] == {
+        "contents": "read",
+        "actions": "read",
+        "packages": "read",
+        "pull-requests": "read",
+    }
     assert lint["env"] == {
         "PROMETHEUS_CONSUME_SECONDS": "900",
         "PROMETHEUS_CLEANUP_SECONDS": "120",
@@ -2594,7 +2600,7 @@ def test_caddy_full_observation_preserves_blocking_scan_and_exact_conditions() -
         "cache-dir": "/tmp/trivy-cache-caddy-contract",
     }
     assert "continue-on-error" not in original
-    assert job["permissions"] == {"contents": "read", "actions": "read"}
+    assert job["permissions"] == {"contents": "read", "actions": "read", "pull-requests": "read"}
     assert job["env"]["CADDY_FULL_SCAN_TIMEOUT_SECONDS"] == "300"
     assert "CADDY_METADATA_TIMEOUT_SECONDS" not in job["env"]
     assert "CADDY_METADATA_CLEANUP_SECONDS" not in job["env"]
@@ -3335,6 +3341,7 @@ def test_alertmanager_executable_stages_have_exact_manual_events_and_no_Q(mode: 
         "contents": "read",
         "actions": "read",
         "packages": "read" if mode == "build" else "write",
+        "pull-requests": "read",
     }
     steps = _steps(job)
     setup = _named_step(steps, "Select AM Python without dependency or SDK installation")
@@ -5204,7 +5211,12 @@ def test_alertmanager_input_support_job_is_independent_manual_read_permissions_w
     job = _job(workflow, "alertmanager-input-inspection")
     assert job["runs-on"] == "ubuntu-24.04"
     assert "needs" not in job
-    assert job["permissions"] == {"contents": "read", "actions": "read", "packages": "read"}
+    assert job["permissions"] == {
+        "contents": "read",
+        "actions": "read",
+        "packages": "read",
+        "pull-requests": "read",
+    }
     assert job["if"] == (
         "github.event_name == 'workflow_dispatch' "
         "&& inputs.alertmanager_mode == 'support-inspect' "
@@ -5241,7 +5253,7 @@ def test_alertmanager_support_job_covers_aggregate_budgets_and_retains_screened_
         _steps(job), "Prepare exact existing Alertmanager support scanner and Buildx CLI"
     )
     assert job["timeout-minutes"] == 60
-    assert sum(step["timeout-minutes"] for step in _steps(job)) == 59
+    assert sum(step["timeout-minutes"] for step in _steps(job)) == job["timeout-minutes"]
     # The distinct existing API and Native owners each retain their own cleanup.
     # Keep at least five minutes for pure data inspection and artifact upload.
     acquisition = tool_fetch["run"].count("curl -q ") * int(
@@ -7120,7 +7132,17 @@ def test_caddy_candidate_release_requires_current_source_control_and_cleanup_con
     )
     monkeypatch.setenv("GITHUB_SHA", head)
     event = tmp_path / "event.json"
-    event.write_text(json.dumps({"ref": "refs/heads/main", "after": head} if main else {}))
+    event.write_text(
+        json.dumps(
+            {"ref": "refs/heads/main", "after": head}
+            if main
+            else {
+                "ref": branches[number],
+                "inputs": {"caddy_action": "candidate-D", "caddy_source_sha": head},
+                "sender": {"login": "Katsiarynakavaleuskaya", "id": 169792616, "type": "User"},
+            }
+        )
+    )
     monkeypatch.setenv("GITHUB_EVENT_PATH", str(event))
     monkeypatch.chdir(REPO_ROOT)
     runner = tmp_path / "runner"
@@ -7312,7 +7334,11 @@ def test_caddy_candidate_release_requires_current_source_control_and_cleanup_con
         assert 0 < remaining(30) <= 30
         if main and endpoint.startswith("/pulls?"):
             return []
-        live_number = int(endpoint.split("/")[-1])
+        if endpoint == f"/commits/{head}/pulls?per_page=2":
+            assert fault == "merged-drift"
+            return []
+        assert endpoint.startswith("/pulls/")
+        live_number = int(endpoint.removeprefix("/pulls/"))
         assert main or live_number == number
         return {
             "number": float(live_number) if fault == "float-pr-number" else live_number,
@@ -7918,6 +7944,8 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
                         }
                     ],
                 }
+            elif url.endswith(f"/commits/{head}/pulls?per_page=2"):
+                value = []  # A different squash has no associated publisher-repair PR.
             else:
                 raise AssertionError(url)
             return Response(url, value)

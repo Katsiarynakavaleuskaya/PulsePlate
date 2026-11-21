@@ -7024,6 +7024,7 @@ def _assert_ci_lint_node24_frontend_hook_dependency_contract(
         "contents": "read",
         "actions": "read",
         "packages": "read",
+        "pull-requests": "read",
     }, "ci_lint_reader_permissions"
     assert lint_job["env"] == {
         "PROMETHEUS_CONSUME_SECONDS": "900",

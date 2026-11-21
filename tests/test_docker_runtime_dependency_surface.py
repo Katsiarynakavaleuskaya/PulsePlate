@@ -3514,6 +3514,13 @@ def test_caddy062_charge_step_requires_independently_reviewed_same_run_outputs(
         == charge_step["if"]
         == "${{ steps.caddy-admission.outputs.mode == 'build' && steps.caddy-metadata.outcome == 'success' }}"
     )
+    admission = next(step for step in steps if step.get("id") == "caddy-admission")
+    assert charge_step["env"]["GH_TOKEN"] == (
+        "${{ steps.caddy-admission.outputs.owner_prebuild == 'true' && github.token || '' }}"
+    )
+    emission = 'output.write("owner_prebuild=true\\n")'
+    assert admission["run"].count(emission) == 1
+    assert 'if state["mode"] == "build" and owner_build:\n        ' + emission in admission["run"]
     assert not charge_step.get("continue-on-error")
     workflow = yaml.safe_load((root / ".github/workflows/frontend-ci.yml").read_text())
     concurrency = workflow["concurrency"]
@@ -3603,7 +3610,6 @@ def test_caddy062_charge_step_requires_independently_reviewed_same_run_outputs(
     branch = branch_by_lane.get(pr_lane, "codex/dependency-alertmanager-remediation")
     number_by_lane = {"transition": 9999, "recovery": 2495, "train": 2484}
     if owner_build:
-        assert f"github.ref == 'refs/heads/{branch}'" in charge_step["env"]["GH_TOKEN"]
         state.update(source_branch=branch, source_pr=number_by_lane[pr_lane], pr_head=head)
         sender = {"type": "User", "login": "Katsiarynakavaleuskaya", "id": 73}
         event = tmp_path / "dispatch.json"
@@ -4139,3 +4145,519 @@ def test_caddy_metadata_custody_accepts_only_the_observed_typed_transition(
         with pytest.raises((ValueError, RuntimeError), match=message):
             runtime_surface.validate_caddy_metadata_custody(before, actual, started_id=attempted)
     assert json.dumps([before, actual], sort_keys=True) == snapshot
+
+
+@pytest.mark.parametrize("number,branch", [(17, "repair/first"), (54, "unrelated-spelling")])
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "missing",
+        "author",
+        "fake-app",
+        "expired",
+        "edited",
+        "duplicate",
+        "actual-edited",
+        "wrong-pr",
+        "drift",
+        "wrong-job",
+        "earlier-job",
+        "earlier-run",
+        "corrected",
+        "corrected-mapping",
+        "stale-only",
+        "competing",
+        "other-subject",
+        "mixed-product",
+        "rename-product",
+        "truncated-tree",
+        "mode-drift",
+        "baseline-id",
+        "baseline-verification",
+        "baseline-duplicate",
+        "baseline-filter",
+        "baseline-delete",
+    ],
+)
+def test_publisher_repair_exact_human_decision_and_native_job(
+    number: int, branch: str, fault: str | None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from copy import deepcopy
+    from typing import Any
+    from scripts.ci.prometheus_source_image import QualificationError
+
+    repo_name = runtime_surface.CADDY_REPOSITORY
+    repo = {"id": 1043311030, "full_name": repo_name, "owner": {"id": 169792616, "type": "User"}}
+    import shutil
+    from scripts.orchestration.creative_code_patch_workspace import (
+        git_env_without_parent_state,
+        safe_git_config_args,
+    )
+
+    git = shutil.which("git")
+    assert git is not None
+
+    def command(*args: str) -> str:
+        return subprocess.run(
+            [git, *safe_git_config_args(), "-C", str(tmp_path), *args],
+            env=git_env_without_parent_state(),
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+
+    def commit(label: str) -> str:
+        command("add", "-A")
+        command(
+            "-c",
+            "user.name=Fixture",
+            "-c",
+            "user.email=fixture@example.invalid",
+            "commit",
+            "-qm",
+            label,
+        )
+        return command("rev-parse", "HEAD").strip()
+
+    command("init", "-q")
+    primary = tmp_path / "scripts/ci/check_docker_runtime_dependency_surface.py"
+    primary.parent.mkdir(parents=True)
+    primary.write_text("base controller")
+    product = tmp_path / ("frontend/feature.ts" if number == 54 else "app/ordinary.py")
+    product.parent.mkdir(parents=True)
+    product.write_text("prior product")
+    for filename in ("ci.yml", "cd.yml"):
+        caller_path = tmp_path / ".github/workflows" / filename
+        caller_path.parent.mkdir(exist_ok=True, parents=True)
+        caller_path.write_text("  ALERTMANAGER_CONTROLLER_SOURCE: '" + "a" * 40 + "'\n")
+    baseline_file = tmp_path / ".secrets.baseline"
+    finding = {
+        "filename": "fixture",
+        "hashed_secret": hashlib.sha256(b"synthetic finding for baseline test").hexdigest(),
+        "is_verified": False,
+        "line_number": 1,
+        "type": "synthetic",
+    }
+    baseline = {
+        "generated_at": "2026-01-01T00:00:00Z",
+        "version": "1.5.0",
+        "filters_used": [],
+        "plugins_used": [],
+        "results": {"fixture": [finding]},
+    }
+    baseline_file.write_text(json.dumps(baseline))
+    base = commit("base")
+    repeated = fault in (
+        "corrected",
+        "corrected-mapping",
+        "stale-only",
+        "competing",
+        "other-subject",
+    )
+    if repeated:
+        primary.write_text("reviewed first repair")
+        k1 = commit("first controller")
+        for name in ("ci.yml", "cd.yml"):
+            caller_path = tmp_path / ".github/workflows" / name
+            caller_path.write_text(caller_path.read_text().replace("a" * 40, k1))
+        w1 = commit("pin first controller")
+        for name in ("ci.yml", "cd.yml"):
+            caller_path = tmp_path / ".github/workflows" / name
+            caller_path.write_text(caller_path.read_text().replace(k1, "a" * 40))
+    primary.write_text("reviewed controller on " + branch)
+    finding["line_number"] = 4
+    baseline["generated_at"] = "2026-01-02T00:00:00Z"
+    if fault == "baseline-id":
+        finding["hashed_secret"] = hashlib.sha256(b"changed synthetic finding").hexdigest()
+    elif fault == "baseline-verification":
+        finding["is_verified"] = True
+    elif fault == "baseline-duplicate":
+        baseline["results"]["fixture"].append(finding)
+    elif fault == "baseline-filter":
+        baseline["filters_used"].append("new filter")
+    baseline_file.write_text(json.dumps(baseline))
+    if fault == "baseline-delete":
+        baseline_file.unlink()
+    if fault == "mixed-product":
+        product.write_text("unrelated change")
+    elif fault == "rename-product":
+        product.rename(tmp_path / "AGENTS.md")
+    elif fault == "mode-drift":
+        primary.chmod(0o755)
+    controller = commit("controller")
+    for filename in ("ci.yml", "cd.yml"):
+        path = tmp_path / ".github/workflows" / filename
+        path.parent.mkdir(exist_ok=True, parents=True)
+        path.write_text(path.read_text().replace("a" * 40, controller))
+    w = head = commit("callers")
+    if fault == "corrected-mapping":
+        mapping = tmp_path / f"docs/review/PR_{number}_FIXED_MAPPING.md"
+        mapping.parent.mkdir(parents=True)
+        mapping.write_text("regular mapping successor")
+        head = commit("mapping-only successor")
+
+    producer = hashlib.sha1(str(number).encode(), usedforsecurity=False).hexdigest()
+    owner = {"id": 169792616, "type": "User", "login": repo_name.split("/")[0]}
+    pr: dict[str, Any] = {
+        "number": number,
+        "comments": 1,
+        "state": "open",
+        "merged": False,
+        "head": {"sha": head, "ref": branch, "repo": repo},
+        "base": {"sha": base, "ref": "main", "repo": repo},
+    }
+    identity = 6000000000 + number
+    grant = (
+        f"OWNER PUBLISHER-REPAIR v1 repo=1043311030 pr={number} base={base} controller={controller} callers={w} "
+        f"producer={producer} q=1/2 s=3/4 c=5/6 zip=sha256:{'a'*64} manifest=sha256:{'b'*64} "
+        "reads=ci-lint,cd-pr,caddy-reuse,owner-candidate-D heads=callers-or-direct-mapping expires=2099-01-02T00:00:00Z"
+    )
+    api_root = "https://api.github.com/repos/" + repo_name
+    row = {
+        "id": identity,
+        "node_id": "opaque+/node",
+        "url": f"{api_root}/issues/comments/{identity}",
+        "issue_url": f"{api_root}/issues/{number}",
+        "html_url": f"https://github.com/{repo_name}/pull/{number}#issuecomment-{identity}",
+        "created_at": "2026-01-01T00:00:00Z",
+        "updated_at": "2026-01-01T00:00:00Z",
+        "performed_via_github_app": None,
+        "author_association": "OWNER",
+        "body": grant,
+        "user": owner,
+    }
+    if fault == "drift":
+        row["body"] = grant.replace("controller=" + controller, "controller=" + base)
+    if fault == "fake-app":
+        row["performed_via_github_app"] = {"id": 17}
+    if fault == "edited":
+        row["updated_at"] = "2026-01-02T00:00:00Z"
+    if fault == "author":
+        row["user"] = {**owner, "id": 19}
+    if fault == "expired":
+        row["body"] = grant.replace("2099-", "2000-")
+    if fault == "wrong-pr":
+        row["body"] = grant.replace(f" pr={number} ", f" pr={number+1} ")
+    caddy = number == 54
+    workflow_name, job_name, operation, attempt = (
+        ("frontend-ci.yml", "caddy-contract", "workflow_dispatch", 1)
+        if caddy
+        else ("ci.yml", "lint", "pull_request", 2)
+    )
+    workflow = ".github/workflows/" + workflow_name
+    event = {
+        "ref": branch,
+        "sender": owner,
+        "inputs": {"caddy_action": "candidate-D", "caddy_source_sha": head},
+    }
+    event_path = tmp_path / "event.json"
+    event_path.write_text(json.dumps(event))
+
+    run = {
+        "id": 23,
+        "run_attempt": attempt,
+        "path": workflow,
+        "event": operation,
+        "head_sha": head,
+        "status": "in_progress",
+        "run_started_at": row["created_at"] if fault == "earlier-run" else "2026-01-02T00:00:00Z",
+        "repository": repo,
+        "head_repository": repo,
+        "workflow_id": 123,
+    }
+    job = {
+        "id": 7,
+        "name": job_name if fault != "wrong-job" else "other",
+        "run_id": 23,
+        "run_attempt": attempt,
+        "head_sha": head,
+        "status": "in_progress",
+        "started_at": "2026-01-02T00:00:00Z" if fault != "earlier-job" else row["created_at"],
+    }
+    ref = "refs/heads/" + branch if caddy else f"refs/pull/{number}/merge"
+    for name, value in {
+        "GITHUB_REF": ref,
+        "GITHUB_RUN_ID": "23",
+        "GITHUB_RUN_ATTEMPT": str(attempt),
+        "GITHUB_JOB": job_name,
+        "GITHUB_WORKFLOW_REF": f"{repo_name}/{workflow}@{ref}",
+        "GITHUB_EVENT_NAME": operation,
+        "GITHUB_EVENT_PATH": str(event_path),
+        "GITHUB_ACTOR": owner["login"],
+        "GITHUB_ACTOR_ID": str(owner["id"]),
+        "GITHUB_SHA": head,
+        "GITHUB_REPOSITORY_ID": "1043311030",
+        "GITHUB_WORKFLOW_SHA": head,
+    }.items():
+        monkeypatch.setenv(name, value)
+
+    issued = [] if fault == "missing" else [row, row] if fault == "duplicate" else [row]
+    if repeated:
+        old = deepcopy(row)
+        old.update(
+            id=identity + 1,
+            node_id="prior-native-node",
+            url=api_root + f"/issues/comments/{identity+1}",
+            html_url=f"https://github.com/{repo_name}/pull/{number}#issuecomment-{identity+1}",
+            created_at="2026-01-01T00:00:01Z",
+            updated_at="2026-01-01T00:00:01Z",
+        )
+        if fault == "other-subject":
+            old["body"] = grant.replace(
+                "manifest=sha256:" + "b" * 64, "manifest=sha256:" + "c" * 64
+            )
+        elif fault != "competing":
+            old["body"] = grant.replace(controller, k1).replace(w, w1)
+        issued = [old] if fault == "stale-only" else [old, row] if number == 17 else [row, old]
+    pr["comments"] = len(issued)
+
+    class Reader:
+        gh = "/test/gh"
+
+        @staticmethod
+        def _capture(argv: list[str], maximum: int) -> bytes:
+            assert "graphql" in argv and maximum < 1024**2
+            observed = next(r for r in issued if "id=" + r["node_id"] in argv)
+            value = {
+                "id": observed["node_id"],
+                "body": observed["body"],
+                "url": observed["html_url"],
+                "createdAt": observed["created_at"],
+                "updatedAt": observed["updated_at"],
+                "lastEditedAt": "2026-01-01T00:00:00Z" if fault == "actual-edited" else None,
+                "authorAssociation": "OWNER",
+                "author": {"login": owner["login"]},
+            }
+            return json.dumps({"data": {"node": value}}).encode()
+
+    def read(path: str) -> Any:
+        if path == f"/issues/{number}/comments?per_page=100&page=1":
+            return issued
+        if path.startswith("/issues/comments/"):
+            # Native list/detail return different presentation and reaction metadata.
+            detail = deepcopy(next(r for r in issued if path.endswith("/" + str(r["id"]))))
+            detail["pin"] = None
+            detail["user"]["avatar_url"] = "unused"
+            runtime_surface.verify_publisher_comment_revision(Reader(), detail)
+            return detail
+        if path == f"/compare/{base}...{controller}":
+            commits = [
+                {"sha": line.split()[0], "parents": [{"sha": p} for p in line.split()[1:]]}
+                for line in command(
+                    "rev-list", "--reverse", "--parents", base + ".." + controller
+                ).splitlines()
+            ]
+            return {
+                "status": "ahead",
+                "base_commit": {"sha": base},
+                "merge_base_commit": {"sha": base},
+                "behind_by": 0,
+                "ahead_by": len(commits),
+                "total_commits": len(commits),
+                "commits": commits,
+            }
+        if path.startswith("/commits/") and path.endswith("?per_page=100&page=1"):
+            rev = path.split("/")[2].split("?")[0]
+            files = []
+            for line in command(
+                "diff-tree", "--no-commit-id", "-r", "--name-status", rev
+            ).splitlines():
+                status, name = line.split("\t")
+                files.append(
+                    {
+                        "filename": name,
+                        "status": {"M": "modified", "A": "added"}[status],
+                        "sha": command("rev-parse", rev + ":" + name).strip(),
+                    }
+                )
+            return {
+                "sha": rev,
+                "parents": [{"sha": command("rev-parse", rev + "^").strip()}],
+                "files": files,
+                "commit": {"tree": {"sha": command("rev-parse", rev + "^{tree}").strip()}},
+            }
+        if path.startswith("/git/blobs/"):
+            import base64
+
+            oid = path.rsplit("/", 1)[1]
+            raw = command("cat-file", "blob", oid).encode()
+            return {
+                "sha": oid,
+                "size": len(raw),
+                "encoding": "base64",
+                "content": base64.b64encode(raw).decode(),
+            }
+        if path.startswith("/git/commits/"):
+            revision = path.rsplit("/", 1)[1]
+            return {
+                "sha": revision,
+                "tree": {"sha": command("rev-parse", revision + "^{tree}").strip()},
+            }
+        if path.startswith("/git/trees/"):
+            oid = path.rsplit("/", 1)[1]
+            rows = []
+            for line in command("ls-tree", oid).splitlines():
+                header, name = line.split("\t")
+                mode, kind, blob = header.split()
+                rows.append({"path": name, "mode": mode, "type": kind, "sha": blob})
+            return {"sha": oid, "truncated": fault == "truncated-tree", "tree": rows}
+        replies = {
+            "": repo,
+            f"/pulls/{number}": pr,
+            "/git/ref/heads/main": {
+                "ref": "refs/heads/main",
+                "object": {"type": "commit", "sha": base},
+            },
+            f"/actions/runs/23/attempts/{attempt}": run,
+            "/actions/workflows/" + workflow_name: {"id": 123, "path": workflow},
+            f"/actions/runs/23/attempts/{attempt}/jobs?per_page=100&page=1": {
+                "total_count": 1,
+                "jobs": [job],
+            },
+        }
+        return replies[path]
+
+    if fault == "duplicate":
+        pr["comments"] = 2
+    if fault == "missing":
+        pr["comments"] = 0
+
+    def admitted() -> bool:
+        decision = runtime_surface.publisher_repair_designation(
+            read, pr, subject=None if caddy else {"manifest": "sha256:" + "b" * 64}
+        )
+        if decision is None:
+            return False
+        assert decision["comment"] == str(identity)
+        if caddy:
+            assert (
+                runtime_surface._caddy_repair_pr(read, pr, head, operation, event)[
+                    "publisher_repair"
+                ]
+                == decision
+            )
+        else:
+            runtime_surface.publisher_repair_run(read, decision, head, workflow_name, job_name)
+        return True
+
+    if fault in ("missing", "author", "drift", "stale-only"):
+        assert not admitted()
+    elif (
+        fault in (None, "corrected", "corrected-mapping") or fault == "other-subject" and not caddy
+    ):
+        assert admitted()
+    else:
+        with pytest.raises((ValueError, QualificationError)):
+            admitted()
+
+
+@pytest.mark.parametrize(
+    "source,started,build,accepted",
+    [
+        ("w", "2026-01-02T01:00:00Z", True, True),
+        ("r", "2026-01-02T01:00:00Z", True, True),
+        ("k", "2026-01-02T01:00:00Z", True, False),
+        ("w", "2026-01-01T00:00:00Z", True, False),
+        ("w", "2026-02-01T00:00:00Z", True, False),
+        ("w", "2026-01-02T01:00:00Z", False, False),
+    ],
+)
+def test_caddy_historical_D_uses_original_build_authority(
+    source: str, started: str, build: bool, accepted: bool
+) -> None:
+    grant = {
+        "callers": "w",
+        "build": ",owner-candidate-D" if build else "",
+        "created": "2026-01-01T00:00:00Z",
+        "expires": "2026-02-01T00:00:00Z",
+    }
+    assert runtime_surface.caddy_repair_d_admitted(grant, "r", source, started) is accepted
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "unrelated-removal",
+        "single-wrapper",
+        "changed-verification",
+        "extra-wrapper-edit",
+        "wrong-old-pin",
+    ],
+)
+def test_native_baseline_prunes_only_two_authenticated_public_pins(fault: str | None) -> None:
+    import base64
+    from copy import deepcopy
+    from typing import Any
+    from scripts.ci.prometheus_source_image import QualificationError
+
+    objects: dict[str, bytes] = {}
+
+    def blob(raw: bytes) -> str:
+        oid = hashlib.sha1(
+            b"blob " + str(len(raw)).encode() + b"\0" + raw, usedforsecurity=False
+        ).hexdigest()
+        objects[oid] = raw
+        return oid
+
+    def read(path: str) -> dict[str, Any]:
+        oid = path.rsplit("/", 1)[1]
+        raw = objects[oid]
+        return {
+            "sha": oid,
+            "size": len(raw),
+            "encoding": "base64",
+            "content": base64.b64encode(raw).decode(),
+        }
+
+    helper = "scripts/ci/fetch_docker_source_artifacts.py"
+    old, new = b"original test helper", b"reviewed test helper"
+    changed = {helper: (blob(old), blob(new))}
+    old_digest, new_digest = hashlib.sha256(old).hexdigest(), hashlib.sha256(new).hexdigest()
+    fingerprint = hashlib.sha1(old_digest.encode(), usedforsecurity=False).hexdigest()
+    baseline: dict[str, Any] = {
+        "version": "synthetic",
+        "generated_at": "2026-01-01T00:00:00Z",
+        "results": {},
+    }
+    target = deepcopy(baseline)
+    for path in ("scripts/deploy.sh", "scripts/deploy_production.sh"):
+        before = f'ALERTMANAGER_CONTRACT_HELPER_SHA256="{old_digest}"\n'.encode()
+        after = f'ALERTMANAGER_CONTRACT_HELPER_SHA256="{new_digest}"  # pragma: allowlist secret - public AM helper SHA-256\n'.encode()
+        if fault == "extra-wrapper-edit":
+            after += b"echo unrelated\n"
+        if fault == "wrong-old-pin":
+            before = before.replace(old_digest.encode(), new_digest.encode())
+        changed[path] = (blob(before), blob(after))
+        retired = {
+            "filename": path,
+            "type": "Hex High Entropy String",
+            "hashed_secret": fingerprint,
+            "is_verified": False,
+            "line_number": 1,
+        }
+        unrelated = {
+            **retired,
+            "hashed_secret": hashlib.sha256(b"unrelated synthetic finding").hexdigest(),
+            "line_number": 2,
+        }
+        baseline["results"][path] = [retired, unrelated]
+        target["results"][path] = [deepcopy(unrelated)]
+        if fault == "single-wrapper" and path == "scripts/deploy.sh":
+            target["results"][path].append(deepcopy(retired))
+        if fault == "changed-verification":
+            target["results"][path][0]["is_verified"] = True
+        if fault == "unrelated-removal":
+            target["results"][path].clear()
+    changed[".secrets.baseline"] = (
+        blob(json.dumps(baseline).encode()),
+        blob(json.dumps(target).encode()),
+    )
+    if fault is None:
+        runtime_surface._publisher_baseline_change(read, changed)
+    else:
+        with pytest.raises(
+            QualificationError, match="publisher_repair_baseline_finding_or_policy_changed"
+        ):
+            runtime_surface._publisher_baseline_change(read, changed)
