@@ -33,7 +33,7 @@ if TYPE_CHECKING:
     from zipfile import ZipFile, ZipInfo
     from scripts.ci.prometheus_source_image import GitHubRead, Native
 from urllib.error import HTTPError
-from urllib.parse import urlparse
+from urllib.parse import urlencode, urlparse
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 REPO_ROOT = (
@@ -4340,9 +4340,7 @@ def _alertmanager_publication_predecessor(
                 return None
             if not consumer_2495:
                 _alertmanager_merged_ref(api, _ALERT_2495_BRANCH, revision, root, number=2495)
-        _alertmanager_merged_ref(
-            api, _ALERT_TRANSITION_BRANCH, publisher, root, number=_ALERT_TRANSITION_PR
-        )
+        _alertmanager_copy_merge(api, root, publisher)
         observed_dir = work / (str(run["id"]) + "-current-observations")
         fresh_directory(observed_dir)
         source_hashes = {
@@ -11505,21 +11503,216 @@ _ALERT_TRANSITION_PR = 2501
 _ALERT_TRANSITION_BRANCH = "codex/alertmanager-controller-transition"
 _ALERT_TRANSITION_BASE = "2d1df880c8ac2fb1ea53bf09836905194fb47121"
 _ALERT_INCUMBENT_CONTROLLER = "41f275fc6bec94dbf04c02338d560446bb846e0c"
+_ALERT_COPY_BRANCH = "codex/alertmanager-oras-copy-fix"
+_ALERT_COPY_BASE = "29c1eeaf2ab32d36abe00718e7fdd9e8db861dca"
+_ALERT_COPY_INCUMBENT = "ffc4b6f9e475c920bb936292a1c615996e6d1c37"
 _ALERT_CALLERS = (".github/workflows/ci.yml", ".github/workflows/cd.yml")
 
 
+def _alertmanager_copy_pr(api: GitHubRead, pr: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Select the sole native PR ever opened for the one corrective branch."""
+    from scripts.ci.prometheus_source_image import GHCR_REPOSITORY, require
+
+    endpoint = "/repos/" + GHCR_REPOSITORY
+    query = urlencode(
+        {
+            "state": "all",
+            "head": GHCR_REPOSITORY.split("/")[0] + ":" + _ALERT_COPY_BRANCH,
+            "base": "main",
+            "per_page": 2,
+        }
+    )
+    rows = api.json(endpoint + "/pulls?" + query)
+    require(
+        type(rows) is list and len(rows) == 1 and type(rows[0]) is dict, "AM_corrective_unique_PR"
+    )
+    number = rows[0].get("number")
+    require(
+        type(number) is int and number > 0 and number not in (2484, 2494, 2495, 2501),
+        "AM_corrective_PR_number",
+    )
+    if pr is None:
+        pr = api.json(endpoint + "/pulls/" + str(number))
+    require(type(pr) is dict, "AM_corrective_native_PR_binding")
+    for record in (rows[0], pr):
+        require(
+            type(record) is dict
+            and type(record.get("number")) is int
+            and record["number"] == number
+            and record.get("state") == pr.get("state")
+            and record.get("head", {}).get("ref") == _ALERT_COPY_BRANCH
+            and record.get("base", {}).get("ref") == "main"
+            and all(
+                type(record[side].get("repo", {}).get("id")) is int
+                and record[side]["repo"]["id"] == 1043311030
+                and record[side]["repo"].get("full_name") == GHCR_REPOSITORY
+                and type(record[side].get("sha")) is str
+                and re.fullmatch(r"[0-9a-f]{40}", record[side]["sha"]) is not None
+                and record[side]["sha"] == pr[side]["sha"]
+                for side in ("head", "base")
+            ),
+            "AM_corrective_native_PR_binding",
+        )
+    return pr
+
+
+def _alertmanager_copy_merge(api: GitHubRead, root: Path, publisher: str) -> None:
+    """Bind a later main publisher to the actual corrective squash and its reviewed K/W trees."""
+    import base64
+    from scripts.ci.prometheus_source_image import GHCR_REPOSITORY, require, require_native_ancestor
+
+    endpoint = "/repos/" + GHCR_REPOSITORY
+    pr = _alertmanager_copy_pr(api)
+    merge = pr.get("merge_commit_sha")
+    require(
+        pr["state"] == "closed"
+        and pr.get("merged") is True
+        and type(merge) is str
+        and re.fullmatch(r"[0-9a-f]{40}", merge) is not None
+        and merge != _ALERT_COPY_BASE,
+        "AM_corrective_merged_PR_and_controller",
+    )
+    merge = cast(str, merge)
+    require(
+        _alertmanager_merged_ref(
+            api, _ALERT_TRANSITION_BRANCH, merge, root, number=_ALERT_TRANSITION_PR
+        )
+        == _ALERT_COPY_BASE,
+        "AM_corrective_original_transition",
+    )
+    _alertmanager_native_ancestor(api, root, merge, publisher)
+
+    def commit(revision: str) -> tuple[str, str]:
+        node = api.json(endpoint + "/git/commits/" + revision)
+        require(
+            type(node) is dict
+            and node.get("sha") == revision
+            and type(node.get("parents")) is list
+            and len(node["parents"]) == 1
+            and type(node["parents"][0]) is dict
+            and type(node["parents"][0].get("sha")) is str
+            and re.fullmatch(r"[0-9a-f]{40}", node["parents"][0]["sha"]) is not None
+            and type(node.get("tree")) is dict
+            and type(node["tree"].get("sha")) is str
+            and re.fullmatch(r"[0-9a-f]{40}", node["tree"]["sha"]) is not None,
+            "AM_corrective_commit_tree_parent",
+        )
+        return node["tree"]["sha"], node["parents"][0]["sha"]
+
+    merged_tree, merged_parent = commit(merge)
+    head_tree, parent = commit(pr["head"]["sha"])
+    require(
+        merged_parent == _ALERT_COPY_BASE and merged_tree == head_tree, "AM_corrective_exact_squash"
+    )
+    final = _alertmanager_remote_tree(api, head_tree)
+
+    def blob(data: bytes) -> str:
+        return sha1(
+            b"blob " + str(len(data)).encode() + b"\0" + data, usedforsecurity=False
+        ).hexdigest()
+
+    # Main may execute its trusted checkout H rather than the former PR controller K.
+    # Recover that historical pin from both regular callers in the authenticated squash.
+    callers = {}
+    controllers = set()
+    for path in _ALERT_CALLERS:
+        record = api.json(endpoint + "/contents/" + path + "?ref=" + merge)
+        require(
+            type(record) is dict
+            and record.get("type") == "file"
+            and record.get("path") == path
+            and record.get("encoding") == "base64"
+            and type(record.get("content")) is str
+            and type(record.get("size")) is int
+            and 0 < record["size"] <= 1024**2,
+            "AM_corrective_regular_caller",
+        )
+        raw = base64.b64decode(record["content"].replace("\n", ""), validate=True)
+        pins = re.findall(
+            rb"^  ALERTMANAGER_CONTROLLER_SOURCE: '([0-9a-f]{40})'(?=[ \t]*(?:#.*)?$)", raw, re.M
+        )
+        require(
+            len(raw) == record["size"]
+            and final.get(path) == ("100644", blob(raw))
+            and record.get("sha") == blob(raw)
+            and len(pins) == 1
+            and raw.count(b"  ALERTMANAGER_CONTROLLER_SOURCE: '") == 1,
+            "AM_corrective_merged_caller_pin",
+        )
+        controllers.add(pins[0].decode("ascii"))
+        callers[path] = (raw, b"  ALERTMANAGER_CONTROLLER_SOURCE: '" + pins[0] + b"'")
+    require(
+        len(controllers) == 1 and _ALERT_COPY_INCUMBENT not in controllers,
+        "AM_corrective_matching_merged_pins",
+    )
+    controller = controllers.pop()
+    if os.environ.get("GITHUB_EVENT_NAME") == "pull_request":
+        require(
+            os.environ.get("ALERTMANAGER_CONTROLLER_SOURCE") == controller,
+            "AM_corrective_PR_executing_controller",
+        )
+    require_native_ancestor(api, _ALERT_COPY_BASE, controller)
+
+    if publisher != merge:
+        node = api.json(endpoint + "/git/commits/" + publisher)
+        require(
+            type(node) is dict
+            and node.get("sha") == publisher
+            and type(node.get("tree", {}).get("sha")) is str
+            and re.fullmatch(r"[0-9a-f]{40}", node["tree"]["sha"]) is not None,
+            "AM_corrective_publisher_tree",
+        )
+        later = _alertmanager_remote_tree(api, node["tree"]["sha"])
+        for name in (*_ALERT_CALLERS, "scripts/ci/fetch_docker_source_artifacts.py"):
+            require(
+                name in final and later.get(name) == final[name],
+                "AM_corrective_publisher_contract_drift",
+            )
+    successor = final
+    if parent != controller:
+        pin_tree, parent = commit(parent)
+        successor = _alertmanager_remote_tree(api, pin_tree)
+        mapping = f"docs/review/PR_{pr['number']}_FIXED_MAPPING.md"
+        require(
+            final.get(mapping, ("", ""))[0] == "100644"
+            and final[mapping] != successor.get(mapping)
+            and {k: v for k, v in final.items() if k != mapping}
+            == {k: v for k, v in successor.items() if k != mapping},
+            "AM_corrective_final_mapping_only",
+        )
+    require(parent == controller, "AM_corrective_pin_parent")
+    controller_tree, _ = commit(controller)
+    expected = _alertmanager_remote_tree(api, controller_tree)
+
+    for path, (raw, pin) in callers.items():
+        previous = raw.replace(
+            pin, pin.replace(controller.encode(), _ALERT_COPY_INCUMBENT.encode())
+        )
+        require(expected.get(path) == ("100644", blob(previous)), "AM_corrective_original_pin")
+        expected[path] = final[path]
+    require(expected == successor, "AM_corrective_two_exact_caller_pins")
+
+
 def _alertmanager_transition_successor(
-    api: GitHubRead, root: Path, head: str, controller: str, number: int
+    api: GitHubRead,
+    root: Path,
+    head: str,
+    controller: str,
+    number: int,
+    *,
+    corrective: bool = False,
 ) -> None:
     """Bind the designated K to the pin-only W and optional direct mapping-only closeout."""
     import shutil
     from scripts.ci.prometheus_source_image import require
 
+    base = _ALERT_COPY_BASE if corrective else _ALERT_TRANSITION_BASE
+    incumbent = _ALERT_COPY_INCUMBENT if corrective else _ALERT_INCUMBENT_CONTROLLER
     endpoint = "/repos/Katsiarynakavaleuskaya/PulsePlate"
     require(
         type(controller) is str
         and re.fullmatch(r"[0-9a-f]{40}", controller) is not None
-        and controller != _ALERT_INCUMBENT_CONTROLLER
+        and controller != incumbent
         and type(number) is int
         and number > 0,
         "AM_transition_controller_designation",
@@ -11600,10 +11793,7 @@ def _alertmanager_transition_successor(
         and executing.get("sha") == workflow_sha
         and executing.get("tree", {}).get("sha")
         == query("rev-parse", head + "^{tree}").decode().strip()
-        and (
-            workflow_sha == head
-            or [row["sha"] for row in executing["parents"]] == [_ALERT_TRANSITION_BASE, head]
-        ),
+        and (workflow_sha == head or [row["sha"] for row in executing["parents"]] == [base, head]),
         "AM_transition_executing_tree",
     )
     successor = head
@@ -11644,7 +11834,7 @@ def _alertmanager_transition_successor(
             and leaf.read_bytes() == query("cat-file", "blob", controller + ":" + name),
             "AM_transition_actual_native_fixture_closure",
         )
-    query("merge-base", "--is-ancestor", _ALERT_TRANSITION_BASE, controller)
+    query("merge-base", "--is-ancestor", base, controller)
     for path in _ALERT_CALLERS:
         for revision in (controller, successor):
             require(
@@ -11656,10 +11846,8 @@ def _alertmanager_transition_successor(
                 "AM_transition_regular_caller",
             )
         prototype = query("cat-file", "blob", controller + ":" + path)
-        pin = ("  ALERTMANAGER_CONTROLLER_SOURCE: '" + _ALERT_INCUMBENT_CONTROLLER + "'").encode()
-        expected = prototype.replace(
-            pin, pin.replace(_ALERT_INCUMBENT_CONTROLLER.encode(), controller.encode())
-        )
+        pin = ("  ALERTMANAGER_CONTROLLER_SOURCE: '" + incumbent + "'").encode()
+        expected = prototype.replace(pin, pin.replace(incumbent.encode(), controller.encode()))
         require(
             prototype.count(pin) == 1
             and query("cat-file", "blob", successor + ":" + path) == expected,
@@ -11737,6 +11925,43 @@ def _alertmanager_reader_route(
             (number == _ALERT_TRANSITION_PR) == (pr["head"].get("ref") == _ALERT_TRANSITION_BRANCH),
             "AM_transition_PR_identity",
         )
+        corrective = pr["head"].get("ref") == _ALERT_COPY_BRANCH
+        if corrective:
+            event_pr = event["pull_request"]
+            _alertmanager_copy_pr(api, pr)
+            ref = api.json(
+                "/repos/Katsiarynakavaleuskaya/PulsePlate/git/ref/heads/" + _ALERT_COPY_BRANCH
+            )
+            require(
+                pr.get("merged") is False
+                and type(event_pr.get("number")) is int
+                and event_pr["number"] == number
+                and event_pr.get("state") == "open"
+                and all(
+                    event_pr[side]["repo"].get("full_name") == pr[side]["repo"]["full_name"]
+                    for side in ("base", "head")
+                )
+                and os.environ.get("GITHUB_REF") == f"refs/pull/{number}/merge"
+                and ref.get("ref") == "refs/heads/" + _ALERT_COPY_BRANCH
+                and ref.get("object", {}).get("type") == "commit"
+                and ref["object"].get("sha") == args.source_sha
+                and current_main == _ALERT_COPY_BASE
+                and upstream == "0.34.2"
+                and _alertmanager_original_lineage(api) == upstream
+                and _alertmanager_merged_ref(
+                    api,
+                    _ALERT_TRANSITION_BRANCH,
+                    current_main,
+                    args.material_root,
+                    number=_ALERT_TRANSITION_PR,
+                )
+                == _ALERT_COPY_BASE
+                and _alertmanager_merged_ref(
+                    api, _ALERT_Q_BRANCH, current_main, args.material_root, number=2494
+                )
+                == _ALERT_TRANSITION_BASE,
+                "AM_corrective_original_lineage_and_base",
+            )
         if number == _ALERT_TRANSITION_PR:
             require(
                 current_main == _ALERT_TRANSITION_BASE
@@ -11748,12 +11973,14 @@ def _alertmanager_reader_route(
                 == current_main,
                 "AM_transition_original_lineage_and_base",
             )
+        if corrective or number == _ALERT_TRANSITION_PR:
             _alertmanager_transition_successor(
                 api,
                 args.material_root,
                 args.source_sha,
                 args.alertmanager_controller_source,
                 number,
+                corrective=corrective,
             )
             return {
                 "mode": "transition_PR_retained",
@@ -12582,9 +12809,7 @@ def _alertmanager_publish(
             ),
             "AM_separate_human_merge_observed",
         )
-        _alertmanager_merged_ref(
-            api, _ALERT_TRANSITION_BRANCH, args.source_sha, REPO_ROOT, number=_ALERT_TRANSITION_PR
-        )
+        _alertmanager_copy_merge(api, REPO_ROOT, args.source_sha)
         count = pr.get("commits")
         require(type(count) is int and 0 < count <= 250, "AM_publication_PR_commit_inventory")
         commits = api.pages(endpoint + "/pulls/2494/commits", None, count)
@@ -12898,7 +13123,7 @@ def _alertmanager_publish(
     copy = [
         str(tool),
         "cp",
-        "--registry-config",
+        "--to-registry-config",
         str(credential),
         "--from-oci-layout",
         str(prepared["candidate_directory"] / "layout") + "@" + digest,
@@ -12907,7 +13132,7 @@ def _alertmanager_publish(
     pullback = [
         str(tool),
         "cp",
-        "--registry-config",
+        "--from-registry-config",
         str(credential),
         "--to-oci-layout",
         destination + "@" + digest,
@@ -13042,27 +13267,11 @@ def _alertmanager_retain_execution(output: Path, retained: Path) -> None:
             )
 
 
-def _alertmanager_material_tree(
-    api: GitHubRead, source: str, query: Any
-) -> tuple[str, dict[str, tuple[str, str]]]:
-    """Existing complete tree recognizer, shared by live and historical material readers."""
+def _alertmanager_remote_tree(api: GitHubRead, tree_sha: str) -> dict[str, tuple[str, str]]:
+    """Enumerate the complete regular, link and gitlink leaf inventory of an authenticated tree."""
     from scripts.ci.prometheus_source_image import require
 
     endpoint = "/repos/Katsiarynakavaleuskaya/PulsePlate"
-    commit = api.json(endpoint + "/git/commits/" + source)
-    require(
-        type(commit) is dict and commit.get("sha") == source and type(commit.get("tree")) is dict,
-        "AM_material_API_commit",
-    )
-    tree_sha = commit["tree"].get("sha")
-    require(
-        type(tree_sha) is str and re.fullmatch(r"[0-9a-f]{40}", tree_sha) is not None,
-        "AM_material_API_tree",
-    )
-    require(
-        query("rev-parse", source + "^{tree}") == (tree_sha + "\n").encode(),
-        "AM_material_local_tree",
-    )
     tree = api.json(endpoint + "/git/trees/" + tree_sha + "?recursive=1")
     require(
         type(tree) is dict
@@ -13099,6 +13308,31 @@ def _alertmanager_material_tree(
             "AM_material_tree_type",
         )
         expected[path] = (mode, oid)
+    return expected
+
+
+def _alertmanager_material_tree(
+    api: GitHubRead, source: str, query: Any
+) -> tuple[str, dict[str, tuple[str, str]]]:
+    """Existing complete tree recognizer, shared by live and historical material readers."""
+    from scripts.ci.prometheus_source_image import require
+
+    endpoint = "/repos/Katsiarynakavaleuskaya/PulsePlate"
+    commit = api.json(endpoint + "/git/commits/" + source)
+    require(
+        type(commit) is dict and commit.get("sha") == source and type(commit.get("tree")) is dict,
+        "AM_material_API_commit",
+    )
+    tree_sha = commit["tree"].get("sha")
+    require(
+        type(tree_sha) is str and re.fullmatch(r"[0-9a-f]{40}", tree_sha) is not None,
+        "AM_material_API_tree",
+    )
+    require(
+        query("rev-parse", source + "^{tree}") == (tree_sha + "\n").encode(),
+        "AM_material_local_tree",
+    )
+    expected = _alertmanager_remote_tree(api, tree_sha)
     native_tree: dict[str, tuple[str, str]] = {}
     raw_tree = query("ls-tree", "-r", "-z", source)
     require(raw_tree.endswith(b"\0"), "AM_material_native_tree_terminator")
@@ -13654,9 +13888,7 @@ def _alertmanager_new_source_admission(
         merge = cast(str, merge)
         # Squash merges need merge_commit -> H, never the false premerge C -> H relation.
         _alertmanager_native_ancestor(api, REPO_ROOT, merge, source)
-        _alertmanager_merged_ref(
-            api, _ALERT_TRANSITION_BRANCH, source, REPO_ROOT, number=_ALERT_TRANSITION_PR
-        )
+        _alertmanager_copy_merge(api, REPO_ROOT, source)
         if not support_only:
             expected_candidate = _alertmanager_accepted_producer()
             count = pr.get("commits")

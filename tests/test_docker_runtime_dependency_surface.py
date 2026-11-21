@@ -2267,7 +2267,7 @@ def test_caddy_push_selects_only_one_exact_merged_main_pr(
 
     def read(endpoint: str) -> Any:
         if endpoint.startswith("/pulls?"):
-            return [{"number": 2501}]
+            return []
         number = int(endpoint.removeprefix("/pulls/"))
         participating = number == 2501 or (
             (fault == "matching-retarget" and number == 2484)
@@ -3596,7 +3596,7 @@ def test_caddy062_charge_step_requires_independently_reviewed_same_run_outputs(
     branch_by_lane = {
         "train": "codex/cab07c-eslint-pages-features",
         "recovery": "codex/npm-braces-build-prerequisite",
-        "transition": "codex/alertmanager-controller-transition",
+        "transition": "codex/alertmanager-oras-copy-fix",
     }
     pr_lane = str(fault).partition("-")[0]
     owner_build = pr_lane in branch_by_lane
@@ -3808,21 +3808,28 @@ def test_caddy062_charge_step_requires_independently_reviewed_same_run_outputs(
 
         def get(endpoint: str) -> Any:
             number = 9998 if fault == "transition-replacement" else number_by_lane[pr_lane]
-            if endpoint.startswith("/pulls?"):
-                assert pr_lane == "transition"
-                return [{"number": number}]
-            assert endpoint == f"/pulls/{number}"
             repo = {"id": 1043311030, "full_name": "Katsiarynakavaleuskaya/PulsePlate"}
-            return {
+            pr = {
                 "number": number,
                 "state": "open",
-                "base": {"ref": "main", "repo": repo},
+                "base": {"ref": "main", "repo": repo, "sha": runtime_surface.CADDY_COPY_BASE},
                 "head": {
                     "repo": repo,
                     "ref": "wrong" if fault == "transition-substitute" else branch,
                     "sha": "f" * 40 if fault == "recovery-stale" else head,
                 },
             }
+
+            if endpoint.startswith("/pulls?"):
+                assert pr_lane == "transition"
+                return [pr]
+            if endpoint == "/git/ref/heads/main":
+                return {
+                    "ref": "refs/heads/main",
+                    "object": {"type": "commit", "sha": runtime_surface.CADDY_COPY_BASE},
+                }
+            assert endpoint == f"/pulls/{number}"
+            return pr
 
         yield get
 

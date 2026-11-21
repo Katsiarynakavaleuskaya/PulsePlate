@@ -7109,6 +7109,7 @@ def test_caddy_candidate_release_requires_current_source_control_and_cleanup_con
         2484: "codex/cab07c-eslint-pages-features",
         2494: "codex/dependency-alertmanager-remediation",
         2495: "codex/npm-braces-build-prerequisite",
+        2501: "codex/alertmanager-controller-transition",
     }
     repo = {"id": 1043311030, "full_name": "Katsiarynakavaleuskaya/PulsePlate"}
     main = fault in ("main", "merged-drift")
@@ -7403,12 +7404,17 @@ def test_caddy_checkout_inventory_rejects_unbound_native_input(
         "2484-wrong-branch",
         "2484-dispatch-sha",
         "2484-second-attempt",
+        "historical-build",
         "transition-build",
         "transition-reuse",
         "transition-main",
         "transition-ambiguous-lookup",
         "transition-empty-lookup",
         "transition-wrong-number",
+        "transition-moved-base",
+        "transition-stale-list",
+        "transition-bad-event",
+        "transition-bad-main-parent",
         "transition-wrong-branch",
         "transition-dispatch-sha",
         "transition-wrong-merge",
@@ -7508,7 +7514,7 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
     monkeypatch.chdir(root)
     head, old_head = "1" * 40, "2" * 40
     lane, separator, variant = case.partition("-")
-    lanes = {"transition": 9999, "2495": 2495, "2484": 2484}
+    lanes = {"historical": 2501, "transition": 9999, "2495": 2495, "2484": 2484}
     number = lanes.get(lane, 2494)
     if separator and lane in lanes:
         case = variant
@@ -7516,10 +7522,11 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
         2484: "codex/cab07c-eslint-pages-features",
         2494: "codex/dependency-alertmanager-remediation",
         2495: "codex/npm-braces-build-prerequisite",
-        9999: "codex/alertmanager-controller-transition",
+        2501: "codex/alertmanager-controller-transition",
+        9999: "codex/alertmanager-oras-copy-fix",
     }
     branch = branches[number]
-    main = case in {"main", "wrong-merge", "ambiguous-merge"}
+    main = case in {"main", "wrong-merge", "ambiguous-merge", "bad-main-parent"}
     pr_head = "4" * 40 if main else head
     sender = {"id": 321, "login": "Katsiarynakavaleuskaya", "type": "User"}
     repo = "Katsiarynakavaleuskaya/PulsePlate"
@@ -7563,12 +7570,13 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
             "sha": pr_head,
             "ref": "unrelated" if case == "wrong-branch" else branch,
         },
-        "base": {"repo": dict(repository), "ref": "main"},
+        "base": {"repo": dict(repository), "ref": "main", "sha": caddy_surface.CADDY_COPY_BASE},
     }
     if case == "foreign-repo":
         pr["head"]["repo"]["id"] = 999
     refresh = case.removeprefix("refresh-") if case.startswith("refresh-") else None
     reuse = main or case in {
+        "bad-event",
         "reuse",
         "expired-artifact",
         "failed-producer",
@@ -7600,7 +7608,7 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
     )
     event = runner / "event.json"
     payload = (
-        {"pull_request": pr}
+        {"number": True if case == "bad-event" else number, "pull_request": pr}
         if event_name == "pull_request"
         else {
             "sender": {**sender, "type": "Bot"} if case == "dispatch-actor" else sender,
@@ -7614,7 +7622,11 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
     if number == 2494 and event_name == "workflow_dispatch":
         del payload["inputs"]["caddy_source_sha"]
     if main:
-        payload = {"after": head, "ref": "refs/heads/main"}
+        payload = {
+            "after": head,
+            "ref": "refs/heads/main",
+            "before": old_head if case == "bad-main-parent" else caddy_surface.CADDY_COPY_BASE,
+        }
     event.write_text(json.dumps(payload))
     ref = (
         "refs/heads/main"
@@ -7787,7 +7799,7 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
             calls.append(url)
             if url.endswith(f"/pulls/{number}"):
                 value = pr
-            elif main and any(url.endswith(f"/pulls/{n}") for n in (2484, 2494, 2495)):
+            elif main and any(url.endswith(f"/pulls/{n}") for n in (2484, 2494, 2495, 2501)):
                 foreign_number = int(url.rsplit("/", 1)[1])
                 value = {
                     **pr,
@@ -7796,10 +7808,12 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
                     "merge_commit_sha": head if case == "ambiguous-merge" else old_head,
                 }
             elif (
-                "/pulls?state=all&head=Katsiarynakavaleuskaya%3Acodex%2Falertmanager-controller-transition&base=main&per_page=2"
+                "/pulls?state=all&head=Katsiarynakavaleuskaya%3Acodex%2Falertmanager-oras-copy-fix&base=main&per_page=2"
                 in url
             ):
-                value = [{"number": number}] if number == 9999 else []
+                value = [pr] if number == 9999 else []
+                if case == "stale-list":
+                    value = [{**pr, "head": {**pr["head"], "sha": old_head}}]
                 if case == "ambiguous-lookup":
                     value.append({"number": 9998})
                 elif case == "empty-lookup":
@@ -7807,6 +7821,14 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
                 elif case == "wrong-number":
                     value = [{"number": 2494}]
 
+            elif url.endswith("/git/ref/heads/main"):
+                value = {
+                    "ref": "refs/heads/main",
+                    "object": {
+                        "type": "commit",
+                        "sha": old_head if case == "moved-base" else caddy_surface.CADDY_COPY_BASE,
+                    },
+                }
             elif f"/pulls/{number}/commits?" in url:
                 value = [
                     {"sha": old_head, "parents": []},
@@ -8062,6 +8084,10 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
             "second-attempt": "exact frozen source dispatch",
             "spent": "already started",
             "metadata": "standalone metadata is outside",
+            "moved-base": "corrective PR base or event differs",
+            "bad-event": "corrective PR base or event differs",
+            "bad-main-parent": "corrective main parent differs",
+            "stale-list": "corrective PR listing changed",
             "ambiguous-lookup": "transition PR lookup is ambiguous",
             "empty-lookup": "one exact accepted PR or main merge",
             "wrong-number": "transition PR identity differs",
