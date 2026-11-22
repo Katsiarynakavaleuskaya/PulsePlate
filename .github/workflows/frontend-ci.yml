@@ -2777,18 +2777,19 @@ jobs:
           CADDY_SOURCE_HORIZON: ${{ steps.caddy-upload-budget.outputs.horizon }}
         run: |
           python3 - <<'PY'
-          import json, os, re, sys
+          import json, os, sys
           from pathlib import Path
-          from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_phase, caddy_ci_reader, verify_repair_evidence_upload
+          from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_phase, caddy_ci_reader, caddy_uploaded_repair_id, verify_repair_evidence_upload
           work = Path(os.environ["RUNNER_TEMP"])
           try:
-              if os.environ["CADDY_UPLOAD_OUTCOME"] != "success" or not re.fullmatch(r"[1-9][0-9]{0,18}", os.environ["CADDY_UPLOADED_ID"]):
+              if os.environ["CADDY_UPLOAD_OUTCOME"] != "success":
                   raise ValueError("Caddy repair ZIP upload did not produce an artifact")
+              uploaded = caddy_uploaded_repair_id(dict(os.environ))
               state = json.loads((work / "caddy-admission/admission.json").read_bytes())
               with caddy_ci_phase("UPLOAD") as remaining, caddy_ci_reader(
                   Path.cwd(), work / "caddy-admission/upload-verification", remaining,
-                  state["inputs"]["scripts/ci/prometheus_source_image.py"]["sha256"]) as read:
-                  verify_repair_evidence_upload(read("/actions/artifacts/" + os.environ["CADDY_UPLOADED_ID"]), dict(os.environ))
+                  state["inputs"]["scripts/ci/prometheus_source_image.py"]["sha256"], fresh_upload_id=uploaded) as read:
+                  verify_repair_evidence_upload(read("/actions/artifacts/" + uploaded), dict(os.environ))
           finally:
               primary = sys.exc_info()[1]
               try:

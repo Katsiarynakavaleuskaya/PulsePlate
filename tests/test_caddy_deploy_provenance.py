@@ -8283,6 +8283,204 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
 
 
 @pytest.mark.parametrize(
+    "outcomes, expected, attempts",
+    [
+        (("404", "ok"), None, 2),
+        (("429-short", "ok"), None, 2),
+        (("reset", "ok"), None, 2),
+        (("timeout", "ok"), None, 2),
+        (("503", "503", "503"), "fresh_artifact_http_503", 3),
+        (("429-long",), "fresh_artifact_http_429", 1),
+        (("503-invalid-delay",), "fresh_artifact_http_503", 1),
+        (("401",), "fresh_artifact_http_401", 1),
+        (("403",), "fresh_artifact_http_403", 1),
+        (("redirect",), "fresh_artifact_http_302", 1),
+        (("tls",), "fresh_artifact_tls", 1),
+        (("transport",), "fresh_artifact_transport", 1),
+        (("malformed",), "decode", 1),
+        (("error-like-body",), "decode", 1),
+        (("mismatch",), "publisher_repair_uploaded_transport", 1),
+        (("source-bytecode",), "native_failure", 0),
+        (("bad-upload-digest",), "publisher_repair_uploaded_transport", 0),
+        (("upload-failed",), "upload-failed", 0),
+    ],
+)
+def test_caddy_fresh_upload_verifies_exact_id_with_bounded_native_http(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    outcomes: tuple[str, ...],
+    expected: str | None,
+    attempts: int,
+) -> None:
+    from scripts.ci import prometheus_source_image as transport
+
+    runner = tmp_path / "runner"
+    root = tmp_path / "source"
+    owner_path = "scripts/ci/prometheus_source_image.py"
+    helper = root / owner_path
+    helper.parent.mkdir(parents=True)
+    helper.write_bytes((REPO_ROOT / owner_path).read_bytes())
+    if "source-bytecode" in outcomes:
+        cache = helper.parent / "__pycache__"
+        cache.mkdir()
+        (cache / "unexpected.pyc").write_bytes(b"unqualified")
+    state = _caddy_budget_fixture(runner, monkeypatch)
+    state["inputs"] = {owner_path: {"sha256": hashlib.sha256(helper.read_bytes()).hexdigest()}}
+    (runner / "caddy-admission/admission.json").write_text(json.dumps(state))
+    local_zip = runner / "caddy-contract-evidence.zip"
+    local_zip.write_bytes(b"prepacked fixture bytes")
+    digest = hashlib.sha256(local_zip.read_bytes()).hexdigest()
+    head = "a" * 40
+    ident = "14730379137"
+    for key in ("GH_TOKEN", "GITHUB_TOKEN", "GHCR_READ_TOKEN"):
+        monkeypatch.delenv(key, raising=False)
+    for key, val in {
+        "GH_TOKEN": "synthetic-account-only",
+        "CADDY_UPLOAD_OUTCOME": "failure" if "upload-failed" in outcomes else "success",
+        "CADDY_UPLOADED_ID": ident,
+        "CADDY_REPAIR_ZIP_BYTES": str(local_zip.stat().st_size),
+        "CADDY_REPAIR_ZIP_SHA256": digest,
+        "CADDY_UPLOADED_DIGEST": "bad" if "bad-upload-digest" in outcomes else digest,
+        "CADDY_SOURCE_HORIZON": "2027-02-14T05:10:32Z",
+        "GITHUB_RUN_ID": "44962160496",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "GITHUB_SHA": head,
+    }.items():
+        monkeypatch.setenv(key, val)
+    metadata = {
+        "id": int(ident),
+        "name": "caddy-contract-evidence.zip",
+        "expired": False,
+        "size_in_bytes": local_zip.stat().st_size,
+        "digest": "sha256:" + ("0" * 64 if "mismatch" in outcomes else digest),
+        "expires_at": "2027-02-19T23:30:54Z",
+        "workflow_run": {
+            "id": 44962160496,
+            "head_sha": head,
+            "repository_id": 1043311030,
+            "head_repository_id": 1043311030,
+        },
+    }
+    trace = tmp_path / "calls"
+    # Replace only the isolated worker's HTTPS transport and waits. Requests still pass
+    # through the production opener, response framing, verifier and final cleanup.
+    native_fixture = r"""
+import io,json,os,ssl,time,urllib.error,urllib.request,urllib.response
+from email.message import Message
+from pathlib import Path
+trace=Path(os.environ["FIXTURE_TRACE"])
+outcomes = iter(json.loads(os.environ["FIXTURE_OUTCOMES"]))
+now = time.monotonic()
+def wait(seconds):
+    global now
+    with trace.open("a") as stream: print("wait",seconds,file=stream)
+    now += seconds
+time.monotonic=lambda: now
+time.sleep=wait
+def http(self, request):
+    endpoint="https://api.github.com/repos/Katsiarynakavaleuskaya/PulsePlate/actions/artifacts/14730379137"
+    assert request.full_url==endpoint and request.get_method()=="GET"
+    assert request.get_header("Authorization") == "Bearer synthetic-account-only"
+    case=next(outcomes)
+    with trace.open("a") as stream: print("GET",case,file=stream)
+    if case=="reset": raise urllib.error.URLError(ConnectionResetError())
+    if case=="timeout": raise TimeoutError()
+    if case=="tls": raise urllib.error.URLError(ssl.SSLCertVerificationError())
+    if case=="transport": raise urllib.error.URLError("PRIVATE-UNTRUSTED-TRANSPORT")
+    status=302 if case=="redirect" else int(case[:3]) if case[:3].isdigit() else 200
+    headers=Message()
+    if case=="redirect": headers["Location"]="https://foreign.invalid/private"
+    if case=="429-short": headers["Retry-After"]="2"
+    if case=="429-long": headers["Retry-After"]="1200"
+    if case=="503-invalid-delay": headers["Retry-After"]="PRIVATE-UNTRUSTED-TRANSPORT"
+    body=b"PRIVATE-UNTRUSTED-TRANSPORT" if status>=300 or case=="malformed" else b"!1:http_503" if case=="error-like-body" else os.environ["FIXTURE_METADATA"].encode()
+    response=urllib.response.addinfourl(io.BytesIO(body),headers,request.full_url,status)
+    response.msg="native"
+    return response
+urllib.request.HTTPSHandler.https_open=http
+"""
+    capture = transport.GitHubRead._capture
+    readers = []
+
+    def native(reader: Any, argv: list[str], maximum: int) -> bytes:
+        if argv[1:3] == ["auth", "status"]:
+            readers.append(reader)
+            reader.sequence += 1
+            return b"authenticated"
+        assert argv[0] == sys.executable and argv[1:4] == ["-E", "-S", "-B"]
+        assert argv[-4] == "/actions/artifacts/" + ident and argv[-2] == ident
+        assert float(argv[-1]) == reader.deadline
+        reader.environment.update(
+            FIXTURE_TRACE=str(trace),
+            FIXTURE_OUTCOMES=json.dumps(outcomes),
+            FIXTURE_METADATA=json.dumps(metadata),
+        )
+        argv = list(argv)
+        argv[argv.index("-c") + 1] = native_fixture + argv[argv.index("-c") + 1]
+        return capture(reader, argv, maximum)
+
+    which = shutil.which
+    monkeypatch.setattr(
+        shutil, "which", lambda name: "/synthetic/gh" if name == "gh" else which(name)
+    )
+    monkeypatch.setattr(transport.GitHubRead, "_capture", native)
+    monkeypatch.chdir(root)
+    if outcomes == ("404", "ok"):
+        with (
+            pytest.raises(ValueError, match="^Caddy API failure "),
+            caddy_surface.caddy_ci_reader(
+                root,
+                tmp_path / "wrong-id",
+                lambda cap: min(cap, 6),
+                state["inputs"][owner_path]["sha256"],
+                fresh_upload_id=ident,
+            ) as read,
+        ):
+            read("/actions/artifacts/2")
+        assert not trace.exists()
+    code = compile(
+        _caddy_inline("Verify published repair evidence transport"),
+        "<fresh-upload-workflow>",
+        "exec",
+    )
+    if expected is None:
+        exec(code, {})
+    elif expected == "upload-failed":
+        with pytest.raises(
+            ValueError, match="^Caddy repair ZIP upload did not produce an artifact$"
+        ):
+            exec(code, {})
+    elif expected == "publisher_repair_uploaded_transport":
+        with pytest.raises(
+            transport.QualificationError, match="^publisher_repair_uploaded_transport$"
+        ):
+            exec(code, {})
+    else:
+        with pytest.raises(ValueError, match="^Caddy API failure ") as raised:
+            exec(code, {})
+        summary = json.loads(str(raised.value).removeprefix("Caddy API failure "))
+        if expected == "decode":
+            assert summary["stage"] == "decode"
+        else:
+            assert summary["category"] == expected
+        if expected.startswith("fresh_artifact_"):
+            assert summary["request_attempts"] == attempts and summary["native_exit"] == 0
+        assert "PRIVATE-UNTRUSTED-TRANSPORT" not in capsys.readouterr().err
+    observed = trace.read_text().splitlines() if trace.exists() else []
+    assert [line for line in observed if line.startswith("GET ")] == [
+        "GET " + v for v in outcomes[:attempts]
+    ]
+    delays = [float(line.split()[1]) for line in observed if line.startswith("wait ")]
+    assert delays == (
+        [2.0] if outcomes[0] == "429-short" else [float(i) for i in range(1, attempts)]
+    )
+    assert not local_zip.exists()
+    assert all(reader.process is None for reader in readers)
+    assert not list((runner / "caddy-admission/upload-verification").glob("pycache-*"))
+
+
+@pytest.mark.parametrize(
     "fault",
     [
         None,

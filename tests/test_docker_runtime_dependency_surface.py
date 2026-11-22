@@ -5366,7 +5366,9 @@ def test_caddy_repair_exact_zip_cap_and_mutating_member(
     assert not target.exists()
 
 
-@pytest.mark.parametrize("fault", [None, "digest", "size", "expiry", "different-run"])
+@pytest.mark.parametrize(
+    "fault", [None, "digest", "size", "missing-size", "expiry", "different-run"]
+)
 def test_caddy_upload_observation_binds_actual_server_transport(fault: str | None) -> None:
     from scripts.ci.prometheus_source_image import QualificationError
 
@@ -5397,6 +5399,8 @@ def test_caddy_upload_observation_binds_actual_server_transport(fault: str | Non
             "head_repository_id": 1043311030,
         },
     }
+    if fault == "missing-size":
+        del record["size_in_bytes"]
     if fault is None:
         runtime_surface.verify_repair_evidence_upload(record, env)
     else:

@@ -1517,23 +1517,33 @@ def pack_caddy_repair_evidence(
     return size, digest
 
 
-def verify_repair_evidence_upload(artifact: dict[str, Any], env: dict[str, str]) -> None:
+def caddy_uploaded_repair_id(env: dict[str, str]) -> str:
     from scripts.ci.prometheus_source_image import require
 
-    relation = artifact.get("workflow_run")
-    size = env["CADDY_REPAIR_ZIP_BYTES"]
-    ident = env["CADDY_UPLOADED_ID"]
+    ident, size = env["CADDY_UPLOADED_ID"], env["CADDY_REPAIR_ZIP_BYTES"]
     digest = env["CADDY_REPAIR_ZIP_SHA256"]
     require(
         re.fullmatch(_REPAIR_ID, ident) is not None
-        and type(artifact.get("id")) is int
-        and artifact["id"] == int(ident)
         and re.fullmatch(_REPAIR_ID, size) is not None
-        and type(artifact.get("size_in_bytes")) is int
-        and artifact["size_in_bytes"] == int(size) <= _REPAIR_ARCHIVE_MAX
+        and int(size) <= _REPAIR_ARCHIVE_MAX
         and re.fullmatch(r"[0-9a-f]{64}", digest) is not None
-        and env["CADDY_UPLOADED_DIGEST"] == digest
-        and artifact.get("digest") == "sha256:" + digest
+        and env["CADDY_UPLOADED_DIGEST"] == digest,
+        "publisher_repair_uploaded_transport",
+    )
+    return ident
+
+
+def verify_repair_evidence_upload(artifact: dict[str, Any], env: dict[str, str]) -> None:
+    from scripts.ci.prometheus_source_image import require
+
+    ident = caddy_uploaded_repair_id(env)
+    relation = artifact.get("workflow_run")
+    require(
+        type(artifact.get("id")) is int
+        and artifact["id"] == int(ident)
+        and type(artifact.get("size_in_bytes")) is int
+        and artifact["size_in_bytes"] == int(env["CADDY_REPAIR_ZIP_BYTES"])
+        and artifact.get("digest") == "sha256:" + env["CADDY_REPAIR_ZIP_SHA256"]
         and artifact.get("name") == _CADDY_REPAIR_ZIP_NAME
         and artifact.get("expired") is False
         and _publisher_time(artifact["expires_at"]) >= _publisher_time(env["CADDY_SOURCE_HORIZON"])
@@ -4199,13 +4209,79 @@ if owner.__file__ != str(source) or hashlib.sha256(source.read_bytes()).hexdiges
 url = "https://api.github.com/repos/Katsiarynakavaleuskaya/PulsePlate" + endpoint
 request = Request(url, headers={"Authorization": "Bearer " + os.environ["GH_TOKEN"],
     "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"})
-with opener().open(request, timeout=float(sys.argv[4])) as response:
-    if response.geturl() != url:
-        raise ValueError("Caddy API redirect")
-    raw = response.read(8388609)
-if len(raw) > 8388608:
-    raise ValueError("Caddy API response bound")
-sys.stdout.buffer.write(raw)
+def fetch(seconds):
+    with opener().open(request, timeout=seconds) as response:
+        if len(sys.argv) != 5 and response.status != 200:
+            raise HTTPError(url, response.status, "unexpected artifact metadata status", response.headers, None)
+        if response.geturl() != url:
+            raise ValueError("Caddy API redirect")
+        raw = response.read(8388609)
+    if len(raw) > 8388608:
+        raise ValueError("Caddy API response bound")
+    return raw
+
+if len(sys.argv) == 5:
+    sys.stdout.buffer.write(fetch(float(sys.argv[4])))
+else:
+    import re
+    import ssl
+    import time
+    from email.utils import parsedate_to_datetime
+    from urllib.error import HTTPError, URLError
+
+    ident, deadline = sys.argv[5], float(sys.argv[6])
+    if not re.fullmatch(r"[1-9][0-9]{0,18}", ident) or endpoint != "/actions/artifacts/" + ident:
+        raise ValueError("Caddy fresh artifact ID differs")
+    # Only this successful upload's numeric metadata GET may wait for visibility.
+    attempts, reason = 0, "deadline"
+    for attempt in range(1, 4):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        attempts = attempt
+        delay = float(attempt)
+        try:
+            raw = fetch(min(float(sys.argv[4]), remaining / (4 - attempt)))
+        except HTTPError as error:
+            with error:
+                if error.geturl() != url:
+                    reason = "redirect"
+                    break
+                status = error.code
+                delays = error.headers.get_all("Retry-After", []) if error.headers is not None else []
+            reason = "http_" + str(status)
+            if status not in (404, 429, 500, 502, 503, 504) or len(delays) > 1:
+                break
+            if delays:
+                retry_after = delays[0]
+                try:
+                    if re.fullmatch(r"[0-9]{1,9}", retry_after):
+                        requested = float(retry_after)
+                    else:
+                        when = parsedate_to_datetime(retry_after)
+                        if when.tzinfo is None:
+                            break
+                        requested = when.timestamp() - time.time()
+                    delay = max(delay, requested)
+                except (ValueError, TypeError, OverflowError, OSError):
+                    break
+        except (URLError, TimeoutError, ConnectionResetError, ssl.SSLError) as error:
+            cause = error.reason if isinstance(error, URLError) else error
+            if isinstance(cause, TimeoutError):
+                reason = "timeout"
+            elif isinstance(cause, ConnectionResetError):
+                reason = "reset"
+            else:
+                reason = "tls" if isinstance(cause, ssl.SSLError) else "transport"
+                break
+        else:
+            # Distinct framing keeps an HTTP response body from impersonating a transport error.
+            sys.stdout.buffer.write(b"=" + raw)
+            sys.exit(0)
+        if attempt == 3 or delay >= deadline - time.monotonic():
+            break
+        time.sleep(delay)
+    sys.stdout.buffer.write(f"!{attempts}:{reason}".encode("ascii"))
 """
 
 
@@ -4231,12 +4307,16 @@ def _caddy_api_failure(
     sequence: int,
     argv: list[str] | None,
     native_error: type[Exception] | None,
+    fresh_failure: tuple[int, str] | None = None,
 ) -> ValueError:
     """Only project closed fields; raw native evidence remains private."""
     is_native = native_error is not None and isinstance(error, native_error)
     native_exit = None
     category = "failure"
-    if isinstance(error, (TimeoutError, subprocess.TimeoutExpired)) or (
+    if fresh_failure is not None:
+        native_exit = 0  # The worker returned its closed HTTP outcome to the failing caller.
+        category = "fresh_artifact_" + fresh_failure[1]
+    elif isinstance(error, (TimeoutError, subprocess.TimeoutExpired)) or (
         is_native and error.args == ("qualification_deadline",)
     ):
         category = "deadline"
@@ -4271,6 +4351,7 @@ def _caddy_api_failure(
     summary = json.dumps(
         {
             "stage": stage,
+            **({"request_attempts": fresh_failure[0]} if fresh_failure is not None else {}),
             "ordinal": ordinal if 0 <= ordinal <= 9999999 else None,
             "endpoint_class": endpoint_class,
             "category": category,
@@ -4302,7 +4383,12 @@ def _caddy_api_failure(
 
 @contextmanager
 def caddy_ci_reader(
-    root: Path, directory: Path, remaining: Callable[[float], float], expected: str
+    root: Path,
+    directory: Path,
+    remaining: Callable[[float], float],
+    expected: str,
+    *,
+    fresh_upload_id: str | None = None,
 ) -> Iterator[Callable[[str], Any]]:
     """One mandatory authenticated owner per admission. Every GET still uses a fresh worker."""
     started = time.monotonic()
@@ -4360,7 +4446,14 @@ def caddy_ci_reader(
         family = family if family in {"actions", "pulls", "git", "commits"} else "other"
         argv = None
         cache = directory / f"pycache-{ordinal}"
+        fresh_failure = None
         try:
+            if fresh_upload_id is not None and (
+                ordinal != 1
+                or re.fullmatch(_REPAIR_ID, fresh_upload_id) is None
+                or endpoint != "/actions/artifacts/" + fresh_upload_id
+            ):
+                raise ValueError("Caddy fresh uploaded artifact operation differs")
             if ordinal > 1:
                 reader.deadline = work_end()
             _caddy_api_source(root, expected)
@@ -4396,7 +4489,20 @@ def caddy_ci_reader(
                 endpoint,
                 str(seconds),
             ]
-            raw = reader._capture(argv, 8388608)
+            if fresh_upload_id is not None:
+                argv.extend([fresh_upload_id, str(reader.deadline)])
+            raw = reader._capture(argv, 8388608 + int(fresh_upload_id is not None))
+            if fresh_upload_id is not None:
+                rejected = re.fullmatch(
+                    rb"!([0-3]):(http_[1-5][0-9]{2}|timeout|reset|tls|transport|redirect|deadline)",
+                    raw,
+                )
+                if rejected:
+                    fresh_failure = (int(rejected[1]), rejected[2].decode("ascii"))
+                    raise ValueError("Caddy fresh artifact HTTP request failed")
+                if not raw.startswith(b"="):
+                    raise ValueError("Caddy fresh artifact worker output differs")
+                raw = raw[1:]
             stage = "decode"
             result = json.loads(
                 raw.decode("utf-8"), object_pairs_hook=unique_object, parse_constant=reject_constant
@@ -4410,7 +4516,16 @@ def caddy_ci_reader(
             return result
         except Exception as exc:
             failure = _caddy_api_failure(
-                stage, ordinal, family, started, exc, evidence, ordinal + 1, argv, native_error
+                stage,
+                ordinal,
+                family,
+                started,
+                exc,
+                evidence,
+                ordinal + 1,
+                argv,
+                native_error,
+                fresh_failure,
             )
             raise failure from None
 
