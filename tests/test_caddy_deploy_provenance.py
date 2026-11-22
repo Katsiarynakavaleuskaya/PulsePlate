@@ -8282,6 +8282,107 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
     assert not (runner / "caddy-contract/candidate.docker.tar").exists()
 
 
+# Inject the same synthetic HTTPS responses into the real isolated worker in both
+# the wire-protocol test and the full GitHubRead ownership/workflow integration.
+_CADDY_UPLOAD_HTTP_FIXTURE = r"""
+import io,json,os,ssl,time,urllib.error,urllib.request,urllib.response
+from email.message import Message
+from pathlib import Path
+trace=Path(os.environ["FIXTURE_TRACE"])
+outcomes = iter(json.loads(os.environ["FIXTURE_OUTCOMES"]))
+now = time.monotonic()
+def wait(seconds):
+    global now
+    with trace.open("a") as stream: print("wait",seconds,file=stream)
+    now += seconds
+time.monotonic=lambda: now
+time.sleep=wait
+def http(self, request):
+    endpoint="https://api.github.com/repos/Katsiarynakavaleuskaya/PulsePlate/actions/artifacts/14730379137"
+    assert request.full_url==endpoint and request.get_method()=="GET"
+    assert request.get_header("Authorization") == "Bearer synthetic-account-only"
+    case=next(outcomes)
+    with trace.open("a") as stream: print("GET",case,file=stream)
+    if case=="reset": raise urllib.error.URLError(ConnectionResetError())
+    if case=="timeout": raise TimeoutError()
+    if case=="tls": raise urllib.error.URLError(ssl.SSLCertVerificationError())
+    if case=="transport": raise urllib.error.URLError("PRIVATE-UNTRUSTED-TRANSPORT")
+    status=302 if case=="redirect" else int(case[:3]) if case[:3].isdigit() else 200
+    headers=Message()
+    if case=="redirect": headers["Location"]="https://foreign.invalid/private"
+    if case=="429-short": headers["Retry-After"]="2"
+    if case=="429-long": headers["Retry-After"]="1200"
+    if case=="503-invalid-delay": headers["Retry-After"]="PRIVATE-UNTRUSTED-TRANSPORT"
+    body=b"PRIVATE-UNTRUSTED-TRANSPORT" if status>=300 or case=="malformed" else b"!1:http_503" if case=="error-like-body" else os.environ["FIXTURE_METADATA"].encode()
+    response=urllib.response.addinfourl(io.BytesIO(body),headers,request.full_url,status)
+    response.msg="native"
+    return response
+urllib.request.HTTPSHandler.https_open=http
+"""
+
+
+@pytest.mark.parametrize(
+    "outcomes, frame",
+    [
+        (("404", "ok"), b'={"id":14730379137}'),
+        (("503", "503", "503"), b"!3:http_503"),
+        (("timeout", "timeout", "timeout"), b"!3:timeout"),
+        (("429-long",), b"!1:http_429"),
+        (("403",), b"!1:http_403"),
+        (("error-like-body",), b"=!1:http_503"),
+    ],
+)
+def test_caddy_upload_worker_emits_distinct_native_http_frames(
+    tmp_path: Path, outcomes: tuple[str, ...], frame: bytes
+) -> None:
+    import time
+
+    repo = tmp_path / "source"
+    relative = Path("scripts/ci/prometheus_source_image.py")
+    source = (REPO_ROOT / relative).read_bytes()
+    (repo / relative).parent.mkdir(parents=True)
+    (repo / relative).write_bytes(source)
+    cache = tmp_path / "pycache"
+    cache.mkdir()
+    trace = tmp_path / "requests"
+    ident = "14730379137"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-E",
+            "-S",
+            "-B",
+            "-X",
+            "pycache_prefix=" + str(cache),
+            "-c",
+            _CADDY_UPLOAD_HTTP_FIXTURE + caddy_surface.CADDY_API_WORKER,
+            str(repo),
+            hashlib.sha256(source).hexdigest(),
+            "/actions/artifacts/" + ident,
+            "20",
+            ident,
+            str(time.monotonic() + 20),
+        ],
+        cwd=tmp_path,
+        env={
+            "GH_TOKEN": "synthetic-account-only",
+            "FIXTURE_TRACE": str(trace),
+            "FIXTURE_OUTCOMES": json.dumps(outcomes),
+            "FIXTURE_METADATA": '{"id":14730379137}',
+        },
+        capture_output=True,
+        check=True,
+        timeout=25,
+    )
+    assert result.stdout == frame and result.stderr == b""
+    expected_trace = []
+    for i, outcome in enumerate(outcomes, start=1):
+        expected_trace.append("GET " + outcome)
+        if i < len(outcomes):
+            expected_trace.append(f"wait {i}.0")
+    assert trace.read_text().splitlines() == expected_trace
+
+
 @pytest.mark.parametrize(
     "outcomes, expected, attempts",
     [
@@ -8363,43 +8464,6 @@ def test_caddy_fresh_upload_verifies_exact_id_with_bounded_native_http(
         },
     }
     trace = tmp_path / "calls"
-    # Replace only the isolated worker's HTTPS transport and waits. Requests still pass
-    # through the production opener, response framing, verifier and final cleanup.
-    native_fixture = r"""
-import io,json,os,ssl,time,urllib.error,urllib.request,urllib.response
-from email.message import Message
-from pathlib import Path
-trace=Path(os.environ["FIXTURE_TRACE"])
-outcomes = iter(json.loads(os.environ["FIXTURE_OUTCOMES"]))
-now = time.monotonic()
-def wait(seconds):
-    global now
-    with trace.open("a") as stream: print("wait",seconds,file=stream)
-    now += seconds
-time.monotonic=lambda: now
-time.sleep=wait
-def http(self, request):
-    endpoint="https://api.github.com/repos/Katsiarynakavaleuskaya/PulsePlate/actions/artifacts/14730379137"
-    assert request.full_url==endpoint and request.get_method()=="GET"
-    assert request.get_header("Authorization") == "Bearer synthetic-account-only"
-    case=next(outcomes)
-    with trace.open("a") as stream: print("GET",case,file=stream)
-    if case=="reset": raise urllib.error.URLError(ConnectionResetError())
-    if case=="timeout": raise TimeoutError()
-    if case=="tls": raise urllib.error.URLError(ssl.SSLCertVerificationError())
-    if case=="transport": raise urllib.error.URLError("PRIVATE-UNTRUSTED-TRANSPORT")
-    status=302 if case=="redirect" else int(case[:3]) if case[:3].isdigit() else 200
-    headers=Message()
-    if case=="redirect": headers["Location"]="https://foreign.invalid/private"
-    if case=="429-short": headers["Retry-After"]="2"
-    if case=="429-long": headers["Retry-After"]="1200"
-    if case=="503-invalid-delay": headers["Retry-After"]="PRIVATE-UNTRUSTED-TRANSPORT"
-    body=b"PRIVATE-UNTRUSTED-TRANSPORT" if status>=300 or case=="malformed" else b"!1:http_503" if case=="error-like-body" else os.environ["FIXTURE_METADATA"].encode()
-    response=urllib.response.addinfourl(io.BytesIO(body),headers,request.full_url,status)
-    response.msg="native"
-    return response
-urllib.request.HTTPSHandler.https_open=http
-"""
     capture = transport.GitHubRead._capture
     readers = []
 
@@ -8417,7 +8481,7 @@ urllib.request.HTTPSHandler.https_open=http
             FIXTURE_METADATA=json.dumps(metadata),
         )
         argv = list(argv)
-        argv[argv.index("-c") + 1] = native_fixture + argv[argv.index("-c") + 1]
+        argv[argv.index("-c") + 1] = _CADDY_UPLOAD_HTTP_FIXTURE + argv[argv.index("-c") + 1]
         return capture(reader, argv, maximum)
 
     which = shutil.which
