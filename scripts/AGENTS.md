@@ -280,8 +280,11 @@ the uploaded artifact’s actual expiry supplies the final confirmation.
 
 A build start spends W’s build allowance. If the build starts and the run
 ends without a qualifying retained artifact, preserve the failed job and
-stop build attempts on W. A new build requires a reviewed material
-correction and a separately bound dispatch. When admission stops before
+stop build attempts on W. If the upload succeeded and the bounded metadata
+readback exhausted its attempts, that native attempt has failed. A later
+matching artifact ID and digest provide diagnostic evidence only. A new
+build requires a reviewed material correction and a distinct dispatch input
+bound to the new W. When admission stops before
 the build starts, preserve the skipped build step and diagnose the failed
 condition before another invocation.
 
