@@ -104,7 +104,7 @@ env:
   IMAGE_NAME: ${{ github.repository }}
   # Phase values are workflow-owned. Code validates ceilings without fallback values.
   # ROOT creates C, independently reviews/designates it, then pins C before one normal C,H push.
-  ALERTMANAGER_CONTROLLER_SOURCE: '486d2f0aad8d2e255af458188710bf19dfb653f9' # pragma: allowlist secret - public immutable controller commit
+  ALERTMANAGER_CONTROLLER_SOURCE: 'f85bdd9d8a6f1598717afcd5e6b3db9dc93e14dd' # pragma: allowlist secret - public immutable controller commit
   ALERTMANAGER_PREPARATION_MINUTES: '14'
   ALERTMANAGER_NATIVE_STEP_MINUTES: '42'
   ALERTMANAGER_LIVE_SECURITY_MINUTES: '32'
@@ -2082,7 +2082,7 @@ jobs:
           test ! -L "$controller"
           test "$(git -C "$controller" rev-parse HEAD)" = "$controller_source"
           if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            old_pin="$(git --no-replace-objects -c core.fsmonitor=false -c core.hooksPath=/dev/null -C "$material" cat-file blob "$AM_PR_BASE:.github/workflows/ci.yml" | sed -nE "s/^  ALERTMANAGER_CONTROLLER_SOURCE: '([0-9a-f]{40})'.*$/\1/p")"
+            old_pin="$(git --no-replace-objects -c core.fsmonitor=false -c core.hooksPath=/dev/null -C "$material" cat-file blob "$AM_PR_BASE:.github/workflows/cd.yml" | sed -nE "s/^  ALERTMANAGER_CONTROLLER_SOURCE: '([0-9a-f]{40})'.*$/\1/p")"
             [[ "$old_pin" =~ ^[0-9a-f]{40}$ ]]
             if [ "$old_pin" != "$ALERTMANAGER_CONTROLLER_SOURCE" ]; then
               export ALERTMANAGER_REPAIR_PIN_CHANGED=true

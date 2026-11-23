@@ -11689,7 +11689,12 @@ else:
         for job in ("prometheus-image-security-pr", "obs2a-checkpoint-native")
         for case in ("main", "wrong-main", "wrong-checkout", "wrong-child-env")
     ]
-    + [("prometheus-image-security-pr", "PR")],
+    + [("prometheus-image-security-pr", "PR")]
+    + [
+        (job, case)
+        for job in ("lint", "prometheus-image-security-pr")
+        for case in ("PR-same", "PR-ci-only", "PR-cd-only")
+    ],
 )
 def test_am_workflow_shell_propagates_authenticated_controller_to_actual_reader(
     tmp_path: Path,
@@ -11704,27 +11709,39 @@ def test_am_workflow_shell_propagates_authenticated_controller_to_actual_reader(
     fixed, main = data["Q"], data["P"]
     assert fixed != main
     controller = repository / "artifacts/orchestration/alertmanager-control"
-    if case == "PR":
+    is_pr = case.startswith("PR")
+    caller_name = "ci" if job_name == "lint" else "cd"
+    if is_pr:
         command = data["command"]
-        caller = repository / ".github/workflows/ci.yml"
-        caller.parent.mkdir(parents=True)
-        caller.write_text(f"  ALERTMANAGER_CONTROLLER_SOURCE: '{fixed}'\n")
-        command("add", ".github/workflows/ci.yml")
-        command("commit", "-m", "Record incumbent controller at PR base")
+        workflows = repository / ".github/workflows"
+        workflows.mkdir(parents=True)
+        for name in ("ci", "cd"):
+            incumbent = main if case == f"PR-{name}-only" else fixed
+            (workflows / f"{name}.yml").write_text(
+                f"  ALERTMANAGER_CONTROLLER_SOURCE: '{incumbent}'\n"
+            )
+        command("add", ".github/workflows")
+        command("commit", "-m", "Record incumbent CI and CD controller pins")
         pr_base = command("rev-parse", "HEAD")
-        caller.write_text(caller.read_text() + "# Reviewed candidate workflow\n")
-        command("commit", "-am", "Review candidate controller")
-        fixed = command("rev-parse", "HEAD")
-        caller.write_text(
-            f"  ALERTMANAGER_CONTROLLER_SOURCE: '{fixed}'\n# Reviewed candidate workflow\n"
-        )
-        command("commit", "-am", "Pin reviewed controller on PR head")
+        if case in ("PR", "PR-same"):
+            (repository / "unrelated.txt").write_text("Reviewed candidate material\n")
+            if case == "PR":
+                command("commit", "-am", "Review candidate controller")
+                fixed = command("rev-parse", "HEAD")
+        for name in ("ci", "cd"):
+            (workflows / f"{name}.yml").write_text(f"  ALERTMANAGER_CONTROLLER_SOURCE: '{fixed}'\n")
+        command("commit", "-am", "Record the selected PR head")
         main = command("rev-parse", "HEAD")
         assert command("merge-base", pr_base, main) == pr_base != main
-        data["command"]("worktree", "add", "--detach", str(controller), fixed)
+        if case in ("PR-ci-only", "PR-cd-only"):
+            changed = case.split("-")[1]
+            assert (
+                command("diff", "--name-only", pr_base, main) == f".github/workflows/{changed}.yml"
+            )
+        command("worktree", "add", "--detach", str(controller), fixed)
     elif case == "wrong-checkout":
         data["command"]("checkout", "--detach", fixed)
-    workflow = _load_workflow(WORKFLOWS_DIR / "cd.yml")
+    workflow = _load_workflow(WORKFLOWS_DIR / f"{caller_name}.yml")
     step = _step_by_name(
         workflow["jobs"][job_name], "Prepare exact AM subject before material execution"
     )
@@ -11810,10 +11827,10 @@ print("observation=synthetic-observation")
         "LANG": "C",
         "GITHUB_WORKSPACE": str(repository),
         "RUNNER_TEMP": str(tmp_path),
-        "GITHUB_EVENT_NAME": "pull_request" if case == "PR" else "push",
+        "GITHUB_EVENT_NAME": "pull_request" if is_pr else "push",
         "GITHUB_SHA": main,
         "SOURCE_SHA": main,
-        "GITHUB_REF": "refs/pull/17/merge" if case == "PR" else "refs/heads/main",
+        "GITHUB_REF": "refs/pull/17/merge" if is_pr else "refs/heads/main",
         "GITHUB_RUN_ID": "102",
         "GITHUB_RUN_ATTEMPT": "1",
         "GITHUB_OUTPUT": str(output),
@@ -11829,7 +11846,7 @@ print("observation=synthetic-observation")
         "GIT_CONFIG_NOSYSTEM": "1",
         "GIT_CONFIG_GLOBAL": os.devnull,
     }
-    if case == "PR":
+    if is_pr:
         assert step["env"]["AM_PR_BASE"] == "${{ github.event.pull_request.base.sha }}"
         environment["AM_PR_BASE"] = pr_base
     bash = shutil.which("bash")
@@ -11847,18 +11864,22 @@ print("observation=synthetic-observation")
         [json.loads(line) for line in trace.read_text().splitlines()] if trace.exists() else []
     )
     steps = [row["step"] for row in records]
-    if case in {"main", "PR"}:
+    if case == "main" or is_pr:
         assert result.returncode == 0, result.stdout + result.stderr
-        expected = fixed if case == "PR" else main
+        expected = fixed if is_pr else main
         cli = next(row for row in records if row["step"] == "CLI")
         assert cli["argument"] == cli["received"] == expected
-        assert cli["repair_pin_changed"] == ("true" if case == "PR" else None)
+        assert cli["repair_pin_changed"] == (
+            "true" if case in {"PR", f"PR-{caller_name}-only"} else None
+        )
         assert records[-2:] == [
             {"step": "template-source", "source": expected},
             {"step": "binding-admitted", "source": expected},
         ]
-        assert f"controller_source={expected}\n" in output.read_text()
-        assert ("gh-auth" in steps) is (case != "PR")
+        assert "image_id=sha256:" in output.read_text()
+        if caller_name == "cd":
+            assert f"controller_source={expected}\n" in output.read_text()
+        assert ("gh-auth" not in steps) is is_pr
     else:
         assert result.returncode != 0
         assert "binding-admitted" not in steps and "template-source" not in steps
@@ -11869,7 +11890,7 @@ print("observation=synthetic-observation")
         else:
             assert "CLI" not in steps
     scan = _step_by_name(
-        workflow["jobs"]["prometheus-image-security-pr"],
+        _load_workflow(WORKFLOWS_DIR / "cd.yml")["jobs"]["prometheus-image-security-pr"],
         "Scan accepted AM and execute all four current controls",
     )
     assert (
