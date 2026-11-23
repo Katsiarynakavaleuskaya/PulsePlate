@@ -1527,7 +1527,7 @@ jobs:
                   with caddy_ci_phase("ADMISSION") as remaining, caddy_ci_reader(
                       root, work / "caddy-admission/prebuild-api", remaining, inputs["scripts/ci/prometheus_source_image.py"]["sha256"]
                   ) as api:
-                      pr = caddy_bound_pr(api, checked_head)
+                      pr = caddy_bound_pr(api, checked_head, current_step="Charge Build source-patched Caddy candidate budget")
                       if pr["number"] != admission["source_pr"] or pr["head"]["sha"] != admission["pr_head"] or pr.get("publisher_repair") != admission.get("publisher_repair"):
                           raise ValueError("Caddy current authenticated PR source changed")
               caddy_ci_charge_action("BUILD")
@@ -2588,7 +2588,7 @@ jobs:
           with caddy_ci_phase("ADMISSION") as remaining, caddy_ci_reader(
               Path.cwd(), private / "final-api", remaining, admission["inputs"]["scripts/ci/prometheus_source_image.py"]["sha256"]
           ) as api:
-              pr = caddy_bound_pr(api, admission["current_head"])
+              pr = caddy_bound_pr(api, admission["current_head"], current_step="Decide source-qualified Caddy inventory and current native controls")
               if (pr["number"] != admission["source_pr"] or pr["head"]["sha"] != admission["pr_head"]
                       or pr.get("publisher_repair") != admission.get("publisher_repair")):
                   raise ValueError("Caddy current authenticated PR source changed")

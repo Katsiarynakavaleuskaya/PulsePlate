@@ -4504,6 +4504,8 @@ class _DispatchNativeFixture:
     "fault,diagnostic",
     [
         (None, None),
+        ("main-advanced", "publisher_repair_live_base"),
+        ("stale-listed-PR", "Caddy corrective PR listing changed"),
         ("wrong-sender", "publisher_repair_actual_dispatch_input"),
         ("wrong-input", "publisher_repair_actual_dispatch_input"),
         ("wrong-trigger", "publisher_repair_live_native_dispatch"),
@@ -4548,6 +4550,7 @@ def test_delegated_caddy_dispatch_live_and_terminal(
         "number": 81,
         "created_at": "2025-12-31T00:00:00Z",
         "state": "open",
+        "merged": False,
         "head": {"sha": w, "ref": "repair/selected", "repo": repo},
         "base": {"sha": b, "ref": "main", "repo": repo},
     }
@@ -4588,7 +4591,37 @@ def test_delegated_caddy_dispatch_live_and_terminal(
 
     event(projection)
     monkeypatch.setenv("GITHUB_EVENT_PATH", str(event_path))
-    monkeypatch.setattr(runtime_surface, "publisher_repair_head", lambda *a, **kw: (b, k, w))
+    main_reads = 0
+    looked_up = False
+
+    def read(path: str) -> Any:
+        nonlocal main_reads, looked_up
+        if path == f"/commits/{w}?per_page=100&page=1":
+            return {
+                "sha": w,
+                "parents": [{"sha": k}],
+                "files": [
+                    {"filename": f".github/workflows/{name}.yml", "status": "modified"}
+                    for name in ("ci", "cd")
+                ],
+            }
+        if path == "/git/ref/heads/main":
+            main_reads += 1
+            sha = "f" * 40 if main_reads > 1 and fault == "main-advanced" else b
+            return {"ref": "refs/heads/main", "object": {"type": "commit", "sha": sha}}
+        if (
+            path
+            == "/pulls?state=all&head=Katsiarynakavaleuskaya%3Arepair%2Fselected&base=main&per_page=2"
+        ):
+            looked_up = True
+            listed = (
+                {**pr, "head": {**pr["head"], "sha": "e" * 40}}
+                if fault == "stale-listed-PR"
+                else pr
+            )
+            return [listed]
+        return api.read(path)
+
     monkeypatch.setattr(runtime_surface, "_publisher_repair_material", lambda *a: None)
 
     def accepted_source(
@@ -4617,13 +4650,13 @@ def test_delegated_caddy_dispatch_live_and_terminal(
         nonlocal clock_day
         if fault == "wrong-trigger":
             api.records[73][0]["triggering_actor"] = {**api.actor, "id": 3}
-        live = runtime_surface.publisher_repair_dispatch(api.read, pr, current_event=True)
+        live = runtime_surface.publisher_repair_dispatch(read, pr, current_event=True)
+        if fault == "main-advanced":
+            return  # Only the first live admission may satisfy this rejection check.
         assert live == projection
-        if fault is None:
-            actual = runtime_surface._caddy_repair_pr(
-                api.read, pr, w, "workflow_dispatch", json.loads(event_path.read_bytes())
-            )
-            assert actual["publisher_repair"] == live
+        if fault is None or fault == "stale-listed-PR":
+            actual = runtime_surface.caddy_bound_pr(read, w)
+            assert looked_up and actual == {**pr, "publisher_repair": live}
         state = {"source_pr": 81, "current_head": w, "publisher_repair": live, "mode": "build"}
         assert runtime_surface.verify_caddy_dispatch_projection(state) == {
             **projection,
@@ -4662,7 +4695,7 @@ def test_delegated_caddy_dispatch_live_and_terminal(
             api.add(renewal, active=True)
             event(renewal)
             monkeypatch.setenv("GITHUB_RUN_ID", "74")
-            result = runtime_surface.publisher_repair_dispatch(api.read, pr, current_event=True)
+            result = runtime_surface.publisher_repair_dispatch(read, pr, current_event=True)
             assert result == {key: value for key, value in renewal.items() if key != "producer_run"}
             original_run, _, artifact, _ = api.records[73]
             bound = runtime_surface.verify_caddy_dispatch_projection(
@@ -4684,7 +4717,7 @@ def test_delegated_caddy_dispatch_live_and_terminal(
                 bound["producer_run"] == "73" and bound["producer_head"] == original_run["head_sha"]
             )
             api.add(bound)
-        terminal = runtime_surface.publisher_repair_dispatch(api.read, pr)
+        terminal = runtime_surface.publisher_repair_dispatch(read, pr)
         if fault in ("skipped-input", "stale-only", "expired", "failed-first"):
             assert terminal is None
         else:
@@ -4698,6 +4731,10 @@ def test_delegated_caddy_dispatch_live_and_terminal(
     if diagnostic:
         with pytest.raises((QualificationError, ValueError), match=diagnostic):
             exercise()
+        if fault == "main-advanced":
+            assert main_reads == 2 and pr["base"]["sha"] == b and api.lists == 2
+        if fault == "stale-listed-PR":
+            assert looked_up
     else:
         exercise()
 
@@ -4796,12 +4833,50 @@ def test_native_baseline_prunes_only_two_authenticated_public_pins(fault: str | 
         (None, None),
         ("old-event", "publisher_repair_original_event_after_dispatch"),
         ("wrong-source", "publisher_repair_original_event_after_dispatch"),
+        ("queued", None),
+        ("attempt-queued", None),
+        ("original-queued", None),
+        ("queued-CD", None),
+        ("queued-Caddy-final", None),
+        *(
+            (case, "publisher_repair_actual_job_after_dispatch")
+            for case in (
+                "terminal-parent",
+                "unknown-parent",
+                "concluded-original",
+                "missing-conclusion",
+                "superseded-attempt",
+                "missing-job",
+                "queued-job",
+                "failed-job",
+                "unknown-job",
+                "closed-job",
+                "job-conclusion",
+                "job-no-start",
+                "job-other-branch",
+                "no-steps",
+                "wrong-active-step",
+                "two-active",
+                "duplicated-step",
+                "queued-step",
+                "step-before-job",
+                "step-at-expiry",
+                "skipped-step",
+                "step-finished",
+                "step-no-start",
+                "bool-step-number",
+                "untrusted-status",
+            )
+        ),
         ("expired-job", "publisher_repair_actual_job_after_dispatch"),
         ("missing-job-attempt", "publisher_repair_attempt_job_identity"),
     ],
 )
 def test_am_pr_read_starts_after_terminal_delegated_dispatch(
-    monkeypatch: pytest.MonkeyPatch, fault: str | None, diagnostic: str | None
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fault: str | None,
+    diagnostic: str | None,
 ) -> None:
     from scripts.ci.prometheus_source_image import QualificationError
 
@@ -4812,18 +4887,39 @@ def test_am_pr_read_starts_after_terminal_delegated_dispatch(
         "expires": "2026-01-02T00:00:00Z",
         "base": "1" * 40,
     }
-    workflow = ".github/workflows/ci.yml"
+    workflow, job_name = {
+        "queued-CD": ("cd.yml", "prometheus-image-security-pr"),
+        "queued-Caddy-final": ("frontend-ci.yml", "caddy-contract"),
+    }.get(fault or "", ("ci.yml", "lint"))
+    step_name = (
+        "Decide source-qualified Caddy inventory and current native controls"
+        if job_name == "caddy-contract"
+        else "Prepare exact AM subject before material execution"
+    )
     run = {
         "id": 22,
         "run_attempt": 2,
         "workflow_id": 12,
-        "path": workflow,
+        "path": ".github/workflows/" + workflow,
         "event": "pull_request",
         "head_sha": w,
         "head_branch": "fixture/authorized-repair",
         "repository": repo,
         "head_repository": repo,
-        "status": "in_progress",
+        "status": (
+            "in_progress"
+            if fault
+            in (
+                None,
+                "original-queued",
+                "old-event",
+                "wrong-source",
+                "expired-job",
+                "missing-job-attempt",
+            )
+            else "queued"
+        ),
+        "conclusion": None,
         "run_started_at": "2026-01-01T01:00:00Z",
     }
     event = {
@@ -4834,7 +4930,20 @@ def test_am_pr_read_starts_after_terminal_delegated_dispatch(
         event["head_sha"] = "0" * 40
     job = {
         "id": 32,
-        "name": "lint",
+        "name": job_name,
+        "head_branch": run["head_branch"],
+        "conclusion": None,
+        "completed_at": None,
+        "steps": [
+            {
+                "number": 8,
+                "name": step_name,
+                "status": "in_progress",
+                "conclusion": None,
+                "started_at": "2026-01-01T01:00:07Z",
+                "completed_at": None,
+            }
+        ],
         "head_sha": w,
         "run_id": 22,
         "run_attempt": 2,
@@ -4843,16 +4952,61 @@ def test_am_pr_read_starts_after_terminal_delegated_dispatch(
     }
     if fault == "missing-job-attempt":
         del job["run_attempt"]
+    if fault == "original-queued":
+        event["status"] = "queued"
+    if fault == "attempt-queued":
+        event["status"] = "in_progress"
+    if fault == "terminal-parent":
+        run["status"], run["conclusion"] = "completed", "cancelled"
+    if fault == "unknown-parent":
+        event["status"] = "requested"
+    if fault == "concluded-original":
+        event["conclusion"] = "failure"
+    if fault == "missing-conclusion":
+        del run["conclusion"]
+    if fault == "superseded-attempt":
+        event["run_attempt"] = 3
+    job.update(
+        {
+            "queued-job": {"status": "queued"},
+            "failed-job": {"status": "completed", "conclusion": "failure"},
+            "unknown-job": {"status": "requested"},
+            "closed-job": {"completed_at": run["run_started_at"]},
+            "job-conclusion": {"conclusion": "cancelled"},
+            "job-no-start": {"started_at": None},
+            "job-other-branch": {"head_branch": "unrelated/topic"},
+            "untrusted-status": {"status": "PRIVATE-UNTRUSTED"},
+        }.get(fault or "", {})
+    )
+    step = job["steps"][0]
+    step.update(
+        {
+            "wrong-active-step": {"name": "unrelated step"},
+            "queued-step": {"status": "queued"},
+            "step-before-job": {"started_at": "2026-01-01T00:59:59Z"},
+            "step-at-expiry": {"started_at": receipt["expires"]},
+            "skipped-step": {"conclusion": "skipped"},
+            "step-finished": {"completed_at": step["started_at"]},
+            "step-no-start": {"started_at": None},
+            "bool-step-number": {"number": True},
+        }.get(fault or "", {})
+    )
+    if fault == "two-active":
+        job["steps"].append({**step, "number": 9, "name": "different active step"})
+    if fault == "duplicated-step":
+        job["steps"].append({**step, "number": 9, "status": "queued"})
+    if fault == "no-steps":
+        del job["steps"]
     for key, value in {
         "GITHUB_RUN_ID": "22",
         "GITHUB_RUN_ATTEMPT": "2",
-        "GITHUB_JOB": "lint",
+        "GITHUB_JOB": job_name,
         "GITHUB_REPOSITORY_ID": "1043311030",
         "GITHUB_WORKFLOW_SHA": w,
         "GITHUB_EVENT_NAME": "pull_request",
         "GITHUB_REF": "refs/pull/81/merge",
         "GITHUB_WORKFLOW_REF": runtime_surface.CADDY_REPOSITORY
-        + "/"
+        + "/.github/workflows/"
         + workflow
         + "@refs/pull/81/merge",
     }.items():
@@ -4862,18 +5016,40 @@ def test_am_pr_read_starts_after_terminal_delegated_dispatch(
         return {
             "/actions/runs/22/attempts/2": run,
             "/actions/runs/22": event,
-            "/actions/workflows/ci.yml": {"id": 12, "path": workflow},
+            "/actions/workflows/" + workflow: {"id": 12, "path": ".github/workflows/" + workflow},
             "/actions/runs/22/attempts/2/jobs?per_page=100&page=1": {
-                "total_count": 1,
-                "jobs": [job],
+                "total_count": 0 if fault == "missing-job" else 1,
+                "jobs": [] if fault == "missing-job" else [job],
             },
         }[path]
 
+    def verify() -> None:
+        if job_name == "caddy-contract":
+            runtime_surface.publisher_repair_run(
+                read, receipt, w, workflow, job_name, current_step=step_name
+            )
+        else:
+            runtime_surface.publisher_repair_run(read, receipt, w, workflow, job_name)
+
     if diagnostic:
-        with pytest.raises(QualificationError, match=diagnostic):
-            runtime_surface.publisher_repair_run(read, receipt, w, "ci.yml", "lint")
+        with pytest.raises(QualificationError, match="^" + diagnostic + "$"):
+            verify()
+        if diagnostic == "publisher_repair_actual_job_after_dispatch":
+            log = capsys.readouterr().err
+            assert "PRIVATE-UNTRUSTED" not in log
+            flags = json.loads(log.removeprefix("Publisher repair current job rejected "))
+            assert (flags["run"], flags["attempt"], flags["job_id"]) == (
+                22,
+                2,
+                None if fault == "missing-job" else 32,
+            )
+            assert all(
+                type(value) is bool
+                for key, value in flags.items()
+                if key not in {"run", "attempt", "job_id"}
+            )
     else:
-        runtime_surface.publisher_repair_run(read, receipt, w, "ci.yml", "lint")
+        verify()
 
 
 def test_repair_native_wire_precision_and_fixed_dispatch_vector() -> None:

@@ -880,6 +880,18 @@ def _publisher_repair_material(read: Callable[[str], Any], base: str, controller
         _publisher_baseline_change(read, changed_blobs)
 
 
+def _publisher_live_base(read: Callable[[str], Any], base: str) -> None:
+    from scripts.ci.prometheus_source_image import require
+
+    main = read("/git/ref/heads/main")
+    require(
+        main["ref"] == "refs/heads/main"
+        and main["object"]["type"] == "commit"
+        and main["object"]["sha"] == base,
+        "publisher_repair_live_base",
+    )
+
+
 def publisher_repair_head(
     read: Callable[[str], Any], pr: dict[str, Any], *, historical: bool
 ) -> tuple[str, str, str]:
@@ -967,13 +979,7 @@ def publisher_repair_head(
         base = squash["parents"][0]["sha"]
     else:
         base = pr["base"]["sha"]
-        main = read("/git/ref/heads/main")
-        require(
-            main["ref"] == "refs/heads/main"
-            and main["object"]["type"] == "commit"
-            and main["object"]["sha"] == base,
-            "publisher_repair_live_base",
-        )
+        _publisher_live_base(read, base)
     require(
         isinstance(base, str)
         and re.fullmatch(_REPAIR_SHA, base) is not None
@@ -1878,7 +1884,10 @@ def _publisher_dispatch_inventory(
 
     cache: dict[tuple[int, str], dict[str, str]] = {}
     w = material["callers"]
-    endpoint = f"/actions/workflows/frontend-ci.yml/runs?event=workflow_dispatch&head_sha={w}&per_page=100&page=1"
+    endpoint = (
+        "/actions/workflows/frontend-ci.yml/runs?event=workflow_dispatch"
+        f"&head_sha={w}&per_page=100&page=1"
+    )
 
     def observe() -> tuple[list[Any], list[dict[str, str]]]:
         listing = read(endpoint)
@@ -2183,7 +2192,7 @@ def publisher_repair_dispatch(
     subject: dict[str, str] | None = None,
     current_event: bool = False,
 ) -> dict[str, str] | None:
-    from scripts.ci.prometheus_source_image import QualificationError, require
+    from scripts.ci.prometheus_source_image import QualificationError, exact_data, require
 
     base, controller, callers = publisher_repair_head(read, pr, historical=historical)
     _publisher_repair_material(read, base, controller)
@@ -2201,6 +2210,8 @@ def publisher_repair_dispatch(
     }
     result = _publisher_live_dispatch(read, pr, data) if current_event else None
     records = _publisher_dispatch_inventory(read, pr, data, horizon)
+    if result is not None:
+        exact_data(result, _publisher_live_dispatch(read, pr, data))
     fresh = read(f"/pulls/{pr['number']}")
     require(
         fresh["number"] == pr["number"]
@@ -2220,10 +2231,9 @@ def publisher_repair_dispatch(
         ),
         "publisher_repair_PR_drift",
     )
+    if not historical:
+        _publisher_live_base(read, base)
     if result is not None:
-        from scripts.ci.prometheus_source_image import exact_data
-
-        exact_data(result, _publisher_live_dispatch(read, pr, data))
         require(
             not records
             or _publisher_time(records[-1]["expires"]) <= _publisher_time(result["started"]),
@@ -2269,8 +2279,37 @@ def publisher_repair_dispatch(
     return active[0] if active else None
 
 
+def _publisher_active_step(
+    steps: Any, expected: str, job_start: datetime, expires: datetime | None
+) -> bool:
+    """Corroborate a lagging workflow aggregate with the exact call site's active step."""
+    if not isinstance(steps, list) or not all(isinstance(step, dict) for step in steps):
+        return False
+    active = [step for step in steps if step.get("status") == "in_progress"]
+    if len(active) != 1 or sum(step.get("name") == expected for step in steps) != 1:
+        return False
+    step = active[0]
+    if (
+        step.get("name") != expected
+        or type(step.get("number")) is not int
+        or step["number"] <= 0
+        or step.get("conclusion", False) is not None
+        or step.get("completed_at", False) is not None
+        or not isinstance(step.get("started_at"), str)
+    ):
+        return False
+    started = _publisher_time(step["started_at"])
+    return job_start <= started and (expires is None or started < expires)
+
+
 def publisher_repair_run(
-    read: Callable[[str], Any], grant: dict[str, str], selected: str, workflow: str, job: str
+    read: Callable[[str], Any],
+    grant: dict[str, str],
+    selected: str,
+    workflow: str,
+    job: str,
+    *,
+    current_step: str = "Prepare exact AM subject before material execution",
 ) -> None:
     """Bind the actual named running job/attempt to independently designated source and time."""
     from scripts.ci.prometheus_source_image import require
@@ -2323,23 +2362,64 @@ def publisher_repair_run(
         <= _publisher_time(run["run_started_at"]),
         "publisher_repair_original_event_after_dispatch",
     )
-    require(
-        matched is not None
-        and run["status"] == matched["status"] == "in_progress"
-        and _publisher_time(grant["created"])
-        < _publisher_time(run["run_started_at"])
-        <= _publisher_time(matched["started_at"])
-        and (
-            _publisher_time(matched["started_at"]) < _publisher_time(grant["expires"])
-            or (
-                operation == "push"
-                and ref == "refs/heads/main"
-                and job == "caddy-contract"
-                and workflow == "frontend-ci.yml"
-            )
-        ),
-        "publisher_repair_actual_job_after_dispatch",
+    started = _publisher_time(run["run_started_at"])
+    expiry = _publisher_time(grant["expires"])
+    main_caddy = (
+        operation == "push"
+        and ref == "refs/heads/main"
+        and job == "caddy-contract"
+        and workflow == "frontend-ci.yml"
     )
+    aggregate_live = (
+        type(original.get("run_attempt")) is int
+        and original["run_attempt"] == int(attempt)
+        and all(
+            row.get("status") in ("queued", "in_progress") and row.get("conclusion", False) is None
+            for row in (run, original)
+        )
+    )
+    job_live = (
+        matched is not None
+        and matched.get("head_branch") == run["head_branch"]
+        and matched.get("status") == "in_progress"
+        and matched.get("conclusion", False) is None
+        and matched.get("completed_at", False) is None
+        and isinstance(matched.get("started_at"), str)
+    )
+    job_start = _publisher_time(matched["started_at"]) if matched is not None and job_live else None
+    in_window = (
+        job_start is not None and started <= job_start and (main_caddy or job_start < expiry)
+    )
+    queued = any(row.get("status") == "queued" for row in (run, original))
+    step_live = (
+        queued
+        and aggregate_live
+        and in_window
+        and matched is not None
+        and job_start is not None
+        and _publisher_active_step(
+            matched.get("steps"), current_step, job_start, None if main_caddy else expiry
+        )
+    )
+    if not (aggregate_live and job_live and in_window and (not queued or step_live)):
+        print(
+            "Publisher repair current job rejected "
+            + json.dumps(
+                {
+                    "run": int(run_id),
+                    "attempt": int(attempt),
+                    "job_id": matched["id"] if matched is not None else None,
+                    "aggregate_live": aggregate_live,
+                    "queued": queued,
+                    "job_live": job_live,
+                    "in_window": in_window,
+                    "active_step_proven": step_live,
+                },
+                sort_keys=True,
+            ),
+            file=sys.stderr,
+        )
+        require(False, "publisher_repair_actual_job_after_dispatch")
 
 
 def _publisher_attempt_job(
@@ -2394,6 +2474,7 @@ def _publisher_attempt_job(
         require(
             type(matched["id"]) is int
             and matched["id"] > 0
+            and type(matched["run_id"]) is int
             and matched["run_id"] == run_id
             and type(matched.get("run_attempt")) is int
             and matched.get("run_attempt") == attempt
@@ -2495,7 +2576,10 @@ def publisher_repair_completed_reads(
     for (workflow, job), required_steps in _REPAIR_NATIVE_STEPS.items():
         proven = False
         for head in dict.fromkeys((pr["head"]["sha"], grant["callers"])):
-            endpoint = f"/actions/workflows/{workflow}/runs?event=pull_request&head_sha={head}&per_page=100&page=1"
+            endpoint = (
+                f"/actions/workflows/{workflow}/runs?event=pull_request"
+                f"&head_sha={head}&per_page=100&page=1"
+            )
             result = read(endpoint)
             runs, total = result["workflow_runs"], result["total_count"]
             require(
@@ -2578,7 +2662,12 @@ def publisher_repair_completed_reads(
         require(proven, "publisher_repair_missing_authorized_native_" + job)
 
 
-def caddy_bound_pr(api: Callable[[str], Any], selected: str) -> dict[str, Any]:
+def caddy_bound_pr(
+    api: Callable[[str], Any],
+    selected: str,
+    *,
+    current_step: str = "Admit existing Caddy producer or exact retained subject",
+) -> dict[str, Any]:
     """Bind a designated receiver to the native PR, explicit dispatch or exact main merge."""
     from urllib.parse import urlencode
 
@@ -2701,21 +2790,26 @@ def caddy_bound_pr(api: Callable[[str], Any], selected: str) -> dict[str, Any]:
                 ):
                     raise ValueError("Caddy corrective PR base or event differs")
         if maintenance:
-            pr = _caddy_repair_pr(api, pr, selected, kind, event)
+            pr = _caddy_repair_pr(api, pr, selected, kind, event, current_step)
         matches.append(pr)
     if kind == "push" and not matches:
         rows = api(f"/commits/{selected}/pulls?per_page=2")
         if type(rows) is list and len(rows) == 1:
             pr = api(f"/pulls/{rows[0]['number']}")
             if pr["head"]["ref"] not in CADDY_PR_NUMBERS and pr["merge_commit_sha"] == selected:
-                matches.append(_caddy_repair_pr(api, pr, selected, kind, event))
+                matches.append(_caddy_repair_pr(api, pr, selected, kind, event, current_step))
     if len(matches) != 1:
         raise ValueError("Caddy observation requires one exact accepted PR or main merge")
     return dict(matches[0])
 
 
 def _caddy_repair_pr(
-    read: Callable[[str], Any], pr: dict[str, Any], selected: str, kind: str, event: dict[str, Any]
+    read: Callable[[str], Any],
+    pr: dict[str, Any],
+    selected: str,
+    kind: str,
+    event: dict[str, Any],
+    current_step: str,
 ) -> dict[str, Any]:
     historical = kind == "push"
     if kind == "workflow_dispatch":
@@ -2736,7 +2830,9 @@ def _caddy_repair_pr(
     if historical and (event["before"] != receipt["base"] or selected != pr["merge_commit_sha"]):
         raise ValueError("Caddy repair merge source differs")
     if kind != "workflow_dispatch":
-        publisher_repair_run(read, receipt, selected, "frontend-ci.yml", "caddy-contract")
+        publisher_repair_run(
+            read, receipt, selected, "frontend-ci.yml", "caddy-contract", current_step=current_step
+        )
     return {**pr, "publisher_repair": receipt}
 
 

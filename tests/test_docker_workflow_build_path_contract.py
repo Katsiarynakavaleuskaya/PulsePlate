@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+from collections.abc import Callable
 from copy import deepcopy
 from datetime import date
 from dataclasses import replace
@@ -17933,11 +17934,29 @@ def test_publisher_repair_routes_only_the_designated_read(
     monkeypatch.setattr(
         docker_sources, "_alertmanager_upstream_identity", lambda *a, **kw: "0.34.2"
     )
-    monkeypatch.setattr(
-        authority,
-        "publisher_repair_dispatch",
-        lambda *a, **kw: None if fault == "absent" else grant,
-    )
+
+    def dispatch(
+        read: Callable[[str], Any],
+        actual_pr: dict[str, Any],
+        *,
+        subject: dict[str, str],
+        historical: bool = False,
+        current_event: bool = False,
+    ) -> dict[str, str] | None:
+        assert actual_pr == pr and read(f"/pulls/{number}") == pr
+        assert not historical and not current_event
+        assert subject == {
+            "source": accepted["source"],
+            "q": "11/12",
+            "s": "13/14",
+            "c": f"{accepted['run']}/{accepted['artifact']}",
+            "zip": "sha256:" + accepted["zip_sha256"],
+            "manifest": accepted["graph"]["manifest"]["digest"],
+        }
+        events.append("dispatch")
+        return None if fault == "absent" else grant
+
+    monkeypatch.setattr(authority, "publisher_repair_dispatch", dispatch)
     monkeypatch.setattr(authority, "publisher_repair_run", run)
     monkeypatch.setattr(docker_sources, "_alertmanager_transition_successor", native)
 
@@ -17946,6 +17965,7 @@ def test_publisher_repair_routes_only_the_designated_read(
 
     if fault is None:
         assert route()["mode"] == "repair_PR_retained" and events == [
+            "dispatch",
             "topology",
             "native_job",
         ]
@@ -17959,7 +17979,12 @@ def test_publisher_repair_routes_only_the_designated_read(
         }[fault]
         with pytest.raises(QualificationError, match="^" + diagnostic + "$"):
             route()
-        assert events == (["topology"] if fault == "wrong-job" else [])
+        if fault == "ordinary":
+            assert events == []
+        elif fault == "wrong-job":
+            assert events == ["dispatch", "topology"]
+        else:
+            assert events == ["dispatch"]
     if fault == "ordinary":
         monkeypatch.delenv("ALERTMANAGER_REPAIR_PIN_CHANGED")
         assert route()["mode"] == "ordinary_published_PR"
