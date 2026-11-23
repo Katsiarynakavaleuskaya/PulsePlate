@@ -18063,6 +18063,125 @@ def test_alertmanager_current_support_transport_is_complete(
 
 
 @pytest.mark.parametrize(
+    ("outcomes", "terminal"),
+    [
+        (("404", "ok"), ""),
+        (("500", "502", "ok"), ""),
+        (("503-after", "ok"), ""),
+        (("404", "404", "404"), "HTTP 404 on attempt 3"),
+        (("504", "504", "504"), "HTTP 504 on attempt 3"),
+        (("403",), "HTTP 403 on attempt 1"),
+        (("401",), "HTTP 401 on attempt 1"),
+        (("501",), "HTTP 501 on attempt 1"),
+        (("503-long",), "HTTP 503 on attempt 1"),
+        (("tls",), "transport failed"),
+        (("redirect",), "HTTP 302 on attempt 1"),
+        (("invalid-json",), "JSONDecodeError"),
+        (("wrong-digest",), "AM_support_uploaded_archive_identity"),
+        (("oversized",), "metadata exceeds its bound"),
+    ],
+)
+def test_alertmanager_S_reads_only_its_fresh_upload_before_validating(
+    tmp_path: Path,
+    outcomes: tuple[str, ...],
+    terminal: str,
+) -> None:
+    import textwrap
+
+    job = yaml.safe_load(CD_WORKFLOW_PATH.read_bytes())["jobs"]["alertmanager-input-inspection"]
+    step = next(
+        s
+        for s in job["steps"]
+        if s["name"] == "Verify the completed support upload identity and size"
+    )
+    assert step["if"] == "success()" and step["timeout-minutes"] == 1
+    assert "timeout --kill-after=1s 55s python3 -B -E -s -S -" in step["run"]
+    trace = tmp_path / "native-requests"
+    native = textwrap.dedent("""
+        import io, json, os, ssl, time, urllib.request, urllib.response
+        from email.message import Message
+        from pathlib import Path
+        trace = Path(os.environ["FIXTURE_TRACE"])
+        outcomes = iter(json.loads(os.environ["FIXTURE_RESPONSES"]))
+        now = time.monotonic()
+        time.monotonic = lambda: now
+        def wait(delay):
+            global now
+            now += delay
+            with trace.open("a") as stream: print("wait", delay, file=stream)
+        time.sleep = wait
+        def exchange(handler, request):
+            assert request.get_method() == "GET"
+            assert request.full_url == "https://api.github.com/repos/Katsiarynakavaleuskaya/PulsePlate/actions/artifacts/33"
+            assert request.get_header("Authorization") == "Bearer " + os.environ["GH_TOKEN"]
+            assert 0 < request.timeout <= 12
+            item = next(outcomes)
+            with trace.open("a") as stream: print("GET", item, file=stream)
+            headers = Message()
+            status = int(item[:3]) if item[:3].isdigit() else 302 if item == "redirect" else 200
+            if item == "tls": raise ssl.SSLCertVerificationError("PRIVATE-TRANSPORT")
+            if item == "redirect": headers["Location"] = "https://foreign.invalid/redacted"
+            if item == "503-after": headers["Retry-After"] = "3"
+            if item == "503-long": headers["Retry-After"] = "999"
+            body = os.environ["FIXTURE_BODY"].encode()
+            if item == "invalid-json" or status != 200: body = b"PRIVATE-TRANSPORT"
+            if item == "oversized": body = b"x" * 65537
+            res = urllib.response.addinfourl(io.BytesIO(body), headers, request.full_url, status)
+            res.msg = "status"
+            return res
+        urllib.request.HTTPSHandler.https_open = exchange
+    """)
+    # Use the actual workflow body, canonical no-redirect HTTPS opener and strict S verifier.
+    digest = hashlib.sha256(b"synthetic support ZIP").hexdigest()
+    sha = "a" * 40
+    artifact = {
+        "id": 33,
+        "expired": False,
+        "size_in_bytes": 1024,
+        "digest": "sha256:" + ("0" * 64 if "wrong-digest" in outcomes else digest),
+        "name": "alertmanager-input-inspection-22-1",
+        "workflow_run": {
+            "id": 22,
+            "head_sha": sha,
+            "repository_id": 1043311030,
+            "head_repository_id": 1043311030,
+        },
+    }
+    result = subprocess.run(
+        [sys.executable, "-B", "-E", "-s", "-S", "-c", native + _prometheus_cd_python(step)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+        env={
+            "GH_TOKEN": "synthetic-support-only",
+            "AM_ARTIFACT_DIGEST": digest,
+            "AM_ARTIFACT_ID": "33",
+            "GITHUB_RUN_ID": "22",
+            "GITHUB_RUN_ATTEMPT": "1",
+            "GITHUB_SHA": sha,
+            "FIXTURE_TRACE": str(trace),
+            "FIXTURE_RESPONSES": json.dumps(outcomes),
+            "FIXTURE_BODY": json.dumps(artifact),
+        },
+    )
+    assert (result.returncode != 0) == bool(terminal), result.stderr
+    if terminal:
+        assert terminal in result.stderr
+    assert (
+        "PRIVATE-TRANSPORT" not in result.stderr and "synthetic-support-only" not in result.stderr
+    )
+    assert result.stdout == ""
+    lines = trace.read_text().splitlines()
+    assert [line for line in lines if line.startswith("GET ")] == [
+        "GET " + status for status in outcomes
+    ]
+    expected = [3.0] if outcomes[0] == "503-after" else [float(i) for i in range(1, len(outcomes))]
+    assert [float(line.split()[1]) for line in lines if line.startswith("wait ")] == expected
+
+
+@pytest.mark.parametrize(
     "fault",
     [
         None,

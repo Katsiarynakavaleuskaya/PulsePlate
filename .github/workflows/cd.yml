@@ -104,7 +104,7 @@ env:
   IMAGE_NAME: ${{ github.repository }}
   # Phase values are workflow-owned. Code validates ceilings without fallback values.
   # ROOT creates C, independently reviews/designates it, then pins C before one normal C,H push.
-  ALERTMANAGER_CONTROLLER_SOURCE: 'd6d4a9a89592d85f2afc4d8893d9552ea85f61b2' # pragma: allowlist secret - public immutable controller commit
+  ALERTMANAGER_CONTROLLER_SOURCE: 'f85bdd9d8a6f1598717afcd5e6b3db9dc93e14dd' # pragma: allowlist secret - public immutable controller commit
   ALERTMANAGER_PREPARATION_MINUTES: '14'
   ALERTMANAGER_NATIVE_STEP_MINUTES: '42'
   ALERTMANAGER_LIVE_SECURITY_MINUTES: '32'
@@ -313,14 +313,61 @@ jobs:
           AM_ARTIFACT_DIGEST: ${{ steps.support-upload.outputs.artifact-digest }}
         run: |
           set -euo pipefail
-          [[ "$AM_ARTIFACT_ID" =~ ^[1-9][0-9]{0,18}$ ]]
-          gh api --hostname github.com --method GET "repos/$GITHUB_REPOSITORY/actions/artifacts/$AM_ARTIFACT_ID" |
-            python3 -B -E -s -S -c 'import os,sys
+          timeout --kill-after=1s 55s python3 -B -E -s -S - <<'PY'
+          import os, re, time
+          from email.utils import parsedate_to_datetime
+          from http.client import HTTPException
+          from urllib.error import HTTPError
+          from urllib.request import Request
           from scripts.ci.fetch_docker_source_artifacts import _alertmanager_support_upload
-          from scripts.ci.prometheus_source_image import one_object
-          raw=sys.stdin.buffer.read(65537)
-          if len(raw)>65536: raise ValueError("Alertmanager artifact metadata exceeds its bound")
-          _alertmanager_support_upload(one_object(raw), os.environ)'
+          from scripts.ci.prometheus_source_image import GHCR_REPOSITORY, one_object, opener
+
+          ident = os.environ["AM_ARTIFACT_ID"]
+          if not re.fullmatch(r"[1-9][0-9]{0,18}", ident) or not re.fullmatch(r"[0-9a-f]{64}", os.environ["AM_ARTIFACT_DIGEST"]):
+              raise SystemExit("Missing support upload identity or digest")
+          url = f"https://api.github.com/repos/{GHCR_REPOSITORY}/actions/artifacts/{ident}"
+          request = Request(url, headers={"Authorization": "Bearer " + os.environ["GH_TOKEN"],
+                                          "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"})
+          deadline = time.monotonic() + 50
+          for attempt in range(1, 4):
+              remaining = deadline - time.monotonic()
+              if remaining <= 0:
+                  raise SystemExit("Support upload metadata deadline")
+              try:
+                  with opener().open(request, timeout=min(12, remaining)) as response:
+                      if response.geturl() != url or response.status != 200:
+                          raise SystemExit("Unexpected support upload metadata response")
+                      raw = response.read(65537)
+                  break
+              except HTTPError as error:
+                  with error:
+                      status = error.code
+                      retry_after = error.headers.get_all("Retry-After", [])
+                      same_url = error.geturl() == url
+                  delay = float(attempt)
+                  if same_url and status in (404, 500, 502, 503, 504) and attempt < 3 and len(retry_after) <= 1:
+                      if retry_after:
+                          hint = retry_after[0]
+                          try:
+                              if re.fullmatch(r"[0-9]{1,9}", hint):
+                                  delay = max(delay, int(hint))
+                              else:
+                                  stamp = parsedate_to_datetime(hint)
+                                  if stamp.tzinfo is None:
+                                      raise ValueError
+                                  delay = max(delay, stamp.timestamp() - time.time())
+                          except (TypeError, ValueError, OverflowError, OSError):
+                              raise SystemExit("Invalid support metadata retry delay") from None
+                      if delay < deadline - time.monotonic():
+                          time.sleep(delay)
+                          continue
+                  raise SystemExit(f"Support upload metadata HTTP {status} on attempt {attempt}") from None
+              except (HTTPException, OSError, ValueError):
+                  raise SystemExit("Support upload metadata transport failed") from None
+          if len(raw) > 65536:
+              raise SystemExit("Support upload metadata exceeds its bound")
+          _alertmanager_support_upload(one_object(raw), os.environ)
+          PY
 
   alertmanager-candidate-build:
     if: >-

@@ -5149,7 +5149,7 @@ def test_caddy_repair_build_checks_run_native_retention_before_debit(
 
 
 @pytest.mark.parametrize(
-    "remaining,eligible", [(555, False), (599.9, False), (600, True), (599.97, True)]
+    "remaining,eligible", [(555, False), (600, False), (659, False), (660, True), (870, True)]
 )
 def test_caddy_upload_retains_actual_verification_slice(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, remaining: float, eligible: bool
@@ -5181,6 +5181,10 @@ def test_caddy_upload_retains_actual_verification_slice(
     budget = json.loads(ledger.read_bytes())["budget"]
     assert budget["charged"]["UPLOAD"] == (540 if eligible else 0)
     assert ("UPLOAD" in budget["action_deadlines"]) is eligible
+    if eligible:
+        now += 540 + 60  # Full uploader ceiling and the bounded scheduler handoff.
+        with runtime_surface.caddy_ci_phase("UPLOAD") as verify:
+            assert verify(float("inf")) == 60
 
 
 @pytest.mark.parametrize(

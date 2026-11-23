@@ -8540,7 +8540,11 @@ def test_caddy_fresh_upload_verifies_exact_id_with_bounded_native_http(
         [2.0] if outcomes[0] == "429-short" else [float(i) for i in range(1, attempts)]
     )
     assert not local_zip.exists()
-    assert all(reader.process is None for reader in readers)
+    assert bool(readers) == (outcomes[0] not in {"bad-upload-digest", "upload-failed"})
+    for reader in readers:
+        assert reader.process is None
+        assert not reader.private.exists() and not reader.private.is_symlink()
+        assert reader.environment == {}
     assert not list((runner / "caddy-admission/upload-verification").glob("pycache-*"))
 
 

@@ -4614,7 +4614,10 @@ def require_caddy_build_window(state: dict[str, Any]) -> None:
 
 def caddy_ci_charge_action(phase: str, seconds: int | None = None, *, reserve: int = 0) -> int:
     """Debit one existing action ceiling before its independently timed invocation."""
-    with caddy_ci_phase(phase) as remaining:
+    # A joint repair upload also leaves one verification-length scheduler handoff
+    # on the global job clock. Only the uploader is debited from the phase.
+    handoff = reserve if phase == "UPLOAD" else 0
+    with caddy_ci_phase(phase, handoff=handoff) as remaining:
         available = remaining(float("inf"))
         state_path = Path(os.environ["RUNNER_TEMP"]) / "caddy-admission/admission.json"
         state = json.loads(state_path.read_bytes())
@@ -4636,7 +4639,7 @@ def caddy_ci_charge_action(phase: str, seconds: int | None = None, *, reserve: i
 
 
 @contextmanager
-def caddy_ci_phase(phase: str) -> Iterator[Callable[[float], float]]:
+def caddy_ci_phase(phase: str, *, handoff: int = 0) -> Iterator[Callable[[float], float]]:
     """Charge a finite Caddy phase against the same runner clock and existing state."""
     global _CADDY_REMAINING
     state_path = Path(os.environ["RUNNER_TEMP"]) / "caddy-admission/admission.json"
@@ -4654,6 +4657,8 @@ def caddy_ci_phase(phase: str) -> Iterator[Callable[[float], float]]:
     if (
         phase not in caps
         or any(value <= 0 for value in caps.values())
+        or type(handoff) is not int
+        or not 0 <= handoff <= caps.get("SAFETY", 0)
         or set(budget["charged"]) != set(caps)
         or budget["seconds"] != sum(caps.values())
         or type(budget["started"]) not in (int, float)
@@ -4683,7 +4688,8 @@ def caddy_ci_phase(phase: str) -> Iterator[Callable[[float], float]]:
         if name not in (phase, "SAFETY")
     )
     deadline = min(
-        started + caps[phase] - spent, float(budget["started"]) + global_seconds - reserve
+        started + caps[phase] - spent,
+        float(budget["started"]) + global_seconds - reserve - handoff,
     )
 
     def remaining(cap: float) -> float:
