@@ -4505,6 +4505,10 @@ class _DispatchNativeFixture:
     [
         (None, None),
         ("main-advanced", "publisher_repair_live_base"),
+        ("reused-branch", None),
+        ("two-open-PRs", "Caddy transition PR lookup is ambiguous"),
+        ("closed-only", "Caddy observation requires one exact accepted PR or main merge"),
+        ("closed-open-response", "Caddy corrective PR listing changed"),
         ("stale-listed-PR", "Caddy corrective PR listing changed"),
         ("wrong-sender", "publisher_repair_actual_dispatch_input"),
         ("wrong-input", "publisher_repair_actual_dispatch_input"),
@@ -4609,17 +4613,24 @@ def test_delegated_caddy_dispatch_live_and_terminal(
             main_reads += 1
             sha = "f" * 40 if main_reads > 1 and fault == "main-advanced" else b
             return {"ref": "refs/heads/main", "object": {"type": "commit", "sha": sha}}
-        if (
-            path
-            == "/pulls?state=all&head=Katsiarynakavaleuskaya%3Arepair%2Fselected&base=main&per_page=2"
-        ):
+        query = "&head=Katsiarynakavaleuskaya%3Arepair%2Fselected&base=main&per_page=2"
+        if path in ("/pulls?state=open" + query, "/pulls?state=all" + query):
             looked_up = True
-            listed = (
-                {**pr, "head": {**pr["head"], "sha": "e" * 40}}
-                if fault == "stale-listed-PR"
-                else pr
-            )
-            return [listed]
+            rows = [pr]
+            if fault == "stale-listed-PR":
+                return [{**pr, "head": {**pr["head"], "sha": "e" * 40}}]
+            if fault == "closed-open-response":
+                return [{**pr, "state": "closed"}]
+            closed = {**pr, "number": 79, "state": "closed"}
+            if fault == "reused-branch":
+                rows.insert(0, closed)
+            elif fault == "two-open-PRs":
+                rows.append({**pr, "number": 80})
+            elif fault == "closed-only":
+                rows = [closed]
+            return [
+                row for row in rows if row["state"] == "open" or path.startswith("/pulls?state=all")
+            ]
         return api.read(path)
 
     monkeypatch.setattr(runtime_surface, "_publisher_repair_material", lambda *a: None)
@@ -4654,7 +4665,14 @@ def test_delegated_caddy_dispatch_live_and_terminal(
         if fault == "main-advanced":
             return  # Only the first live admission may satisfy this rejection check.
         assert live == projection
-        if fault is None or fault == "stale-listed-PR":
+        if fault in (
+            None,
+            "stale-listed-PR",
+            "reused-branch",
+            "two-open-PRs",
+            "closed-only",
+            "closed-open-response",
+        ):
             actual = runtime_surface.caddy_bound_pr(read, w)
             assert looked_up and actual == {**pr, "publisher_repair": live}
         state = {"source_pr": 81, "current_head": w, "publisher_repair": live, "mode": "build"}
@@ -4733,7 +4751,7 @@ def test_delegated_caddy_dispatch_live_and_terminal(
             exercise()
         if fault == "main-advanced":
             assert main_reads == 2 and pr["base"]["sha"] == b and api.lists == 2
-        if fault == "stale-listed-PR":
+        if fault in ("stale-listed-PR", "two-open-PRs", "closed-only", "closed-open-response"):
             assert looked_up
     else:
         exercise()

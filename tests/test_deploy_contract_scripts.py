@@ -19528,11 +19528,45 @@ def _exercise_publisher_history(
                         or (fault == "missing-native" and run_id == 23)
                         else [original_event]
                     )
+                    if fault and fault.startswith("run-list-"):
+                        # Both repositories contain the selected commit. Only the canonical
+                        # destination + canonical head can supply original CI or CD evidence.
+                        fork = {
+                            **original_event,
+                            "id": run_id + 900,
+                            "head_repository": {"id": 9042},
+                        }
+                        if fault == "run-list-foreign-first":
+                            runs = [fork, original_event]
+                        elif fault == "run-list-foreign-only":
+                            runs = [fork]
+                        else:
+                            if fault == "run-list-missing-head":
+                                del fork["head_repository"]
+                            elif fault == "run-list-null-head":
+                                fork["head_repository"] = None
+                            elif fault == "run-list-bool-id":
+                                fork["head_repository"] = {"id": True}
+                            elif fault == "run-list-nonpositive-id":
+                                fork["head_repository"] = {"id": 0}
+                            elif fault == "run-list-other-destination":
+                                fork["repository"] = {"id": 9042}
+                            elif fault == "run-list-wrong-workflow":
+                                fork["workflow_id"] = 9998
+                            elif fault == "run-list-wrong-head":
+                                fork["head_sha"] = "f" * 40
+                            elif fault == "run-list-bad-attempt":
+                                fork["run_attempt"] = True
+                            runs = [original_event, fork]
                     return {"total_count": len(runs), "workflow_runs": runs}
                 if path == "/actions/workflows/" + filename:
                     return {"id": run_id + 100, "path": ".github/workflows/" + filename}
                 for attempt in (1, 2):
                     attempt_path = f"/actions/runs/{run_id}/attempts/{attempt}"
+                    if path.startswith(f"/actions/runs/{run_id + 900}/attempts/"):
+                        raise AssertionError(
+                            "a foreign listed run must never be read as local job evidence"
+                        )
                     if path == attempt_path:
                         return {
                             "id": run_id,
@@ -19542,7 +19576,9 @@ def _exercise_publisher_history(
                             "event": "pull_request",
                             "status": "completed",
                             "repository": github_repo,
-                            "head_repository": github_repo,
+                            "head_repository": (
+                                {"id": 9042} if fault == "attempt-foreign-head" else github_repo
+                            ),
                             "head_sha": w,
                             "head_branch": repair["head"]["ref"],
                             "pull_requests": (
@@ -19709,6 +19745,18 @@ def _exercise_publisher_history(
         "mapping-successor",
         "old-native-only",
         "same-pr-stale-grant",
+        "run-list-foreign-first",
+        "run-list-foreign-last",
+        "run-list-foreign-only",
+        "run-list-missing-head",
+        "run-list-null-head",
+        "run-list-bool-id",
+        "run-list-nonpositive-id",
+        "run-list-other-destination",
+        "run-list-wrong-workflow",
+        "run-list-wrong-head",
+        "run-list-bad-attempt",
+        "attempt-foreign-head",
         "mixed-native",
     ],
 )
@@ -19735,7 +19783,12 @@ def test_publisher_history_keeps_2495_and_unrelated_descendant_before_repair(
             prometheus_source.QualificationError, match="AM_history_protected_repair_dispatch"
         ):
             _exercise_publisher_history(tmp_path / "native", overlay, fault=fault)
-    elif fault and fault not in ("corrected-same-pr", "mapping-successor"):
+    elif fault and fault not in (
+        "corrected-same-pr",
+        "mapping-successor",
+        "run-list-foreign-first",
+        "run-list-foreign-last",
+    ):
         expected = {
             "edit-revert": "AM_history_exact_PR",
             "protected-merge": "AM_history_protected_squash",
@@ -19746,6 +19799,16 @@ def test_publisher_history_keeps_2495_and_unrelated_descendant_before_repair(
             "original-before-dispatch": "publisher_repair_missing_authorized_native_lint",
             "original-before-PR": "publisher_repair_missing_authorized_native_lint",
             "mixed-squash": "publisher_repair_complete_maintenance_delta",
+            "run-list-foreign-only": "publisher_repair_missing_authorized_native_lint",
+            "run-list-missing-head": "publisher_repair_original_run_identity",
+            "run-list-null-head": "publisher_repair_original_run_identity",
+            "run-list-bool-id": "publisher_repair_original_run_identity",
+            "run-list-nonpositive-id": "publisher_repair_original_run_identity",
+            "run-list-other-destination": "publisher_repair_original_run_identity",
+            "run-list-wrong-workflow": "publisher_repair_original_run_identity",
+            "run-list-wrong-head": "publisher_repair_original_run_identity",
+            "run-list-bad-attempt": "publisher_repair_attempt_inventory",
+            "attempt-foreign-head": "publisher_repair_actual_run_attempt",
             "mixed-native": "publisher_repair_complete_maintenance_delta",
             "ambiguous-original": "publisher_repair_missing_authorized_native_lint",
             "missing-native": "publisher_repair_missing_authorized_native_prometheus-image-security-pr",

@@ -2430,6 +2430,8 @@ def _publisher_attempt_job(
     workflow: str,
     job: str,
     operation: str,
+    *,
+    workflow_record: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any] | None]:
     from scripts.ci.prometheus_source_image import require
 
@@ -2438,19 +2440,27 @@ def _publisher_attempt_job(
     except (KeyError, RuntimeError, ValueError) as error:
         raise ValueError("publisher_repair_missing_native_attempt") from error
     require(type(run) is dict and bool(run), "publisher_repair_missing_native_attempt")
-    expected = read("/actions/workflows/" + workflow)
+    expected = (
+        read("/actions/workflows/" + workflow) if workflow_record is None else workflow_record
+    )
     caller = ".github/workflows/" + workflow
     require(
         type(expected["id"]) is int
         and expected["id"] > 0
         and run["path"] == expected["path"] == caller
+        and type(run["workflow_id"]) is int
         and run["workflow_id"] == expected["id"]
         and run["event"] == operation
         and type(run["id"]) is int
         and run["id"] == run_id
         and type(run["run_attempt"]) is int
         and run["run_attempt"] == attempt
-        and run["repository"]["id"] == run["head_repository"]["id"] == 1043311030
+        and all(
+            isinstance(run.get(side), dict)
+            and type(run[side].get("id")) is int
+            and run[side]["id"] == 1043311030
+            for side in ("repository", "head_repository")
+        )
         and run["head_sha"] == selected,
         "publisher_repair_actual_run_attempt",
     )
@@ -2574,6 +2584,15 @@ def publisher_repair_completed_reads(
 
     end = min(_publisher_time(pr["merged_at"]), _publisher_time(grant["expires"]))
     for (workflow, job), required_steps in _REPAIR_NATIVE_STEPS.items():
+        workflow_record = read("/actions/workflows/" + workflow)
+        caller = ".github/workflows/" + workflow
+        require(
+            isinstance(workflow_record, dict)
+            and type(workflow_record.get("id")) is int
+            and workflow_record["id"] > 0
+            and workflow_record.get("path") == caller,
+            "publisher_repair_original_workflow_identity",
+        )
         proven = False
         for head in dict.fromkeys((pr["head"]["sha"], grant["callers"])):
             endpoint = (
@@ -2584,22 +2603,53 @@ def publisher_repair_completed_reads(
             runs, total = result["workflow_runs"], result["total_count"]
             require(
                 type(total) is int
+                and isinstance(runs, list)
                 and 0 <= total == len(runs) <= 100
+                and all(
+                    isinstance(r, dict) and type(r.get("id")) is int and r["id"] > 0 for r in runs
+                )
                 and len({r["id"] for r in runs}) == total,
                 "publisher_repair_complete_head_runs",
             )
+            local_runs = []
             for candidate in runs:
-                run_id, latest = candidate["id"], candidate["run_attempt"]
+                latest = candidate.get("run_attempt")
                 require(
-                    type(run_id) is int
-                    and run_id > 0
-                    and type(latest) is int
-                    and 1 <= latest <= 100,
+                    type(latest) is int and 1 <= latest <= 100,
                     "publisher_repair_attempt_inventory",
                 )
-                for attempt in range(latest, 0, -1):
+                destination, source = candidate.get("repository"), candidate.get("head_repository")
+                require(
+                    isinstance(destination, dict)
+                    and type(destination.get("id")) is int
+                    and destination["id"] == 1043311030
+                    and isinstance(source, dict)
+                    and type(source.get("id")) is int
+                    and source["id"] > 0
+                    and candidate.get("head_sha") == head
+                    and candidate.get("event") == "pull_request"
+                    and candidate.get("path") == caller
+                    and type(candidate.get("workflow_id")) is int
+                    and candidate["workflow_id"] == workflow_record["id"]
+                    and isinstance(candidate.get("head_branch"), str)
+                    and bool(candidate["head_branch"]),
+                    "publisher_repair_original_run_identity",
+                )
+                if source["id"] == 1043311030:
+                    local_runs.append(candidate)
+            # A fork can contain the same Git commit. Only local candidates may contribute a job.
+            for candidate in local_runs:
+                run_id = candidate["id"]
+                for attempt in range(candidate["run_attempt"], 0, -1):
                     run, receipt = _publisher_attempt_job(
-                        read, run_id, attempt, head, workflow, job, "pull_request"
+                        read,
+                        run_id,
+                        attempt,
+                        head,
+                        workflow,
+                        job,
+                        "pull_request",
+                        workflow_record=workflow_record,
                     )
                     if (
                         receipt is None
@@ -2621,10 +2671,7 @@ def publisher_repair_completed_reads(
                                 "event",
                                 "path",
                             )
-                        )
-                        and candidate["repository"]["id"]
-                        == candidate["head_repository"]["id"]
-                        == 1043311030,
+                        ),
                         "publisher_repair_original_run_identity",
                     )
                     if not _publisher_original_pr(read, pr, grant, candidate, head):
@@ -2711,7 +2758,7 @@ def caddy_bound_pr(
             # Two records already prove ambiguity. One complete first page binds the only candidate.
             query = urlencode(
                 {
-                    "state": "all",
+                    "state": "open" if maintenance and kind != "push" else "all",
                     "head": CADDY_REPOSITORY.split("/")[0] + ":" + branch,
                     "base": "main",
                     "per_page": 2,
