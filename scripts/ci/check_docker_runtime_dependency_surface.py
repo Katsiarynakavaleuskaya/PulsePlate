@@ -4352,7 +4352,7 @@ if owner.__file__ != str(source) or hashlib.sha256(source.read_bytes()).hexdiges
 url = "https://api.github.com/repos/Katsiarynakavaleuskaya/PulsePlate" + endpoint
 request = Request(url, headers={"Authorization": "Bearer " + os.environ["GH_TOKEN"],
     "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"})
-def fetch(seconds):
+def fetch(seconds: float) -> bytes:
     with opener().open(request, timeout=seconds) as response:
         if len(sys.argv) != 5 and response.status != 200:
             raise HTTPError(url, response.status, "unexpected artifact metadata status", response.headers, None)

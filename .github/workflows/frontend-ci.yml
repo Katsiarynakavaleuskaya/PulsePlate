@@ -627,6 +627,7 @@ jobs:
               import re
               import shutil
               import subprocess
+              from typing import Any
               from scripts.ci.check_docker_runtime_dependency_surface import caddy_ci_checkout_inventory
 
               root = Path.cwd()
@@ -664,7 +665,7 @@ jobs:
                   return value
 
               from scripts.ci.check_docker_runtime_dependency_surface import CADDY_RUN_HISTORY_PATH, _publisher_time, caddy_stable_pages
-              def pages(path, key):
+              def pages(path: str, key: str) -> list[dict[str, Any]]:
                   return caddy_stable_pages(api, path, key, remaining)
 
               from scripts.ci.check_docker_runtime_dependency_surface import caddy_bound_pr, caddy_owner_dispatch, caddy_repair_d_admitted

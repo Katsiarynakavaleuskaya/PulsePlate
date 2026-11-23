@@ -18068,6 +18068,14 @@ def test_alertmanager_current_support_transport_is_complete(
         (("404", "ok"), ""),
         (("500", "502", "ok"), ""),
         (("503-after", "ok"), ""),
+        (("429-after", "ok"), ""),
+        (("reset", "ok"), ""),
+        (("wrapped-timeout", "ok"), ""),
+        (("reset", "wrapped-reset", "timeout"), "temporary transport failure on attempt 3"),
+        (("429-long",), "HTTP 429 on attempt 1"),
+        (("429-invalid",), "Invalid support metadata retry delay"),
+        (("wrapped-tls",), "transport failed"),
+        (("unknown-url-error",), "transport failed"),
         (("404", "404", "404"), "HTTP 404 on attempt 3"),
         (("504", "504", "504"), "HTTP 504 on attempt 3"),
         (("403",), "HTTP 403 on attempt 1"),
@@ -18098,7 +18106,7 @@ def test_alertmanager_S_reads_only_its_fresh_upload_before_validating(
     assert "timeout --kill-after=1s 55s python3 -B -E -s -S -" in step["run"]
     trace = tmp_path / "native-requests"
     native = textwrap.dedent("""
-        import io, json, os, ssl, time, urllib.request, urllib.response
+        import io, json, os, ssl, time, urllib.error, urllib.request, urllib.response
         from email.message import Message
         from pathlib import Path
         trace = Path(os.environ["FIXTURE_TRACE"])
@@ -18120,9 +18128,16 @@ def test_alertmanager_S_reads_only_its_fresh_upload_before_validating(
             headers = Message()
             status = int(item[:3]) if item[:3].isdigit() else 302 if item == "redirect" else 200
             if item == "tls": raise ssl.SSLCertVerificationError("PRIVATE-TRANSPORT")
+            if item == "wrapped-tls": raise urllib.error.URLError(ssl.SSLCertVerificationError("PRIVATE-TRANSPORT"))
+            if item == "timeout": raise TimeoutError("PRIVATE-TRANSPORT")
+            if item == "wrapped-timeout": raise urllib.error.URLError(TimeoutError("PRIVATE-TRANSPORT"))
+            if item == "reset": raise ConnectionResetError("PRIVATE-TRANSPORT")
+            if item == "wrapped-reset": raise urllib.error.URLError(ConnectionResetError("PRIVATE-TRANSPORT"))
+            if item == "unknown-url-error": raise urllib.error.URLError("PRIVATE-TRANSPORT")
             if item == "redirect": headers["Location"] = "https://foreign.invalid/redacted"
-            if item == "503-after": headers["Retry-After"] = "3"
-            if item == "503-long": headers["Retry-After"] = "999"
+            if item in ("503-after", "429-after"): headers["Retry-After"] = "3"
+            if item in ("503-long", "429-long"): headers["Retry-After"] = "999"
+            if item == "429-invalid": headers["Retry-After"] = "PRIVATE-TRANSPORT"
             body = os.environ["FIXTURE_BODY"].encode()
             if item == "invalid-json" or status != 200: body = b"PRIVATE-TRANSPORT"
             if item == "oversized": body = b"x" * 65537
@@ -18177,7 +18192,11 @@ def test_alertmanager_S_reads_only_its_fresh_upload_before_validating(
     assert [line for line in lines if line.startswith("GET ")] == [
         "GET " + status for status in outcomes
     ]
-    expected = [3.0] if outcomes[0] == "503-after" else [float(i) for i in range(1, len(outcomes))]
+    expected = (
+        [3.0]
+        if outcomes[0] in ("503-after", "429-after")
+        else [float(i) for i in range(1, len(outcomes))]
+    )
     assert [float(line.split()[1]) for line in lines if line.startswith("wait ")] == expected
 
 
