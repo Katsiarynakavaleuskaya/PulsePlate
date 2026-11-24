@@ -15533,36 +15533,28 @@ def test_alertmanager_H_artifact_transport_keeps_C_acceptance_independent(
     }.get(fault or "", 0)
     native_path = "/synthetic/gh"
 
-    if fault in (
-        "short-disk",
-        "same-volume-small",
-        "inclusive-stdout-copy",
-        "above-stdout-threshold",
-        "separate-volumes",
-        "short-evidence-volume",
-        "space-changed",
-        "evidence-space-changed",
-    ):
-        unit = 4096
-        margin = 128 * 1024  # Enough for the native receipt, file slack and small stderr.
+    native_disk_room = docker_sources._alertmanager_receipt_disk_room
+    unit = 4096
+    margin = 128 * 1024  # Enough for the native receipt, file slack and small stderr.
 
-        def disk_room(path: Path) -> tuple[int, int, int]:
-            assert path in (evidence, tmp_path)
-            if fault == "short-disk":
-                return 1, 0, unit
-            if fault == "space-changed" and capture_calls and path == tmp_path:
-                return 1, size - 1, unit
-            if fault in ("separate-volumes", "short-evidence-volume", "evidence-space-changed"):
-                if path == evidence:
-                    if fault == "evidence-space-changed" and capture_calls:
-                        return 2, -1, unit
-                    return 2, size - 1 if fault == "short-evidence-volume" else size + margin, unit
-                return 1, size + unit, unit
-            if fault == "same-volume-small":
-                return 1, size, unit  # 520 MiB free less the 512 MiB reserve.
-            return 1, size + margin, unit
+    def disk_room(path: Path) -> tuple[int, int, int]:
+        if path not in (evidence, tmp_path):
+            return native_disk_room(path)
+        if fault == "short-disk":
+            return 1, 0, unit
+        if fault == "space-changed" and capture_calls and path == tmp_path:
+            return 1, size - 1, unit
+        if fault in ("separate-volumes", "short-evidence-volume", "evidence-space-changed"):
+            if path == evidence:
+                if fault == "evidence-space-changed" and capture_calls:
+                    return 2, -1, unit
+                return 2, size - 1 if fault == "short-evidence-volume" else size + margin, unit
+            return 1, size + unit, unit
+        if fault == "same-volume-small":
+            return 1, size, unit  # 520 MiB free less the 512 MiB reserve.
+        return 1, size + margin, unit
 
-        monkeypatch.setattr(docker_sources, "_alertmanager_receipt_disk_room", disk_room)
+    monkeypatch.setattr(docker_sources, "_alertmanager_receipt_disk_room", disk_room)
 
     class API:
         def __init__(self) -> None:

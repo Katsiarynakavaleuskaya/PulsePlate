@@ -3721,6 +3721,16 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
     sessions: list[Any] = []
     graph: dict[str, Any] = {}
     output = tmp_path / "owned-publication"
+    native_disk_usage = shutil.disk_usage
+
+    def disk_usage(path: str | bytes | Path) -> tuple[int, int, int]:
+        usage = native_disk_usage(path)
+        if isinstance(path, Path) and path.is_relative_to(output):
+            # The synthetic publisher has an 8 GiB working allowance on a 16 GiB volume.
+            return usage._replace(total=16 * 1024**3, used=8 * 1024**3, free=8 * 1024**3)
+        return usage
+
+    monkeypatch.setattr(shutil, "disk_usage", disk_usage)
     copied = False
     pulled_back = False
     logged_in = False
