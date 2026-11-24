@@ -521,7 +521,7 @@ jobs:
       CADDY_SCAN_KILL_SECONDS: '10'
       CADDY_SCAN_BOOKKEEPING_SECONDS: '10'
       CADDY_PHASE_SETUP: '300'
-      CADDY_PHASE_ADMISSION: '600'
+      CADDY_PHASE_ADMISSION: '900'
       CADDY_PHASE_COMPILER_BOOTSTRAP: '600'
       CADDY_PHASE_COMPILER_WORK: '1200'
       CADDY_PHASE_COMPILER_CLEANUP: '120'
@@ -545,7 +545,7 @@ jobs:
       CADDY_REPAIR_UPLOAD_VERIFY_SECONDS: '60'
       CADDY_REPAIR_RETENTION_DAYS: '90'
       CADDY_PHASE_SAFETY: '270'
-    timeout-minutes: ${{ fromJSON(vars.CADDY_CONTRACT_TIMEOUT_MINUTES || '225') }}
+    timeout-minutes: ${{ fromJSON(vars.CADDY_CONTRACT_TIMEOUT_MINUTES || '230') }}
     needs: changes
     if: ${{ !cancelled() && (needs.changes.outputs.caddy == 'true' || github.event_name == 'workflow_dispatch') }}
     runs-on: ubuntu-24.04

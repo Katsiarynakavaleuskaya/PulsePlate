@@ -346,6 +346,13 @@ The direct mapping-only successor is eligible under the same source checks.
   file-inventory producer plus the complete native footer. Reject extra/missing
   members; do not reuse a historical total ZIP count for a changed producer.
   Keep scanner/database epochs and their exact negative inventories separate.
+- Validate each retained Alertmanager build and publication ZIP against its
+  producer's file and directory inventory. Count unique parent directories
+  and the footer in the producer limit. The ordinary reader verifies every
+  member of each original ZIP before using its observation and native results.
+  Exercise the publication and its referenced build together under the
+  original deadline. Keep the support archive and Prometheus checks scoped
+  to their own formats.
 - Require current six-file regular Git material and five separately reviewed
   controller templates before native rendering. ROOT creates real commit C,
   independently reviews/designates its exact bytes, then pins its known full
