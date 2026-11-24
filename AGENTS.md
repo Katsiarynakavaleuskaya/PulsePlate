@@ -2639,17 +2639,21 @@ immutable tag before login. For the CAB recovery, the controller recognizes only
 two reviewed PostgreSQL reference replacements in the staging and self-hosted Compose
 blobs. Every other byte in those inputs stays bound to its independently reviewed source.
 
-The original Alertmanager producer PR and the owner-approved
-`codex/alertmanager-controller-transition` PR use retained-source admission without
-AM registry login. The transition requires independent designation of the exact
-controller and CI/CD callers, an authenticated open PR against the designated base,
-the accepted producer artifact and its complete native evidence, fresh candidate and
-base security scans, and the full native consumer checks. The exception ends with
-that transition PR. The ordinary #2495 reader still requires real trusted-main
-publication and immutable pullback. This exception adds no staging environment or
-long-lived secret to either PR job, creates no new secret, and grants no registry write, fallback, weaker
-verification, deployment, or merge authority. Other GHCR readers keep the existing
-environment-scoped GHCR_READ_TOKEN rule.
+The original Alertmanager producer, #2501 and #2502 retain their historical
+source and caller bindings. For a subsequent repair, independently designate
+the exact controller, both caller workflows and the accepted Alertmanager
+image. The authorized operator uses the repository owner's existing account
+to run the read-only Frontend CI operation for that source. The native job
+checks its actual inputs. Its successful build or verified import and retained
+artifact bind subsequent CI and CD reads to the designated repair.
+[Operator procedure](scripts/AGENTS.md#publisher-repair-designation).
+
+Ordinary readers, including #2495, require successful trusted-main
+publication, pullback by immutable digest and full native evidence. Across
+an intervening repair, verify the original CI and CD results in their
+permitted window, the merged source and the protected files of the current
+base. The existing trusted-main publisher owns registry writes. Other GHCR
+readers keep the environment-scoped GHCR_READ_TOKEN rule.
 
 **Verification checklist:**
 

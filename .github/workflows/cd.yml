@@ -104,7 +104,7 @@ env:
   IMAGE_NAME: ${{ github.repository }}
   # Phase values are workflow-owned. Code validates ceilings without fallback values.
   # ROOT creates C, independently reviews/designates it, then pins C before one normal C,H push.
-  ALERTMANAGER_CONTROLLER_SOURCE: 'f85bdd9d8a6f1598717afcd5e6b3db9dc93e14dd' # pragma: allowlist secret - public immutable controller commit
+  ALERTMANAGER_CONTROLLER_SOURCE: 'a5e2c67dd8e79476845f5416a04f0079f7898b1d' # pragma: allowlist secret - public immutable controller commit
   ALERTMANAGER_PREPARATION_MINUTES: '14'
   ALERTMANAGER_NATIVE_STEP_MINUTES: '42'
   ALERTMANAGER_LIVE_SECURITY_MINUTES: '32'
@@ -202,10 +202,11 @@ jobs:
       && (github.ref == 'refs/heads/codex/dependency-alertmanager-remediation' || github.ref == 'refs/heads/main') && github.run_attempt == 1
       && inputs.postgres_mode == 'disabled'
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 61
     permissions:
       contents: read
       actions: read
+      pull-requests: read
       packages: read
     env:
       PYTHONDONTWRITEBYTECODE: '1'
@@ -292,6 +293,7 @@ jobs:
             --output-dir "$RUNNER_TEMP/alertmanager-input-inspection-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
       - name: Retain Alertmanager input observations without compiler authority
         timeout-minutes: 5
+        id: support-upload
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
         with:
@@ -301,6 +303,75 @@ jobs:
             ${{ runner.temp }}/alertmanager-input-inspection-${{ github.run_id }}-${{ github.run_attempt }}/github-read-evidence/
             ${{ runner.temp }}/alertmanager-input-inspection-${{ github.run_id }}-${{ github.run_attempt }}/native-support/
           if-no-files-found: warn
+
+      - name: Verify the completed support upload identity and size
+        if: success()
+        timeout-minutes: 1
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AM_ARTIFACT_ID: ${{ steps.support-upload.outputs.artifact-id }}
+          AM_ARTIFACT_DIGEST: ${{ steps.support-upload.outputs.artifact-digest }}
+        run: |
+          set -euo pipefail
+          timeout --kill-after=1s 55s python3 -B -E -s -S - <<'PY'
+          import os, re, time
+          from email.utils import parsedate_to_datetime
+          from http.client import HTTPException
+          from urllib.error import HTTPError, URLError
+          from urllib.request import Request
+          from scripts.ci.fetch_docker_source_artifacts import _alertmanager_support_upload
+          from scripts.ci.prometheus_source_image import GHCR_REPOSITORY, one_object, opener
+
+          ident = os.environ["AM_ARTIFACT_ID"]
+          if not re.fullmatch(r"[1-9][0-9]{0,18}", ident) or not re.fullmatch(r"[0-9a-f]{64}", os.environ["AM_ARTIFACT_DIGEST"]):
+              raise SystemExit("Missing support upload identity or digest")
+          url = f"https://api.github.com/repos/{GHCR_REPOSITORY}/actions/artifacts/{ident}"
+          request = Request(url, headers={"Authorization": "Bearer " + os.environ["GH_TOKEN"],
+                                          "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"})
+          deadline = time.monotonic() + 50
+          for attempt in range(1, 4):
+              delay = float(attempt)
+              remaining = deadline - time.monotonic()
+              if remaining <= 0:
+                  raise SystemExit("Support upload metadata deadline")
+              try:
+                  with opener().open(request, timeout=min(12, remaining)) as response:
+                      if response.geturl() != url or response.status != 200:
+                          raise SystemExit("Unexpected support upload metadata response")
+                      raw = response.read(65537)
+                  break
+              except HTTPError as error:
+                  with error:
+                      status = error.code
+                      retry_after = error.headers.get_all("Retry-After", [])
+                      same_url = error.geturl() == url
+                  failure = f"Support upload metadata HTTP {status} on attempt {attempt}"
+                  if not same_url or status not in (404, 429, 500, 502, 503, 504) or len(retry_after) > 1:
+                      raise SystemExit(failure) from None
+                  if retry_after:
+                      hint = retry_after[0]
+                      try:
+                          if re.fullmatch(r"[0-9]{1,9}", hint):
+                              delay = max(delay, int(hint))
+                          else:
+                              stamp = parsedate_to_datetime(hint)
+                              if stamp.tzinfo is None:
+                                  raise ValueError
+                              delay = max(delay, stamp.timestamp() - time.time())
+                      except (TypeError, ValueError, OverflowError, OSError):
+                          raise SystemExit("Invalid support metadata retry delay") from None
+              except (HTTPException, OSError, ValueError) as error:
+                  cause = error.reason if isinstance(error, URLError) else error
+                  if not isinstance(cause, (TimeoutError, ConnectionResetError)):
+                      raise SystemExit("Support upload metadata transport failed") from None
+                  failure = f"Support upload metadata temporary transport failure on attempt {attempt}"
+              if attempt == 3 or delay >= deadline - time.monotonic():
+                  raise SystemExit(failure)
+              time.sleep(delay)
+          if len(raw) > 65536:
+              raise SystemExit("Support upload metadata exceeds its bound")
+          _alertmanager_support_upload(one_object(raw), os.environ)
+          PY
 
   alertmanager-candidate-build:
     if: >-
@@ -313,6 +384,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      pull-requests: read
       packages: read
     env:
       ALERTMANAGER_PRODUCER_JOB_MINUTES: *am-producer-job-timeout
@@ -835,6 +907,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      pull-requests: read
       packages: write
     steps:
       - name: Checkout exact AM executable proposal
@@ -1454,6 +1527,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      pull-requests: read
       packages: read
     steps: &prometheus-image-security-steps
       - name: Validate exact Prometheus checkout revisions
@@ -1984,6 +2058,7 @@ jobs:
         id: alertmanager-image
         timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_PREPARATION_MINUTES) }}
         env:
+          AM_PR_BASE: ${{ github.event.pull_request.base.sha }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GHCR_READ_TOKEN: ${{ github.event_name != 'pull_request' && secrets.GHCR_READ_TOKEN || '' }}
@@ -2006,6 +2081,13 @@ jobs:
           fi
           test ! -L "$controller"
           test "$(git -C "$controller" rev-parse HEAD)" = "$controller_source"
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            old_pin="$(git --no-replace-objects -c core.fsmonitor=false -c core.hooksPath=/dev/null -C "$material" cat-file blob "$AM_PR_BASE:.github/workflows/cd.yml" | sed -nE "s/^  ALERTMANAGER_CONTROLLER_SOURCE: '([0-9a-f]{40})'.*$/\1/p")"
+            [[ "$old_pin" =~ ^[0-9a-f]{40}$ ]]
+            if [ "$old_pin" != "$ALERTMANAGER_CONTROLLER_SOURCE" ]; then
+              export ALERTMANAGER_REPAIR_PIN_CHANGED=true
+            fi
+          fi
           export ALERTMANAGER_CONTROLLER_SOURCE="$controller_source"
           cd "$controller"
           python3 -B -E -s -S -m scripts.ci.fetch_docker_source_artifacts \
@@ -2657,6 +2739,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      pull-requests: read
       packages: read
     steps: *prometheus-image-security-steps
 
@@ -2717,6 +2800,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      pull-requests: read
       packages: read
     steps:
       - name: Checkout immutable OBS2A native contracts

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+from collections.abc import Callable
 from copy import deepcopy
 from datetime import date
 from dataclasses import replace
@@ -945,18 +946,23 @@ def _am_transition_merge_response(endpoint: str, head: str) -> Any:
     return None
 
 
-def _am_fixture_transition_git(monkeypatch: pytest.MonkeyPatch, head: str) -> None:
+def _am_fixture_transition_git(
+    monkeypatch: pytest.MonkeyPatch, head: str, *, consumer: str | None = None
+) -> None:
     """The synthetic API subjects have just the two explicitly admitted native Git relations."""
 
     def observed(api: Any, root: Path, ancestor: str, descendant: str) -> None:
         assert root.is_absolute() and descendant == head
         assert ancestor in (head, docker_sources._ALERT_TRANSITION_BASE)
 
-    def corrective(api: Any, root: Path, publisher: str) -> None:
-        assert publisher == head
+    def corrective(api: Any, root: Path, publisher: str, *, predecessor: str | None = None) -> None:
+        if consumer is not None:
+            assert publisher == consumer and predecessor == head
+        else:
+            assert publisher == head and predecessor is None
         assert (
             docker_sources._alertmanager_merged_ref(
-                api, docker_sources._ALERT_TRANSITION_BRANCH, publisher, root, number=2501
+                api, docker_sources._ALERT_TRANSITION_BRANCH, head, root, number=2501
             )
             == head
         )
@@ -4213,7 +4219,12 @@ def test_alertmanager_bootstrap_has_one_aggregate_setup_budget() -> None:
         assert "github.run_attempt == 1" in job["if"]
         assert "refs/heads/codex/dependency-alertmanager-remediation" in job["if"]
         assert "refs/heads/main" in job["if"]
-        assert job["permissions"] == {"contents": "read", "actions": "read", "packages": "read"}
+        assert job["permissions"] == {
+            "contents": "read",
+            "actions": "read",
+            "packages": "read",
+            "pull-requests": "read",
+        }
     for name, cap in (
         ("alertmanager-retained-candidate", 80),
         (
@@ -11678,7 +11689,12 @@ else:
         for job in ("prometheus-image-security-pr", "obs2a-checkpoint-native")
         for case in ("main", "wrong-main", "wrong-checkout", "wrong-child-env")
     ]
-    + [("prometheus-image-security-pr", "PR")],
+    + [("prometheus-image-security-pr", "PR")]
+    + [
+        (job, case)
+        for job in ("lint", "prometheus-image-security-pr")
+        for case in ("PR-same", "PR-ci-only", "PR-cd-only")
+    ],
 )
 def test_am_workflow_shell_propagates_authenticated_controller_to_actual_reader(
     tmp_path: Path,
@@ -11693,11 +11709,39 @@ def test_am_workflow_shell_propagates_authenticated_controller_to_actual_reader(
     fixed, main = data["Q"], data["P"]
     assert fixed != main
     controller = repository / "artifacts/orchestration/alertmanager-control"
-    if case == "PR":
-        data["command"]("worktree", "add", "--detach", str(controller), fixed)
+    is_pr = case.startswith("PR")
+    caller_name = "ci" if job_name == "lint" else "cd"
+    if is_pr:
+        command = data["command"]
+        workflows = repository / ".github/workflows"
+        workflows.mkdir(parents=True)
+        for name in ("ci", "cd"):
+            incumbent = main if case == f"PR-{name}-only" else fixed
+            (workflows / f"{name}.yml").write_text(
+                f"  ALERTMANAGER_CONTROLLER_SOURCE: '{incumbent}'\n"
+            )
+        command("add", ".github/workflows")
+        command("commit", "-m", "Record incumbent CI and CD controller pins")
+        pr_base = command("rev-parse", "HEAD")
+        if case in ("PR", "PR-same"):
+            (repository / "unrelated.txt").write_text("Reviewed candidate material\n")
+            if case == "PR":
+                command("commit", "-am", "Review candidate controller")
+                fixed = command("rev-parse", "HEAD")
+        for name in ("ci", "cd"):
+            (workflows / f"{name}.yml").write_text(f"  ALERTMANAGER_CONTROLLER_SOURCE: '{fixed}'\n")
+        command("commit", "-am", "Record the selected PR head")
+        main = command("rev-parse", "HEAD")
+        assert command("merge-base", pr_base, main) == pr_base != main
+        if case in ("PR-ci-only", "PR-cd-only"):
+            changed = case.split("-")[1]
+            assert (
+                command("diff", "--name-only", pr_base, main) == f".github/workflows/{changed}.yml"
+            )
+        command("worktree", "add", "--detach", str(controller), fixed)
     elif case == "wrong-checkout":
         data["command"]("checkout", "--detach", fixed)
-    workflow = _load_workflow(WORKFLOWS_DIR / "cd.yml")
+    workflow = _load_workflow(WORKFLOWS_DIR / f"{caller_name}.yml")
     step = _step_by_name(
         workflow["jobs"][job_name], "Prepare exact AM subject before material execution"
     )
@@ -11719,7 +11763,8 @@ def record(step, **fields):
         stream.write(json.dumps({"step": step, **fields}) + "\n")
 args = source.parse_args(sys.argv[1:])
 record("CLI", argument=args.alertmanager_controller_source,
-       received=os.environ["ALERTMANAGER_CONTROLLER_SOURCE"])
+       received=os.environ["ALERTMANAGER_CONTROLLER_SOURCE"],
+       repair_pin_changed=os.environ.get("ALERTMANAGER_REPAIR_PIN_CHANGED"))
 source.REPO_ROOT = Path(os.environ["CONTROL_CHECKOUT"])
 if os.environ["CONTROL_CASE"] == "wrong-child-env":
     os.environ["ALERTMANAGER_CONTROLLER_SOURCE"] = os.environ["CONTROL_FIXED_C"]
@@ -11782,10 +11827,10 @@ print("observation=synthetic-observation")
         "LANG": "C",
         "GITHUB_WORKSPACE": str(repository),
         "RUNNER_TEMP": str(tmp_path),
-        "GITHUB_EVENT_NAME": "pull_request" if case == "PR" else "push",
+        "GITHUB_EVENT_NAME": "pull_request" if is_pr else "push",
         "GITHUB_SHA": main,
         "SOURCE_SHA": main,
-        "GITHUB_REF": "refs/heads/main",
+        "GITHUB_REF": "refs/pull/17/merge" if is_pr else "refs/heads/main",
         "GITHUB_RUN_ID": "102",
         "GITHUB_RUN_ATTEMPT": "1",
         "GITHUB_OUTPUT": str(output),
@@ -11801,6 +11846,9 @@ print("observation=synthetic-observation")
         "GIT_CONFIG_NOSYSTEM": "1",
         "GIT_CONFIG_GLOBAL": os.devnull,
     }
+    if is_pr:
+        assert step["env"]["AM_PR_BASE"] == "${{ github.event.pull_request.base.sha }}"
+        environment["AM_PR_BASE"] = pr_base
     bash = shutil.which("bash")
     assert bash is not None
     result = subprocess.run(
@@ -11816,17 +11864,22 @@ print("observation=synthetic-observation")
         [json.loads(line) for line in trace.read_text().splitlines()] if trace.exists() else []
     )
     steps = [row["step"] for row in records]
-    if case in {"main", "PR"}:
+    if case == "main" or is_pr:
         assert result.returncode == 0, result.stdout + result.stderr
-        expected = fixed if case == "PR" else main
+        expected = fixed if is_pr else main
         cli = next(row for row in records if row["step"] == "CLI")
         assert cli["argument"] == cli["received"] == expected
+        assert cli["repair_pin_changed"] == (
+            "true" if case in {"PR", f"PR-{caller_name}-only"} else None
+        )
         assert records[-2:] == [
             {"step": "template-source", "source": expected},
             {"step": "binding-admitted", "source": expected},
         ]
-        assert f"controller_source={expected}\n" in output.read_text()
-        assert ("gh-auth" in steps) is (case != "PR")
+        assert "image_id=sha256:" in output.read_text()
+        if caller_name == "cd":
+            assert f"controller_source={expected}\n" in output.read_text()
+        assert ("gh-auth" not in steps) is is_pr
     else:
         assert result.returncode != 0
         assert "binding-admitted" not in steps and "template-source" not in steps
@@ -11837,7 +11890,7 @@ print("observation=synthetic-observation")
         else:
             assert "CLI" not in steps
     scan = _step_by_name(
-        workflow["jobs"]["prometheus-image-security-pr"],
+        _load_workflow(WORKFLOWS_DIR / "cd.yml")["jobs"]["prometheus-image-security-pr"],
         "Scan accepted AM and execute all four current controls",
     )
     assert (
@@ -12470,6 +12523,7 @@ def test_alertmanager_support_reader_closes_auth_before_native_and_preserves_HOL
         assert upstream_version == "0.34.2"
         assert source_files == {path: sha256(raw).hexdigest() for path, raw in sources.items()}
         target.write_bytes(data["zip"])
+        (target.parent / "github-read-evidence/GitHub-1.stdout").write_bytes(b"synthetic API")
         return qualification
 
     monkeypatch.setattr(transport, "GitHubRead", API)
@@ -12505,6 +12559,10 @@ def test_alertmanager_support_reader_closes_auth_before_native_and_preserves_HOL
         assert not (output / "private").exists()
         if support_failure:
             raise RuntimeError("synthetic native support failure")
+        native_dir = output / "native-support"
+        (native_dir / "trivy-cache/db").mkdir(parents=True)
+        (native_dir / "trivy-cache/db/trivy.db").write_bytes(b"synthetic scanner database")
+        (native_dir / "artifact-payload-members.json").write_bytes(b"synthetic bounded footer")
         return {"probe": {"sha256": "synthetic exact probe"}, "compiler_starts": 0}
 
     monkeypatch.setattr(docker_sources, "_alertmanager_support_observation", native)
@@ -15935,6 +15993,7 @@ def test_alertmanager_payload_C_H_scope_reaches_binary_owner_only_with_exact_bin
     [
         None,
         "weaker-CD",
+        "current-CD-reverted",
         "weaker-P",
         "missing-publication",
         "missing-H",
@@ -15970,7 +16029,7 @@ def test_alertmanager_current_durable_predecessor_requires_complete_H_publicatio
     root, work = tmp_path / "checkout", tmp_path / "proof"
     root.mkdir()
     h, c, merge, base, tree = (letter * 40 for letter in ("a", "b", "c", "d", "e"))
-    _am_fixture_transition_git(monkeypatch, h)
+    _am_fixture_transition_git(monkeypatch, h, consumer=base)
     names = [
         *docker_sources._ALERT_Q_SOURCE_FILES,
         "tests/test_notify_premium_alias_checkpoint_failure.py",
@@ -16308,6 +16367,16 @@ def test_alertmanager_current_durable_predecessor_requires_complete_H_publicatio
                 if fault == "squash-ancestry":
                     raise RuntimeError("controlled-real-merge-ancestry-failure")
                 return b""
+            if "cat-file" in argv:
+                revision, name = argv[-1].split(":", 1)
+                assert revision in {h, base} and name in source
+                return source[name] + (
+                    b"new authenticated BASE bytes"
+                    if fault == "current-CD-reverted"
+                    and revision == base
+                    and name == ".github/workflows/cd.yml"
+                    else b""
+                )
             assert argv[-2:] == ["--git-path", "info/grafts"]
             return b".git/info/grafts\n"
 
@@ -16381,6 +16450,7 @@ def test_alertmanager_current_durable_predecessor_requires_complete_H_publicatio
             "missing-UI": "AM_current_H_native_UI_inventory",
             "malformed-UI": "AM_current_H_native_UI_inventory",
             "weaker-CD": "AM_positive_publication_predecessor_missing",
+            "current-CD-reverted": "AM_positive_publication_predecessor_missing",
             "weaker-P": "AM_positive_publication_predecessor_missing",
             "missing-publication": "AM_current_publication_artifact_unique_HOLD",
             "missing-H": "controlled-required-H-authentication-HOLD",
@@ -17796,3 +17866,146 @@ def test_alertmanager_corrective_retained_route_requires_exact_open_subject(
         with pytest.raises(RuntimeError, match=marker):
             invoke()
         assert calls == []
+
+
+@pytest.mark.parametrize(
+    "caller,job", [("ci-lint", "lint"), ("shared-pr", "prometheus-image-security-pr")]
+)
+@pytest.mark.parametrize(
+    "fault", [None, "absent", "ordinary", "manifest", "original-S", "wrong-job"]
+)
+def test_publisher_repair_routes_only_the_designated_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caller: str, job: str, fault: str | None
+) -> None:
+    from argparse import Namespace
+    from scripts.ci import check_docker_runtime_dependency_surface as authority
+    from scripts.ci.prometheus_source_image import GHCR_REPOSITORY, QualificationError
+
+    accepted = docker_sources._alertmanager_accepted_producer()
+    repo = {"id": 1043311030, "full_name": GHCR_REPOSITORY}
+    number = 2495 if fault == "ordinary" else 1729
+    base, controller, head = "1" * 40, "2" * 40, "3" * 40
+    pr = {
+        "number": number,
+        "state": "open",
+        "merged": False,
+        "comments": 1,
+        "head": {
+            "repo": repo,
+            "sha": head,
+            "ref": (
+                "owner/arbitrary-repair" if number != 2495 else docker_sources._ALERT_2495_BRANCH
+            ),
+        },
+        "base": {"repo": repo, "ref": "main", "sha": base},
+    }
+    event = {"repository": repo, "number": number, "pull_request": pr}
+    args = Namespace(
+        source_sha=head,
+        material_root=tmp_path,
+        alertmanager_controller_source=controller,
+        alertmanager_qualification_source=accepted["source"],
+        alertmanager_support_source=accepted["source"],
+        alertmanager_qualification_run=11,
+        alertmanager_qualification_artifact=12,
+        alertmanager_support_run=13,
+        alertmanager_support_artifact=14,
+    )
+    grant = {
+        "base": base,
+        "controller": controller,
+        "callers": head,
+        "source": accepted["source"],
+        "q": "11/12",
+        "s": "16/17" if fault == "original-S" else "13/14",
+        "c": f"{accepted['run']}/{accepted['artifact']}",
+        "zip": "sha256:" + accepted["zip_sha256"],
+        "manifest": (
+            "sha256:" + "0" * 64 if fault == "manifest" else accepted["graph"]["manifest"]["digest"]
+        ),
+    }
+    events = []
+
+    def native(api: Any, *a: Any, **kw: Any) -> None:
+        assert a == (tmp_path, head, controller, number) and kw == {"grant": grant}
+        events.append("topology")
+
+    def run(
+        read: Any, record: dict[str, str], selected: str, workflow: str, native_job: str
+    ) -> None:
+        assert (record, selected, workflow, native_job) == (
+            grant,
+            head,
+            "ci.yml" if caller == "ci-lint" else "cd.yml",
+            job,
+        )
+        events.append("native_job")
+
+    class API:
+        def json(self, path: str) -> Any:
+            if path.endswith("/git/ref/heads/main"):
+                return {"object": {"sha": base}}
+            assert path.endswith("/pulls/" + str(number))
+            return pr
+
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
+    monkeypatch.setenv("ALERTMANAGER_REPAIR_PIN_CHANGED", "true")
+    monkeypatch.setenv("ALERTMANAGER_CALLER_KIND", "third-main" if fault == "wrong-job" else caller)
+    monkeypatch.setattr(docker_sources, "_alertmanager_original_lineage", lambda *_: "0.34.2")
+    monkeypatch.setattr(
+        docker_sources, "_alertmanager_upstream_identity", lambda *a, **kw: "0.34.2"
+    )
+
+    def dispatch(
+        read: Callable[[str], Any],
+        actual_pr: dict[str, Any],
+        *,
+        subject: dict[str, str],
+        historical: bool = False,
+        current_event: bool = False,
+    ) -> dict[str, str] | None:
+        assert actual_pr == pr and read(f"/pulls/{number}") == pr
+        assert not historical and not current_event
+        assert subject == {
+            "source": accepted["source"],
+            "q": "11/12",
+            "s": "13/14",
+            "c": f"{accepted['run']}/{accepted['artifact']}",
+            "zip": "sha256:" + accepted["zip_sha256"],
+            "manifest": accepted["graph"]["manifest"]["digest"],
+        }
+        events.append("dispatch")
+        return None if fault == "absent" else grant
+
+    monkeypatch.setattr(authority, "publisher_repair_dispatch", dispatch)
+    monkeypatch.setattr(authority, "publisher_repair_run", run)
+    monkeypatch.setattr(docker_sources, "_alertmanager_transition_successor", native)
+
+    def route() -> dict[str, Any]:
+        return docker_sources._alertmanager_reader_route(API(), args, event, tmp_path, 100)
+
+    if fault is None:
+        assert route()["mode"] == "repair_PR_retained" and events == [
+            "dispatch",
+            "topology",
+            "native_job",
+        ]
+    else:
+        diagnostic = {
+            "absent": "AM_repair_qualifying_dispatch_required",
+            "ordinary": "AM_repair_distinct_maintenance_PR",
+            "manifest": "AM_repair_exact_accepted_subject",
+            "original-S": "AM_repair_exact_accepted_subject",
+            "wrong-job": "AM_repair_read_operation",
+        }[fault]
+        with pytest.raises(QualificationError, match="^" + diagnostic + "$"):
+            route()
+        if fault == "ordinary":
+            assert events == []
+        elif fault == "wrong-job":
+            assert events == ["dispatch", "topology"]
+        else:
+            assert events == ["dispatch"]
+    if fault == "ordinary":
+        monkeypatch.delenv("ALERTMANAGER_REPAIR_PIN_CHANGED")
+        assert route()["mode"] == "ordinary_published_PR"
