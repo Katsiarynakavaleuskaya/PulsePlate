@@ -7842,6 +7842,22 @@ def test_am_receipt_checks_index_before_objects_and_transport_through_final_read
         )
 
 
+def test_am_commented_receipt_accepts_full_stdlib_end_record_search(tmp_path: Path) -> None:
+    import zipfile
+
+    files = {"build.log": b"completed\n" * 8000}
+    receipt = tmp_path / "receipt.zip"
+    receipt.write_bytes(_am_receipt_zip(files))
+    with zipfile.ZipFile(receipt, "a") as archive:
+        archive.comment = b"original build output"
+    assert receipt.stat().st_size > (1 << 16) + 22
+
+    members = docker_sources._alertmanager_candidate_members(
+        receipt, expected_digest=sha256(receipt.read_bytes()).hexdigest()
+    )
+    assert members["build.log"] == files["build.log"]
+
+
 def test_am_receipt_large_valid_inventory_preserves_prometheus_cap(tmp_path: Path) -> None:
     files = {f"raw/{i}": b"x" for i in range(4096)}
     body = _am_receipt_zip(files)

@@ -7874,11 +7874,11 @@ class _AlertmanagerReceiptZipStream(io.BufferedReader):
             self.inspecting and start == self.directory_start and size == self.directory_size
         )
         if self.inspecting and not directory_read:
-            # stdlib searches up to the 22-byte end record + the maximum ZIP comment.
+            # Some supported zipfile versions read 64 KiB plus the 22-byte end record.
             requested = (
                 os.fstat(self.fileno()).st_size - start if size is None or size < 0 else size
             )
-            require(requested <= 22 + 65535, "AM_receipt_ZIP_directory")
+            require(requested <= 22 + (1 << 16), "AM_receipt_ZIP_directory")
         raw = super().read(size)
         if self.inspecting and size == 56 and raw.startswith(b"PK\x06\x06"):
             # Python 3.12 and 3.13 report different locations in _EndRecData
