@@ -1551,3 +1551,21 @@ On November 20, the [main PostgreSQL publisher](https://github.com/Katsiarynakav
 The 15.20 revalidation used the identical Trivy 0.74.0 executable and database bytes. The database SHA-256 was `1c7f2883070385e7540c75c0bb31bbb6840edc05c76785a3075ff49933028d56`, updated November 20 at 18:59:53 UTC. The runtime, developer image, compiled stage and final OCI had 49, 53, 94 and 49 package occurrences respectively. Full scans and HIGH/CRITICAL checks exited zero on all four, with zero vulnerability and secret findings in the reports. The three retained image archives were verified against their original identities. Rebuilding the compiled stage produced `sha256:4db8361130256e93dfd0787f33c691c8a55771539e7463cc888779c47341f504`: the eight developer-base layers and recorded package inventory matched, while four rebuilt layers changed. The 64-file compiled-output check passed. The final platform digest remained `sha256:5b81202040bbcfbf4fc29ee32c6e6a8c824c27c50aa41c80e62418c5c2ec3adc`. The trusted-main PostgreSQL publisher must exercise the two volume transitions, publish that image and verify its signed evidence and pullback after merge. The manifest is in `deploy/postgres-pgvector/image-manifest.json:6`.
 
 The [main Docker workflow](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/44825238223) built, scanned and published the backend image. Its Prometheus publisher stopped at `publication_predecessor_failed`. The #2495 ORAS correction selects the destination registry credentials for promotion and the source registry credentials for immutable pullback. The existing native publisher and registry readback remain the acceptance checks.
+
+### November 24 Alertmanager publication on main
+
+After [#2503](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2503) merged at
+`b67d9f5e0a85b99fa77d31464daa169fc0520923`, qualification, support inspection,
+candidate build and publication all succeeded on that commit. The publisher
+recorded one registry write and matched all 24 raw OCI descriptors on pullback.
+An independent GET by manifest digest returned HTTP 200 for
+`sha256:873bc6cfae14edcf9f2acf2d81f9863f98ee8f78623125a7e02642a66e3bbe27`.
+The local exact-main sanity checks passed 192 cases.
+[Publication job](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/45309200335/job/138160402194) · [Evidence artifact 14886806944](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/45309200335/artifacts/14886806944)
+
+On the same main, the backend image published. The Prometheus job stopped at
+the failed `b96c7f66` predecessor before running ORAS. The PostgreSQL 15.19
+publisher failed its unsuppressed native scan. #2495 owns the Prometheus ORAS
+correction and PostgreSQL 15.20 candidate. Their trusted publication and
+immutable pullback still require the main commit that merges #2495.
+[Prometheus job](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/45303305037/job/138146089590) · [PostgreSQL job](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/45303304972/job/138144402006)

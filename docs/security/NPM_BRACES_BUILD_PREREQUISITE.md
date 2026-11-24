@@ -1,5 +1,15 @@
 # npm:braces frontend build prerequisite
 
+## November 24 Codespaces and Nightly on main
+
+On `b67d9f5e`, Codespaces stopped during Create Template because the zlib
+source archive was missing from the Compose build context. #2495 supplies the
+source inputs through `.devcontainer/docker-compose.source-inputs.yml`.
+Nightly reported 119 failures while resolving the pinned controller in its
+checkout. The November 20 replay below covers the affected tests. Hosted
+Codespaces and Nightly verification still require the merged #2495 source.
+[Codespaces run](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/45303313889) · [Nightly job](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/45309984962/job/138163002124)
+
 ## Browser, development server and nightly verification — 2026-11-20
 
 On Linux, tree `a03ae2c611ac3e3a4e494dc70b2bdfeefe9e3a28` produced a
