@@ -2899,7 +2899,7 @@ def _alertmanager_receipt_path(name: Any) -> bool:
 def _alertmanager_receipt_tree(
     files: set[str], directories: set[str], deadline: float | None
 ) -> None:
-    """In a finite canonical tree, the immediate parents of files and dirs give its exact closure."""
+    """Verify path safety and the exact set of parent directories in a retained receipt."""
     from itertools import chain
     from scripts.ci.prometheus_source_image import check_deadline, require
 
@@ -4147,8 +4147,8 @@ def _alertmanager_authenticated_inputs(
         > datetime.now(timezone.utc),
         "AM_qualification_artifact_expired",
     )
+    archive_endpoint = endpoint + f"/actions/artifacts/{artifact_id}/zip"
     if retained_bytes is not None:
-        from shutil import disk_usage
         from scripts.ci.prometheus_source_image import MAX_CACHE_BYTES
 
         size = artifact["size_in_bytes"]
@@ -4156,20 +4156,42 @@ def _alertmanager_authenticated_inputs(
             0 <= retained_bytes and retained_bytes + 2 * size <= MAX_CACHE_BYTES,
             "AM_receipt_download_budget",
         )
-        require(
-            disk_usage(destination.parent).free >= size + _ALERT_S_FREE_RESERVE,
-            "AM_receipt_free_space",
+        evidence_dev, evidence_room, evidence_block = _alertmanager_receipt_disk_room(api.evidence)
+        target_dev, target_room, target_block = _alertmanager_receipt_disk_room(destination.parent)
+        require(target_room >= size + target_block, "AM_receipt_free_space")
+        # Beyond its two variable-length arguments, the fixed GET receipt
+        # uses <1 KiB for flags, the bounded byte count/exit and two SHA-256s.
+        # Allow for allocation of the three native evidence files and a directory entry.
+        overhead = len(json.dumps([api.gh, archive_endpoint])) + 1024 + 4 * evidence_block
+        if evidence_dev == target_dev:
+            evidence_room = min(evidence_room, target_room) - target_block
+            # GitHubRead._capture persists stderr and stdout up to 16 MiB inclusive.
+            # Larger successful stdout is persisted only at our destination.
+            if size <= 16 * 1024**2:
+                evidence_room -= size
+        archive_limit = min(
+            archive_limit, (MAX_CACHE_BYTES - retained_bytes) // 2, evidence_room - overhead
         )
-        # GitHubRead bounds stdout and stderr together. Keep all remaining
-        # diagnostic headroom without increasing the existing native ceiling.
-        archive_limit = min(archive_limit, (MAX_CACHE_BYTES - retained_bytes) // 2)
-    raw = api.raw(endpoint + f"/actions/artifacts/{artifact_id}/zip", maximum=archive_limit)
+        require(archive_limit >= size, "AM_receipt_free_space")
+    raw = api.raw(archive_endpoint, maximum=archive_limit)
     transport_digest = sha256(raw).hexdigest()
     require(
         len(raw) == artifact["size_in_bytes"]
         and "sha256:" + transport_digest == artifact["digest"],
         "AM_qualification_download_bytes",
     )
+    if retained_bytes is not None:
+        # Capture has now written its evidence. Reobserve the actual destination
+        # volume before spending its remaining space on the verified ZIP.
+        current_dev, current_room, unit = _alertmanager_receipt_disk_room(destination.parent)
+        require(
+            current_dev == target_dev and current_room >= len(raw) + unit, "AM_receipt_free_space"
+        )
+        if evidence_dev != target_dev:
+            current_evidence, evidence_room, _ = _alertmanager_receipt_disk_room(api.evidence)
+            require(
+                current_evidence == evidence_dev and evidence_room >= 0, "AM_receipt_free_space"
+            )
     require(not destination.exists() and not destination.is_symlink(), "AM_download_not_fresh")
     with destination.open("xb") as stream:
         stream.write(raw)
@@ -4185,6 +4207,13 @@ def _alertmanager_authenticated_inputs(
     if merged_candidate:
         binding["job"] = selected[0]["id"]
     return binding
+
+
+def _alertmanager_receipt_disk_room(directory: Path) -> tuple[int, int, int]:
+    """Return device, free bytes above the reserve, and the filesystem allocation unit."""
+    fs = os.statvfs(directory)
+    unit = fs.f_frsize or fs.f_bsize
+    return directory.stat().st_dev, fs.f_bavail * unit - _ALERT_S_FREE_RESERVE, unit
 
 
 def _alertmanager_current_inputs(

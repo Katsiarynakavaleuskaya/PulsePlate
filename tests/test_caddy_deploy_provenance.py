@@ -2606,7 +2606,7 @@ def test_caddy_full_observation_preserves_blocking_scan_and_exact_conditions() -
     assert "CADDY_METADATA_CLEANUP_SECONDS" not in job["env"]
     assert (
         sum(int(value) for key, value in job["env"].items() if key.startswith("CADDY_PHASE_"))
-        == 225 * 60
+        == 230 * 60
     )
     assert (
         _step_index(steps, "Capture next loaded Caddy image identity")
@@ -3744,6 +3744,8 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
             self.private, self.deadline, self.cleanup_seconds = private, deadline, cleanup
             self.name = "prepare" if private.name == "private" else "final"
             self.closed = False
+            self.evidence = evidence
+            self.sequence = 0
             self.main_reads = 0
             assert evidence.name == (
                 "github-read-evidence" if self.name == "prepare" else "final-github-read-evidence"
@@ -3753,8 +3755,37 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
                 (private / name).mkdir()
             sessions.append(self)
             events.append(self.name + "-open")
+            self.record(
+                ["/synthetic/gh", "auth", "status", "--hostname", "github.com"],
+                b"fixture-authenticated\n",
+            )
+
+        def record(self, argv: list[str], stdout: bytes) -> None:
+            self.sequence += 1
+            stem = self.evidence / f"GitHub-{self.sequence}"
+            stem.with_suffix(".stdout").write_bytes(stdout)
+            stem.with_suffix(".stderr").write_bytes(b"")
+            stem.with_suffix(".json").write_bytes(
+                transport.canonical_data(
+                    {
+                        "argv": argv,
+                        "exit": 0,
+                        "stdout_bytes": len(stdout),
+                        "stdout_sha256": hashlib.sha256(stdout).hexdigest(),
+                        "stderr_sha256": hashlib.sha256(b"").hexdigest(),
+                    }
+                )
+            )
 
         def json(self, endpoint: str) -> Any:
+            value = self.response(endpoint)
+            self.record(
+                ["/synthetic/gh", "api", "--hostname", "github.com", "--method", "GET", endpoint],
+                transport.canonical_data(value),
+            )
+            return value
+
+        def response(self, endpoint: str) -> Any:
             transition = _am_transition_merge_response(endpoint, h)
             if transition is not None and "/git/commits/" not in endpoint:
                 if case == "missing-transition":
@@ -4090,6 +4121,22 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
         events.append("tag")
         return original_tag(versions, value, digest)
 
+    def native_record(work: Path, name: str) -> dict[str, Any]:
+        evidence = work / "evidence"
+        evidence.mkdir(parents=True)
+        stdout, stderr = evidence / (name + ".stdout"), evidence / (name + ".stderr")
+        stdout.write_bytes((name + " synthetic outcome\n").encode())
+        stderr.write_bytes(b"")
+        return {
+            "argv": ["/synthetic/" + name],
+            "exit": 0,
+            "failure": None,
+            "stdout": str(stdout),
+            "stderr": str(stderr),
+            "stdout_sha256": hashlib.sha256(stdout.read_bytes()).hexdigest(),
+            "stderr_sha256": hashlib.sha256(stderr.read_bytes()).hexdigest(),
+        }
+
     def security(
         archive: Path,
         selected_graph: dict[str, Any],
@@ -4123,8 +4170,7 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
         )
         assert not logged_in
         events.append("security")
-        (work / "evidence").mkdir(parents=True)
-        return {"scanner": scanner, "native_records": [{"exit": 0, "failure": None}]}
+        return {"scanner": scanner, "native_records": [native_record(work, "scan")]}
 
     def native(
         result: dict[str, Any], observation: Path, work: Path, limits: dict[str, int], **kwargs: Any
@@ -4139,10 +4185,9 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
             assert pulled_back and events[-1] == "final-close"
         native_calls.append(name)
         events.append(name)
-        (work / "evidence").mkdir(parents=True)
         return {
             "validation_scope": "merged_H_selected_image",
-            "native_records": [{"exit": 0, "failure": None}],
+            "native_records": [native_record(work, "full-AM-native")],
         }
 
     def scan_evidence(files: Path, observed: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
@@ -4309,6 +4354,38 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
     if case in successful:
         assert events.index("pullback") < events.index("final-close") < events.index("post-native")
         assert result["status"] == "OBSERVED_IMMUTABLE_PUBLICATION_PULLBACK_NATIVE"
+        retained = output / "retained"
+        footer = json.loads((retained / fetcher._ALERT_FOOTER).read_bytes())
+        rows = {r["path"]: r for r in footer["files"]}
+
+        def saved(name: str) -> bytes:
+            data = (retained / name).read_bytes()
+            assert (rows[name]["size"], rows[name]["sha256"]) == (
+                len(data),
+                hashlib.sha256(data).hexdigest(),
+            )
+            return data
+
+        for directory in ("github-read-evidence", "final-github-read-evidence"):
+            for n, cmd in ((1, "auth"), (2, "api")):
+                stem = f"{directory}/GitHub-{n}"
+                record = json.loads(saved(stem + ".json"))
+                assert record["argv"][1] == cmd and record["exit"] == 0
+                for channel in ("stdout", "stderr"):
+                    assert (
+                        record[channel + "_sha256"]
+                        == hashlib.sha256(saved(stem + "." + channel)).hexdigest()
+                    )
+        for phase, directory in (
+            ("pre_copy_security", "security"),
+            ("pre_copy_native", "pre-native"),
+            ("native", "native"),
+        ):
+            (record,) = result[phase]["native_records"]
+            for channel in ("stdout", "stderr"):
+                data = saved(directory + "-evidence/" + Path(record[channel]).name)
+                assert record[channel + "_sha256"] == hashlib.sha256(data).hexdigest()
+
     if case == "descendant":
         assert result["publication_source_sha"] == h and result["publication_merge_sha"] == merge
     if drift_path is not None:
@@ -6273,14 +6350,16 @@ def test_caddy_official_controls_bind_both_consumers_after_capture() -> None:
         assert "pulseplate-caddy:contract" not in step["run"]
 
 
-def _caddy_budget_fixture(runner: Path, monkeypatch: pytest.MonkeyPatch) -> dict:
+def _caddy_budget_fixture(
+    runner: Path, monkeypatch: pytest.MonkeyPatch, *, configured_minutes: str = ""
+) -> dict:
     if sys.platform == "darwin":
         monkeypatch.setattr(Path, "read_text", _caddy_fixture_reader(str(uuid4())))
     runner.mkdir(parents=True, exist_ok=True)
     for key, value in _job(_workflow(FRONTEND_WORKFLOW), "caddy-contract")["env"].items():
         if key != "CADDY_CONFIGURED_JOB_MINUTES":
             monkeypatch.setenv(key, str(value))
-    monkeypatch.setenv("CADDY_CONFIGURED_JOB_MINUTES", "")
+    monkeypatch.setenv("CADDY_CONFIGURED_JOB_MINUTES", configured_minutes)
     monkeypatch.setenv("RUNNER_TEMP", str(runner))
     monkeypatch.setenv("GITHUB_ENV", str(runner / "github-env"))
     exec(
@@ -6884,7 +6963,7 @@ def test_caddy_retention_requires_current_completed_metadata_before_candidate_sa
 
 def test_caddy_job_budget_is_complete_and_owned_only_by_existing_job() -> None:
     job = _job(_workflow(FRONTEND_WORKFLOW), "caddy-contract")
-    assert job["timeout-minutes"] == "${{ fromJSON(vars.CADDY_CONTRACT_TIMEOUT_MINUTES || '225') }}"
+    assert job["timeout-minutes"] == "${{ fromJSON(vars.CADDY_CONTRACT_TIMEOUT_MINUTES || '230') }}"
     caps = {
         key.removeprefix("CADDY_PHASE_"): int(value)
         for key, value in job["env"].items()
@@ -6892,7 +6971,7 @@ def test_caddy_job_budget_is_complete_and_owned_only_by_existing_job() -> None:
     }
     assert caps == {
         "SETUP": 300,
-        "ADMISSION": 600,
+        "ADMISSION": 900,
         "COMPILER_BOOTSTRAP": 600,
         "COMPILER_WORK": 1200,
         "COMPILER_CLEANUP": 120,
@@ -6915,7 +6994,7 @@ def test_caddy_job_budget_is_complete_and_owned_only_by_existing_job() -> None:
         "UPLOAD": 600,
         "SAFETY": 270,
     }
-    assert sum(caps.values()) == 13500
+    assert sum(caps.values()) == 13_800
     assert caps["SCANS"] == 6 * sum(
         int(job["env"][key])
         for key in (
@@ -6983,7 +7062,8 @@ def test_caddy_job_budget_is_complete_and_owned_only_by_existing_job() -> None:
 
 
 @pytest.mark.parametrize(
-    "fault", [None, "220", "224", "host", "exhausted-phase", "global-reserve", "clock-reset"]
+    "fault",
+    [None, "220", "224", "229", "230", "host", "exhausted-phase", "global-reserve", "clock-reset"],
 )
 def test_caddy_shared_budget_rejects_drift_and_preserves_cleanup_reserve(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str | None
@@ -6991,33 +7071,24 @@ def test_caddy_shared_budget_rejects_drift_and_preserves_cleanup_reserve(
     from scripts.ci import check_docker_runtime_dependency_surface as owner
 
     runner = tmp_path / "runner"
-    state = _caddy_budget_fixture(runner, monkeypatch)
     path = runner / "caddy-admission/admission.json"
-    if fault in {"220", "224"}:
-        other = tmp_path / "low"
-        other.mkdir()
-        monkeypatch.setenv("RUNNER_TEMP", str(other))
-        assert fault is not None
-        monkeypatch.setenv("CADDY_CONFIGURED_JOB_MINUTES", fault)
+    if fault in {"220", "224", "229"}:
         with pytest.raises(ValueError, match="below phase ledger"):
-            exec(
-                compile(
-                    _caddy_inline("Initialize bounded Caddy runner clock"),
-                    "<actual-low-budget>",
-                    "exec",
-                ),
-                {},
-            )
-        assert not (other / "caddy-admission/admission.json").exists()
+            _caddy_budget_fixture(runner, monkeypatch, configured_minutes=fault)
+        assert not path.exists()
         return
+    state = _caddy_budget_fixture(
+        runner, monkeypatch, configured_minutes="230" if fault == "230" else ""
+    )
     if fault == "host":
         state["budget"]["boot_id"] = "different-host"
     elif fault == "exhausted-phase":
         state["budget"]["charged"]["SCANS"] = int(os.environ["CADDY_PHASE_SCANS"])
     elif fault == "global-reserve":
-        state["budget"]["started"] -= 13500
+        state["budget"]["started"] -= state["budget"]["seconds"]
     path.write_text(json.dumps(state))
-    if fault is None:
+    if fault in (None, "230"):
+        assert state["budget"]["seconds"] == 230 * 60
         with owner.caddy_ci_phase("SCANS") as remaining:
             assert 0 < remaining(330) <= 330
         observed = json.loads(path.read_text())
@@ -7031,6 +7102,39 @@ def test_caddy_shared_budget_rejects_drift_and_preserves_cleanup_reserve(
                     changed = json.loads(path.read_text())
                     changed["budget"]["started"] += 1
                     path.write_text(json.dumps(changed))
+
+
+def test_caddy_admission_preserves_both_rebinds_after_observed_initial_charge(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from types import SimpleNamespace
+
+    state = _caddy_budget_fixture(tmp_path, monkeypatch)
+    ledger = tmp_path / "caddy-admission/admission.json"
+    state["budget"]["started"] = 10_000.0
+    state["budget"]["charged"]["ADMISSION"] = 543
+    ledger.write_text(json.dumps(state))
+    now = state["budget"]["started"] + 543
+    monkeypatch.setattr(caddy_surface, "time", SimpleNamespace(monotonic=lambda: now))
+    cleanup = int(os.environ["CADDY_API_CLEANUP_SECONDS"])
+    assert cleanup == 10
+    # Each modeled rebind uses 140 seconds of work and the native cleanup reserve.
+    for initial_room in (357, 207):
+        with caddy_surface.caddy_ci_phase("ADMISSION") as remaining:
+            assert remaining(float("inf")) == pytest.approx(initial_room)
+            now += 140
+            assert remaining(float("inf")) == pytest.approx(initial_room - 140)
+            assert remaining(cleanup) == cleanup
+            now += cleanup
+    assert json.loads(ledger.read_bytes())["budget"]["charged"]["ADMISSION"] == 843
+    with pytest.raises(ValueError, match="exhausted phase/global reserved budget: ADMISSION"):
+        with caddy_surface.caddy_ci_phase("ADMISSION") as remaining:
+            assert remaining(float("inf")) == pytest.approx(57)
+            now += 57
+            remaining(1)
+    budget = json.loads(ledger.read_bytes())["budget"]
+    assert budget["charged"]["ADMISSION"] == 900
+    assert budget["charged"]["BUILD"] == 0 and "BUILD" not in budget["action_deadlines"]
 
 
 @pytest.mark.parametrize("timeouts", [0, 1, 2])
@@ -7807,7 +7911,10 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
         if refresh in {"budget", "job-budget"}:
             path = runner / "caddy-admission/admission.json"
             ledger = json.loads(path.read_text())
-            ledger["budget"]["charged"]["ADMISSION"] = 541 if refresh == "budget" else 538
+            remaining_admission = 59 if refresh == "budget" else 62
+            ledger["budget"]["charged"]["ADMISSION"] = (
+                int(os.environ["CADDY_PHASE_ADMISSION"]) - remaining_admission
+            )
             path.write_text(json.dumps(ledger))
     runs = [current_run]
     jobs = {11: [] if case == "missing-job" else [current_job]}

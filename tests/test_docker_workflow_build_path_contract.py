@@ -7596,7 +7596,10 @@ def _am_receipt_zip(files: dict[str, bytes], fault: str | None = None) -> bytes:
             for name, raw in files.items()
         ],
         "directories": [{"path": name, "type": "directory", "mode": 0o700} for name in directories],
-        "inventory_carrier_exception": "Exactly artifact-payload-members.json is bound by external artifact bytes; its own hash is not recursively embedded.",
+        "inventory_carrier_exception": (
+            "Exactly artifact-payload-members.json is bound by external artifact bytes; "
+            "its own hash is not recursively embedded."
+        ),
     }
     if fault == "footer":
         footer["files"][0]["sha256"] = "0" * 64
@@ -7626,6 +7629,7 @@ def _am_receipt_zip(files: dict[str, bytes], fault: str | None = None) -> bytes:
             if fault == "symlink" and name != docker_sources._ALERT_FOOTER:
                 info.external_attr = (stat.S_IFLNK | 0o600) << 16
             if fault == "ZIP64":
+                info.compress_type = zipfile.ZIP_DEFLATED
                 zipped.comment = b"native archive comment"
                 with zipped.open(info, "w", force_zip64=True) as member:
                     member.write(raw)
@@ -7694,13 +7698,16 @@ def test_am_ordinary_receipts_keep_independent_populations_and_stream_bulk(
     from scripts.ci import prometheus_source_image as policy
 
     receipts = {}
+    chunk_bytes = 1024**2
+    bulk_size = 2 * chunk_bytes + 17
+    name = "security-evidence/unused.private.json"
     # Force a genuine end-of-central-directory ZIP64 record without a large archive.
     with monkeypatch.context() as writer:
         writer.setattr(zipfile, "ZIP_FILECOUNT_LIMIT", 1)
         for role in ("H", "P"):
             members = {
-                "security-evidence/unused.private.json": b"x" * 8192,
-                "security-evidence/unreferenced.json": b"x" * 8192,
+                name: b"x" * bulk_size,
+                "security-evidence/unreferenced.json": b"x" * bulk_size,
                 "candidate.oci.tar": role.encode() * 256,
                 "candidate-observation.json": b"{}",
             }
@@ -7713,26 +7720,42 @@ def test_am_ordinary_receipts_keep_independent_populations_and_stream_bulk(
     p, p_hash, p_members = receipts["P"]
     deadline = time.monotonic() + 10
     with zipfile.ZipFile(p) as z:
+        assert z.getinfo(name).compress_type == zipfile.ZIP_DEFLATED
         cap = sum(x.file_size for x in z.infolist())
         footer_bytes = z.getinfo(docker_sources._ALERT_FOOTER).file_size
-    assert cap > 2 * 8192 and len(p_members) == 4
+    assert cap > 2 * bulk_size and len(p_members) == 4
     monkeypatch.setattr(docker_sources, "_ALERT_RECEIPT_ENTRIES", 6)  # 4 regular + raw/ + footer
     monkeypatch.setattr(policy, "MAX_CACHE_BYTES", cap)
     monkeypatch.setattr(policy, "MAX_NATIVE_OUTPUT", footer_bytes)
-    retained_p, p_oci = docker_sources._alertmanager_receipt_members(
-        p, expected_digest=p_hash, deadline=deadline, role="P"
-    )
-    retained_h, h_oci = docker_sources._alertmanager_receipt_members(
-        h,
-        expected_digest=h_hash,
-        deadline=deadline,
-        role="H",
-        retained_bytes=sum(map(len, retained_p.values())),
-    )
-    assert retained_p == retained_h == {"candidate-observation.json": b"{}"}
-    assert [p_oci, h_oci] == [
-        sha256(items["candidate.oci.tar"]).hexdigest() for items in (p_members, h_members)
-    ]
+    reads: list[tuple[int, int]] = []
+    native_read = zipfile.ZipExtFile.read
+
+    def observe(member: zipfile.ZipExtFile, n: int = -1) -> bytes:
+        if member.name == name:
+            assert 0 < n <= chunk_bytes
+        data = native_read(member, n)
+        if member.name == name:
+            reads.append((n, len(data)))
+        return data
+
+    with monkeypatch.context() as recording:
+        recording.setattr(zipfile.ZipExtFile, "read", observe)
+        retained_p, p_oci = docker_sources._alertmanager_receipt_members(
+            p, expected_digest=p_hash, deadline=deadline, role="P"
+        )
+        retained_h, h_oci = docker_sources._alertmanager_receipt_members(
+            h,
+            expected_digest=h_hash,
+            deadline=deadline,
+            role="H",
+            retained_bytes=sum(map(len, retained_p.values())),
+        )
+        assert retained_p == retained_h == {"candidate-observation.json": b"{}"}
+        assert [p_oci, h_oci] == [
+            sha256(items["candidate.oci.tar"]).hexdigest() for items in (p_members, h_members)
+        ]
+    assert sum(size for _, size in reads) == 2 * bulk_size
+    assert sum(size == 0 for _, size in reads) == 2  # Both reads reached EOF.
     full = docker_sources._alertmanager_candidate_members(
         h, expected_digest=h_hash, deadline=deadline
     )
@@ -15350,8 +15373,6 @@ def test_alertmanager_publisher_orders_fresh_controls_and_reserves_one_clock(
         if not candidate:
             (retained / "empty-diagnostic-dir").mkdir()
             finish_footer(retained, deadline, candidate=False)
-            saved = json.loads((retained / docker_sources._ALERT_FOOTER).read_bytes())
-            assert "empty-diagnostic-dir" in {row["path"] for row in saved["directories"]}
         events.append("finalize")
 
     monkeypatch.setattr(docker_sources, "_alertmanager_finalize_payload", finish)
@@ -15403,8 +15424,25 @@ def test_alertmanager_publisher_orders_fresh_controls_and_reserves_one_clock(
         }[fault]
         with pytest.raises((RuntimeError, TimeoutError), match=expected_error):
             docker_sources._alertmanager_execution(args)
-        if fault == "security-retention":
-            assert "controlled-retention-secondary" in seen["result"]["retention_failure"]
+        retained = args.output_dir / "retained"
+        footer = retained / docker_sources._ALERT_FOOTER
+        if fault in ("retention", "security-retention"):
+            assert "finalize" not in events and not footer.exists()
+            assert seen["result"]["retention_failure"]
+            if fault == "security-retention":
+                assert "controlled-retention-secondary" in seen["result"]["retention_failure"]
+        else:
+            assert events.count("finalize") == 1
+            saved = json.loads(footer.read_bytes())
+            assert "empty-diagnostic-dir" in {row["path"] for row in saved["directories"]}
+            observation = (retained / "candidate-observation.json").read_bytes()
+            (row,) = (f for f in saved["files"] if f["path"] == "candidate-observation.json")
+            assert (row["size"], row["sha256"]) == (
+                len(observation),
+                sha256(observation).hexdigest(),
+            )
+            result = json.loads(observation)
+            assert expected_error in result["failure"] and result.get("retention_failure") is None
     if fault in {
         "prepare",
         "prep-cleanup",
@@ -15437,6 +15475,15 @@ def test_alertmanager_publisher_orders_fresh_controls_and_reserves_one_clock(
         "successful-stderr",
         "excess-stdout",
         "no-capture-budget",
+        "same-volume-small",
+        "inclusive-stdout-copy",
+        "above-stdout-threshold",
+        "separate-volumes",
+        "short-evidence-volume",
+        "space-changed",
+        "evidence-space-changed",
+        "capture-equality",
+        "capture-one-over",
         "short-disk",
         "failed-run",
         "in-progress",
@@ -15469,12 +15516,59 @@ def test_alertmanager_H_artifact_transport_keeps_C_acceptance_independent(
     from scripts.ci import prometheus_source_image as policy
 
     capture_calls = []
-    if fault == "short-disk":
-        from types import SimpleNamespace
+    evidence = tmp_path / "native-evidence"
+    evidence.mkdir()
+    actual_blob = original_api.raw("/actions/artifacts/102/zip", 1024**3)
+    if fault in ("same-volume-small", "separate-volumes", "short-evidence-volume"):
+        actual_blob = b"Z" * (8 * 1024**2)
+    if fault in ("inclusive-stdout-copy", "above-stdout-threshold"):
+        actual_blob = b"Z" * (16 * 1024**2 + (fault == "above-stdout-threshold"))
+    size = len(actual_blob)
+    if fault in ("capture-equality", "capture-one-over"):
+        monkeypatch.setattr(policy, "MAX_CACHE_BYTES", 2 * size + 8)
+    retained_bytes = {
+        "no-capture-budget": policy.MAX_CACHE_BYTES,
+        "capture-equality": 8,
+        "capture-one-over": 9,
+    }.get(fault or "", 0)
+    native_path = "/synthetic/gh"
 
-        monkeypatch.setattr(shutil, "disk_usage", lambda _: SimpleNamespace(free=0))
+    if fault in (
+        "short-disk",
+        "same-volume-small",
+        "inclusive-stdout-copy",
+        "above-stdout-threshold",
+        "separate-volumes",
+        "short-evidence-volume",
+        "space-changed",
+        "evidence-space-changed",
+    ):
+        unit = 4096
+        margin = 128 * 1024  # Enough for the native receipt, file slack and small stderr.
+
+        def disk_room(path: Path) -> tuple[int, int, int]:
+            assert path in (evidence, tmp_path)
+            if fault == "short-disk":
+                return 1, 0, unit
+            if fault == "space-changed" and capture_calls and path == tmp_path:
+                return 1, size - 1, unit
+            if fault in ("separate-volumes", "short-evidence-volume", "evidence-space-changed"):
+                if path == evidence:
+                    if fault == "evidence-space-changed" and capture_calls:
+                        return 2, -1, unit
+                    return 2, size - 1 if fault == "short-evidence-volume" else size + margin, unit
+                return 1, size + unit, unit
+            if fault == "same-volume-small":
+                return 1, size, unit  # 520 MiB free less the 512 MiB reserve.
+            return 1, size + margin, unit
+
+        monkeypatch.setattr(docker_sources, "_alertmanager_receipt_disk_room", disk_room)
 
     class API:
+        def __init__(self) -> None:
+            self.evidence = evidence
+            self.gh = native_path
+
         def json(self, endpoint: str) -> dict[str, Any]:
             if "/contents/" in endpoint:
                 path = endpoint.split("/contents/", 1)[1].split("?ref=", 1)[0]
@@ -15511,6 +15605,8 @@ def test_alertmanager_H_artifact_transport_keeps_C_acceptance_independent(
             elif endpoint.endswith("/artifacts/202"):
                 row.update(
                     id=202,
+                    size_in_bytes=size,
+                    digest="sha256:" + sha256(actual_blob).hexdigest(),
                     name=(
                         "alertmanager-candidate-201-1"
                         if kind == "candidate"
@@ -15535,9 +15631,7 @@ def test_alertmanager_H_artifact_transport_keeps_C_acceptance_independent(
 
         def raw(self, endpoint: str, maximum: int) -> bytes:
             capture_calls.append(maximum)
-            payload = original_api.raw(
-                endpoint.replace("/artifacts/202", "/artifacts/102"), 1024**3
-            )
+            payload = actual_blob
             diagnostic = b"benign native diagnostic" if fault == "successful-stderr" else b""
             if fault == "excess-stdout":
                 payload += b"trailing"
@@ -15557,18 +15651,33 @@ def test_alertmanager_H_artifact_transport_keeps_C_acceptance_independent(
             tmp_path / "H.zip",
             kind=kind,
             current_source_files=hashes,
-            current_artifact_digest="sha256:" + accepted["zip_sha256"],
+            current_artifact_digest="sha256:" + sha256(actual_blob).hexdigest(),
             upstream_version="0.34.2",
             source_branch="main",
-            retained_bytes=policy.MAX_CACHE_BYTES if fault == "no-capture-budget" else 0,
+            retained_bytes=retained_bytes,
         )
 
-    if fault in (None, "successful-stderr"):
+    if fault in (
+        None,
+        "successful-stderr",
+        "above-stdout-threshold",
+        "separate-volumes",
+        "capture-equality",
+    ):
         binding = invoke()
         assert binding["source"] == h_source and binding["job"] == 203
         assert binding["source_files"] != accepted["source_files"]
+        assert (tmp_path / "H.zip").read_bytes() == actual_blob
+        if fault == "capture-equality":
+            assert capture_calls == [size]
     else:
         expected = {
+            "same-volume-small": "AM_receipt_free_space",
+            "inclusive-stdout-copy": "AM_receipt_free_space",
+            "short-evidence-volume": "AM_receipt_free_space",
+            "space-changed": "AM_receipt_free_space",
+            "evidence-space-changed": "AM_receipt_free_space",
+            "capture-one-over": "AM_receipt_download_budget",
             "no-capture-budget": "AM_receipt_download_budget",
             "short-disk": "AM_receipt_free_space",
             "excess-stdout": "AM_qualification_download_bytes",
@@ -15584,8 +15693,17 @@ def test_alertmanager_H_artifact_transport_keeps_C_acceptance_independent(
         with pytest.raises(RuntimeError, match=expected):
             invoke()
         assert not (tmp_path / "H.zip").exists()
-    if fault in ("short-disk", "no-capture-budget"):
+    if fault in (
+        "short-disk",
+        "no-capture-budget",
+        "capture-one-over",
+        "same-volume-small",
+        "inclusive-stdout-copy",
+        "short-evidence-volume",
+    ):
         assert capture_calls == []
+    if fault in ("space-changed", "evidence-space-changed"):
+        assert len(capture_calls) == 1
     assert docker_sources._ALERT_ACCEPTED_CANDIDATE == independent
 
 
