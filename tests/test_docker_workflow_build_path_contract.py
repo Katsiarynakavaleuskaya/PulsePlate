@@ -7881,10 +7881,16 @@ def test_am_candidate_writer_matches_its_footer_and_directory_domain(
     import time
     from scripts.ci import prometheus_source_image as policy
 
+    payload = b"data"
+
     def produce(name: str) -> Path:
         root = tmp_path / name
-        (root / "only").mkdir(parents=True)
-        (root / "only/payload").write_bytes(b"data")
+        directory = root / "only"
+        directory.mkdir(parents=True)
+        directory.chmod(0o750)
+        member = directory / "payload"
+        member.write_bytes(payload)
+        member.chmod(0o640)
         docker_sources._alertmanager_finalize_payload(root, deadline, candidate=True)
         return root / docker_sources._ALERT_FOOTER
 
@@ -7892,7 +7898,18 @@ def test_am_candidate_writer_matches_its_footer_and_directory_domain(
     boundary = produce("reference").stat().st_size
     monkeypatch.setattr(policy, "MAX_NATIVE_OUTPUT", boundary)
     monkeypatch.setattr(docker_sources, "_ALERT_RECEIPT_ENTRIES", 3)
-    assert produce("at-limit").stat().st_size == boundary
+    raw = produce("at-limit").read_bytes()
+    assert len(raw) == boundary
+    footer = json.loads(raw)
+    assert footer["files"] == [
+        {
+            "path": "only/payload",
+            "size": len(payload),
+            "mode": 0o640,
+            "sha256": sha256(payload).hexdigest(),
+        }
+    ]
+    assert footer["directories"] == [{"path": "only", "type": "directory", "mode": 0o750}]
     monkeypatch.setattr(policy, "MAX_NATIVE_OUTPUT", boundary - 1)
     with pytest.raises(policy.QualificationError, match="^AM_candidate_footer_size$"):
         produce("over-footer")
@@ -15520,6 +15537,7 @@ def test_alertmanager_H_artifact_transport_keeps_C_acceptance_independent(
 ) -> None:
     import base64
     from hashlib import sha1
+    from time import monotonic
 
     accepted, source, original_api = accepted_alertmanager_artifact_io
     independent = deepcopy(accepted)
@@ -15535,20 +15553,36 @@ def test_alertmanager_H_artifact_transport_keeps_C_acceptance_independent(
     evidence = tmp_path / "native-evidence"
     evidence.mkdir()
     actual_blob = original_api.raw("/actions/artifacts/102/zip", 1024**3)
+    diagnostic = b"benign native diagnostic\n"
+    archive_endpoint = "/repos/Katsiarynakavaleuskaya/PulsePlate/actions/artifacts/202/zip"
+    download_args = ["api", "--hostname", "github.com", "--method", "GET", archive_endpoint]
+    native_gh = tmp_path.resolve() / "synthetic-gh"
+    if fault == "successful-stderr":
+        actual_blob = _am_receipt_zip({"build.log": b"synthetic H payload\n"})
+        native_gh.write_text(
+            f"#!{sys.executable}\n"
+            "import sys\n"
+            "if sys.argv[1:] == ['auth', 'status', '--hostname', 'github.com']:\n"
+            "    sys.exit(0)\n"
+            f"assert sys.argv[1:] == {download_args!r}\n"
+            f"sys.stdout.buffer.write({actual_blob!r})\n"
+            f"sys.stderr.buffer.write({diagnostic!r})\n"
+        )
+        native_gh.chmod(0o700)
     if fault in ("same-volume-small", "separate-volumes", "short-evidence-volume"):
         actual_blob = b"Z" * (8 * 1024**2)
     if fault in ("inclusive-stdout-copy", "above-stdout-threshold"):
         actual_blob = b"Z" * (16 * 1024**2 + (fault == "above-stdout-threshold"))
     size = len(actual_blob)
-    if fault in ("capture-equality", "capture-one-over"):
+    if fault == "successful-stderr":
+        monkeypatch.setattr(policy, "MAX_CACHE_BYTES", 2 * (size + len(diagnostic)))
+    elif fault in ("capture-equality", "capture-one-over"):
         monkeypatch.setattr(policy, "MAX_CACHE_BYTES", 2 * size + 8)
     retained_bytes = {
         "no-capture-budget": policy.MAX_CACHE_BYTES,
         "capture-equality": 8,
         "capture-one-over": 9,
     }.get(fault or "", 0)
-    native_path = "/synthetic/gh"
-
     native_disk_room = docker_sources._alertmanager_receipt_disk_room
     unit = 4096
     margin = 128 * 1024  # Enough for the native receipt, file slack and small stderr.
@@ -15573,9 +15607,10 @@ def test_alertmanager_H_artifact_transport_keeps_C_acceptance_independent(
     monkeypatch.setattr(docker_sources, "_alertmanager_receipt_disk_room", disk_room)
 
     class API:
-        def __init__(self) -> None:
+        def __init__(self, native: policy.GitHubRead | None = None) -> None:
             self.evidence = evidence
-            self.gh = native_path
+            self.native = native
+            self.gh = native.gh if native is not None else "/synthetic/gh"
 
         def json(self, endpoint: str) -> dict[str, Any]:
             if "/contents/" in endpoint:
@@ -15639,20 +15674,21 @@ def test_alertmanager_H_artifact_transport_keeps_C_acceptance_independent(
 
         def raw(self, endpoint: str, maximum: int) -> bytes:
             capture_calls.append(maximum)
+            if self.native is not None:
+                return self.native.raw(endpoint, maximum=maximum)
             payload = actual_blob
-            diagnostic = b"benign native diagnostic" if fault == "successful-stderr" else b""
             if fault == "excess-stdout":
                 payload += b"trailing"
-            assert len(payload) + len(diagnostic) <= maximum <= 1024**3
+            assert len(payload) <= maximum <= 1024**3
             return payload
 
     hashes = {name: sha256(raw).hexdigest() for name, raw in actual.items()}
     if fault == "candidate-source-omitted":
         del hashes["tests/test_notify_premium_alias_checkpoint_failure.py"]
 
-    def invoke() -> dict[str, Any]:
+    def invoke(native: policy.GitHubRead | None = None) -> dict[str, Any]:
         return docker_sources._alertmanager_authenticated_inputs(
-            API(),
+            API(native),
             201,
             202,
             h_source,
@@ -15672,7 +15708,39 @@ def test_alertmanager_H_artifact_transport_keeps_C_acceptance_independent(
         "separate-volumes",
         "capture-equality",
     ):
-        binding = invoke()
+        if fault == "successful-stderr":
+            for name in (
+                "GH_TOKEN",
+                "GITHUB_TOKEN",
+                "GHCR_READ_TOKEN",
+                "GHCR_TOKEN",
+                "GH_ENTERPRISE_TOKEN",
+                "GITHUB_ENTERPRISE_TOKEN",
+            ):
+                monkeypatch.delenv(name, raising=False)
+            monkeypatch.setenv("GH_TOKEN", "synthetic-capture-credential")
+            monkeypatch.setattr(
+                policy.shutil, "which", lambda name: str(native_gh) if name == "gh" else None
+            )
+            private = tmp_path.resolve() / "private-github"
+            native = policy.GitHubRead(private, evidence.resolve(), monotonic() + 10, 2)
+            try:
+                binding = invoke(native)
+            finally:
+                native.close()
+            assert not private.exists()
+            assert capture_calls == [size + len(diagnostic)]
+            assert (evidence / "GitHub-2.stdout").read_bytes() == actual_blob
+            assert (evidence / "GitHub-2.stderr").read_bytes() == diagnostic
+            assert json.loads((evidence / "GitHub-2.json").read_bytes()) == {
+                "argv": [str(native_gh), *download_args],
+                "exit": 0,
+                "stdout_bytes": size,
+                "stdout_sha256": sha256(actual_blob).hexdigest(),
+                "stderr_sha256": sha256(diagnostic).hexdigest(),
+            }
+        else:
+            binding = invoke()
         assert binding["source"] == h_source and binding["job"] == 203
         assert binding["source_files"] != accepted["source_files"]
         assert (tmp_path / "H.zip").read_bytes() == actual_blob
