@@ -9,7 +9,7 @@ digest, and places the verified tarball in the build context.
 from __future__ import annotations
 
 import argparse
-from collections.abc import Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
 from email.message import Message
@@ -71,6 +71,17 @@ _ALERT_DB = {
     "db/trivy.db": "bf1f1b29d76cae9ff085d418cb4bfdb3906b6069f837abdef06558b8102dd1db",
     "db/metadata.json": "4b7a76b6270571c525a51ad67d3728a5f8237ce2c2a5b68a72948c24db616a83",
 }
+# S resource envelope measured on the 29c1 and b96 native support transports.
+# Keep Q, C, the historical S flavor and generic cache limits independent.
+_ALERT_S_MIB = 1024**2
+_ALERT_S_DB_BYTES = 1856 * _ALERT_S_MIB
+_ALERT_S_NATIVE_BYTES = 384 * _ALERT_S_MIB  # Excludes the one scanner database.
+_ALERT_S_API_BYTES = 32 * _ALERT_S_MIB
+_ALERT_S_JSON_BYTES = 2 * _ALERT_S_MIB  # Input inspection and the native footer.
+_ALERT_S_EXPANDED_BYTES = 2240 * _ALERT_S_MIB
+_ALERT_S_ARCHIVE_BYTES = 384 * _ALERT_S_MIB
+_ALERT_S_FREE_RESERVE = 512 * _ALERT_S_MIB
+_ALERT_S_MEMBER_COUNT = 1024
 _ALERT_BASE_CONFIG = "sha256:55a757dc8ab862a4eb634c434261dcd26f17c186b54f7bce845404a335456110"
 _ALERT_BASE_MANIFEST = "sha256:528f8a8d69ed17bdf99f19ade62e0a0e4c385de2791a94f4fa3c6286d8dad22c"
 _ALERT_BUILDKIT = (
@@ -2760,15 +2771,129 @@ def _alertmanager_loaded_base(objects: list[dict[str, Any]], *, current: bool = 
     return cast(str, relation["engine_id"])
 
 
-def _alertmanager_finalize_payload(evidence: Path, deadline: float) -> None:
+def _alertmanager_support_upload(artifact: dict[str, Any], env: Mapping[str, str]) -> None:
+    """Compare the new v4+ service-produced ZIP, including its compressed size, before S succeeds."""
+    from scripts.ci.prometheus_source_image import require
+
+    run, attempt, identity = (
+        env[name] for name in ("GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT", "AM_ARTIFACT_ID")
+    )
+    digest = env["AM_ARTIFACT_DIGEST"]
+    relation = artifact.get("workflow_run")
+    require(
+        re.fullmatch(r"[1-9][0-9]{0,18}", run) is not None
+        and re.fullmatch(r"[0-9a-f]{40}", env["GITHUB_SHA"]) is not None
+        and attempt == "1"
+        and re.fullmatch(r"[1-9][0-9]{0,18}", identity) is not None
+        and _HEX_RE.fullmatch(digest) is not None
+        and artifact.get("digest") == "sha256:" + digest
+        and artifact.get("id") == int(identity)
+        and type(artifact["id"]) is int
+        and artifact.get("expired") is False
+        and artifact.get("name") == f"alertmanager-input-inspection-{run}-{attempt}"
+        and type(artifact.get("size_in_bytes")) is int
+        and 0 < artifact["size_in_bytes"] <= _ALERT_S_ARCHIVE_BYTES
+        and type(relation) is dict
+        and relation.get("id") == int(run)
+        and type(relation.get("id")) is int
+        and relation.get("head_sha") == env["GITHUB_SHA"]
+        and relation.get("repository_id") == relation.get("head_repository_id") == 1043311030,
+        "AM_support_uploaded_archive_identity",
+    )
+
+
+def _alertmanager_support_sizes(
+    members: Iterable[tuple[str, int]], *, complete: bool = False
+) -> int:
+    """Budget the same logical files at native retention, upload, ZIP read and replay."""
+    from scripts.ci.prometheus_source_image import require
+
+    total = native = api = database = 0
+    native_count = api_count = 0
+    inspection = footer = False
+    for count, (name, size) in enumerate(members, start=1):
+        require(
+            count <= _ALERT_S_MEMBER_COUNT and type(size) is int and size >= 0, "AM_support_size"
+        )
+        if name == "native-support/trivy-cache/db/trivy.db":
+            require(database == 0 and 0 < size <= _ALERT_S_DB_BYTES, "AM_support_DB_size")
+            database = size
+        elif name.startswith("native-support/"):
+            native += size
+            native_count += 1
+            file_limit = 192 * _ALERT_S_MIB
+            if name == "native-support/artifact-payload-members.json":
+                require(size > 0 and not footer, "AM_support_footer_size")
+                footer = True
+                file_limit = _ALERT_S_JSON_BYTES
+            elif name.endswith(".json"):
+                file_limit = 16 * _ALERT_S_MIB
+            require(
+                size <= file_limit and native <= _ALERT_S_NATIVE_BYTES and native_count <= 256,
+                "AM_support_native_size",
+            )
+        elif re.fullmatch(r"github-read-evidence/GitHub-[1-9][0-9]*\.(json|stdout|stderr)", name):
+            api += size
+            api_count += 1
+            require(
+                size <= 16 * _ALERT_S_MIB and api <= _ALERT_S_API_BYTES and api_count <= 768,
+                "AM_support_API_size",
+            )
+        else:
+            require(
+                name == "input-inspection.json"
+                and not inspection
+                and 0 < size <= _ALERT_S_JSON_BYTES,
+                "AM_support_inspection_size",
+            )
+            inspection = True
+        total += size
+        require(total <= _ALERT_S_EXPANDED_BYTES, "AM_support_size")
+    if complete:
+        require(
+            database > 0 and api_count > 0 and inspection and footer, "AM_support_required_classes"
+        )
+    return total
+
+
+def _alertmanager_support_space(directory: Path, needed: int) -> None:
+    import shutil
+    from scripts.ci.prometheus_source_image import require
+
+    require(
+        shutil.disk_usage(directory).free >= needed + _ALERT_S_FREE_RESERVE, "AM_support_free_space"
+    )
+
+
+class _AlertmanagerSupportZipStream(io.BufferedReader):
+    """Bound ZIP directory allocation; zipfile owns classic/ZIP64 and comment parsing."""
+
+    reading_directory = True
+
+    def read(self, size: int | None = -1, /) -> bytes:
+        from scripts.ci.prometheus_source_image import require
+
+        if self.reading_directory:
+            remaining = os.fstat(self.fileno()).st_size - self.tell()
+            requested = remaining if size is None or size < 0 else size
+            require(requested <= _ALERT_S_MIB, "AM_support_ZIP_directory")
+        return super().read(size)
+
+
+def _alertmanager_finalize_payload(
+    evidence: Path, deadline: float, *, support: bool = False
+) -> None:
     """Bound and retain the full native file/mode inventory in its one fresh footer."""
+    from itertools import islice
     from scripts.ci.prometheus_source_image import tree_inventory, check_deadline, MAX_CACHE_BYTES
 
     check_deadline(deadline)
-    paths = list(evidence.rglob("*"))
-    if len(paths) + 1 > 250000:
+    limit = _ALERT_S_MEMBER_COUNT if support else 250000
+    paths = list(islice(evidence.rglob("*"), limit))
+    if len(paths) + 1 > limit:
         raise RuntimeError("Complete Alertmanager artifact member limit exceeded.")
-    files = tree_inventory(evidence, deadline=deadline)
+    maximum = _ALERT_S_EXPANDED_BYTES if support else MAX_CACHE_BYTES
+    files = tree_inventory(evidence, maximum=maximum, deadline=deadline)
     dirs = [
         {
             "path": path.relative_to(evidence).as_posix(),
@@ -2792,7 +2917,12 @@ def _alertmanager_finalize_payload(evidence: Path, deadline: float) -> None:
         )
         + "\n"
     ).encode()
-    if sum(row["size"] for row in files) + len(raw) > MAX_CACHE_BYTES or len(paths) + 1 > 250000:
+    if support:
+        _alertmanager_support_sizes(
+            [("native-support/" + row["path"], row["size"]) for row in files]
+            + [("native-support/" + carrier.name, len(raw))]
+        )
+    if sum(row["size"] for row in files) + len(raw) > maximum:
         raise RuntimeError("Complete Alertmanager artifact byte/member limit exceeded.")
     check_deadline(deadline)
     with carrier.open("xb") as stream:
@@ -3916,6 +4046,7 @@ def _alertmanager_authenticated_inputs(
             with snapshot.open("xb") as stream:
                 stream.write(raw)
             snapshot.chmod(0o600)
+    archive_limit = _ALERT_S_ARCHIVE_BYTES if current and kind == "support" else 1024**3
     artifact = api.json(endpoint + f"/actions/artifacts/{artifact_id}")
     require(
         type(artifact) is dict
@@ -3924,7 +4055,7 @@ def _alertmanager_authenticated_inputs(
         and artifact.get("expired") is False
         and artifact.get("name") == f"{artifact_name}-{run_id}-1"
         and type(artifact.get("size_in_bytes")) is int
-        and 0 < artifact["size_in_bytes"] <= 1024**3
+        and 0 < artifact["size_in_bytes"] <= archive_limit
         and type(artifact.get("digest")) is str
         and re.fullmatch(r"sha256:[0-9a-f]{64}", artifact["digest"]) is not None
         and (
@@ -3956,7 +4087,7 @@ def _alertmanager_authenticated_inputs(
         > datetime.now(timezone.utc),
         "AM_qualification_artifact_expired",
     )
-    raw = api.raw(endpoint + f"/actions/artifacts/{artifact_id}/zip", maximum=1024**3)
+    raw = api.raw(endpoint + f"/actions/artifacts/{artifact_id}/zip", maximum=archive_limit)
     require(
         len(raw) == artifact["size_in_bytes"]
         and "sha256:" + sha256(raw).hexdigest() == artifact["digest"],
@@ -4121,6 +4252,18 @@ def _alertmanager_2495_publisher_consumer_bytes(
     path: str, producer: bytes, consumer: bytes
 ) -> bool:
     """Recognize only the measured directional ORAS edit and exact PostgreSQL job block."""
+    if path == ".github/workflows/ci.yml":
+        marker = b"\n  ios-ui-smoke:\n"
+        before, sep, old = producer.partition(marker)
+        after, other, new = consumer.partition(marker)
+        return (
+            sep == other == marker
+            and before == after
+            and sha256(old).hexdigest()
+            == "69f889ccdc468f87d2888ed780de549650c2ed1a12c40875b22c73da857be70c"  # pragma: allowlist secret - public base iOS workflow SHA-256
+            and sha256(new).hexdigest()
+            == "71c0b60ff6ea6f4242cc02636b0e5581ce44969aecd8c78bfc3fdc053f2a38dc"  # pragma: allowlist secret - public reviewed iOS workflow SHA-256
+        )
     if path == "scripts/ci/prometheus_source_image.py":
         return (sha256(producer).hexdigest(), sha256(consumer).hexdigest()) == (
             "caeef6254bb44aa0a1ac54c069e0f88c095d91bd17da1adc568c0d57d400e858",
@@ -4315,6 +4458,21 @@ def _alertmanager_publication_predecessor(
     def current_observation(
         run: dict[str, Any], job: dict[str, Any], publisher: str
     ) -> dict[str, Any] | None:
+        counter = 0
+
+        def query(*arguments: str) -> bytes:
+            nonlocal counter
+            counter += 1
+            raw: bytes = native.run(
+                [*prefix, *arguments],
+                "AM-H-material-" + str(run["id"]) + "-" + str(counter),
+                environment,
+                cwd=root,
+                maximum_seconds=8,
+                output_bound=16 * 1024**2,
+            )
+            return raw
+
         source = _alertmanager_source_snapshot(api, publisher)
         # These are additional executable-contract checks, not a substitute for
         # the complete H material below. Reuse both existing source owners.
@@ -4328,19 +4486,27 @@ def _alertmanager_publication_predecessor(
             },
             "AM_H_reviewed_source_members",
         )
+        if revision == publisher:
+            _alertmanager_copy_merge(api, root, revision)
+        else:
+            _alertmanager_copy_merge(api, root, revision, predecessor=publisher)
         for name, raw in source.items():
             leaf = root / name
             require(
                 leaf.is_file() and not leaf.is_symlink(), "AM_regular_publisher_consumer_material"
             )
             actual = leaf.read_bytes()
-            if raw == actual:
-                continue
-            if not _alertmanager_2495_publisher_consumer_bytes(name, raw, actual):
+            if raw != query("cat-file", "blob", publisher + ":" + name):
                 return None
-            if not consumer_2495:
-                _alertmanager_merged_ref(api, _ALERT_2495_BRANCH, revision, root, number=2495)
-        _alertmanager_copy_merge(api, root, publisher)
+            base_blob = (
+                raw if revision == publisher else query("cat-file", "blob", revision + ":" + name)
+            )
+            if actual == base_blob:
+                continue
+            if not consumer_2495 or not _alertmanager_2495_publisher_consumer_bytes(
+                name, base_blob, actual
+            ):
+                return None
         observed_dir = work / (str(run["id"]) + "-current-observations")
         fresh_directory(observed_dir)
         source_hashes = {
@@ -4440,21 +4606,6 @@ def _alertmanager_publication_predecessor(
             ),
             "AM_current_H_raw_source_tuple",
         )
-        counter = 0
-
-        def query(*arguments: str) -> bytes:
-            nonlocal counter
-            counter += 1
-            raw: bytes = native.run(
-                [*prefix, *arguments],
-                "AM-H-material-" + str(run["id"]) + "-" + str(counter),
-                environment,
-                cwd=root,
-                maximum_seconds=8,
-                output_bound=16 * 1024**2,
-            )
-            return raw
-
         graft = query("rev-parse", "--git-path", "info/grafts").decode().strip()
         graft_path = Path(graft) if Path(graft).is_absolute() else root / graft
         require(
@@ -6617,6 +6768,8 @@ def _alertmanager_support_observation(
     docker = cast(str, docker)
     work = output / "native-support"
     fresh_directory(work)
+    if current:
+        _alertmanager_support_space(work, _ALERT_S_EXPANDED_BYTES)
     shutil.copyfile(scanner, work / "trivy")
     scanner = work / "trivy"
     scanner.chmod(0o555)
@@ -7063,7 +7216,7 @@ def _alertmanager_support_observation(
         (work / "support-observation.json").write_text(json.dumps(result, indent=2) + "\n")
         if native.cleanup_deadline is not None:
             try:
-                _alertmanager_finalize_payload(work, native.cleanup_deadline)
+                _alertmanager_finalize_payload(work, native.cleanup_deadline, support=current)
             except BaseException as error:
                 if primary is not None:
                     primary.add_note("Support payload retention failed: " + type(error).__name__)
@@ -8153,11 +8306,17 @@ def _alertmanager_support_payload(
     support_binding: dict[str, Any] | None = None,
     qualification_payload: dict[str, Any] | None = None,
     original_producer: tuple[str, dict[str, bytes]] | None = None,
+    deadline: float | None = None,
 ) -> dict[str, Any]:
     """Read the exact observed S artifact, with the incumbent native payload inventory."""
-    import shutil
     import zipfile
-    from scripts.ci.prometheus_source_image import file_hash, fresh_directory, one_object, require
+    from scripts.ci.prometheus_source_image import (
+        check_deadline,
+        file_hash,
+        fresh_directory,
+        one_object,
+        require,
+    )
 
     require((qualification is None) == (support_binding is None), "AM_support_epoch_pair")
     current = support_binding is not None
@@ -8192,13 +8351,20 @@ def _alertmanager_support_payload(
         expected_zip = support_binding["zip_sha256"]
         expected_source = support_binding["source"]
         expected_q = qualification["zip_sha256"]
-    require(file_hash(archive) == expected_zip, "AM_exact_support_archive")
+    if current:
+        require(0 < archive.stat().st_size <= _ALERT_S_ARCHIVE_BYTES, "AM_support_archive_size")
+    require(file_hash(archive, deadline) == expected_zip, "AM_exact_support_archive")
     fresh_directory(destination)
-    with zipfile.ZipFile(archive) as retained:
+    with (
+        _AlertmanagerSupportZipStream(io.FileIO(archive, "rb")) as compressed,
+        zipfile.ZipFile(compressed) as retained,
+    ):
+        compressed.reading_directory = False
         entries = retained.infolist()
-        if not current:
-            require(len(entries) == 134, "AM_support_complete_transport")
-        require(len(entries) <= 250000, "AM_support_transport_member_bound")
+        require(
+            0 < len(entries) <= _ALERT_S_MEMBER_COUNT if current else len(entries) == 134,
+            "AM_support_complete_transport",
+        )
         names = [info.filename for info in entries]
         require(len(names) == len(set(names)), "AM_support_transport_duplicate")
         total = 0
@@ -8212,8 +8378,26 @@ def _alertmanager_support_payload(
                 and stat.S_IFMT(info.external_attr >> 16) in (0, stat.S_IFREG, stat.S_IFDIR),
                 "AM_support_transport_path_type",
             )
-            total += info.file_size
-            require(0 <= info.file_size <= 2 * 1024**3 and total <= 2 * 1024**3, "AM_support_size")
+            if current:
+                require(
+                    info.orig_filename == info.filename
+                    and info.compress_type in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED)
+                    and (not info.is_dir() or info.file_size == 0)
+                    and stat.S_IFMT(info.external_attr >> 16)
+                    in (0, stat.S_IFDIR if info.is_dir() else stat.S_IFREG),
+                    "AM_support_ZIP_member",
+                )
+            else:
+                total += info.file_size
+                require(
+                    0 <= info.file_size <= 2 * 1024**3 and total <= 2 * 1024**3, "AM_support_size"
+                )
+        if current:
+            expanded = _alertmanager_support_sizes(
+                ((info.filename, info.file_size) for info in entries if not info.is_dir()),
+                complete=True,
+            )
+            _alertmanager_support_space(destination, expanded)
         footer = one_object(retained.read("native-support/artifact-payload-members.json"))
         require(
             set(footer) == {"files", "directories", "inventory_carrier_exception"}
@@ -8286,16 +8470,27 @@ def _alertmanager_support_payload(
                 and _HEX_RE.fullmatch(row["sha256"]) is not None,
                 "AM_support_declared_member",
             )
+            member = retained.getinfo("native-support/" + row["path"])
+            require(
+                member.file_size == row["size"]
+                and (not current or stat.S_IMODE(member.external_attr >> 16) == row["mode"]),
+                "AM_support_declared_member_bytes_mode",
+            )
             path = destination / row["path"]
             path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
             with (
-                retained.open("native-support/" + row["path"]) as source,
+                retained.open(member) as source,
                 path.open("xb") as output,
             ):
-                shutil.copyfileobj(source, output, 1024**2)
+                written = 0
+                while chunk := source.read(_ALERT_S_MIB):
+                    check_deadline(deadline)
+                    written += len(chunk)
+                    require(written <= member.file_size, "AM_support_member_bytes")
+                    output.write(chunk)
             path.chmod(row["mode"])
             require(
-                path.stat().st_size == row["size"] and file_hash(path) == row["sha256"],
+                path.stat().st_size == row["size"] and file_hash(path, deadline) == row["sha256"],
                 "AM_support_member_bytes",
             )
         require(
@@ -8369,7 +8564,10 @@ def _alertmanager_support_payload(
         "AM_support_native_input_binding",
     )
     for name, digest in database.items():
-        require(file_hash(destination / "trivy-cache" / name) == digest, "AM_support_frozen_DB")
+        require(
+            file_hash(destination / "trivy-cache" / name, deadline) == digest,
+            "AM_support_frozen_DB",
+        )
     records = report.get("native_records")
     require(type(records) is list and len(records) == 20, "AM_support_native_commands")
     seen = set()
@@ -8405,7 +8603,7 @@ def _alertmanager_support_payload(
         fresh_scan=current and expected_source != _ALERT_CURRENT_SCAN_ORACLE["subject"]["source"],
     )
     require(control == report.get("vulnerability_control"), "AM_support_actual_vulnerable_control")
-    require(file_hash(archive) == expected_zip, "AM_support_archive_drift")
+    require(file_hash(archive, deadline) == expected_zip, "AM_support_archive_drift")
     return report
 
 
@@ -10759,6 +10957,9 @@ def _alertmanager_final_security(
         # Qualified support remains immutable. Trivy's filesystem cache (fanal)
         # is derived work output and must never be seeded from retained cache state.
         fresh_directory(cache)
+        _alertmanager_support_space(
+            cache, sum((support / "trivy-cache" / name).stat().st_size for name in database)
+        )
         for name, expected in database.items():
             source = support / "trivy-cache" / name
             destination = cache / name
@@ -11556,7 +11757,264 @@ def _alertmanager_copy_pr(api: GitHubRead, pr: dict[str, Any] | None = None) -> 
     return pr
 
 
-def _alertmanager_copy_merge(api: GitHubRead, root: Path, publisher: str) -> None:
+# An AM publication proves no Caddy execution. Caddy binds its complete
+# frontend workflow to each retained D; the granted K/W still bind their full trees.
+_ALERT_PROTECTED_INPUT_PATHS = (
+    {
+        *_ALERT_CALLERS,
+        "scripts/ci/check_docker_runtime_dependency_surface.py",
+        "scripts/ci/fetch_docker_source_artifacts.py",
+    }
+    | set(_ALERT_Q_SOURCE_FILES)
+    | set(_ALERT_SELECTION_FILES)
+    | {
+        "scripts/ci/prometheus_source_image.py",
+        "tests/test_notify_premium_alias_checkpoint_failure.py",
+        "scripts/ops/notify_premium_alias_checkpoint_failure.py",
+        "tests/__init__.py",
+    }
+)
+
+
+def _alertmanager_publisher_history(
+    api: GitHubRead, root: Path, base: str, end: str, controller: str
+) -> str:
+    """Walk actual first-parent edges; only reviewed repairs and the exact #2495 changes may advance protected inputs."""
+    import shutil
+    from scripts.ci.prometheus_source_image import require
+    from scripts.ci.check_docker_runtime_dependency_surface import (
+        publisher_repair_dispatch,
+        require_publisher_repair_paths,
+    )
+
+    read = _alertmanager_repair_reader(api)
+    git = shutil.which("git")
+    require(git is not None and Path(git).is_absolute(), "AM_history_native_Git")
+    env = {
+        "PATH": "/usr/bin:/bin",
+        "LANG": "C",
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_NO_REPLACE_OBJECTS": "1",
+    }
+
+    def query(*args: str) -> bytes:
+        raw: object = api._capture(
+            [
+                cast(str, git),
+                "--no-replace-objects",
+                "-c",
+                "core.fsmonitor=false",
+                "-c",
+                "core.hooksPath=/dev/null",
+                "-C",
+                str(root),
+                *args,
+            ],
+            2 * 1024**2,
+            environment=env,
+        )
+        require(type(raw) is bytes, "AM_history_native_bytes")
+        return cast(bytes, raw)
+
+    require(query("rev-parse", "--is-shallow-repository") == b"false\n", "AM_history_shallow")
+    graft = Path(
+        os.fsdecode(
+            query("rev-parse", "--path-format=absolute", "--git-path", "info/grafts")
+        ).strip()
+    )
+    require(
+        graft.is_absolute() and not graft.exists() and not graft.is_symlink(), "AM_history_grafts"
+    )
+    interval = base + ".." + end
+    distance = query("rev-list", "--first-parent", "--count", interval).decode().strip()
+    require(
+        re.fullmatch(r"0|[1-9][0-9]*", distance) is not None
+        and query("rev-parse", "--verify", end + "~" + distance) == (base + "\n").encode(),
+        "AM_history_first_parent",
+    )
+    protected = sorted(_ALERT_PROTECTED_INPUT_PATHS)
+    # Git walks unrelated main history without emitting it. --show-pulls
+    # includes a merge introducing a protected change from a side parent.
+    history = (
+        query(
+            "log",
+            "--first-parent",
+            "--show-pulls",
+            "--no-renames",
+            "--no-patch",
+            "--format=%H",
+            "--max-count=257",
+            interval,
+            "--",
+            *protected,
+        )
+        .decode()
+        .splitlines()
+    )
+    require(
+        len(history) <= 256 and len(set(history)) == len(history),
+        "AM_history_protected_change_bound",
+    )
+    for sha in reversed(history):
+        require(re.fullmatch(r"[0-9a-f]{40}", sha) is not None, "AM_history_protected_SHA")
+        parents = query("show", "--no-patch", "--format=%P", sha).decode().split()
+        require(
+            parents and all(re.fullmatch(r"[0-9a-f]{40}", p) for p in parents),
+            "AM_history_protected_parents",
+        )
+        old = parents[0]
+        raw = query(
+            "diff",
+            "--no-ext-diff",
+            "--no-textconv",
+            "--no-renames",
+            "--name-only",
+            "-z",
+            old,
+            sha,
+            "--",
+            *protected,
+        )
+        if not raw:
+            continue
+        require(len(parents) == 1 and raw.endswith(b"\x00"), "AM_history_protected_squash")
+        names = {name.decode() for name in raw[:-1].split(b"\x00")}
+        associated = read(f"/commits/{sha}/pulls?per_page=2")
+        require(
+            type(associated) is list
+            and len(associated) == 1
+            and type(associated[0]["number"]) is int,
+            "AM_history_exact_PR",
+        )
+        pr = read(f'/pulls/{associated[0]["number"]}')
+        require(
+            pr["state"] == "closed"
+            and pr["merged"] is True
+            and pr["merge_commit_sha"] == sha
+            and pr["base"]["ref"] == "main"
+            and all(
+                pr[side]["repo"]["id"] == 1043311030
+                and pr[side]["repo"]["full_name"] == "Katsiarynakavaleuskaya/PulsePlate"
+                for side in ("head", "base")
+            ),
+            "AM_history_merged_PR",
+        )
+
+        def blobs(revision: str) -> dict[str, bytes]:
+            contents = {}
+            for path in sorted(names):
+                entry = query("ls-tree", "-z", revision, "--", path)
+                require(
+                    re.fullmatch(
+                        rb"100644 blob [0-9a-f]{40}\t" + re.escape(path.encode()) + rb"\0", entry
+                    )
+                    is not None,
+                    "AM_history_regular_Git_input",
+                )
+                contents[path] = query("cat-file", "blob", revision + ":" + path)
+            return contents
+
+        before, after = blobs(old), blobs(sha)
+        if pr["number"] == 2495:
+            original = read("/git/commits/" + pr["head"]["sha"])
+            require(
+                original.get("sha") == pr["head"]["sha"]
+                and original["tree"]["sha"] == query("rev-parse", sha + "^{tree}").decode().strip(),
+                "AM_history_2495_original_squash",
+            )
+            composes = {_ALERT_SELECTION_FILES[0], _ALERT_SELECTION_FILES[2]}
+            require(
+                pr["head"]["ref"] == _ALERT_2495_BRANCH
+                and composes <= names
+                and _alertmanager_2495_compose_sources(
+                    {p: before[p] for p in composes}, {p: after[p] for p in composes}
+                )
+                and all(
+                    _alertmanager_2495_publisher_consumer_bytes(p, before[p], after[p])
+                    for p in names - composes
+                ),
+                "AM_history_2495_exact_bytes",
+            )
+            continue
+        require(
+            pr["number"] not in (2484, 2494, 2497, 2501), "AM_history_ordinary_PR_cannot_be_repair"
+        )
+        require(set(_ALERT_CALLERS) <= names, "AM_history_protected_repair_dispatch")
+        coordinates = {}
+        for kind in ("qualification", "support"):
+            prefix = f"--alertmanager-{kind}-".encode()
+            pattern = prefix + rb"run ([1-9][0-9]*) " + prefix + rb"artifact ([1-9][0-9]*)"
+            slots = [set(re.findall(pattern, after[path])) for path in _ALERT_CALLERS]
+            require(
+                len(slots[0]) == 1 and slots[0] == slots[1],
+                "AM_history_exact_repair_Q_S_coordinates",
+            )
+            run, artifact = next(iter(slots[0]))
+            coordinates[kind] = run.decode() + "/" + artifact.decode()
+        selected = _alertmanager_accepted_producer()
+        subject = _alertmanager_repair_subject(
+            selected, coordinates["qualification"], coordinates["support"]
+        )
+        grant = publisher_repair_dispatch(read, pr, historical=True, subject=subject)
+        require(grant is not None and grant["base"] == old, "AM_history_protected_repair_dispatch")
+        grant = cast(dict[str, str], grant)
+        full = query(
+            "diff",
+            "--no-ext-diff",
+            "--no-textconv",
+            "--no-renames",
+            "--name-only",
+            "-z",
+            old,
+            sha,
+            "--",
+        )
+        require(full.endswith(b"\0"), "AM_repair_complete_squash_paths")
+        full_delta = {path.decode() for path in full[:-1].split(b"\0")}
+        if pr["head"]["sha"] != grant["callers"]:
+            full_delta.discard(f"docs/review/PR_{pr['number']}_FIXED_MAPPING.md")
+        require_publisher_repair_paths(full_delta)
+        # The shared verifier has bound K to the exact authorized base and complete tree.
+        import base64
+
+        node = read("/git/commits/" + grant["controller"])
+        require(node["sha"] == grant["controller"], "AM_history_K_source")
+        tree = _alertmanager_remote_tree(api, node["tree"]["sha"])
+        for path in _ALERT_CALLERS:
+            entry = read(f'/contents/{path}?ref={grant["controller"]}')
+            require(
+                entry["type"] == "file"
+                and entry["path"] == path
+                and entry["encoding"] == "base64"
+                and type(entry["size"]) is int
+                and 0 < entry["size"] <= 1024**2
+                and tree[path] == ("100644", entry["sha"]),
+                "AM_history_K_regular_caller",
+            )
+            original = base64.b64decode(entry["content"].replace("\n", ""), validate=True)
+            require(
+                len(original) == entry["size"]
+                and sha1(
+                    b"blob " + str(len(original)).encode() + b"\0" + original, usedforsecurity=False
+                ).hexdigest()
+                == entry["sha"],
+                "AM_history_K_caller_bytes",
+            )
+            pin = f"  ALERTMANAGER_CONTROLLER_SOURCE: '{controller}'".encode()
+            replacement = f"  ALERTMANAGER_CONTROLLER_SOURCE: '{grant['controller']}'".encode()
+            require(
+                before[path].count(pin) == original.count(pin) == 1
+                and original.replace(pin, replacement) == after[path],
+                "AM_history_regular_exact_caller_pins",
+            )
+        controller = grant["controller"]
+    return controller
+
+
+def _alertmanager_copy_merge(
+    api: GitHubRead, root: Path, publisher: str, *, predecessor: str | None = None
+) -> None:
     """Bind a later main publisher to the actual corrective squash and its reviewed K/W trees."""
     import base64
     from scripts.ci.prometheus_source_image import GHCR_REPOSITORY, require, require_native_ancestor
@@ -11581,6 +12039,8 @@ def _alertmanager_copy_merge(api: GitHubRead, root: Path, publisher: str) -> Non
         "AM_corrective_original_transition",
     )
     _alertmanager_native_ancestor(api, root, merge, publisher)
+    if predecessor is not None:
+        _alertmanager_native_ancestor(api, root, merge, predecessor)
 
     def commit(revision: str) -> tuple[str, str]:
         node = api.json(endpoint + "/git/commits/" + revision)
@@ -11646,28 +12106,18 @@ def _alertmanager_copy_merge(api: GitHubRead, root: Path, publisher: str) -> Non
         "AM_corrective_matching_merged_pins",
     )
     controller = controllers.pop()
+    require_native_ancestor(api, _ALERT_COPY_BASE, controller)
+    executing_controller = controller
+    if publisher != merge:
+        executing_controller = _alertmanager_publisher_history(
+            api, root, merge, publisher, controller
+        )
     if os.environ.get("GITHUB_EVENT_NAME") == "pull_request":
         require(
-            os.environ.get("ALERTMANAGER_CONTROLLER_SOURCE") == controller,
+            os.environ.get("ALERTMANAGER_CONTROLLER_SOURCE") == executing_controller,
             "AM_corrective_PR_executing_controller",
         )
-    require_native_ancestor(api, _ALERT_COPY_BASE, controller)
 
-    if publisher != merge:
-        node = api.json(endpoint + "/git/commits/" + publisher)
-        require(
-            type(node) is dict
-            and node.get("sha") == publisher
-            and type(node.get("tree", {}).get("sha")) is str
-            and re.fullmatch(r"[0-9a-f]{40}", node["tree"]["sha"]) is not None,
-            "AM_corrective_publisher_tree",
-        )
-        later = _alertmanager_remote_tree(api, node["tree"]["sha"])
-        for name in (*_ALERT_CALLERS, "scripts/ci/fetch_docker_source_artifacts.py"):
-            require(
-                name in final and later.get(name) == final[name],
-                "AM_corrective_publisher_contract_drift",
-            )
     successor = final
     if parent != controller:
         pin_tree, parent = commit(parent)
@@ -11693,6 +12143,30 @@ def _alertmanager_copy_merge(api: GitHubRead, root: Path, publisher: str) -> Non
     require(expected == successor, "AM_corrective_two_exact_caller_pins")
 
 
+def _alertmanager_repair_subject(accepted: dict[str, Any], q: str, support: str) -> dict[str, str]:
+    return {
+        "source": accepted["source"],
+        "q": q,
+        "s": support,
+        "c": f'{accepted["run"]}/{accepted["artifact"]}',
+        "zip": "sha256:" + accepted["zip_sha256"],
+        "manifest": accepted["graph"]["manifest"]["digest"],
+    }
+
+
+def _alertmanager_repair_reader(api: GitHubRead) -> Callable[[str], Any]:
+    from scripts.ci.check_docker_runtime_dependency_surface import _REPAIR_ARCHIVE_MAX
+    from scripts.ci.prometheus_source_image import GHCR_REPOSITORY
+
+    def read(endpoint: str) -> Any:
+        path = "/repos/" + GHCR_REPOSITORY + endpoint
+        if re.fullmatch(r"/actions/artifacts/[1-9][0-9]{0,18}/zip", endpoint):
+            return api.raw(path, maximum=_REPAIR_ARCHIVE_MAX)
+        return api.json(path)
+
+    return read
+
+
 def _alertmanager_transition_successor(
     api: GitHubRead,
     root: Path,
@@ -11701,6 +12175,7 @@ def _alertmanager_transition_successor(
     number: int,
     *,
     corrective: bool = False,
+    grant: dict[str, str] | None = None,
 ) -> None:
     """Bind the designated K to the pin-only W and optional direct mapping-only closeout."""
     import shutil
@@ -11708,11 +12183,13 @@ def _alertmanager_transition_successor(
 
     base = _ALERT_COPY_BASE if corrective else _ALERT_TRANSITION_BASE
     incumbent = _ALERT_COPY_INCUMBENT if corrective else _ALERT_INCUMBENT_CONTROLLER
+    if grant is not None:
+        base = grant["base"]
     endpoint = "/repos/Katsiarynakavaleuskaya/PulsePlate"
     require(
         type(controller) is str
         and re.fullmatch(r"[0-9a-f]{40}", controller) is not None
-        and controller != incumbent
+        and (grant is not None or controller != incumbent)
         and type(number) is int
         and number > 0,
         "AM_transition_controller_designation",
@@ -11764,7 +12241,7 @@ def _alertmanager_transition_successor(
         return cast(str, parent_sha)
 
     def paths(before: str, after: str) -> list[bytes]:
-        return query(
+        raw = query(
             "diff",
             "--no-ext-diff",
             "--no-textconv",
@@ -11774,7 +12251,9 @@ def _alertmanager_transition_successor(
             before,
             after,
             "--",
-        ).split(b"\0")
+        )
+        require(not raw or raw.endswith(b"\0"), "AM_transition_complete_paths")
+        return raw.split(b"\0")
 
     workflow = os.environ.get("GITHUB_WORKFLOW_REF")
     workflow_sha = os.environ.get("GITHUB_WORKFLOW_SHA", "")
@@ -11816,6 +12295,7 @@ def _alertmanager_transition_successor(
         "AM_transition_only_two_callers",
     )
     for name in (
+        *(("scripts/ci/check_docker_runtime_dependency_surface.py",) if grant is not None else ()),
         "scripts/ci/prometheus_source_image.py",
         "scripts/ops/notify_premium_alias_checkpoint_failure.py",
         "tests/__init__.py",
@@ -11835,8 +12315,43 @@ def _alertmanager_transition_successor(
             "AM_transition_actual_native_fixture_closure",
         )
     query("merge-base", "--is-ancestor", base, controller)
+    if grant is not None:
+        from scripts.ci.check_docker_runtime_dependency_surface import (
+            require_publisher_repair_paths,
+        )
+
+        require_publisher_repair_paths({name.decode() for name in paths(base, controller)[:-1]})
+        graft = Path(
+            os.fsdecode(
+                query("rev-parse", "--path-format=absolute", "--git-path", "info/grafts")
+            ).strip()
+        )
+        require(
+            graft.is_absolute() and not graft.exists() and not graft.is_symlink(),
+            "AM_repair_grafts",
+        )
+        require(
+            successor == grant["callers"]
+            and controller == grant["controller"]
+            and query("rev-parse", "--is-shallow-repository") == b"false\n",
+            "AM_repair_exact_controller_and_callers",
+        )
+    prior_pins: set[str] = set()
     for path in _ALERT_CALLERS:
-        for revision in (controller, successor):
+        if grant is not None:
+            prior = query("cat-file", "blob", base + ":" + path)
+            pins = re.findall(
+                rb"^  ALERTMANAGER_CONTROLLER_SOURCE: '([0-9a-f]{40})'(?=[ \t]*(?:#.*)?$)",
+                prior,
+                re.M,
+            )
+            require(len(pins) == 1 and pins[0].decode() != controller, "AM_repair_incumbent_pin")
+            incumbent = pins[0].decode()
+            prior_pins.add(incumbent)
+            require(len(prior_pins) == 1, "AM_repair_common_incumbent")
+        for revision in (
+            (base, controller, successor) if grant is not None else (controller, successor)
+        ):
             require(
                 re.fullmatch(
                     rb"100644 blob [0-9a-f]{40}\t" + re.escape(path.encode()) + b"\x00",
@@ -11997,6 +12512,54 @@ def _alertmanager_reader_route(
                 "pr": number,
                 "head": args.source_sha,
                 "base": pr["base"]["sha"],
+            }
+        if os.environ.get("ALERTMANAGER_REPAIR_PIN_CHANGED") == "true":
+            from scripts.ci.check_docker_runtime_dependency_surface import (
+                publisher_repair_dispatch,
+                publisher_repair_run,
+            )
+
+            require(
+                number not in (2484, 2494, 2495, 2497, 2501)
+                and upstream == _alertmanager_original_lineage(api) == "0.34.2",
+                "AM_repair_distinct_maintenance_PR",
+            )
+            read = _alertmanager_repair_reader(api)
+            subject = _alertmanager_repair_subject(
+                accepted,
+                f"{args.alertmanager_qualification_run}/{args.alertmanager_qualification_artifact}",
+                f"{args.alertmanager_support_run}/{args.alertmanager_support_artifact}",
+            )
+            dispatch = publisher_repair_dispatch(read, pr, subject=subject)
+            require(dispatch is not None, "AM_repair_qualifying_dispatch_required")
+            grant = cast(dict[str, str], dispatch)
+            require(
+                grant["base"] == current_main
+                and grant["controller"] == args.alertmanager_controller_source
+                and accepted["source"]
+                == args.alertmanager_qualification_source
+                == args.alertmanager_support_source
+                and all(grant[key] == value for key, value in subject.items()),
+                "AM_repair_exact_accepted_subject",
+            )
+            _alertmanager_transition_successor(
+                api, args.material_root, args.source_sha, grant["controller"], number, grant=grant
+            )
+            caller = os.environ.get("ALERTMANAGER_CALLER_KIND")
+            require(caller in ("ci-lint", "shared-pr"), "AM_repair_read_operation")
+            workflow, job = (
+                ("ci.yml", "lint")
+                if caller == "ci-lint"
+                else ("cd.yml", "prometheus-image-security-pr")
+            )
+            publisher_repair_run(read, grant, args.source_sha, workflow, job)
+            return {
+                "mode": "repair_PR_retained",
+                "upstream_version": upstream,
+                "pr": number,
+                "head": args.source_sha,
+                "base": current_main,
+                "dispatch": grant,
             }
         return {
             "mode": "ordinary_published_PR",
@@ -12572,7 +13135,7 @@ def _alertmanager_prepare_candidate_body(
         source = _alertmanager_source_snapshot(
             api, args.alertmanager_candidate_source, accepted=True
         )
-        if route["mode"] == "transition_PR_retained":
+        if route["mode"] in ("transition_PR_retained", "repair_PR_retained"):
             base = _alertmanager_regular_sources(
                 args.material_root, route["base"], output / "transition-BASE-native-Git", deadline
             )
@@ -12587,7 +13150,15 @@ def _alertmanager_prepare_candidate_body(
         not api.private.exists() and not api.private.is_symlink(),
         "AM_credentials_removed_before_preparation_native",
     )
-    if route["mode"] == "transition_PR_retained":
+    if route["mode"] == "repair_PR_retained":
+        _alertmanager_render_source_contract(
+            base,
+            output / "repair-BASE-contract",
+            deadline,
+            expected_case="accepted",
+            controller_templates=templates,
+        )
+    if route["mode"] in ("transition_PR_retained", "repair_PR_retained"):
         _alertmanager_render_source_contract(
             material_sources,
             output / "transition-contract",
@@ -12631,6 +13202,7 @@ def _alertmanager_prepare_candidate_body(
         support_binding=support_binding if current else None,
         qualification_payload=inspected if current else None,
         original_producer=original_producer,
+        deadline=deadline,
     )
     if current:
         _alertmanager_bind_current_plan(inspected["plan"], supported)
@@ -12785,6 +13357,11 @@ def _alertmanager_publish(
 
     def read_inputs(directory: Path, *, source_proof: bool) -> dict[str, Any]:
         fresh_directory(directory)
+        # Two independent 1 GiB Q/C transports, the compressed S, its native
+        # tree, the bounded 2 GiB C payload, and one operating free-space reserve.
+        _alertmanager_support_space(
+            directory, 4 * 1024**3 + _ALERT_S_ARCHIVE_BYTES + _ALERT_S_EXPANDED_BYTES
+        )
         main = api.json(endpoint + "/git/ref/heads/main")
         require(
             main.get("object", {}).get("sha") == args.source_sha
@@ -12932,6 +13509,7 @@ def _alertmanager_publish(
             support_binding=bindings["support"],
             qualification_payload=inspected,
             original_producer=original_producer,
+            deadline=api.deadline,
         )
         _alertmanager_bind_current_plan(inspected["plan"], supported)
         inspected["plan"]["probe"] = supported["probe"]
@@ -12949,7 +13527,9 @@ def _alertmanager_publish(
         )
         tool, qualified = retained_tool(api, REPO_ROOT, directory)
         (support / "trivy").chmod(0o555)
-        support_inventory = tree_inventory(support, deadline=api.deadline)
+        support_inventory = tree_inventory(
+            support, maximum=_ALERT_S_EXPANDED_BYTES, deadline=api.deadline
+        )
         binding = {
             "material": material,
             "host": host,
@@ -12970,8 +13550,8 @@ def _alertmanager_publish(
             "tool": tool,
         }
 
-    observed = read_inputs(output / (phase + "-inputs"), source_proof=phase == "prepare")
     if phase == "prepare":
+        observed = read_inputs(output / "prepare-inputs", source_proof=True)
         initial_identity, initial_versions = existing_public_package(api)
         initial_digest = observed["candidate"]["graph"]["manifest"]["digest"]
         immutable_tag_state(
@@ -12990,17 +13570,32 @@ def _alertmanager_publish(
             qualified_tool=observed["binding"]["tool"],
         )
         return observed
-    require(
-        prepared is not None and observed["binding"] == prepared["binding"],
-        "AM_publication_fresh_binding_drift",
-    )
     prepared = cast(dict[str, Any], prepared)
+    expected_binding = prepared["binding"]
+
+    def recheck_inputs(label: str, diagnostic: str) -> None:
+        # Raw API evidence belongs to the separate credential session. These are
+        # disposable materializations of the source-bound ZIPs already in prepare.
+        temporary = tempfile.TemporaryDirectory(prefix=label + "-", dir=output)
+        try:
+            observed = read_inputs(Path(temporary.name) / "inputs", source_proof=False)
+            require(observed["binding"] == expected_binding, diagnostic)
+        finally:
+            primary = sys.exc_info()[1]
+            try:
+                temporary.cleanup()
+            except OSError as error:
+                if primary is None:
+                    raise
+                primary.add_note("AM input scratch cleanup failed: " + type(error).__name__)
+
+    recheck_inputs(phase, "AM_publication_fresh_binding_drift")
     candidate: dict[str, Any] = prepared["candidate"]
     support, tool = prepared["support"], prepared["tool"]
 
     def verify_local() -> None:
         require(
-            tree_inventory(support, deadline=api.deadline)
+            tree_inventory(support, maximum=_ALERT_S_EXPANDED_BYTES, deadline=api.deadline)
             == prepared["binding"]["support_inventory"],
             "AM_publication_local_support_drift",
         )
@@ -13139,8 +13734,7 @@ def _alertmanager_publish(
         str(output / "pullback") + ":pullback",
     ]
     result["publication_commands"] = [copy, pullback]
-    latest = read_inputs(output / "immediate-precopy-inputs", source_proof=False)
-    require(latest["binding"] == prepared["binding"], "AM_immediate_precopy_all_inputs_drift")
+    recheck_inputs("immediate-precopy", "AM_immediate_precopy_all_inputs_drift")
     verify_local()
     final_identity, final_versions = existing_public_package(api)
     require(
@@ -14417,6 +15011,7 @@ def _alertmanager_current_build(args: argparse.Namespace) -> None:
             qualification=q,
             support_binding=supported_binding,
             qualification_payload=inspected,
+            deadline=deadline,
         )
         _alertmanager_bind_current_plan(inspected["plan"], supported)
         inspected["plan"]["probe"] = supported["probe"]
@@ -16095,7 +16690,9 @@ def _inspect_alertmanager_inputs(args: argparse.Namespace) -> None:
     result = {
         "asset_type": "Alertmanager retained-input inspection",
         "upstream": qualification,
-        "github_read_evidence": tree_inventory(evidence, deadline=time.monotonic() + 45),
+        "github_read_evidence": tree_inventory(
+            evidence, maximum=_ALERT_S_API_BYTES, deadline=time.monotonic() + 45
+        ),
         "package_read": package,
         "inspection": inspected,
         "policy_version": "DEP-AM-SEC-1.acceptance.v1",
@@ -16132,6 +16729,22 @@ def _inspect_alertmanager_inputs(args: argparse.Namespace) -> None:
         raise
     finally:
         destination.write_text(json.dumps(result, indent=2) + "\n")
+
+    # Success covers all three paths supplied to upload-artifact. The service's
+    # actual compressed ZIP/digest are checked independently by each H/P reader.
+    def uploaded_members() -> Iterable[tuple[str, int]]:
+        yield destination.name, destination.stat().st_size
+        for directory in (evidence, output / "native-support"):
+            for member in directory.rglob("*"):
+                info = member.lstat()
+                if stat.S_ISDIR(info.st_mode):
+                    continue
+                require(
+                    stat.S_ISREG(info.st_mode) and info.st_nlink == 1, "AM_support_upload_member"
+                )
+                yield member.relative_to(output).as_posix(), info.st_size
+
+    _alertmanager_support_sizes(uploaded_members(), complete=True)
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:

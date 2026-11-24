@@ -1309,7 +1309,7 @@ def _assert_frontend_caddy_contract(workflow: dict[str, object]) -> None:
         "${{ !cancelled() && (needs.changes.outputs.caddy == 'true' "
         "|| github.event_name == 'workflow_dispatch') }}"
     )
-    assert job["permissions"] == {"contents": "read", "actions": "read"}
+    assert job["permissions"] == {"contents": "read", "actions": "read", "pull-requests": "read"}
     assert "environment" not in job
     steps = _steps(job)
     text = str(steps)
@@ -1732,6 +1732,7 @@ def _assert_checkpoint_native_job(workflow: dict[str, object]) -> None:
         "contents": "read",
         "actions": "read",
         "packages": "read",
+        "pull-requests": "read",
     }, "checkpoint_native_reader_permissions"
     assert job.get("environment") == "staging", "checkpoint_native_reader_environment"
     assert job["env"]["PROMETHEUS_CONSUME_SECONDS"] == "900"
@@ -2275,7 +2276,12 @@ def test_checkpoint_pr_native_is_independent_of_backend_risk_admission(
 def _assert_checkpoint_pr_native_job(workflow: dict[str, object]) -> None:
     lint = _job(workflow, "lint")
     assert lint["needs"] == ["private_python_proxy_health"]
-    assert lint["permissions"] == {"contents": "read", "actions": "read", "packages": "read"}
+    assert lint["permissions"] == {
+        "contents": "read",
+        "actions": "read",
+        "packages": "read",
+        "pull-requests": "read",
+    }
     assert lint["env"] == {
         "PROMETHEUS_CONSUME_SECONDS": "900",
         "PROMETHEUS_CLEANUP_SECONDS": "120",
@@ -2594,7 +2600,7 @@ def test_caddy_full_observation_preserves_blocking_scan_and_exact_conditions() -
         "cache-dir": "/tmp/trivy-cache-caddy-contract",
     }
     assert "continue-on-error" not in original
-    assert job["permissions"] == {"contents": "read", "actions": "read"}
+    assert job["permissions"] == {"contents": "read", "actions": "read", "pull-requests": "read"}
     assert job["env"]["CADDY_FULL_SCAN_TIMEOUT_SECONDS"] == "300"
     assert "CADDY_METADATA_TIMEOUT_SECONDS" not in job["env"]
     assert "CADDY_METADATA_CLEANUP_SECONDS" not in job["env"]
@@ -2635,7 +2641,24 @@ def test_caddy_full_observation_preserves_blocking_scan_and_exact_conditions() -
         upload["if"]
         == "${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet062-metadata') && (always()) && steps.caddy-upload-budget.outcome == 'success' }}"
     )
-    assert upload["with"]["path"] == "${{ runner.temp }}/caddy-contract"
+    selected = "steps.caddy-upload-budget.outputs.repair_zip == 'true'"
+    assert upload["with"]["path"] == (
+        "${{ "
+        + selected
+        + " && format('{0}/caddy-contract-evidence.zip', runner.temp) || format('{0}/caddy-contract', runner.temp) }}"
+    )
+    assert (
+        upload["with"]["name"]
+        == "${{ " + selected + " && 'caddy-contract-evidence.zip' || 'caddy-contract-evidence' }}"
+    )
+    assert (
+        upload["with"]["archive"] == "${{ steps.caddy-upload-budget.outputs.repair_zip != 'true' }}"
+    )
+    assert job["env"]["CADDY_REPAIR_RETENTION_DAYS"] == "90"
+    assert (
+        upload["with"]["retention-days"]
+        == "${{ " + selected + " && env.CADDY_REPAIR_RETENTION_DAYS || 30 }}"
+    )
     assert (
         _step_index(steps, "Scan hardened Caddy shell image")
         < _step_index(steps, "Prepare same-epoch full Caddy observation")
@@ -3335,6 +3358,7 @@ def test_alertmanager_executable_stages_have_exact_manual_events_and_no_Q(mode: 
         "contents": "read",
         "actions": "read",
         "packages": "read" if mode == "build" else "write",
+        "pull-requests": "read",
     }
     steps = _steps(job)
     setup = _named_step(steps, "Select AM Python without dependency or SDK installation")
@@ -5204,7 +5228,12 @@ def test_alertmanager_input_support_job_is_independent_manual_read_permissions_w
     job = _job(workflow, "alertmanager-input-inspection")
     assert job["runs-on"] == "ubuntu-24.04"
     assert "needs" not in job
-    assert job["permissions"] == {"contents": "read", "actions": "read", "packages": "read"}
+    assert job["permissions"] == {
+        "contents": "read",
+        "actions": "read",
+        "packages": "read",
+        "pull-requests": "read",
+    }
     assert job["if"] == (
         "github.event_name == 'workflow_dispatch' "
         "&& inputs.alertmanager_mode == 'support-inspect' "
@@ -5240,8 +5269,8 @@ def test_alertmanager_support_job_covers_aggregate_budgets_and_retains_screened_
     tool_fetch = _named_step(
         _steps(job), "Prepare exact existing Alertmanager support scanner and Buildx CLI"
     )
-    assert job["timeout-minutes"] == 60
-    assert sum(step["timeout-minutes"] for step in _steps(job)) == 59
+    assert job["timeout-minutes"] == 61
+    assert sum(step["timeout-minutes"] for step in _steps(job)) == job["timeout-minutes"] - 1
     # The distinct existing API and Native owners each retain their own cleanup.
     # Keep at least five minutes for pure data inspection and artifact upload.
     acquisition = tool_fetch["run"].count("curl -q ") * int(
@@ -6898,6 +6927,21 @@ def test_caddy_job_budget_is_complete_and_owned_only_by_existing_job() -> None:
     )
     assert caps["COMPILER_WORK"] == 1200 and caps["COMPILER_CLEANUP"] == 120
     assert caps["RUNTIME"] == 15 * 60 and caps["FIXTURE"] == 14 * 60 + 180 + 30
+    upload = _named_step(_steps(job), "Upload Caddy contract evidence")
+    receipt = _named_step(_steps(job), "Verify published repair evidence transport")
+    charge = _named_step(_steps(job), "Charge Upload Caddy contract evidence budget")
+    assert caps["UPLOAD"] == 600 and int(job["env"]["CADDY_REPAIR_UPLOAD_VERIFY_SECONDS"]) == 60
+    assert (
+        upload["timeout-minutes"]
+        == "${{ fromJSON(steps.caddy-upload-budget.outputs.repair_zip == 'true' && env.CADDY_ACTION_REPAIR_UPLOAD_MINUTES || env.CADDY_ACTION_UPLOAD_MINUTES) }}"
+    )
+    assert receipt["timeout-minutes"] == "${{ fromJSON(env.CADDY_ACTION_REPAIR_VERIFY_MINUTES) }}"
+    assert 'verification = int(os.environ["CADDY_REPAIR_UPLOAD_VERIFY_SECONDS"])' in charge["run"]
+    assert (
+        'caddy_ci_charge_action("UPLOAD", int(os.environ["CADDY_PHASE_UPLOAD"]) - verification, reserve=verification)'
+        in charge["run"]
+    )
+    assert 'caddy_ci_phase("UPLOAD")' in receipt["run"]
     assert caps["SAFETY"] == 270 and "TERMINATION" not in caps
     steps = _steps(job)
     for step in steps:
@@ -7091,6 +7135,8 @@ def test_caddy_actual_scan_runner_contains_work_term_kill_in_one_envelope(
 def test_caddy_candidate_release_requires_current_source_control_and_cleanup_conjunction(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str | None
 ) -> None:
+    from collections.abc import Iterator
+    from contextlib import contextmanager
     from scripts.ci import check_docker_runtime_dependency_surface as owner
     from tests.test_docker_runtime_dependency_surface import (
         _caddy_control_fixture,
@@ -7120,7 +7166,17 @@ def test_caddy_candidate_release_requires_current_source_control_and_cleanup_con
     )
     monkeypatch.setenv("GITHUB_SHA", head)
     event = tmp_path / "event.json"
-    event.write_text(json.dumps({"ref": "refs/heads/main", "after": head} if main else {}))
+    event.write_text(
+        json.dumps(
+            {"ref": "refs/heads/main", "after": head}
+            if main
+            else {
+                "ref": branches[number],
+                "inputs": {"caddy_action": "candidate-D", "caddy_source_sha": head},
+                "sender": {"login": "Katsiarynakavaleuskaya", "id": 169792616, "type": "User"},
+            }
+        )
+    )
     monkeypatch.setenv("GITHUB_EVENT_PATH", str(event))
     monkeypatch.chdir(REPO_ROOT)
     runner = tmp_path / "runner"
@@ -7304,15 +7360,17 @@ def test_caddy_candidate_release_requires_current_source_control_and_cleanup_con
     monkeypatch.setattr(subprocess, "run", run)
     monkeypatch.setattr(subprocess, "check_output", output)
 
-    def api_call(
-        selected_root: Path, directory: Path, endpoint: str, remaining: Any, expected: str
-    ) -> Any:
-        assert selected_root == REPO_ROOT
-        assert expected == inputs["scripts/ci/prometheus_source_image.py"]["sha256"]
-        assert 0 < remaining(30) <= 30
+    calls: list[str] = []
+
+    def api_call(endpoint: str) -> Any:
+        calls.append(endpoint)
         if main and endpoint.startswith("/pulls?"):
             return []
-        live_number = int(endpoint.split("/")[-1])
+        if endpoint == f"/commits/{head}/pulls?per_page=2":
+            assert fault == "merged-drift"
+            return []
+        assert endpoint.startswith("/pulls/")
+        live_number = int(endpoint.removeprefix("/pulls/"))
         assert main or live_number == number
         return {
             "number": float(live_number) if fault == "float-pr-number" else live_number,
@@ -7332,11 +7390,27 @@ def test_caddy_candidate_release_requires_current_source_control_and_cleanup_con
             "base": {"repo": repo, "ref": "main"},
         }
 
-    monkeypatch.setattr(owner, "caddy_ci_api", api_call)
+    @contextmanager
+    def final_reader(
+        selected_root: Path, directory: Path, remaining: Any, expected: str
+    ) -> Iterator[Callable[[str], Any]]:
+        assert selected_root == REPO_ROOT and directory == private / "final-api"
+        assert expected == inputs["scripts/ci/prometheus_source_image.py"]["sha256"]
+        assert 0 < remaining(30) <= 30
+        assert not calls
+        calls.append("authenticate")
+        try:
+            yield api_call
+        finally:
+            calls.append("close")
+
+    monkeypatch.setattr(owner, "caddy_ci_reader", final_reader)
     script = _caddy_inline("Decide source-qualified Caddy inventory and current native controls")
     if fault in (None, "legacy", "main"):
         exec(compile(script, "<actual-current-Caddy-release>", "exec"), {})
+        assert calls[0] == "authenticate" and calls[-1] == "close"
         if main:
+            assert len(calls[1:-1]) > 1
             assert pr_head != head
             assert not (evidence / "candidate.docker.tar").exists()
             assert not (evidence / "candidate.json").exists()
@@ -7365,6 +7439,8 @@ def test_caddy_candidate_release_requires_current_source_control_and_cleanup_con
             exec(compile(script, "<actual-current-Caddy-release>", "exec"), {})
         assert not (evidence / "candidate.docker.tar").exists()
         assert not (evidence / "candidate.json").exists()
+        if calls:
+            assert calls[0] == "authenticate" and calls[-1] == "close"
 
 
 @pytest.mark.parametrize("fault", ["relative-git", "substituted-git", "truncated-paths"])
@@ -7398,6 +7474,9 @@ def test_caddy_checkout_inventory_rejects_unbound_native_input(
     "case",
     [
         "2484-build",
+        "delegated-build",
+        "delegated-duplicate",
+        "delegated-reuse",
         "2484-reuse",
         "2484-main",
         "2484-wrong-PR",
@@ -7514,11 +7593,12 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
     monkeypatch.chdir(root)
     head, old_head = "1" * 40, "2" * 40
     lane, separator, variant = case.partition("-")
-    lanes = {"historical": 2501, "transition": 9999, "2495": 2495, "2484": 2484}
+    lanes = {"delegated": 9981, "historical": 2501, "transition": 9999, "2495": 2495, "2484": 2484}
     number = lanes.get(lane, 2494)
     if separator and lane in lanes:
         case = variant
     branches = {
+        9981: "fixture/delegated-maintenance",
         2484: "codex/cab07c-eslint-pages-features",
         2494: "codex/dependency-alertmanager-remediation",
         2495: "codex/npm-braces-build-prerequisite",
@@ -7528,7 +7608,11 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
     branch = branches[number]
     main = case in {"main", "wrong-merge", "ambiguous-merge", "bad-main-parent"}
     pr_head = "4" * 40 if main else head
-    sender = {"id": 321, "login": "Katsiarynakavaleuskaya", "type": "User"}
+    sender = {
+        "id": 169792616 if lane == "delegated" else 321,
+        "login": "Katsiarynakavaleuskaya",
+        "type": "User",
+    }
     repo = "Katsiarynakavaleuskaya/PulsePlate"
     fixed = [
         ".github/workflows/frontend-ci.yml",
@@ -7606,6 +7690,10 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
         if event_name != "workflow_dispatch"
         else "xnet062-metadata" if case == "metadata" else "candidate-D"
     )
+    if lane == "delegated":
+        reuse = case in ("duplicate", "reuse")
+        event_name = "workflow_dispatch"
+        action = "contract" if case == "reuse" else "candidate-D"
     event = runner / "event.json"
     payload = (
         {"number": True if case == "bad-event" else number, "pull_request": pr}
@@ -7619,6 +7707,18 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
             },
         }
     )
+    if lane == "delegated":
+        binding = "repair-v1:" + head + ":" + "a" * 64
+        payload["inputs"]["caddy_source_sha"] = binding
+        # The shared authenticated event/subject binding is covered separately. Exercise the native D chooser here.
+        monkeypatch.setattr(
+            caddy_surface,
+            "caddy_bound_pr",
+            lambda _read, selected: {
+                **pr,
+                "publisher_repair": {"input": binding, "callers": selected},
+            },
+        )
     if number == 2494 and event_name == "workflow_dispatch":
         del payload["inputs"]["caddy_source_sha"]
     if main:
@@ -7757,6 +7857,17 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
                 },
             ],
         }
+        if case == "reuse":
+            prior_job["steps"].append(
+                {
+                    "number": 23,
+                    "name": "Build accepted D Caddy candidate once",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "started_at": "2026-10-31T00:29:01.123Z",
+                    "completed_at": "2026-10-30T17:29:01.123000-07:00",
+                }
+            )
         runs.append(prior)
         jobs[12] = [prior_job]
         if case in {
@@ -7918,6 +8029,8 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
                         }
                     ],
                 }
+            elif url.endswith(f"/commits/{head}/pulls?per_page=2"):
+                value = []  # A different squash has no associated publisher-repair PR.
             else:
                 raise AssertionError(url)
             return Response(url, value)
@@ -8057,6 +8170,8 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
         assert reader_events == ["open", "closed"]
         assert output.read_text().startswith("mode=" + mode)
         if mode == "reuse":
+            if case == "reuse":
+                assert [h["step"]["name"] for h in result["observed_build_history"]] == [build_name]
             assert result["producer"]["git_inputs"] == result["inputs"]
             assert result["producer"]["artifact"]["id"] == 31
             assert any(f"/pulls/{number}/commits?" in url for url in calls)
@@ -8083,6 +8198,7 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
             "native-actor": "declared_data_value",
             "second-attempt": "exact frozen source dispatch",
             "spent": "already started",
+            "duplicate": "qualifying same-PR source already exists",
             "metadata": "standalone metadata is outside",
             "moved-base": "corrective PR base or event differs",
             "bad-event": "corrective PR base or event differs",
@@ -8164,6 +8280,272 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
         assert sum("/jobs?filter=all" in url for url in calls) == 2
         assert not any("/artifacts?" in url for url in calls)
     assert not (runner / "caddy-contract/candidate.docker.tar").exists()
+
+
+# Inject the same synthetic HTTPS responses into the real isolated worker in both
+# the wire-protocol test and the full GitHubRead ownership/workflow integration.
+_CADDY_UPLOAD_HTTP_FIXTURE = r"""
+import io,json,os,ssl,time,urllib.error,urllib.request,urllib.response
+from email.message import Message
+from pathlib import Path
+trace=Path(os.environ["FIXTURE_TRACE"])
+outcomes = iter(json.loads(os.environ["FIXTURE_OUTCOMES"]))
+now = time.monotonic()
+def wait(seconds):
+    global now
+    with trace.open("a") as stream: print("wait",seconds,file=stream)
+    now += seconds
+time.monotonic=lambda: now
+time.sleep=wait
+def http(self, request):
+    endpoint="https://api.github.com/repos/Katsiarynakavaleuskaya/PulsePlate/actions/artifacts/14730379137"
+    assert request.full_url==endpoint and request.get_method()=="GET"
+    assert request.get_header("Authorization") == "Bearer synthetic-account-only"
+    case=next(outcomes)
+    with trace.open("a") as stream: print("GET",case,file=stream)
+    if case=="reset": raise urllib.error.URLError(ConnectionResetError())
+    if case=="timeout": raise TimeoutError()
+    if case=="tls": raise urllib.error.URLError(ssl.SSLCertVerificationError())
+    if case=="transport": raise urllib.error.URLError("PRIVATE-UNTRUSTED-TRANSPORT")
+    status=302 if case=="redirect" else int(case[:3]) if case[:3].isdigit() else 200
+    headers=Message()
+    if case=="redirect": headers["Location"]="https://foreign.invalid/private"
+    if case=="429-short": headers["Retry-After"]="2"
+    if case=="429-long": headers["Retry-After"]="1200"
+    if case=="503-invalid-delay": headers["Retry-After"]="PRIVATE-UNTRUSTED-TRANSPORT"
+    body=b"PRIVATE-UNTRUSTED-TRANSPORT" if status>=300 or case=="malformed" else b"!1:http_503" if case=="error-like-body" else os.environ["FIXTURE_METADATA"].encode()
+    response=urllib.response.addinfourl(io.BytesIO(body),headers,request.full_url,status)
+    response.msg="native"
+    return response
+urllib.request.HTTPSHandler.https_open=http
+"""
+
+
+@pytest.mark.parametrize(
+    "outcomes, frame",
+    [
+        (("404", "ok"), b'={"id":14730379137}'),
+        (("503", "503", "503"), b"!3:http_503"),
+        (("timeout", "timeout", "timeout"), b"!3:timeout"),
+        (("429-long",), b"!1:http_429"),
+        (("403",), b"!1:http_403"),
+        (("error-like-body",), b"=!1:http_503"),
+    ],
+)
+def test_caddy_upload_worker_emits_distinct_native_http_frames(
+    tmp_path: Path, outcomes: tuple[str, ...], frame: bytes
+) -> None:
+    import time
+
+    repo = tmp_path / "source"
+    relative = Path("scripts/ci/prometheus_source_image.py")
+    source = (REPO_ROOT / relative).read_bytes()
+    (repo / relative).parent.mkdir(parents=True)
+    (repo / relative).write_bytes(source)
+    cache = tmp_path / "pycache"
+    cache.mkdir()
+    trace = tmp_path / "requests"
+    ident = "14730379137"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-E",
+            "-S",
+            "-B",
+            "-X",
+            "pycache_prefix=" + str(cache),
+            "-c",
+            _CADDY_UPLOAD_HTTP_FIXTURE + caddy_surface.CADDY_API_WORKER,
+            str(repo),
+            hashlib.sha256(source).hexdigest(),
+            "/actions/artifacts/" + ident,
+            "20",
+            ident,
+            str(time.monotonic() + 20),
+        ],
+        cwd=tmp_path,
+        env={
+            "GH_TOKEN": "synthetic-account-only",
+            "FIXTURE_TRACE": str(trace),
+            "FIXTURE_OUTCOMES": json.dumps(outcomes),
+            "FIXTURE_METADATA": '{"id":14730379137}',
+        },
+        capture_output=True,
+        check=True,
+        timeout=25,
+    )
+    assert result.stdout == frame and result.stderr == b""
+    expected_trace = []
+    for i, outcome in enumerate(outcomes, start=1):
+        expected_trace.append("GET " + outcome)
+        if i < len(outcomes):
+            expected_trace.append(f"wait {i}.0")
+    assert trace.read_text().splitlines() == expected_trace
+
+
+@pytest.mark.parametrize(
+    "outcomes, expected, attempts",
+    [
+        (("404", "ok"), None, 2),
+        (("429-short", "ok"), None, 2),
+        (("reset", "ok"), None, 2),
+        (("timeout", "ok"), None, 2),
+        (("503", "503", "503"), "fresh_artifact_http_503", 3),
+        (("429-long",), "fresh_artifact_http_429", 1),
+        (("503-invalid-delay",), "fresh_artifact_http_503", 1),
+        (("401",), "fresh_artifact_http_401", 1),
+        (("403",), "fresh_artifact_http_403", 1),
+        (("redirect",), "fresh_artifact_http_302", 1),
+        (("tls",), "fresh_artifact_tls", 1),
+        (("transport",), "fresh_artifact_transport", 1),
+        (("malformed",), "decode", 1),
+        (("error-like-body",), "decode", 1),
+        (("mismatch",), "publisher_repair_uploaded_transport", 1),
+        (("source-bytecode",), "native_failure", 0),
+        (("bad-upload-digest",), "publisher_repair_uploaded_transport", 0),
+        (("upload-failed",), "upload-failed", 0),
+    ],
+)
+def test_caddy_fresh_upload_verifies_exact_id_with_bounded_native_http(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    outcomes: tuple[str, ...],
+    expected: str | None,
+    attempts: int,
+) -> None:
+    from scripts.ci import prometheus_source_image as transport
+
+    runner = tmp_path / "runner"
+    root = tmp_path / "source"
+    owner_path = "scripts/ci/prometheus_source_image.py"
+    helper = root / owner_path
+    helper.parent.mkdir(parents=True)
+    helper.write_bytes((REPO_ROOT / owner_path).read_bytes())
+    if "source-bytecode" in outcomes:
+        cache = helper.parent / "__pycache__"
+        cache.mkdir()
+        (cache / "unexpected.pyc").write_bytes(b"unqualified")
+    state = _caddy_budget_fixture(runner, monkeypatch)
+    state["inputs"] = {owner_path: {"sha256": hashlib.sha256(helper.read_bytes()).hexdigest()}}
+    (runner / "caddy-admission/admission.json").write_text(json.dumps(state))
+    local_zip = runner / "caddy-contract-evidence.zip"
+    local_zip.write_bytes(b"prepacked fixture bytes")
+    digest = hashlib.sha256(local_zip.read_bytes()).hexdigest()
+    head = "a" * 40
+    ident = "14730379137"
+    for key in ("GH_TOKEN", "GITHUB_TOKEN", "GHCR_READ_TOKEN"):
+        monkeypatch.delenv(key, raising=False)
+    for key, val in {
+        "GH_TOKEN": "synthetic-account-only",
+        "CADDY_UPLOAD_OUTCOME": "failure" if "upload-failed" in outcomes else "success",
+        "CADDY_UPLOADED_ID": ident,
+        "CADDY_REPAIR_ZIP_BYTES": str(local_zip.stat().st_size),
+        "CADDY_REPAIR_ZIP_SHA256": digest,
+        "CADDY_UPLOADED_DIGEST": "bad" if "bad-upload-digest" in outcomes else digest,
+        "CADDY_SOURCE_HORIZON": "2027-02-14T05:10:32Z",
+        "GITHUB_RUN_ID": "44962160496",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "GITHUB_SHA": head,
+    }.items():
+        monkeypatch.setenv(key, val)
+    metadata = {
+        "id": int(ident),
+        "name": "caddy-contract-evidence.zip",
+        "expired": False,
+        "size_in_bytes": local_zip.stat().st_size,
+        "digest": "sha256:" + ("0" * 64 if "mismatch" in outcomes else digest),
+        "expires_at": "2027-02-19T23:30:54Z",
+        "workflow_run": {
+            "id": 44962160496,
+            "head_sha": head,
+            "repository_id": 1043311030,
+            "head_repository_id": 1043311030,
+        },
+    }
+    trace = tmp_path / "calls"
+    capture = transport.GitHubRead._capture
+    readers = []
+
+    def native(reader: Any, argv: list[str], maximum: int) -> bytes:
+        if argv[1:3] == ["auth", "status"]:
+            readers.append(reader)
+            reader.sequence += 1
+            return b"authenticated"
+        assert argv[0] == sys.executable and argv[1:4] == ["-E", "-S", "-B"]
+        assert argv[-4] == "/actions/artifacts/" + ident and argv[-2] == ident
+        assert float(argv[-1]) == reader.deadline
+        reader.environment.update(
+            FIXTURE_TRACE=str(trace),
+            FIXTURE_OUTCOMES=json.dumps(outcomes),
+            FIXTURE_METADATA=json.dumps(metadata),
+        )
+        argv = list(argv)
+        argv[argv.index("-c") + 1] = _CADDY_UPLOAD_HTTP_FIXTURE + argv[argv.index("-c") + 1]
+        return capture(reader, argv, maximum)
+
+    which = shutil.which
+    monkeypatch.setattr(
+        shutil, "which", lambda name: "/synthetic/gh" if name == "gh" else which(name)
+    )
+    monkeypatch.setattr(transport.GitHubRead, "_capture", native)
+    monkeypatch.chdir(root)
+    if outcomes == ("404", "ok"):
+        with (
+            pytest.raises(ValueError, match="^Caddy API failure "),
+            caddy_surface.caddy_ci_reader(
+                root,
+                tmp_path / "wrong-id",
+                lambda cap: min(cap, 6),
+                state["inputs"][owner_path]["sha256"],
+                fresh_upload_id=ident,
+            ) as read,
+        ):
+            read("/actions/artifacts/2")
+        assert not trace.exists()
+    code = compile(
+        _caddy_inline("Verify published repair evidence transport"),
+        "<fresh-upload-workflow>",
+        "exec",
+    )
+    if expected is None:
+        exec(code, {})
+    elif expected == "upload-failed":
+        with pytest.raises(
+            ValueError, match="^Caddy repair ZIP upload did not produce an artifact$"
+        ):
+            exec(code, {})
+    elif expected == "publisher_repair_uploaded_transport":
+        with pytest.raises(
+            transport.QualificationError, match="^publisher_repair_uploaded_transport$"
+        ):
+            exec(code, {})
+    else:
+        with pytest.raises(ValueError, match="^Caddy API failure ") as raised:
+            exec(code, {})
+        summary = json.loads(str(raised.value).removeprefix("Caddy API failure "))
+        if expected == "decode":
+            assert summary["stage"] == "decode"
+        else:
+            assert summary["category"] == expected
+        if expected.startswith("fresh_artifact_"):
+            assert summary["request_attempts"] == attempts and summary["native_exit"] == 0
+        assert "PRIVATE-UNTRUSTED-TRANSPORT" not in capsys.readouterr().err
+    observed = trace.read_text().splitlines() if trace.exists() else []
+    assert [line for line in observed if line.startswith("GET ")] == [
+        "GET " + v for v in outcomes[:attempts]
+    ]
+    delays = [float(line.split()[1]) for line in observed if line.startswith("wait ")]
+    assert delays == (
+        [2.0] if outcomes[0] == "429-short" else [float(i) for i in range(1, attempts)]
+    )
+    assert not local_zip.exists()
+    assert bool(readers) == (outcomes[0] not in {"bad-upload-digest", "upload-failed"})
+    for reader in readers:
+        assert reader.process is None
+        assert not reader.private.exists() and not reader.private.is_symlink()
+        assert reader.environment == {}
+    assert not list((runner / "caddy-admission/upload-verification").glob("pycache-*"))
 
 
 @pytest.mark.parametrize(
@@ -8287,13 +8669,16 @@ urllib.request.HTTPSHandler.https_open = response
     monkeypatch.setattr(transport.GitHubRead, "close", close)
     started = time.monotonic()
     directory = tmp_path / "call"
+
+    def read_pr() -> Any:
+        with owner.caddy_ci_reader(root, directory, lambda cap: min(cap, 6), expected) as get:
+            return get("/pulls/2494")
+
     if fault is None:
-        assert owner.caddy_ci_api(
-            root, directory, "/pulls/2494", lambda cap: min(cap, 6), expected
-        ) == {"ok": True}
+        assert read_pr() == {"ok": True}
     elif fault == "slow-body":
         with pytest.raises(ValueError, match="Caddy API failure") as expired:
-            owner.caddy_ci_api(root, directory, "/pulls/2494", lambda cap: min(cap, 6), expected)
+            read_pr()
         assert (
             json.loads(str(expired.value).removeprefix("Caddy API failure "))["category"]
             == "deadline"
@@ -8301,7 +8686,7 @@ urllib.request.HTTPSHandler.https_open = response
         assert time.monotonic() >= deadlines[0]
     else:
         with pytest.raises((ValueError, transport.QualificationError)):
-            owner.caddy_ci_api(root, directory, "/pulls/2494", lambda cap: min(cap, 6), expected)
+            read_pr()
     if fault in ("source", "directory-alias"):
         assert deadlines == [] and not directory.exists()
     elif fault == "source-after-auth":
@@ -8483,9 +8868,8 @@ def test_caddy_authenticated_reader_lifetime(
         assert workers[0][0] != workers[1][0] and all(not Path(w[0]).exists() for w in workers)
         assert [w[2] for w in workers] == [18, 20]
         assert workers[1][1] <= phase_end - 10
-        assert caddy_surface.caddy_ci_api(
-            root, tmp_path / "final", "/pulls/2494", remaining, expected
-        ) == {"ok": True}
+        with caddy_surface.caddy_ci_reader(root, tmp_path / "final", remaining, expected) as get:
+            assert get("/pulls/2494") == {"ok": True}
         assert events == ["auth", "get", "get", "close", "auth", "get", "close"]
         assert owners[0] is not owners[1] and not (tmp_path / "caddy-contract").exists()
         return

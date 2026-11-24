@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+from typing import Any
 import subprocess
 import traceback
 
@@ -3514,6 +3515,13 @@ def test_caddy062_charge_step_requires_independently_reviewed_same_run_outputs(
         == charge_step["if"]
         == "${{ steps.caddy-admission.outputs.mode == 'build' && steps.caddy-metadata.outcome == 'success' }}"
     )
+    admission = next(step for step in steps if step.get("id") == "caddy-admission")
+    assert charge_step["env"]["GH_TOKEN"] == (
+        "${{ steps.caddy-admission.outputs.owner_prebuild == 'true' && github.token || '' }}"
+    )
+    emission = 'output.write("owner_prebuild=true\\n")'
+    assert admission["run"].count(emission) == 1
+    assert 'if state["mode"] == "build" and owner_build:\n        ' + emission in admission["run"]
     assert not charge_step.get("continue-on-error")
     workflow = yaml.safe_load((root / ".github/workflows/frontend-ci.yml").read_text())
     concurrency = workflow["concurrency"]
@@ -3603,7 +3611,6 @@ def test_caddy062_charge_step_requires_independently_reviewed_same_run_outputs(
     branch = branch_by_lane.get(pr_lane, "codex/dependency-alertmanager-remediation")
     number_by_lane = {"transition": 9999, "recovery": 2495, "train": 2484}
     if owner_build:
-        assert f"github.ref == 'refs/heads/{branch}'" in charge_step["env"]["GH_TOKEN"]
         state.update(source_branch=branch, source_pr=number_by_lane[pr_lane], pr_head=head)
         sender = {"type": "User", "login": "Katsiarynakavaleuskaya", "id": 73}
         event = tmp_path / "dispatch.json"
@@ -4139,3 +4146,1461 @@ def test_caddy_metadata_custody_accepts_only_the_observed_typed_transition(
         with pytest.raises((ValueError, RuntimeError), match=message):
             runtime_surface.validate_caddy_metadata_custody(before, actual, started_id=attempted)
     assert json.dumps([before, actual], sort_keys=True) == snapshot
+
+
+def _repair_subject_fixture() -> tuple[dict[str, str], dict[str, Any]]:
+    from scripts.ci.fetch_docker_source_artifacts import _alertmanager_accepted_producer
+
+    selected = _alertmanager_accepted_producer()
+    return {
+        "source": selected["source"],
+        "q": "43808505545/14199242996",
+        "s": "43810186398/14200227448",
+        "c": f'{selected["run"]}/{selected["artifact"]}',
+        "zip": "sha256:" + selected["zip_sha256"],
+        "manifest": selected["graph"]["manifest"]["digest"],
+    }, selected
+
+
+class _DispatchNativeFixture:
+    """Native response and ZIP fixtures. No network, actual credentials or registered GitHub runs."""
+
+    def __init__(
+        self, pr: dict[str, Any], material: dict[str, str], fault: str | None = None
+    ) -> None:
+        self.pr, self.material, self.fault = pr, material, fault
+        self.repo = {"id": 1043311030, "full_name": runtime_surface.CADDY_REPOSITORY}
+        self.actor = {"id": 169792616, "login": "Katsiarynakavaleuskaya", "type": "User"}
+        self.records: dict[int, tuple[dict[str, Any], dict[str, Any], dict[str, Any], bytes]] = {}
+        self.lists = 0
+        self.live_id = 73
+        self.subject, self.original = _repair_subject_fixture()
+
+    def projection(
+        self,
+        run: int = 73,
+        action: str = "candidate-D",
+        started: str = "2026-01-01T00:00:00Z",
+        producer: int = 73,
+    ) -> dict[str, str]:
+        material = self.material
+        return {
+            **material,
+            "action": action,
+            "input": runtime_surface.publisher_repair_input(material, action),
+            "run": str(run),
+            "job": str(run + 1000),
+            "started": started,
+            "source_horizon": "2099-01-01T00:00:00Z",
+            "expires": runtime_surface._publisher_utc(
+                runtime_surface._publisher_time(started) + runtime_surface._REPAIR_WINDOW
+            ),
+            "producer_run": str(producer),
+        }
+
+    def add(self, projection: dict[str, str], *, active: bool = False) -> None:
+        import io
+        import zipfile
+        from datetime import datetime, timedelta
+
+        r = int(projection["run"])
+        w = projection["callers"]
+        created = projection["started"]
+        action = projection["action"]
+
+        def later(minutes: int) -> str:
+            return (
+                datetime.strptime(created, "%Y-%m-%dT%H:%M:%SZ") + timedelta(minutes=minutes)
+            ).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        steps = []
+
+        def step(name: str, muted: bool = False) -> None:
+            i = len(steps) + 1
+            steps.append(
+                {
+                    "name": name,
+                    "number": i,
+                    "status": "completed",
+                    "conclusion": "skipped" if muted else "success",
+                    "started_at": None if muted else later(i),
+                    "completed_at": None if muted else later(i),
+                }
+            )
+
+        step("Admit existing Caddy producer or exact retained subject")
+        step("Verify delegated publisher repair input", self.fault == "skipped-input")
+        step("Download original retained Caddy candidate", action != "contract")
+        step("Import and bind exact retained Caddy candidate", action != "contract")
+        step("Charge Build source-patched Caddy candidate budget", action != "candidate-D")
+        step("Build source-patched Caddy candidate", action != "candidate-D")
+        step(
+            "Decide source-qualified Caddy inventory and current native controls",
+            self.fault == "skipped-decision",
+        )
+        step("Upload Caddy contract evidence", self.fault == "skipped-upload")
+        step("Verify published repair evidence transport")
+        run = {
+            "id": r,
+            "run_attempt": 1,
+            "head_branch": self.pr["head"]["ref"],
+            "head_sha": w,
+            "workflow_id": 196310935,
+            "path": ".github/workflows/frontend-ci.yml",
+            "event": "workflow_dispatch",
+            "repository": self.repo,
+            "head_repository": self.repo,
+            "actor": self.actor,
+            "triggering_actor": self.actor,
+            "created_at": created,
+            "run_started_at": created,
+            "status": "in_progress" if active else "completed",
+            "conclusion": None if active else "success",
+        }
+        job = {
+            "id": r + 1000,
+            "run_id": r,
+            "run_attempt": 1,
+            "head_sha": w,
+            "head_branch": run["head_branch"],
+            "name": "caddy-contract",
+            "started_at": created,
+            "completed_at": None if active else later(9),
+            "status": run["status"],
+            "conclusion": run["conclusion"],
+            "steps": steps,
+        }
+        bound = dict(projection)
+        if action == "candidate-D":
+            bound.update(producer_run=str(r), producer_head=w)
+        elif not active:
+            old = self.records[int(projection["producer_run"])]
+            bound.update(
+                producer_head=old[0]["head_sha"],
+                producer_artifact=str(old[2]["id"]),
+                producer_digest=old[2]["digest"],
+            )
+        runtime_raw = b'{"fixture":"successful checked runtime"}'
+        strict = b'{"native":"strict report"}'
+        decision = {
+            "current_head": w,
+            "publisher_dispatch": bound,
+            "decision": "source_CVE116587_correction_with_unsuppressed_scan",
+            "CD_release_accepted": False,
+            "runtime_observation_sha256": hashlib.sha256(runtime_raw).hexdigest(),
+            "image": "sha256:" + "1" * 64,
+            "strict_conversion": {"native_exit": 0, "sha256": hashlib.sha256(strict).hexdigest()},
+        }
+        if self.fault == "missing-projection":
+            del decision["publisher_dispatch"]
+        inputs = {"fixture": "exact"}
+        admission = {
+            "mode": "build" if action == "candidate-D" else "reuse",
+            "current_head": w,
+            "current_run_id": r,
+            "current_run_attempt": 1,
+            "source_pr": self.pr["number"],
+            "publisher_repair": {
+                key: v
+                for key, v in bound.items()
+                if key
+                not in ("producer_run", "producer_head", "producer_artifact", "producer_digest")
+            },
+            "inputs": inputs,
+        }
+        if action == "candidate-D":
+            admission["publisher_repair"]["producer_run"] = str(r)
+        if self.fault == "changed-admission":
+            admission["publisher_repair"]["input"] = "replaced technical operand"
+        raw = io.BytesIO()
+        with zipfile.ZipFile(raw, "w", compression=zipfile.ZIP_DEFLATED) as z:
+            decision_raw = json.dumps(decision).encode()
+            z.writestr("source-decision.json", decision_raw)
+            z.writestr("strict-control.raw.json", strict)
+            z.writestr("loaded-runtime/observation.json", runtime_raw)
+            z.writestr(
+                "controls/native-controls.json",
+                json.dumps({"cleanup": self.fault != "cleanup-failed"}),
+            )
+            if action == "candidate-D":
+                tar = b"synthetic test image bytes"
+                manifest = {
+                    "producer_run_id": r,
+                    "producer_run_attempt": 1,
+                    "producer_head": w,
+                    "inputs": inputs,
+                    "image_config_id": decision["image"],
+                    "archive_bytes": len(tar),
+                    "archive_sha256": hashlib.sha256(tar).hexdigest(),
+                    "source_decision_sha256": hashlib.sha256(decision_raw).hexdigest(),
+                }
+                z.writestr("candidate.json", json.dumps(manifest))
+                z.writestr(
+                    "candidate.docker.tar",
+                    tar if self.fault != "wrong-image-bytes" else b"?" * len(tar),
+                )
+            elif not active:
+                prior = {
+                    "run_id": int(bound["producer_run"]),
+                    "head": bound["producer_head"],
+                    "artifact": {
+                        "id": int(bound["producer_artifact"]),
+                        "digest": bound["producer_digest"],
+                    },
+                    "git_inputs": inputs,
+                }
+                admission["producer"] = prior
+                z.writestr("original-producer.json", json.dumps(prior))
+            z.writestr("admission.json", json.dumps(admission))
+        archive = raw.getvalue()
+        artifact = {
+            "id": r + 10000,
+            "name": "caddy-contract-evidence.zip",
+            "created_at": later(8),
+            "expires_at": "2099-01-02T00:00:00Z",
+            "expired": False,
+            "size_in_bytes": len(archive),
+            "digest": "sha256:" + hashlib.sha256(archive).hexdigest(),
+            "workflow_run": {
+                "id": r,
+                "head_sha": w,
+                "repository_id": 1043311030,
+                "head_repository_id": 1043311030,
+            },
+        }
+        self.records[r] = (run, job, artifact, archive)
+
+    def read(self, path: str) -> Any:
+        from copy import deepcopy
+        import re
+
+        if path == f"/pulls/{self.pr['number']}":
+            return deepcopy(self.pr)
+        if path == "/git/ref/heads/" + self.pr["head"]["ref"]:
+            return {
+                "ref": "refs/heads/" + self.pr["head"]["ref"],
+                "object": {"type": "commit", "sha": self.pr["head"]["sha"]},
+            }
+        if path == "/actions/workflows/frontend-ci.yml":
+            return {"id": 196310935, "path": ".github/workflows/frontend-ci.yml"}
+        if path == "/actions/workflows/cd.yml":
+            return {"id": 123, "path": ".github/workflows/cd.yml"}
+        for label, name, job_name in (
+            ("q", "alertmanager-module-qualification", "alertmanager-module-qualification"),
+            ("s", "alertmanager-input-inspection", "alertmanager-input-inspection"),
+            ("c", "alertmanager-candidate", "alertmanager-candidate-build"),
+        ):
+            run, artifact = map(int, self.subject[label].split("/"))
+            rev = self.subject["source"]
+            branch = "codex/dependency-alertmanager-remediation"
+            if path == f"/actions/artifacts/{artifact}":
+                return {
+                    "id": artifact,
+                    "name": f"{name}-{run}-1",
+                    "expired": False,
+                    "expires_at": "2099-01-01T00:00:00Z",
+                    "digest": (
+                        self.subject["zip"]
+                        if label == "c" and self.fault != "wrong-original-C"
+                        else "sha256:" + "f" * 64
+                    ),
+                    "workflow_run": {
+                        "id": run,
+                        "head_sha": (
+                            "f" * 40
+                            if (label, self.fault)
+                            in (("q", "wrong-original-Q"), ("s", "wrong-original-S"))
+                            else rev
+                        ),
+                        "head_branch": branch,
+                        "repository_id": 1043311030,
+                        "head_repository_id": 1043311030,
+                    },
+                }
+            attempt = f"/actions/runs/{run}/attempts/1"
+            if path == attempt:
+                return {
+                    "id": run,
+                    "event": "workflow_dispatch",
+                    "run_attempt": 1,
+                    "head_sha": rev,
+                    "head_branch": branch,
+                    "workflow_id": 123,
+                    "path": ".github/workflows/cd.yml",
+                    "repository": self.repo,
+                    "head_repository": self.repo,
+                    "status": "completed",
+                    "conclusion": "success",
+                }
+            if path == attempt + "/jobs?per_page=100&page=1":
+                return {
+                    "total_count": 1,
+                    "jobs": [
+                        {
+                            "id": self.original["job"] if label == "c" else run,
+                            "run_id": run,
+                            "run_attempt": 1,
+                            "head_sha": rev,
+                            "name": job_name,
+                            "status": "completed",
+                            "conclusion": "success",
+                        }
+                    ],
+                }
+        if path.startswith("/actions/workflows/frontend-ci.yml/runs?"):
+            self.lists += 1
+            head = re.search(r"head_sha=([0-9a-f]{40})", path).group(1)
+            runs = [v[0] for v in self.records.values() if v[0]["head_sha"] == head]
+            if self.fault == "list-drift" and self.lists % 2 == 0:
+                runs = []
+            listed = deepcopy(runs)
+            if self.fault in (
+                "first-wins-rerun",
+                "first-wins-in-progress",
+                "failed-first",
+                "replacement-zip",
+            ):
+                for row in listed:
+                    row.update(
+                        run_attempt=2,
+                        status=(
+                            "in_progress" if self.fault == "first-wins-in-progress" else "completed"
+                        ),
+                        conclusion=(
+                            None
+                            if self.fault == "first-wins-in-progress"
+                            else "success" if self.fault == "failed-first" else "failure"
+                        ),
+                        triggering_actor={"id": 19, "login": "subsequent", "type": "User"},
+                    )
+            return {"total_count": len(listed), "workflow_runs": listed}
+        for r, (run, job, artifact, raw) in self.records.items():
+            if path == f"/actions/runs/{r}":
+                return deepcopy(run)
+            if path == f"/actions/runs/{r}/attempts/1":
+                if self.fault == "failed-first":
+                    return {**run, "status": "completed", "conclusion": "failure"}
+                return None if self.fault == "missing-attempt" else deepcopy(run)
+            if path == f"/actions/runs/{r}/attempts/1/jobs?per_page=100&page=1":
+                native_job = deepcopy(job)
+                if self.fault == "missing-job-attempt":
+                    del native_job["run_attempt"]
+                return {"total_count": 1, "jobs": [native_job]}
+            if path == f"/actions/runs/{r}/artifacts?per_page=100&page=1":
+                artifacts = [] if self.fault == "missing-artifact" else [deepcopy(artifact)]
+                if self.fault == "replacement-zip":
+                    artifacts[0].update(id=27, created_at="2026-02-01T00:00:00Z")
+                if self.fault == "short-retention":
+                    artifacts[0]["expires_at"] = "2098-12-31T23:59:59.999999Z"
+                return {"total_count": len(artifacts), "artifacts": artifacts}
+            if path == f"/actions/artifacts/{artifact['id']}":
+                return deepcopy(artifact)
+            if path == f"/actions/artifacts/{artifact['id']}/zip":
+                return raw + b"stale" if self.fault == "wrong-archive" else raw
+        raise KeyError(path)
+
+
+@pytest.mark.parametrize(
+    "fault,diagnostic",
+    [
+        (None, None),
+        ("main-advanced", "publisher_repair_live_base"),
+        ("reused-branch", None),
+        ("two-open-PRs", "Caddy transition PR lookup is ambiguous"),
+        ("closed-only", "Caddy observation requires one exact accepted PR or main merge"),
+        ("closed-open-response", "Caddy corrective PR listing changed"),
+        ("stale-listed-PR", "Caddy corrective PR listing changed"),
+        ("wrong-sender", "publisher_repair_actual_dispatch_input"),
+        ("wrong-input", "publisher_repair_actual_dispatch_input"),
+        ("wrong-trigger", "publisher_repair_live_native_dispatch"),
+        ("wrong-archive", "publisher_repair_native_artifact_bytes"),
+        ("missing-artifact", "publisher_repair_missing_native_artifact"),
+        ("missing-projection", "publisher_repair_missing_checked_input_record"),
+        ("wrong-image-bytes", "publisher_repair_retained_build_bytes"),
+        ("cleanup-failed", "publisher_repair_retained_native_decision"),
+        ("changed-admission", "publisher_repair_archived_admission_differs"),
+        ("skipped-decision", "publisher_repair_positive_native_step"),
+        ("skipped-upload", "publisher_repair_positive_native_step"),
+        ("skipped-input", None),
+        ("missing-attempt", "publisher_repair_missing_native_attempt"),
+        ("missing-job-attempt", "publisher_repair_attempt_job_identity"),
+        ("list-drift", "declared_data_"),
+        ("competing", "publisher_repair_competing_dispatches"),
+        ("wrong-subject", "publisher_repair_terminal_subject_or_input"),
+        ("stale-only", None),
+        ("legitimate-renewal", None),
+        ("prior-W-exact-inputs", None),
+        ("expired", None),
+        ("late-original-import", None),
+        ("first-wins-rerun", None),
+        ("first-wins-in-progress", None),
+        ("failed-first", None),
+        ("replacement-zip", "publisher_repair_missing_native_artifact"),
+        ("short-retention", "publisher_repair_evidence_lifetime"),
+        ("second-build", "publisher_repair_duplicate_spent_build"),
+    ],
+)
+def test_delegated_caddy_dispatch_live_and_terminal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str | None, diagnostic: str | None
+) -> None:
+    from datetime import datetime, timezone
+    from scripts.ci.prometheus_source_image import QualificationError
+
+    subject, _ = _repair_subject_fixture()
+    b, k, w = "1" * 40, "2" * 40, "3" * 40
+    material = {"pr": "81", "base": b, "controller": k, "callers": w, **subject}
+    repo = {"id": 1043311030, "full_name": runtime_surface.CADDY_REPOSITORY}
+    pr = {
+        "number": 81,
+        "created_at": "2025-12-31T00:00:00Z",
+        "state": "open",
+        "merged": False,
+        "head": {"sha": w, "ref": "repair/selected", "repo": repo},
+        "base": {"sha": b, "ref": "main", "repo": repo},
+    }
+    api = _DispatchNativeFixture(pr, material)
+    projection = api.projection()
+    api.add(projection, active=True)
+    for key, val in {
+        "GITHUB_RUN_ID": "73",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "GITHUB_WORKFLOW_SHA": w,
+        "GITHUB_SHA": w,
+        "GITHUB_JOB": "caddy-contract",
+        "GITHUB_EVENT_NAME": "workflow_dispatch",
+        "GITHUB_REPOSITORY_ID": "1043311030",
+        "GITHUB_ACTOR_ID": "169792616",
+        "GITHUB_ACTOR": "Katsiarynakavaleuskaya",
+        "GITHUB_REF": "refs/heads/repair/selected",
+        "GITHUB_WORKFLOW_REF": runtime_surface.CADDY_REPOSITORY
+        + "/.github/workflows/frontend-ci.yml@refs/heads/repair/selected",
+    }.items():
+        monkeypatch.setenv(key, val)
+    event_path = tmp_path / "event.json"
+
+    def event(proj: dict[str, str]) -> None:
+        event_path.write_text(
+            json.dumps(
+                {
+                    "repository": api.repo,
+                    "ref": "repair/selected",
+                    "inputs": {
+                        "caddy_action": proj["action"],
+                        "caddy_source_sha": proj["input"] if fault != "wrong-input" else w,
+                    },
+                    "sender": {**api.actor, "id": 1} if fault == "wrong-sender" else api.actor,
+                }
+            )
+        )
+
+    event(projection)
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event_path))
+    main_reads = 0
+    looked_up = False
+
+    def read(path: str) -> Any:
+        nonlocal main_reads, looked_up
+        if path == f"/commits/{w}?per_page=100&page=1":
+            return {
+                "sha": w,
+                "parents": [{"sha": k}],
+                "files": [
+                    {"filename": f".github/workflows/{name}.yml", "status": "modified"}
+                    for name in ("ci", "cd")
+                ],
+            }
+        if path == "/git/ref/heads/main":
+            main_reads += 1
+            sha = "f" * 40 if main_reads > 1 and fault == "main-advanced" else b
+            return {"ref": "refs/heads/main", "object": {"type": "commit", "sha": sha}}
+        query = "&head=Katsiarynakavaleuskaya%3Arepair%2Fselected&base=main&per_page=2"
+        if path in ("/pulls?state=open" + query, "/pulls?state=all" + query):
+            looked_up = True
+            rows = [pr]
+            if fault == "stale-listed-PR":
+                return [{**pr, "head": {**pr["head"], "sha": "e" * 40}}]
+            if fault == "closed-open-response":
+                return [{**pr, "state": "closed"}]
+            closed = {**pr, "number": 79, "state": "closed"}
+            if fault == "reused-branch":
+                rows.insert(0, closed)
+            elif fault == "two-open-PRs":
+                rows.append({**pr, "number": 80})
+            elif fault == "closed-only":
+                rows = [closed]
+            return [
+                row for row in rows if row["state"] == "open" or path.startswith("/pulls?state=all")
+            ]
+        return api.read(path)
+
+    monkeypatch.setattr(runtime_surface, "_publisher_repair_material", lambda *a: None)
+
+    def accepted_source(
+        _read: Any, _b: str, _k: str, _w: str, horizons: list[datetime]
+    ) -> dict[str, str]:
+        horizons.extend([runtime_surface._publisher_time("2099-01-01T00:00:00Z")] * 3)
+        return subject
+
+    monkeypatch.setattr(runtime_surface, "_publisher_input_source", accepted_source)
+    clock_day = 1
+
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz: Any = None) -> datetime:
+            return datetime(
+                2026,
+                1,
+                clock_day,
+                3,
+                tzinfo=timezone.utc,
+            )
+
+    monkeypatch.setattr(runtime_surface, "datetime", Clock)
+
+    def exercise() -> None:
+        nonlocal clock_day
+        if fault == "wrong-trigger":
+            api.records[73][0]["triggering_actor"] = {**api.actor, "id": 3}
+        live = runtime_surface.publisher_repair_dispatch(read, pr, current_event=True)
+        if fault == "main-advanced":
+            return  # Only the first live admission may satisfy this rejection check.
+        assert live == projection
+        if fault in (
+            None,
+            "stale-listed-PR",
+            "reused-branch",
+            "two-open-PRs",
+            "closed-only",
+            "closed-open-response",
+        ):
+            actual = runtime_surface.caddy_bound_pr(read, w)
+            assert looked_up and actual == {**pr, "publisher_repair": live}
+        state = {"source_pr": 81, "current_head": w, "publisher_repair": live, "mode": "build"}
+        assert runtime_surface.verify_caddy_dispatch_projection(state) == {
+            **projection,
+            "producer_head": w,
+        }
+        if fault in (
+            "legitimate-renewal",
+            "prior-W-exact-inputs",
+            "expired",
+            "second-build",
+            "late-original-import",
+        ):
+            clock_day = 3
+        api.fault = fault
+        if fault == "wrong-subject":
+            projection["manifest"] = "sha256:" + "f" * 64
+        if fault in ("stale-only", "prior-W-exact-inputs"):
+            projection["callers"] = "4" * 40
+        api.add(projection)
+        if fault == "late-original-import":
+            api.records[73][1]["completed_at"] = "2026-01-02T01:00:00Z"
+        if fault == "competing":
+            other = api.projection(
+                74, action="contract", started="2026-01-01T01:00:00Z", producer=73
+            )
+            other["manifest"] = "sha256:" + "f" * 64
+            api.add(other)
+        if fault in (
+            "legitimate-renewal",
+            "prior-W-exact-inputs",
+            "second-build",
+            "late-original-import",
+        ):
+            action = "candidate-D" if fault == "second-build" else "contract"
+            renewal = api.projection(74, action=action, started="2026-01-03T00:00:00Z")
+            api.add(renewal, active=True)
+            event(renewal)
+            monkeypatch.setenv("GITHUB_RUN_ID", "74")
+            result = runtime_surface.publisher_repair_dispatch(read, pr, current_event=True)
+            assert result == {key: value for key, value in renewal.items() if key != "producer_run"}
+            original_run, _, artifact, _ = api.records[73]
+            bound = runtime_surface.verify_caddy_dispatch_projection(
+                {
+                    **state,
+                    "publisher_repair": result,
+                    "mode": "reuse",
+                    "inputs": {"fixture": "exact"},
+                    "producer": {
+                        "run_id": 73,
+                        "run_attempt": 1,
+                        "head": original_run["head_sha"],
+                        "artifact": artifact,
+                        "git_inputs": {"fixture": "exact"},
+                    },
+                }
+            )
+            assert (
+                bound["producer_run"] == "73" and bound["producer_head"] == original_run["head_sha"]
+            )
+            api.add(bound)
+        terminal = runtime_surface.publisher_repair_dispatch(read, pr)
+        if fault in ("skipped-input", "stale-only", "expired", "failed-first"):
+            assert terminal is None
+        else:
+            assert terminal is not None and terminal["producer_run"] == "73"
+            assert terminal["run"] == (
+                "74"
+                if fault in ("legitimate-renewal", "prior-W-exact-inputs", "late-original-import")
+                else "73"
+            )
+
+    if diagnostic:
+        with pytest.raises((QualificationError, ValueError), match=diagnostic):
+            exercise()
+        if fault == "main-advanced":
+            assert main_reads == 2 and pr["base"]["sha"] == b and api.lists == 2
+        if fault in ("stale-listed-PR", "two-open-PRs", "closed-only", "closed-open-response"):
+            assert looked_up
+    else:
+        exercise()
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "unrelated-removal",
+        "single-wrapper",
+        "changed-verification",
+        "extra-wrapper-edit",
+        "wrong-old-pin",
+    ],
+)
+def test_native_baseline_prunes_only_two_authenticated_public_pins(fault: str | None) -> None:
+    import base64
+    from copy import deepcopy
+    from typing import Any
+    from scripts.ci.prometheus_source_image import QualificationError
+
+    objects: dict[str, bytes] = {}
+
+    def blob(raw: bytes) -> str:
+        oid = hashlib.sha1(
+            b"blob " + str(len(raw)).encode() + b"\0" + raw, usedforsecurity=False
+        ).hexdigest()
+        objects[oid] = raw
+        return oid
+
+    def read(path: str) -> dict[str, Any]:
+        oid = path.rsplit("/", 1)[1]
+        raw = objects[oid]
+        return {
+            "sha": oid,
+            "size": len(raw),
+            "encoding": "base64",
+            "content": base64.b64encode(raw).decode(),
+        }
+
+    helper = "scripts/ci/fetch_docker_source_artifacts.py"
+    old, new = b"original test helper", b"reviewed test helper"
+    changed = {helper: (blob(old), blob(new))}
+    old_digest, new_digest = hashlib.sha256(old).hexdigest(), hashlib.sha256(new).hexdigest()
+    fingerprint = hashlib.sha1(old_digest.encode(), usedforsecurity=False).hexdigest()
+    baseline: dict[str, Any] = {
+        "version": "synthetic",
+        "generated_at": "2026-01-01T00:00:00Z",
+        "results": {},
+    }
+    target = deepcopy(baseline)
+    for path in ("scripts/deploy.sh", "scripts/deploy_production.sh"):
+        before = f'ALERTMANAGER_CONTRACT_HELPER_SHA256="{old_digest}"\n'.encode()
+        after = f'ALERTMANAGER_CONTRACT_HELPER_SHA256="{new_digest}"  # pragma: allowlist secret - public AM helper SHA-256\n'.encode()
+        if fault == "extra-wrapper-edit":
+            after += b"echo unrelated\n"
+        if fault == "wrong-old-pin":
+            before = before.replace(old_digest.encode(), new_digest.encode())
+        changed[path] = (blob(before), blob(after))
+        retired = {
+            "filename": path,
+            "type": "Hex High Entropy String",
+            "hashed_secret": fingerprint,
+            "is_verified": False,
+            "line_number": 1,
+        }
+        unrelated = {
+            **retired,
+            "hashed_secret": hashlib.sha256(b"unrelated synthetic finding").hexdigest(),
+            "line_number": 2,
+        }
+        baseline["results"][path] = [retired, unrelated]
+        target["results"][path] = [deepcopy(unrelated)]
+        if fault == "single-wrapper" and path == "scripts/deploy.sh":
+            target["results"][path].append(deepcopy(retired))
+        if fault == "changed-verification":
+            target["results"][path][0]["is_verified"] = True
+        if fault == "unrelated-removal":
+            target["results"][path].clear()
+    changed[".secrets.baseline"] = (
+        blob(json.dumps(baseline).encode()),
+        blob(json.dumps(target).encode()),
+    )
+    if fault is None:
+        runtime_surface._publisher_baseline_change(read, changed)
+    else:
+        with pytest.raises(
+            QualificationError, match="publisher_repair_baseline_finding_or_policy_changed"
+        ):
+            runtime_surface._publisher_baseline_change(read, changed)
+
+
+@pytest.mark.parametrize(
+    "fault,diagnostic",
+    [
+        (None, None),
+        ("old-event", "publisher_repair_original_event_after_dispatch"),
+        ("wrong-source", "publisher_repair_original_event_after_dispatch"),
+        ("queued", None),
+        ("attempt-queued", None),
+        ("original-queued", None),
+        ("queued-CD", None),
+        ("queued-Caddy-final", None),
+        *(
+            (case, "publisher_repair_actual_job_after_dispatch")
+            for case in (
+                "terminal-parent",
+                "unknown-parent",
+                "concluded-original",
+                "missing-conclusion",
+                "superseded-attempt",
+                "missing-job",
+                "queued-job",
+                "failed-job",
+                "unknown-job",
+                "closed-job",
+                "job-conclusion",
+                "job-no-start",
+                "job-other-branch",
+                "no-steps",
+                "wrong-active-step",
+                "two-active",
+                "duplicated-step",
+                "queued-step",
+                "step-before-job",
+                "step-at-expiry",
+                "skipped-step",
+                "step-finished",
+                "step-no-start",
+                "bool-step-number",
+                "untrusted-status",
+            )
+        ),
+        ("expired-job", "publisher_repair_actual_job_after_dispatch"),
+        ("missing-job-attempt", "publisher_repair_attempt_job_identity"),
+    ],
+)
+def test_am_pr_read_starts_after_terminal_delegated_dispatch(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fault: str | None,
+    diagnostic: str | None,
+) -> None:
+    from scripts.ci.prometheus_source_image import QualificationError
+
+    w = "9" * 40
+    repo = {"id": 1043311030}
+    receipt = {
+        "created": "2026-01-01T00:09:00Z",
+        "expires": "2026-01-02T00:00:00Z",
+        "base": "1" * 40,
+    }
+    workflow, job_name = {
+        "queued-CD": ("cd.yml", "prometheus-image-security-pr"),
+        "queued-Caddy-final": ("frontend-ci.yml", "caddy-contract"),
+    }.get(fault or "", ("ci.yml", "lint"))
+    step_name = (
+        "Decide source-qualified Caddy inventory and current native controls"
+        if job_name == "caddy-contract"
+        else "Prepare exact AM subject before material execution"
+    )
+    run = {
+        "id": 22,
+        "run_attempt": 2,
+        "workflow_id": 12,
+        "path": ".github/workflows/" + workflow,
+        "event": "pull_request",
+        "head_sha": w,
+        "head_branch": "fixture/authorized-repair",
+        "repository": repo,
+        "head_repository": repo,
+        "status": (
+            "in_progress"
+            if fault
+            in (
+                None,
+                "original-queued",
+                "old-event",
+                "wrong-source",
+                "expired-job",
+                "missing-job-attempt",
+            )
+            else "queued"
+        ),
+        "conclusion": None,
+        "run_started_at": "2026-01-01T01:00:00Z",
+    }
+    event = {
+        **run,
+        "created_at": "2026-01-01T00:08:59Z" if fault == "old-event" else "2026-01-01T00:30:00Z",
+    }
+    if fault == "wrong-source":
+        event["head_sha"] = "0" * 40
+    job = {
+        "id": 32,
+        "name": job_name,
+        "head_branch": run["head_branch"],
+        "conclusion": None,
+        "completed_at": None,
+        "steps": [
+            {
+                "number": 8,
+                "name": step_name,
+                "status": "in_progress",
+                "conclusion": None,
+                "started_at": "2026-01-01T01:00:07Z",
+                "completed_at": None,
+            }
+        ],
+        "head_sha": w,
+        "run_id": 22,
+        "run_attempt": 2,
+        "status": "in_progress",
+        "started_at": "2026-01-02T00:00:00Z" if fault == "expired-job" else "2026-01-01T01:00:05Z",
+    }
+    if fault == "missing-job-attempt":
+        del job["run_attempt"]
+    if fault == "original-queued":
+        event["status"] = "queued"
+    if fault == "attempt-queued":
+        event["status"] = "in_progress"
+    if fault == "terminal-parent":
+        run["status"], run["conclusion"] = "completed", "cancelled"
+    if fault == "unknown-parent":
+        event["status"] = "requested"
+    if fault == "concluded-original":
+        event["conclusion"] = "failure"
+    if fault == "missing-conclusion":
+        del run["conclusion"]
+    if fault == "superseded-attempt":
+        event["run_attempt"] = 3
+    job.update(
+        {
+            "queued-job": {"status": "queued"},
+            "failed-job": {"status": "completed", "conclusion": "failure"},
+            "unknown-job": {"status": "requested"},
+            "closed-job": {"completed_at": run["run_started_at"]},
+            "job-conclusion": {"conclusion": "cancelled"},
+            "job-no-start": {"started_at": None},
+            "job-other-branch": {"head_branch": "unrelated/topic"},
+            "untrusted-status": {"status": "PRIVATE-UNTRUSTED"},
+        }.get(fault or "", {})
+    )
+    step = job["steps"][0]
+    step.update(
+        {
+            "wrong-active-step": {"name": "unrelated step"},
+            "queued-step": {"status": "queued"},
+            "step-before-job": {"started_at": "2026-01-01T00:59:59Z"},
+            "step-at-expiry": {"started_at": receipt["expires"]},
+            "skipped-step": {"conclusion": "skipped"},
+            "step-finished": {"completed_at": step["started_at"]},
+            "step-no-start": {"started_at": None},
+            "bool-step-number": {"number": True},
+        }.get(fault or "", {})
+    )
+    if fault == "two-active":
+        job["steps"].append({**step, "number": 9, "name": "different active step"})
+    if fault == "duplicated-step":
+        job["steps"].append({**step, "number": 9, "status": "queued"})
+    if fault == "no-steps":
+        del job["steps"]
+    for key, value in {
+        "GITHUB_RUN_ID": "22",
+        "GITHUB_RUN_ATTEMPT": "2",
+        "GITHUB_JOB": job_name,
+        "GITHUB_REPOSITORY_ID": "1043311030",
+        "GITHUB_WORKFLOW_SHA": w,
+        "GITHUB_EVENT_NAME": "pull_request",
+        "GITHUB_REF": "refs/pull/81/merge",
+        "GITHUB_WORKFLOW_REF": runtime_surface.CADDY_REPOSITORY
+        + "/.github/workflows/"
+        + workflow
+        + "@refs/pull/81/merge",
+    }.items():
+        monkeypatch.setenv(key, value)
+
+    def read(path: str) -> Any:
+        return {
+            "/actions/runs/22/attempts/2": run,
+            "/actions/runs/22": event,
+            "/actions/workflows/" + workflow: {"id": 12, "path": ".github/workflows/" + workflow},
+            "/actions/runs/22/attempts/2/jobs?per_page=100&page=1": {
+                "total_count": 0 if fault == "missing-job" else 1,
+                "jobs": [] if fault == "missing-job" else [job],
+            },
+        }[path]
+
+    def verify() -> None:
+        if job_name == "caddy-contract":
+            runtime_surface.publisher_repair_run(
+                read, receipt, w, workflow, job_name, current_step=step_name
+            )
+        else:
+            runtime_surface.publisher_repair_run(read, receipt, w, workflow, job_name)
+
+    if diagnostic:
+        with pytest.raises(QualificationError, match="^" + diagnostic + "$"):
+            verify()
+        if diagnostic == "publisher_repair_actual_job_after_dispatch":
+            log = capsys.readouterr().err
+            assert "PRIVATE-UNTRUSTED" not in log
+            flags = json.loads(log.removeprefix("Publisher repair current job rejected "))
+            assert (flags["run"], flags["attempt"], flags["job_id"]) == (
+                22,
+                2,
+                None if fault == "missing-job" else 32,
+            )
+            assert all(
+                type(value) is bool
+                for key, value in flags.items()
+                if key not in {"run", "attempt", "job_id"}
+            )
+    else:
+        verify()
+
+
+def test_repair_native_wire_precision_and_fixed_dispatch_vector() -> None:
+    from datetime import datetime, timezone
+    from scripts.ci.prometheus_source_image import QualificationError
+
+    timestamp = runtime_surface._publisher_time
+    assert timestamp("2020-01-20T09:42:40.000-08:00") == datetime(
+        2020, 1, 20, 17, 42, 40, tzinfo=timezone.utc
+    )
+    assert timestamp("2026-01-01T03:00:00.000001+03:00") > timestamp("2026-01-01T00:00:00Z")
+    assert timestamp("2026-01-01T00:00:00.999999Z") < timestamp("2026-01-01T01:00:01+01:00")
+    for invalid in (
+        "2026-01-01T00:00:00",
+        "2026-01-01T00:00:00-00:00",
+        "2026-02-30T00:00:00Z",
+        "2026-01-01T00:00:00.0000009Z",
+        "2026-01-01T00:00:00+02:60",
+    ):
+        with pytest.raises(
+            (ValueError, QualificationError), match="publisher_repair_native_timestamp"
+        ):
+            timestamp(invalid)
+    # Independently recorded public coordinates and exact operand of GitHub dispatch 44938910620.
+    material = {
+        "pr": "2503",
+        "base": "b96c7f66767d314e2952ea8180a7a3b499c16fce",  # pragma: allowlist secret - public Git commit
+        "controller": "47dcc127c37e825fce3df5d188d684c560062324",  # pragma: allowlist secret - public Git commit
+        "callers": "3146f3ef72ba8cd9f2a8a7974665a6cc21ed0f4e",  # pragma: allowlist secret - public Git commit
+        "source": "e91033b4528a83782de3e7dc1e73e6def398348a",  # pragma: allowlist secret - public Git commit
+        "q": "43808505545/14199242996",
+        "s": "43810186398/14200227448",
+        "c": "43811981051/14202207192",
+        "zip": "sha256:4d0a39d1d1a94d5ef16ee57036366e36f1a5782e5e430222055eb57b2ce56dbf",
+        "manifest": "sha256:873bc6cfae14edcf9f2acf2d81f9863f98ee8f78623125a7e02642a66e3bbe27",
+    }
+    fixed = (
+        "repair-v1:3146f3ef72ba8cd9f2a8a7974665a6cc21ed0f4e:"
+        "d26b25e741692d042271af53f3300ecd458bfd98282b5931871bf0b46b9bb260"  # pragma: allowlist secret - public dispatch SHA-256
+    )
+    assert runtime_surface.publisher_repair_input(material, "candidate-D") == fixed
+    assert (
+        runtime_surface.publisher_repair_input(
+            {**material, "zip": "sha256:" + "0" * 64}, "candidate-D"
+        )
+        != fixed
+    )
+
+
+@pytest.mark.parametrize(
+    "fault,queries",
+    [
+        (None, 4),
+        ("forward", 6),
+        ("time-only", 6),
+        ("repeated", 6),
+        ("backward", 4),
+        ("new-terminal", 4),
+        ("changed-field", 4),
+        ("reordered", 4),
+        ("missing-time", 4),
+        ("jobs", 4),
+    ],
+)
+def test_caddy_complete_two_page_workflow_lifecycle_evidence(
+    fault: str | None, queries: int
+) -> None:
+    from copy import deepcopy
+
+    path = (
+        runtime_surface.CADDY_RUN_HISTORY_PATH
+        if fault != "jobs"
+        else "/actions/runs/1/jobs?filter=all"
+    )
+    key = "jobs" if fault == "jobs" else "workflow_runs"
+    initial = [
+        {
+            "id": i + 1,
+            "head_sha": "1" * 40,
+            "run_attempt": 1,
+            "updated_at": "2026-01-01T00:00:00Z",
+            "conclusion": None,
+            "status": "queued",
+        }
+        for i in range(145)
+    ]
+    second = deepcopy(initial)
+    if fault:
+        second[115].update(status="in_progress", updated_at="2026-01-01T01:00:00.001+01:00")
+    if fault == "time-only":
+        second[115]["status"] = "queued"
+    elif fault == "backward":
+        initial[115]["status"] = "completed"
+        initial[115]["conclusion"] = "success"
+    elif fault == "new-terminal":
+        initial[115].update(status="completed", conclusion="success")
+        second[115].update(status="completed", conclusion="failure")
+    elif fault == "changed-field":
+        second[115]["head_sha"] = "2" * 40
+    elif fault == "reordered":
+        second[115], second[116] = second[116], second[115]
+    elif fault == "missing-time":
+        del second[115]["updated_at"]
+    third = deepcopy(second)
+    if fault == "repeated":
+        third[115].update(status="completed", conclusion="success")
+    reads = []
+
+    def read(endpoint: str) -> dict[str, Any]:
+        observation = len(reads) // 2
+        page = len(reads) % 2 + 1
+        assert endpoint == f"{path}&per_page=100&page={page}"
+        reads.append(endpoint)
+        return {
+            "total_count": 145,
+            key: deepcopy((initial, second, third)[observation][(page - 1) * 100 : page * 100]),
+        }
+
+    if fault in (None, "forward", "time-only"):
+        assert runtime_surface.caddy_stable_pages(read, path, key, lambda _: 1) == second
+    else:
+        with pytest.raises(ValueError, match="Caddy API same-count inventory replacement"):
+            runtime_surface.caddy_stable_pages(read, path, key, lambda _: 1)
+    assert len(reads) == queries
+
+
+@pytest.mark.parametrize(
+    ("window_slack", "job_slack", "source_slack", "eligible"),
+    [
+        (1, 0, 60, True),
+        (0, 0, 60, False),
+        (-1, 0, 60, False),
+        (1, -1, 60, False),
+        (-479, -479, 60, False),
+        (60, 0, 1, True),
+        (60, 0, 0, False),
+        (60, 0, -1, False),
+        (60, 0, -11040, False),
+    ],
+)
+def test_prebuild_covers_usable_output_before_absolute_expiry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    window_slack: int,
+    job_slack: int,
+    source_slack: int,
+    eligible: bool,
+) -> None:
+    from datetime import datetime, timedelta, timezone
+
+    import yaml
+    from tests.test_caddy_deploy_provenance import _caddy_budget_fixture
+    from scripts.ci.prometheus_source_image import QualificationError
+
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz: Any = None) -> datetime:
+            return datetime(2026, 1, 2, tzinfo=timezone.utc)
+
+    workflow_path = Path(__file__).resolve().parents[1] / ".github/workflows/frontend-ci.yml"
+    job = yaml.safe_load(workflow_path.read_bytes())["jobs"]["caddy-contract"]
+    caps = {
+        key.removeprefix("CADDY_PHASE_"): int(value)
+        for key, value in job["env"].items()
+        if key.startswith("CADDY_PHASE_")
+    }
+    build_idx = next(
+        i
+        for i, step in enumerate(job["steps"])
+        if step["name"] == "Build source-patched Caddy candidate"
+    )
+    after_build = "\n".join(step.get("run", "") for step in job["steps"][build_idx + 1 :])
+    for phase in ("SOURCE16", "FINAL_SUBJECT"):
+        assert f'caddy_ci_phase("{phase}")' in after_build
+
+    finished = {
+        "SETUP",
+        "COMPILER_BOOTSTRAP",
+        "COMPILER_WORK",
+        "COMPILER_CLEANUP",
+        "METADATA_UPLOAD",
+    }
+    assert finished <= caps.keys()
+    required = sum(value for phase, value in caps.items() if phase not in finished)
+    clock_now = 20000.0
+    monkeypatch.setattr(runtime_surface, "datetime", Clock)
+    monkeypatch.setattr(runtime_surface.time, "monotonic", lambda: clock_now)
+    for phase, cap in caps.items():
+        monkeypatch.setenv("CADDY_PHASE_" + phase, str(cap))
+    monkeypatch.setenv("GITHUB_RETENTION_DAYS", "90")
+    expiry = Clock.now() + timedelta(seconds=required + window_slack)
+    source_horizon = Clock.now() + timedelta(seconds=required + source_slack)
+    state = _caddy_budget_fixture(tmp_path, monkeypatch)
+    state["mode"] = "build"
+    state["publisher_repair"] = {
+        "started": runtime_surface._publisher_utc(expiry - timedelta(days=1)),
+        "expires": runtime_surface._publisher_utc(expiry),
+        "source_horizon": runtime_surface._publisher_utc(source_horizon),
+    }
+    state["budget"].update(
+        started=clock_now - (sum(caps.values()) - required - job_slack),
+        charged={phase: caps[phase] if phase in finished else 0 for phase in caps},
+    )
+    ledger = tmp_path / "caddy-admission/admission.json"
+    ledger.write_text(json.dumps(state))
+    if eligible:
+        assert runtime_surface.caddy_ci_charge_action("BUILD") == caps["BUILD"]
+    else:
+        with pytest.raises(QualificationError, match="^publisher_repair_build_usable_window$"):
+            runtime_surface.caddy_ci_charge_action("BUILD")
+    budget = json.loads(ledger.read_bytes())["budget"]
+    assert budget["charged"]["BUILD"] == (caps["BUILD"] if eligible else 0)
+    assert ("BUILD" in budget["action_deadlines"]) is eligible
+
+
+@pytest.mark.parametrize(
+    ("requested", "native", "horizon", "diagnostic"),
+    [
+        ("90", "7", (20, 0), "publisher_repair_retention_horizon"),
+        ("7", "90", (20, 0), "publisher_repair_retention_horizon"),
+        ("90", "7", (7, 0), None),
+        ("90", "7", (7, 1), "publisher_repair_retention_horizon"),
+        ("90", "90", (20, 0), None),
+        ("90", None, (20, 0), "publisher_repair_retention_days"),
+        ("90", "0", (20, 0), "publisher_repair_retention_days"),
+    ],
+)
+def test_caddy_repair_build_checks_run_native_retention_before_debit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    requested: str,
+    native: str | None,
+    horizon: tuple[int, int],
+    diagnostic: str | None,
+) -> None:
+    from datetime import datetime, timedelta, timezone
+    from scripts.ci.prometheus_source_image import QualificationError
+    from tests.test_caddy_deploy_provenance import _caddy_budget_fixture
+
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz: Any = None) -> datetime:
+            return datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+    monkeypatch.setattr(runtime_surface, "datetime", Clock)
+    monkeypatch.setattr(runtime_surface.time, "monotonic", lambda: 20000.0)
+    state = _caddy_budget_fixture(tmp_path, monkeypatch)
+    state.update(
+        mode="build",
+        publisher_repair={
+            "started": runtime_surface._publisher_utc(Clock.now()),
+            "expires": runtime_surface._publisher_utc(Clock.now() + timedelta(days=1)),
+            "source_horizon": runtime_surface._publisher_utc(
+                Clock.now() + timedelta(days=horizon[0], microseconds=horizon[1])
+            ),
+        },
+    )
+    ledger = tmp_path / "caddy-admission/admission.json"
+    ledger.write_text(json.dumps(state))
+    monkeypatch.setenv("CADDY_REPAIR_RETENTION_DAYS", requested)
+    if native is None:
+        monkeypatch.delenv("GITHUB_RETENTION_DAYS", raising=False)
+    else:
+        monkeypatch.setenv("GITHUB_RETENTION_DAYS", native)
+    if diagnostic is None:
+        assert runtime_surface.caddy_ci_charge_action("BUILD") == 1800
+    else:
+        with pytest.raises(QualificationError, match=f"^{diagnostic}$"):
+            runtime_surface.caddy_ci_charge_action("BUILD")
+    budget = json.loads(ledger.read_bytes())["budget"]
+    assert budget["charged"]["BUILD"] == (1800 if diagnostic is None else 0)
+    assert ("BUILD" in budget["action_deadlines"]) is (diagnostic is None)
+
+
+@pytest.mark.parametrize(
+    "remaining,eligible", [(555, False), (600, False), (659, False), (660, True), (870, True)]
+)
+def test_caddy_upload_retains_actual_verification_slice(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, remaining: float, eligible: bool
+) -> None:
+    import os
+    from tests.test_caddy_deploy_provenance import _caddy_budget_fixture
+
+    now = 20000.0
+    monkeypatch.setattr(runtime_surface.time, "monotonic", lambda: now)
+    state = _caddy_budget_fixture(tmp_path, monkeypatch)
+    caps = {
+        key.removeprefix("CADDY_PHASE_"): int(value)
+        for key, value in os.environ.items()
+        if key.startswith("CADDY_PHASE_")
+    }
+    state["budget"].update(
+        started=now + remaining - sum(caps.values()),
+        charged={k: (0 if k in ("UPLOAD", "SAFETY") else v) for k, v in caps.items()},
+    )
+    ledger = tmp_path / "caddy-admission/admission.json"
+    ledger.write_text(json.dumps(state))
+    if eligible:
+        assert runtime_surface.caddy_ci_charge_action("UPLOAD", 540, reserve=60) == 540
+    else:
+        with pytest.raises(
+            ValueError, match="^Caddy complete action ceiling is unavailable: UPLOAD$"
+        ):
+            runtime_surface.caddy_ci_charge_action("UPLOAD", 540, reserve=60)
+    budget = json.loads(ledger.read_bytes())["budget"]
+    assert budget["charged"]["UPLOAD"] == (540 if eligible else 0)
+    assert ("UPLOAD" in budget["action_deadlines"]) is eligible
+    if eligible:
+        now += 540 + 60  # Full uploader ceiling and the bounded scheduler handoff.
+        with runtime_surface.caddy_ci_phase("UPLOAD") as verify:
+            assert verify(float("inf")) == 60
+
+
+@pytest.mark.parametrize(
+    "name,mib",
+    [
+        ("source-decision.json", 2),
+        ("admission.json", 2),
+        ("controls/native-controls.json", 2),
+        ("loaded-runtime/observation.json", 2),
+        ("strict-control.raw.json", 32),
+        ("candidate.json", 2),
+        ("candidate.docker.tar", 512),
+        ("original-producer.json", 2),
+    ],
+)
+def test_caddy_repair_member_size_before_any_zip(tmp_path: Path, name: str, mib: int) -> None:
+    import time
+    from scripts.ci.prometheus_source_image import QualificationError
+
+    source = tmp_path / "evidence"
+    member = source / name
+    member.parent.mkdir(parents=True)
+    limit = mib * 1024**2
+    runtime_surface._require_caddy_repair_member_size(name, limit)
+    with pytest.raises(QualificationError, match="^publisher_repair_bounded_native_member$"):
+        runtime_surface._require_caddy_repair_member_size(name, 0)
+    with member.open("wb") as handle:
+        handle.truncate(limit + 1)
+    target = tmp_path / "caddy-contract-evidence.zip"
+    # An exclusive target collision would otherwise fail first, before packaging.
+    target.write_bytes(b"original")
+    with pytest.raises(QualificationError, match="^publisher_repair_bounded_native_member$"):
+        runtime_surface.pack_caddy_repair_evidence(source, target, time.monotonic() + 10)
+    assert target.read_bytes() == b"original"
+
+
+@pytest.mark.parametrize(
+    ("action", "fault", "diagnostic"),
+    [
+        ("candidate-D", None, None),
+        ("contract", None, None),
+        ("ordinary", None, None),
+        ("candidate-D", "directory", "publisher_repair_zip_directory_bound"),
+        ("candidate-D", "wrong-image-bytes", "publisher_repair_retained_build_bytes"),
+        ("candidate-D", "missing-strict", "publisher_repair_missing_checked_input_record"),
+        ("contract", "cleanup-failed", "publisher_repair_retained_native_decision"),
+        ("contract", "missing-original", "publisher_repair_missing_checked_input_record"),
+    ],
+)
+def test_caddy_qualifying_upload_step_checks_same_zip_as_reader(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    action: str,
+    fault: str | None,
+    diagnostic: str | None,
+) -> None:
+    import io
+    import zipfile
+    from scripts.ci.prometheus_source_image import QualificationError
+    from tests.test_caddy_deploy_provenance import _caddy_budget_fixture, _caddy_inline
+
+    head = "3" * 40
+    material = {
+        "pr": "81",
+        "base": "1" * 40,
+        "controller": "2" * 40,
+        "callers": head,
+        **_repair_subject_fixture()[0],
+    }
+    pr = {"number": 81, "head": {"ref": "fixture/repair"}}
+    api = _DispatchNativeFixture(pr, material)
+    api.add(api.projection())
+    api.fault = fault
+    run_id = 73 if action == "candidate-D" else 75
+    projection = api.projection(run_id, "contract" if action == "ordinary" else action)
+    api.add(projection)
+    run, _, artifact, original_zip = api.records[run_id]
+    state = _caddy_budget_fixture(tmp_path, monkeypatch)
+    state["publisher_repair"] = projection
+    ledger = tmp_path / "caddy-admission/admission.json"
+    ledger.write_text(json.dumps(state))
+    output = tmp_path / "step-output"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+    monkeypatch.setenv("GITHUB_RUN_ID", str(run_id))
+    monkeypatch.setenv("GITHUB_SHA", head)
+    monkeypatch.setenv("CADDY_REPAIR_TRANSPORT", "false" if action == "ordinary" else "true")
+    path = tmp_path / "caddy-contract-evidence.zip"
+    if fault == "directory":
+        monkeypatch.setattr(runtime_surface, "_CADDY_REPAIR_DIRECTORY_MAX", 100)
+    missing = {
+        "missing-original": "original-producer.json",
+        "missing-strict": "strict-control.raw.json",
+    }.get(fault or "")
+    with zipfile.ZipFile(io.BytesIO(original_zip)) as z:
+        for name in z.namelist():
+            if name != missing:
+                dest = tmp_path / "caddy-contract" / name
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                dest.write_bytes(z.read(name))
+
+    code = compile(
+        _caddy_inline("Charge Upload Caddy contract evidence budget"),
+        "<actual-repair-upload-budget>",
+        "exec",
+    )
+    if diagnostic:
+        with pytest.raises(QualificationError, match=f"^{diagnostic}$"):
+            exec(code, {})
+        assert not path.exists() and not output.exists()
+        assert json.loads(ledger.read_bytes())["budget"]["charged"]["UPLOAD"] == 0
+        return
+    exec(code, {})
+    if action == "ordinary":
+        assert not path.exists() and not output.exists()
+        return
+    raw = path.read_bytes()
+    digest = hashlib.sha256(raw).hexdigest()
+    assert output.read_text().splitlines() == [
+        "repair_zip=true",
+        f"bytes={len(raw)}",
+        f"digest={digest}",
+        "horizon=" + projection["source_horizon"],
+    ]
+    artifact.update(size_in_bytes=len(raw), digest="sha256:" + digest)
+    record = runtime_surface._publisher_artifact_record(lambda _: raw, artifact, run, {})
+    assert record["input"] == projection["input"] and record["action"] == action
+
+
+def test_caddy_repair_exact_zip_cap_and_mutating_member(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import random
+    import time
+    import zipfile
+    from scripts.ci import prometheus_source_image as native
+
+    root = tmp_path / "source"
+    root.mkdir()
+    target = tmp_path / "caddy-contract-evidence.zip"
+    (root / ".private").mkdir()
+    (root / ".private/unpublished.txt").write_text("fixture excluded by the native default")
+    compressed = root / "large.txt"
+    compressed.write_bytes(b"a" * 330000)
+    other = root / "nested"
+    other.mkdir()
+    binary = other / "data"
+    binary.write_bytes(random.Random(71).randbytes(40000))
+    binary.chmod(0o750)
+    size, digest = runtime_surface.pack_caddy_repair_evidence(root, target, time.monotonic() + 10)
+    assert (
+        target.stat().st_size == size
+        and hashlib.sha256(target.read_bytes()).hexdigest() == digest
+        and size < compressed.stat().st_size
+    )
+    with zipfile.ZipFile(target) as z:
+        assert set(z.namelist()) == {"large.txt", "nested/data"}
+        assert (
+            z.read("nested/data") == binary.read_bytes()
+            and z.getinfo("nested/data").external_attr >> 16 == binary.stat().st_mode
+        )
+    target.unlink()
+    monkeypatch.setattr(runtime_surface, "_REPAIR_ARCHIVE_MAX", size)
+    assert runtime_surface.pack_caddy_repair_evidence(root, target, time.monotonic() + 10) == (
+        size,
+        digest,
+    )
+    target.unlink()
+    monkeypatch.setattr(runtime_surface, "_REPAIR_ARCHIVE_MAX", size - 1)
+    with pytest.raises(native.QualificationError, match="publisher_repair_zip_transport_bound"):
+        runtime_surface.pack_caddy_repair_evidence(root, target, time.monotonic() + 10)
+    assert not target.exists()
+    monkeypatch.setattr(runtime_surface, "_REPAIR_ARCHIVE_MAX", size * 2)
+    original = native.check_deadline
+
+    def mutate(deadline: float) -> None:
+        original(deadline)
+        if target.exists() and not (root / "late").exists():
+            (root / "late").write_bytes(b"changed during packing")
+
+    monkeypatch.setattr(native, "check_deadline", mutate)
+    with pytest.raises(native.QualificationError, match="publisher_repair_transport_source_drift"):
+        runtime_surface.pack_caddy_repair_evidence(root, target, time.monotonic() + 10)
+    assert not target.exists()
+
+
+@pytest.mark.parametrize(
+    "fault", [None, "digest", "size", "missing-size", "expiry", "different-run"]
+)
+def test_caddy_upload_observation_binds_actual_server_transport(fault: str | None) -> None:
+    from scripts.ci.prometheus_source_image import QualificationError
+
+    digest = hashlib.sha256(b"native prepacked bytes").hexdigest()
+    env = {
+        "CADDY_REPAIR_ZIP_BYTES": "184",
+        "CADDY_UPLOADED_ID": "61",
+        "CADDY_REPAIR_ZIP_SHA256": digest,
+        "CADDY_UPLOADED_DIGEST": digest,
+        "CADDY_SOURCE_HORIZON": "2027-02-14T05:10:32Z",
+        "GITHUB_RUN_ID": "77",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "GITHUB_SHA": "a" * 40,
+    }
+    record = {
+        "name": "caddy-contract-evidence.zip",
+        "id": 61,
+        "size_in_bytes": 185 if fault == "size" else 184,
+        "expired": False,
+        "expires_at": (
+            "2027-02-14T05:10:31.999999Z" if fault == "expiry" else "2027-02-14T06:10:32+01:00"
+        ),
+        "digest": "sha256:" + ("0" * 64 if fault == "digest" else digest),
+        "workflow_run": {
+            "id": 72 if fault == "different-run" else 77,
+            "head_sha": "a" * 40,
+            "repository_id": 1043311030,
+            "head_repository_id": 1043311030,
+        },
+    }
+    if fault == "missing-size":
+        del record["size_in_bytes"]
+    if fault is None:
+        runtime_surface.verify_repair_evidence_upload(record, env)
+    else:
+        with pytest.raises(QualificationError, match="publisher_repair_uploaded_transport"):
+            runtime_surface.verify_repair_evidence_upload(record, env)
