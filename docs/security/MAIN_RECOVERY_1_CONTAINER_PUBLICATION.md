@@ -1569,3 +1569,25 @@ publisher failed its unsuppressed native scan. #2495 owns the Prometheus ORAS
 correction and PostgreSQL 15.20 candidate. Their trusted publication and
 immutable pullback still require the main commit that merges #2495.
 [Prometheus job](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/45303305037/job/138146089590) · [PostgreSQL job](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/45303304972/job/138144402006)
+
+The corrected ordinary reader verified the original publication and its
+referenced build in local replay. On the final #2504 PR head
+`8ab5636b1226cea1e76000640ede2f86da9afffb`, the hosted maintenance
+checks admitted the designated subject in CI and CD. CD also ran the scan
+and full native controls.
+[CI job](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/45487573927/job/138777444082) · [CD job](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/45487465788/job/138776859156)
+
+PR #2504 merged as squash commit `c873581deaa781404f176f7aa5f5c3794605ca6b`
+on November 24, 2026 at 23:06:29 UTC (November 25 at 02:06:29 in Minsk).
+The focused sanity suite passed 80 cases on that main commit. The image
+and its original publication remain bound to
+`b67d9f5e0a85b99fa77d31464daa169fc0520923`.
+
+On the #2504 squash, the PostgreSQL publisher failed at the unsuppressed
+image scan.
+[PostgreSQL job](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/45507053341/job/138848872620)
+
+#2495 still needs its ordinary CI and CD jobs to read that publication using
+its independently designated controller and verify the immutable image.
+Publication and digest pullback of PostgreSQL 15.20 and Prometheus remain
+pending on the main commit that merges #2495.
