@@ -23,6 +23,7 @@ from pathlib import Path, PurePath, PurePosixPath
 import posixpath
 import re
 import stat
+import struct
 import sys
 import tarfile
 import tempfile
@@ -82,6 +83,11 @@ _ALERT_S_EXPANDED_BYTES = 2240 * _ALERT_S_MIB
 _ALERT_S_ARCHIVE_BYTES = 384 * _ALERT_S_MIB
 _ALERT_S_FREE_RESERVE = 512 * _ALERT_S_MIB
 _ALERT_S_MEMBER_COUNT = 1024
+_ALERT_RECEIPT_ENTRIES = 250_000
+_ALERT_RECEIPT_TRANSPORT = 1024**3
+_ALERT_FOOTER = "artifact-payload-members.json"
+# ZIP central header, including lengths of the file name, extra field and comment.
+_ALERT_CENTRAL_HEADER = struct.Struct("<4s24xHHH12x")
 _ALERT_BASE_CONFIG = "sha256:55a757dc8ab862a4eb634c434261dcd26f17c186b54f7bce845404a335456110"
 _ALERT_BASE_MANIFEST = "sha256:528f8a8d69ed17bdf99f19ade62e0a0e4c385de2791a94f4fa3c6286d8dad22c"
 _ALERT_BUILDKIT = (
@@ -2880,21 +2886,60 @@ class _AlertmanagerSupportZipStream(io.BufferedReader):
         return super().read(size)
 
 
+def _alertmanager_receipt_path(name: Any) -> bool:
+    return (
+        isinstance(name, str)
+        and name.isascii()
+        and "\x00" not in name
+        and "\\" not in name
+        and all(part not in ("", ".", "..") for part in name.split("/"))
+    )
+
+
+def _alertmanager_receipt_tree(
+    files: set[str], directories: set[str], deadline: float | None
+) -> None:
+    """In a finite canonical tree, the immediate parents of files and dirs give its exact closure."""
+    from itertools import chain
+    from scripts.ci.prometheus_source_image import check_deadline, require
+
+    require(
+        _ALERT_FOOTER not in files
+        and _ALERT_FOOTER not in directories
+        and files.isdisjoint(directories),
+        "AM_candidate_complete_retained_directories",
+    )
+    parents = set()
+    for name in chain(files, directories):
+        check_deadline(deadline)
+        require(_alertmanager_receipt_path(name), "AM_candidate_payload_path")
+        parent = name.rpartition("/")[0]
+        if parent:
+            parents.add(parent)
+    require(parents == directories, "AM_candidate_complete_retained_directories")
+
+
 def _alertmanager_finalize_payload(
-    evidence: Path, deadline: float, *, support: bool = False
+    evidence: Path, deadline: float, *, support: bool = False, candidate: bool = False
 ) -> None:
     """Bound and retain the full native file/mode inventory in its one fresh footer."""
     from itertools import islice
-    from scripts.ci.prometheus_source_image import tree_inventory, check_deadline, MAX_CACHE_BYTES
+    from scripts.ci.prometheus_source_image import (
+        tree_inventory,
+        check_deadline,
+        MAX_CACHE_BYTES,
+        MAX_NATIVE_OUTPUT,
+        require,
+    )
 
     check_deadline(deadline)
-    limit = _ALERT_S_MEMBER_COUNT if support else 250000
+    limit = _ALERT_S_MEMBER_COUNT if support else _ALERT_RECEIPT_ENTRIES
     paths = list(islice(evidence.rglob("*"), limit))
     if len(paths) + 1 > limit:
         raise RuntimeError("Complete Alertmanager artifact member limit exceeded.")
     maximum = _ALERT_S_EXPANDED_BYTES if support else MAX_CACHE_BYTES
     files = tree_inventory(evidence, maximum=maximum, deadline=deadline)
-    dirs = [
+    dirs: list[dict[str, Any]] = [
         {
             "path": path.relative_to(evidence).as_posix(),
             "type": "directory",
@@ -2903,20 +2948,32 @@ def _alertmanager_finalize_payload(
         for path in paths
         if path.is_dir() and not path.is_symlink()
     ]
-    carrier = evidence / "artifact-payload-members.json"
+    if candidate:
+        _alertmanager_receipt_tree(
+            {row["path"] for row in files}, {row["path"] for row in dirs}, deadline
+        )
+    carrier = evidence / _ALERT_FOOTER
     if carrier.exists() or carrier.is_symlink():
         raise RuntimeError("Fresh Alertmanager inventory carrier collision.")
-    raw = (
-        json.dumps(
-            {
-                "files": files,
-                "directories": dirs,
-                "inventory_carrier_exception": "Exactly artifact-payload-members.json is bound by external artifact bytes; its own hash is not recursively embedded.",
-            },
-            indent=2,
-        )
-        + "\n"
-    ).encode()
+    footer = {
+        "files": files,
+        "directories": dirs,
+        "inventory_carrier_exception": "Exactly artifact-payload-members.json is bound by external artifact bytes; its own hash is not recursively embedded.",
+    }
+    if candidate:
+        require(len(files) + len(dirs) + 1 <= limit, "AM_receipt_population")
+        with io.BytesIO() as encoded:
+            for token in json.JSONEncoder(indent=2).iterencode(footer):
+                check_deadline(deadline)
+                chunk = token.encode()
+                require(
+                    encoded.tell() + len(chunk) + 1 <= MAX_NATIVE_OUTPUT, "AM_candidate_footer_size"
+                )
+                encoded.write(chunk)
+            encoded.write(b"\n")
+            raw = encoded.getvalue()
+    else:
+        raw = (json.dumps(footer, indent=2) + "\n").encode()
     if support:
         _alertmanager_support_sizes(
             [("native-support/" + row["path"], row["size"]) for row in files]
@@ -3860,6 +3917,7 @@ def _alertmanager_authenticated_inputs(
     current_artifact_digest: str | None = None,
     upstream_version: str = "0.34.1",
     source_branch: str | None = None,
+    retained_bytes: int | None = None,
 ) -> dict[str, Any]:
     """Authenticate the three finite AM CD artifact cases; coordinates are not approval."""
     import base64
@@ -4046,7 +4104,9 @@ def _alertmanager_authenticated_inputs(
             with snapshot.open("xb") as stream:
                 stream.write(raw)
             snapshot.chmod(0o600)
-    archive_limit = _ALERT_S_ARCHIVE_BYTES if current and kind == "support" else 1024**3
+    archive_limit = (
+        _ALERT_S_ARCHIVE_BYTES if current and kind == "support" else _ALERT_RECEIPT_TRANSPORT
+    )
     artifact = api.json(endpoint + f"/actions/artifacts/{artifact_id}")
     require(
         type(artifact) is dict
@@ -4087,10 +4147,27 @@ def _alertmanager_authenticated_inputs(
         > datetime.now(timezone.utc),
         "AM_qualification_artifact_expired",
     )
+    if retained_bytes is not None:
+        from shutil import disk_usage
+        from scripts.ci.prometheus_source_image import MAX_CACHE_BYTES
+
+        size = artifact["size_in_bytes"]
+        require(
+            0 <= retained_bytes and retained_bytes + 2 * size <= MAX_CACHE_BYTES,
+            "AM_receipt_download_budget",
+        )
+        require(
+            disk_usage(destination.parent).free >= size + _ALERT_S_FREE_RESERVE,
+            "AM_receipt_free_space",
+        )
+        # GitHubRead bounds stdout and stderr together. Keep all remaining
+        # diagnostic headroom without increasing the existing native ceiling.
+        archive_limit = min(archive_limit, (MAX_CACHE_BYTES - retained_bytes) // 2)
     raw = api.raw(endpoint + f"/actions/artifacts/{artifact_id}/zip", maximum=archive_limit)
+    transport_digest = sha256(raw).hexdigest()
     require(
         len(raw) == artifact["size_in_bytes"]
-        and "sha256:" + sha256(raw).hexdigest() == artifact["digest"],
+        and "sha256:" + transport_digest == artifact["digest"],
         "AM_qualification_download_bytes",
     )
     require(not destination.exists() and not destination.is_symlink(), "AM_download_not_fresh")
@@ -4102,7 +4179,7 @@ def _alertmanager_authenticated_inputs(
         "attempt": 1,
         "artifact": artifact_id,
         "source": source,
-        "zip_sha256": sha256(raw).hexdigest(),
+        "zip_sha256": transport_digest,
         "source_files": source_hashes,
     }
     if merged_candidate:
@@ -4531,13 +4608,20 @@ def _alertmanager_publication_predecessor(
             publisher,
             observed_dir / "publication.zip",
             kind="publication",
+            retained_bytes=0,
             current_source_files=source_hashes,
             current_artifact_digest=artifact.get("digest"),
             upstream_version="0.34.2",
             source_branch="main",
         )
         require(publication.get("job") == job["id"], "AM_publication_observed_job_binding")
-        files = _alertmanager_candidate_members(observed_dir / "publication.zip")
+        files, publication_oci = _alertmanager_receipt_members(
+            observed_dir / "publication.zip",
+            role="P",
+            expected_digest=publication["zip_sha256"],
+            deadline=deadline,
+        )
+        retained_bytes = sum(map(len, files.values()))
         report = one_object(files["candidate-observation.json"])
         original = report.get("original_producer")
         require(
@@ -4558,13 +4642,20 @@ def _alertmanager_publication_predecessor(
             publisher,
             observed_dir / "producer.zip",
             kind="candidate",
+            retained_bytes=retained_bytes,
             current_source_files=source_hashes,
             current_artifact_digest=descriptor.get("digest"),
             upstream_version="0.34.2",
             source_branch="main",
         )
         require(producer == original, "AM_current_selected_H_producer_binding")
-        producer_files = _alertmanager_candidate_members(observed_dir / "producer.zip")
+        producer_files, producer_oci = _alertmanager_receipt_members(
+            observed_dir / "producer.zip",
+            expected_digest=producer["zip_sha256"],
+            deadline=deadline,
+            retained_bytes=retained_bytes,
+            role="H",
+        )
         built = one_object(producer_files["candidate-observation.json"])
         require(
             one_object(files["pullback-native-input.json"]) == built,
@@ -4819,10 +4910,8 @@ def _alertmanager_publication_predecessor(
             "AM_current_H_same_subject_inventory_drift",
         )
         require(
-            sha256(files["candidate.oci.tar"]).hexdigest()
-            == report.get("pullback_OCI_archive_sha256")
-            and sha256(producer_files["candidate.oci.tar"]).hexdigest()
-            == built.get("OCI_archive_sha256"),
+            publication_oci == report.get("pullback_OCI_archive_sha256")
+            and producer_oci == built.get("OCI_archive_sha256"),
             "AM_current_H_retained_OCI_bytes",
         )
         ui = built.get("UI_file_hashes")
@@ -7737,13 +7826,186 @@ def _alertmanager_source_snapshot(
     return result
 
 
-def _alertmanager_candidate_members(archive: Path) -> dict[str, bytes]:
-    """Reuse the existing complete retained execution footer for candidate/publication reads."""
-    import zipfile
-    from scripts.ci.prometheus_source_image import _zip_members, one_object, require
+class _AlertmanagerReceiptZipStream(io.BufferedReader):
+    """Bound stdlib ZIP/ZIP64 index allocation before ZipFile creates member objects."""
 
-    files: dict[str, bytes] = _zip_members(archive)
-    footer = one_object(files["artifact-payload-members.json"])
+    directory_start: int | None = None
+    zip64_end: int | None = None
+    directory_size = 0
+    directory_count = 0
+    inspecting = True
+    checked = False
+    deadline: float | None = None
+
+    def read(self, size: int | None = -1, /) -> bytes:
+        from scripts.ci.prometheus_source_image import check_deadline, require
+
+        start = self.tell()
+        directory_read = (
+            self.inspecting and start == self.directory_start and size == self.directory_size
+        )
+        if self.inspecting and not directory_read:
+            # stdlib searches up to the 22-byte end record + the maximum ZIP comment.
+            requested = (
+                os.fstat(self.fileno()).st_size - start if size is None or size < 0 else size
+            )
+            require(requested <= 22 + 65535, "AM_receipt_ZIP_directory")
+        raw = super().read(size)
+        if self.inspecting and size == 56 and raw.startswith(b"PK\x06\x06"):
+            # Python 3.12 and 3.13 report different locations in _EndRecData
+            # for ZIP64; both read the actual fixed ZIP64 end record here.
+            self.zip64_end = start
+        if directory_read:
+            # Count the actual central frames, not just the end-record claim. The
+            # standard library still decodes all metadata, names, CRCs and data.
+            offset = count = 0
+            while offset < len(raw):
+                check_deadline(self.deadline)
+                require(
+                    count < self.directory_count
+                    and offset + _ALERT_CENTRAL_HEADER.size <= len(raw),
+                    "AM_receipt_ZIP_count",
+                )
+                signature, name, extra, comment = _ALERT_CENTRAL_HEADER.unpack_from(raw, offset)
+                require(signature == b"PK\x01\x02", "AM_receipt_ZIP_directory")
+                offset += _ALERT_CENTRAL_HEADER.size + name + extra + comment
+                count += 1
+            require(
+                offset == len(raw) == size and count == self.directory_count, "AM_receipt_ZIP_count"
+            )
+            self.checked = True
+        return raw
+
+
+_ALERT_RECEIPT_SCAN_JSON = frozenset(
+    "security-evidence/" + name + ".private.json"
+    for name in (
+        "candidate-full-supported",
+        "candidate-secret-positive",
+        "candidate-secret-negative",
+        "candidate-known-vulnerable-control",
+    )
+)
+
+
+def _alertmanager_ordinary_receipt_names(
+    report: dict[str, Any], role: str, deadline: float | None
+) -> set[str]:
+    """Only these bodies are read by the ordinary native/scan join; all other files are still hashed."""
+    from scripts.ci.prometheus_source_image import check_deadline, require
+
+    names = set(_ALERT_RECEIPT_SCAN_JSON) | {
+        "candidate-observation.json",
+        "native-evidence/full-AM-native.stdout",
+    }
+    blocks = [("native-evidence", "native")]
+    if role == "P":
+        names.update(("pullback-native-input.json", "pre-native-evidence/full-AM-native.stdout"))
+        blocks.extend(
+            (("pre-native-evidence", "pre_copy_native"), ("security-evidence", "pre_copy_security"))
+        )
+    else:
+        names.update(
+            "producer-source/" + name
+            for name in (
+                *_ALERT_Q_SOURCE_FILES,
+                "tests/test_notify_premium_alias_checkpoint_failure.py",
+            )
+        )
+        names.update(
+            "pair-evidence/" + name + "-buildinfo-attach.stdout"
+            for name in ("alertmanager", "amtool")
+        )
+        blocks.append(("security-evidence", "security"))
+    for prefix, key in blocks:
+        observation = report.get(key, {})
+        require(
+            type(observation) is dict and type(observation.get("native_records", [])) is list,
+            "AM_candidate_native_report_binding",
+        )
+        for row in observation.get("native_records", []):
+            check_deadline(deadline)
+            require(
+                type(row) is dict
+                and all(isinstance(row.get(channel), str) for channel in ("stdout", "stderr")),
+                "AM_candidate_native_report_binding",
+            )
+            names.update(
+                prefix + "/" + PurePosixPath(row[channel]).name for channel in ("stdout", "stderr")
+            )
+    return names
+
+
+def _alertmanager_receipt_payload(
+    retained: ZipFile,
+    deadline: float | None,
+    retained_bytes: int,
+    role: str | None,
+) -> tuple[dict[str, bytes], str | None]:
+    import zipfile
+    from scripts.ci.prometheus_source_image import (
+        MAX_CACHE_BYTES,
+        MAX_NATIVE_OUTPUT,
+        check_deadline,
+        one_object,
+        require,
+    )
+
+    infos = retained.infolist()
+    require(
+        len(infos) == len(retained.NameToInfo) <= _ALERT_RECEIPT_ENTRIES, "AM_receipt_ZIP_count"
+    )
+    expanded = 0
+    for info in infos:
+        check_deadline(deadline)
+        require(
+            info.orig_filename == info.filename
+            and _alertmanager_receipt_path(info.filename)
+            and not info.flag_bits & ~(0x800 | 0x8 | 0x6)
+            and info.volume == 0
+            and not info.external_attr & 0x10  # DOS directory attribute
+            and stat.S_IFMT(info.external_attr >> 16) in (0, stat.S_IFREG)
+            and info.compress_type in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED)
+            and (info.compress_type != zipfile.ZIP_STORED or info.compress_size == info.file_size),
+            "AM_receipt_ZIP_member",
+        )
+        expanded += info.file_size
+        require(0 <= info.file_size and expanded <= MAX_CACHE_BYTES, "AM_receipt_expanded_budget")
+    report_name = "candidate-observation.json"
+    if role is not None:
+        require(report_name in retained.NameToInfo, "AM_candidate_complete_retained_members")
+        report_size = retained.getinfo(report_name).file_size
+        require(report_size <= MAX_NATIVE_OUTPUT, "AM_receipt_native_JSON_size")
+        require(retained_bytes + report_size <= MAX_CACHE_BYTES, "AM_receipt_retention_budget")
+    require(_ALERT_FOOTER in retained.NameToInfo, "AM_candidate_complete_retained_members")
+    footer_info = retained.getinfo(_ALERT_FOOTER)
+    require(0 < footer_info.file_size <= MAX_NATIVE_OUTPUT, "AM_candidate_footer_size")
+    require(
+        stat.S_IMODE(footer_info.external_attr >> 16) == 0o600, "AM_candidate_retained_native_modes"
+    )
+
+    def read_member(info: ZipInfo, retain: bool, expected: str | None = None) -> tuple[bytes, str]:
+        check_deadline(deadline)
+        digest, total = sha256(), 0
+        with retained.open(info) as member, io.BytesIO() as data:
+            for chunk in iter(lambda: member.read(1024**2), b""):
+                check_deadline(deadline)
+                total += len(chunk)
+                require(total <= info.file_size, "AM_candidate_retained_member_bytes")
+                digest.update(chunk)
+                if retain:
+                    data.write(chunk)
+            actual = digest.hexdigest()
+            require(
+                total == info.file_size and (expected is None or actual == expected),
+                "AM_candidate_retained_member_bytes",
+            )
+            return data.getvalue(), actual
+
+    footer_raw, _ = read_member(footer_info, True)
+    files = {_ALERT_FOOTER: footer_raw} if role is None else {}
+    footer = one_object(footer_raw)
+    del footer_raw
     require(
         set(footer) == {"files", "directories", "inventory_carrier_exception"}
         and type(footer["files"]) is list
@@ -7752,73 +8014,206 @@ def _alertmanager_candidate_members(archive: Path) -> dict[str, bytes]:
         == "Exactly artifact-payload-members.json is bound by external artifact bytes; its own hash is not recursively embedded.",
         "AM_candidate_retained_footer",
     )
+    require(
+        len(footer["files"]) + len(footer["directories"]) + 1 <= _ALERT_RECEIPT_ENTRIES,
+        "AM_receipt_population",
+    )
     declared = {}
     for row in footer["files"]:
+        check_deadline(deadline)
         require(
             type(row) is dict
             and set(row) == {"path", "size", "mode", "sha256"}
-            and type(row["path"]) is str
-            and row["path"].isascii()
-            and "\\" not in row["path"]
-            and all(part not in ("", ".", "..") for part in row["path"].split("/"))
-            and row["path"] != "artifact-payload-members.json"
+            and _alertmanager_receipt_path(row["path"])
+            and row["path"] != _ALERT_FOOTER
+            and row["path"] not in declared
             and type(row["size"]) is int
             and row["size"] >= 0
             and type(row["mode"]) is int
             and 0 <= row["mode"] <= 0o7777
             and type(row["sha256"]) is str
-            and _HEX_RE.fullmatch(row["sha256"]) is not None
-            and row["path"] not in declared,
+            and _HEX_RE.fullmatch(row["sha256"]) is not None,
             "AM_candidate_payload_row",
         )
-        declared[row["path"]] = row
-    directories = {}
+        name = row["path"]
+        require(name in retained.NameToInfo, "AM_candidate_complete_retained_members")
+        info = retained.getinfo(name)
+        require(info.file_size == row["size"], "AM_candidate_retained_member_bytes")
+        require(
+            stat.S_IMODE(info.external_attr >> 16) == row["mode"],
+            "AM_candidate_retained_native_modes",
+        )
+        declared[name] = row["sha256"]
+    require(len(declared) + 1 == len(infos), "AM_candidate_complete_retained_members")
+    directories = set()
     for row in footer["directories"]:
+        check_deadline(deadline)
         require(
             type(row) is dict
             and set(row) == {"path", "type", "mode"}
             and row["type"] == "directory"
-            and type(row["path"]) is str
-            and row["path"].isascii()
-            and "\\" not in row["path"]
-            and all(part not in ("", ".", "..") for part in row["path"].split("/"))
+            and _alertmanager_receipt_path(row["path"])
+            and row["path"] not in directories
             and type(row["mode"]) is int
-            and 0 <= row["mode"] <= 0o7777
-            and row["path"] not in directories,
+            and 0 <= row["mode"] <= 0o7777,
             "AM_candidate_retained_directory",
         )
-        directories[row["path"]] = row["mode"]
-    require(
-        set(directories)
-        == {
-            str(parent)
-            for name in declared
-            for parent in PurePosixPath(name).parents
-            if str(parent) != "."
-        },
-        "AM_candidate_complete_retained_directories",
-    )
-    require(
-        set(files) == set(declared) | {"artifact-payload-members.json"},
-        "AM_candidate_complete_retained_members",
-    )
-    for name, row in declared.items():
-        require(
-            type(row["size"]) is int
-            and len(files[name]) == row["size"]
-            and sha256(files[name]).hexdigest() == row["sha256"],
-            "AM_candidate_retained_member_bytes",
+        directories.add(row["path"])
+    _alertmanager_receipt_tree(set(declared), directories, deadline)
+    del footer, directories
+    selected = None
+    if role is not None:
+        files[report_name], _ = read_member(
+            retained.getinfo(report_name), True, declared[report_name]
         )
-    with zipfile.ZipFile(archive) as retained:
-        require(
-            all(
-                stat.S_IMODE(retained.getinfo(name).external_attr >> 16) == row["mode"]
-                for name, row in declared.items()
+        report = one_object(files[report_name])
+        selected = _alertmanager_ordinary_receipt_names(report, role, deadline)
+        del report
+        for name in selected.intersection(declared):
+            size = retained.getinfo(name).file_size
+            retained_bytes += size
+            require(retained_bytes <= MAX_CACHE_BYTES, "AM_receipt_retention_budget")
+            if name in _ALERT_RECEIPT_SCAN_JSON or name == "pullback-native-input.json":
+                require(size <= MAX_NATIVE_OUTPUT, "AM_receipt_native_JSON_size")
+    oci_digest = None
+    for name, expected in declared.items():
+        if name in files:
+            continue
+        keep = selected is None or name in selected
+        raw, digest = read_member(retained.getinfo(name), keep, expected)
+        if keep:
+            files[name] = raw
+        if name == "candidate.oci.tar":
+            oci_digest = digest
+    return files, oci_digest
+
+
+def _alertmanager_receipt_members(
+    archive: Path,
+    *,
+    expected_digest: str | None = None,
+    deadline: float | None = None,
+    retained_bytes: int = 0,
+    role: str | None = None,
+) -> tuple[dict[str, bytes], str | None]:
+    """Verify every file and return its needed bytes plus the independently computed OCI digest."""
+    import zipfile
+    import zlib
+    from scripts.ci.prometheus_source_image import (
+        MAX_CACHE_BYTES,
+        MAX_NATIVE_OUTPUT,
+        QualificationError,
+        check_deadline,
+        real_directory,
+        require,
+    )
+
+    require(role in (None, "H", "P"), "AM_receipt_role")
+    check_deadline(deadline)
+    real_directory(archive.parent)
+    initial = archive.lstat()
+    require(
+        stat.S_ISREG(initial.st_mode)
+        and initial.st_nlink == 1
+        and 0 < initial.st_size <= _ALERT_RECEIPT_TRANSPORT,
+        "AM_receipt_transport",
+    )
+    require(
+        0 <= retained_bytes <= MAX_CACHE_BYTES,
+        "AM_receipt_pair_budget",
+    )
+    flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+    with _AlertmanagerReceiptZipStream(io.FileIO(os.open(archive, flags), "rb")) as stream:
+
+        def stable() -> None:
+            real_directory(archive.parent)
+            opened = os.fstat(stream.fileno())
+            current = archive.lstat()
+            require(
+                all(
+                    getattr(initial, k) == getattr(opened, k) == getattr(current, k)
+                    for k in (
+                        "st_dev",
+                        "st_ino",
+                        "st_size",
+                        "st_mode",
+                        "st_nlink",
+                        "st_mtime_ns",
+                        "st_ctime_ns",
+                    )
+                ),
+                "AM_receipt_transport_changed",
             )
-            and stat.S_IMODE(retained.getinfo("artifact-payload-members.json").external_attr >> 16)
-            == 0o600,
-            "AM_candidate_retained_native_modes",
-        )
+            check_deadline(deadline)
+
+        def hash_stream() -> str:
+            stream.seek(0)
+            digest = sha256()
+            for chunk in iter(lambda: stream.read(1024**2), b""):
+                check_deadline(deadline)
+                require(stream.tell() <= initial.st_size, "AM_receipt_transport_changed")
+                digest.update(chunk)
+            return digest.hexdigest()
+
+        stable()
+        stream.inspecting = False
+        before = hash_stream()
+        require(expected_digest is None or before == expected_digest, "AM_receipt_transport_digest")
+        stream.inspecting, stream.deadline = True, deadline
+        # Use the same stdlib end-record decoder as ZipFile; it resolves ZIP64
+        # and comments on all supported Python versions. Entries and size occupy
+        # the same fields in the expanded ZIP64 and classic end records.
+        try:
+            end_record = getattr(zipfile, "_EndRecData")(stream)
+            require(
+                end_record is not None
+                and end_record[1:3] == [0, 0]
+                and 0 < end_record[3] == end_record[4] <= _ALERT_RECEIPT_ENTRIES,
+                "AM_receipt_ZIP_count",
+            )
+            stream.directory_count, stream.directory_size = end_record[4:6]
+            directory_end = stream.zip64_end if end_record[0] == b"PK\x06\x06" else end_record[-1]
+            # The canonical footer bounds all file-name bytes. The pinned uploader
+            # emits a 46-byte central header and at most 28 ZIP64 extra bytes per member.
+            maximum = (
+                MAX_NATIVE_OUTPUT
+                + len(_ALERT_FOOTER)
+                + stream.directory_count * (_ALERT_CENTRAL_HEADER.size + 28)
+            )
+            require(
+                directory_end is not None
+                and _ALERT_CENTRAL_HEADER.size * stream.directory_count
+                <= stream.directory_size
+                <= min(maximum, directory_end),
+                "AM_receipt_ZIP_directory",
+            )
+            stream.directory_start = cast(int, directory_end) - stream.directory_size
+            with zipfile.ZipFile(stream) as retained:
+                require(
+                    stream.checked and retained.start_dir == stream.directory_start,
+                    "AM_receipt_ZIP_directory",
+                )
+                stream.inspecting = False
+                files, digest = _alertmanager_receipt_payload(
+                    retained, deadline, retained_bytes, role
+                )
+        except (zipfile.BadZipFile, UnicodeError, zlib.error, NotImplementedError) as error:
+            # Preserve a bounded cause without copying untrusted member names into CI logs.
+            raise QualificationError("AM_receipt_invalid_ZIP_" + type(error).__name__) from None
+        require(hash_stream() == before, "AM_receipt_transport_changed")
+        stable()
+        if role is not None:
+            require(digest is not None, "AM_current_H_retained_OCI_bytes")
+        return files, digest
+
+
+def _alertmanager_candidate_members(
+    archive: Path, *, expected_digest: str | None = None, deadline: float | None = None
+) -> dict[str, bytes]:
+    """Candidate validation uses the complete checked data, including the original OCI bytes."""
+    files, _ = _alertmanager_receipt_members(
+        archive, expected_digest=expected_digest, deadline=deadline
+    )
     return files
 
 
@@ -7939,9 +8334,11 @@ def _alertmanager_candidate_payload(
     support_report: dict[str, Any] | None = None,
     merged_producer: dict[str, Any] | None = None,
     merged_material: dict[str, Any] | None = None,
+    deadline: float | None = None,
 ) -> dict[str, Any]:
     """Validate the retained accepted A against independent source and full graph identity."""
     from scripts.ci.prometheus_source_image import (
+        file_hash,
         fresh_directory,
         one_object,
         require,
@@ -7991,7 +8388,8 @@ def _alertmanager_candidate_payload(
             "AM_candidate_current_Q_S_source",
         )
     require(
-        sha256(archive.read_bytes()).hexdigest() == producer["zip_sha256"],
+        file_hash(archive, deadline, maximum_bytes=_ALERT_RECEIPT_TRANSPORT)
+        == producer["zip_sha256"],
         "AM_accepted_producer_archive_bytes",
     )
     require(
@@ -7999,7 +8397,9 @@ def _alertmanager_candidate_payload(
         == producer["source_files"],
         "AM_accepted_producer_source_bytes",
     )
-    files = _alertmanager_candidate_members(archive)
+    files = _alertmanager_candidate_members(
+        archive, expected_digest=producer["zip_sha256"], deadline=deadline
+    )
     result: dict[str, Any] = one_object(files["candidate-observation.json"])
     require(
         result.get("source") == producer_source
@@ -13217,6 +13617,7 @@ def _alertmanager_prepare_candidate_body(
         qualification=qualification if current else None,
         support_binding=support_binding if current else None,
         support_report=supported if current else None,
+        deadline=deadline,
     )
     require(
         candidate.get("source") == authenticated["source"],
@@ -13524,6 +13925,7 @@ def _alertmanager_publish(
             support_report=supported,
             merged_producer=producer,
             merged_material=material,
+            deadline=api.deadline,
         )
         tool, qualified = retained_tool(api, REPO_ROOT, directory)
         (support / "trivy").chmod(0o555)
@@ -15161,7 +15563,16 @@ def _alertmanager_current_build(args: argparse.Namespace) -> None:
             path.write_text(json.dumps(result, indent=2) + "\n")
             path.chmod(0o600)
             _alertmanager_retain_execution(output, retained)
-            _alertmanager_finalize_payload(retained, retention_deadline)
+            _alertmanager_finalize_payload(
+                retained,
+                retention_deadline,
+                candidate=result.get("failure") is None
+                and result.get("status")
+                in (
+                    "OBSERVED_MERGED_H_REBUILD_SECURITY_NATIVE",
+                    "OBSERVED_PR2494_C_SECURITY_NATIVE",
+                ),
+            )
         except BaseException as retention_error:
             if original_error is not None:
                 original_error.add_note(
@@ -15483,7 +15894,12 @@ def _alertmanager_execution(args: argparse.Namespace) -> None:
             destination.write_text(json.dumps(result, indent=2) + "\n")
             destination.chmod(0o600)
             _alertmanager_retain_execution(output, retained)
-            _alertmanager_finalize_payload(retained, retention_deadline)
+            _alertmanager_finalize_payload(
+                retained,
+                retention_deadline,
+                candidate=result.get("failure") is None
+                and result.get("status") == "OBSERVED_IMMUTABLE_PUBLICATION_PULLBACK_NATIVE",
+            )
         except BaseException as retention_error:
             result["retention_failure"] = (
                 type(retention_error).__name__ + ":" + str(retention_error)

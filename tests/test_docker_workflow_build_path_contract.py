@@ -645,9 +645,19 @@ def test_current_alertmanager_build_orders_real_input_seams_and_retains_spent_fa
     monkeypatch.setattr(
         docker_sources, "_alertmanager_retain_execution", lambda *a: events.append("retained")
     )
-    monkeypatch.setattr(
-        docker_sources, "_alertmanager_finalize_payload", lambda *a: events.append("footer")
-    )
+    finish_footer = docker_sources._alertmanager_finalize_payload
+
+    def finish(retained: Path, deadline: float, *, candidate: bool) -> None:
+        observed = json.loads((retained / "candidate-observation.json").read_bytes())
+        assert candidate == (observed.get("failure") is None)
+        if not candidate:
+            (retained / "empty-diagnostic-dir").mkdir()
+            finish_footer(retained, deadline, candidate=False)
+            saved = json.loads((retained / docker_sources._ALERT_FOOTER).read_bytes())
+            assert "empty-diagnostic-dir" in {row["path"] for row in saved["directories"]}
+        events.append("footer")
+
+    monkeypatch.setattr(docker_sources, "_alertmanager_finalize_payload", finish)
     output = tmp_path / "current-build"
     args = docker_sources.parse_args(
         [
@@ -7568,6 +7578,298 @@ def test_alertmanager_owned_go_tree_is_searchable_under_umask077_without_executi
     assert binary.read_bytes() == b"synthetic non-executed Go bytes"
 
 
+def _am_receipt_zip(files: dict[str, bytes], fault: str | None = None) -> bytes:
+    import zipfile
+
+    files = dict(files)
+    directories = sorted(
+        {
+            str(parent)
+            for name in files
+            for parent in PurePosixPath(name).parents
+            if str(parent) != "."
+        }
+    )
+    footer: dict[str, Any] = {
+        "files": [
+            {"path": name, "size": len(raw), "mode": 0o600, "sha256": sha256(raw).hexdigest()}
+            for name, raw in files.items()
+        ],
+        "directories": [{"path": name, "type": "directory", "mode": 0o700} for name in directories],
+        "inventory_carrier_exception": "Exactly artifact-payload-members.json is bound by external artifact bytes; its own hash is not recursively embedded.",
+    }
+    if fault == "footer":
+        footer["files"][0]["sha256"] = "0" * 64
+    if fault == "extra-directory":
+        footer["directories"].append({"path": "empty", "type": "directory", "mode": 0o700})
+    if fault == "missing-directory":
+        footer["directories"].clear()
+    if fault == "duplicate-row":
+        footer["files"].append(footer["files"][0])
+    if fault == "extra-file":
+        files["extra"] = b"present but not declared"
+    if fault == "boolean-mode":
+        footer["files"][0]["mode"] = True
+    if fault == "missing-file":
+        del files[next(iter(files))]
+    if fault != "missing-footer":
+        files["artifact-payload-members.json"] = json.dumps(footer).encode()
+    stream = BytesIO()
+    with zipfile.ZipFile(stream, "w") as zipped:
+        for name, raw in files.items():
+            info = zipfile.ZipInfo(name)
+            info.external_attr = (stat.S_IFREG | 0o600) << 16
+            if fault == "footer-mode" and name == docker_sources._ALERT_FOOTER:
+                info.external_attr = (stat.S_IFREG | 0o644) << 16
+            if fault == "long-central-metadata":
+                info.comment = b"x" * 2048
+            if fault == "symlink" and name != docker_sources._ALERT_FOOTER:
+                info.external_attr = (stat.S_IFLNK | 0o600) << 16
+            if fault == "ZIP64":
+                zipped.comment = b"native archive comment"
+                with zipped.open(info, "w", force_zip64=True) as member:
+                    member.write(raw)
+            else:
+                zipped.writestr(info, raw)
+    return stream.getvalue()
+
+
+@pytest.mark.parametrize(
+    ("fault", "diagnostic"),
+    [
+        ("footer", "AM_candidate_retained_member_bytes"),
+        ("extra-file", "AM_candidate_complete_retained_members"),
+        ("missing-file", "AM_candidate_complete_retained_members"),
+        ("missing-footer", "AM_candidate_complete_retained_members"),
+        ("missing-directory", "AM_candidate_complete_retained_directories"),
+        ("extra-directory", "AM_candidate_complete_retained_directories"),
+        ("file-as-parent", "AM_candidate_complete_retained_directories"),
+        ("reserved-parent", "AM_candidate_complete_retained_directories"),
+        ("duplicate-row", "AM_candidate_payload_row"),
+        ("boolean-mode", "AM_candidate_payload_row"),
+        ("footer-mode", "AM_candidate_retained_native_modes"),
+        ("symlink", "AM_receipt_ZIP_member"),
+        ("raw-NUL", "AM_receipt_ZIP_member"),
+        ("dot-segment", "AM_receipt_ZIP_member"),
+        ("count-lie", "AM_receipt_ZIP_count"),
+    ],
+)
+def test_am_receipt_fresh_checksum_does_not_replace_member_proof(
+    tmp_path: Path, fault: str, diagnostic: str
+) -> None:
+    import struct
+    from scripts.ci.prometheus_source_image import QualificationError
+
+    files = {
+        "raw/repeated": b"identical",
+        "raw/second": b"identical",
+        "candidate.oci.tar": b"oci",
+        "candidate-observation.json": b"{}",
+    }
+    if fault == "file-as-parent":
+        files["raw"] = b"regular"
+    if fault == "reserved-parent":
+        files["artifact-payload-members.json/nested"] = b"reserved"
+    if fault == "dot-segment":
+        files["raw/../alias"] = b"unsafe"
+    raw = _am_receipt_zip(files, fault)
+    if fault == "raw-NUL":
+        assert raw.count(b"raw/repeated") >= 2
+        raw = raw.replace(b"raw/repeated", b"raw\x00repeated")
+    if fault == "count-lie":
+        offset = raw.rindex(b"PK\x05\x06") + 8
+        raw = raw[:offset] + struct.pack("<HH", 1, 1) + raw[offset + 4 :]
+    archive = tmp_path / "P.zip"
+    archive.write_bytes(raw)
+    fresh_hash = sha256(raw).hexdigest()
+    with pytest.raises(QualificationError, match="^" + diagnostic + "$"):
+        docker_sources._alertmanager_receipt_members(archive, expected_digest=fresh_hash, role="P")
+
+
+def test_am_ordinary_receipts_keep_independent_populations_and_stream_bulk(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import zipfile
+    import time
+    from scripts.ci import prometheus_source_image as policy
+
+    receipts = {}
+    # Force a genuine end-of-central-directory ZIP64 record without a large archive.
+    with monkeypatch.context() as writer:
+        writer.setattr(zipfile, "ZIP_FILECOUNT_LIMIT", 1)
+        for role in ("H", "P"):
+            members = {
+                "security-evidence/unused.private.json": b"x" * 8192,
+                "security-evidence/unreferenced.json": b"x" * 8192,
+                "candidate.oci.tar": role.encode() * 256,
+                "candidate-observation.json": b"{}",
+            }
+            body = _am_receipt_zip(members, "ZIP64")
+            path = tmp_path / f"{role}.zip"
+            assert b"PK\x06\x06" in body and b"PK\x06\x07" in body
+            path.write_bytes(body)
+            receipts[role] = path, sha256(body).hexdigest(), members
+    h, h_hash, h_members = receipts["H"]
+    p, p_hash, p_members = receipts["P"]
+    deadline = time.monotonic() + 10
+    with zipfile.ZipFile(p) as z:
+        cap = sum(x.file_size for x in z.infolist())
+        footer_bytes = z.getinfo(docker_sources._ALERT_FOOTER).file_size
+    assert cap > 2 * 8192 and len(p_members) == 4
+    monkeypatch.setattr(docker_sources, "_ALERT_RECEIPT_ENTRIES", 6)  # 4 regular + raw/ + footer
+    monkeypatch.setattr(policy, "MAX_CACHE_BYTES", cap)
+    monkeypatch.setattr(policy, "MAX_NATIVE_OUTPUT", footer_bytes)
+    retained_p, p_oci = docker_sources._alertmanager_receipt_members(
+        p, expected_digest=p_hash, deadline=deadline, role="P"
+    )
+    retained_h, h_oci = docker_sources._alertmanager_receipt_members(
+        h,
+        expected_digest=h_hash,
+        deadline=deadline,
+        role="H",
+        retained_bytes=sum(map(len, retained_p.values())),
+    )
+    assert retained_p == retained_h == {"candidate-observation.json": b"{}"}
+    assert [p_oci, h_oci] == [
+        sha256(items["candidate.oci.tar"]).hexdigest() for items in (p_members, h_members)
+    ]
+    full = docker_sources._alertmanager_candidate_members(
+        h, expected_digest=h_hash, deadline=deadline
+    )
+    assert {k: v for k, v in full.items() if k != docker_sources._ALERT_FOOTER} == h_members
+
+    monkeypatch.setattr(docker_sources, "_ALERT_RECEIPT_ENTRIES", 5)
+    with pytest.raises(policy.QualificationError, match="^AM_receipt_population$"):
+        docker_sources._alertmanager_candidate_members(h)
+    monkeypatch.setattr(docker_sources, "_ALERT_RECEIPT_ENTRIES", 6)
+
+    def no_member(*a: Any, **kw: Any) -> Any:
+        pytest.fail("A pre-inflation size failure must not open a compressed member")
+
+    monkeypatch.setattr(zipfile.ZipFile, "open", no_member)
+    with pytest.raises(policy.QualificationError, match="^AM_receipt_retention_budget$"):
+        docker_sources._alertmanager_receipt_members(h, role="H", retained_bytes=cap - 1)
+    with pytest.raises(policy.QualificationError, match="^AM_receipt_transport_digest$"):
+        docker_sources._alertmanager_candidate_members(h, expected_digest="0" * 64)
+    with pytest.raises(policy.QualificationError, match="^qualification_deadline$"):
+        docker_sources._alertmanager_candidate_members(h, deadline=time.monotonic() - 1)
+    monkeypatch.setattr(policy, "MAX_CACHE_BYTES", cap - 1)
+    with pytest.raises(policy.QualificationError, match="^AM_receipt_expanded_budget$"):
+        docker_sources._alertmanager_candidate_members(h)
+    monkeypatch.setattr(policy, "MAX_CACHE_BYTES", cap)
+    monkeypatch.setattr(policy, "MAX_NATIVE_OUTPUT", footer_bytes - 1)
+    with pytest.raises(policy.QualificationError, match="^AM_candidate_footer_size$"):
+        docker_sources._alertmanager_receipt_members(p, role="P")
+    monkeypatch.setattr(docker_sources, "_ALERT_RECEIPT_TRANSPORT", p.stat().st_size - 1)
+    with pytest.raises(policy.QualificationError, match="^AM_receipt_transport$"):
+        docker_sources._alertmanager_candidate_members(p)
+
+
+@pytest.mark.parametrize(
+    "fault", ["central-bytes", "underreported-count", "wire-CRC", "path-replaced"]
+)
+def test_am_receipt_checks_index_before_objects_and_transport_through_final_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str
+) -> None:
+    import struct
+    import zipfile
+    from scripts.ci import prometheus_source_image as policy
+
+    raw = _am_receipt_zip(
+        {"file": b"receipt-content-for-CRC"},
+        "long-central-metadata" if fault == "central-bytes" else None,
+    )
+    if fault == "underreported-count":
+        offset = raw.rindex(b"PK\x05\x06") + 8
+        raw = raw[:offset] + struct.pack("<HH", 1, 1) + raw[offset + 4 :]
+    if fault == "wire-CRC":
+        assert raw.count(b"receipt-content-for-CRC") == 1
+        raw = raw.replace(b"receipt-content-for-CRC", b"receipt-content-for-CRX")
+    path = tmp_path / "receipt.zip"
+    path.write_bytes(raw)
+    if fault in ("central-bytes", "underreported-count"):
+        if fault == "central-bytes":
+            monkeypatch.setattr(policy, "MAX_NATIVE_OUTPUT", 1024)
+            monkeypatch.setattr(docker_sources, "_ALERT_RECEIPT_ENTRIES", 2)
+
+        def unexpected(*args: Any, **kwargs: Any) -> Any:
+            pytest.fail("invalid central directory allocated a ZipInfo")
+
+        monkeypatch.setattr(zipfile, "ZipInfo", unexpected)
+    if fault == "path-replaced":
+        other = tmp_path / "other"
+        other.write_bytes(raw)
+        standard = zipfile.ZipFile.open
+
+        def replace_once(archive: zipfile.ZipFile, *args: Any, **kwargs: Any) -> Any:
+            if other.exists():
+                os.replace(other, path)
+            return standard(archive, *args, **kwargs)
+
+        monkeypatch.setattr(zipfile.ZipFile, "open", replace_once)
+    diagnostic = {
+        "central-bytes": "AM_receipt_ZIP_directory",
+        "underreported-count": "AM_receipt_ZIP_count",
+        "wire-CRC": "AM_receipt_invalid_ZIP_BadZipFile",
+        "path-replaced": "AM_receipt_transport_changed",
+    }[fault]
+    with pytest.raises(policy.QualificationError, match=f"^{diagnostic}$"):
+        docker_sources._alertmanager_candidate_members(
+            path, expected_digest=sha256(raw).hexdigest()
+        )
+
+
+def test_am_receipt_large_valid_inventory_preserves_prometheus_cap(tmp_path: Path) -> None:
+    files = {f"raw/{i}": b"x" for i in range(4096)}
+    body = _am_receipt_zip(files)
+    path = tmp_path / "wide.zip"
+    path.write_bytes(body)
+    assert (
+        len(
+            docker_sources._alertmanager_candidate_members(
+                path, expected_digest=sha256(body).hexdigest()
+            )
+        )
+        == 4097
+    )
+    with pytest.raises(source_image.QualificationError, match="^artifact_member_count$"):
+        source_image._zip_members(path)
+
+
+def test_am_candidate_writer_matches_its_footer_and_directory_domain(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import time
+    from scripts.ci import prometheus_source_image as policy
+
+    def produce(name: str) -> Path:
+        root = tmp_path / name
+        (root / "only").mkdir(parents=True)
+        (root / "only/payload").write_bytes(b"data")
+        docker_sources._alertmanager_finalize_payload(root, deadline, candidate=True)
+        return root / docker_sources._ALERT_FOOTER
+
+    deadline = time.monotonic() + 10
+    boundary = produce("reference").stat().st_size
+    monkeypatch.setattr(policy, "MAX_NATIVE_OUTPUT", boundary)
+    monkeypatch.setattr(docker_sources, "_ALERT_RECEIPT_ENTRIES", 3)
+    assert produce("at-limit").stat().st_size == boundary
+    monkeypatch.setattr(policy, "MAX_NATIVE_OUTPUT", boundary - 1)
+    with pytest.raises(policy.QualificationError, match="^AM_candidate_footer_size$"):
+        produce("over-footer")
+    assert not (tmp_path / "over-footer" / docker_sources._ALERT_FOOTER).exists()
+    monkeypatch.setattr(docker_sources, "_ALERT_RECEIPT_ENTRIES", 2)
+    with pytest.raises(RuntimeError, match="artifact member limit"):
+        produce("over-population")
+    monkeypatch.setattr(docker_sources, "_ALERT_RECEIPT_ENTRIES", 3)
+    root = tmp_path / "empty-directory"
+    (root / "empty").mkdir(parents=True)
+    with pytest.raises(
+        policy.QualificationError, match="^AM_candidate_complete_retained_directories$"
+    ):
+        docker_sources._alertmanager_finalize_payload(root, deadline, candidate=True)
+
+
 def test_alertmanager_complete_artifact_inventory_includes_own_bytes_and_bounds(
     tmp_path: Path,
 ) -> None:
@@ -9496,8 +9798,6 @@ def test_alertmanager_payload_independent_A_binds_source_recipe_and_full_subject
     elif fault == "consumer":
         # Current consumer identity is deliberately independent of the selected A bytes.
         monkeypatch.setattr(docker_sources, "REPO_ROOT", tmp_path / "later-consumer")
-    from scripts.ci import prometheus_source_image as transport
-
     if fault in {"subject", "graph"}:
         import zipfile
 
@@ -9539,11 +9839,11 @@ def test_alertmanager_payload_independent_A_binds_source_recipe_and_full_subject
         assert not (tmp_path / "payload").exists()
         return
 
-    def members(path: Path) -> dict[str, bytes]:
-        assert path == archive
+    def members(path: Path, **kwargs: Any) -> dict[str, bytes]:
+        assert path == archive and kwargs["expected_digest"] == selected["zip_sha256"]
         raise RuntimeError("reached-original-payload-reader")
 
-    monkeypatch.setattr(transport, "_zip_members", members)
+    monkeypatch.setattr(docker_sources, "_alertmanager_candidate_members", members)
     expected = (
         "AM_accepted_producer_source_bytes"
         if fault in {"native-source", "recipe"}
@@ -15042,9 +15342,19 @@ def test_alertmanager_publisher_orders_fresh_controls_and_reserves_one_clock(
     monkeypatch.setattr(docker_sources, "_alertmanager_final_security", security)
     monkeypatch.setattr(docker_sources, "_alertmanager_native_candidate", native)
     monkeypatch.setattr(docker_sources, "_alertmanager_retain_execution", retain)
-    monkeypatch.setattr(
-        docker_sources, "_alertmanager_finalize_payload", lambda *_: events.append("finalize")
-    )
+    finish_footer = docker_sources._alertmanager_finalize_payload
+
+    def finish(retained: Path, deadline: float, *, candidate: bool) -> None:
+        observed = json.loads((retained / "candidate-observation.json").read_bytes())
+        assert candidate == (observed.get("failure") is None)
+        if not candidate:
+            (retained / "empty-diagnostic-dir").mkdir()
+            finish_footer(retained, deadline, candidate=False)
+            saved = json.loads((retained / docker_sources._ALERT_FOOTER).read_bytes())
+            assert "empty-diagnostic-dir" in {row["path"] for row in saved["directories"]}
+        events.append("finalize")
+
+    monkeypatch.setattr(docker_sources, "_alertmanager_finalize_payload", finish)
     args = Namespace(
         alertmanager_stage="publish",
         artifact="alertmanager",
@@ -15124,6 +15434,10 @@ def test_alertmanager_publisher_orders_fresh_controls_and_reserves_one_clock(
     "fault",
     [
         None,
+        "successful-stderr",
+        "excess-stdout",
+        "no-capture-budget",
+        "short-disk",
         "failed-run",
         "in-progress",
         "attempt",
@@ -15151,6 +15465,14 @@ def test_alertmanager_H_artifact_transport_keeps_C_acceptance_independent(
     actual[
         "scripts/ci/fetch_docker_source_artifacts.py"
     ] += b"\n# synthetic H differs from accepted C\n"
+
+    from scripts.ci import prometheus_source_image as policy
+
+    capture_calls = []
+    if fault == "short-disk":
+        from types import SimpleNamespace
+
+        monkeypatch.setattr(shutil, "disk_usage", lambda _: SimpleNamespace(free=0))
 
     class API:
         def json(self, endpoint: str) -> dict[str, Any]:
@@ -15212,7 +15534,15 @@ def test_alertmanager_H_artifact_transport_keeps_C_acceptance_independent(
             return rows
 
         def raw(self, endpoint: str, maximum: int) -> bytes:
-            return original_api.raw(endpoint.replace("/artifacts/202", "/artifacts/102"), maximum)
+            capture_calls.append(maximum)
+            payload = original_api.raw(
+                endpoint.replace("/artifacts/202", "/artifacts/102"), 1024**3
+            )
+            diagnostic = b"benign native diagnostic" if fault == "successful-stderr" else b""
+            if fault == "excess-stdout":
+                payload += b"trailing"
+            assert len(payload) + len(diagnostic) <= maximum <= 1024**3
+            return payload
 
     hashes = {name: sha256(raw).hexdigest() for name, raw in actual.items()}
     if fault == "candidate-source-omitted":
@@ -15230,14 +15560,18 @@ def test_alertmanager_H_artifact_transport_keeps_C_acceptance_independent(
             current_artifact_digest="sha256:" + accepted["zip_sha256"],
             upstream_version="0.34.2",
             source_branch="main",
+            retained_bytes=policy.MAX_CACHE_BYTES if fault == "no-capture-budget" else 0,
         )
 
-    if fault is None:
+    if fault in (None, "successful-stderr"):
         binding = invoke()
         assert binding["source"] == h_source and binding["job"] == 203
         assert binding["source_files"] != accepted["source_files"]
     else:
         expected = {
+            "no-capture-budget": "AM_receipt_download_budget",
+            "short-disk": "AM_receipt_free_space",
+            "excess-stdout": "AM_qualification_download_bytes",
             "failed-run": "AM_qualification_successful_CD_source",
             "in-progress": "AM_qualification_successful_CD_source",
             "attempt": "AM_qualification_successful_CD_source",
@@ -15250,6 +15584,8 @@ def test_alertmanager_H_artifact_transport_keeps_C_acceptance_independent(
         with pytest.raises(RuntimeError, match=expected):
             invoke()
         assert not (tmp_path / "H.zip").exists()
+    if fault in ("short-disk", "no-capture-budget"):
+        assert capture_calls == []
     assert docker_sources._ALERT_ACCEPTED_CANDIDATE == independent
 
 
@@ -16023,7 +16359,6 @@ def test_alertmanager_current_durable_predecessor_requires_complete_H_publicatio
     """Actual retained footer/record/material joins with controlled Git/API/scanner owners."""
     import time
     from hashlib import sha1
-    import zipfile
     from scripts.ci import prometheus_source_image as transport
 
     root, work = tmp_path / "checkout", tmp_path / "proof"
@@ -16122,37 +16457,6 @@ def test_alertmanager_current_durable_predecessor_requires_complete_H_publicatio
             ],
         }
 
-    def archive_bytes(files: dict[str, bytes]) -> bytes:
-        files = dict(files)
-        directories = sorted(
-            {
-                str(parent)
-                for name in files
-                for parent in PurePosixPath(name).parents
-                if str(parent) != "."
-            }
-        )
-        footer = {
-            "files": [
-                {"path": name, "size": len(raw), "mode": 0o600, "sha256": sha256(raw).hexdigest()}
-                for name, raw in files.items()
-            ],
-            "directories": [
-                {"path": name, "type": "directory", "mode": 0o700} for name in directories
-            ],
-            "inventory_carrier_exception": "Exactly artifact-payload-members.json is bound by external artifact bytes; its own hash is not recursively embedded.",
-        }
-        if fault == "footer":
-            footer["files"][0]["sha256"] = "0" * 64
-        files["artifact-payload-members.json"] = json.dumps(footer).encode()
-        stream = BytesIO()
-        with zipfile.ZipFile(stream, "w") as zipped:
-            for name, raw in files.items():
-                info = zipfile.ZipInfo(name)
-                info.external_attr = (stat.S_IFREG | 0o600) << 16
-                zipped.writestr(info, raw)
-        return stream.getvalue()
-
     producer_files = {"producer-source/" + name: source[name] for name in names}
     producer_files["candidate.oci.tar"] = b"controlled OCI"
     built = {
@@ -16221,7 +16525,7 @@ def test_alertmanager_current_durable_predecessor_requires_complete_H_publicatio
     elif fault == "graph":
         built["graph"]["config"]["digest"] = "sha256:" + "f" * 64
     producer_files["candidate-observation.json"] = json.dumps(built).encode()
-    producer_zip = archive_bytes(producer_files)
+    producer_zip = _am_receipt_zip(producer_files, fault)
     producer_binding = {
         "run": 99,
         "attempt": 1,
@@ -16274,7 +16578,7 @@ def test_alertmanager_current_durable_predecessor_requires_complete_H_publicatio
     elif fault == "retention":
         report["retention_failure"] = "controlled retention failure"
     files["candidate-observation.json"] = json.dumps(report).encode()
-    publication_zip = archive_bytes(files)
+    publication_zip = _am_receipt_zip(files, fault)
     repo = {"id": 1043311030}
     run = {
         "id": 66,
@@ -16396,7 +16700,13 @@ def test_alertmanager_current_durable_predecessor_requires_complete_H_publicatio
             return producer_binding
         assert kwargs["kind"] == "publication"
         destination.write_bytes(publication_zip)
-        return {"run": run_id, "artifact": artifact, "source": h, "job": 77}
+        return {
+            "run": run_id,
+            "artifact": artifact,
+            "source": h,
+            "job": 77,
+            "zip_sha256": sha256(publication_zip).hexdigest(),
+        }
 
     def source_snapshot(*args: Any, **kwargs: Any) -> dict[str, bytes]:
         result = {name: source[name] for name in names}
