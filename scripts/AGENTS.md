@@ -11,6 +11,17 @@
 - Prefer small, focused edits; update any dependent docs or Make targets if needed.
 - Avoid adding network calls to scripts used in CI unless explicitly required.
 
+- The Bookworm libzstd backport uses `build_bookworm_libzstd.sh` from the
+  backend Dockerfile's pinned Debian Bookworm image on Linux/amd64. The
+  helper checks the suite and architecture before root-only APT setup.
+  The designated non-root user builds and tests offline with its own
+  writable HOME and package workdir. APT authenticates the exact Debian security source
+  and normal expiration metadata. The donor repository supplies source
+  records only. Compile offline with Bookworm tools, install the genuine
+  local `libzstd1` package, and verify its runtime dependencies. When an
+  official Bookworm fix is admitted, retire the local package with a clean
+  image rebuild rather than comparing upstream versions across releases.
+
 - Before freezing changed CI/security Python helper controllers or starting their
   long validation, run the configured mypy hook with `--hook-stage pre-push` on the
   changed Python paths. Default-stage `--all-files` does not execute pre-push-only
