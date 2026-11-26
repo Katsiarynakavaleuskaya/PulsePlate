@@ -611,12 +611,56 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 # ensure scripts/CI pass DATABASE_URL/API_KEY envs as needed)
 CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
+# Build Debian's corrected source against Bookworm, without donor binary packages.
+FROM python:3.13.14-slim-bookworm@sha256:9d7f287598e1a5a978c015ee176d8216435aaf335ed69ac3c38dd1bbb10e8d64 AS libzstd-bookworm-build
+COPY --chmod=0644 scripts/ci/build_bookworm_libzstd.sh /tmp/build_bookworm_libzstd.sh
+RUN /bin/bash /tmp/build_bookworm_libzstd.sh prepare
+ENV HOME=/home/pulseplate-zstd-build
+USER pulseplate-zstd-build
+RUN --network=none /bin/bash /tmp/build_bookworm_libzstd.sh build
+
+FROM scratch AS libzstd-bookworm-package
+COPY --chown=0:0 --from=libzstd-bookworm-build /opt/pulseplate-libzstd/ /
+
 # Stage 3: Production stage (hardened)
 FROM runtime-base AS production
 
 # RU: Временный возврат к root нужен только для production-only slimming/hardening.
 # EN: Temporarily switch back to root only for production-only slimming/hardening.
 USER root
+
+# The local revision replaces only the qualified Bookworm package. Rebuild
+# without this backport when a reviewed official Bookworm fix is available.
+RUN --network=none --mount=type=bind,from=libzstd-bookworm-package,source=/,target=/opt/pulseplate-libzstd <<'SH'
+set -eu
+test "$(dpkg-query -W -f='${Version}' libzstd1)" = 1.5.4+dfsg2-5
+(cd /opt/pulseplate-libzstd && sha256sum -c SHA256SUMS)
+dpkg -i /opt/pulseplate-libzstd/libzstd1.deb
+test "$(dpkg-query -W -f='${Status} ${source:Package} ${Version}' libzstd1)" = 'install ok installed libzstd 1.5.7+dfsg-1+deb13u1~pulseplate12+1'
+scratch="$(mktemp -d)"
+trap 'rm -rf "$scratch"' EXIT
+library_file=/usr/lib/x86_64-linux-gnu/libzstd.so.1.5.7
+dpkg-deb --extract /opt/pulseplate-libzstd/libzstd1.deb "$scratch/packaged"
+test "$(dpkg-query -S "$library_file")" = "libzstd1:amd64: $library_file"
+cmp "$scratch/packaged$library_file" "$library_file"
+linked="$(ldd /usr/bin/dpkg-deb)"
+library="$(printf '%s\n' "$linked" | awk '$1 == "libzstd.so.1" && $2 == "=>" { print $3 }')"
+test -n "$library"
+test "$(readlink -f "$library")" = "$library_file"
+
+mkdir -p "$scratch/input/DEBIAN" "$scratch/input/usr/share/pulseplate-check"
+cat > "$scratch/input/DEBIAN/control" <<'CONTROL'
+Package: pulseplate-zstd-check
+Version: 1
+Architecture: all
+Maintainer: PulsePlate Build <pulseplate@pm.me>
+Description: Temporary package to exercise normal zstd compression
+CONTROL
+printf '%s\n' 'PulsePlate Bookworm zstd package roundtrip' > "$scratch/input/usr/share/pulseplate-check/payload"
+dpkg-deb --build --root-owner-group -Zzstd "$scratch/input" "$scratch/check.deb"
+dpkg-deb --extract "$scratch/check.deb" "$scratch/output"
+cmp "$scratch/input/usr/share/pulseplate-check/payload" "$scratch/output/usr/share/pulseplate-check/payload"
+SH
 
 # Keep the Python _uuid ABI while retiring the vulnerable Debian package family.
 COPY --from=uuid-builder /opt/libuuid/libuuid.so.1.3.0 /usr/local/lib/libuuid.so.1.3.0
