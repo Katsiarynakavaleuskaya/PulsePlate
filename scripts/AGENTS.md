@@ -22,6 +22,12 @@
   official Bookworm fix is admitted, retire the local package with a clean
   image rebuild rather than comparing upstream versions across releases.
 
+- For the time-bounded Bookworm scanner exception, retain raw and policy-applied
+  image reports. Verify the original package still blocks and the installed DSO
+  matches the qualified digest. The standalone image audit runs its extra native
+  controls with `python3 -m tests.fixtures.check_trivy_bookworm_backport` from
+  the repository root. [Scope and expiry](../docs/security/CVE-2026-124851-libzstd.md)
+
 - Before freezing changed CI/security Python helper controllers or starting their
   long validation, run the configured mypy hook with `--hook-stage pre-push` on the
   changed Python paths. Default-stage `--all-files` does not execute pre-push-only
