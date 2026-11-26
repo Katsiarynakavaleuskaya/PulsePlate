@@ -313,17 +313,34 @@ def test_direct_devcontainer_build_supplies_the_four_verified_sdk_archives() -> 
     source_config = yaml.safe_load((DEVCONTAINER_DIR / config["dockerComposeFile"][0]).read_text())
     base_config = yaml.safe_load((DEVCONTAINER_DIR / "docker-compose.devcontainer.yml").read_text())
     services = source_config["services"]
-    assert set(services) == {"devcontainer", "sdk-source-inputs", "native-sdk-artifacts"}
+    assert set(services) == {
+        "devcontainer",
+        "sdk-source-downloads",
+        "sdk-source-inputs",
+        "native-sdk-artifacts",
+    }
     assert services["devcontainer"] == {
         "extends": {"file": "docker-compose.devcontainer.yml", "service": "devcontainer"}
     }
     assert source_config["secrets"] == {"pp_netrc": base_config["secrets"]["pp_netrc"]}
     assert source_config["volumes"] == base_config["volumes"]
+    acquisition = services["sdk-source-downloads"]
     source = services["sdk-source-inputs"]
-    assert set(source) == {"platform", "build", "deploy"}
-    assert source["platform"] == "linux/amd64" and source["deploy"] == {"replicas": 0}
-    assert set(source["build"]) == {"context", "dockerfile_inline", "no_cache"}
-    assert source["build"]["context"] == ".." and source["build"]["no_cache"] is True
+    for staged in (acquisition, source):
+        assert set(staged) == {"platform", "build", "deploy"}
+        assert staged["platform"] == "linux/amd64" and staged["deploy"] == {"replicas": 0}
+        assert staged["build"]["context"] == ".."
+    assert set(acquisition["build"]) == {"context", "dockerfile_inline"}
+    assert set(source["build"]) == {
+        "context",
+        "dockerfile_inline",
+        "no_cache",
+        "additional_contexts",
+    }
+    assert source["build"]["no_cache"] is True
+    assert source["build"]["additional_contexts"] == {
+        "sdk-downloads": "service:sdk-source-downloads"
+    }
     assert not base_config["services"]["devcontainer"]["build"].get("no_cache")
     assert not services["native-sdk-artifacts"]["build"].get("no_cache")
 
@@ -334,17 +351,29 @@ def test_direct_devcontainer_build_supplies_the_four_verified_sdk_archives() -> 
     dockerfile = (REPO_ROOT / "Dockerfile").read_text()
     sdk_base = re.search(r'^ARG PSYCOPG_SDK_PYTHON_IMAGE="([^"]+)"$', dockerfile, re.MULTILINE)
     assert sdk_base is not None
-    recipe = source["build"]["dockerfile_inline"].splitlines()
-    assert recipe[:2] == [
-        f"FROM {sdk_base[1]} AS fetch",
+    download = acquisition["build"]["dockerfile_inline"].splitlines()
+    tooling = (
         "COPY scripts/ci/docker_source_artifacts.json scripts/ci/fetch_docker_source_artifacts.py "
-        "/tooling/scripts/ci/",
+        "/tooling/scripts/ci/"
+    )
+    assert download[:3] == [
+        f"FROM {sdk_base[1]} AS fetch",
+        tooling,
+        "RUN python -I - /tooling/scripts/ci/docker_source_artifacts.json /downloaded <<'PY'",
     ]
-    assert recipe[2:4] == [
-        "RUN --mount=type=cache,id=pulseplate-sdk-source-archives,target=/sdk-source-cache,sharing=locked \\",
-        "    python -I - /tooling/scripts/ci/docker_source_artifacts.json /sdk-source-cache /verified <<'PY'",
+    assert download[-3:] == ["PY", "FROM scratch", "COPY --from=fetch /downloaded/ /input/native/"]
+    offline = source["build"]["dockerfile_inline"].splitlines()
+    assert offline[:4] == [
+        f"FROM {sdk_base[1]} AS verify",
+        tooling,
+        "COPY --from=sdk-downloads /input/native/ /input/native/",
+        "RUN --network=none python -I - /tooling/scripts/ci/docker_source_artifacts.json /input/native <<'PY'",
     ]
-    assert recipe[-3:] == ["PY", "FROM scratch", "COPY --from=fetch /verified/ /input/native/"]
+    assert offline[-3:] == [
+        "PY",
+        "FROM scratch",
+        "COPY --from=verify /input/native/ /input/native/",
+    ]
 
     ordinary = dockerfile.split("FROM scratch AS sdk-source-archives\n", 1)[1].split("\nFROM ", 1)[
         0
@@ -375,18 +404,18 @@ def test_direct_devcontainer_build_supplies_the_four_verified_sdk_archives() -> 
     }
 
 
-def _sdk_source_program() -> str:
+def _sdk_source_program(service: str) -> str:
     config = yaml.safe_load((DEVCONTAINER_DIR / "docker-compose.source-inputs.yml").read_text())
-    recipe = config["services"]["sdk-source-inputs"]["build"]["dockerfile_inline"]
+    recipe = config["services"][service]["build"]["dockerfile_inline"]
     return recipe.split("<<'PY'\n", 1)[1].split("\nPY\n", 1)[0]
 
 
 def _run_sdk_source_step(
-    monkeypatch: pytest.MonkeyPatch, manifest: Path, cache: Path, output: Path
+    monkeypatch: pytest.MonkeyPatch, service: str, manifest: Path, directory: Path
 ) -> None:
-    monkeypatch.setattr(sys, "argv", ["-", str(manifest), str(cache), str(output)])
+    monkeypatch.setattr(sys, "argv", ["-", str(manifest), str(directory)])
     monkeypatch.setattr(sys, "path", sys.path.copy())
-    exec(compile(_sdk_source_program(), "<codespaces-sdk-source-step>", "exec"), {})
+    exec(compile(_sdk_source_program(service), "<codespaces-sdk-source-step>", "exec"), {})
 
 
 def test_devcontainer_source_step_admits_cold_and_warm_inputs_before_stale_rejection(
@@ -396,9 +425,7 @@ def test_devcontainer_source_step_admits_cold_and_warm_inputs_before_stale_rejec
     manifest = REPO_ROOT / "scripts/ci/docker_source_artifacts.json"
     review_by = date.fromisoformat(json.loads(manifest.read_text())["review_by"])
     observed_today = review_by
-    cache = tmp_path / "cache"
-    cache.mkdir()
-    (cache / "unrelated.tar.gz").write_bytes(b"irrelevant cache entry")
+    cache = tmp_path / "downloads"
     events: list[tuple[str, str]] = []
     load = source_artifacts.load_manifest
     selected = {item.name: item for item in load(manifest, today=review_by)}
@@ -410,36 +437,42 @@ def test_devcontainer_source_step_admits_cold_and_warm_inputs_before_stale_rejec
 
     def write_verified(artifact: source_artifacts.DockerSourceArtifact, directory: Path) -> Path:
         assert directory == cache
+        directory.mkdir(exist_ok=True)
         path = directory / artifact.filename
-        if path.exists():
-            events.append(("warm", artifact.name))
-            assert path.read_bytes() == expected[path.name]
-        else:
-            events.append(("cold", artifact.name))
-            path.write_bytes(expected[path.name])
+        events.append(("fetch", artifact.name))
+        path.write_bytes(expected[path.name])
         return path
+
+    def validate(artifact: source_artifacts.DockerSourceArtifact, payload: bytes) -> None:
+        events.append(("verify", artifact.name))
+        assert payload == expected[artifact.filename]
 
     monkeypatch.setattr(source_artifacts, "load_manifest", load_manifest)
     monkeypatch.setattr(source_artifacts, "_write_verified_artifact", write_verified)
-    for mode in ("cold", "warm"):
+    monkeypatch.setattr(source_artifacts, "validate_source_payload", validate)
+    _run_sdk_source_step(monkeypatch, "sdk-source-downloads", manifest, cache)
+    assert events == [("admit", review_by.isoformat())] + [
+        ("fetch", name) for name in SDK_SOURCE_NAMES
+    ]
+    for _ in range(2):
         events.clear()
-        output = tmp_path / mode
-        _run_sdk_source_step(monkeypatch, manifest, cache, output)
+        _run_sdk_source_step(monkeypatch, "sdk-source-inputs", manifest, cache)
         assert events == [("admit", review_by.isoformat())] + [
-            (mode, name) for name in SDK_SOURCE_NAMES
+            ("verify", name) for name in SDK_SOURCE_NAMES
         ]
-        assert {path.name: path.read_bytes() for path in output.iterdir()} == expected
+        assert {path.name: path.read_bytes() for path in cache.iterdir()} == expected
     observed_today = date.fromordinal(review_by.toordinal() + 1)
     events.clear()
-    output = tmp_path / "stale"
     with pytest.raises(RuntimeError, match=f"review_by is stale: {review_by.isoformat()}"):
-        _run_sdk_source_step(monkeypatch, manifest, cache, output)
-    assert events == [("admit", observed_today.isoformat())] and not output.exists()
+        _run_sdk_source_step(monkeypatch, "sdk-source-inputs", manifest, cache)
+    assert events == [("admit", observed_today.isoformat())]
+    assert {path.name: path.read_bytes() for path in cache.iterdir()} == expected
 
 
 @pytest.mark.parametrize("fault", ("stale", "missing-sdk", "malformed-unselected"))
+@pytest.mark.parametrize("service", ("sdk-source-downloads", "sdk-source-inputs"))
 def test_devcontainer_source_step_rejects_incomplete_admission_before_the_writer(
-    tmp_path: Path, fault: str
+    tmp_path: Path, fault: str, service: str
 ) -> None:
     canonical = REPO_ROOT / "scripts/ci"
     tooling = tmp_path / "tooling"
@@ -467,8 +500,7 @@ def test_devcontainer_source_step_rejects_incomplete_admission_before_the_writer
         reason = "Docker source artifacts require non-empty name/version/filename/url fields."
     input_path = staged / "docker_source_artifacts.json"
     input_path.write_text(json.dumps(manifest))
-    output = tmp_path / "verified"
-    source = _sdk_source_program()
+    source = _sdk_source_program(service)
     assert source.count('"/tooling"') == 1
     source = source.replace('"/tooling"', repr(str(tooling)), 1)
     network_guard = (
@@ -479,7 +511,7 @@ def test_devcontainer_source_step_rejects_incomplete_admission_before_the_writer
         "sys.addaudithook(deny_network)\n"
     )
     rejected = subprocess.run(
-        [sys.executable, "-I", "-", str(input_path), str(cache), str(output)],
+        [sys.executable, "-I", "-", str(input_path), str(cache)],
         input=network_guard + source,
         cwd=tmp_path,
         env={"PATH": os.defpath, "HOME": str(tmp_path)},
@@ -492,7 +524,39 @@ def test_devcontainer_source_step_rejects_incomplete_admission_before_the_writer
     assert not rejected.stdout and "unexpected SDK download" not in rejected.stderr
     assert list(cache.iterdir()) == [warm_file]
     assert warm_file.read_bytes() == b"sentinel: rejected admission must preserve this file"
-    assert not output.exists()
+
+
+@pytest.mark.parametrize(
+    "fault,reason",
+    (
+        ("missing", "Native SDK download inventory differs"),
+        ("extra", "Native SDK download inventory differs"),
+        ("link", "Native SDK download must be a regular file"),
+        ("digest", "zlib SHA3 mismatch"),
+    ),
+)
+def test_devcontainer_source_step_rejects_invalid_downloads(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str, reason: str
+) -> None:
+    manifest = REPO_ROOT / "scripts/ci/docker_source_artifacts.json"
+    review_by = date.fromisoformat(json.loads(manifest.read_text())["review_by"])
+    load = source_artifacts.load_manifest
+    records = {item.name: item for item in load(manifest, today=review_by)}
+    downloads = tmp_path / "downloads"
+    downloads.mkdir()
+    for name in SDK_SOURCE_NAMES:
+        (downloads / records[name].filename).write_bytes(b"synthetic wrong source bytes")
+    first = downloads / records["zlib"].filename
+    if fault == "missing":
+        first.unlink()
+    elif fault == "extra":
+        (downloads / "extra.tar.gz").write_bytes(b"synthetic unrelated bytes")
+    elif fault == "link":
+        first.unlink()
+        first.symlink_to(downloads / records["ncurses"].filename)
+    monkeypatch.setattr(source_artifacts, "load_manifest", lambda path: load(path, today=review_by))
+    with pytest.raises(RuntimeError, match=reason):
+        _run_sdk_source_step(monkeypatch, "sdk-source-inputs", manifest, downloads)
 
 
 def test_root_development_consumes_prefetched_sdk_offline_and_provides_make() -> None:

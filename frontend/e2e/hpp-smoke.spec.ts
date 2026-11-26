@@ -1362,7 +1362,7 @@ for (const forcedColors of ['none', 'active'] as const) {
   });
 }
 
-test('focus witnesses reject transparent colors and zero-geometry shadows', async ({ page, baseURL }, testInfo) => {
+test('focus witnesses reject transparent, zero-width and always-on button outlines', async ({ page, baseURL }, testInfo) => {
   await showCompatibilitySpecimens(page, new URL(baseURL ?? '').origin);
   const button = page.locator('[data-compat-target="button-primary-default"]');
   const buttonDefault = await readCompatibilityStyle(button);
@@ -1415,12 +1415,25 @@ test('focus witnesses reject transparent colors and zero-geometry shadows', asyn
     }, originalButtonStyle);
   }
 
+  await attachCompatibility(testInfo, 'focus-outline-negative-controls', { buttonBefore, outlineNegatives, alwaysOn });
+});
+
+test('focus witnesses reject inset, wrong-token and zero-geometry input rings', async ({ page, baseURL }, testInfo) => {
+  await showCompatibilitySpecimens(page, new URL(baseURL ?? '').origin);
+  const keyboard = await keyboardCompatibilityTarget(page, 'input-ordinary', testInfo);
+  const ordinary = page.locator('[data-compat-target="input-ordinary"]');
   const ringControls = [];
   for (const state of ['ordinary', 'invalid'] as const) {
     const id = `input-${state}`;
     const input = page.locator(`[data-compat-target="${id}"]`);
-    const keyboard = await keyboardCompatibilityTarget(page, id, testInfo);
-    const before = keyboard[id];
+    if (state === 'invalid') {
+      // The ordinary control keeps focus after its inline style is restored.
+      await expect(ordinary).toBeFocused();
+      await page.keyboard.press('Tab');
+    }
+    await expect(input).toBeFocused();
+    const before = state === 'ordinary' ? keyboard[id] : await readCompatibilityStyle(input);
+    expect(before.focus.focusVisible).toBe(true);
     const original = await input.getAttribute('style');
     expect(hasVisibleCompatibilityInputRing(before)).toBe(true);
     const ringToken = state === 'invalid' ? '--color-error' : '--color-primary';
@@ -1441,10 +1454,11 @@ test('focus witnesses reject transparent colors and zero-geometry shadows', asyn
         else element.setAttribute('style', value);
       }, original);
     }
-    expect(hasVisibleCompatibilityInputRing(await readCompatibilityStyle(input))).toBe(true);
-    ringControls.push({ state, before, negatives });
+    const restored = await readCompatibilityStyle(input);
+    expect(hasVisibleCompatibilityInputRing(restored)).toBe(true);
+    ringControls.push({ state, before, negatives, restored });
   }
-  await attachCompatibility(testInfo, 'focus-negative-controls', { buttonBefore, outlineNegatives, alwaysOn, ringControls });
+  await attachCompatibility(testInfo, 'focus-ring-negative-controls', ringControls);
 });
 
 test('CSS smoke rejects an exact missing grid despite grid-cols neighbors', async ({ page, baseURL }, testInfo) => {

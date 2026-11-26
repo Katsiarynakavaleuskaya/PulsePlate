@@ -4,35 +4,70 @@ services:
       file: docker-compose.devcontainer.yml
       service: devcontainer
 
-  sdk-source-inputs:
+  sdk-source-downloads:
     platform: linux/amd64
     build:
       context: ..
-      no_cache: true
       dockerfile_inline: |
         FROM python@sha256:7a6b87c02e1f4d6bb572e379235cbbdd7892add0572442c9b0b860a3f5aa9857 AS fetch
         COPY scripts/ci/docker_source_artifacts.json scripts/ci/fetch_docker_source_artifacts.py /tooling/scripts/ci/
-        RUN --mount=type=cache,id=pulseplate-sdk-source-archives,target=/sdk-source-cache,sharing=locked \
-            python -I - /tooling/scripts/ci/docker_source_artifacts.json /sdk-source-cache /verified <<'PY'
+        RUN python -I - /tooling/scripts/ci/docker_source_artifacts.json /downloaded <<'PY'
         from pathlib import Path
-        from shutil import copy
         import sys
 
         sys.path.insert(0, "/tooling")
         from scripts.ci.fetch_docker_source_artifacts import load_manifest, _write_verified_artifact
 
-        manifest, cache, output = map(Path, sys.argv[1:])
+        manifest, output = map(Path, sys.argv[1:])
         records = {record.name: record for record in load_manifest(manifest)}
         names = ("zlib", "ncurses", "openssl", "postgresql")
         if missing := set(names) - records.keys():
             raise RuntimeError("Native SDK manifest is missing: " + ", ".join(sorted(missing)))
-        verified = [_write_verified_artifact(records[name], cache) for name in names]
-        output.mkdir()
-        for path in verified:
-            copy(path, output / path.name)
+        for name in names:
+            _write_verified_artifact(records[name], output)
         PY
         FROM scratch
-        COPY --from=fetch /verified/ /input/native/
+        COPY --from=fetch /downloaded/ /input/native/
+    deploy:
+      replicas: 0
+
+  sdk-source-inputs:
+    platform: linux/amd64
+    build:
+      context: ..
+      no_cache: true
+      additional_contexts:
+        sdk-downloads: service:sdk-source-downloads
+      dockerfile_inline: |
+        FROM python@sha256:7a6b87c02e1f4d6bb572e379235cbbdd7892add0572442c9b0b860a3f5aa9857 AS verify
+        COPY scripts/ci/docker_source_artifacts.json scripts/ci/fetch_docker_source_artifacts.py /tooling/scripts/ci/
+        COPY --from=sdk-downloads /input/native/ /input/native/
+        RUN --network=none python -I - /tooling/scripts/ci/docker_source_artifacts.json /input/native <<'PY'
+        from pathlib import Path
+        from stat import S_ISREG
+        import sys
+
+        sys.path.insert(0, "/tooling")
+        from scripts.ci.fetch_docker_source_artifacts import load_manifest, validate_source_payload
+
+        manifest, archives = map(Path, sys.argv[1:])
+        records = {record.name: record for record in load_manifest(manifest)}
+        names = ("zlib", "ncurses", "openssl", "postgresql")
+        if missing := set(names) - records.keys():
+            raise RuntimeError("Native SDK manifest is missing: " + ", ".join(sorted(missing)))
+        expected = {records[name].filename for name in names}
+        if {path.name for path in archives.iterdir()} != expected:
+            raise RuntimeError("Native SDK download inventory differs")
+        for name in names:
+            record = records[name]
+            path = archives / record.filename
+            if not S_ISREG(path.lstat().st_mode):
+                raise RuntimeError("Native SDK download must be a regular file: " + path.name)
+            validate_source_payload(record, path.read_bytes())
+            print(f"{name}: verified SDK source archive {path.name}")
+        PY
+        FROM scratch
+        COPY --from=verify /input/native/ /input/native/
     deploy:
       replicas: 0
 
