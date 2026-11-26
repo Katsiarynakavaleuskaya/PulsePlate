@@ -3326,6 +3326,16 @@ def test_libzstd_backport_uses_donor_source_and_installs_the_genuine_package_off
     assert "dpkg-deb --build --root-owner-group -Zzstd" in production
     assert 'dpkg-deb --extract "$scratch/check.deb"' in production
     assert 'cmp "$scratch/packaged$library_file" "$library_file"' in production
+    resolved = 'test "$(readlink -f "$library")" = "$library_file"'
+    digest = (
+        "a0a281900c6fd880b754ff0fb453c8914927aff6aab2862b2925a89507510f72"
+        ' "$library_file" | sha256sum -c -'
+    )
+    assert (
+        production.index(resolved)
+        < production.index(digest)
+        < production.index("# SECURITY: production-package-pruning-start")
+    )
 
 
 def test_pcre2_production_build_preserves_native_features_and_consumers() -> None:

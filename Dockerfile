@@ -647,6 +647,8 @@ linked="$(ldd /usr/bin/dpkg-deb)"
 library="$(printf '%s\n' "$linked" | awk '$1 == "libzstd.so.1" && $2 == "=>" { print $3 }')"
 test -n "$library"
 test "$(readlink -f "$library")" = "$library_file"
+# Bind the temporarily excepted scanner identity to the qualified loaded DSO.
+printf '%s  %s\n' a0a281900c6fd880b754ff0fb453c8914927aff6aab2862b2925a89507510f72 "$library_file" | sha256sum -c -
 
 mkdir -p "$scratch/input/DEBIAN" "$scratch/input/usr/share/pulseplate-check"
 cat > "$scratch/input/DEBIAN/control" <<'CONTROL'
