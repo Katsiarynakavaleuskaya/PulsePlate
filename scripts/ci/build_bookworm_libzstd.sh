@@ -22,11 +22,20 @@ adc44c628b74a7a4eff4fbed4681e8fdc8ffe8e4bc31aa9ea6a41a07a2281d23  libzstd_1.5.7+
 HASH
 }
 
+require_amd64() {
+    local architecture
+    architecture="$(dpkg --print-architecture)"
+    if [[ "$architecture" != amd64 ]]; then
+        printf 'Bookworm libzstd backport requires linux/amd64 (found %s). Use docker build --platform=linux/amd64.\n' "$architecture" >&2
+        return 1
+    fi
+}
+
 prepare() {
+    require_amd64
     test "$(id -u)" = 0
     grep -Fxq ID=debian /etc/os-release
     grep -Fxq VERSION_CODENAME=bookworm /etc/os-release
-    test "$(dpkg --print-architecture)" = amd64
     export DEBIAN_FRONTEND=noninteractive
     # Only source records from the donor suite are visible to APT.
     cat > /etc/apt/sources.list.d/pulseplate-libzstd-donor.sources <<'APT'
@@ -52,6 +61,7 @@ APT
 }
 
 build() {
+    require_amd64
     test "$(id -un)" = "$builder"
     test "$(id -u)" -ne 0
     test "$HOME" = "/home/$builder"
@@ -60,7 +70,6 @@ build() {
     test -w "$output"
     cd "$work"
     verify_source
-    test "$(dpkg --print-architecture)" = amd64
     dpkg --compare-versions "$backport" gt '1.5.4+dfsg2-5'
     dpkg --compare-versions "$backport" lt "$donor"
     dpkg-source -x "libzstd_$donor.dsc" source

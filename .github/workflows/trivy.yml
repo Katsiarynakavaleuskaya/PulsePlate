@@ -220,7 +220,7 @@ jobs:
         run: |
           set -euo pipefail
           # On a cache miss, setup-trivy uses and removes the trivy/ checkout path.
-          git restore --source="$GITHUB_SHA" --worktree -- trivy/ignore-policy.rego
+          /usr/bin/git restore --source="$GITHUB_SHA" --worktree -- trivy/ignore-policy.rego
           python3 -m tests.fixtures.check_trivy_bookworm_backport
 
       - name: Fail when Trivy SARIF is missing

@@ -26,9 +26,11 @@ import tempfile
 import time
 import zlib
 from collections.abc import Iterable
+from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
+from threading import Barrier, Lock
 from typing import Any, cast
 from urllib.parse import unquote, urlparse
 from urllib.request import HTTPRedirectHandler, HTTPSHandler, ProxyHandler, Request, build_opener
@@ -748,6 +750,8 @@ _NPM_BUNDLE_DEPTH_LIMIT = 32
 # Ephemeral raw bytes only; each hit is revalidated and the total stays within
 # the existing compressed-byte bound. No parsed metadata or proof is cached.
 _NPM_BUNDLE_RAW_CACHE: dict[tuple[str, str], bytes] = {}
+_NPM_BUNDLE_RAW_CACHE_LOCK = Lock()
+_NPM_BUNDLE_CACHE_MISS = object()
 _NPM_PUBLISHED_KEYS = frozenset(
     {
         "name",
@@ -927,9 +931,13 @@ def _read_npm_bundle_archive(
     """One anonymous official fetch or SRI-revalidated raw-byte reuse; no verdict cache."""
     assert _canonical_registry_tarball_identity(url) is not None, "noncanonical bundle URL"
     key = (url, integrity)
-    if key in raw_cache:
-        raw = raw_cache[key]
+    shared_cache = raw_cache is _NPM_BUNDLE_RAW_CACHE
+    if shared_cache:
+        with _NPM_BUNDLE_RAW_CACHE_LOCK:
+            cached = raw_cache.get(key, _NPM_BUNDLE_CACHE_MISS)
     else:
+        cached = raw_cache.get(key, _NPM_BUNDLE_CACHE_MISS)
+    if cached is _NPM_BUNDLE_CACHE_MISS:
         opener = build_opener(
             ProxyHandler({}),
             _NoNpmBundleRedirect(),
@@ -960,12 +968,18 @@ def _read_npm_bundle_archive(
             raise AssertionError("anonymous npm bundle acquisition failed") from exc
         _npm_bundle_remaining(deadline)
         _verify_npm_bundle_sri(raw, integrity=integrity, source=url)
-        if raw_cache is _NPM_BUNDLE_RAW_CACHE and (
-            sum(len(value) for value in raw_cache.values()) + len(raw)
-            > _NPM_BUNDLE_COMPRESSED_LIMIT
-        ):
-            raw_cache.clear()
-        raw_cache[key] = raw
+        if shared_cache:
+            with _NPM_BUNDLE_RAW_CACHE_LOCK:
+                if key not in raw_cache:
+                    if sum(len(value) for value in raw_cache.values()) + len(raw) > (
+                        _NPM_BUNDLE_COMPRESSED_LIMIT
+                    ):
+                        raw_cache.clear()
+                    raw_cache[key] = raw
+        else:
+            raw_cache[key] = raw
+        return raw
+    raw = cast(bytes, cached)
     _verify_npm_bundle_sri(raw, integrity=integrity, source=url)
     return raw
 
@@ -4358,7 +4372,7 @@ def test_closed_bundle_explicit_raw_cache_stays_isolated(
     assert len(state["archive_calls"]) == len(state["native_calls"]) == 3
 
 
-@pytest.mark.parametrize("mutation", ("sri", "oversize"))
+@pytest.mark.parametrize("mutation", ("sri", "oversize", "wrong-type"))
 def test_closed_bundle_default_raw_cache_rejects_mutation(
     npm_bundle_reader_cache: dict[str, Any],
     mutation: str,
@@ -4366,9 +4380,12 @@ def test_closed_bundle_default_raw_cache_rejects_mutation(
     state = npm_bundle_reader_cache
     _assert_lock_surface_canonical_provenance(surface="synthetic", document=state["lock"])
     key = next(iter(state["cache"]))
-    state["cache"][key] = (
-        b"mutated" if mutation == "sri" else b"x" * (_NPM_BUNDLE_COMPRESSED_LIMIT + 1)
-    )
+    if mutation == "sri":
+        state["cache"][key] = b"mutated"
+    elif mutation == "oversize":
+        state["cache"][key] = b"x" * (_NPM_BUNDLE_COMPRESSED_LIMIT + 1)
+    else:
+        state["cache"][key] = None
     with pytest.raises(AssertionError, match="npm bundle SRI mismatch|compressed npm bundle limit"):
         _assert_lock_surface_canonical_provenance(surface="synthetic", document=state["lock"])
     assert len(state["fetches"]) == len(state["native_calls"]) == 1
@@ -4402,6 +4419,59 @@ def test_closed_bundle_default_raw_cache_retains_only_bounded_bytes(
         )
     assert state["cache"] == {(second_url, parent["integrity"]): state["raw"]}
     assert len(state["fetches"]) == 2
+
+
+@pytest.mark.parametrize("same_key", (False, True), ids=("distinct-keys", "same-key"))
+def test_closed_bundle_default_raw_cache_serializes_overlapping_publication(
+    npm_bundle_reader_cache: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+    same_key: bool,
+) -> None:
+    state = npm_bundle_reader_cache
+    parent = state["lock"]["packages"]["node_modules/fixture-parent"]
+    raw = state["raw"]
+    integrity = parent["integrity"]
+    first_url = parent["resolved"]
+    other_url = "https://registry.npmjs.org/other-cache-fixture/-/other-cache-fixture-1.0.0.tgz"
+    other_key = (other_url, integrity)
+    retained_limit = len(raw) * (2 if same_key else 1)
+    monkeypatch.setattr(__name__ + "._NPM_BUNDLE_COMPRESSED_LIMIT", retained_limit)
+
+    class ObservedCache(dict[tuple[str, str], bytes]):
+        def __setitem__(self, key: tuple[str, str], value: bytes) -> None:
+            assert _NPM_BUNDLE_RAW_CACHE_LOCK.locked()
+            super().__setitem__(key, value)
+            assert sum(map(len, super().values())) <= retained_limit
+
+    cache = ObservedCache({other_key: raw} if same_key else {})
+    monkeypatch.setattr(__name__ + "._NPM_BUNDLE_RAW_CACHE", cache)
+    opener = build_opener()
+    overlap = Barrier(2)
+
+    class OverlappingOpener:
+        def open(self, request: Request, *, timeout: float) -> Any:
+            # Both lookups missed before either caller is allowed to publish.
+            overlap.wait(timeout=5)
+            return opener.open(request, timeout=timeout)
+
+    monkeypatch.setattr(__name__ + ".build_opener", lambda *args: OverlappingOpener())
+
+    def read(url: str) -> bytes:
+        return state["reader"](
+            url=url, integrity=integrity, deadline=time.monotonic() + 10, raw_cache=cache
+        )
+
+    second_url = first_url if same_key else other_url
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        pending = [executor.submit(read, url) for url in (first_url, second_url)]
+        assert [result.result(timeout=10) for result in pending] == [raw, raw]
+    assert sorted(state["fetches"]) == sorted((first_url, second_url))
+    if same_key:
+        assert cache == {other_key: raw, (first_url, integrity): raw}
+    else:
+        assert len(cache) == 1
+        assert next(iter(cache)) in {(first_url, integrity), other_key}
+        assert list(cache.values()) == [raw]
 
 
 @pytest.mark.parametrize(

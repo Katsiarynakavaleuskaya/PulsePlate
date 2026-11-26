@@ -3837,7 +3837,7 @@ def test_standalone_trivy_restores_event_policy_before_native_controls() -> None
     assert isinstance(run, str)
     assert [line for line in run.splitlines() if not line.startswith("#")] == [
         "set -euo pipefail",
-        'git restore --source="$GITHUB_SHA" --worktree -- trivy/ignore-policy.rego',
+        '/usr/bin/git restore --source="$GITHUB_SHA" --worktree -- trivy/ignore-policy.rego',
         "python3 -m tests.fixtures.check_trivy_bookworm_backport",
     ]
 
@@ -6972,7 +6972,18 @@ def test_ci_prepares_the_designated_controller_before_its_offline_consumers() ->
     assert sum(step.get("name") == prepare_name for step in nightly_steps) == 1
     prepare_index = nightly_steps.index(nightly_prepare)
     assert nightly_steps.index(checkout) < prepare_index < nightly_steps.index(shards)
-    assert nightly_prepare == _job_step_by_name(workflow, job_id="lint", step_name=prepare_name)
+    lint_prepare = _job_step_by_name(workflow, job_id="lint", step_name=prepare_name)
+    assert lint_prepare == _job_step_by_name(workflow, job_id="test-main", step_name=prepare_name)
+    expected_run = lint_prepare["run"]
+    assert isinstance(expected_run, str)
+    for prefix in (
+        "if ! git cat-file -e ",
+        "  git -c credential.helper= ",
+        'resolved="$(git rev-parse --verify ',
+    ):
+        assert expected_run.count(prefix) == 1
+        expected_run = expected_run.replace(prefix, prefix.replace("git ", "/usr/bin/git ", 1))
+    assert nightly_prepare == {**lint_prepare, "run": expected_run}
 
 
 def test_ci_main_matrix_uses_full_history_for_git_evidence_guards() -> None:

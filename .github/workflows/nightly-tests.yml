@@ -40,13 +40,13 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$CONTROLLER_SHA" =~ ^[0-9a-f]{40}$ ]]
-          if ! git cat-file -e "$CONTROLLER_SHA^{commit}" 2>/dev/null; then
-            git -c credential.helper= -c http.extraHeader= -c http.https://github.com/.extraHeader= \
+          if ! /usr/bin/git cat-file -e "$CONTROLLER_SHA^{commit}" 2>/dev/null; then
+            /usr/bin/git -c credential.helper= -c http.extraHeader= -c http.https://github.com/.extraHeader= \
               -c http.followRedirects=false fetch --no-tags --no-recurse-submodules \
               --no-write-fetch-head --no-auto-maintenance \
               https://github.com/Katsiarynakavaleuskaya/PulsePlate.git "$CONTROLLER_SHA"
           fi
-          resolved="$(git rev-parse --verify --end-of-options "$CONTROLLER_SHA^{commit}")"
+          resolved="$(/usr/bin/git rev-parse --verify --end-of-options "$CONTROLLER_SHA^{commit}")"
           test "$resolved" = "$CONTROLLER_SHA"
 
       - name: Setup Python

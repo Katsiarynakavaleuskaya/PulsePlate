@@ -3338,6 +3338,38 @@ def test_libzstd_backport_uses_donor_source_and_installs_the_genuine_package_off
     )
 
 
+@pytest.mark.parametrize("command", ("prepare", "build"))
+@pytest.mark.parametrize("architecture", ("amd64", "arm64"))
+def test_libzstd_rejects_unsupported_architecture_before_distro_or_source_access(
+    tmp_path: Path, command: str, architecture: str
+) -> None:
+    dpkg = tmp_path / "dpkg"
+    dpkg.write_text('#!/bin/sh\ntest "$*" = --print-architecture && printf "%s\\n" "$TEST_ARCH"\n')
+    dpkg.chmod(0o700)
+    identity = tmp_path / "id"
+    identity.write_text("#!/bin/sh\nprintf 'next identity check reached\\n' >&2\nexit 19\n")
+    identity.chmod(0o700)
+    bash = shutil.which("bash")
+    assert bash is not None
+    result = subprocess.run(
+        [bash, str(REPO_ROOT / "scripts/ci/build_bookworm_libzstd.sh"), command],
+        cwd=tmp_path,
+        env={"PATH": str(tmp_path), "TEST_ARCH": architecture},
+        capture_output=True,
+        text=True,
+        timeout=5,
+        check=False,
+    )
+    assert result.returncode != 0
+    if architecture == "amd64":
+        assert result.stderr == "next identity check reached\n"
+    else:
+        assert result.stderr == (
+            "Bookworm libzstd backport requires linux/amd64 (found arm64). "
+            "Use docker build --platform=linux/amd64.\n"
+        )
+
+
 def test_pcre2_production_build_preserves_native_features_and_consumers() -> None:
     dockerfile = (REPO_ROOT / "Dockerfile").read_text()
     dockerignore = (REPO_ROOT / ".dockerignore").read_text()

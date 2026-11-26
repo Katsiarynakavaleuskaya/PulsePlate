@@ -17,7 +17,8 @@ ARG SQLITE_AUTOCONF_SHA3_256_PART_6="bed2bd81"
 ARG SQLITE_AUTOCONF_SHA3_256_PART_7="d47e98ba"
 ARG SQLITE_AUTOCONF_SHA3_256_PART_8="1b72983b"
 
-# Exact SDK target family; default and runtime Python keep their existing amd64 pin.
+# The default SDK image selects amd64. Production and staging require linux/amd64
+# even though the pinned runtime Python image index supports multiple architectures.
 ARG PSYCOPG_SDK_PYTHON_IMAGE="python@sha256:7a6b87c02e1f4d6bb572e379235cbbdd7892add0572442c9b0b860a3f5aa9857"
 
 # Compose supplies the same four verified inputs when the checkout has no source cache.
@@ -1228,8 +1229,8 @@ RUN /opt/venv/bin/alembic -c /app/alembic.ini heads
 # Can be customized for staging needs (e.g., debug logging, extended health checks)
 #
 # HOW TO BUILD FOR STAGING:
-#   docker build --target=staging -t myapp:staging .
-#   docker build --target=staging --build-arg LOG_LEVEL=INFO -t myapp:staging .
+#   docker build --platform=linux/amd64 --target=staging -t myapp:staging .
+#   docker build --platform=linux/amd64 --target=staging --build-arg LOG_LEVEL=INFO -t myapp:staging .
 #
 # HOW TO RUN STAGING CONTAINER:
 #   docker run -e LOG_LEVEL=INFO -e DATABASE_URL=staging_db_url myapp:staging
