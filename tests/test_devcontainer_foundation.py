@@ -529,10 +529,10 @@ def test_devcontainer_source_step_rejects_incomplete_admission_before_the_writer
 @pytest.mark.parametrize(
     "fault,reason",
     (
-        ("missing", "Native SDK download inventory differs"),
-        ("extra", "Native SDK download inventory differs"),
-        ("link", "Native SDK download must be a regular file"),
-        ("digest", "zlib SHA3 mismatch"),
+        pytest.param("missing", "Native SDK download inventory differs", id="missing"),
+        pytest.param("extra", "Native SDK download inventory differs", id="extra"),
+        pytest.param("link", "Native SDK download must be a regular file: {filename}", id="link"),
+        pytest.param("digest", "zlib SHA3 mismatch", id="digest"),
     ),
 )
 def test_devcontainer_source_step_rejects_invalid_downloads(
@@ -544,19 +544,43 @@ def test_devcontainer_source_step_rejects_invalid_downloads(
     records = {item.name: item for item in load(manifest, today=review_by)}
     downloads = tmp_path / "downloads"
     downloads.mkdir()
-    for name in SDK_SOURCE_NAMES:
-        (downloads / records[name].filename).write_bytes(b"synthetic wrong source bytes")
+    payloads = {
+        name: f"synthetic source archive for {name}\n".encode() for name in SDK_SOURCE_NAMES
+    }
+    for name, payload in payloads.items():
+        (downloads / records[name].filename).write_bytes(payload)
+    monkeypatch.setattr(source_artifacts, "load_manifest", lambda path: load(path, today=review_by))
+
+    verified: list[str] = []
+
+    def validate_synthetic(artifact: source_artifacts.DockerSourceArtifact, payload: bytes) -> None:
+        assert artifact == records[artifact.name]
+        assert payload == payloads[artifact.name]
+        verified.append(artifact.name)
+
+    if fault != "digest":
+        monkeypatch.setattr(source_artifacts, "validate_source_payload", validate_synthetic)
+        _run_sdk_source_step(monkeypatch, "sdk-source-inputs", manifest, downloads)
+        assert verified == list(SDK_SOURCE_NAMES)
+        verified.clear()
+
     first = downloads / records["zlib"].filename
     if fault == "missing":
         first.unlink()
     elif fault == "extra":
         (downloads / "extra.tar.gz").write_bytes(b"synthetic unrelated bytes")
     elif fault == "link":
+        backing_file = tmp_path / first.name
+        backing_file.write_bytes(payloads["zlib"])
         first.unlink()
-        first.symlink_to(downloads / records["ncurses"].filename)
-    monkeypatch.setattr(source_artifacts, "load_manifest", lambda path: load(path, today=review_by))
-    with pytest.raises(RuntimeError, match=reason):
+        first.symlink_to(backing_file)
+    elif fault == "digest":
+        # The real validator rejects the deliberately corrupt first archive.
+        first.write_bytes(b"intentionally corrupt zlib archive")
+    with pytest.raises(RuntimeError) as rejected:
         _run_sdk_source_step(monkeypatch, "sdk-source-inputs", manifest, downloads)
+    assert str(rejected.value) == reason.format(filename=first.name)
+    assert verified == []
 
 
 def test_root_development_consumes_prefetched_sdk_offline_and_provides_make() -> None:
