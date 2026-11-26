@@ -3821,6 +3821,27 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
     assert len(observed_trivy_contracts) == 7
 
 
+def test_standalone_trivy_restores_event_policy_before_native_controls() -> None:
+    steps = [step for job_id, step in _iter_job_steps(TRIVY_WORKFLOW_PATH) if job_id == "build"]
+    names = [step.get("name") for step in steps]
+    prepare = names.index("Prepare Trivy ignore policy")
+    scan = names.index("Run Trivy vulnerability scanner")
+    controls = "Check native Bookworm backport policy controls"
+    assert names.count(controls) == 1
+    assert prepare < scan
+    assert "cp trivy/ignore-policy.rego .trivy-ignore-policy.rego" in str(steps[prepare]["run"])
+    assert steps[scan + 1]["name"] == controls
+    step = steps[scan + 1]
+    assert set(step) == {"name", "run"}
+    run = step["run"]
+    assert isinstance(run, str)
+    assert [line for line in run.splitlines() if not line.startswith("#")] == [
+        "set -euo pipefail",
+        'git restore --source="$GITHUB_SHA" --worktree -- trivy/ignore-policy.rego',
+        "python3 -m tests.fixtures.check_trivy_bookworm_backport",
+    ]
+
+
 def test_build_workflow_trivy_fs_sarif_is_temp_isolated_before_upload() -> None:
     workflow = _load_workflow(BUILD_WORKFLOW_PATH)
     prepare_step = _job_step_by_name(

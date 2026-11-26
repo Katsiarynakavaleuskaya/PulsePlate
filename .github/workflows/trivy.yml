@@ -217,7 +217,11 @@ jobs:
           version: v0.76.2
 
       - name: Check native Bookworm backport policy controls
-        run: python3 -m tests.fixtures.check_trivy_bookworm_backport
+        run: |
+          set -euo pipefail
+          # On a cache miss, setup-trivy uses and removes the trivy/ checkout path.
+          git restore --source="$GITHUB_SHA" --worktree -- trivy/ignore-policy.rego
+          python3 -m tests.fixtures.check_trivy_bookworm_backport
 
       - name: Fail when Trivy SARIF is missing
         if: ${{ always() }}
