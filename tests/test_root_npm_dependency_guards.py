@@ -30,7 +30,7 @@ from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from threading import Barrier, Lock
+from threading import Barrier, Lock, get_ident
 from typing import Any, cast
 from urllib.parse import unquote, urlparse
 from urllib.request import HTTPRedirectHandler, HTTPSHandler, ProxyHandler, Request, build_opener
@@ -4372,10 +4372,18 @@ def test_closed_bundle_explicit_raw_cache_stays_isolated(
     assert len(state["archive_calls"]) == len(state["native_calls"]) == 3
 
 
-@pytest.mark.parametrize("mutation", ("sri", "oversize", "wrong-type"))
+@pytest.mark.parametrize(
+    ("mutation", "diagnostic"),
+    (
+        pytest.param("sri", "npm bundle SRI mismatch", id="sri"),
+        pytest.param("oversize", "compressed npm bundle limit/type", id="oversize"),
+        pytest.param("wrong-type", "compressed npm bundle limit/type", id="wrong-type"),
+    ),
+)
 def test_closed_bundle_default_raw_cache_rejects_mutation(
     npm_bundle_reader_cache: dict[str, Any],
     mutation: str,
+    diagnostic: str,
 ) -> None:
     state = npm_bundle_reader_cache
     _assert_lock_surface_canonical_provenance(surface="synthetic", document=state["lock"])
@@ -4386,8 +4394,9 @@ def test_closed_bundle_default_raw_cache_rejects_mutation(
         state["cache"][key] = b"x" * (_NPM_BUNDLE_COMPRESSED_LIMIT + 1)
     else:
         state["cache"][key] = None
-    with pytest.raises(AssertionError, match="npm bundle SRI mismatch|compressed npm bundle limit"):
+    with pytest.raises(AssertionError) as rejected:
         _assert_lock_surface_canonical_provenance(surface="synthetic", document=state["lock"])
+    assert str(rejected.value).splitlines()[0] == f"{key[0]}: {diagnostic}"
     assert len(state["fetches"]) == len(state["native_calls"]) == 1
 
 
@@ -4437,9 +4446,46 @@ def test_closed_bundle_default_raw_cache_serializes_overlapping_publication(
     retained_limit = len(raw) * (2 if same_key else 1)
     monkeypatch.setattr(__name__ + "._NPM_BUNDLE_COMPRESSED_LIMIT", retained_limit)
 
+    class OwnedLock:
+        def __init__(self) -> None:
+            self._lock = Lock()
+            self._owner: int | None = None
+
+        def __enter__(self) -> None:
+            self._lock.acquire()
+            self._owner = get_ident()
+
+        def __exit__(self, *exc: object) -> None:
+            self._owner = None
+            self._lock.release()
+
+        def assert_owned(self, operation: str) -> None:
+            assert (
+                self._owner == get_ident()
+            ), f"{operation} requires the current thread's cache lock"
+
+    owned_lock = OwnedLock()
+    monkeypatch.setattr(__name__ + "._NPM_BUNDLE_RAW_CACHE_LOCK", owned_lock)
+
     class ObservedCache(dict[tuple[str, str], bytes]):
+        def get(self, key: tuple[str, str], default: object = None) -> Any:
+            owned_lock.assert_owned("cache lookup")
+            return super().get(key, default)
+
+        def __contains__(self, key: object) -> bool:
+            owned_lock.assert_owned("cache membership")
+            return super().__contains__(key)
+
+        def values(self) -> Any:
+            owned_lock.assert_owned("retained-size read")
+            return super().values()
+
+        def clear(self) -> None:
+            owned_lock.assert_owned("cache eviction")
+            super().clear()
+
         def __setitem__(self, key: tuple[str, str], value: bytes) -> None:
-            assert _NPM_BUNDLE_RAW_CACHE_LOCK.locked()
+            owned_lock.assert_owned("cache publication")
             super().__setitem__(key, value)
             assert sum(map(len, super().values())) <= retained_limit
 
@@ -4463,15 +4509,21 @@ def test_closed_bundle_default_raw_cache_serializes_overlapping_publication(
 
     second_url = first_url if same_key else other_url
     with ThreadPoolExecutor(max_workers=2) as executor:
+        with owned_lock:
+            with pytest.raises(
+                AssertionError, match="retained-size read requires the current thread"
+            ):
+                executor.submit(cache.values).result(timeout=5)
         pending = [executor.submit(read, url) for url in (first_url, second_url)]
         assert [result.result(timeout=10) for result in pending] == [raw, raw]
     assert sorted(state["fetches"]) == sorted((first_url, second_url))
+    final_cache = dict(dict.items(cache))
     if same_key:
-        assert cache == {other_key: raw, (first_url, integrity): raw}
+        assert final_cache == {other_key: raw, (first_url, integrity): raw}
     else:
-        assert len(cache) == 1
-        assert next(iter(cache)) in {(first_url, integrity), other_key}
-        assert list(cache.values()) == [raw]
+        assert len(final_cache) == 1
+        assert next(iter(final_cache)) in {(first_url, integrity), other_key}
+        assert list(final_cache.values()) == [raw]
 
 
 @pytest.mark.parametrize(
