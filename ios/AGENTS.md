@@ -322,7 +322,12 @@ orders and inventories. CI output and Step Summary show family, runtime, UDID an
 
 - CI **must** run `xcrun simctl bootstatus "$UDID" -b` after boot
 - `bootstatus -b` **must** succeed (exit code 0); CI fails if simulator doesn't become ready
-- Timeout: 300 seconds (configurable via `SIM_BOOT_TIMEOUT_SECONDS`; live default 300)
+- `SIM_BOOT_TIMEOUT_SECONDS` remains 300 seconds for unit jobs and iPhone UI.
+  The iPad UI step supplies 420 seconds through the same variable. A later
+  `Booted` inventory row does not replace successful `bootstatus -b`.
+- UI failure diagnostics use `SIM_BOOT_DIAGNOSTIC_TIMEOUT_SECONDS=30`; diagnostic
+  timeout or execution failure preserves the original readiness failure.
+  Empty selected UDID and invalid timeout inputs fail before dependent work.
 - Rationale: Deterministic boot verification prevents downstream "Unable to find a destination" errors; longer timeout accounts for runner data migrations (70-120s+)
 - **Timeout tuning:** Do not lower the live 300-second default to address runner failures; diagnose
   simulator state before changing the bounded timeout in a dedicated CI fix.
@@ -330,9 +335,10 @@ orders and inventories. CI output and Step Summary show family, runtime, UDID an
 **UI matrix job budget:**
 
 - The existing `ios-ui-smoke` job has a 45-minute enclosing limit for both families.
-- The sequential caps are five minutes for boot, 15 minutes for the UI Debug build,
-  and 15 minutes for UI execution. The 35-minute sum leaves 10 minutes of nominal
-  setup and diagnostic headroom within the 45-minute job.
+- Sequential caps are seven minutes for iPad UI boot (five for iPhone),
+  15 minutes for UI Debug build and 15 minutes for UI execution. The iPad
+  37-minute sum leaves eight minutes of nominal setup/diagnostic headroom
+  within the unchanged 45-minute job; iPhone retains its 35-minute sum.
 - Preserve the separate phase timeouts and current-head terminal UI test evidence.
 
 **System services warmup:**
@@ -375,8 +381,9 @@ orders and inventories. CI output and Step Summary show family, runtime, UDID an
 1. Check Step Summary for: runtime, device, UDID, destination
 2. Check logs for `bootstatus -b` exit code (must be 0)
 3. Check logs for build-for-testing vs test-without-building failures
-4. For a timeout, identify the phase and parent job. The UI job has a `5m` boot,
-   `15m` Debug build, and `15m` UI execution under `45m` overall. The unit job
+4. For a timeout, identify the phase and parent job. UI boot is `7m` for iPad
+   and `5m` for iPhone, followed by `15m` Debug build and `15m` UI execution
+   under `45m` overall. The unit job
    retains its `5m` boot, `10m` Debug build, `15m` unit, and `10m` Release caps
    under the vars-overridable `60m` job fallback.
 

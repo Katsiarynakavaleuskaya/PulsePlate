@@ -42,6 +42,7 @@ EXPECTED_BACKEND_PYTHON_FROM_LINES = (
     f"FROM {BACKEND_PYTHON_BASE_IMAGE} AS builder",
     f"FROM {BACKEND_PYTHON_BASE_IMAGE} AS sqlite-builder",
     f"FROM {BACKEND_PYTHON_BASE_IMAGE} AS runtime-base",
+    f"FROM {BACKEND_PYTHON_BASE_IMAGE} AS libzstd-bookworm-build",
 )
 EXPECTED_DOCKER_SOURCE_PREP_BUILD_STEPS = {
     ("build.yml", "build", "Build Docker image (local, for tests)"),
@@ -1245,7 +1246,7 @@ def test_dockerfile_pins_all_backend_python_stages_to_one_oci_index() -> None:
         "FROM ${PSYCOPG_SDK_PYTHON_IMAGE} AS psycopg-inputs",
         "FROM ${PSYCOPG_SDK_PYTHON_IMAGE} AS dev-bootstrap-inputs",
     )
-    assert len(python_from_lines) == 6
+    assert len(python_from_lines) == len(EXPECTED_BACKEND_PYTHON_FROM_LINES) + len(sdk_from_lines)
     assert (
         tuple(line for line in python_from_lines if line not in sdk_from_lines)
         == EXPECTED_BACKEND_PYTHON_FROM_LINES
@@ -3289,6 +3290,84 @@ def test_pcre2_source_download_rejects_wrong_actual_bytes(
         docker_sources._write_verified_artifact(artifact, output)
     assert calls == [(artifact.url, 60)]
     assert list(output.iterdir()) == []
+
+
+def test_libzstd_backport_uses_donor_source_and_installs_the_genuine_package_offline() -> None:
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text()
+    dockerignore = (REPO_ROOT / ".dockerignore").read_text()
+    helper = "scripts/ci/build_bookworm_libzstd.sh"
+    backport = dockerfile.split(" AS libzstd-bookworm-build\n", 1)[1].split("\nFROM ", 1)[0]
+    assert f"COPY --chmod=0644 {helper} /tmp/build_bookworm_libzstd.sh" in backport
+    assert f"!{helper}" in dockerignore.splitlines()
+    assert (
+        backport.index("build_bookworm_libzstd.sh prepare")
+        < backport.index("USER pulseplate-zstd-build")
+        < backport.index("RUN --network=none /bin/bash /tmp/build_bookworm_libzstd.sh build")
+    )
+    assert "ENV HOME=/home/pulseplate-zstd-build" in backport
+    recipe = (REPO_ROOT / helper).read_text()
+    assert (
+        "Types: deb-src\nURIs: https://security.debian.org/debian-security\nSuites: trixie-security"
+        in recipe
+    )
+    assert "Acquire::Check-Valid-Until=true" in recipe
+    assert 'source --download-only --only-source "libzstd=$donor"' in recipe
+    assert recipe.index("dpkg-source -x") < recipe.index("dpkg-buildpackage -b -uc -us")
+    production = dockerfile.split("FROM runtime-base AS production\n", 1)[1].split("\nFROM ", 1)[0]
+    package_mount = "RUN --network=none --mount=type=bind,from=libzstd-bookworm-package,"
+    assert production.index(package_mount) < production.index(
+        "# SECURITY: production-package-pruning-start"
+    )
+    assert production.index("sha256sum -c SHA256SUMS") < production.index(
+        "dpkg -i /opt/pulseplate-libzstd/libzstd1.deb"
+    )
+    assert "${Status} ${source:Package} ${Version}" in production
+    assert "ldd /usr/bin/dpkg-deb" in production
+    assert "dpkg-deb --build --root-owner-group -Zzstd" in production
+    assert 'dpkg-deb --extract "$scratch/check.deb"' in production
+    assert 'cmp "$scratch/packaged$library_file" "$library_file"' in production
+    resolved = 'test "$(readlink -f "$library")" = "$library_file"'
+    digest = (
+        "a0a281900c6fd880b754ff0fb453c8914927aff6aab2862b2925a89507510f72"
+        ' "$library_file" | sha256sum -c -'
+    )
+    assert (
+        production.index(resolved)
+        < production.index(digest)
+        < production.index("# SECURITY: production-package-pruning-start")
+    )
+
+
+@pytest.mark.parametrize("command", ("prepare", "build"))
+@pytest.mark.parametrize("architecture", ("amd64", "arm64"))
+def test_libzstd_rejects_unsupported_architecture_before_distro_or_source_access(
+    tmp_path: Path, command: str, architecture: str
+) -> None:
+    dpkg = tmp_path / "dpkg"
+    dpkg.write_text('#!/bin/sh\ntest "$*" = --print-architecture && printf "%s\\n" "$TEST_ARCH"\n')
+    dpkg.chmod(0o700)
+    identity = tmp_path / "id"
+    identity.write_text("#!/bin/sh\nprintf 'next identity check reached\\n' >&2\nexit 19\n")
+    identity.chmod(0o700)
+    bash = shutil.which("bash")
+    assert bash is not None
+    result = subprocess.run(
+        [bash, str(REPO_ROOT / "scripts/ci/build_bookworm_libzstd.sh"), command],
+        cwd=tmp_path,
+        env={"PATH": str(tmp_path), "TEST_ARCH": architecture},
+        capture_output=True,
+        text=True,
+        timeout=5,
+        check=False,
+    )
+    assert result.returncode != 0
+    if architecture == "amd64":
+        assert result.stderr == "next identity check reached\n"
+    else:
+        assert result.stderr == (
+            "Bookworm libzstd backport requires linux/amd64 (found arm64). "
+            "Use docker build --platform=linux/amd64.\n"
+        )
 
 
 def test_pcre2_production_build_preserves_native_features_and_consumers() -> None:

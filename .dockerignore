@@ -27,6 +27,7 @@
 !scripts/ci/docker_source_artifacts.json
 !scripts/ci/fetch_docker_source_artifacts.py
 !scripts/ci/install_locked_python_requirements.py
+!scripts/ci/build_bookworm_libzstd.sh
 
 # Pre-fetched, checksum-verified source artifacts used by Docker build stages.
 !build/

@@ -3961,7 +3961,7 @@ jobs:
       fail-fast: false
       matrix:
         family: [iphone, ipad]
-    # Sequential caps total 35m with 10m nominal setup/diagnostic headroom.
+    # iPad sequential caps total 37m; iPhone remains 35m within the same 45m job.
     timeout-minutes: 45
     if: |
       needs.changes.outputs.ios == 'true' && (
@@ -4069,6 +4069,8 @@ jobs:
           DEVELOPER_DIR: ${{ steps.select-xcode.outputs.developer_dir }}
           UI_SMOKE_FOREGROUND_TIMEOUT_SECONDS: "90"
           IOS_UI_SMOKE_BUILD_TIMEOUT_SECONDS: 900
+          SIM_BOOT_TIMEOUT_SECONDS: ${{ matrix.family == 'ipad' && '420' || '300' }}
+          SIM_BOOT_DIAGNOSTIC_TIMEOUT_SECONDS: "30"
         run: |
           set -euo pipefail
 
@@ -4077,6 +4079,11 @@ jobs:
 
           if [ -z "$DESTINATION" ]; then
             echo "::error::DESTINATION is empty"
+            exit 1
+          fi
+
+          if [ -z "$UDID" ]; then
+            echo "::error::UDID is empty"
             exit 1
           fi
 
@@ -4095,7 +4102,6 @@ jobs:
             echo "=== Booting simulator ==="
             echo "Booting simulator: $UDID"
             xcrun simctl boot "$UDID" || true
-            export SIM_BOOT_TIMEOUT_SECONDS="${SIM_BOOT_TIMEOUT_SECONDS:-300}"
             echo "Waiting for simulator to be ready (timeout: ${SIM_BOOT_TIMEOUT_SECONDS}s)..."
             python3 - << 'PY'
           import os
@@ -4105,27 +4111,39 @@ jobs:
           udid = os.environ.get("UDID", "")
           try:
               timeout_s = int(os.environ["SIM_BOOT_TIMEOUT_SECONDS"])
-          except KeyError:
-              print(
-                  "::error::SIM_BOOT_TIMEOUT_SECONDS is not set (single-source timeout policy).",
-                  file=sys.stderr,
-              )
+              diagnostic_timeout_s = int(os.environ["SIM_BOOT_DIAGNOSTIC_TIMEOUT_SECONDS"])
+              if timeout_s <= 0 or diagnostic_timeout_s <= 0:
+                  raise ValueError("nonpositive timeout")
+          except (KeyError, ValueError):
+              print("::error::Simulator timeout inputs must be positive integers", file=sys.stderr)
               sys.exit(2)
 
           if not udid:
               print("::error::UDID is empty", file=sys.stderr)
               sys.exit(1)
 
+          failure = None
           try:
               subprocess.run(["xcrun", "simctl", "bootstatus", udid, "-b"], timeout=timeout_s, check=True)
           except subprocess.TimeoutExpired:
               print(f"::error::Simulator not ready after {timeout_s}s (bootstatus timeout)", file=sys.stderr)
-              subprocess.run(["xcrun", "simctl", "list", "devices"], check=False)
-              sys.exit(1)
+              failure = 1
           except subprocess.CalledProcessError as e:
               print("::error::Simulator bootstatus failed", file=sys.stderr)
-              subprocess.run(["xcrun", "simctl", "list", "devices"], check=False)
-              sys.exit(e.returncode)
+              failure = e.returncode
+
+          if failure is not None:
+              try:
+                  subprocess.run(
+                      ["xcrun", "simctl", "list", "devices"],
+                      timeout=diagnostic_timeout_s, check=False,
+                  )
+              except (subprocess.TimeoutExpired, OSError) as diagnostic_error:
+                  print(
+                      f"::warning::Simulator diagnostics unavailable: {type(diagnostic_error).__name__}",
+                      file=sys.stderr,
+                  )
+              sys.exit(failure)
           PY
 
             echo "✓ Simulator booted and ready"

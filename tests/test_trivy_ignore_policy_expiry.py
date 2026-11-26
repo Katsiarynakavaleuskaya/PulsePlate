@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import date
 import hashlib
 import json
@@ -13,6 +14,7 @@ import pytest
 from scripts.ci import check_trivy_ignore_policy_expiry as expiry_guard
 from scripts.ci import check_trivy_ignore_policy_native as native_policy
 from scripts.ci.check_trivy_ignore_policy_expiry import evaluate_policy_file
+from tests.fixtures import check_trivy_bookworm_backport as backport_policy
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 POLICY_PATH = REPO_ROOT / "trivy" / "ignore-policy.rego"
@@ -416,7 +418,6 @@ def test_trivy_policy_guard_reports_invalid_file_expiry_dates(tmp_path: Path) ->
 def test_removed_perl_runtime_cves_are_not_suppressed_in_rego_policy() -> None:
     policy = _policy_text()
 
-    assert policy == expiry_guard._CANONICAL_NEVER_IGNORE_POLICY
     for cve in (
         REMOVED_PERL_RUNTIME_CVES
         + REMEDIATED_SQLITE_CVES
@@ -664,7 +665,6 @@ def test_retired_r1_families_and_exclusive_helpers_are_absent(
     cve: str, exclusive_helpers: tuple[str, ...]
 ) -> None:
     policy = _policy_text()
-    assert policy == expiry_guard._CANONICAL_NEVER_IGNORE_POLICY
     assert cve not in policy
     assert all(helper not in policy for helper in exclusive_helpers)
 
@@ -1149,7 +1149,6 @@ def test_openssl_cve_2026_14456_document_and_removal_ledger_are_coupled() -> Non
         assert evidence in security_doc
 
     assert "CVE-2026-14456" not in policy
-    assert policy == expiry_guard._CANONICAL_NEVER_IGNORE_POLICY
     assert "Owner: @katsiaryna_kavaleuskaya (Security/SRE)" in ledger_entry
     assert "Priority: P1" in ledger_entry
     assert "Target PR: PR #2400" in ledger_entry
@@ -1680,9 +1679,92 @@ def test_current_policy_uses_only_supported_ignore_rule_heads() -> None:
     assert evaluate_policy_file(POLICY_PATH, today=date(2026, 7, 27)) == []
 
 
-def test_terminal_policy_has_no_executable_suppression() -> None:
-    assert _policy_text() == "package trivy\n\nimport rego.v1\n\ndefault ignore := false\n"
-    assert "ignore if" not in _policy_text()
+def test_shared_policy_allows_only_the_time_bound_bookworm_backport() -> None:
+    policy = _policy_text()
+    trivyignore = TRIVYIGNORE_PATH.read_text(encoding="utf-8")
+    assert "CVE-2026-124851" not in trivyignore
+    terminal = expiry_guard._CANONICAL_NEVER_IGNORE_POLICY
+    if policy == terminal:
+        return
+
+    assert policy.startswith(terminal)
+    remaining = policy.removeprefix(terminal).splitlines()
+    assert [line for line in remaining if line.startswith("# Suppression expires:")] == [
+        "# Suppression expires: 2026-12-26"
+    ]
+    assert [line for line in remaining if line.startswith("# Review-by:")] == [
+        "# Review-by: 2026-12-26"
+    ]
+    assert [line.strip() for line in remaining if line and not line.startswith("#")] == [
+        "ignore if {",
+        'input.VulnerabilityID == "CVE-2026-124851"',
+        'input.PkgName == "libzstd1"',
+        'input.PkgID == "libzstd1@1.5.7+dfsg-1+deb13u1~pulseplate12+1"',
+        'input.InstalledVersion == "1.5.7+dfsg-1+deb13u1~pulseplate12+1"',
+        'input.PkgIdentifier.PURL == "pkg:deb/debian/libzstd1@'
+        '1.5.7%2Bdfsg-1%2Bdeb13u1~pulseplate12%2B1?arch=amd64&distro=debian-12.15"',
+        'input.DataSource.ID == "debian"',
+        'input.DataSource.Name == "Debian Security Tracker"',
+        'input.DataSource.URL == "https://salsa.debian.org/security-tracker-team/security-tracker"',
+        'input.Severity == "HIGH"',
+        'input.Status == "affected"',
+        'object.get(input, "FixedVersion", "") == ""',
+        'time.now_ns() < time.parse_rfc3339_ns("2026-12-27T00:00:00Z")',
+        "}",
+    ]
+    assert evaluate_policy_file(POLICY_PATH, today=date(2026, 12, 26)) == []
+    expired = evaluate_policy_file(POLICY_PATH, today=date(2026, 12, 27))
+    assert len(expired) == 2
+    assert expired[0].startswith("Expired Trivy ignore policy:")
+    assert expired[1].startswith("Stale Trivy suppression review date:")
+
+
+@pytest.mark.parametrize("now_ns,visible", [(1798329599999999999, 0), (1798329600000000000, 1)])
+def test_native_backport_checks_real_and_fixed_clock_policies(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, now_ns: int, visible: int
+) -> None:
+    source = tmp_path / "scan.rego"
+    policy = b'time.now_ns() < time.parse_rfc3339_ns("2026-12-27T00:00:00Z")\n'
+    source.write_bytes(policy)
+    observed: dict[str, tuple[bytes, int | None]] = {}
+
+    async def check_case(
+        _binary: str,
+        scan_copy: Path,
+        _private: Path,
+        label: str,
+        _finding: dict[str, object],
+        expected: int | None,
+    ) -> None:
+        assert label not in observed
+        observed[label] = (scan_copy.read_bytes(), expected)
+
+    async def check_mixed(_binary: str, scan_copy: Path, _private: Path, *, active: bool) -> None:
+        assert scan_copy == source
+        observed["mixed"] = (scan_copy.read_bytes(), int(not active))
+
+    monkeypatch.setattr(backport_policy.time, "time_ns", lambda: now_ns)
+    monkeypatch.setattr(backport_policy, "_check_case", check_case)
+    monkeypatch.setattr(backport_policy, "_check_backport_mixed_report", check_mixed)
+    assert (
+        asyncio.run(backport_policy._run_backport_contract("/usr/bin/trivy", source, tmp_path))
+        == 33
+    )
+    assert len(observed) == 33
+    for key in (
+        "native-current-missing-fix",
+        "native-current-empty-fix",
+        "native-current-null-fix",
+        "mixed",
+    ):
+        assert observed[key] == (policy, visible)
+    for key, ns, count in (
+        ("cutoff-minus-one-ns", b"1798329599999999999", 0),
+        ("cutoff-exact", b"1798329600000000000", 1),
+        ("cutoff-plus-one-ns", b"1798329600000000001", 1),
+    ):
+        assert observed[key] == (policy.replace(b"time.now_ns()", ns), count)
+    assert source.read_bytes() == policy
 
 
 def test_openssl_native_cases_keep_distinct_members_and_adversarial_inputs() -> None:
@@ -1966,4 +2048,5 @@ def test_new_native_negatives_fail_closed_on_output_or_execution_error(
 
 def test_retired_caddy_v3_policy_is_absent_without_weakening_strict_policy() -> None:
     assert not (REPO_ROOT / "trivy/ignore-policy-caddy-go-jose-v3.rego").exists()
-    assert POLICY_PATH.read_text() == "package trivy\n\nimport rego.v1\n\ndefault ignore := false\n"
+    assert "CVE-2026-116587" not in _policy_text()
+    assert "GHSA-mgcc-cww5-fp2q" not in _policy_text()

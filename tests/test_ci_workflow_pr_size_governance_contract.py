@@ -196,7 +196,7 @@ TRIVY_ACTION_NODE24_CACHE_SHA = "".join(
 TRIVY_RUNTIME_VERSIONS_BY_WORKFLOW = {
     BUILD_WORKFLOW_PATH: "v0.74.0",
     CD_WORKFLOW_PATH: "v0.74.0",
-    TRIVY_WORKFLOW_PATH: "v0.74.0",
+    TRIVY_WORKFLOW_PATH: "v0.76.2",
 }
 CODEQL_ACTION_V4_37_1_SHA = "".join(
     (
@@ -3821,6 +3821,27 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
     assert len(observed_trivy_contracts) == 7
 
 
+def test_standalone_trivy_restores_event_policy_before_native_controls() -> None:
+    steps = [step for job_id, step in _iter_job_steps(TRIVY_WORKFLOW_PATH) if job_id == "build"]
+    names = [step.get("name") for step in steps]
+    prepare = names.index("Prepare Trivy ignore policy")
+    scan = names.index("Run Trivy vulnerability scanner")
+    controls = "Check native Bookworm backport policy controls"
+    assert names.count(controls) == 1
+    assert prepare < scan
+    assert "cp trivy/ignore-policy.rego .trivy-ignore-policy.rego" in str(steps[prepare]["run"])
+    assert steps[scan + 1]["name"] == controls
+    step = steps[scan + 1]
+    assert set(step) == {"name", "run"}
+    run = step["run"]
+    assert isinstance(run, str)
+    assert [line for line in run.splitlines() if not line.startswith("#")] == [
+        "set -euo pipefail",
+        '/usr/bin/git restore --source="$GITHUB_SHA" --worktree -- trivy/ignore-policy.rego',
+        "python3 -m tests.fixtures.check_trivy_bookworm_backport",
+    ]
+
+
 def test_build_workflow_trivy_fs_sarif_is_temp_isolated_before_upload() -> None:
     workflow = _load_workflow(BUILD_WORKFLOW_PATH)
     prepare_step = _job_step_by_name(
@@ -6221,7 +6242,7 @@ IOS_RELEASE_BUILD_RUN_SHA256 = (
 )
 # Non-secret SHA-256 of the exact yaml.safe_load() UI smoke run scalar; no normalization.
 IOS_UI_SMOKE_RUN_SHA256 = (
-    "40d772e16d09dcbb0ae7f44c43e224906c1916ffcdbb5c6d003952c562c0637a"  # pragma: allowlist secret
+    "5f1d716454b29853b7b5e5356cfde3fd664110eb7620262f38a54a4f37c14e22"  # pragma: allowlist secret
 )
 
 
@@ -6379,6 +6400,8 @@ def _assert_ios_family_matrix_contract(workflow: dict[str, object]) -> None:
                 "DEVELOPER_DIR": "${{ steps.select-xcode.outputs.developer_dir }}",
                 "UI_SMOKE_FOREGROUND_TIMEOUT_SECONDS": "90",
                 "IOS_UI_SMOKE_BUILD_TIMEOUT_SECONDS": 900,
+                "SIM_BOOT_TIMEOUT_SECONDS": "${{ matrix.family == 'ipad' && '420' || '300' }}",
+                "SIM_BOOT_DIAGNOSTIC_TIMEOUT_SECONDS": "30",
             }
             smoke_run = smoke_step["run"]
             assert isinstance(smoke_run, str)
@@ -6391,7 +6414,10 @@ def _assert_ios_family_matrix_contract(workflow: dict[str, object]) -> None:
             assert "if timeout_s <= 0:" in smoke_run
             assert "subprocess.run(cmd, timeout=timeout_s, check=True)" in smoke_run
             assert "subprocess.run(cmd, timeout=900, check=True)" in smoke_run
-            assert "SIM_BOOT_TIMEOUT_SECONDS:-300" in smoke_run
+            assert "SIM_BOOT_TIMEOUT_SECONDS:-" not in smoke_run
+            assert smoke_run.index('if [ -z "$UDID" ]; then') < smoke_run.index(
+                'if [ -n "$UDID" ]; then'
+            )
         artifact = next(step for step in steps if step.get("name") == artifact_step)
         artifact_name = artifact["with"]["name"]
         assert "${{ matrix.family }}" in artifact_name
@@ -6935,6 +6961,29 @@ def test_ci_prepares_the_designated_controller_before_its_offline_consumers() ->
             prepare["env"]["CONTROLLER_SHA"] == control["with"]["ref"] == cd_control["with"]["ref"]
         )
         assert "--depth" not in prepare["run"]
+
+    nightly = _load_workflow(NIGHTLY_FULL_TESTS_WORKFLOW_PATH)
+    nightly_steps = nightly["jobs"]["tests"]["steps"]
+    nightly_prepare = _job_step_by_name(nightly, job_id="tests", step_name=prepare_name)
+    checkout = _job_step_by_name(nightly, job_id="tests", step_name="Checkout")
+    shards = _job_step_by_name(
+        nightly, job_id="tests", step_name="Run full test suite with coverage (include slow/MC)"
+    )
+    assert sum(step.get("name") == prepare_name for step in nightly_steps) == 1
+    prepare_index = nightly_steps.index(nightly_prepare)
+    assert nightly_steps.index(checkout) < prepare_index < nightly_steps.index(shards)
+    lint_prepare = _job_step_by_name(workflow, job_id="lint", step_name=prepare_name)
+    assert lint_prepare == _job_step_by_name(workflow, job_id="test-main", step_name=prepare_name)
+    expected_run = lint_prepare["run"]
+    assert isinstance(expected_run, str)
+    for prefix in (
+        "if ! git cat-file -e ",
+        "  git -c credential.helper= ",
+        'resolved="$(git rev-parse --verify ',
+    ):
+        assert expected_run.count(prefix) == 1
+        expected_run = expected_run.replace(prefix, prefix.replace("git ", "/usr/bin/git ", 1))
+    assert nightly_prepare == {**lint_prepare, "run": expected_run}
 
 
 def test_ci_main_matrix_uses_full_history_for_git_evidence_guards() -> None:
@@ -9607,3 +9656,120 @@ def test_test_pr_contract_capture_preserves_timeout_output_and_primary_failure(
             assert path.read_bytes() == (raw if isinstance(raw, bytes) else (raw or "").encode())
             assert stat.S_IMODE(path.stat().st_mode) == 0o600
     assert json.loads((tmp_path / "ci-capture-observed.json").read_text())[0]["native_exit"] == 4
+
+
+def _ios_ui_boot_python() -> str:
+    """Return the actual first embedded boot block from the owning workflow."""
+    workflow = _load_ci_workflow()
+    job = workflow["jobs"]["ios-ui-smoke"]
+    step = next(
+        step
+        for step in job["steps"]
+        if step.get("name") == "iOS UI smoke (build-for-testing + test-without-building)"
+    )
+    blocks = step["run"].split("python3 - << 'PY'\n")
+    assert len(blocks) == 4
+    return blocks[1].split("\nPY", 1)[0]
+
+
+@pytest.mark.parametrize("timeout_seconds", [300, 420], ids=["iphone", "ipad"])
+@pytest.mark.parametrize(
+    ("readiness", "diagnostic", "expected_exit"),
+    [
+        ("ready", "unused", None),
+        ("timeout", "ready", 1),
+        ("timeout", "timeout", 1),
+        ("timeout", "oserror", 1),
+        ("nonzero", "ready", 17),
+        ("nonzero", "timeout", 17),
+        ("nonzero", "oserror", 17),
+        ("nonzero", "nonzero", 17),
+    ],
+)
+def test_ios_ui_boot_readiness_and_diagnostic_failures_preserve_original_result(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    timeout_seconds: int,
+    readiness: str,
+    diagnostic: str,
+    expected_exit: int | None,
+) -> None:
+    """Execute the real block with deterministic child results, never a simulator."""
+    monkeypatch.setenv("UDID", "00000000-0000-4000-8000-000000000001")
+    monkeypatch.setenv("SIM_BOOT_TIMEOUT_SECONDS", str(timeout_seconds))
+    monkeypatch.setenv("SIM_BOOT_DIAGNOSTIC_TIMEOUT_SECONDS", "30")
+    calls: list[list[str]] = []
+
+    def observe_run(
+        command: list[str], *, timeout: int, check: bool
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        if len(calls) == 1:
+            assert command == ["xcrun", "simctl", "bootstatus", os.environ["UDID"], "-b"]
+            assert timeout == timeout_seconds and check is True
+            if readiness == "timeout":
+                raise subprocess.TimeoutExpired(command, timeout)
+            if readiness == "nonzero":
+                raise subprocess.CalledProcessError(17, command)
+            return subprocess.CompletedProcess(command, 0)
+        assert len(calls) == 2
+        assert command == ["xcrun", "simctl", "list", "devices"]
+        assert timeout == 30 and check is False
+        if diagnostic == "timeout":
+            raise subprocess.TimeoutExpired(command, timeout)
+        if diagnostic == "oserror":
+            raise OSError("synthetic diagnostic launch failure")
+        return subprocess.CompletedProcess(command, 23 if diagnostic == "nonzero" else 0)
+
+    monkeypatch.setattr(subprocess, "run", observe_run)
+    code = compile(_ios_ui_boot_python(), "<workflow-ios-ui-boot>", "exec")
+    if expected_exit is None:
+        exec(code, {})
+        assert len(calls) == 1
+    else:
+        with pytest.raises(SystemExit) as caught:
+            exec(code, {})
+        assert caught.value.code == expected_exit
+        assert len(calls) == 2
+        error = capsys.readouterr().err
+        assert ("bootstatus timeout" if readiness == "timeout" else "bootstatus failed") in error
+        if diagnostic in {"timeout", "oserror"}:
+            assert "Simulator diagnostics unavailable:" in error
+
+
+@pytest.mark.parametrize(
+    "variable", ["SIM_BOOT_TIMEOUT_SECONDS", "SIM_BOOT_DIAGNOSTIC_TIMEOUT_SECONDS"]
+)
+@pytest.mark.parametrize("value", [None, "", "invalid", "0", "-1"])
+def test_ios_ui_boot_rejects_invalid_timeout_before_any_child(
+    monkeypatch: pytest.MonkeyPatch, variable: str, value: str | None
+) -> None:
+    monkeypatch.setenv("UDID", "00000000-0000-4000-8000-000000000001")
+    monkeypatch.setenv("SIM_BOOT_TIMEOUT_SECONDS", "420")
+    monkeypatch.setenv("SIM_BOOT_DIAGNOSTIC_TIMEOUT_SECONDS", "30")
+    if value is None:
+        monkeypatch.delenv(variable)
+    else:
+        monkeypatch.setenv(variable, value)
+
+    def unexpected_child(*args: object, **kwargs: object) -> None:
+        pytest.fail("invalid timeout started a child")
+
+    monkeypatch.setattr(subprocess, "run", unexpected_child)
+    with pytest.raises(SystemExit) as caught:
+        exec(compile(_ios_ui_boot_python(), "<workflow-ios-ui-boot>", "exec"), {})
+    assert caught.value.code == 2
+
+
+def test_ios_ui_boot_rejects_empty_udid_before_any_child(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("UDID", "")
+    monkeypatch.setenv("SIM_BOOT_TIMEOUT_SECONDS", "420")
+    monkeypatch.setenv("SIM_BOOT_DIAGNOSTIC_TIMEOUT_SECONDS", "30")
+
+    def unexpected_child(*args: object, **kwargs: object) -> None:
+        pytest.fail("empty UDID started a child")
+
+    monkeypatch.setattr(subprocess, "run", unexpected_child)
+    with pytest.raises(SystemExit) as caught:
+        exec(compile(_ios_ui_boot_python(), "<workflow-ios-ui-boot>", "exec"), {})
+    assert caught.value.code == 1

@@ -1,7 +1,7 @@
 {
   "name": "PulsePlate Dev",
   "dockerComposeFile": [
-    "docker-compose.devcontainer.yml"
+    "docker-compose.source-inputs.yml"
   ],
   "service": "devcontainer",
   "workspaceFolder": "/workspaces/PulsePlate",

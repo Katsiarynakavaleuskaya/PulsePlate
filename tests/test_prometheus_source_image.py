@@ -5689,8 +5689,20 @@ def _promotion_fixture(
                     raise source.QualificationError("synthetic_verification_failed")
                 return b"[]\n"
             elif "--from-oci-layout" in argv:
+                assert argv[1:5] == [
+                    "cp",
+                    "--to-registry-config",
+                    str(config / "config.json"),
+                    "--from-oci-layout",
+                ]
                 trace.append("copy")
             elif "--to-oci-layout" in argv:
+                assert argv[1:5] == [
+                    "cp",
+                    "--from-registry-config",
+                    str(config / "config.json"),
+                    "--to-oci-layout",
+                ]
                 trace.append("pullback")
             else:
                 assert unchanged and "imagetools" in argv

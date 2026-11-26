@@ -1507,3 +1507,118 @@ derivations require a new source-bound native result. Original failed output
 and charged attempts remain recorded. Evidence
 `scripts/ci/prometheus_source_image.py:3588` and
 `tests/test_prometheus_source_image.py:11785`.
+
+## November 18 PostgreSQL 15.20 image qualification
+
+[Main CD publisher job 135120888117](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/44392698299/job/135120888117)
+rejected all four PostgreSQL 15.19 scan subjects. Artifact `14469975395`
+retained 294 HIGH/CRITICAL occurrences across the three public reports,
+covering 61 distinct vulnerability IDs. The final OCI report remained private.
+
+Docker Scout 1.24.0 verified the two replacement DHI 15.20 platform subjects.
+The versioned subject names and platform digests are checked by
+`.github/workflows/cd.yml:3402`. The original signed APK index is 2,703,401
+bytes. Its 41 selected archives produced 94 installed packages and 64
+installed pgvector artifacts. Two sequential no-cache linux/amd64 builds with
+the pinned Buildx and BuildKit versions produced byte-identical OCI archives
+with SHA-256 `b6b97a682cc8f245c981676b5b5a816574a6c904dfd5d83b34a08fa416707a3e`.
+The platform, config, source, input, closure and artifact identities are in
+`deploy/postgres-pgvector/image-manifest.json:6`. The 13 layers contain
+eight base layers and five derived layers. The empty compatibility mountpoint
+retains UID/GID 70 and mode 0700.
+
+Trivy 0.74.0 used the same frozen database for all four native subjects.
+Its database SHA-256 was `d06c4389045c2eb4a755b6a25de8c0716007e6fcf287cf9c3778dbbaab560175`
+(updated November 18 at 19:07 UTC). Full collection and the unsuppressed
+HIGH/CRITICAL gate each exited 0 for every subject. The four reports
+recorded zero HIGH/CRITICAL findings and zero secret findings.
+
+| Subject | Platform or builder image SHA-256 | Full report SHA-256 |
+| --- | --- | --- |
+| DHI runtime | `ac5f0af144f2123cfb0fd89d9e38843ece6bfaef6bb7240d9ed7e6da88565325` | `53398ec79f98f6427f920fd4b941f7de42217a4e712fb021a3e2da419e8e0223` |
+| DHI developer | `d518873fc4894f792f948bca16ab195f34212057dddc78ff2f0e4329469ecacd` | `cdcc6ebab24c382b91a7cd10bfc63a4f8e70d99f8a973f5be41b84cb0d6bf28b` |
+| Compiled builder | `f29b620d585a3803d4acc49be253402f78f478235b63a1363e17b94b9400f34e` | `4405859b3437423d100136506ba486f38e565b681591ceb37a8c7cf246a64860` |
+| Final OCI | `5b81202040bbcfbf4fc29ee32c6e6a8c824c27c50aa41c80e62418c5c2ec3adc` | `934983a6b19e5b154a5c3c610c641e7a415c684e941f213089b1b5cfe39d58b4` |
+
+The trusted main publisher must still verify both historical 15.19 volume
+transitions, the exact 15.20 registry publication, signed evidence and pullback.
+Staging and production activation require their separate host gates.
+
+## PostgreSQL and Prometheus after the Alertmanager prerequisite
+
+On November 20, the [main PostgreSQL publisher](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/44825238208/job/136599518246) rejected all four 15.19 image subjects on merge `29c1eeaf2ab32d36abe00718e7fdd9e8db861dca`. The three public reports in artifact `14674751492` contained 294 HIGH/CRITICAL occurrences across 61 distinct advisories, the same 61 as in artifact `14469975395`. The runtime and developer images each had 59 HIGH findings. The compiled stage had 175 HIGH and one CRITICAL finding. The final OCI recorded a failing HIGH/CRITICAL scan and retained its raw report privately.
+
+The 15.20 revalidation used the identical Trivy 0.74.0 executable and database bytes. The database SHA-256 was `1c7f2883070385e7540c75c0bb31bbb6840edc05c76785a3075ff49933028d56`, updated November 20 at 18:59:53 UTC. The runtime, developer image, compiled stage and final OCI had 49, 53, 94 and 49 package occurrences respectively. Full scans and HIGH/CRITICAL checks exited zero on all four, with zero vulnerability and secret findings in the reports. The three retained image archives were verified against their original identities. Rebuilding the compiled stage produced `sha256:4db8361130256e93dfd0787f33c691c8a55771539e7463cc888779c47341f504`: the eight developer-base layers and recorded package inventory matched, while four rebuilt layers changed. The 64-file compiled-output check passed. The final platform digest remained `sha256:5b81202040bbcfbf4fc29ee32c6e6a8c824c27c50aa41c80e62418c5c2ec3adc`. The trusted-main PostgreSQL publisher must exercise the two volume transitions, publish that image and verify its signed evidence and pullback after merge. The manifest is in `deploy/postgres-pgvector/image-manifest.json:6`.
+
+The [main Docker workflow](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/44825238223) built, scanned and published the backend image. Its Prometheus publisher stopped at `publication_predecessor_failed`. The #2495 ORAS correction selects the destination registry credentials for promotion and the source registry credentials for immutable pullback. The existing native publisher and registry readback remain the acceptance checks.
+
+### November 24 Alertmanager publication on main
+
+After [#2503](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2503) merged at
+`b67d9f5e0a85b99fa77d31464daa169fc0520923`, qualification, support inspection,
+candidate build and publication all succeeded on that commit. The publisher
+recorded one registry write and matched all 24 raw OCI descriptors on pullback.
+An independent GET by manifest digest returned HTTP 200 for
+`sha256:873bc6cfae14edcf9f2acf2d81f9863f98ee8f78623125a7e02642a66e3bbe27`.
+The local exact-main sanity checks passed 192 cases.
+[Publication job](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/45309200335/job/138160402194) · [Evidence artifact 14886806944](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/45309200335/artifacts/14886806944)
+
+On the same main, the backend image published. The Prometheus job stopped at
+the failed `b96c7f66` predecessor before running ORAS. The PostgreSQL 15.19
+publisher failed its unsuppressed native scan. #2495 owns the Prometheus ORAS
+correction and PostgreSQL 15.20 candidate. Their trusted publication and
+immutable pullback still require the main commit that merges #2495.
+[Prometheus job](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/45303305037/job/138146089590) · [PostgreSQL job](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/45303304972/job/138144402006)
+
+The corrected ordinary reader verified the original publication and its
+referenced build in local replay. On the final #2504 PR head
+`8ab5636b1226cea1e76000640ede2f86da9afffb`, the hosted maintenance
+checks admitted the designated subject in CI and CD. CD also ran the scan
+and full native controls.
+[CI job](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/45487573927/job/138777444082) · [CD job](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/45487465788/job/138776859156)
+
+PR #2504 merged as squash commit `c873581deaa781404f176f7aa5f5c3794605ca6b`
+on November 24, 2026 at 23:06:29 UTC (November 25 at 02:06:29 in Minsk).
+The focused sanity suite passed 80 cases on that main commit. The image
+and its original publication remain bound to
+`b67d9f5e0a85b99fa77d31464daa169fc0520923`.
+
+On the #2504 squash, the PostgreSQL publisher failed at the unsuppressed
+image scan.
+[PostgreSQL job](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/45507053341/job/138848872620)
+
+On #2495 commit `192930fc97a34d8cb64bbfbf6bdc00cc724b7de4`, the ordinary
+CI and CD readers accepted the Alertmanager publication. The retained CD
+observation identifies the original build and publication. Its 5,085-byte OCI
+manifest matched the published digest `sha256:873bc6cfae14edcf9f2acf2d81f9863f98ee8f78623125a7e02642a66e3bbe27`.
+CD passed the image scan and all native controls. PostgreSQL 15.20 and
+Prometheus still require publication and digest pullback on the main commit
+that merges #2495.
+[CI reader](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/45515336128/job/138873590210) · [CD reader](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/45515335860/job/138873410394) · [CD observation](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/45515335860/artifacts/14979453395)
+
+## Bookworm libzstd backport for CVE-2026-124851
+
+The required backend image scan found one HIGH on Debian 12.15 amd64, in `libzstd1 1.5.4+dfsg2-5`. In that image, the Debian package database lists this library as a pre-dependency of Essential package `dpkg`. Its installed `dpkg-deb` executable links `libzstd.so.1`. Two independent PR builds produced the same original image ID, `sha256:b3ff27f91f434021b75de6b52d44a326952480f2dfd8c041f3ff44b4c3f45449`, and the same native finding. [First production scan](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/45778693162/artifacts/15097845647) · [Second production scan](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/45789170721/artifacts/15102480688)
+
+Debian security advisory DSA-6657-1 fixes the Trixie source `libzstd 1.5.7+dfsg-1+deb13u1`. Debian 12's original 1.5.4 source lacks a state field used by the correction. Its first patch hunk did not apply with zero fuzz. The backport therefore uses the complete corrected source, built for Bookworm with Bookworm tools. Debian's donor patch and the upstream correction have the same 35 ordered line additions and removals in `lib/decompress/zstd_decompress_block.c`. The donor's packaging archive SHA-256 is `adc44c628b74a7a4eff4fbed4681e8fdc8ffe8e4bc31aa9ea6a41a07a2281d23`. Its security patch SHA-256 is `6093ac3e24ef7e08c8b669736137502ff12209a857af6ada3795d8c978a64edd`. [Debian advisory](https://lists.debian.org/debian-security-announce/2026/msg00579.html) · [Upstream correction](https://github.com/meta/zstd/commit/0c9d297531a9f15a717ff24604afc0843b3b1427)
+
+The Bookworm build ran the Debian package suite as an unprivileged user with network access disabled. The resulting local package is `1.5.7+dfsg-1+deb13u1~pulseplate12+1` for amd64 and declares `libc6 (>= 2.34)`. The 305,264-byte `.deb` has SHA-256 `174b97a5f04f090e5b4d66fd5a809994756b938844c6fe56935e19b4b76b46a7`. Its library has SHA-256 `a0a281900c6fd880b754ff0fb453c8914927aff6aab2862b2925a89507510f72`. The archive records root ownership for the regular library and its SONAME symlink. These fingerprints identify the qualified build.
+
+The package builder verifies the signed source inputs and compiles offline. Installation checks Debian ownership and compares the installed ELF with the library extracted from the verified package. The normal production build installs the package before removing package-management support libraries. [Build helper](../../scripts/ci/build_bookworm_libzstd.sh) · [Production stage](../../Dockerfile)
+
+The controlled Linux/amd64 qualification started from the exported original image. One package layer produced `sha256:9559b90ae282e9aae674c0a566bd1f5c940a04ffaf1557b796794c41b51a805e`. The package inventory changed only for `libzstd1`. For this replay, installation used the original pre-pruning ACL library through a temporary read-only mount. The subsequent application and ABI checks ran without that mount. The new ELF retained all 183 original exported symbols, added four, kept SONAME `libzstd.so.1`, and required GLIBC versions available in the image. The same client compiled against the old headers passed on both images. The non-root `dpkg-deb` process returned the expected control and filesystem tar streams for a valid zstd-compressed package. Health, readiness and OpenAPI returned HTTP 200 on both local subjects.
+
+### Strict scanner results
+
+All four native scans used the same policy and verified database bytes, SHA-256 `f3fce68fa5d0352f2afbc7e1a1e0f5a07efe0eba5786eef2da0f5996ddb8b9a0`. The full report and SARIF conversion succeeded for every cell. Both CLIs passed all 122 native policy cases.
+
+| Linux/amd64 subject | Trivy 0.74.0 HIGH/CRITICAL gate | Trivy 0.76.2 HIGH/CRITICAL gate |
+| --- | --- | --- |
+| Original Bookworm package | Exit 1, one HIGH | Exit 1, one HIGH |
+| Locally patched Bookworm package | Exit 1, one HIGH | Exit 1, one HIGH |
+
+Each gate reported the same CVE and recorded the package version actually installed. The Bookworm advisory in this database has an empty fixed-version field. Both Debian detectors emit the matching advisory in that case without comparing versions. The qualified package contains the source correction. The unexcepted scan preserves the advisory for both images. The month-long rule applies only to the reported identity of the locally qualified backport. The original package still blocks publication. [Exception, final native controls and expiry](CVE-2026-124851-libzstd.md) The comparison covers the Debian system library. The private Zstandard library bundled with Pillow has separate provenance. [Debian tracker](https://security-tracker.debian.org/tracker/CVE-2026-124851) · [Trivy 0.74.0 detector](https://github.com/aquasecurity/trivy/blob/v0.74.0/pkg/detector/ospkg/debian/debian.go#L95-L101) · [Trivy 0.76.2 detector](https://github.com/aquasecurity/trivy/blob/v0.76.2/pkg/detector/ospkg/debian/debian.go#L95-L101)
+
+The standalone `trivy.yml` image audit selects Trivy CLI 0.76.2 through the existing pinned Aqua Action v0.36.0. Its main, scheduled and manual triggers keep their existing SARIF settings. The required pre-publication scan in `build.yml` and its native policy checks keep the independently qualified 0.74.0 executable. The complete build workflow is part of the accepted Prometheus producer identity. The Alertmanager and Caddy records also retain the scanner version used for their actual evidence. [Trivy 0.76.2 release](https://github.com/aquasecurity/trivy/releases/tag/v0.76.2) [Official CLI release](https://github.com/aquasecurity/trivy/releases/tag/v0.76.2)
+
+DevOps and security own retirement. Once Debian publishes an applicable Bookworm update, remove the local backport in a reviewed clean rebuild and repeat ABI, application and strict image checks. Restoring the original library reintroduces the affected code. PostgreSQL and Prometheus publication and digest pullback retain their existing gates.

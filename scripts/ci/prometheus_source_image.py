@@ -12021,7 +12021,7 @@ def promote_image(work: Path, root: Path, seconds: int, cleanup: int) -> dict[st
                     [
                         str(tool),
                         "cp",
-                        "--registry-config",
+                        "--to-registry-config",
                         str(credential),
                         "--from-oci-layout",
                         str(candidate["layout"]) + "@" + selection["manifest_digest"],
@@ -12036,7 +12036,7 @@ def promote_image(work: Path, root: Path, seconds: int, cleanup: int) -> dict[st
                 [
                     str(tool),
                     "cp",
-                    "--registry-config",
+                    "--from-registry-config",
                     str(credential),
                     "--to-oci-layout",
                     selection["runtime_ref"],

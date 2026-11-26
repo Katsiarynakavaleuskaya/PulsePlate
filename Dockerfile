@@ -17,8 +17,13 @@ ARG SQLITE_AUTOCONF_SHA3_256_PART_6="bed2bd81"
 ARG SQLITE_AUTOCONF_SHA3_256_PART_7="d47e98ba"
 ARG SQLITE_AUTOCONF_SHA3_256_PART_8="1b72983b"
 
-# Exact SDK target family; default and runtime Python keep their existing amd64 pin.
+# The default SDK image selects amd64. Production and staging require linux/amd64
+# even though the pinned runtime Python image index supports multiple architectures.
 ARG PSYCOPG_SDK_PYTHON_IMAGE="python@sha256:7a6b87c02e1f4d6bb572e379235cbbdd7892add0572442c9b0b860a3f5aa9857"
+
+# Compose supplies the same four verified inputs when the checkout has no source cache.
+FROM scratch AS sdk-source-archives
+COPY build/docker-sources/zlib-71747d1d39168833e0cae8ed84b8ce77cb049699.tar.gz build/docker-sources/ncurses-snapshots-dc909d77781ef5c2a0684e9ad9eb9f0c0baf5ecc.tar.gz build/docker-sources/openssl-3.5.9.tar.gz build/docker-sources/postgresql-18.6.tar.gz /input/native/
 
 FROM ${PSYCOPG_SDK_PYTHON_IMAGE} AS native-builder
 ARG PSYCOPG_SDK_PYTHON_IMAGE
@@ -28,7 +33,7 @@ RUN python -I -c 'import os, sys; sys.path.insert(0, "/tooling/scripts/ci"); fro
     && apt-get install -y --no-install-recommends build-essential bison flex ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 COPY scripts/ci/docker_source_artifacts.json scripts/ci/fetch_docker_source_artifacts.py /tooling/scripts/ci/
-COPY build/docker-sources/zlib-71747d1d39168833e0cae8ed84b8ce77cb049699.tar.gz build/docker-sources/ncurses-snapshots-dc909d77781ef5c2a0684e9ad9eb9f0c0baf5ecc.tar.gz build/docker-sources/openssl-3.5.9.tar.gz build/docker-sources/postgresql-18.6.tar.gz /input/native/
+COPY --from=sdk-source-archives /input/native/ /input/native/
 RUN --network=none python - <<'PY'
 import sys
 sys.path.insert(0, "/tooling/scripts/ci")
@@ -607,12 +612,58 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 # ensure scripts/CI pass DATABASE_URL/API_KEY envs as needed)
 CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
+# Build Debian's corrected source against Bookworm, without donor binary packages.
+FROM python:3.13.14-slim-bookworm@sha256:9d7f287598e1a5a978c015ee176d8216435aaf335ed69ac3c38dd1bbb10e8d64 AS libzstd-bookworm-build
+COPY --chmod=0644 scripts/ci/build_bookworm_libzstd.sh /tmp/build_bookworm_libzstd.sh
+RUN /bin/bash /tmp/build_bookworm_libzstd.sh prepare
+ENV HOME=/home/pulseplate-zstd-build
+USER pulseplate-zstd-build
+RUN --network=none /bin/bash /tmp/build_bookworm_libzstd.sh build
+
+FROM scratch AS libzstd-bookworm-package
+COPY --chown=0:0 --from=libzstd-bookworm-build /opt/pulseplate-libzstd/ /
+
 # Stage 3: Production stage (hardened)
 FROM runtime-base AS production
 
 # RU: Временный возврат к root нужен только для production-only slimming/hardening.
 # EN: Temporarily switch back to root only for production-only slimming/hardening.
 USER root
+
+# The local revision replaces only the qualified Bookworm package. Rebuild
+# without this backport when a reviewed official Bookworm fix is available.
+RUN --network=none --mount=type=bind,from=libzstd-bookworm-package,source=/,target=/opt/pulseplate-libzstd <<'SH'
+set -eu
+test "$(dpkg-query -W -f='${Version}' libzstd1)" = 1.5.4+dfsg2-5
+(cd /opt/pulseplate-libzstd && sha256sum -c SHA256SUMS)
+dpkg -i /opt/pulseplate-libzstd/libzstd1.deb
+test "$(dpkg-query -W -f='${Status} ${source:Package} ${Version}' libzstd1)" = 'install ok installed libzstd 1.5.7+dfsg-1+deb13u1~pulseplate12+1'
+scratch="$(mktemp -d)"
+trap 'rm -rf "$scratch"' EXIT
+library_file=/usr/lib/x86_64-linux-gnu/libzstd.so.1.5.7
+dpkg-deb --extract /opt/pulseplate-libzstd/libzstd1.deb "$scratch/packaged"
+test "$(dpkg-query -S "$library_file")" = "libzstd1:amd64: $library_file"
+cmp "$scratch/packaged$library_file" "$library_file"
+linked="$(ldd /usr/bin/dpkg-deb)"
+library="$(printf '%s\n' "$linked" | awk '$1 == "libzstd.so.1" && $2 == "=>" { print $3 }')"
+test -n "$library"
+test "$(readlink -f "$library")" = "$library_file"
+# Bind the temporarily excepted scanner identity to the qualified loaded DSO.
+printf '%s  %s\n' a0a281900c6fd880b754ff0fb453c8914927aff6aab2862b2925a89507510f72 "$library_file" | sha256sum -c -
+
+mkdir -p "$scratch/input/DEBIAN" "$scratch/input/usr/share/pulseplate-check"
+cat > "$scratch/input/DEBIAN/control" <<'CONTROL'
+Package: pulseplate-zstd-check
+Version: 1
+Architecture: all
+Maintainer: PulsePlate Build <pulseplate@pm.me>
+Description: Temporary package to exercise normal zstd compression
+CONTROL
+printf '%s\n' 'PulsePlate Bookworm zstd package roundtrip' > "$scratch/input/usr/share/pulseplate-check/payload"
+dpkg-deb --build --root-owner-group -Zzstd "$scratch/input" "$scratch/check.deb"
+dpkg-deb --extract "$scratch/check.deb" "$scratch/output"
+cmp "$scratch/input/usr/share/pulseplate-check/payload" "$scratch/output/usr/share/pulseplate-check/payload"
+SH
 
 # Keep the Python _uuid ABI while retiring the vulnerable Debian package family.
 COPY --from=uuid-builder /opt/libuuid/libuuid.so.1.3.0 /usr/local/lib/libuuid.so.1.3.0
@@ -1178,8 +1229,8 @@ RUN /opt/venv/bin/alembic -c /app/alembic.ini heads
 # Can be customized for staging needs (e.g., debug logging, extended health checks)
 #
 # HOW TO BUILD FOR STAGING:
-#   docker build --target=staging -t myapp:staging .
-#   docker build --target=staging --build-arg LOG_LEVEL=INFO -t myapp:staging .
+#   docker build --platform=linux/amd64 --target=staging -t myapp:staging .
+#   docker build --platform=linux/amd64 --target=staging --build-arg LOG_LEVEL=INFO -t myapp:staging .
 #
 # HOW TO RUN STAGING CONTAINER:
 #   docker run -e LOG_LEVEL=INFO -e DATABASE_URL=staging_db_url myapp:staging
