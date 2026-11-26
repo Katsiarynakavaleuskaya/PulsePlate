@@ -860,6 +860,8 @@ def _decode_npm_json(raw: bytes, *, source: str) -> Any:
                 pending.extend((child, depth + 1) for child in value.values())
             elif isinstance(value, list):
                 pending.extend((child, depth + 1) for child in value)
+            elif isinstance(value, float):
+                assert math.isfinite(value), f"{source}: nonfinite npm JSON number"
         return document
     except (UnicodeError, json.JSONDecodeError) as exc:
         raise AssertionError(f"{source}: readable UTF-8 JSON required") from exc
@@ -1248,10 +1250,26 @@ def _assert_npm_bundle_native_inventory(
             assert (edge["type"], edge["spec"]) == declarations[
                 edge["name"]
             ], "native npm declaration drift"
-            assert (
-                edge["valid"] is True and edge["error"] is None and edge["to"] in expected
-            ), "native npm edge invalid/unresolved"
-            assert expected[edge["to"]]["name"] == edge["name"], "native npm alias edge unsupported"
+            assert edge["valid"] is True and edge["error"] is None, "native npm edge invalid"
+            destination = edge["to"]
+            if destination is None:
+                assert edge["type"] in {
+                    "optional",
+                    "peerOptional",
+                }, "native npm required edge unresolved"
+                candidates = _npm_dependency_resolution_paths(
+                    package_path=location, target=edge["name"]
+                )
+                assert not expected.keys() & set(
+                    candidates
+                ), "native npm optional edge has a resolvable destination"
+            else:
+                assert (
+                    isinstance(destination, str) and destination in expected
+                ), "native npm edge destination"
+                assert (
+                    expected[destination]["name"] == edge["name"]
+                ), "native npm alias edge unsupported"
 
 
 def _assert_lock_surface_canonical_provenance(
@@ -3818,12 +3836,16 @@ def npm_flat_bundle_material(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
         "devDependencies": {"unused-tool": "^1.0.0"},
         "bundleDependencies": ["leaf-a", "leaf-b"],
     }
-    leaf_a = {"name": "leaf-a", "version": "1.0.0", "optionalDependencies": {"leaf-b": "1.0.0"}}
+    leaf_a = {
+        "name": "leaf-a",
+        "version": "1.0.0",
+        "optionalDependencies": {"leaf-b": "1.0.0", "absent-optional": "1.0.0"},
+    }
     leaf_b = {
         "name": "leaf-b",
         "version": "1.0.0",
-        "peerDependencies": {"leaf-a": "1.0.0"},
-        "peerDependenciesMeta": {"leaf-a": {"optional": True}},
+        "peerDependencies": {"leaf-a": "1.0.0", "absent-peer": "1.0.0"},
+        "peerDependenciesMeta": {"leaf-a": {"optional": True}, "absent-peer": {"optional": True}},
     }
     documents = {
         "package/package.json": parent,
@@ -3908,6 +3930,37 @@ def test_closed_bundle_positive_uses_parent_owned_data(
     assert material.published_manifests["node_modules/fixture-parent"]["devDependencies"] == {
         "unused-tool": "^1.0.0"
     }
+
+
+def test_closed_bundle_native_graph_keeps_genuinely_absent_optional_edges(
+    npm_flat_bundle_material: dict[str, Any],
+) -> None:
+    graph = npm_flat_bundle_material["graph"]
+    absent = {
+        (node["name"], edge["name"], edge["type"], edge["spec"], edge["valid"], edge["error"])
+        for node in graph["nodes"]
+        for edge in node["edges"]
+        if edge["to"] is None
+    }
+    assert absent == {
+        ("leaf-a", "absent-optional", "optional", "1.0.0", True, None),
+        ("leaf-b", "absent-peer", "peerOptional", "1.0.0", True, None),
+    }
+
+
+@pytest.mark.parametrize("exponent", (b"1e999", b"-1e999"))
+def test_npm_json_rejects_overflowing_exponents(exponent: bytes) -> None:
+    raw = b'{"publishConfig":{"number":' + exponent + b"}}"
+    with pytest.raises(AssertionError, match="nonfinite npm JSON number"):
+        _decode_npm_json(raw, source="synthetic manifest")
+
+
+def test_npm_json_accepts_finite_exponents_and_integers() -> None:
+    raw = b'{"publishConfig":{"numbers":[1e2,-1e2,9007199254740993]}}'
+    document = _decode_npm_json(raw, source="synthetic manifest")
+    numbers = document["publishConfig"]["numbers"]
+    assert numbers == [100.0, -100.0, 9007199254740993]
+    assert [type(number) for number in numbers] == [float, float, int]
 
 
 @pytest.mark.parametrize(
@@ -4015,6 +4068,12 @@ def test_closed_bundle_rejects_independent_archive_mutations(
         ("extra-node", "installed-root inventory"),
         ("missing-edge", "edge inventory"),
         ("duplicate-edge", "edge inventory"),
+        ("required-null", "native npm required edge unresolved"),
+        ("resolvable-optional-null", "native npm optional edge has a resolvable destination"),
+        ("resolvable-peer-null", "native npm optional edge has a resolvable destination"),
+        ("invalid-optional", "native npm edge invalid"),
+        ("error-optional", "native npm edge invalid"),
+        ("wrong-identity", "native npm alias edge unsupported"),
         ("malformed", "node inventory"),
     ],
 )
@@ -4041,6 +4100,33 @@ def test_closed_bundle_rejects_native_inventory_mutations(
             row["edges"].pop()
         else:
             row["edges"].append(deepcopy(row["edges"][0]))
+    elif mutation in {"required-null", "wrong-identity"}:
+        row = next(row for row in graph["nodes"] if row["isRoot"])
+        row["edges"][0]["to"] = (
+            None
+            if mutation == "required-null"
+            else "node_modules/fixture-parent/node_modules/leaf-a"
+        )
+    elif mutation in {
+        "resolvable-optional-null",
+        "resolvable-peer-null",
+        "invalid-optional",
+        "error-optional",
+    }:
+        edge_type = "peerOptional" if mutation == "resolvable-peer-null" else "optional"
+        edge = next(
+            edge
+            for row in graph["nodes"]
+            for edge in row["edges"]
+            if edge["type"] == edge_type
+            and (edge["to"] is not None) == mutation.startswith("resolvable-")
+        )
+        if mutation == "invalid-optional":
+            edge["valid"] = False
+        elif mutation == "error-optional":
+            edge["error"] = "INVALID"
+        else:
+            edge["to"] = None
     else:
         graph["nodes"] = "malformed"
     with pytest.raises(AssertionError, match=diagnostic):
@@ -4075,11 +4161,21 @@ def test_closed_bundle_raw_cache_revalidates_sri(npm_flat_bundle_material: dict[
         )
 
 
-@pytest.mark.parametrize("outcome", ("nonzero", "non-json", "partial-report"))
+@pytest.mark.parametrize(
+    "outcome,diagnostic",
+    (
+        pytest.param("nonzero", "npm bundle native metadata failed", id="nonzero"),
+        pytest.param(
+            "non-json", "native npm bundle graph: readable UTF-8 JSON required", id="non-json"
+        ),
+        pytest.param("partial-report", "native npm graph shape", id="partial-report"),
+    ),
+)
 def test_closed_bundle_native_transport_fails_closed(
     npm_flat_bundle_material: dict[str, Any],
     monkeypatch: pytest.MonkeyPatch,
     outcome: str,
+    diagnostic: str,
 ) -> None:
     state = npm_flat_bundle_material
     raw = b"not-json" if outcome == "non-json" else b"{}"
@@ -4092,15 +4188,14 @@ def test_closed_bundle_native_transport_fails_closed(
         for name, value in state["documents"].items()
         if isinstance(value, dict) and "name" in value
     }
-    with pytest.raises(
-        AssertionError, match="native metadata failed|readable UTF-8 JSON|native npm graph shape"
-    ):
+    with pytest.raises(AssertionError) as rejected:
         state["native"](
             files=dict(state["files"]),
             manifests=roots,
             parent_name="fixture-parent",
             deadline=time.monotonic() + 5,
         )
+    assert str(rejected.value).splitlines()[0] == diagnostic
 
 
 def _synthetic_arborist_escape(tmp_path: Path, component: str) -> tuple[Path, Path]:

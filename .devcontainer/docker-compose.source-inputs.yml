@@ -8,12 +8,31 @@ services:
     platform: linux/amd64
     build:
       context: ..
+      no_cache: true
       dockerfile_inline: |
         FROM python@sha256:7a6b87c02e1f4d6bb572e379235cbbdd7892add0572442c9b0b860a3f5aa9857 AS fetch
         COPY scripts/ci/docker_source_artifacts.json scripts/ci/fetch_docker_source_artifacts.py /tooling/scripts/ci/
-        RUN python -I /tooling/scripts/ci/fetch_docker_source_artifacts.py --manifest /tooling/scripts/ci/docker_source_artifacts.json --output-dir /verified
+        RUN --mount=type=cache,id=pulseplate-sdk-source-archives,target=/sdk-source-cache,sharing=locked \
+            python -I - /tooling/scripts/ci/docker_source_artifacts.json /sdk-source-cache /verified <<'PY'
+        from pathlib import Path
+        from shutil import copy
+        import sys
+
+        sys.path.insert(0, "/tooling")
+        from scripts.ci.fetch_docker_source_artifacts import load_manifest, _write_verified_artifact
+
+        manifest, cache, output = map(Path, sys.argv[1:])
+        records = {record.name: record for record in load_manifest(manifest)}
+        names = ("zlib", "ncurses", "openssl", "postgresql")
+        if missing := set(names) - records.keys():
+            raise RuntimeError("Native SDK manifest is missing: " + ", ".join(sorted(missing)))
+        verified = [_write_verified_artifact(records[name], cache) for name in names]
+        output.mkdir()
+        for path in verified:
+            copy(path, output / path.name)
+        PY
         FROM scratch
-        COPY --from=fetch /verified/zlib-71747d1d39168833e0cae8ed84b8ce77cb049699.tar.gz /verified/ncurses-snapshots-dc909d77781ef5c2a0684e9ad9eb9f0c0baf5ecc.tar.gz /verified/openssl-3.5.9.tar.gz /verified/postgresql-18.6.tar.gz /input/native/
+        COPY --from=fetch /verified/ /input/native/
     deploy:
       replicas: 0
 

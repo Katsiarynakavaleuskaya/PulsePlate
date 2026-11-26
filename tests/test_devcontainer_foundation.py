@@ -17,13 +17,16 @@ import shutil
 import subprocess
 import sys
 
-import pytest
+from datetime import date
 from pathlib import Path
 
+import pytest
 import yaml
+from scripts.ci import fetch_docker_source_artifacts as source_artifacts
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEVCONTAINER_DIR = REPO_ROOT / ".devcontainer"
+SDK_SOURCE_NAMES = ("zlib", "ncurses", "openssl", "postgresql")
 
 
 # ---------------------------------------------------------------------------
@@ -319,29 +322,29 @@ def test_direct_devcontainer_build_supplies_the_four_verified_sdk_archives() -> 
     source = services["sdk-source-inputs"]
     assert set(source) == {"platform", "build", "deploy"}
     assert source["platform"] == "linux/amd64" and source["deploy"] == {"replicas": 0}
-    assert set(source["build"]) == {"context", "dockerfile_inline"}
-    assert source["build"]["context"] == ".."
+    assert set(source["build"]) == {"context", "dockerfile_inline", "no_cache"}
+    assert source["build"]["context"] == ".." and source["build"]["no_cache"] is True
+    assert not base_config["services"]["devcontainer"]["build"].get("no_cache")
+    assert not services["native-sdk-artifacts"]["build"].get("no_cache")
 
     manifest = json.loads((REPO_ROOT / "scripts/ci/docker_source_artifacts.json").read_text())
-    names = {"zlib", "ncurses", "openssl", "postgresql"}
+    names = set(SDK_SOURCE_NAMES)
     filenames = {a["filename"] for a in manifest["artifacts"] if a["name"] in names}
     assert len(filenames) == len(names)
     dockerfile = (REPO_ROOT / "Dockerfile").read_text()
     sdk_base = re.search(r'^ARG PSYCOPG_SDK_PYTHON_IMAGE="([^"]+)"$', dockerfile, re.MULTILINE)
     assert sdk_base is not None
     recipe = source["build"]["dockerfile_inline"].splitlines()
-    assert recipe[:4] == [
+    assert recipe[:2] == [
         f"FROM {sdk_base[1]} AS fetch",
         "COPY scripts/ci/docker_source_artifacts.json scripts/ci/fetch_docker_source_artifacts.py "
         "/tooling/scripts/ci/",
-        "RUN python -I /tooling/scripts/ci/fetch_docker_source_artifacts.py "
-        "--manifest /tooling/scripts/ci/docker_source_artifacts.json --output-dir /verified",
-        "FROM scratch",
     ]
-    assert len(recipe) == 5
-    exported = shlex.split(recipe[4])
-    assert exported[:2] == ["COPY", "--from=fetch"] and exported[-1] == "/input/native/"
-    assert sorted(exported[2:-1]) == sorted(f"/verified/{name}" for name in filenames)
+    assert recipe[2:4] == [
+        "RUN --mount=type=cache,id=pulseplate-sdk-source-archives,target=/sdk-source-cache,sharing=locked \\",
+        "    python -I - /tooling/scripts/ci/docker_source_artifacts.json /sdk-source-cache /verified <<'PY'",
+    ]
+    assert recipe[-3:] == ["PY", "FROM scratch", "COPY --from=fetch /verified/ /input/native/"]
 
     ordinary = dockerfile.split("FROM scratch AS sdk-source-archives\n", 1)[1].split("\nFROM ", 1)[
         0
@@ -372,43 +375,123 @@ def test_direct_devcontainer_build_supplies_the_four_verified_sdk_archives() -> 
     }
 
 
-def test_devcontainer_source_fetch_refuses_a_stale_manifest_before_creating_output(
-    tmp_path: Path,
-) -> None:
-    """Execute the staged fetch command from an empty context with a rejected manifest."""
-    config = json.loads((DEVCONTAINER_DIR / "devcontainer.json").read_text())
-    source_config = yaml.safe_load((DEVCONTAINER_DIR / config["dockerComposeFile"][0]).read_text())
-    recipe = source_config["services"]["sdk-source-inputs"]["build"][
-        "dockerfile_inline"
-    ].splitlines()
-    command = shlex.split(next(line for line in recipe if line.startswith("RUN ")))
-    _, _, isolated, program, manifest_flag, manifest_path, output_flag, output_path = command
-    native_cli = tmp_path / program.lstrip("/")
-    native_cli.parent.mkdir(parents=True)
-    shutil.copy(REPO_ROOT / "scripts/ci/fetch_docker_source_artifacts.py", native_cli)
-    manifest = json.loads((REPO_ROOT / "scripts/ci/docker_source_artifacts.json").read_text())
-    manifest["review_by"] = "2000-01-01"
-    staged_manifest = tmp_path / manifest_path.lstrip("/")
-    staged_manifest.write_text(json.dumps(manifest))
-    output = tmp_path / output_path.lstrip("/")
+def _sdk_source_program() -> str:
+    config = yaml.safe_load((DEVCONTAINER_DIR / "docker-compose.source-inputs.yml").read_text())
+    recipe = config["services"]["sdk-source-inputs"]["build"]["dockerfile_inline"]
+    return recipe.split("<<'PY'\n", 1)[1].split("\nPY\n", 1)[0]
 
+
+def _run_sdk_source_step(
+    monkeypatch: pytest.MonkeyPatch, manifest: Path, cache: Path, output: Path
+) -> None:
+    monkeypatch.setattr(sys, "argv", ["-", str(manifest), str(cache), str(output)])
+    monkeypatch.setattr(sys, "path", sys.path.copy())
+    exec(compile(_sdk_source_program(), "<codespaces-sdk-source-step>", "exec"), {})
+
+
+def test_devcontainer_source_step_admits_cold_and_warm_inputs_before_stale_rejection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Exercise the staged selector with canonical date admission and synthetic writer bytes."""
+    manifest = REPO_ROOT / "scripts/ci/docker_source_artifacts.json"
+    review_by = date.fromisoformat(json.loads(manifest.read_text())["review_by"])
+    observed_today = review_by
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    (cache / "unrelated.tar.gz").write_bytes(b"irrelevant cache entry")
+    events: list[tuple[str, str]] = []
+    load = source_artifacts.load_manifest
+    selected = {item.name: item for item in load(manifest, today=review_by)}
+    expected = {selected[name].filename: name.encode() for name in SDK_SOURCE_NAMES}
+
+    def load_manifest(path: Path) -> tuple[source_artifacts.DockerSourceArtifact, ...]:
+        events.append(("admit", observed_today.isoformat()))
+        return load(path, today=observed_today)
+
+    def write_verified(artifact: source_artifacts.DockerSourceArtifact, directory: Path) -> Path:
+        assert directory == cache
+        path = directory / artifact.filename
+        if path.exists():
+            events.append(("warm", artifact.name))
+            assert path.read_bytes() == expected[path.name]
+        else:
+            events.append(("cold", artifact.name))
+            path.write_bytes(expected[path.name])
+        return path
+
+    monkeypatch.setattr(source_artifacts, "load_manifest", load_manifest)
+    monkeypatch.setattr(source_artifacts, "_write_verified_artifact", write_verified)
+    for mode in ("cold", "warm"):
+        events.clear()
+        output = tmp_path / mode
+        _run_sdk_source_step(monkeypatch, manifest, cache, output)
+        assert events == [("admit", review_by.isoformat())] + [
+            (mode, name) for name in SDK_SOURCE_NAMES
+        ]
+        assert {path.name: path.read_bytes() for path in output.iterdir()} == expected
+    observed_today = date.fromordinal(review_by.toordinal() + 1)
+    events.clear()
+    output = tmp_path / "stale"
+    with pytest.raises(RuntimeError, match=f"review_by is stale: {review_by.isoformat()}"):
+        _run_sdk_source_step(monkeypatch, manifest, cache, output)
+    assert events == [("admit", observed_today.isoformat())] and not output.exists()
+
+
+@pytest.mark.parametrize("fault", ("stale", "missing-sdk", "malformed-unselected"))
+def test_devcontainer_source_step_rejects_incomplete_admission_before_the_writer(
+    tmp_path: Path, fault: str
+) -> None:
+    canonical = REPO_ROOT / "scripts/ci"
+    tooling = tmp_path / "tooling"
+    staged = tooling / "scripts/ci"
+    staged.mkdir(parents=True)
+    shutil.copyfile(
+        canonical / "fetch_docker_source_artifacts.py", staged / "fetch_docker_source_artifacts.py"
+    )
+    manifest = json.loads((canonical / "docker_source_artifacts.json").read_text())
+    manifest["review_by"] = date.max.isoformat()
+    cache = tmp_path / "sdk-source-cache"
+    cache.mkdir()
+    selected = next(row for row in manifest["artifacts"] if row["name"] == "zlib")
+    warm_file = cache / selected["filename"]
+    warm_file.write_bytes(b"sentinel: rejected admission must preserve this file")
+    if fault == "stale":
+        manifest["review_by"] = "2000-01-01"
+        reason = "Docker source artifact manifest review_by is stale: 2000-01-01"
+    elif fault == "missing-sdk":
+        manifest["artifacts"] = [row for row in manifest["artifacts"] if row["name"] != "openssl"]
+        reason = "Native SDK manifest is missing: openssl"
+    else:
+        unrelated = next(row for row in manifest["artifacts"] if row["name"] == "sqlite-autoconf")
+        unrelated["url"] = None
+        reason = "Docker source artifacts require non-empty name/version/filename/url fields."
+    input_path = staged / "docker_source_artifacts.json"
+    input_path.write_text(json.dumps(manifest))
+    output = tmp_path / "verified"
+    source = _sdk_source_program()
+    assert source.count('"/tooling"') == 1
+    source = source.replace('"/tooling"', repr(str(tooling)), 1)
+    network_guard = (
+        "import sys\n"
+        "def deny_network(event, args):\n"
+        "    if event in ('socket.connect', 'urllib.Request'):\n"
+        "        raise RuntimeError('unexpected SDK download')\n"
+        "sys.addaudithook(deny_network)\n"
+    )
     rejected = subprocess.run(
-        [
-            sys.executable,
-            isolated,
-            str(native_cli),
-            manifest_flag,
-            str(staged_manifest),
-            output_flag,
-            str(output),
-        ],
+        [sys.executable, "-I", "-", str(input_path), str(cache), str(output)],
+        input=network_guard + source,
         cwd=tmp_path,
         env={"PATH": os.defpath, "HOME": str(tmp_path)},
         capture_output=True,
         text=True,
         timeout=15,
     )
-    assert rejected.returncode != 0 and "review_by is stale: 2000-01-01" in rejected.stderr
+    assert rejected.returncode == 1
+    assert rejected.stderr.splitlines()[-1] == f"RuntimeError: {reason}"
+    assert not rejected.stdout and "unexpected SDK download" not in rejected.stderr
+    assert list(cache.iterdir()) == [warm_file]
+    assert warm_file.read_bytes() == b"sentinel: rejected admission must preserve this file"
     assert not output.exists()
 
 

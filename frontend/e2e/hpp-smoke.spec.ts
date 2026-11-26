@@ -27,6 +27,34 @@ async function stubProSession(page: Page, origin: string): Promise<() => number>
   return () => calls;
 }
 
+type ObservedRequest = { resourceType: string; url: string; method: string; interaction: boolean };
+
+function observePageNetwork(page: Page, interactionStarted = () => false) {
+  const requests: ObservedRequest[] = [];
+  const webSockets: string[] = [];
+  page.on('request', (request) => {
+    requests.push({ resourceType: request.resourceType(), url: request.url(),
+      method: request.method(), interaction: interactionStarted() });
+  });
+  page.on('websocket', (socket) => webSockets.push(socket.url()));
+  return { requests, webSockets };
+}
+
+function isSessionGet(request: ObservedRequest, origin: string): boolean {
+  return request.method === 'GET' && request.url === `${origin}/api/v1/pro/session`;
+}
+
+function isForbiddenPageRequest(request: ObservedRequest, origin: string, surface: 'marketing' | 'protected'): boolean {
+  const url = new URL(request.url);
+  const isHttp = url.protocol === 'http:' || url.protocol === 'https:';
+  if (url.origin !== origin && (isHttp || surface === 'marketing')) return true;
+  const isApi = url.origin === origin && (url.pathname === '/api' || url.pathname.startsWith('/api/'));
+  const isData = ['fetch', 'xhr', 'eventsource', 'ping', 'beacon'].includes(request.resourceType);
+  if (!isApi && !isData) return false;
+  return !isSessionGet(request, origin) ||
+    (surface === 'marketing' && (request.interaction || request.resourceType !== 'fetch'));
+}
+
 function expectRevealAssetIdentity(actualPath: string, expectedBasename: string): void {
   if (actualPath.endsWith(`/${expectedBasename}`)) {
     return;
@@ -271,7 +299,7 @@ for (const route of ['/', '/marketing'] as const) {
     let interactionStarted = false;
     const consoleErrors: string[] = [];
     const pageErrors: string[] = [];
-    const observedRequests: Array<{ resourceType: string; url: string; method: string; interaction: boolean }> = [];
+    const network = observePageNetwork(page, () => interactionStarted);
 
     page.on('console', (message) => {
       if (message.type() === 'error') {
@@ -279,9 +307,6 @@ for (const route of ['/', '/marketing'] as const) {
       }
     });
     page.on('pageerror', (error) => pageErrors.push(error.message));
-    page.on('request', (request) => {
-      observedRequests.push({ resourceType: request.resourceType(), url: request.url(), method: request.method(), interaction: interactionStarted });
-    });
 
     await page.goto(route);
 
@@ -587,24 +612,76 @@ for (const route of ['/', '/marketing'] as const) {
       hasGtag: typeof (window as Window & { gtag?: unknown }).gtag !== 'undefined',
       hasDataLayer: typeof (window as Window & { dataLayer?: unknown }).dataLayer !== 'undefined',
     }));
-    const forbiddenInteractionRequests = observedRequests.filter(({ resourceType, url, method, interaction }) =>
-      ['fetch', 'xhr', 'eventsource', 'websocket'].includes(resourceType) &&
-      !(interaction === false && resourceType === 'fetch' && method === 'GET' &&
-        url === `${origin}/api/v1/pro/session`),
-    );
-    const externalInteractionRequests = observedRequests.filter(({ url }) => {
-      const candidate = new URL(url);
-      return candidate.origin !== new URL(urlBefore).origin;
-    });
-
-    expect(forbiddenInteractionRequests).toEqual([]);
-    expect(externalInteractionRequests).toEqual([]);
+    expect(network.requests.filter((request) => isForbiddenPageRequest(request, origin, 'marketing'))).toEqual([]);
+    expect(network.webSockets).toEqual([]);
     expect(storageAfter).toEqual(storageBefore);
     expect(page.url()).toBe(urlBefore);
     expect(consoleErrors).toEqual([]);
     expect(pageErrors).toEqual([]);
   });
 }
+
+test('bounded network observation detects socket and non-fetch request attempts', async ({ page, baseURL }, testInfo) => {
+  const origin = new URL(baseURL ?? '').origin;
+  const otherOrigin = origin.replace('127.0.0.1', 'localhost');
+  expect(otherOrigin).not.toBe(origin);
+  const documentUrl = `${origin}/__hpp_network_control`;
+  const socketUrl = `${origin.replace('http:', 'ws:')}/__hpp_network_socket`;
+  const imageApi = `${origin}/api`;
+  const sameOriginBeacon = `${origin}/api/v1/hpp-control`;
+  const crossOriginBeacon = `${otherOrigin}/hpp-control`;
+  const network = observePageNetwork(page);
+
+  // All controls stay on the preview loopback addresses or in a Playwright route.
+  // The document attempts a real loopback upgrade during navigation. Playwright's
+  // socket routing would intercept it before the browser's native event.
+  await page.route(documentUrl, (route) => route.fulfill({ contentType: 'text/html',
+    body: `<script>const socket = new WebSocket(${JSON.stringify(socketUrl)});</script>` }));
+  for (const url of [imageApi, sameOriginBeacon, crossOriginBeacon]) {
+    await page.route(url, (route) => route.fulfill({ status: 204 }));
+  }
+  const [socket] = await Promise.all([page.waitForEvent('websocket', { timeout: 5_000 }), page.goto(documentUrl)]);
+  expect(socket.url()).toBe(socketUrl);
+  expect(network.webSockets).toEqual([socketUrl]);
+
+  const [, , , enqueued] = await Promise.all([
+    page.waitForRequest(imageApi), page.waitForRequest(sameOriginBeacon), page.waitForRequest(crossOriginBeacon),
+    page.evaluate(({ imageApi, sameOriginBeacon, crossOriginBeacon }) => {
+      const image = document.createElement('img');
+      image.src = imageApi;
+      document.body.append(image);
+      return [navigator.sendBeacon(sameOriginBeacon, 'control'), navigator.sendBeacon(crossOriginBeacon, 'control')];
+    }, { imageApi, sameOriginBeacon, crossOriginBeacon }),
+  ]);
+  expect(enqueued).toEqual([true, true]);
+  const observed = network.requests.filter((request) => [imageApi, sameOriginBeacon, crossOriginBeacon].includes(request.url));
+  expect(observed).toEqual(expect.arrayContaining([
+    expect.objectContaining({ url: imageApi, method: 'GET', resourceType: 'image' }),
+    expect.objectContaining({ url: sameOriginBeacon, method: 'POST' }),
+    expect.objectContaining({ url: crossOriginBeacon, method: 'POST' }),
+  ]));
+  expect(observed).toHaveLength(3);
+  for (const surface of ['marketing', 'protected'] as const) {
+    expect(observed.filter((request) => isForbiddenPageRequest(request, origin, surface))).toEqual(observed);
+    const session = { method: 'GET', url: `${origin}/api/v1/pro/session`, resourceType: 'fetch', interaction: false };
+    const staticImage = { ...session, url: `${origin}/apiary/image.png?next=/api/v1`, resourceType: 'image' };
+    expect(isForbiddenPageRequest(session, origin, surface)).toBe(false);
+    expect(isForbiddenPageRequest(staticImage, origin, surface)).toBe(false);
+    for (const request of [
+      { ...session, method: 'POST', resourceType: 'ping' },
+      { ...session, url: `${origin}/unrelated`, resourceType: 'ping' },
+      { ...session, url: crossOriginBeacon, resourceType: 'ping' },
+      { ...session, url: `${session.url}?extra=true` },
+      { ...session, url: `${session.url}/extra` },
+      { ...session, url: `${otherOrigin}/api/v1/pro/session` },
+    ]) {
+      expect(isForbiddenPageRequest(request, origin, surface), `${surface}: ${request.method} ${request.url}`).toBe(true);
+    }
+    expect(isForbiddenPageRequest({ ...session, interaction: true }, origin, surface)).toBe(surface === 'marketing');
+    expect(isForbiddenPageRequest({ ...session, resourceType: 'xhr' }, origin, surface)).toBe(surface === 'marketing');
+  }
+  await attachCompatibility(testInfo, 'observed-loopback-controls', network);
+});
 
 for (const viewport of marketingViewportCases) {
   test(`marketing layout is bounded at exactly ${viewport.width}px`, async ({ page }) => {
@@ -1083,13 +1160,21 @@ function expectVisibleCompatibilityOutline(observation: Awaited<ReturnType<typeo
   expect(hasVisibleCompatibilityOutline(observation)).toBe(true);
 }
 
+function hasCompatibilityOutlineTransition(
+  baseline: Awaited<ReturnType<typeof readCompatibilityStyle>>,
+  focused: Awaited<ReturnType<typeof readCompatibilityStyle>>,
+): boolean {
+  return !baseline.focus.active && !hasVisibleCompatibilityOutline(baseline) &&
+    focused.focus.active && hasVisibleCompatibilityOutline(focused);
+}
+
 function hasVisibleCompatibilityInputRing(
   observation: Awaited<ReturnType<typeof readCompatibilityStyle>>,
 ): boolean {
   const expected = observation.ariaInvalid === 'true'
     ? observation.expectedFocus.errorRing : observation.expectedFocus.primaryRing;
   return observation.focus.active && expected !== 'none' && expected !== '' &&
-    observation.style['box-shadow'].includes(expected);
+    postcss.list.comma(observation.style['box-shadow']).includes(expected);
 }
 
 for (const width of [320, 1440] as const) {
@@ -1160,7 +1245,7 @@ for (const width of [320, 1440] as const) {
       const id = `button-${variant}-default`;
       const focus = keyboard[id];
       await attachCompatibility(testInfo, id, { ...buttonStates[id], focus });
-      expectVisibleCompatibilityOutline(focus);
+      expect(hasCompatibilityOutlineTransition(defaults[id], focus), `${id} gains its outline on Tab`).toBe(true);
     }
     for (const state of ['ordinary', 'invalid'] as const) {
       const focused = keyboard[`input-${state}`];
@@ -1279,11 +1364,12 @@ for (const forcedColors of ['none', 'active'] as const) {
 
 test('focus witnesses reject transparent colors and zero-geometry shadows', async ({ page, baseURL }, testInfo) => {
   await showCompatibilitySpecimens(page, new URL(baseURL ?? '').origin);
-  const buttonKeyboard = await keyboardCompatibilityTarget(page, 'button-primary-default', testInfo);
   const button = page.locator('[data-compat-target="button-primary-default"]');
+  const buttonDefault = await readCompatibilityStyle(button);
+  const buttonKeyboard = await keyboardCompatibilityTarget(page, 'button-primary-default', testInfo);
   const originalButtonStyle = await button.getAttribute('style');
   const buttonBefore = buttonKeyboard['button-primary-default'];
-  expectVisibleCompatibilityOutline(buttonBefore);
+  expect(hasCompatibilityOutlineTransition(buttonDefault, buttonBefore)).toBe(true);
   const outlineNegatives = [];
   try {
     for (const color of ['color(srgb 0 0 0 / 0)', 'rgba(51, 159, 255, 0.001)']) {
@@ -1307,27 +1393,58 @@ test('focus witnesses reject transparent colors and zero-geometry shadows', asyn
     }, originalButtonStyle);
   }
   expectVisibleCompatibilityOutline(await readCompatibilityStyle(button));
-  const inputKeyboard = await keyboardCompatibilityTarget(page, 'input-ordinary', testInfo);
-  const input = page.locator('[data-compat-target="input-ordinary"]');
-  const originalInputStyle = await input.getAttribute('style');
-  const inputBefore = inputKeyboard['input-ordinary'];
-  expect(hasVisibleCompatibilityInputRing(inputBefore)).toBe(true);
-  const ringNegatives = [];
+  let alwaysOn;
   try {
-    for (const shadow of ['0 0 0 3px rgba(51, 159, 255, 0)', '0 0 0 0 var(--color-primary)']) {
-      await input.evaluate((element, value) => { (element as HTMLElement).style.boxShadow = value; }, shadow);
-      const observed = await readCompatibilityStyle(input);
-      ringNegatives.push(observed);
-      expect(hasVisibleCompatibilityInputRing(observed)).toBe(false);
-    }
+    await button.evaluate((element) => {
+      (element as HTMLElement).style.outline = '2px solid var(--color-primary)';
+      (element as HTMLElement).style.outlineOffset = '0px';
+      (element as HTMLElement).blur();
+    });
+    const baseline = await readCompatibilityStyle(button);
+    const keyboard = await keyboardCompatibilityTarget(page, 'button-primary-default', testInfo);
+    const focused = keyboard['button-primary-default'];
+    alwaysOn = { baseline, focused };
+    expect(baseline.focus.active).toBe(false);
+    expectVisibleCompatibilityOutline(baseline);
+    expectVisibleCompatibilityOutline(focused);
+    expect(hasCompatibilityOutlineTransition(baseline, focused)).toBe(false);
   } finally {
-    await input.evaluate((element, value) => {
+    await button.evaluate((element, value) => {
       if (value === null) element.removeAttribute('style');
       else element.setAttribute('style', value);
-    }, originalInputStyle);
+    }, originalButtonStyle);
   }
-  expect(hasVisibleCompatibilityInputRing(await readCompatibilityStyle(input))).toBe(true);
-  await attachCompatibility(testInfo, 'focus-negative-controls', { buttonBefore, outlineNegatives, inputBefore, ringNegatives });
+
+  const ringControls = [];
+  for (const state of ['ordinary', 'invalid'] as const) {
+    const id = `input-${state}`;
+    const input = page.locator(`[data-compat-target="${id}"]`);
+    const keyboard = await keyboardCompatibilityTarget(page, id, testInfo);
+    const before = keyboard[id];
+    const original = await input.getAttribute('style');
+    expect(hasVisibleCompatibilityInputRing(before)).toBe(true);
+    const ringToken = state === 'invalid' ? '--color-error' : '--color-primary';
+    const wrongToken = state === 'invalid' ? '--color-primary' : '--color-error';
+    const negatives = [];
+    try {
+      for (const shadow of [`inset 0 0 0 3px var(${ringToken})`, `0 0 0 3px var(${wrongToken})`,
+        '0 0 0 3px rgba(51, 159, 255, 0)', `0 0 0 0 var(${ringToken})`]) {
+        await input.evaluate((element, value) => { (element as HTMLElement).style.boxShadow = value; }, shadow);
+        const observed = await readCompatibilityStyle(input);
+        negatives.push({ shadow, observed });
+        expect(observed.focus.active).toBe(true);
+        expect(hasVisibleCompatibilityInputRing(observed), `${id} rejects ${shadow}`).toBe(false);
+      }
+    } finally {
+      await input.evaluate((element, value) => {
+        if (value === null) element.removeAttribute('style');
+        else element.setAttribute('style', value);
+      }, original);
+    }
+    expect(hasVisibleCompatibilityInputRing(await readCompatibilityStyle(input))).toBe(true);
+    ringControls.push({ state, before, negatives });
+  }
+  await attachCompatibility(testInfo, 'focus-negative-controls', { buttonBefore, outlineNegatives, alwaysOn, ringControls });
 });
 
 test('CSS smoke rejects an exact missing grid despite grid-cols neighbors', async ({ page, baseURL }, testInfo) => {
@@ -1491,12 +1608,7 @@ for (const route of ['/plate', '/progress'] as const) {
     test(`${route} compares actual protected page CSS at ${width}px`, async ({ page, baseURL, browserName, browser }, testInfo) => {
       const origin = new URL(baseURL ?? '').origin;
       const sessionCalls = await stubProSession(page, origin);
-      const apiRequests: Array<{ url: string; method: string }> = [];
-      page.on('request', (request) => {
-        if (['fetch', 'xhr', 'eventsource', 'websocket'].includes(request.resourceType())) {
-          apiRequests.push({ url: request.url(), method: request.method() });
-        }
-      });
+      const network = observePageNetwork(page);
       await page.setViewportSize({ width, height: width === 320 ? 900 : 1000 });
       await page.goto(route);
       const heading = page.getByRole('heading', { level: 1, name: route === '/plate' ? 'Your Plate' : 'Progress' });
@@ -1542,12 +1654,17 @@ for (const route of ['/plate', '/progress'] as const) {
         }
       }
       const observation = await readCompatibilityStyle(heading);
+      const apiRequests = network.requests.filter((request) => isSessionGet(request, origin));
+      const forbidden = network.requests.filter((request) => isForbiddenPageRequest(request, origin, 'protected'));
       await attachCompatibility(testInfo, 'protected-page', { route, width, browserName, version: browser.version(),
-        sessionCalls: sessionCalls(), viewport: page.viewportSize(), heading: observation, states, apiRequests });
+        sessionCalls: sessionCalls(), viewport: page.viewportSize(), heading: observation, states, apiRequests,
+        forbidden, webSockets: network.webSockets });
       expect(sessionCalls()).toBeGreaterThan(0);
+      expect(apiRequests).toHaveLength(sessionCalls());
+      expect(forbidden).toEqual([]);
+      expect(network.webSockets).toEqual([]);
       expect(observation.style['font-size']).toBe(width === 320 ? '36px' : '48px');
       expect(observation.style['font-weight']).toBe('700');
-      expect(apiRequests.every((request) => request.url === `${origin}/api/v1/pro/session` && request.method === 'GET')).toBe(true);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
     });
   }

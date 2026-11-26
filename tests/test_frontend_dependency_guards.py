@@ -582,9 +582,7 @@ FRONTEND_SECURITY_BOUNDARY_CASES = (
 
 
 def _load_json(path: Path) -> dict:
-    document = json.loads(path.read_text(encoding="utf-8"))
-    assert isinstance(document, dict), f"{path}: npm surface must be a JSON object"
-    return document
+    return _load_transitive_npm_surface(path)
 
 
 def _git_stdout(*args: str, repo_root: Path = REPO_ROOT) -> bytes:
@@ -2428,6 +2426,23 @@ def test_brace_expansion_surface_ownership_tracks_safe_repo_growth(
             _assert_brace_expansion_surface_ownership(root=tmp_path)
     else:
         assert _assert_brace_expansion_surface_ownership(root=tmp_path) == frozenset()
+
+
+def test_brace_expansion_surface_ownership_rejects_duplicate_lock_records(tmp_path: Path) -> None:
+    _git_stdout("init", repo_root=tmp_path)
+    relative = "frontend/package-lock.json"
+    path = tmp_path / relative
+    path.parent.mkdir()
+    path.write_text(
+        '{"lockfileVersion":3,"packages":{'
+        '"node_modules/brace-expansion":{"version":"2.0.1"},'
+        '"node_modules/brace-expansion":{"version":"2.1.3"}}}',
+        encoding="utf-8",
+    )
+    _git_stdout("add", "--", relative, repo_root=tmp_path)
+
+    with pytest.raises(AssertionError, match="duplicate JSON key: node_modules/brace-expansion"):
+        _assert_brace_expansion_surface_ownership(root=tmp_path)
 
 
 def test_npm_surface_discovery_catches_lockfile_v3_and_shrinkwrap(tmp_path: Path) -> None:
@@ -6145,7 +6160,7 @@ def test_redocly_reviewed_bundle_binding_has_canonical_archive_proof(
     ],
 )
 def test_redocly_existing_transition_on_complete_synthetic_payload(
-    tmp_path: Path, case: str, redocly_reviewed_bundle_records: dict[str, dict]
+    tmp_path: Path, case: str, request: pytest.FixtureRequest
 ) -> None:
     """Real file/Node operations on 687 synthetic members test control flow, not upstream identity."""
     node = shutil.which("node")
@@ -6275,7 +6290,7 @@ def test_redocly_existing_transition_on_complete_synthetic_payload(
                 "selected-name-false": False,
             }[case]
     if case in REDOCLY_REVIEWED_BUNDLE_CASES:
-        records = deepcopy(redocly_reviewed_bundle_records)
+        records = deepcopy(request.getfixturevalue("redocly_reviewed_bundle_records"))
         bundle_parent = "node_modules/@tailwindcss/oxide-wasm32-wasi"
         leaf = bundle_parent + "/node_modules/@emnapi/core"
         if case == "bundle-missing-parent":

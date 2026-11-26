@@ -1587,7 +1587,11 @@ On the #2504 squash, the PostgreSQL publisher failed at the unsuppressed
 image scan.
 [PostgreSQL job](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/45507053341/job/138848872620)
 
-#2495 still needs its ordinary CI and CD jobs to read that publication using
-its independently designated controller and verify the immutable image.
-Publication and digest pullback of PostgreSQL 15.20 and Prometheus remain
-pending on the main commit that merges #2495.
+On #2495 commit `192930fc97a34d8cb64bbfbf6bdc00cc724b7de4`, the ordinary
+CI and CD readers accepted the Alertmanager publication. The retained CD
+observation identifies the original build and publication. Its 5,085-byte OCI
+manifest matched the published digest `sha256:873bc6cfae14edcf9f2acf2d81f9863f98ee8f78623125a7e02642a66e3bbe27`.
+CD passed the image scan and all native controls. PostgreSQL 15.20 and
+Prometheus still require publication and digest pullback on the main commit
+that merges #2495.
+[CI reader](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/45515336128/job/138873590210) · [CD reader](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/45515335860/job/138873410394) · [CD observation](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/45515335860/artifacts/14979453395)
