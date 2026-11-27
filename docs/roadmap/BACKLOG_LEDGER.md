@@ -682,7 +682,7 @@ If it is not recorded here — it does not exist.
     (`codex/ios-iphone-ipad-ci-matrix`); CAB-07A merged implementation
     (`codex/cab07a-eslint-foundation-api`, [PR #2468](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2468));
     CAB-07B merged [PR #2471](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2471)
-    (`codex/cab07b-eslint-ui-primitives`); CAB-07C pending PR
+    (`codex/cab07b-eslint-ui-primitives`); CAB-07C open [PR #2484](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2484)
     (`codex/cab07c-eslint-pages-features`).
   - Status: CAB-03, CAB-04 and CAB-05 merged in PR #2381, #2408 and #2414.
     Carryover: CAB-06 merged in PR #2460 at `2026-10-04T20:45:28Z`, commit
@@ -730,13 +730,34 @@ If it is not recorded here — it does not exist.
     [evidence archive](https://drive.google.com/file/d/156XFt8TmpesuTPKF_90PY0Q9CNNXJXIH/view)
     and [closure supplement](https://drive.google.com/file/d/1p06VkPIu_VN6B4K5cbVSSw5awJNKKnBc/view)
     remain predecessor receipts, not CAB-07C tests or a new archive verification.
-    CAB-07C is active under accepted CAB07C/v1.0 with the owner's 2026-10-17 amendment:
-    eighteen admitted paths, comprising the original seventeen plus the mandatory
-    `.secrets.baseline` timestamp/existing-fingerprint line update in its separate hook-fix commit,
-    for behavior-preserving pages/features lint cleanup, mandatory recursive
-    native coverage in the existing Frontend CI, and this CAB-07B reconciliation.
-    Its local/current-head validation, review, separate exact-head human merge,
-    post-merge proof and continuity/archive/cleanup outcomes remain pending.
+    CAB-07C is in progress under CAB07C/v1.0. Its twenty approved core subjects cover
+    pages/features lint, the hook-generated baseline and the shared limiter fixture.
+    Main already contains dictionary-only discovery and instance deduplication. The CAB
+    workflow contract exercises lazy attributes, aliased instances and real 429 responses.
+    [#2495](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2495) merged at
+    `e14b334e121a9debf5a0b852050c55a51afc807a`. The owner assigned the subsequent
+    PostgreSQL pullback identity check and Codespaces SDK build repair to this PR,
+    together with the approved RubyZip 3.7.0 and Addressable 2.9.1 updates.
+    Merged-main CD attempt 3 verified the PostgreSQL candidate and its attestations, then stopped
+    before canonical tag promotion. [Publisher job](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/45907123503/job/140224710589).
+    The October 22, 2026 checkpoint recorded a temporary decision for 18 advisories across
+    six packages. Its review deadline was `2026-10-24T00:00:00Z` and its hard expiry was
+    `2026-10-29T00:00:00Z`. Both deadlines have passed. The retained October 21 diagnostic
+    audit exited 1 and recorded SHA-256 `6e5c8776d0eb28863450b71cdfc4c0979f4e5f2bb677b8a25bd1353d1a86df12`.
+    Subsequent remediation evidence is recorded in
+    [#2494](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2494) and [#2495](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2495).
+
+    The October inventory contained these package versions and advisory IDs.
+
+    - `npm:braces` `3.0.3` — [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm).
+    - `npm:dompurify` `3.4.13` — [GHSA-6688-9rhm-gjv2](https://github.com/advisories/GHSA-6688-9rhm-gjv2), [GHSA-p98j-92pf-mc4p](https://github.com/advisories/GHSA-p98j-92pf-mc4p).
+    - `npm:postcss-selector-parser` `6.1.4` — [GHSA-rj75-hqrm-r3gf](https://github.com/advisories/GHSA-rj75-hqrm-r3gf).
+    - `npm:source-map-js` `1.2.1` — [GHSA-68fv-2mgg-jv7q](https://github.com/advisories/GHSA-68fv-2mgg-jv7q).
+    - `npm:undici` `7.29.0` — [GHSA-2gqq-gqf2-x968](https://github.com/advisories/GHSA-2gqq-gqf2-x968), [GHSA-2jfj-6hjv-fm6j](https://github.com/advisories/GHSA-2jfj-6hjv-fm6j), [GHSA-3wwx-pv8p-q78v](https://github.com/advisories/GHSA-3wwx-pv8p-q78v), [GHSA-3xpg-4rpp-hhhm](https://github.com/advisories/GHSA-3xpg-4rpp-hhhm), [GHSA-8436-99hf-9mmv](https://github.com/advisories/GHSA-8436-99hf-9mmv), [GHSA-pmjh-fq2x-6v4x](https://github.com/advisories/GHSA-pmjh-fq2x-6v4x), [GHSA-r53p-7pc4-xj5r](https://github.com/advisories/GHSA-r53p-7pc4-xj5r), [GHSA-rfgv-xxqx-mfg5](https://github.com/advisories/GHSA-rfgv-xxqx-mfg5), [GHSA-rx4f-c7p8-82vq](https://github.com/advisories/GHSA-rx4f-c7p8-82vq), [GHSA-w293-vg96-wgc3](https://github.com/advisories/GHSA-w293-vg96-wgc3).
+    - `npm:vite` `8.0.16` — [GHSA-587h-7wmj-h5pm](https://github.com/advisories/GHSA-587h-7wmj-h5pm), [GHSA-698v-4r3x-3vcv](https://github.com/advisories/GHSA-698v-4r3x-3vcv), [GHSA-r825-w8mm-5pxw](https://github.com/advisories/GHSA-r825-w8mm-5pxw).
+
+    Acceptance of CAB-07C remains pending final-head checks and review, actual merge,
+    merged-main sanity, same-ID continuity updates, verified archive recovery and cleanup.
     CLIENT-ARCH-1, CapEOS, CAB-07D, CAB-08 and CAB-09 remain open.
     No standalone docs-only, backlog-only or housekeeping PR is planned.
   - Reason (EN): Keep the accepted continuation visible without mixing production Swift,
