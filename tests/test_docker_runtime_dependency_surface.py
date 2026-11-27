@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from functools import lru_cache
 import hashlib
 import json
 from pathlib import Path
@@ -5606,6 +5607,32 @@ def test_caddy_upload_observation_binds_actual_server_transport(fault: str | Non
             runtime_surface.verify_repair_evidence_upload(record, env)
 
 
+def _fixture_git(directory: Path, *args: str, data: bytes | None = None) -> bytes:
+    import shutil
+    from scripts.orchestration.creative_code_patch_workspace import (
+        git_env_without_parent_state,
+        safe_git_config_args,
+    )
+
+    git = shutil.which("git")
+    assert git
+    return subprocess.run(
+        [git, *safe_git_config_args(), "-C", str(directory), *args],
+        input=data,
+        env=git_env_without_parent_state(),
+        capture_output=True,
+        check=True,
+        timeout=30,
+    ).stdout
+
+
+@lru_cache(maxsize=1024)
+def _fixture_git_object_id(kind: str, contents: bytes) -> str:
+    """Use Git's object framing outside any checkout, sharing immutable IDs across test cases."""
+    root = Path(Path.cwd().anchor)
+    return _fixture_git(root, "hash-object", "-t", kind, "--stdin", data=contents).decode().strip()
+
+
 def _prometheus_repair_git_fixture(
     monkeypatch: pytest.MonkeyPatch,
     fault: str | None,
@@ -5619,42 +5646,18 @@ def _prometheus_repair_git_fixture(
 
     from scripts.ci import prometheus_source_image as prom
 
-    import shutil
-    from scripts.orchestration.creative_code_patch_workspace import (
-        git_env_without_parent_state,
-        safe_git_config_args,
-    )
-
-    git = shutil.which("git")
-    assert git
-
-    def local_git(*args: str, data: bytes | None = None) -> bytes:
-        assert repository is not None
-        return subprocess.run(
-            [git, *safe_git_config_args(), "-C", str(repository), *args],
-            input=data,
-            env=git_env_without_parent_state(),
-            capture_output=True,
-            check=True,
-        ).stdout
-
     if repository is not None:
         repository.mkdir()
-        local_git("init", "-q")
+        _fixture_git(repository, "init", "-q", "--object-format=sha1")
     stored = set()
 
     def git_object(kind: str, contents: bytes) -> str:
-        oid = hashlib.sha1(
-            kind.encode() + b" " + str(len(contents)).encode() + b"\0" + contents,
-            usedforsecurity=False,
-        ).hexdigest()
+        oid = _fixture_git_object_id(kind, contents)
         if repository is not None and oid not in stored:
-            assert (
-                local_git("hash-object", "-t", kind, "-w", "--stdin", data=contents)
-                .decode()
-                .strip()
-                == oid
+            written = _fixture_git(
+                repository, "hash-object", "-t", kind, "-w", "--stdin", data=contents
             )
+            assert written.decode().strip() == oid
             stored.add(oid)
         return oid
 
@@ -5863,11 +5866,15 @@ def _prometheus_repair_git_fixture(
         else:
             rows[0]["is_verified"] = True
         final[".secrets.baseline"] = ("100644", prom.canonical_data(damaged))
-    monkeypatch.setattr(
-        runtime_surface,
-        "_PROM_REPAIR_CALLER_BLOBS",
-        {name: blob(final[name][1]) for name in runtime_surface._PROM_REPAIR_CALLER_BLOBS},
-    )
+    harness = runtime_surface._PROM_HARNESS
+    first_harness = final[harness]
+    corrected_harness = ("100644", first_harness[1] + b"# exact capture diagnostic tests\n")
+    monkeypatch.setattr(runtime_surface, "_PROM_FIRST_HARNESS", blob(first_harness[1]))
+    caller_blobs = {
+        name: blob(final[name][1]) for name in runtime_surface._PROM_REPAIR_CALLER_BLOBS
+    }
+    caller_blobs[harness] = blob(corrected_harness[1])
+    monkeypatch.setattr(runtime_surface, "_PROM_REPAIR_CALLER_BLOBS", caller_blobs)
     if fault == "stale-prom-caller":
         final[caller_names[0]] = ("100644", original[caller_names[0]][1] + b"# stale P\n")
     if fault == "substituted-P":
@@ -5916,11 +5923,18 @@ def _prometheus_repair_git_fixture(
     if fault == "corrected-pre-W":
         interim = {**pair, correction_path: ("100644", b"first regression coverage")}
         parent = node(p, interim, "first scoped test implementation")
+    first_publication = None
     if fault in (
         "corrected-post-W",
         "prior-W-only",
         "partial-restore",
         "prior-no-fix",
+        "docs-before-restore",
+        "docs-with-restore",
+        "premature-harness",
+        "regressed-harness",
+        "stale-final-harness",
+        "wrong-first-publication",
         "corrected-AM-helper",
         "wrong-prior-W",
         "prior-outside",
@@ -5929,8 +5943,10 @@ def _prometheus_repair_git_fixture(
         "prior-wrapper",
     ):
         first = {**final, correction_path: ("100644", b"first regression coverage")}
-        if fault == "prior-no-fix":
+        if fault in ("prior-no-fix", "corrected-AM-helper"):
             first = final.copy()
+        if fault in ("docs-before-restore", "docs-with-restore"):
+            first = {**final, "scripts/AGENTS.md": ("100644", b"earlier instructions")}
         if fault == "corrected-AM-helper":
             first[am] = ("100644", final[am][1] + b"# earlier checked implementation\n")
             for wrapper in runtime_surface._PROM_REPAIR_WRAPPERS[:2]:
@@ -5942,8 +5958,13 @@ def _prometheus_repair_git_fixture(
             first["outside.txt"] = ("100644", b"foreign path")
         if fault == "prior-P":
             first[ps] = ("100644", b"substituted protected source")
+        final[harness] = corrected_harness
+        if fault == "premature-harness":
+            first[harness] = corrected_harness
+        if fault == "stale-final-harness":
+            final[harness] = first_harness
         if fault == "prior-harness":
-            first["tests/test_notify_premium_alias_checkpoint_failure.py"] = (
+            first[harness] = (
                 "100644",
                 b"unreviewed protected harness",
             )
@@ -5964,6 +5985,14 @@ def _prometheus_repair_git_fixture(
             )
         w1 = node(k1, pinned, "W1")
         parent = w1
+        first_publication = (k1, w1 if fault != "wrong-first-publication" else "f" * 40)
+        if fault == "regressed-harness":
+            advanced = {**pinned, harness: corrected_harness}
+            parent = node(w1, advanced, "advance to corrected harness")
+            parent = node(parent, pinned, "restore old harness")
+        if fault == "docs-before-restore":
+            docs_only = {**pinned, "scripts/AGENTS.md": final["scripts/AGENTS.md"]}
+            parent = node(w1, docs_only, "update instructions before restoring callers")
         if fault == "partial-restore":
             partial = {**pinned, caller_names[0]: final[caller_names[0]]}
             parent = node(w1, partial, "restore only one pin")
@@ -5983,6 +6012,9 @@ def _prometheus_repair_git_fixture(
         name = caller_names[1]
         successor[name] = ("100644", successor[name][1] + b"# extra W caller byte\n")
     w = node(k, successor, "W")
+    original_k, original_w = first_publication or (k, w)
+    monkeypatch.setattr(runtime_surface, "_PROM_FIRST_CONTROLLER", original_k)
+    monkeypatch.setattr(runtime_surface, "_PROM_FIRST_CALLERS", original_w)
     endpoints[f"/commits/{w}?per_page=100&page=1"] = {
         "sha": w,
         "parents": [{"sha": k}],
@@ -6055,7 +6087,7 @@ def _prometheus_repair_git_fixture(
     }
     endpoints[f"/commits/{squash}/pulls?per_page=2"] = [{"number": 81}]
     if repository is not None:
-        local_git("checkout", "--detach", "-q", squash if historical else w)
+        _fixture_git(repository, "checkout", "--detach", "-q", squash if historical else w)
     if fault == "prior-W-only":
         old = _DispatchNativeFixture(pr, {**material, "controller": k1, "callers": w1})
         old.add(old.projection(run=74, producer=74))
@@ -6190,6 +6222,10 @@ def test_prometheus_designated_tree_and_original_artifacts_still_need_dispatch(
         ("prior-outside", "publisher_repair_complete_maintenance_delta"),
         ("prior-P", "publisher_repair_complete_maintenance_delta"),
         ("prior-harness", "publisher_prometheus_exact_source_or_caller"),
+        ("premature-harness", "publisher_prometheus_exact_source_or_caller"),
+        ("regressed-harness", "publisher_prometheus_transient_material"),
+        ("stale-final-harness", "publisher_prometheus_exact_source_or_caller"),
+        ("wrong-first-publication", "publisher_prometheus_exact_source_or_caller"),
         ("prior-wrapper", "publisher_prometheus_wrapper_pin"),
         ("rewound-controller", "publisher_prometheus_source_ancestry"),
         ("ambiguous-controller", "publisher_prometheus_direct_parent"),
@@ -6268,3 +6304,24 @@ def test_special_baseline_can_record_native_hook_as_separate_commit(
     )
     grant = runtime_surface.publisher_repair_dispatch(read, pr)
     assert grant is not None and grant["controller"] == material["controller"]
+
+
+@pytest.mark.parametrize(
+    "history",
+    ["docs-before-restore", "docs-with-restore", "corrected-post-W", "corrected-AM-helper"],
+)
+def test_corrected_controller_requires_implementation_or_regression_delta(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, history: str
+) -> None:
+    from scripts.ci.prometheus_source_image import QualificationError
+
+    read, pr, material = _prometheus_repair_git_fixture(
+        monkeypatch, history, repository=tmp_path / "git", dispatched=True
+    )
+    if history in ("docs-before-restore", "docs-with-restore"):
+        with pytest.raises(QualificationError, match="^publisher_prometheus_distinct_correction$"):
+            runtime_surface.publisher_repair_dispatch(read, pr)
+        return
+    grant = runtime_surface.publisher_repair_dispatch(read, pr)
+    assert grant is not None
+    assert (grant["controller"], grant["callers"]) == (material["controller"], material["callers"])

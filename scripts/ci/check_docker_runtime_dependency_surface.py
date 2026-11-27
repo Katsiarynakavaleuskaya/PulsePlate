@@ -676,10 +676,15 @@ _PROM_REPAIR_SOURCE_BLOBS = {
     _PROM_SOURCE: "25198549a3e142d1271da8fdbe59afefb32949fc",  # pragma: allowlist secret - reviewed public Git object ID
     _PROM_TEST: "30fb44cead52a17a5443aefde48bb722c9327ad0",  # pragma: allowlist secret - reviewed public Git object ID
 }
+_PROM_HARNESS = "tests/test_notify_premium_alias_checkpoint_failure.py"
+# The published first K/W pair is the only boundary that advances the accepted harness.
+_PROM_FIRST_CONTROLLER = "4d19165b65a3afa3836c5421c52f81d9526d53cd"  # pragma: allowlist secret - reviewed public Git object ID
+_PROM_FIRST_CALLERS = "60af5b11dcc4657513a68c1cae311d29d9ddce5c"  # pragma: allowlist secret - reviewed public Git object ID
+_PROM_FIRST_HARNESS = "a27163601493acec88d8558e9b7a4a65f44b35e2"  # pragma: allowlist secret - reviewed public Git object ID
 _PROM_REPAIR_CALLER_BLOBS = {
     ".github/workflows/ci.yml": "64be9916d8a9a1ecf168183df2620861dcafb1bb",  # pragma: allowlist secret - reviewed public Git object ID
     ".github/workflows/cd.yml": "0cc4aa075fac10c430cb477c7240a9f3227d09ef",  # pragma: allowlist secret - reviewed public Git object ID
-    "tests/test_notify_premium_alias_checkpoint_failure.py": "a27163601493acec88d8558e9b7a4a65f44b35e2",  # pragma: allowlist secret - reviewed public Git object ID
+    _PROM_HARNESS: "d48f002ee444226ea005ac90bee7d10ce7eef4c6",  # pragma: allowlist secret - reviewed public Git object ID
 }
 _PROM_REPAIR_WRAPPERS = (
     "scripts/deploy.sh",
@@ -687,6 +692,15 @@ _PROM_REPAIR_WRAPPERS = (
     "scripts/QUICK_FIX_PRODUCTION.sh",
 )
 _PROM_NIGHTLY = ".github/workflows/nightly-tests.yml"
+# The repair's mutable implementations and their scoped regression suites, in stable order.
+_PROM_REPAIR_CORRECTION_PATHS = (
+    "scripts/ci/check_docker_runtime_dependency_surface.py",
+    "scripts/ci/fetch_docker_source_artifacts.py",
+    "tests/test_docker_runtime_dependency_surface.py",
+    "tests/test_docker_workflow_build_path_contract.py",
+    "tests/test_caddy_deploy_provenance.py",
+    "tests/test_deploy_contract_scripts.py",
+)
 _PROM_REPAIR_PATHS = frozenset(
     {
         *_PROM_REPAIR_SOURCE_BLOBS,
@@ -694,12 +708,7 @@ _PROM_REPAIR_PATHS = frozenset(
         *_PROM_REPAIR_WRAPPERS,
         _PROM_NIGHTLY,
         ".secrets.baseline",
-        "scripts/ci/check_docker_runtime_dependency_surface.py",
-        "scripts/ci/fetch_docker_source_artifacts.py",
-        "tests/test_docker_runtime_dependency_surface.py",
-        "tests/test_docker_workflow_build_path_contract.py",
-        "tests/test_caddy_deploy_provenance.py",
-        "tests/test_deploy_contract_scripts.py",
+        *_PROM_REPAIR_CORRECTION_PATHS,
         "scripts/AGENTS.md",
         "docs/roadmap/BACKLOG_LEDGER.md",
     }
@@ -1025,7 +1034,10 @@ def _prometheus_repair_material(
         if old is None or new is None or old[0] != mode or new[0] != mode:
             raise ValueError("publisher_prometheus_existing_regular_material")
         blobs[path] = (old[1], new[1])
-    for path, expected in {**_PROM_REPAIR_SOURCE_BLOBS, **_PROM_REPAIR_CALLER_BLOBS}.items():
+    expected_blobs = {**_PROM_REPAIR_SOURCE_BLOBS, **_PROM_REPAIR_CALLER_BLOBS}
+    if (controller, callers) == (_PROM_FIRST_CONTROLLER, _PROM_FIRST_CALLERS):
+        expected_blobs[_PROM_HARNESS] = _PROM_FIRST_HARNESS
+    for path, expected in expected_blobs.items():
         require(blobs[path][1] == expected, "publisher_prometheus_exact_source_or_caller")
 
     # Replay the independently bounded linear commit inventory in publication order.
@@ -1092,7 +1104,7 @@ def _prometheus_repair_edges(
     from scripts.ci.prometheus_source_image import require
 
     callers = {".github/workflows/ci.yml", ".github/workflows/cd.yml"}
-    harness = "tests/test_notify_premium_alias_checkpoint_failure.py"
+    expected_harness = _PROM_FIRST_HARNESS
     am = "scripts/ci/fetch_docker_source_artifacts.py"
     allowed = _PROM_REPAIR_PATHS - _PROM_REPAIR_SOURCE_BLOBS.keys()
     current = {path: before for path, (before, _) in blobs.items()}
@@ -1117,8 +1129,11 @@ def _prometheus_repair_edges(
             raw = raw.replace(before, prefix + digest(selected) + b'"', 1)
         return raw
 
+    def correction_blobs() -> tuple[str, ...]:
+        return tuple(current[path] for path in _PROM_REPAIR_CORRECTION_PATHS)
+
     pending_restore = False
-    needs_correction = False
+    prior_correction_blobs: tuple[str, ...] | None = None
     for parent, revision in edges:
         delta = _publisher_tree_delta(read, parent, revision, allowed)
         require(bool(delta), "publisher_prometheus_empty_edge")
@@ -1132,12 +1147,11 @@ def _prometheus_repair_edges(
             elif path not in callers:
                 require(oid not in seen[path], "publisher_prometheus_transient_material")
                 seen[path].add(oid)
-                needs_correction = False
             if path == _PROM_NIGHTLY:
                 require(oid == blobs[path][1], "publisher_prometheus_nightly_operand")
-            if path == harness:
+            if path == _PROM_HARNESS:
                 require(
-                    oid == _PROM_REPAIR_CALLER_BLOBS[path],
+                    oid == expected_harness,
                     "publisher_prometheus_exact_source_or_caller",
                 )
             current[path] = oid
@@ -1167,16 +1181,19 @@ def _prometheus_repair_edges(
                     delta[path][0] == ("100644", _PROM_REPAIR_CALLER_BLOBS[path])
                     for path in callers
                 )
-                and current[harness] == _PROM_REPAIR_CALLER_BLOBS[harness]
+                and current[_PROM_HARNESS] == expected_harness
                 and all(current[path] != blobs[path][0] for path in _PROM_REPAIR_WRAPPERS)
-                and not needs_correction,
+                and correction_blobs() != prior_correction_blobs,
                 "publisher_prometheus_prior_caller_edge",
             )
             _publisher_git_inputs(read, base, parent, revision)
+            if (parent, revision) == (_PROM_FIRST_CONTROLLER, _PROM_FIRST_CALLERS):
+                expected_harness = _PROM_REPAIR_CALLER_BLOBS[_PROM_HARNESS]
             pending_restore = True
-            needs_correction = True
+            prior_correction_blobs = correction_blobs()
     require(
-        not pending_restore and not needs_correction, "publisher_prometheus_distinct_correction"
+        not pending_restore and correction_blobs() != prior_correction_blobs,
+        "publisher_prometheus_distinct_correction",
     )
     require(
         all(current[path] == endpoint for path, (_, endpoint) in blobs.items()),

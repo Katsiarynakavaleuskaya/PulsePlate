@@ -4004,9 +4004,19 @@ def _checkpoint_capture_fixture(tmp_path: Path) -> tuple[Path, str, bytes]:
 
 
 @pytest.mark.parametrize(
-    "fault", ["wrong-command", "wrong-exit", "wrong-subject", "wrong-size", "wrong-raw", "symlink"]
+    ("fault", "diagnostic"),
+    [
+        ("wrong-command", "checkpoint_prometheus_raw_record"),
+        ("wrong-exit", "checkpoint_prometheus_raw_record"),
+        ("wrong-subject", "checkpoint_prometheus_raw_record"),
+        ("wrong-size", "checkpoint_prometheus_raw_bytes"),
+        ("wrong-raw", "checkpoint_prometheus_raw_bytes"),
+        ("symlink", "nonregular_or_multilink_file"),
+    ],
 )
-def test_checkpoint_raw_input_rejects_wrong_native_capture(tmp_path: Path, fault: str) -> None:
+def test_checkpoint_raw_input_rejects_wrong_native_capture(
+    tmp_path: Path, fault: str, diagnostic: str
+) -> None:
     evidence, runtime_ref, raw = _checkpoint_capture_fixture(tmp_path)
     record = evidence / "GitHub-10.json"
     meta = json.loads(record.read_bytes())
@@ -4024,7 +4034,7 @@ def test_checkpoint_raw_input_rejects_wrong_native_capture(tmp_path: Path, fault
         (evidence / "GitHub-10.stdout").rename(evidence / "other")
         (evidence / "GitHub-10.stdout").symlink_to(evidence / "other")
     record.write_text(json.dumps(meta))
-    with pytest.raises(prometheus_image.QualificationError):
+    with pytest.raises(prometheus_image.QualificationError, match=f"^{diagnostic}$"):
         checkpoint_prometheus_raw_input(str(evidence), "trusted_published", runtime_ref)
 
 
