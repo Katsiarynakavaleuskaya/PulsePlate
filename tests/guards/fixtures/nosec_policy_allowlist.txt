@@ -7,8 +7,8 @@ scripts/ci/check_pgvector_attestations.py:15 remove-by=2026-12-13 ref=PR-2494
 scripts/ci/check_pgvector_attestations.py:444 remove-by=2026-12-13 ref=PR-2494
 scripts/ci/check_scheduler_worker_runtime.py:14 remove-by=2026-12-13 ref=PR-2494
 scripts/ci/check_scheduler_worker_runtime.py:73 remove-by=2026-12-13 ref=PR-2494
-scripts/ci/check_staging_postgres_runtime.py:17 remove-by=2026-12-13 ref=PR-2494
-scripts/ci/check_staging_postgres_runtime.py:59 remove-by=2026-12-13 ref=PR-2494
+scripts/ci/check_staging_postgres_runtime.py:18 remove-by=2026-12-13 ref=PR-2494
+scripts/ci/check_staging_postgres_runtime.py:63 remove-by=2026-12-13 ref=PR-2494
 scripts/ops/check_staging_security.py:18 remove-by=2026-12-13 ref=PR-2494
 scripts/ops/check_staging_security.py:107 remove-by=2026-12-13 ref=PR-2494
 

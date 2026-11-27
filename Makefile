@@ -715,9 +715,11 @@ ios-appstore-verify: ## Verify repo-local App Store release gates (no upload)
 devcontainer-bootstrap: venv ## Canonical venv install + hooks inside dev container
 	@echo "$(GREEN)Devcontainer bootstrap complete$(NC)"
 
+# Older Compose does not build the SDK service when up selects only devcontainer.
 dc-up: ensure-python-proxy docker-source-artifacts ## Start dev container (build + detach)
-	@netrc_file="$${PULSEPLATE_NATIVE_SDK_NETRC_FILE:-/dev/null}"; \
-	PULSEPLATE_NATIVE_SDK_NETRC_FILE="$$netrc_file" docker compose -f "$(DEVCONTAINER_COMPOSE)" up -d --build devcontainer
+	@export PULSEPLATE_NATIVE_SDK_NETRC_FILE="$${PULSEPLATE_NATIVE_SDK_NETRC_FILE:-/dev/null}" && \
+	docker compose -f "$(DEVCONTAINER_COMPOSE)" build native-sdk-artifacts && \
+	docker compose -f "$(DEVCONTAINER_COMPOSE)" up -d --build devcontainer
 
 dc-shell: ## Open shell inside dev container
 	docker compose -f "$(DEVCONTAINER_COMPOSE)" exec devcontainer bash

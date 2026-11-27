@@ -55,12 +55,16 @@ module RubyzipFastlaneFixtures
     [manifest, lock]
   end
 
-  def self.check_case(name, manifest, lock, surfaces, accepted: false)
+  def self.check_case(name, manifest, lock, surfaces, accepted: false, expected_hold: nil)
     File.write('Gemfile', manifest)
     begin
       report = RubyzipFastlaneGuard.check(manifest, lock, surfaces)
-    rescue RubyzipFastlaneGuard::Hold, Bundler::LockfileError, Gem::Requirement::BadRequirementError
-      raise "#{name}: valid fixture rejected" if accepted
+    rescue RubyzipFastlaneGuard::Hold, Bundler::LockfileError, Gem::Requirement::BadRequirementError => error
+      raise "#{name}: valid fixture rejected (#{error.message})" if accepted
+      observed = error.is_a?(Bundler::LockfileError) ? (error.cause&.message || error.message) : error.message
+      if expected_hold && observed != expected_hold
+        raise "#{name}: expected #{expected_hold}, observed #{observed}"
+      end
       report = nil
     end
     raise "#{name}: invalid fixture accepted" if !accepted && report
@@ -68,10 +72,92 @@ module RubyzipFastlaneFixtures
     report
   end
 
+  def self.addressable_fixture(rows = ['2.9.1'], direct: false)
+    manifest, lock = fixture
+    lock = lock.sub("      bundler (>= 2.4.0, < 5.0.0)\n",
+                    "      addressable (>= 2.0.0, < 3.0.0)\n      bundler (>= 2.4.0, < 5.0.0)\n")
+    rendered = rows.map { |row| "    addressable (#{row})\n      public_suffix (>= 2.0.2, < 8.0)\n" }.join
+    lock = lock.sub("    CFPropertyList (3.0.8)\n", rendered + "    CFPropertyList (3.0.8)\n")
+    lock = lock.sub("PLATFORMS\n  ruby\n", "PLATFORMS\n  ruby\n  x86_64-linux\n") if rows.any? { |row| row.end_with?('-x86_64-linux') }
+    if direct
+      manifest += "gem \"addressable\", \"= 2.9.1\"\n"
+      lock = lock.sub("DEPENDENCIES\n", "DEPENDENCIES\n  addressable (= 2.9.1)\n")
+    end
+    [manifest, lock]
+  end
+
+  # These observations are independent of graph rejection order for overlapping ranges.
+  ADDRESSABLE_BOUNDARIES = {
+    'GHSA-9crm-g4mf-wc5j' => [%w[2.0.0 2.9.0], %w[1.9.9 2.9.1]],
+    'GHSA-539f-xcgw-2gjg' => [%w[2.0.0 2.9.0], %w[1.9.9 2.9.1]],
+    'GHSA-qq38-m9mg-xjj5' => [%w[0.0.1 2.9.0], %w[2.9.1]],
+    'GHSA-j82w-28jv-3pmj' => [%w[2.3.0 2.9.0], %w[2.2.9 2.9.1]],
+    'GHSA-9f42-57jx-vpp3' => [%w[2.3.0 2.9.0], %w[2.2.9 2.9.1]],
+    'GHSA-8gmh-2hhj-2hv9' => [%w[2.2.5 2.9.0], %w[2.2.4 2.9.1]],
+    'GHSA-h27x-rffw-24p4' => [%w[2.3.0 2.8.9], %w[2.2.9 2.9.0]],
+    'GHSA-jxhc-q857-3j6g' => [%w[2.3.0 2.7.0], %w[2.2.9 2.7.1]]
+  }.freeze
+
+  def self.addressable_controls
+    ranges = RubyzipFastlaneGuard::ADDRESSABLE_AFFECTED
+    raise 'Addressable advisory inventory differs' unless ranges.keys == ADDRESSABLE_BOUNDARIES.keys
+
+    ADDRESSABLE_BOUNDARIES.each do |advisory, (inside, outside)|
+      require_range = ranges.fetch(advisory)
+      unless inside.all? { |v| require_range.satisfied_by?(Gem::Version.new(v)) } &&
+             outside.none? { |v| require_range.satisfied_by?(Gem::Version.new(v)) }
+        raise "#{advisory}: Addressable boundary differs"
+      end
+    end
+
+    surfaces = ['ios/Gemfile', 'ios/Gemfile.lock']
+    positive = {
+      'canonical-addressable' => [addressable_fixture, [['2.9.1', 'ruby']]],
+      'future-safe-release' => [addressable_fixture(['2.10.0']), [['2.10.0', 'ruby']]],
+      'all-safe-platforms' => [addressable_fixture(['2.9.1', '2.10.0-x86_64-linux']),
+                               [['2.9.1', 'ruby'], ['2.10.0', 'x86_64-linux']]],
+      'closed-graph-absence' => [fixture, []]
+    }
+    positive.each do |name, (inputs, expected)|
+      report = check_case(name, *inputs, surfaces, accepted: true)
+      actual = report.fetch(:addressable).map { |row| [row.fetch(:version), row.fetch(:platform)] }
+      unless actual.sort == expected.sort && report[:addressable_advisory_records] == ADDRESSABLE_BOUNDARIES.keys
+        raise "#{name}: incomplete Addressable postcondition #{actual.inspect}"
+      end
+    end
+
+    manifest, lock = addressable_fixture
+    direct_manifest, direct_lock = addressable_fixture(direct: true)
+    affected = 'addressable_affected:GHSA-9crm-g4mf-wc5j'
+    negatives = {
+      'affected-base' => [addressable_fixture(['2.9.0']), affected],
+      'affected-older-release' => [addressable_fixture(['2.7.0']), affected],
+      'high-prerelease' => [addressable_fixture(['2.10.0.pre']), 'invalid_addressable_version'],
+      'invalid-version-record' => [addressable_fixture(['nonsense']), 'Malformed version number string nonsense'],
+      'missing-with-live-edge' => [addressable_fixture([]), 'incompatible_lock_dependency'],
+      'safe-first-affected-later' => [addressable_fixture(['2.9.1', '2.9.0-x86_64-linux']), affected],
+      'same-platform-ambiguity' => [addressable_fixture(['2.9.1', '2.10.0']), 'ambiguous_addressable_platform'],
+      'non-registry-spec' => [[manifest, lock.sub("    addressable (2.9.1)\n      public_suffix (>= 2.0.2, < 8.0)\n", '')
+        .sub("    fastlane (2.237.0)\n", "    addressable (2.9.1)\n    fastlane (2.237.0)\n")], 'unexpected_lock_source'],
+      'manifest-alias' => [[direct_manifest.sub('"addressable"', '"Addressable"'), direct_lock], 'dependency_alias_forbidden'],
+      'root-lock-alias' => [[direct_manifest, direct_lock.sub('  addressable (= 2.9.1)', '  Address-able (= 2.9.1)')],
+                            'dependency_alias_forbidden'],
+      'spec-alias' => [[manifest, lock.sub('    addressable (2.9.1)', '    address_able (2.9.1)')],
+                       'dependency_alias_forbidden'],
+      'edge-alias' => [[manifest, lock.sub('      addressable (>= 2.0.0, < 3.0.0)', '      address.able (>= 2.0.0, < 3.0.0)')],
+                       'dependency_alias_forbidden']
+    }
+    negatives.each do |name, (inputs, diagnostic)|
+      check_case(name, *inputs, surfaces, expected_hold: diagnostic)
+    end
+    ADDRESSABLE_BOUNDARIES.length + positive.length + negatives.length
+  end
+
   def self.run
     count = 0
     Dir.mktmpdir('rubyzip-fastlane-guard-fixtures') do |directory|
       Dir.chdir(directory) do
+        count += addressable_controls
         ['3.4.0', '3.4.1', '3.9.0'].each do |version|
           report = check_case(version, *fixture(version), ['ios/Gemfile', 'ios/Gemfile.lock'], accepted: true)
           unless report[:status] == 'PASS' && report[:rubyzip] == [version] &&

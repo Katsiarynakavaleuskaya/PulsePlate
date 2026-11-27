@@ -8,9 +8,13 @@
 #           Tests enforce the explicit environment allowlist.
 # ---------------------------------------------------------------------------
 
+# Keep CLI checkout artifacts separate from managed source-input artifacts.
+x-checkout-sdk-image: &checkout-sdk-image "pulseplate-sdk.invalid/native-checkout:local-${COMPOSE_PROJECT_NAME:?Compose project name required}"
+
 services:
   # Zero replicas: this is a build-only artifact composition, not a process.
   native-sdk-artifacts:
+    image: *checkout-sdk-image
     platform: linux/amd64
     build:
       context: ..
@@ -31,6 +35,8 @@ services:
       dockerfile: .devcontainer/Dockerfile
       platforms:
         - linux/amd64
+      args:
+        DEVCONTAINER_NATIVE_SDK_IMAGE: *checkout-sdk-image
       additional_contexts:
         native_sdk: service:native-sdk-artifacts
     environment:

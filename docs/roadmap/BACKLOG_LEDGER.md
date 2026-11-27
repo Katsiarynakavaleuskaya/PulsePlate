@@ -681,7 +681,9 @@ If it is not recorded here — it does not exist.
     CAB-06 [PR #2460](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2460)
     (`codex/ios-iphone-ipad-ci-matrix`); CAB-07A merged implementation
     (`codex/cab07a-eslint-foundation-api`, [PR #2468](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2468));
-    CAB-07B [PR #2471](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2471) (`codex/cab07b-eslint-ui-primitives`).
+    CAB-07B merged [PR #2471](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2471)
+    (`codex/cab07b-eslint-ui-primitives`); CAB-07C open [PR #2484](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2484)
+    (`codex/cab07c-eslint-pages-features`).
   - Status: CAB-03, CAB-04 and CAB-05 merged in PR #2381, #2408 and #2414.
     Carryover: CAB-06 merged in PR #2460 at `2026-10-04T20:45:28Z`, commit
     `fb179f54877537b69ddd0ea4bf3d8211268fab82`; its canonical merged-main
@@ -694,7 +696,8 @@ If it is not recorded here — it does not exist.
     [Frontend CI 37307261956](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/37307261956)
     successful on attempt 1. Original QA35/archive and failure/retry history remain
     predecessor receipts, not new CAB-07B validation. CLIENT-ARCH-1 remains open.
-    CAB-07B is active under owner-amended CAB07B/v1.4, with exactly twenty-five admitted
+    Historical CAB-07B checkpoint, superseded by its terminal receipts below:
+    owner-amended CAB07B/v1.4 had exactly twenty-five admitted
     paths: the existing lint/coverage repair, truthful browser-evidence tracking,
     the bounded shared component-boundary and Unix-only route-exemption corrections
     required by native artifact preservation, and real isolated i18n, focus-act and
@@ -703,8 +706,8 @@ If it is not recorded here — it does not exist.
     Candidate tests do not promote trusted controls or claim native archive completion.
     The seventeen intended exclusion classes, five required XML producers/inputs,
     threshold 97 and merged PR #2466 concurrency/cancellation changes remain required.
-    Its own validation, review,
-    separate human exact-head merge and terminal evidence remain pending. The bounded
+    At that checkpoint its own validation, review,
+    separate human exact-head merge and terminal evidence remained pending. The bounded
     same-PR brace-expansion replacement has separate real-base resolver intent;
     it is not hidden in lint-toolchain closure. The one current
     [CAB07A brace evidence owner](../security/CAB07A_NPM_BRACE_EXPANSION_REMEDIATION.md)
@@ -717,6 +720,65 @@ If it is not recorded here — it does not exist.
     red-main start exception changes no CAB07A gate. Separate CD/pgvector work
     retains its existing owner. CAB-07B carries CAB-07A repository closeout here;
     CAB-07C carries CAB-07B's own actual merge/post-merge repository closeout.
+    CAB-07B merged in #2471 at `2026-10-07T16:35:14Z` as
+    `7744af5cf3919b768a868497ae6d41e46952c484`; its exact-merge
+    [CI 37653218970](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/37653218970)
+    and [Frontend CI 37653218985](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/37653218985)
+    completed successfully. Its
+    [living plan](https://drive.google.com/file/d/1yOPTp_kdtP-7IUEVr5kpim46_GmyIzQ4/view)
+    records execution CLOSED. Retained QA11/11, the
+    [evidence archive](https://drive.google.com/file/d/156XFt8TmpesuTPKF_90PY0Q9CNNXJXIH/view)
+    and [closure supplement](https://drive.google.com/file/d/1p06VkPIu_VN6B4K5cbVSSw5awJNKKnBc/view)
+    remain predecessor receipts, not CAB-07C tests or a new archive verification.
+    CAB-07C is in progress under CAB07C/v1.0. Its twenty approved core subjects cover
+    pages/features lint, the hook-generated baseline and the shared limiter fixture.
+    Main already contains dictionary-only discovery and instance deduplication. The CAB
+    workflow contract exercises lazy attributes, aliased instances and real 429 responses.
+    [#2495](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2495) merged at
+    `e14b334e121a9debf5a0b852050c55a51afc807a`. The owner assigned the subsequent
+    PostgreSQL pullback identity check and Codespaces SDK build repair to this PR,
+    together with the approved RubyZip 3.7.0 and Addressable 2.9.1 updates.
+    Merged-main CD attempt 3 verified the PostgreSQL candidate and its attestations, then stopped
+    before canonical tag promotion. [Publisher job](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/45907123503/job/140224710589).
+    On November 27, the #2484 published Prometheus reader verified the expected raw OCI manifest
+    and failed the credential-directory member check. The CD jobs `prometheus-image-security-pr`
+    and `prometheus-image-security` failed on the published `b424ff1f` head.
+    [Published reader](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/45934644492/job/140295071326)
+    · [Aggregate](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/45934644492/job/140296416569).
+    Local native Buildx replay reproduced the reader failure and verified that a separate private
+    Buildx directory preserves the credential inventory. [Published reader code](https://github.com/Katsiarynakavaleuskaya/PulsePlate/blob/2ebe53024febe8e026c4a1f1e056f19482f0fca9/scripts/ci/prometheus_source_image.py#L11568-L11673)
+    · [CD workflow](https://github.com/Katsiarynakavaleuskaya/PulsePlate/blob/b424ff1fb9fc94bd02b8d8e4223142ad0447b65e/.github/workflows/cd.yml#L1514).
+
+    The owner chose to close #2484 first, with only those two advisory CD failures carried
+    forward after required current-head CI, native SDK evidence, review, and the ordinary seal
+    and merge gates pass. Branch protection applies in full, and deployment and release require
+    separate approval. CAB-07C remains pending those gates.
+    Prometheus follow-up is P1, owned by DevOps / Security, and targets the first substantive
+    Prometheus repair after the actual CAB squash. Before activation, independently designate the
+    exact successor and obtain the required protected-history decision. Verify trusted publication
+    and immutable pullback on the actual merged source, then require successful published-path
+    CI/CD reads and owned credential and Buildx cleanup. Test that an unexpected credential
+    member still fails closed, and review retained evidence and authorization expiry before use.
+
+    The October 22, 2026 checkpoint recorded a temporary decision for 18 advisories across
+    six packages. Its review deadline was `2026-10-24T00:00:00Z` and its hard expiry was
+    `2026-10-29T00:00:00Z`. Both deadlines have passed. The retained October 21 diagnostic
+    audit exited 1 and recorded SHA-256 `6e5c8776d0eb28863450b71cdfc4c0979f4e5f2bb677b8a25bd1353d1a86df12`.
+    Subsequent remediation evidence is recorded in
+    [#2494](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2494) and [#2495](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2495).
+
+    The October inventory contained these package versions and advisory IDs.
+
+    - `npm:braces` `3.0.3` — [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm).
+    - `npm:dompurify` `3.4.13` — [GHSA-6688-9rhm-gjv2](https://github.com/advisories/GHSA-6688-9rhm-gjv2), [GHSA-p98j-92pf-mc4p](https://github.com/advisories/GHSA-p98j-92pf-mc4p).
+    - `npm:postcss-selector-parser` `6.1.4` — [GHSA-rj75-hqrm-r3gf](https://github.com/advisories/GHSA-rj75-hqrm-r3gf).
+    - `npm:source-map-js` `1.2.1` — [GHSA-68fv-2mgg-jv7q](https://github.com/advisories/GHSA-68fv-2mgg-jv7q).
+    - `npm:undici` `7.29.0` — [GHSA-2gqq-gqf2-x968](https://github.com/advisories/GHSA-2gqq-gqf2-x968), [GHSA-2jfj-6hjv-fm6j](https://github.com/advisories/GHSA-2jfj-6hjv-fm6j), [GHSA-3wwx-pv8p-q78v](https://github.com/advisories/GHSA-3wwx-pv8p-q78v), [GHSA-3xpg-4rpp-hhhm](https://github.com/advisories/GHSA-3xpg-4rpp-hhhm), [GHSA-8436-99hf-9mmv](https://github.com/advisories/GHSA-8436-99hf-9mmv), [GHSA-pmjh-fq2x-6v4x](https://github.com/advisories/GHSA-pmjh-fq2x-6v4x), [GHSA-r53p-7pc4-xj5r](https://github.com/advisories/GHSA-r53p-7pc4-xj5r), [GHSA-rfgv-xxqx-mfg5](https://github.com/advisories/GHSA-rfgv-xxqx-mfg5), [GHSA-rx4f-c7p8-82vq](https://github.com/advisories/GHSA-rx4f-c7p8-82vq), [GHSA-w293-vg96-wgc3](https://github.com/advisories/GHSA-w293-vg96-wgc3).
+    - `npm:vite` `8.0.16` — [GHSA-587h-7wmj-h5pm](https://github.com/advisories/GHSA-587h-7wmj-h5pm), [GHSA-698v-4r3x-3vcv](https://github.com/advisories/GHSA-698v-4r3x-3vcv), [GHSA-r825-w8mm-5pxw](https://github.com/advisories/GHSA-r825-w8mm-5pxw).
+
+    Acceptance of CAB-07C remains pending final-head checks and review, actual merge,
+    merged-main sanity, same-ID continuity updates, verified archive recovery and cleanup.
+    CLIENT-ARCH-1, CapEOS, CAB-07D, CAB-08 and CAB-09 remain open.
     No standalone docs-only, backlog-only or housekeeping PR is planned.
   - Reason (EN): Keep the accepted continuation visible without mixing production Swift,
     warning-policy, device-matrix, Web or Mac work into the bounded AppIcon/Release carrier.
@@ -738,12 +800,12 @@ If it is not recorded here — it does not exist.
     - [x] CAB-07A: directly owned ESLint, mandatory production API/foundation
       lint/native controls, preserved transport regressions and the one admitted
       npm:brace-expansion replacement merged in #2468; terminal receipts above.
-    - [ ] CAB-07B: active UI-primitives lint cleanup and mandatory recursive cohort
-      in the existing Frontend CI, carrying CAB-07A repository reconciliation.
-      Own current-head gates, separate human merge and terminal proof remain pending.
-    - [ ] CAB-07C: next substantive pages/features lint cohort plus CAB-07B repository
+    - [x] CAB-07B: UI-primitives lint cleanup and mandatory recursive cohort
+      merged in #2471, carrying CAB-07A repository reconciliation; execution CLOSED
+      with its own merge, post-merge and retained terminal receipts above.
+    - [ ] CAB-07C: active admitted pages/features lint cohort plus CAB-07B repository
       closeout from actual merge/post-merge receipts; preserve product semantics.
-      Fresh admission required; no separate docs-only closeout PR.
+      Own acceptance and lifecycle evidence remain pending; no separate docs-only closeout PR.
     - [ ] CAB-07D: later complete mandatory frontend lint coverage. Preserve the
       original full/frontend and five residual API-test diagnostics for these slices;
       CAB-07D stays open until those and every admitted remaining surface are closed.

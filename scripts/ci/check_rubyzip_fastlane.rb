@@ -21,6 +21,17 @@ module RubyzipFastlaneGuard
     'CVE-2019-16892' => '1.3.0', 'CVE-2026-85396' => '3.4.0',
     'GHSA-3q5q-f79q-7hr2-withdrawn-duplicate-of-CVE-2017-5946' => '1.2.1'
   }.freeze
+  # Frozen RubyGems advisory inventory, 2026-11-27 00:03:24 UTC.
+  ADDRESSABLE_AFFECTED = {
+    'GHSA-9crm-g4mf-wc5j' => Gem::Requirement.new('>= 2.0.0', '< 2.9.1'),
+    'GHSA-539f-xcgw-2gjg' => Gem::Requirement.new('>= 2.0.0', '< 2.9.1'),
+    'GHSA-qq38-m9mg-xjj5' => Gem::Requirement.new('< 2.9.1'),
+    'GHSA-j82w-28jv-3pmj' => Gem::Requirement.new('>= 2.3.0', '< 2.9.1'),
+    'GHSA-9f42-57jx-vpp3' => Gem::Requirement.new('>= 2.3.0', '< 2.9.1'),
+    'GHSA-8gmh-2hhj-2hv9' => Gem::Requirement.new('>= 2.2.5', '< 2.9.1'),
+    'GHSA-h27x-rffw-24p4' => Gem::Requirement.new('>= 2.3.0', '< 2.9.0'),
+    'GHSA-jxhc-q857-3j6g' => Gem::Requirement.new('>= 2.3.0', '<= 2.7.0')
+  }.freeze
   RETAINED_REQUIREMENTS = {
     'CFPropertyList' => '= 3.0.8', 'public_suffix' => '< 8',
     'jwt' => '>= 3.2.0', 'json' => '>= 2.19.9', 'excon' => '>= 1.5.0'
@@ -140,7 +151,8 @@ module RubyzipFastlaneGuard
              'unreconciled_lock_platform')
     names = declared.keys + lock.specs.map(&:name) + lock.dependencies.keys + lock.specs.flat_map { |spec| spec.dependencies.map(&:name) }
     names.each do |name|
-      canonical = { 'rubyzip' => 'rubyzip', 'fastlane' => 'fastlane', 'cfpropertylist' => 'CFPropertyList',
+      canonical = { 'addressable' => 'addressable', 'rubyzip' => 'rubyzip', 'fastlane' => 'fastlane',
+                    'cfpropertylist' => 'CFPropertyList',
                     'publicsuffix' => 'public_suffix', 'jwt' => 'jwt', 'json' => 'json', 'excon' => 'excon' }[name.downcase.delete('_.-')]
       require!(canonical.nil? || name == canonical, 'dependency_alias_forbidden')
     end
@@ -183,6 +195,15 @@ module RubyzipFastlaneGuard
         require!(Gem::Requirement.new(">= #{floor}").satisfied_by?(spec.version), 'rubyzip_advisory_postcondition_failed')
       end
     end
+    addressable_specs = specs.fetch('addressable', [])
+    require!(addressable_specs.map(&:platform).uniq.length == addressable_specs.length,
+             'ambiguous_addressable_platform')
+    addressable_specs.each do |spec|
+      require!(spec.version.is_a?(Gem::Version) && !spec.version.prerelease?, 'invalid_addressable_version')
+      ADDRESSABLE_AFFECTED.each do |advisory, affected|
+        require!(!affected.satisfied_by?(spec.version), "addressable_affected:#{advisory}")
+      end
+    end
     RETAINED_REQUIREMENTS.each do |name, requirement|
       selected = specs.fetch(name, [])
       require!(!selected.empty? && selected.all? { |spec| !spec.version.prerelease? && Gem::Requirement.new(requirement).satisfied_by?(spec.version) },
@@ -196,7 +217,9 @@ module RubyzipFastlaneGuard
     require!(lock.specs.all? { |spec| spec.dependencies.map(&:name).uniq.length == spec.dependencies.length },
              'duplicate_transitive_dependency')
     { status: 'PASS', rubyzip: zip_specs.map { |spec| spec.version.to_s }, fastlane_revision: REVISION,
-      advisory_records: FIXED_FLOORS.keys, independent_advisories: 4, tracked_surfaces: surfaces.sort }
+      advisory_records: FIXED_FLOORS.keys, independent_advisories: 4, tracked_surfaces: surfaces.sort,
+      addressable: addressable_specs.map { |spec| { version: spec.version.to_s, platform: spec.platform.to_s } },
+      addressable_advisory_records: ADDRESSABLE_AFFECTED.keys }
   end
 
   def self.main

@@ -8,6 +8,7 @@ Ephemeral private keys remain local and are never included in evidence artifacts
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
 import json
 import os
@@ -18,7 +19,7 @@ import subprocess  # nosec B404: native Docker/OpenSSL/psql protocol has no safe
 import sys
 import tempfile
 import time
-from typing import Any
+from typing import Any, TypeGuard
 import uuid
 
 from scripts.ops import check_staging_security as source
@@ -27,6 +28,9 @@ from scripts.ci import check_docker_provenance_attestation as redactor
 LABEL = "io.pulseplate.staging-native-probe"
 USER = "pulseplate_probe"
 DATABASE = "pulseplate_probe_db"
+IMAGE_OBSERVATION_LIMIT = 1024**2
+OCI_MANIFEST = "application/vnd.oci.image.manifest.v1+json"
+OCI_CONFIG = "application/vnd.oci.image.config.v1+json"
 
 
 class ProbeError(ValueError):
@@ -77,6 +81,15 @@ def selected_contract(rendered: object, manifest: dict[str, Any]) -> dict[str, A
     postgres = source._object(
         source._object(document.get("services"), "Services").get("postgres"), "PostgreSQL"
     )
+    image = _selected_image_subject(None, manifest)
+    tag = manifest.get("tag")
+    if (
+        not isinstance(tag, str)
+        or re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}", tag) is None
+        or manifest.get("runtime_ref")
+        != f"{manifest['repository']}:{tag}@{manifest['platform_manifest_digest']}"
+    ):
+        raise ProbeError("Selected PostgreSQL runtime reference differs from the manifest tuple")
     if (
         postgres.get("image") != manifest["runtime_ref"]
         or postgres.get("platform") != manifest["platform"]
@@ -111,7 +124,7 @@ def selected_contract(rendered: object, manifest: dict[str, Any]) -> dict[str, A
     if environment.get("PGDATA") != manifest["compose_pgdata"]:
         raise ProbeError("Rendered PostgreSQL PGDATA differs from the selected manifest")
     return {
-        "image": manifest["repository"] + "@" + manifest["platform_manifest_digest"],
+        "image": image,
         "compose_runtime_ref": postgres["image"],
         "platform": postgres["platform"],
         "command": command,
@@ -119,6 +132,161 @@ def selected_contract(rendered: object, manifest: dict[str, Any]) -> dict[str, A
         "pgdata": environment["PGDATA"],
         "data_target": manifest["compose_volume_target"],
     }
+
+
+# Docker Distribution repository path grammar, restricted to two GHCR components.
+OCI_REPOSITORY_COMPONENT = r"[a-z0-9]+(?:(?:[._]|__|-+)[a-z0-9]+)*"
+OCI_REPOSITORY_PATH = re.compile(rf"{OCI_REPOSITORY_COMPONENT}/{OCI_REPOSITORY_COMPONENT}")
+OCI_SHA256 = re.compile(r"sha256:[0-9a-f]{64}")
+# RFC 6838 restricted media type names. Admission does not decode layer payloads.
+OCI_MEDIA_NAME = r"[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]{0,126}"
+OCI_DESCRIPTOR_MEDIA_TYPE = re.compile(rf"{OCI_MEDIA_NAME}/{OCI_MEDIA_NAME}")
+
+
+def _selected_image_subject(contract: dict[str, Any] | None, manifest: dict[str, Any]) -> str:
+    repository = manifest.get("repository")
+    platform_digest = manifest.get("platform_manifest_digest")
+    config_digest = manifest.get("config_digest")
+    registry_prefix = "ghcr.io/"
+    remote = repository.removeprefix(registry_prefix) if isinstance(repository, str) else ""
+    if (
+        not isinstance(repository, str)
+        or not repository.startswith(registry_prefix)
+        or len(remote) > 255
+        or OCI_REPOSITORY_PATH.fullmatch(remote) is None
+        or not isinstance(platform_digest, str)
+        or OCI_SHA256.fullmatch(platform_digest) is None
+        or not isinstance(config_digest, str)
+        or OCI_SHA256.fullmatch(config_digest) is None
+        or manifest.get("platform") != "linux/amd64"
+        or (contract is not None and contract.get("platform") != "linux/amd64")
+    ):
+        raise ProbeError("Native selected image tuple is malformed or unsupported")
+    subject = repository + "@" + platform_digest
+    if contract is not None and contract.get("image") != subject:
+        raise ProbeError("Native selected image subject differs from the rendered contract")
+    return subject
+
+
+def _oci_fields(value: object, required: set[str]) -> TypeGuard[dict[str, Any]]:
+    """Allow only the required fields and an optional inert annotations map."""
+    if not isinstance(value, dict) or not required <= value.keys() <= required | {"annotations"}:
+        return False
+    if "annotations" not in value:
+        return True
+    annotations = value["annotations"]
+    return isinstance(annotations, dict) and all(
+        isinstance(item, str) for item in annotations.values()
+    )
+
+
+def _admit_selected_image(subject: str, manifest: dict[str, Any]) -> None:
+    """Bind one observed OCI envelope and local image to the selected tuple.
+
+    Raw witnesses a config descriptor, not downloaded config/layer bytes or
+    publisher/runtime proof. Size limits apply after native output capture.
+    """
+    try:
+        captured = native(["docker", "manifest", "inspect", "--verbose", subject]).stdout
+        if len(captured) > IMAGE_OBSERVATION_LIMIT:
+            raise ProbeError("Native registry observation exceeds parser bounds")
+        envelope = source._read_json(captured.decode("utf-8"))
+        # Validate finite values throughout the observation, including exponent overflow.
+        json.dumps(envelope, allow_nan=False)
+        if not isinstance(envelope, dict) or set(envelope) != {
+            "Ref",
+            "Descriptor",
+            "Raw",
+            "OCIManifest",
+        }:
+            raise ProbeError("Native registry observation is not the supported single OCI envelope")
+        if envelope["Ref"] != subject or not isinstance(envelope["Raw"], str):
+            raise ProbeError(
+                "Native registry reference or Raw field differs from the selected subject"
+            )
+        raw = base64.b64decode(envelope["Raw"], validate=True)
+        if len(raw) > IMAGE_OBSERVATION_LIMIT // 2:
+            raise ProbeError("Native registry Raw exceeds parser bounds")
+        descriptor = envelope["Descriptor"]
+        if (
+            not isinstance(descriptor, dict)
+            or set(descriptor) != {"mediaType", "digest", "size", "platform"}
+            or descriptor["mediaType"] != OCI_MANIFEST
+            or descriptor["digest"] != manifest["platform_manifest_digest"]
+            or type(descriptor["size"]) is not int
+            or descriptor["size"] <= 0
+            or descriptor["size"] != len(raw)
+            or descriptor["platform"] != {"os": "linux", "architecture": "amd64"}
+            or "sha256:" + hashlib.sha256(raw).hexdigest() != manifest["platform_manifest_digest"]
+        ):
+            raise ProbeError("Native registry Raw identity or Descriptor differs from selection")
+        document = source._read_json(raw.decode("utf-8"))
+        # Comparison view only: hash the original bytes above, never this serialization.
+        projection = json.dumps(document, sort_keys=True, separators=(",", ":"), allow_nan=False)
+        if (
+            not _oci_fields(document, {"schemaVersion", "mediaType", "config", "layers"})
+            or type(document["schemaVersion"]) is not int
+            or document["schemaVersion"] != 2
+            or document["mediaType"] != OCI_MANIFEST
+            or not isinstance(document["layers"], list)
+        ):
+            raise ProbeError("Native registry Raw is not the supported OCI image manifest")
+        config = document["config"]
+        if (
+            not isinstance(config, dict)
+            or set(config) != {"mediaType", "digest", "size"}
+            or config["mediaType"] != OCI_CONFIG
+            or config["digest"] != manifest["config_digest"]
+            or type(config["size"]) is not int
+            or config["size"] <= 0
+        ):
+            raise ProbeError("Native registry config descriptor differs from selection")
+        for layer in document["layers"]:
+            if (
+                not _oci_fields(layer, {"mediaType", "digest", "size"})
+                or not isinstance(layer["mediaType"], str)
+                or OCI_DESCRIPTOR_MEDIA_TYPE.fullmatch(layer["mediaType"]) is None
+                or not isinstance(layer["digest"], str)
+                or OCI_SHA256.fullmatch(layer["digest"]) is None
+                or type(layer["size"]) is not int
+                or layer["size"] < 0
+            ):
+                raise ProbeError("Native registry layer descriptor is malformed or unsupported")
+        if projection != json.dumps(
+            envelope["OCIManifest"], sort_keys=True, separators=(",", ":"), allow_nan=False
+        ):
+            raise ProbeError("Native registry OCI projection differs from exact Raw")
+
+        captured = native(["docker", "image", "inspect", subject]).stdout
+        if len(captured) > IMAGE_OBSERVATION_LIMIT:
+            raise ProbeError("Native local image observation exceeds parser bounds")
+        inspected = source._read_json(captured.decode("utf-8"))
+        json.dumps(inspected, allow_nan=False)
+        if (
+            not isinstance(inspected, list)
+            or len(inspected) != 1
+            or not isinstance(inspected[0], dict)
+        ):
+            raise ProbeError("Native pulled image inspection is ambiguous")
+        image = inspected[0]
+        digests = image.get("RepoDigests")
+        if (
+            not isinstance(digests, list)
+            or not all(isinstance(value, str) for value in digests)
+            or subject not in digests
+            or image.get("Os") != "linux"
+            or image.get("Architecture") != "amd64"
+        ):
+            raise ProbeError("Native local image subject or platform differs from selection")
+        if not isinstance(image.get("Id"), str) or image["Id"] not in (
+            manifest["config_digest"],
+            manifest["platform_manifest_digest"],
+        ):
+            raise ProbeError("Native local image Id differs from the witnessed selected tuple")
+    except ProbeError:
+        raise
+    except (ValueError, RecursionError):
+        raise ProbeError("Native image identity observation is malformed or non-finite") from None
 
 
 def render_contract(root: Path, manifest: dict[str, Any]) -> dict[str, Any]:
@@ -961,17 +1129,9 @@ def experiment(root: Path, contract: dict[str, Any], manifest: dict[str, Any]) -
             .stdout.decode()
             .strip()
         )
-        native(
-            ["docker", "pull", "--platform", contract["platform"], contract["image"]], timeout=180
-        )
-        inspected = source._read_json(
-            native(["docker", "image", "inspect", contract["image"]]).stdout.decode()
-        )
-        if not isinstance(inspected, list) or len(inspected) != 1:
-            raise ProbeError("Native pulled image inspection is ambiguous")
-        image = source._object(inspected[0], "Native pulled image")
-        if image.get("Id") != manifest["config_digest"]:
-            raise ProbeError("Pulled image configuration differs from exact selected manifest")
+        subject = _selected_image_subject(contract, manifest)
+        native(["docker", "pull", "--platform", contract["platform"], subject], timeout=180)
+        _admit_selected_image(subject, manifest)
         native(
             ["docker", "network", "create", "--internal", "--label", f"{LABEL}={owner}", network]
         )
