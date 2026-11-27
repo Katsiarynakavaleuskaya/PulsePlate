@@ -21,9 +21,14 @@ ARG SQLITE_AUTOCONF_SHA3_256_PART_8="1b72983b"
 # even though the pinned runtime Python image index supports multiple architectures.
 ARG PSYCOPG_SDK_PYTHON_IMAGE="python@sha256:7a6b87c02e1f4d6bb572e379235cbbdd7892add0572442c9b0b860a3f5aa9857"
 
-# Compose supplies the same four verified inputs when the checkout has no source cache.
-FROM scratch AS sdk-source-archives
+ARG SDK_SOURCE_ARCHIVES_IMAGE=sdk-checkout-source-archives
+
+# Ordinary builds retain the exact checkout inputs. Compose can supply the same files.
+FROM scratch AS sdk-checkout-source-archives
 COPY build/docker-sources/zlib-71747d1d39168833e0cae8ed84b8ce77cb049699.tar.gz build/docker-sources/ncurses-snapshots-dc909d77781ef5c2a0684e9ad9eb9f0c0baf5ecc.tar.gz build/docker-sources/openssl-3.5.9.tar.gz build/docker-sources/postgresql-18.6.tar.gz /input/native/
+
+# A named build context overrides this stage. Older Compose uses its local image.
+FROM ${SDK_SOURCE_ARCHIVES_IMAGE} AS sdk-source-archives
 
 FROM ${PSYCOPG_SDK_PYTHON_IMAGE} AS native-builder
 ARG PSYCOPG_SDK_PYTHON_IMAGE
