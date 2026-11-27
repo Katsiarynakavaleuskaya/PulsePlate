@@ -1184,13 +1184,27 @@ def test_make_sync_propagates_installer_error_without_success_message(tmp_path: 
     assert ".venv refreshed" not in result.stdout
 
 
-@pytest.mark.parametrize("explicit_netrc", (False, True))
-def test_dc_up_netrc_selection_is_explicit_and_does_not_forward_ambient_home(
-    tmp_path: Path, explicit_netrc: bool
+@pytest.mark.parametrize(
+    ("failure", "overrides"),
+    [
+        pytest.param(None, False, id="default"),
+        pytest.param(None, True, id="explicit-project-compose-netrc"),
+        pytest.param("sources", False, id="source-preparation-fails"),
+        pytest.param("build", True, id="sdk-build-fails"),
+        pytest.param("up", False, id="startup-fails"),
+    ],
+)
+def test_dc_up_prepares_sdk_before_startup_with_scoped_compose_inputs(
+    tmp_path: Path, failure: str | None, overrides: bool
 ) -> None:
-    """Execute the real dc-up recipe with synthetic prerequisites and Docker transport."""
-    fixture, environment, _ = _standalone_bootstrap_fixture(tmp_path)
+    """Run the real Make recipes with synthetic source and Docker transports."""
+    fixture, environment, log = _standalone_bootstrap_fixture(tmp_path)
     control = Path(environment["PATH"].split(os.pathsep)[0])
+    fetcher = "scripts/ci/fetch_docker_source_artifacts.py"
+    (fixture / fetcher).write_bytes((REPO_ROOT / fetcher).read_bytes())
+    if failure != "sources":
+        manifest = "scripts/ci/docker_source_artifacts.json"
+        (fixture / manifest).write_bytes((REPO_ROOT / manifest).read_bytes())
     ambient = tmp_path / ".netrc"
     alternate = tmp_path / "_netrc"
     ambient_bytes = b"machine unrelated.example login fixture-user\n"
@@ -1199,7 +1213,6 @@ def test_dc_up_netrc_selection_is_explicit_and_does_not_forward_ambient_home(
     explicit = tmp_path / "package-proxy.netrc"
     explicit.write_text("machine packages.example login fixture-user\n")
     explicit.chmod(0o400)
-    log = tmp_path / "docker-call.json"
     docker = control / "docker"
     docker.write_text(
         f"#!{sys.executable}\n"
@@ -1207,23 +1220,30 @@ def test_dc_up_netrc_selection_is_explicit_and_does_not_forward_ambient_home(
         "auth_keys = ('DOCKER_HOST', 'DOCKER_CONTEXT', 'DOCKER_CONFIG', 'COMPOSE_FILE', "
         "'COMPOSE_PROFILES', 'PIP_CONFIG_FILE', 'NETRC')\n"
         "record = {'argv': sys.argv[1:], "
+        "'project': os.environ.get('COMPOSE_PROJECT_NAME'), "
         "'netrc_file': os.environ.get('PULSEPLATE_NATIVE_SDK_NETRC_FILE'), "
         "'auth_environment_keys': [key for key in auth_keys if key in os.environ]}\n"
-        "pathlib.Path(os.environ['DOCKER_CALL_LOG']).write_text(json.dumps(record))\n"
+        "with pathlib.Path(os.environ['CALLER_LOG']).open('a') as stream:\n"
+        "    stream.write(json.dumps(record) + '\\n')\n"
+        "if sys.argv[4] == os.environ['DOCKER_FAIL_STEP']: raise SystemExit(23)\n"
     )
     docker.chmod(0o755)
-    environment["DOCKER_CALL_LOG"] = str(log)
-    if explicit_netrc:
-        environment["PULSEPLATE_NATIVE_SDK_NETRC_FILE"] = str(explicit)
-    prerequisites = fixture / "synthetic-prerequisites.mk"
-    prerequisites.write_text(
-        "ensure-python-proxy:\n\t@echo synthetic-proxy-prerequisite\n"
-        "docker-source-artifacts:\n\t@echo synthetic-source-prerequisite\n"
+    compose_file = ".devcontainer/docker-compose.devcontainer.yml"
+    environment.update(
+        PULSEPLATE_PYTHON_INDEX_URL="https://packages.example/simple",
+        DOCKER_FAIL_STEP=failure or "",
     )
+    if overrides:
+        compose_file = str(tmp_path / "selected compose.yml")
+        environment.update(
+            COMPOSE_PROJECT_NAME="selected-project",
+            DEVCONTAINER_COMPOSE=compose_file,
+            PULSEPLATE_NATIVE_SDK_NETRC_FILE=str(explicit),
+        )
     make = shutil.which("make")
     assert make is not None
     result = subprocess.run(
-        [make, "-f", "Makefile", "-f", str(prerequisites), "dc-up"],
+        [make, "dc-up", "DEV_PYTHON=" + str(control / "python3")],
         cwd=fixture,
         env=environment,
         capture_output=True,
@@ -1231,21 +1251,29 @@ def test_dc_up_netrc_selection_is_explicit_and_does_not_forward_ambient_home(
         timeout=15,
         check=False,
     )
-    assert result.returncode == 0, result.stdout + result.stderr
-    assert "synthetic-proxy-prerequisite" in result.stdout
-    assert "synthetic-source-prerequisite" in result.stdout
-    record = json.loads(log.read_text())
-    assert record["argv"] == [
-        "compose",
-        "-f",
-        ".devcontainer/docker-compose.devcontainer.yml",
-        "up",
-        "-d",
-        "--build",
-        "devcontainer",
+    fetch_call, *docker_calls = (json.loads(line) for line in log.read_text().splitlines())
+    assert fetch_call == [fetcher]
+    commands = [
+        ["compose", "-f", compose_file, "build", "native-sdk-artifacts"],
+        ["compose", "-f", compose_file, "up", "-d", "--build", "devcontainer"],
     ]
-    assert record["netrc_file"] == (str(explicit) if explicit_netrc else "/dev/null")
-    assert record["auth_environment_keys"] == []
+    expected_argv = commands[: {"sources": 0, "build": 1}.get(failure, 2)]
+    assert [call["argv"] for call in docker_calls] == expected_argv
+    if failure is None:
+        assert result.returncode == 0, result.stdout + result.stderr
+    else:
+        assert result.returncode != 0
+        assert ("Error 6" if failure == "sources" else "Error 23") in result.stderr
+    for call in docker_calls:
+        assert call["netrc_file"] == (str(explicit) if overrides else "/dev/null")
+        assert call["auth_environment_keys"] == []
+    if docker_calls:
+        project = docker_calls[0]["project"]
+        assert all(call["project"] == project for call in docker_calls)
+        if overrides:
+            assert project == "selected-project"
+        else:
+            assert re.fullmatch(r"pulseplate-[0-9]+", project)
     assert ambient.read_bytes() == alternate.read_bytes() == ambient_bytes
     assert explicit.read_text() == "machine packages.example login fixture-user\n"
     assert not (fixture / "build").exists()
