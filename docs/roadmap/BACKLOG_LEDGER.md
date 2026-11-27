@@ -740,11 +740,26 @@ If it is not recorded here — it does not exist.
     together with the approved RubyZip 3.7.0 and Addressable 2.9.1 updates.
     Merged-main CD attempt 3 verified the PostgreSQL candidate and its attestations, then stopped
     before canonical tag promotion. [Publisher job](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/45907123503/job/140224710589).
-    On November 27, the published Prometheus reader on #2484 verified the expected raw OCI
-    manifest, then failed the credential-directory member check. A local native Buildx test
-    reproduced the failure and verified that separate private Buildx state kept the credential
-    directory isolated. CI and CD execute an independently pinned controller. A successor pin
-    and its protected-history transition require separate owner approval. CAB remains open. [Reader job](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/45924516048/job/140262799326).
+    On November 27, the #2484 published Prometheus reader verified the expected raw OCI manifest
+    and failed the credential-directory member check. The CD jobs `prometheus-image-security-pr`
+    and `prometheus-image-security` failed on the published `b424ff1f` head.
+    [Published reader](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/45934644492/job/140295071326)
+    · [Aggregate](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/45934644492/job/140296416569).
+    Local native Buildx replay reproduced the reader failure and verified that a separate private
+    Buildx directory preserves the credential inventory. [Published reader code](https://github.com/Katsiarynakavaleuskaya/PulsePlate/blob/2ebe53024febe8e026c4a1f1e056f19482f0fca9/scripts/ci/prometheus_source_image.py#L11568-L11673)
+    · [CD workflow](https://github.com/Katsiarynakavaleuskaya/PulsePlate/blob/b424ff1fb9fc94bd02b8d8e4223142ad0447b65e/.github/workflows/cd.yml#L1514).
+
+    The owner chose to close #2484 first, with only those two advisory CD failures carried
+    forward after required current-head CI, native SDK evidence, review, and the ordinary seal
+    and merge gates pass. Branch protection applies in full, and deployment and release require
+    separate approval. CAB-07C remains pending those gates.
+    Prometheus follow-up is P1, owned by DevOps / Security, and targets the first substantive
+    Prometheus repair after the actual CAB squash. Before activation, independently designate the
+    exact successor and obtain the required protected-history decision. Verify trusted publication
+    and immutable pullback on the actual merged source, then require successful published-path
+    CI/CD reads and owned credential and Buildx cleanup. Test that an unexpected credential
+    member still fails closed, and review retained evidence and authorization expiry before use.
+
     The October 22, 2026 checkpoint recorded a temporary decision for 18 advisories across
     six packages. Its review deadline was `2026-10-24T00:00:00Z` and its hard expiry was
     `2026-10-29T00:00:00Z`. Both deadlines have passed. The retained October 21 diagnostic
