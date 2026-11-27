@@ -152,10 +152,61 @@ of a single repeated range.
 python -m pytest -q -rs -o addopts= -p no:cacheprovider tests/test_dependency_security_guard.py
 ```
 
+## Refresh developer hook environments
+
+For an existing developer-owned checkout on supported Linux amd64, configure
+the genuine SDK and approved private proxy as described in the
+[developer environment instructions](../DEPENDENCY_MANAGEMENT.md).
+Run the following from the checkout root in Bash. Use a dedicated clone if
+linked worktrees share Git hooks with another owner. If the developer
+environment itself was created with affected virtualenv, recreate it first
+using the documented bootstrap in a fresh checkout before using its activation
+script. Refreshing installed packages preserves existing activation scripts.
+
+```bash
+set -e
+make venv-sync VENV_PYTHON="$PWD/.venv/bin/python"
+.venv/bin/python -m virtualenv --version
+.venv/bin/python -c 'from importlib.metadata import version; from packaging.version import Version; raise SystemExit(0 if Version(version("virtualenv")) >= Version("21.14.13") else "virtualenv 21.14.13 or newer required")'
+
+cache_root="${XDG_CACHE_HOME:-$HOME/.cache}"
+mkdir -p -- "$cache_root"
+PRE_COMMIT_HOME="$(mktemp -d "$cache_root/pulseplate-hooks.XXXXXXXX")"
+export PRE_COMMIT_HOME
+.venv/bin/python -m pre_commit install --install-hooks --hook-type pre-commit --hook-type pre-push
+.venv/bin/python -m pre_commit run check-yaml --files .pre-commit-config.yaml --verbose
+printf 'export PRE_COMMIT_HOME=%q\n' "$PRE_COMMIT_HOME"
+```
+
+The new directory starts empty, so pre-commit must build the configured hook
+environments there. Check that `check-yaml` reports `Passed`. Keep the printed
+export in the environment used by this checkout's future Git and pre-commit
+processes, including the IDE or CI job that starts them. In a new shell,
+apply that same export before the next commit or push. The new hooks use the
+selected store only when their process inherits that setting.
+
 ## Snapshot identities
 
-The lane retains these raw evidence files under
-`artifacts/orchestration/dep-sec-virtualenv/`.
+The reader archive covers published material
+`84ebc1b7e22abe2d596a7efe25f5fe88abd510d1`. Download it from the
+[PR #2505 evidence file](https://drive.google.com/file/d/14-gWRzHchsvxFudn_WpN5h2qdcxZXa0a/view).
+Verify the downloaded ZIP against the following 13,481-byte size and SHA-256
+before extracting it into an empty directory. From that directory, run
+`shasum -a 256 -c SHA256SUMS` to verify the individual members.
+
+```text
+fe09ff9902b21915b6de6bbee881669178832b5d17281f4c00b7191c3837a44e  PR2505-virtualenv-84ebc1b-evidence.zip
+```
+
+The table below records the 14 original local input hashes. Eleven files
+in the archive contain the original receipt bytes under the listed names.
+The three upstream responses (`advisory-pages.json`, `pypi-21.14.10.json`,
+and `pypi-21.14.13.json`) are represented by metadata-only projections in
+`github-advisory-metadata.json` and the two `pypi-*-metadata.json` members.
+These preserve the fields used for the advisory and release decisions.
+`SHA256SUMS` covers the distributed bytes. `UPSTREAM-SHA256.json` retains the
+original input hashes for provenance. The lane retains the full original
+files under `artifacts/orchestration/dep-sec-virtualenv/` locally.
 
 | File | SHA-256 |
 | --- | --- |
