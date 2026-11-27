@@ -19,7 +19,7 @@ import subprocess  # nosec B404: native Docker/OpenSSL/psql protocol has no safe
 import sys
 import tempfile
 import time
-from typing import Any
+from typing import Any, TypeGuard
 import uuid
 
 from scripts.ops import check_staging_security as source
@@ -134,17 +134,30 @@ def selected_contract(rendered: object, manifest: dict[str, Any]) -> dict[str, A
     }
 
 
+# Docker Distribution repository path grammar, restricted to two GHCR components.
+OCI_REPOSITORY_COMPONENT = r"[a-z0-9]+(?:(?:[._]|__|-+)[a-z0-9]+)*"
+OCI_REPOSITORY_PATH = re.compile(rf"{OCI_REPOSITORY_COMPONENT}/{OCI_REPOSITORY_COMPONENT}")
+OCI_SHA256 = re.compile(r"sha256:[0-9a-f]{64}")
+# RFC 6838 restricted media type names. Admission does not decode layer payloads.
+OCI_MEDIA_NAME = r"[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]{0,126}"
+OCI_DESCRIPTOR_MEDIA_TYPE = re.compile(rf"{OCI_MEDIA_NAME}/{OCI_MEDIA_NAME}")
+
+
 def _selected_image_subject(contract: dict[str, Any] | None, manifest: dict[str, Any]) -> str:
     repository = manifest.get("repository")
     platform_digest = manifest.get("platform_manifest_digest")
     config_digest = manifest.get("config_digest")
+    registry_prefix = "ghcr.io/"
+    remote = repository.removeprefix(registry_prefix) if isinstance(repository, str) else ""
     if (
         not isinstance(repository, str)
-        or re.fullmatch(r"ghcr\.io/[a-z0-9_.-]+/[a-z0-9_.-]+", repository) is None
+        or not repository.startswith(registry_prefix)
+        or len(remote) > 255
+        or OCI_REPOSITORY_PATH.fullmatch(remote) is None
         or not isinstance(platform_digest, str)
-        or re.fullmatch(r"sha256:[0-9a-f]{64}", platform_digest) is None
+        or OCI_SHA256.fullmatch(platform_digest) is None
         or not isinstance(config_digest, str)
-        or re.fullmatch(r"sha256:[0-9a-f]{64}", config_digest) is None
+        or OCI_SHA256.fullmatch(config_digest) is None
         or manifest.get("platform") != "linux/amd64"
         or (contract is not None and contract.get("platform") != "linux/amd64")
     ):
@@ -153,6 +166,18 @@ def _selected_image_subject(contract: dict[str, Any] | None, manifest: dict[str,
     if contract is not None and contract.get("image") != subject:
         raise ProbeError("Native selected image subject differs from the rendered contract")
     return subject
+
+
+def _oci_fields(value: object, required: set[str]) -> TypeGuard[dict[str, Any]]:
+    """Allow only the required fields and an optional inert annotations map."""
+    if not isinstance(value, dict) or not required <= value.keys() <= required | {"annotations"}:
+        return False
+    if "annotations" not in value:
+        return True
+    annotations = value["annotations"]
+    return isinstance(annotations, dict) and all(
+        isinstance(item, str) for item in annotations.values()
+    )
 
 
 def _admit_selected_image(subject: str, manifest: dict[str, Any]) -> None:
@@ -199,8 +224,7 @@ def _admit_selected_image(subject: str, manifest: dict[str, Any]) -> None:
         # Comparison view only: hash the original bytes above, never this serialization.
         projection = json.dumps(document, sort_keys=True, separators=(",", ":"), allow_nan=False)
         if (
-            not isinstance(document, dict)
-            or set(document) != {"schemaVersion", "mediaType", "config", "layers"}
+            not _oci_fields(document, {"schemaVersion", "mediaType", "config", "layers"})
             or type(document["schemaVersion"]) is not int
             or document["schemaVersion"] != 2
             or document["mediaType"] != OCI_MANIFEST
@@ -217,6 +241,17 @@ def _admit_selected_image(subject: str, manifest: dict[str, Any]) -> None:
             or config["size"] <= 0
         ):
             raise ProbeError("Native registry config descriptor differs from selection")
+        for layer in document["layers"]:
+            if (
+                not _oci_fields(layer, {"mediaType", "digest", "size"})
+                or not isinstance(layer["mediaType"], str)
+                or OCI_DESCRIPTOR_MEDIA_TYPE.fullmatch(layer["mediaType"]) is None
+                or not isinstance(layer["digest"], str)
+                or OCI_SHA256.fullmatch(layer["digest"]) is None
+                or type(layer["size"]) is not int
+                or layer["size"] < 0
+            ):
+                raise ProbeError("Native registry layer descriptor is malformed or unsupported")
         if projection != json.dumps(
             envelope["OCIManifest"], sort_keys=True, separators=(",", ":"), allow_nan=False
         ):

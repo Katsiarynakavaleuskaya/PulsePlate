@@ -57,8 +57,9 @@ def _bind_identity_raw(
 ) -> None:
     digest = "sha256:" + hashlib.sha256(raw).hexdigest()
     subject = manifest["repository"] + "@" + digest
-    manifest["platform_manifest_digest"] = digest
-    contract["image"] = subject
+    runtime_ref = f"{manifest['repository']}:{manifest['tag']}@{digest}"
+    manifest.update(platform_manifest_digest=digest, runtime_ref=runtime_ref)
+    contract.update(image=subject, compose_runtime_ref=runtime_ref)
     envelope.update(
         {
             "Ref": subject,
@@ -91,22 +92,19 @@ def _identity_fixture(
         },
         "layers": [
             {
-                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+" + compression,
                 "digest": "sha256:" + hashlib.sha256((seed + suffix).encode()).hexdigest(),
                 "size": size,
                 "annotations": {"synthetic": suffix},
             }
-            for suffix, size in (("one", 1), ("two", 2))
+            for suffix, size, compression in (("one", 1, "gzip"), ("two", 0, "zstd"))
         ],
     }
     contract: dict[str, Any] = {}
     envelope: dict[str, Any] = {}
     local = [{"Os": "linux", "Architecture": "amd64"}]
-    _bind_identity_raw(contract, manifest, envelope, local, json.dumps(document).encode(), document)
     manifest["tag"] = "synthetic"
-    manifest["runtime_ref"] = (
-        f"{manifest['repository']}:{manifest['tag']}@{manifest['platform_manifest_digest']}"
-    )
+    _bind_identity_raw(contract, manifest, envelope, local, json.dumps(document).encode(), document)
     rendered["services"]["postgres"]["image"] = manifest["runtime_ref"]
     return runtime.selected_contract(rendered, manifest), manifest, envelope, local
 
@@ -153,6 +151,38 @@ def test_selected_identity_requires_the_complete_witness_for_both_id_forms(
     with pytest.raises(runtime.ProbeError, match="supported single OCI envelope"):
         runtime._admit_selected_image(subject, manifest)
     assert len(calls) == 1  # No config-form shortcut or local-inspect fallback.
+
+
+@pytest.mark.parametrize(
+    ("remote", "accepted"),
+    [
+        pytest.param("owner/image.", False, id="trailing-dot"),
+        pytest.param("_owner/image", False, id="leading-underscore"),
+        pytest.param("owner/im.-age", False, id="mixed-separators"),
+        pytest.param("owner/image___name", False, id="triple-underscore"),
+        pytest.param("owner/team/image", False, id="third-component"),
+        pytest.param("owner__team/image--name", True, id="valid-internal-separators"),
+        pytest.param("owner/" + "a" * 249, True, id="exact-255-byte-remote"),
+        pytest.param("owner/" + "a" * 250, False, id="256-byte-remote"),
+    ],
+)
+def test_postgres_repository_grammar_binds_a_matching_rendered_reference(
+    remote: str, accepted: bool
+) -> None:
+    rendered, manifest = selected_fixture()
+    repository = "ghcr.io/" + remote
+    runtime_ref = f"{repository}:{manifest['tag']}@{manifest['platform_manifest_digest']}"
+    manifest.update(repository=repository, runtime_ref=runtime_ref)
+    rendered["services"]["postgres"]["image"] = runtime_ref
+    if accepted:
+        result = runtime.selected_contract(rendered, manifest)
+        assert result["image"] == f"{repository}@{manifest['platform_manifest_digest']}"
+        assert result["compose_runtime_ref"] == runtime_ref
+    else:
+        with pytest.raises(
+            runtime.ProbeError, match="^Native selected image tuple is malformed or unsupported$"
+        ):
+            runtime.selected_contract(rendered, manifest)
 
 
 @pytest.mark.parametrize(
@@ -283,6 +313,11 @@ def test_registry_envelope_rejects_independent_binding_faults(
         ),
         ("layers", {}, "supported OCI image manifest"),
         ("manifests", [], "supported OCI image manifest"),
+        ("subject", {}, "supported OCI image manifest"),
+        ("artifactType", "application/example", "supported OCI image manifest"),
+        ("annotations", None, "supported OCI image manifest"),
+        ("annotations", [], "supported OCI image manifest"),
+        ("annotations", {"org.opencontainers.image.title": 12}, "supported OCI image manifest"),
         ("config", [], "config descriptor"),
         ("__root__", [], "supported OCI image manifest"),
         ("__missing_layers__", None, "supported OCI image manifest"),
@@ -305,6 +340,97 @@ def test_raw_manifest_shape_is_checked_after_recomputed_hash_binding(
     )
     with pytest.raises(runtime.ProbeError, match=message):
         runtime._admit_selected_image(contract["image"], manifest)
+
+
+@pytest.mark.parametrize(
+    "annotations",
+    [
+        pytest.param({}, id="empty-map"),
+        pytest.param({"org.opencontainers.image.title": "PostgreSQL staging"}, id="string-map"),
+    ],
+)
+def test_raw_annotations_are_accepted_when_they_match_the_typed_projection(
+    monkeypatch: pytest.MonkeyPatch, annotations: dict[str, str]
+) -> None:
+    contract, manifest, envelope, local = _identity_fixture()
+    document = deepcopy(envelope["OCIManifest"])
+    document["annotations"] = annotations
+    raw = json.dumps(document).encode()
+    _bind_identity_raw(contract, manifest, envelope, local, raw, document)
+    calls = _identity_reader(
+        monkeypatch, contract["image"], json.dumps(envelope).encode(), json.dumps(local).encode()
+    )
+    runtime._admit_selected_image(contract["image"], manifest)
+    assert len(calls) == 2
+
+
+def test_raw_duplicate_annotation_names_fail_before_local_inspection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    contract, manifest, envelope, local = _identity_fixture()
+    document = deepcopy(envelope["OCIManifest"])
+    document["annotations"] = {"org.opencontainers.image.title": "one"}
+    raw = json.dumps(document).encode()
+    original = b'{"org.opencontainers.image.title": "one"}'
+    assert raw.count(original) == 1
+    raw = raw.replace(
+        original,
+        b'{"org.opencontainers.image.title": "two", "org.opencontainers.image.title": "one"}',
+    )
+    _bind_identity_raw(contract, manifest, envelope, local, raw, document)
+    calls = _identity_reader(
+        monkeypatch, contract["image"], json.dumps(envelope).encode(), json.dumps(local).encode()
+    )
+    with pytest.raises(
+        runtime.ProbeError, match="^Native image identity observation is malformed or non-finite$"
+    ):
+        runtime._admit_selected_image(contract["image"], manifest)
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        pytest.param(None, id="null-descriptor"),
+        pytest.param({"digest": None}, id="invalid-digest-type"),
+        pytest.param({"digest": "sha256:abc"}, id="short-digest"),
+        pytest.param({"digest": "sha256:" + "A" * 64}, id="uppercase-digest"),
+        pytest.param({"mediaType": ""}, id="empty-media-type"),
+        pytest.param({"mediaType": "application/invalid name"}, id="malformed-media-type"),
+        pytest.param({"mediaType": 7}, id="invalid-media-type"),
+        pytest.param({"size": -1}, id="negative-size"),
+        pytest.param({"size": True}, id="bool-size"),
+        pytest.param({"size": 1.0}, id="float-size"),
+        pytest.param({"size": "1"}, id="string-size"),
+        pytest.param({"annotations": None}, id="null-annotations"),
+        pytest.param({"annotations": []}, id="array-annotations"),
+        pytest.param({"annotations": {"invalid": False}}, id="invalid-annotation-value"),
+        pytest.param({"unknown": "unsupported"}, id="unexpected-descriptor-field"),
+        pytest.param({}, id="missing-required-field"),
+    ],
+)
+def test_every_layer_descriptor_is_validated_after_raw_rebinding(
+    monkeypatch: pytest.MonkeyPatch, changes: dict[str, object] | None
+) -> None:
+    contract, manifest, envelope, local = _identity_fixture()
+    document = deepcopy(envelope["OCIManifest"])
+    # Keep the first layer valid to show that admission also verifies later layers.
+    layer = document["layers"][1]
+    if changes is None:
+        document["layers"][1] = None
+    elif not changes:
+        del layer["size"]
+    else:
+        layer.update(changes)
+    _bind_identity_raw(contract, manifest, envelope, local, json.dumps(document).encode(), document)
+    calls = _identity_reader(
+        monkeypatch, contract["image"], json.dumps(envelope).encode(), json.dumps(local).encode()
+    )
+    with pytest.raises(
+        runtime.ProbeError, match="^Native registry layer descriptor is malformed or unsupported$"
+    ):
+        runtime._admit_selected_image(contract["image"], manifest)
+    assert len(calls) == 1
 
 
 @pytest.mark.parametrize(
@@ -345,13 +471,25 @@ def test_config_descriptor_requires_its_own_exact_witness(
     assert len(calls) == 1
 
 
-@pytest.mark.parametrize("fault", ["bool", "float", "missing", "extra", "order", "value"])
+@pytest.mark.parametrize(
+    "fault", ["bool", "float", "missing", "extra", "order", "value", "root-removed", "root-changed"]
+)
 def test_oci_projection_preserves_complete_values_array_order_and_json_types(
     monkeypatch: pytest.MonkeyPatch, fault: str
 ) -> None:
     contract, manifest, envelope, local = _identity_fixture()
+    if fault in ("root-removed", "root-changed"):
+        document = deepcopy(envelope["OCIManifest"])
+        document["annotations"] = {"org.opencontainers.image.title": "original"}
+        _bind_identity_raw(
+            contract, manifest, envelope, local, json.dumps(document).encode(), document
+        )
     projection = envelope["OCIManifest"]
-    if fault == "bool":
+    if fault == "root-removed":
+        del projection["annotations"]
+    elif fault == "root-changed":
+        projection["annotations"]["org.opencontainers.image.title"] = "changed"
+    elif fault == "bool":
         projection["layers"][0]["size"] = True  # Python equality would equate this with 1.
     elif fault == "float":
         projection["schemaVersion"] = 2.0  # Python equality would equate this with 2.
@@ -601,8 +739,18 @@ def test_registry_observation_preserves_real_native_failure_despite_plausible_st
 
     monkeypatch.setattr(runtime.subprocess, "run", run)
     expected = subprocess.TimeoutExpired if failure == "timeout" else runtime.ProbeError
-    with pytest.raises(expected):
+    with pytest.raises(expected) as observed:
         runtime._admit_selected_image(contract["image"], manifest)
+    if isinstance(observed.value, subprocess.TimeoutExpired):
+        assert observed.value.timeout == 60 and observed.value.cmd == calls[0]
+    else:
+        assert (
+            str(observed.value)
+            == {
+                "nonzero": "Native docker manifest rejected (exit 23): reader failed",
+                "unavailable": "Required native executable unavailable: docker",
+            }[failure]
+        )
     assert len(calls) == (0 if failure == "unavailable" else 1)
     if calls:
         assert calls[0] == [
