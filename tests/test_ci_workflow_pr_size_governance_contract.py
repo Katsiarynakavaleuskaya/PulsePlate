@@ -196,7 +196,7 @@ TRIVY_ACTION_NODE24_CACHE_SHA = "".join(
 TRIVY_RUNTIME_VERSIONS_BY_WORKFLOW = {
     BUILD_WORKFLOW_PATH: "v0.74.0",
     CD_WORKFLOW_PATH: "v0.74.0",
-    TRIVY_WORKFLOW_PATH: "v0.74.0",
+    TRIVY_WORKFLOW_PATH: "v0.76.2",
 }
 CODEQL_ACTION_V4_37_1_SHA = "".join(
     (
@@ -597,6 +597,37 @@ _METADATA_MATERIAL_CONCURRENCY_GROUP = (
     "(github.event.action == 'edited' || github.event.action == 'labeled' || "
     "github.event.action == 'unlabeled') && 'metadata' || 'material' }}"
 )
+_CADDY_PRODUCER_CONCURRENCY_SUFFIX = (
+    "${{ inputs.caddy_action == 'candidate-D' && '-caddy-D-producer' || '' }}"
+)
+_CADDY_PRODUCER_CANCEL_IN_PROGRESS = "${{ inputs.caddy_action != 'candidate-D' }}"
+_CONCURRENCY_GROUP_BY_WORKFLOW = {
+    CI_WORKFLOW_PATH: _METADATA_MATERIAL_CONCURRENCY_GROUP,
+    FRONTEND_CI_WORKFLOW_PATH: (
+        _METADATA_MATERIAL_CONCURRENCY_GROUP + _CADDY_PRODUCER_CONCURRENCY_SUFFIX
+    ),
+}
+_FRONTEND_CADDY_DISPATCH = {
+    "inputs": {
+        "caddy_action": {
+            "description": (
+                "Import a qualified Caddy candidate, inspect metadata, or explicitly build "
+                "the patched source"
+            ),
+            "type": "choice",
+            "default": "contract",
+            "options": ["contract", "xnet062-metadata", "candidate-D"],
+        },
+        "caddy_source_sha": {
+            "description": (
+                "Exact qualification commit, or repair-v1 technical binding for a delegated "
+                "contract or candidate-D"
+            ),
+            "type": "string",
+            "required": False,
+        },
+    }
+}
 _CONCURRENCY_WORKFLOW_CONTRACTS = (
     (
         CI_WORKFLOW_PATH,
@@ -619,15 +650,20 @@ def _assert_metadata_material_concurrency_contract(
     workflow: dict[str, object],
     expected_pr_types: tuple[str, ...],
     expected_events: tuple[str, ...],
+    *,
+    path: Path,
 ) -> None:
     """Require the exact native event partition and unchanged declared trigger inventories."""
     concurrency = workflow["concurrency"]
     assert isinstance(concurrency, dict)
     assert concurrency == {
-        "group": _METADATA_MATERIAL_CONCURRENCY_GROUP,
-        "cancel-in-progress": True,
+        "group": _CONCURRENCY_GROUP_BY_WORKFLOW[path],
+        "cancel-in-progress": (
+            _CADDY_PRODUCER_CANCEL_IN_PROGRESS if path == FRONTEND_CI_WORKFLOW_PATH else True
+        ),
     }
-    assert concurrency["cancel-in-progress"] is True
+    if path == CI_WORKFLOW_PATH:
+        assert concurrency["cancel-in-progress"] is True
     on_section = workflow.get("on")
     if on_section is None:
         on_section = cast(dict[object, object], workflow).get(True)
@@ -636,6 +672,8 @@ def _assert_metadata_material_concurrency_contract(
     pull_request = on_section["pull_request"]
     assert isinstance(pull_request, dict)
     assert pull_request["types"] == list(expected_pr_types)
+    if path == FRONTEND_CI_WORKFLOW_PATH:
+        assert on_section["workflow_dispatch"] == _FRONTEND_CADDY_DISPATCH
 
 
 @pytest.mark.parametrize(
@@ -651,7 +689,9 @@ def test_ci_and_frontend_concurrency_separate_metadata_from_material(
     material_actions: tuple[str, ...],
 ) -> None:
     """Pin native concurrency source shape without interpreting GitHub expressions."""
-    _assert_metadata_material_concurrency_contract(_load_workflow(path), pr_types, events)
+    _assert_metadata_material_concurrency_contract(
+        _load_workflow(path), pr_types, events, path=path
+    )
 
 
 @pytest.mark.parametrize(
@@ -682,16 +722,7 @@ def test_ci_and_frontend_concurrency_preserve_declared_events(
     assert "push" in on_section
     if "workflow_dispatch" in events:
         if path == FRONTEND_CI_WORKFLOW_PATH:
-            assert on_section["workflow_dispatch"] == {
-                "inputs": {
-                    "caddy_action": {
-                        "description": "Explicit metadata qualification; never compiles a Caddy candidate",
-                        "type": "choice",
-                        "default": "contract",
-                        "options": ["contract", "xnet060-metadata"],
-                    }
-                }
-            }
+            assert on_section["workflow_dispatch"] == _FRONTEND_CADDY_DISPATCH
         else:
             assert on_section["workflow_dispatch"] is None
     # The exact native expression owns event-name guarding and material fallback.
@@ -733,7 +764,7 @@ def test_ci_and_frontend_concurrency_contract_rejects_mutations(
 ) -> None:
     """Reject bounded group, cancellation and trigger drift through the existing YAML seam."""
     workflow = _load_workflow(path)
-    _assert_metadata_material_concurrency_contract(workflow, pr_types, events)
+    _assert_metadata_material_concurrency_contract(workflow, pr_types, events, path=path)
     concurrency = workflow["concurrency"]
     assert isinstance(concurrency, dict)
     group = concurrency["group"]
@@ -786,7 +817,92 @@ def test_ci_and_frontend_concurrency_contract_rejects_mutations(
         else:
             raise AssertionError(f"Unexpected concurrency mutation: {mutation}")
     with pytest.raises(AssertionError):
-        _assert_metadata_material_concurrency_contract(workflow, pr_types, events)
+        _assert_metadata_material_concurrency_contract(workflow, pr_types, events, path=path)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "producer-suffix-missing",
+        "producer-discriminator",
+        "producer-suffix-value",
+        "producer-fallback",
+        "producer-cancellation-enabled",
+        "dispatch-input-missing",
+        "dispatch-extra-input",
+        "dispatch-description",
+        "dispatch-type",
+        "dispatch-default",
+        "dispatch-choice-missing",
+        "dispatch-choice-extra",
+        "dispatch-choice-order",
+        "dispatch-choice-duplicate",
+    ),
+)
+def test_frontend_caddy_producer_contract_rejects_independent_mutations(mutation: str) -> None:
+    """Challenge the exact accepted producer/dispatch literals without evaluating expressions."""
+    path, pr_types, events, _metadata_actions, _material_actions = _CONCURRENCY_WORKFLOW_CONTRACTS[
+        1
+    ]
+    assert path == FRONTEND_CI_WORKFLOW_PATH
+    workflow = _load_workflow(path)
+    _assert_metadata_material_concurrency_contract(workflow, pr_types, events, path=path)
+    baseline = deepcopy(workflow)
+    concurrency = workflow["concurrency"]
+    assert isinstance(concurrency, dict)
+    group = concurrency["group"]
+    assert isinstance(group, str)
+    if mutation == "producer-suffix-missing":
+        concurrency["group"] = group.replace(_CADDY_PRODUCER_CONCURRENCY_SUFFIX, "", 1)
+    elif mutation == "producer-discriminator":
+        concurrency["group"] = group.replace(
+            "inputs.caddy_action == 'candidate-D'", "inputs.caddy_action == 'contract'", 1
+        )
+    elif mutation == "producer-suffix-value":
+        concurrency["group"] = group.replace("'-caddy-D-producer'", "'-material'", 1)
+    elif mutation == "producer-fallback":
+        concurrency["group"] = group.replace("|| '' }}", "|| '-caddy-D-producer' }}", 1)
+    elif mutation == "producer-cancellation-enabled":
+        concurrency["cancel-in-progress"] = True
+    else:
+        on_section = workflow.get("on")
+        if on_section is None:
+            on_section = cast(dict[object, object], workflow).get(True)
+        assert isinstance(on_section, dict)
+        dispatch = on_section["workflow_dispatch"]
+        assert isinstance(dispatch, dict)
+        inputs = dispatch["inputs"]
+        assert isinstance(inputs, dict)
+        action = inputs["caddy_action"]
+        assert isinstance(action, dict)
+        if mutation == "dispatch-input-missing":
+            del inputs["caddy_action"]
+        elif mutation == "dispatch-extra-input":
+            inputs["second_action"] = deepcopy(action)
+        elif mutation == "dispatch-description":
+            action["description"] = (
+                "Explicit metadata qualification; never compiles a Caddy candidate"
+            )
+        elif mutation == "dispatch-type":
+            action["type"] = "string"
+        elif mutation == "dispatch-default":
+            action["default"] = "candidate-D"
+        else:
+            options = action["options"]
+            assert isinstance(options, list)
+            if mutation == "dispatch-choice-missing":
+                options.remove("candidate-D")
+            elif mutation == "dispatch-choice-extra":
+                options.append("rebuild")
+            elif mutation == "dispatch-choice-order":
+                options.reverse()
+            elif mutation == "dispatch-choice-duplicate":
+                options.append("candidate-D")
+            else:
+                raise AssertionError(f"Unexpected producer contract mutation: {mutation}")
+    assert workflow != baseline
+    with pytest.raises(AssertionError):
+        _assert_metadata_material_concurrency_contract(workflow, pr_types, events, path=path)
 
 
 _CANCELLATION_JOB_IDS = (
@@ -1153,9 +1269,8 @@ def test_all_active_checkout_uses_have_one_exact_v7_pin() -> None:
         ".github/workflows/security.yml",
         ".github/workflows/trivy.yml",
     }
-    # The 89 prior execution sites gain one lint restore and five CD checkouts
-    # reused by the distinct trusted job through its shared step-list alias.
-    assert len(observed_checkout_uses) == 95
+    # Incoming 91 sites, six retained consumers and two restored manual producer/support sites.
+    assert len(observed_checkout_uses) == 99
     assert {path for path, _ in observed_checkout_uses} == expected_checkout_workflows
 
 
@@ -1256,13 +1371,16 @@ def _contract_suite_targets_by_group(
 
 
 NODE24_FRONTEND_BUILD_LINE = (
-    "FROM node:24.18.1-bookworm-slim@"
-    "sha256:235600a8101ab264e117b1768e925532262668dc9b581ef1dd7d96ced463b8e7"
+    "FROM node:24.22.1-bookworm-slim@"
+    "sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205"
     " AS frontend-build"
 )
 NODE24_FRONTEND_BUILD_RUN_LINE = "RUN npm run build"
 NODE24_FRONTEND_BUILD_COMMAND_ERROR = (
     "frontend-build must end with exactly one canonical npm run build"
+)
+NODE24_CADDY_EVIDENCE_COPY_LINE = (
+    "COPY --from=caddy-build /caddy-build-evidence /usr/share/pulseplate-caddy-build"
 )
 NODE24_CADDY_BINARY_COPY_LINE = (
     "COPY --from=caddy-build --chmod=0755 /go/bin/caddy /usr/bin/caddy.pulseplate"
@@ -1274,6 +1392,7 @@ NODE24_FRONTEND_ASSET_WRITE_LINES = (
     NODE24_FRONTEND_ASSET_COPY_LINE,
 )
 NODE24_FINAL_STAGE_COPY_ADD_LINES = (
+    NODE24_CADDY_EVIDENCE_COPY_LINE,
     NODE24_CADDY_BINARY_COPY_LINE,
     NODE24_FRONTEND_ASSET_COPY_LINE,
 )
@@ -1515,9 +1634,9 @@ def test_node24_runtime_baseline_surfaces_stay_coherent() -> None:
     public_readme = (REPO_ROOT / "README_V2_PUBLIC_DRAFT.md").read_text(encoding="utf-8")
     dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
 
-    assert nvmrc == "24.18.1"
-    assert "- Node `24.18.1` for the web client" in public_readme
-    assert "`nvm use` reads the repo-root `.nvmrc` and selects Node `24.18.1`." in public_readme
+    assert nvmrc == "24.22.1"
+    assert "- Node `24.22.1` for the web client" in public_readme
+    assert "`nvm use` reads the repo-root `.nvmrc` and selects Node `24.22.1`." in public_readme
     assert "24.16.0" not in public_readme
     assert frontend_package["engines"]["node"] == ">=24.0.0 <25.0.0"
     assert frontend_lock["packages"][""]["engines"]["node"] == ">=24.0.0 <25.0.0"
@@ -1789,13 +1908,47 @@ def test_node24_frontend_builder_guard_ignores_non_from_tokens() -> None:
     assert _node24_frontend_builder_contract_errors(non_instructions) == []
 
 
+@pytest.mark.parametrize(
+    "mutation", ("missing", "duplicate", "source-stage", "source-path", "destination", "order")
+)
+def test_node24_frontend_builder_guard_rejects_evidence_copy_drift(mutation: str) -> None:
+    """The admitted evidence handoff is one exact instruction, not arbitrary COPY allowance."""
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    assert _node24_frontend_builder_contract_errors(dockerfile) == []
+    line = NODE24_CADDY_EVIDENCE_COPY_LINE
+    assert dockerfile.count(line) == 1
+    replacements = {
+        "missing": "",
+        "duplicate": line + "\n" + line,
+        "source-stage": line.replace("--from=caddy-build", "--from=frontend-build", 1),
+        "source-path": line.replace(" /caddy-build-evidence ", " /unbound-evidence ", 1),
+        "destination": line.replace("/usr/share/pulseplate-caddy-build", "/srv/frontend"),
+    }
+    if mutation == "order":
+        candidate = dockerfile.replace(line + "\n", "", 1).replace(
+            NODE24_CADDY_BINARY_COPY_LINE,
+            NODE24_CADDY_BINARY_COPY_LINE + "\n" + line,
+            1,
+        )
+    else:
+        candidate = dockerfile.replace(line, replacements[mutation], 1)
+    assert candidate != dockerfile
+    errors = _node24_frontend_builder_contract_errors(candidate)
+    assert "final-stage COPY/ADD instructions must stay finite and ordered" in errors
+
+
 @pytest.mark.parametrize("escape_character", ("\\", "`"))
+@pytest.mark.parametrize(
+    "copy_line", (NODE24_CADDY_EVIDENCE_COPY_LINE, NODE24_CADDY_BINARY_COPY_LINE)
+)
 def test_node24_frontend_builder_guard_rejects_absorbed_caddy_copy(
     escape_character: str,
+    copy_line: str,
 ) -> None:
     """A preceding continuation cannot absorb the Caddy provenance COPY."""
 
     dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    assert _node24_frontend_builder_contract_errors(dockerfile) == []
     if escape_character == "`":
         dockerfile = dockerfile.replace(
             "# syntax=docker/dockerfile:1",
@@ -1803,8 +1956,8 @@ def test_node24_frontend_builder_guard_rejects_absorbed_caddy_copy(
             1,
         )
     absorbed = dockerfile.replace(
-        NODE24_CADDY_BINARY_COPY_LINE,
-        "\n".join((f"RUN : {escape_character}", NODE24_CADDY_BINARY_COPY_LINE)),
+        copy_line,
+        "\n".join((f"RUN : {escape_character}", copy_line)),
         1,
     )
 
@@ -2178,7 +2331,7 @@ def _assert_node24_frontend_builder_workflow_contract(
     assert isinstance(job, dict)
     assert (
         job.get("if")
-        == "${{ github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata' }}"
+        == "${{ github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet062-metadata' }}"
     )
     assert "continue-on-error" not in job
 
@@ -2637,6 +2790,9 @@ def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
     [
         ("copy", "docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.json", "1"),
         ("copy", "docs/evidence/unrelated.json", "0"),
+        ("rename", "docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.json", "1"),
+        ("rename", "docs/evidence/unrelated.json", "0"),
+        ("modify", "scripts/ci/check_philosophy_source_corpus_index.py", "1"),
         ("modify", "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md", "1"),
         (
             "modify",
@@ -2647,26 +2803,57 @@ def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
     ],
 )
 def test_docs_phase1_corpus_input_discovery_executes_workflow_path_loop(
-    tmp_path: Path, operation: str, source_path: str, expected_trigger: str
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    operation: str,
+    source_path: str,
+    expected_trigger: str,
 ) -> None:
-    git = shutil.which("git")
-    bash = shutil.which("bash")
+    git = shutil.which("git", path=os.defpath)
+    bash = shutil.which("bash", path=os.defpath)
     assert git is not None and bash is not None
-    fixture_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
-    fixture_env.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1")
+    assert Path(git).is_absolute() and Path(bash).is_absolute()
+    repo = tmp_path / "repo"
+    home = tmp_path / "home"
+    repo.mkdir()
+    home.mkdir(mode=0o700)
+    startup = home / "hostile-bash-env"
+    marker = home / "startup-marker"
+    startup.write_text('printf "%s" "$GH_TOKEN" > "$HOME/startup-marker"\n')
+    monkeypatch.setenv("BASH_ENV", str(startup))
+    monkeypatch.setenv("GH_TOKEN", "synthetic-path-loop-credential")
+    fixture_env = {
+        "PATH": os.defpath,
+        "HOME": str(home),
+        "LC_ALL": "C",
+        "LANG": "C",
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_TERMINAL_PROMPT": "0",
+    }
 
     def run_git(*args: str) -> str:
-        result = subprocess.run(  # nosec B603: resolved Git in test-owned repository (remove-by: 2026-10-31, ref: PR-2446)
-            [git, "-C", str(tmp_path), *args],
+        result = subprocess.run(
+            [
+                git,
+                "-C",
+                str(repo),
+                "-c",
+                f"core.hooksPath={os.devnull}",
+                "-c",
+                "init.templateDir=",
+                *args,
+            ],
             check=True,
             capture_output=True,
             text=True,
             env=fixture_env,
+            timeout=30,
         )
         return result.stdout.strip()
 
     run_git("init", "--quiet")
-    source = tmp_path / source_path
+    source = repo / source_path
     source.parent.mkdir(parents=True)
     source.write_text("safe source corpus evidence\n", encoding="utf-8")
     run_git("add", ".")
@@ -2682,12 +2869,15 @@ def test_docs_phase1_corpus_input_discovery_executes_workflow_path_loop(
     )
     base_ref = run_git("rev-parse", "HEAD")
     destination_path: str | None = None
-    if operation == "copy":
+    if operation in {"copy", "rename"}:
         destination_path = "docs/evidence/copied.json"
-        destination = tmp_path / destination_path
+        destination = repo / destination_path
         destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_bytes(source.read_bytes())
-        run_git("add", destination_path)
+        if operation == "copy":
+            destination.write_bytes(source.read_bytes())
+            run_git("add", destination_path)
+        else:
+            run_git("mv", source_path, destination_path)
     else:
         source.write_text("safe updated corpus evidence\n", encoding="utf-8")
         run_git("add", source_path)
@@ -2709,22 +2899,55 @@ def test_docs_phase1_corpus_input_discovery_executes_workflow_path_loop(
     end = run_script.index("\n", run_script.index("done < <(git diff --name-status", start))
     path_loop = run_script[start:end]
     assert "--find-copies-harder" in path_loop
-    result = subprocess.run(  # nosec B603: resolved Bash runs extracted fixed workflow loop (remove-by: 2026-10-31, ref: PR-2446)
-        [
-            bash,
-            "-c",
-            "set -euo pipefail\n"
-            + path_loop
-            + "\nprintf 'FLAG=%s\\n' \"$PR5_SOURCE_CORPUS_CHANGED\"\n"
-            + "printf 'PATH=%s\\n' \"${ALL_CHANGED_FILES[@]}\"\n",
-        ],
-        cwd=tmp_path,
-        env={**fixture_env, "BASE_REF": base_ref},
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+    call_start = run_script.index('if [ "${PR5_SOURCE_CORPUS_CHANGED}" -eq 1 ]; then')
+    # YAML dedents the complete run body; locate the first standalone closing fi.
+    call_lines = run_script[call_start:].splitlines()
+    end_line = next(index for index, line in enumerate(call_lines) if line.strip() == "fi")
+    corpus_call = "\n".join(call_lines[: end_line + 1])
 
+    def run_shell(script: str, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [bash, "-c", script],
+            cwd=repo,
+            env=env,
+            timeout=30,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+    run_shell(
+        ":", {**fixture_env, "BASH_ENV": str(startup), "GH_TOKEN": "synthetic-path-loop-credential"}
+    )
+    assert marker.read_text() == "synthetic-path-loop-credential"
+    marker.unlink()
+    result = run_shell(
+        'test -z "${GH_TOKEN+x}" && test -z "${BASH_ENV+x}" || exit 71\n'
+        + "set -euo pipefail\n"
+        + path_loop
+        + "\npython() { printf 'ARG=%s\\n' \"$@\"; }\n"
+        + corpus_call
+        + "\nprintf 'FLAG=%s\\n' \"$PR5_SOURCE_CORPUS_CHANGED\"\n"
+        + "printf 'PATH=%s\\n' \"${ALL_CHANGED_FILES[@]}\"\n",
+        {**fixture_env, "BASE_REF": base_ref},
+    )
+    assert not marker.exists()
+
+    output_lines = result.stdout.splitlines()
+    paths = [line.removeprefix("PATH=") for line in output_lines if line.startswith("PATH=")]
+    arguments = [line.removeprefix("ARG=") for line in output_lines if line.startswith("ARG=")]
+    assert arguments == (
+        [
+            "scripts/ci/check_philosophy_source_corpus_index.py",
+            "--check",
+            "--base-ref",
+            base_ref,
+            "--files",
+            *paths,
+        ]
+        if expected_trigger == "1"
+        else []
+    )
     assert f"FLAG={expected_trigger}" in result.stdout.splitlines()
     assert f"PATH={source_path}" in result.stdout.splitlines()
     if destination_path is not None:
@@ -2800,8 +3023,8 @@ def test_changes_job_uses_node24_paths_filter_pin_and_keeps_ios_filters() -> Non
     for path in ios_filters:
         assert f"`{path}`" in agents_text
 
-    assert "Xcode 27.0 (matches the current iOS SDK lane)" in agents_text
-    assert "exact Xcode 27.0 fallback at `/Applications/Xcode.app`" in agents_text
+    assert "Xcode 27.2 (matches the current iOS SDK lane)" in agents_text
+    assert "exact Xcode 27.2 fallback at `/Applications/Xcode.app`" in agents_text
     assert "Xcode 16.x (matches project format)" not in agents_text
     assert "Xcode 16.4 → 16.3 → 16.2" not in agents_text
 
@@ -2821,11 +3044,15 @@ def test_changes_job_uses_node24_paths_filter_pin_and_keeps_ios_filters() -> Non
         )
         priority_positions = [
             executable_xcode_lines.index(f'"/Applications/Xcode_{version}.app/Contents/Developer"')
-            for version in ("27.0.0", "27.0")
+            for version in ("27.2.0", "27.2")
         ]
+        priority_positions.append(
+            executable_xcode_lines.index('"/Applications/Xcode.app/Contents/Developer"')
+        )
         assert priority_positions == sorted(priority_positions)
-        assert 'if [ "$XCODE_VERSION" != "27.0" ]; then' in executable_xcode_lines
-        assert 'if [ "$sdk_version" != "27.0" ]; then' in executable_xcode_lines
+        assert "for sdk in iphoneos iphonesimulator; do" in executable_xcode_lines
+        assert 'if [ "$XCODE_VERSION" != "27.2" ]; then' in executable_xcode_lines
+        assert 'if [ "$sdk_version" != "27.2" ]; then' in executable_xcode_lines
         assert "Apple Swift version 6.4" in executable_xcode_lines
         assert (
             'python3 ../scripts/ci/select_ios_simulator.py --family "${{ matrix.family }}"'
@@ -3579,7 +3806,7 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
             f"aquasecurity/trivy-action@{TRIVY_ACTION_NODE24_CACHE_SHA}",
             {
                 "version": "v0.74.0",
-                "image-ref": "gcr.io/distroless/static-debian13@sha256:2293b36c7c9082bf4115aab724b4d2cddec82c8eba39bf27ac0517e159acf150",
+                "image-ref": "gcr.io/distroless/static-debian13@sha256:433bb346cd0b6b8346462f879adaa4ac0fbb463a72901b46736ede4aeca3dadc",
                 "format": "table",
                 "severity": "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL",
                 "exit-code": "0",
@@ -3592,6 +3819,27 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
     )
     assert observed_trivy_contracts == expected_trivy_contracts
     assert len(observed_trivy_contracts) == 7
+
+
+def test_standalone_trivy_restores_event_policy_before_native_controls() -> None:
+    steps = [step for job_id, step in _iter_job_steps(TRIVY_WORKFLOW_PATH) if job_id == "build"]
+    names = [step.get("name") for step in steps]
+    prepare = names.index("Prepare Trivy ignore policy")
+    scan = names.index("Run Trivy vulnerability scanner")
+    controls = "Check native Bookworm backport policy controls"
+    assert names.count(controls) == 1
+    assert prepare < scan
+    assert "cp trivy/ignore-policy.rego .trivy-ignore-policy.rego" in str(steps[prepare]["run"])
+    assert steps[scan + 1]["name"] == controls
+    step = steps[scan + 1]
+    assert set(step) == {"name", "run"}
+    run = step["run"]
+    assert isinstance(run, str)
+    assert [line for line in run.splitlines() if not line.startswith("#")] == [
+        "set -euo pipefail",
+        '/usr/bin/git restore --source="$GITHUB_SHA" --worktree -- trivy/ignore-policy.rego',
+        "python3 -m tests.fixtures.check_trivy_bookworm_backport",
+    ]
 
 
 def test_build_workflow_trivy_fs_sarif_is_temp_isolated_before_upload() -> None:
@@ -3988,7 +4236,7 @@ def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() 
 
     expected_action_lines = {
         BUILD_WORKFLOW_PATH: {
-            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} # v7.0.1 / Node 24": 13,
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} # v7.0.1 / Node 24": 14,
         },
         GREENLIGHT_IOS_WORKFLOW_PATH: {
             f"actions/setup-go@{SETUP_GO_NODE24_SHA} # v7.0.0 / Node 24": 1,
@@ -4243,6 +4491,8 @@ def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() 
             None,
         ),
     )
+    pair_evidence = "${{ runner.temp }}/prometheus-pair-${{ github.run_id }}-1/evidence/"
+    native_saves = tuple(f"{pair_evidence}{lane}/import-save/native.tar" for lane in ("a", "b"))
     expected_contracts[9:9] = [
         (
             ".github/workflows/build.yml",
@@ -4277,11 +4527,26 @@ def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() 
         (
             ".github/workflows/build.yml",
             "prometheus-source-build-pair",
+            "Retain raw native-save diagnostics",
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
+            {
+                "name": "prometheus-source-native-save-${{ github.run_id }}-${{ github.run_attempt }}",
+                "path": "\n".join((*native_saves, "")),
+                "if-no-files-found": "error",
+                "retention-days": 90,
+            },
+            "${{ always() && steps.native-save-files.outputs.present == 'true' }}",
+            None,
+            None,
+        ),
+        (
+            ".github/workflows/build.yml",
+            "prometheus-source-build-pair",
             "Retain complete real pair evidence",
             f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
             {
                 "name": "prometheus-source-candidate-${{ github.run_id }}-1",
-                "path": "${{ runner.temp }}/prometheus-pair-${{ github.run_id }}-1/evidence/",
+                "path": "\n".join((pair_evidence, *(f"!{path}" for path in native_saves), "")),
                 "if-no-files-found": "error",
                 "retention-days": 90,
             },
@@ -4790,6 +5055,47 @@ def test_contract_risk_suite_ignores_commented_db_target(job_id: str) -> None:
     assert target not in route_targets
 
 
+def _owned_darwin_zombie_leader(
+    row: dict[str, object], leader_pid: int, leader_start: str | None
+) -> bool:
+    return (
+        row["pid"] == leader_pid
+        and row["ppid"] == os.getpid()
+        and row["pgid"] == leader_pid
+        and row["uid"] == os.getuid()
+        and bool(leader_start)
+        and row["start"] == leader_start
+        and row["state"] == "Z"
+    )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        {},
+        {"pid": 19},
+        {"ppid": -1},
+        {"pgid": 19},
+        {"uid": -1},
+        {"start": "later"},
+        {"state": "S"},
+        {"state": "Z+"},
+    ],
+)
+def test_owned_darwin_zombie_leader_requires_complete_witness(mutation: dict[str, object]) -> None:
+    row: dict[str, object] = {
+        "pid": 17,
+        "ppid": os.getpid(),
+        "pgid": 17,
+        "uid": os.getuid(),
+        "start": "birth",
+        "state": "Z",
+    }
+    row.update(mutation)
+    assert _owned_darwin_zombie_leader(row, 17, "birth") is (not mutation)
+    assert not _owned_darwin_zombie_leader(row, 17, None)
+
+
 @pytest.mark.parametrize("job_id", ["test-pr", "test-feature"])
 @pytest.mark.parametrize(
     "failed_batch,missing_data,terminate_run,stale_data,residual_child,cleanup_failure",
@@ -4819,7 +5125,11 @@ def test_contract_batches_wait_all_statuses_and_combine_only_complete_isolated_i
     cleanup_failure: bool,
 ) -> None:
     """Run the actual paired shell steps with rendezvous, real SQLite and failure controls."""
+    import signal
     import sys
+    import time
+
+    from scripts.ci.prometheus_source_image import process_census, process_identity
 
     workflow = _load_ci_workflow()
     step = _job_step_by_name(workflow, job_id=job_id, step_name="Contract and risk suites")
@@ -4839,7 +5149,7 @@ def test_contract_batches_wait_all_statuses_and_combine_only_complete_isolated_i
         "#!"
         + sys.executable
         + "\n"
-        + "import json, os, signal, sqlite3, sys, time\nfrom pathlib import Path\n"
+        + "import atexit, json, os, signal, sqlite3, sys, time\nfrom pathlib import Path\n"
         + f"batch_count = {batch_count}\nfailed_batch = {failed_batch}\nmissing_data = {missing_data}\n"
         + f"terminate_run = {terminate_run!r}\nresidual_child = {residual_child!r}\n"
         + r"""
@@ -4847,6 +5157,31 @@ args = sys.argv[1:]
 if args[:1] == ["-"]:
     os.execv(sys.executable, [sys.executable, *args])
 events = Path("events")
+original_shell = int(os.environ["FIXTURE_ORIGINAL_SHELL"])
+absolute_limit = time.monotonic() + 65
+
+def stop_observer() -> None:
+    # Terminal interpreter cleanup only: leave active cancellation unchanged.
+    # Ignore any already-pending alarm before disabling the recurring timer.
+    signal.signal(signal.SIGALRM, signal.SIG_IGN)
+    signal.setitimer(signal.ITIMER_REAL, 0)
+
+atexit.register(stop_observer)
+
+def arm_observer():
+    def check_cancel(signum, frame):
+        if (events / "fixture-cancel").exists() or time.monotonic() >= absolute_limit:
+            os._exit(93)
+    signal.signal(signal.SIGALRM, check_cancel)
+    signal.setitimer(signal.ITIMER_REAL, 0.2, 0.2)
+
+def signal_parent(expected, sid, ppid, send):
+    if expected != sid or expected != ppid:
+        return False
+    send(expected, signal.SIGTERM)
+    return True
+
+arm_observer()
 if args[:5] == ["-W", "error", "-m", "coverage", "combine"]:
     assert [p.name for p in sorted(events.glob("done-*.json"))] == sorted(
         f"done-{i}.json" for i in range(1, batch_count + 1)
@@ -4863,6 +5198,7 @@ if terminate_run is True and index == 2:
     while not (events / "partial-start-ready").exists():
         assert time.monotonic() < deadline, "partial start publication probe never started"
         time.sleep(0.01)
+    assert (events / ".start-1.json.tmp").read_text() == "{"
     assert not (events / "start-1.json").exists(), "partial start event became visible"
     (events / "partial-start-observed").touch()
 if index % 2 == 1 and index > 1:
@@ -4877,16 +5213,25 @@ def stopped(signum, frame):
     raise SystemExit(143)
 signal.signal(signal.SIGTERM, signal.SIG_IGN if terminate_run == "ignore" else stopped)
 assert os.getpgid(0) == os.getpid(), "batch did not receive its own Bash job group"
-if terminate_run == "ignore" and index == 1:
+if terminate_run in ("ignore", "forced", "forced-readback") and index == 1:
     child = os.fork()
     if child == 0:
+        arm_observer()
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        if terminate_run in ("forced", "forced-readback"):
+            record = {"pid": os.getpid(), "pgid": os.getpgid(0), "sid": os.getsid(0),
+                      "ignores_term": signal.getsignal(signal.SIGTERM) == signal.SIG_IGN}
+            pending = events / ".resistant-ready.tmp"
+            pending.write_text(json.dumps(record))
+            pending.replace(events / "resistant-ready")
+
         while True:
             signal.pause()
     (events / "grandchild.json").write_text(json.dumps({"pid": child, "pgid": os.getpgid(0)}))
 if residual_child and index == 1:
     child = os.fork()
     if child == 0:
+        arm_observer()
         def child_stopped(signum, frame):
             (events / "residual-stopped").write_text("SIGTERM")
             os._exit(143)
@@ -4910,11 +5255,11 @@ start = {
     "database_url": os.environ["DATABASE_URL"],
     "fallback_url": os.environ["DB_FALLBACK_URL"],
 }
-start_path = events / f"start-{index}.json"
-staged_start = start_path.with_suffix(".pending")
+# Publish complete start metadata before the partner can trigger termination.
+pending_start = events / f".start-{index}.json.tmp"
 payload = json.dumps(start)
-with staged_start.open("w") as stream:
-    if terminate_run is True and index == 1:
+if terminate_run is True and index == 1:
+    with pending_start.open("w") as stream:
         # Force the peer to observe the publication boundary while JSON is incomplete.
         stream.write(payload[:1])
         stream.flush()
@@ -4924,9 +5269,9 @@ with staged_start.open("w") as stream:
             assert time.monotonic() < deadline, "peer never checked partial publication"
             time.sleep(0.01)
         stream.write(payload[1:])
-    else:
-        stream.write(payload)
-staged_start.replace(start_path)
+else:
+    pending_start.write_text(payload)
+pending_start.replace(events / f"start-{index}.json")
 assert len(list(events.glob("running-*"))) <= 2
 partner = index + 1 if index % 2 else index - 1
 if partner <= batch_count:
@@ -4935,10 +5280,13 @@ if partner <= batch_count:
         assert time.monotonic() < deadline, "paired batch never started"
         time.sleep(0.01)
 if terminate_run:
-    if index == 2:
-        os.kill(os.getppid(), signal.SIGTERM)
-    signal.pause()
-    raise SystemExit(92)
+    if index == 2 and terminate_run not in ("forced", "forced-readback"):
+        def forbidden_signal(*args):
+            raise AssertionError("parent mismatch attempted a signal")
+        assert not signal_parent(original_shell, original_shell, -1, forbidden_signal)
+        assert signal_parent(original_shell, os.getsid(0), os.getppid(), os.kill)
+    while True:
+        signal.pause()
 with sqlite3.connect(start["database"]) as db:
     db.execute("CREATE TABLE batch_identity (value INTEGER)")
     db.execute("INSERT INTO batch_identity VALUES (?)", (index,))
@@ -4969,21 +5317,166 @@ raise SystemExit(status)
   builtin kill "$@"
 }
 """ + run_script
-    result = subprocess.run(
-        [bash, "-c", run_script],
-        cwd=tmp_path,
-        env={
-            "PATH": str(tmp_path) + os.pathsep + os.defpath,
-            "RUNNER_TEMP": str(tmp_path / "runner-temp"),
-            "CONTRACT_RISK_CLEANUP_SECONDS": (
-                "1" if cleanup_failure else str(workflow["env"]["CONTRACT_RISK_CLEANUP_SECONDS"])
-            ),
-            "CONTRACT_RISK_GROUPS": ",".join(groups),
-        },
-        capture_output=True,
-        text=True,
-        timeout=60,
-        check=False,
+    environment = {
+        "PATH": str(tmp_path) + os.pathsep + os.defpath,
+        "RUNNER_TEMP": str(tmp_path / "runner-temp"),
+        "CONTRACT_RISK_CLEANUP_SECONDS": (
+            "1" if cleanup_failure else str(workflow["env"]["CONTRACT_RISK_CLEANUP_SECONDS"])
+        ),
+        "CONTRACT_RISK_GROUPS": ",".join(groups),
+    }
+    if signal.getsignal(signal.SIGCHLD) != signal.SIG_DFL:
+        pytest.fail("The fixture must own its Bash child's wait status")
+    command = [bash, "-c", "export FIXTURE_ORIGINAL_SHELL=$$\n" + run_script]
+    forced = terminate_run in ("forced", "forced-readback")
+    cancel = events / "fixture-cancel"
+    stdout_path, stderr_path = tmp_path / "shell.stdout", tmp_path / "shell.stderr"
+    deadline = time.monotonic() + 60
+
+    inject_readback_error = terminate_run == "forced-readback"
+
+    leader_start: str | None = None
+
+    def session_sample(session: int, until: float) -> dict[int, tuple[object, ...]] | None:
+        nonlocal inject_readback_error
+        if inject_readback_error and cancel.exists():
+            inject_readback_error = False
+            raise OSError("synthetic terminal readback failure")
+        rows = process_census(until, ())
+        witness = rows.get(os.getpid())
+        assert witness is not None and witness["uid"] == os.getuid()
+        members = {}
+        for pid, row in rows.items():
+            if row["uid"] != os.getuid():
+                continue
+            try:
+                sid = os.getsid(pid)
+            except ProcessLookupError:
+                if sys.platform == "darwin" and pid == session:
+                    # Darwin cannot report the SID of our unreaped zombie child.
+                    if not _owned_darwin_zombie_leader(row, session, leader_start):
+                        return None
+                    members[pid] = (*process_identity(row), True)
+                elif sys.platform == "darwin" and row["state"] != "Z":
+                    # A disappearing live row needs a fresh census before quiescence.
+                    return None
+                continue
+            if sid == session:
+                members[pid] = (*process_identity(row), row["state"] == "Z")
+        return members
+
+    def shell_exited(pid: int) -> bool:
+        if all(hasattr(os, key) for key in ("waitid", "P_PID", "WEXITED", "WNOHANG", "WNOWAIT")):
+            try:
+                observed = os.waitid(os.P_PID, pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+                return observed is not None and observed.si_pid == pid
+            except NotImplementedError:
+                pass
+        rows = process_census(deadline, ())
+        row = rows.get(pid)
+        assert row is not None and row["uid"] == os.getuid()
+        return bool(row["state"] == "Z")
+
+    with stdout_path.open("wb") as stdout, stderr_path.open("wb") as stderr:
+        process = subprocess.Popen(
+            command,
+            cwd=tmp_path,
+            env=environment,
+            stdout=stdout,
+            stderr=stderr,
+            start_new_session=True,
+        )
+        primary: BaseException | None = None
+        forced_deadline: float | None = None
+        try:
+            if sys.platform == "darwin":
+                leader = process_census(deadline, ())[process.pid]
+                assert leader["pid"] == leader["pgid"] == process.pid
+                assert leader["ppid"] == os.getpid() and leader["uid"] == os.getuid()
+                leader_start = leader["start"]
+            while time.monotonic() < deadline:
+                if forced_deadline is not None and time.monotonic() >= forced_deadline:
+                    raise subprocess.TimeoutExpired(command, 0.35)
+                ready = events / "resistant-ready"
+                if (
+                    forced
+                    and forced_deadline is None
+                    and ready.is_file()
+                    and (events / "start-2.json").is_file()
+                ):
+                    record = json.loads(ready.read_text())
+                    assert record["sid"] == process.pid and record["ignores_term"] is True
+                    first_sample = session_sample(process.pid, deadline)
+                    first = first_sample and first_sample.get(record["pid"])
+                    second_sample = session_sample(process.pid, deadline)
+                    second = second_sample and second_sample.get(record["pid"])
+                    if (
+                        first
+                        and second == first
+                        and first[-1] is False
+                        and first[1] == record["pgid"]
+                    ):
+                        (events / "forced-timeout-witness").write_text(json.dumps(record))
+                        forced_deadline = time.monotonic() + 0.35
+                if shell_exited(process.pid):
+                    break
+                time.sleep(0.12)
+            else:
+                raise subprocess.TimeoutExpired(command, 60)
+        except BaseException as error:
+            primary = error
+            raise
+        finally:
+            cleanup_deadline = time.monotonic() + 10
+            errors: list[BaseException] = []
+            if primary is not None:
+                try:
+                    cancel.touch()
+                except BaseException as error:
+                    errors.append(error)
+                try:
+                    os.kill(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                except BaseException as error:
+                    errors.append(error)
+            try:
+                previous = None
+                while time.monotonic() < cleanup_deadline:
+                    try:
+                        members = session_sample(process.pid, cleanup_deadline)
+                    except (OSError, RuntimeError) as error:
+                        if not errors:
+                            errors.append(error)
+                        previous = None
+                        time.sleep(0.12)
+                        continue
+                    if (
+                        members is not None
+                        and members.get(process.pid)
+                        and members == previous
+                        and all(row[-1] is True for row in members.values())
+                    ):
+                        (events / "terminal-session").write_text(json.dumps(members))
+                        break
+                    previous = members
+                    time.sleep(0.12)
+                else:
+                    raise TimeoutError("owned session quiescence unobserved")
+            except BaseException as error:
+                errors.append(error)
+            finally:
+                try:
+                    status = process.wait(timeout=max(0.01, cleanup_deadline - time.monotonic()))
+                except BaseException as error:
+                    errors.append(error)
+            if errors:
+                if primary is None:
+                    raise errors[0]
+                for error in errors:
+                    primary.add_note(f"fixture cleanup: {type(error).__name__}: {error}")
+    result = subprocess.CompletedProcess(
+        command, status, stdout_path.read_text(), stderr_path.read_text()
     )
     (tmp_path / "observed-shell-result.json").write_text(
         json.dumps({"exit": result.returncode, "stdout": result.stdout, "stderr": result.stderr})
@@ -4994,7 +5487,7 @@ raise SystemExit(status)
         else (1 if failed_batch or missing_data or stale_data or cleanup_failure else 0)
     )
     assert result.returncode == expected_exit, result.stderr
-    assert not list(events.glob("start-*.pending"))
+    assert not list(events.glob(".start-*.json.tmp"))
     if terminate_run is True:
         assert (events / "partial-start-ready").exists()
         assert (events / "partial-start-observed").exists()
@@ -5055,8 +5548,7 @@ raise SystemExit(status)
         assert result.stdout.count("Reaped owned contract/risk batch pid") == 2
         for index in (1, 2):
             child = json.loads((events / f"start-{index}.json").read_text())
-            with pytest.raises(ProcessLookupError):
-                os.kill(child["pid"], 0)
+            assert str(child["pid"]) not in json.loads((events / "terminal-session").read_text())
             observed = assert_native_process_inactive(child["pid"], child["pgid"])
             (events / f"batch-{index}-inactive-observation.json").write_text(json.dumps(observed))
         children = {
@@ -5134,8 +5626,7 @@ raise SystemExit(status)
         status = 7 if index == failed_batch else 0
         assert f"Contract/risk batch {index} exited {status}" in result.stdout
         assert json.loads((events / f"done-{index}.json").read_text())["status"] == status
-        with pytest.raises(ProcessLookupError):
-            os.kill(start["pid"], 0)
+        assert str(start["pid"]) not in json.loads((events / "terminal-session").read_text())
     assert len(databases) == batch_count and seen_targets == expected_targets
     assert (tmp_path / ".coverage").read_text() == "existing smoke coverage"
     combine = tmp_path / "observed-combine.json"
@@ -5159,6 +5650,32 @@ raise SystemExit(status)
                 )
             ],
         ]
+
+
+@pytest.mark.parametrize("control", ["forced", "forced-readback"])
+def test_contract_batch_driver_timeout_retains_primary_and_checks_owned_session(
+    tmp_path: Path, control: str
+) -> None:
+    with pytest.raises(subprocess.TimeoutExpired) as failure:
+        test_contract_batches_wait_all_statuses_and_combine_only_complete_isolated_inventory(
+            tmp_path, "test-pr", 0, 0, control, False, False, False
+        )
+    assert failure.value.timeout == 0.35
+    events = tmp_path / "events"
+    assert (events / "forced-timeout-witness").is_file()
+    assert (events / "fixture-cancel").exists()
+    members = json.loads((events / "terminal-session").read_text())
+    assert members and all(row[-1] is True for row in members.values())
+    leader = json.loads((events / "forced-timeout-witness").read_text())["sid"]
+    assert str(leader) in members
+    with pytest.raises(ChildProcessError):
+        os.waitpid(leader, os.WNOHANG)
+    notes = getattr(failure.value, "__notes__", [])
+    assert notes == (
+        ["fixture cleanup: OSError: synthetic terminal readback failure"]
+        if control == "forced-readback"
+        else []
+    )
 
 
 @pytest.mark.parametrize("job_id", ["test-pr", "test-feature"])
@@ -5258,6 +5775,52 @@ exec(compile(sys.stdin.read(), "<workflow-postwait-observation>", "exec"))
         assert "::error::Contract/risk post-wait observation failed" in result.stderr
 
 
+@pytest.mark.parametrize("shared_alias", [False, True], ids=["distinct", "same-identity"])
+def test_limiter_discovery_preserves_bound_apps_and_identity_deduplication(
+    monkeypatch: pytest.MonkeyPatch, shared_alias: bool
+) -> None:
+    """Observe concrete aliases across the actual loaded-module snapshot."""
+    import sys
+
+    from fastapi import FastAPI
+
+    from tests import conftest as suite_conftest
+
+    current = vars(sys.modules[__name__])
+    support = vars(sys.modules["tests._client"])
+    lazy = vars(sys.modules["tests"])
+    assert current is not support and lazy is not current and lazy is not support
+    for namespace in (current, support, lazy):
+        assert "app" not in namespace and "main_app" not in namespace
+
+    first = FastAPI()
+    second = first if shared_alias else FastAPI()
+    non_app = object()
+    observed: list[object] = []
+    lazy_lookups: list[str] = []
+
+    def lazy_attribute(name: str) -> object:
+        lazy_lookups.append(name)
+        raise AttributeError(name)
+
+    with monkeypatch.context() as scoped:
+        scoped.setitem(current, "app", first)
+        scoped.setitem(current, "main_app", second)
+        scoped.setitem(support, "app", non_app)
+        scoped.setitem(support, "main_app", first)
+        scoped.setitem(lazy, "__getattr__", lazy_attribute)
+        scoped.setattr(suite_conftest, "disable_rate_limiting_for_test_app", observed.append)
+        suite_conftest._disable_singleton_rate_limiters.__wrapped__()
+
+    assert lazy_lookups == []
+    assert sum(instance is first for instance in observed) == 1
+    if not shared_alias:
+        assert sum(instance is second for instance in observed) == 1
+    assert all(instance is not non_app for instance in observed)
+    for namespace in (current, support, lazy):
+        assert "app" not in namespace and "main_app" not in namespace
+
+
 def test_test_pr_contract_capture_supports_real_ci_root_conftest(tmp_path: Path) -> None:
     """The real CI/root-conftest boundary must precede claims about test transport."""
     import sys
@@ -5314,15 +5877,27 @@ def test_test_pr_contract_capture_supports_real_ci_root_conftest(tmp_path: Path)
             "DB_FALLBACK_URL": "sqlite:///" + str(database),
             "TMPDIR": str(profile / "tmp"),
         }
-        result = subprocess.run(
-            command,
-            cwd=REPO_ROOT,
-            env=environment,
-            capture_output=True,
-            text=True,
-            timeout=30,
-            check=False,
-        )
+        try:
+            result = subprocess.run(
+                command,
+                cwd=REPO_ROOT,
+                env=environment,
+                capture_output=True,
+                text=True,
+                timeout=60 if capture == "no" else 30,  # The positive child runs the covered test.
+                check=False,
+            )
+        except subprocess.TimeoutExpired as timeout:
+            for suffix, raw in (("stdout", timeout.stdout), ("stderr", timeout.stderr)):
+                path = tmp_path / f"ci-capture-{capture}.{suffix}.log"
+                try:
+                    path.write_bytes(raw if isinstance(raw, bytes) else (raw or "").encode())
+                    path.chmod(0o600)
+                except OSError as retention_error:
+                    timeout.add_note(
+                        f"Timeout evidence retention failed for {suffix}: {retention_error}"
+                    )
+            raise
         for suffix, raw in (("stdout", result.stdout), ("stderr", result.stderr)):
             path = tmp_path / f"ci-capture-{capture}.{suffix}.log"
             path.write_text(raw)
@@ -5738,7 +6313,7 @@ IOS_RELEASE_BUILD_RUN_SHA256 = (
 )
 # Non-secret SHA-256 of the exact yaml.safe_load() UI smoke run scalar; no normalization.
 IOS_UI_SMOKE_RUN_SHA256 = (
-    "bf9a94c226d1e42c30f111737c343591afbca7eb8f7559e3861cadded28cbb65"  # pragma: allowlist secret
+    "5f1d716454b29853b7b5e5356cfde3fd664110eb7620262f38a54a4f37c14e22"  # pragma: allowlist secret
 )
 
 
@@ -5776,7 +6351,7 @@ def _assert_ios_release_build_contract(workflow: dict[str, object]) -> None:
     step_names = [step.get("name") for step in steps]
     assert step_names == [
         "Checkout",
-        "Select Xcode (require exact 27.0 and iOS 27 SDK)",
+        "Select Xcode (require exact 27.2 and iOS 27.2 SDK)",
         "Cache SwiftPM packages (SourcePackages only, not Build)",
         "Select iOS simulator destination (stable)",
         IOS_APPSTORE_VERIFY_STEP_NAME,
@@ -5892,11 +6467,28 @@ def _assert_ios_family_matrix_contract(workflow: dict[str, object]) -> None:
                 for step in steps
                 if step.get("name") == "iOS UI smoke (build-for-testing + test-without-building)"
             )
+            assert smoke_step["env"] == {
+                "DEVELOPER_DIR": "${{ steps.select-xcode.outputs.developer_dir }}",
+                "UI_SMOKE_FOREGROUND_TIMEOUT_SECONDS": "90",
+                "IOS_UI_SMOKE_BUILD_TIMEOUT_SECONDS": 900,
+                "SIM_BOOT_TIMEOUT_SECONDS": "${{ matrix.family == 'ipad' && '420' || '300' }}",
+                "SIM_BOOT_DIAGNOSTIC_TIMEOUT_SECONDS": "30",
+            }
             smoke_run = smoke_step["run"]
             assert isinstance(smoke_run, str)
             assert hashlib.sha256(smoke_run.encode("utf-8")).hexdigest() == IOS_UI_SMOKE_RUN_SHA256
             assert 'DESTINATION="${{ steps.select-destination.outputs.destination }}"' in smoke_run
             assert smoke_run.count('"-destination", destination') == 2
+            timeout_input = 'timeout_s = int(os.environ["IOS_UI_SMOKE_BUILD_TIMEOUT_SECONDS"])'
+            assert smoke_run.count(timeout_input) == 1
+            assert "except (KeyError, ValueError):" in smoke_run
+            assert "if timeout_s <= 0:" in smoke_run
+            assert "subprocess.run(cmd, timeout=timeout_s, check=True)" in smoke_run
+            assert "subprocess.run(cmd, timeout=900, check=True)" in smoke_run
+            assert "SIM_BOOT_TIMEOUT_SECONDS:-" not in smoke_run
+            assert smoke_run.index('if [ -z "$UDID" ]; then') < smoke_run.index(
+                'if [ -n "$UDID" ]; then'
+            )
         artifact = next(step for step in steps if step.get("name") == artifact_step)
         artifact_name = artifact["with"]["name"]
         assert "${{ matrix.family }}" in artifact_name
@@ -6353,6 +6945,7 @@ def test_ci_lint_restores_workflow_sha_before_pr_python_startup() -> None:
     restore = _job_step_by_name(workflow, job_id="lint", step_name="Restore lint workflow revision")
     assert restore == {
         "name": "Restore lint workflow revision",
+        "timeout-minutes": 2,
         "if": "github.event_name == 'pull_request'",
         "uses": f"actions/checkout@{CHECKOUT_V7_SHA}",
         "with": {
@@ -6415,6 +7008,55 @@ def test_ci_lint_workflow_sha_verification_requires_native_git_success(
     assert result.returncode == expected_exit, result.stderr
 
 
+def test_ci_prepares_the_designated_controller_before_its_offline_consumers() -> None:
+    workflow = _load_ci_workflow()
+    control = _job_step_by_name(
+        workflow, job_id="lint", step_name="Checkout fixed trusted Prometheus control"
+    )
+    cd = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    cd_control = _job_step_by_name(
+        cd, job_id="prometheus-image-security-pr", step_name=control["name"]
+    )
+    prepare_name = "Prepare pinned Prometheus Git object for tests"
+    for job, consumer in (
+        ("lint", "Pre-commit (lint/format/security quick checks)"),
+        ("test-main", "Run tests with coverage"),
+    ):
+        steps = workflow["jobs"][job]["steps"]
+        prepare = _job_step_by_name(workflow, job_id=job, step_name=prepare_name)
+        assert steps.index(prepare) < steps.index(
+            _job_step_by_name(workflow, job_id=job, step_name=consumer)
+        )
+        assert "if" not in prepare and "continue-on-error" not in prepare
+        assert (
+            prepare["env"]["CONTROLLER_SHA"] == control["with"]["ref"] == cd_control["with"]["ref"]
+        )
+        assert "--depth" not in prepare["run"]
+
+    nightly = _load_workflow(NIGHTLY_FULL_TESTS_WORKFLOW_PATH)
+    nightly_steps = nightly["jobs"]["tests"]["steps"]
+    nightly_prepare = _job_step_by_name(nightly, job_id="tests", step_name=prepare_name)
+    checkout = _job_step_by_name(nightly, job_id="tests", step_name="Checkout")
+    shards = _job_step_by_name(
+        nightly, job_id="tests", step_name="Run full test suite with coverage (include slow/MC)"
+    )
+    assert sum(step.get("name") == prepare_name for step in nightly_steps) == 1
+    prepare_index = nightly_steps.index(nightly_prepare)
+    assert nightly_steps.index(checkout) < prepare_index < nightly_steps.index(shards)
+    lint_prepare = _job_step_by_name(workflow, job_id="lint", step_name=prepare_name)
+    assert lint_prepare == _job_step_by_name(workflow, job_id="test-main", step_name=prepare_name)
+    expected_run = lint_prepare["run"]
+    assert isinstance(expected_run, str)
+    for prefix in (
+        "if ! git cat-file -e ",
+        "  git -c credential.helper= ",
+        'resolved="$(git rev-parse --verify ',
+    ):
+        assert expected_run.count(prefix) == 1
+        expected_run = expected_run.replace(prefix, prefix.replace("git ", "/usr/bin/git ", 1))
+    assert nightly_prepare == {**lint_prepare, "run": expected_run}
+
+
 def test_ci_main_matrix_uses_full_history_for_git_evidence_guards() -> None:
     workflow = _load_ci_workflow()
 
@@ -6429,9 +7071,47 @@ def test_ci_history_jobs_do_not_persist_checkout_credentials(job_id: str) -> Non
     checkout_step = _job_step_by_name(workflow, job_id=job_id, step_name="Checkout")
     assert checkout_step == {
         "name": "Checkout",
+        "id": "checkout",
         "uses": f"actions/checkout@{CHECKOUT_V7_SHA}",
         "with": {"fetch-depth": 0, "persist-credentials": False},
     }
+
+
+@pytest.mark.parametrize("job_id", PYTHON_TEST_JOB_NAMES)
+def test_ci_post_test_cache_cleanup_requires_successful_checkout(job_id: str) -> None:
+    workflow = _load_ci_workflow()
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    steps = jobs[job_id]["steps"]
+    step_names = [step["name"] for step in steps]
+
+    checkout_steps = [step for step in steps if step.get("id") == "checkout"]
+    assert len(checkout_steps) == 1
+    checkout = checkout_steps[0]
+    assert checkout["name"] == "Checkout"
+    assert checkout["uses"] == f"actions/checkout@{CHECKOUT_V7_SHA}"
+    cleanup_action = "./.github/actions/clean-python-cache"
+    cleanups = [step for step in steps if step.get("uses") == cleanup_action]
+    assert [step["name"] for step in cleanups] == [
+        "Clean Python cache",
+        "Clean Python cache (post-test)",
+    ]
+    pre_cleanup, post_cleanup = cleanups
+    assert post_cleanup["if"] == "always() && steps.checkout.outcome == 'success'"
+
+    producer = "Finalize coverage artifacts"
+    upload = "Upload coverage artifact (single coverage runtime)"
+    if job_id == "test-main":
+        producer = "Run tests with coverage"
+        upload = "Upload coverage artifact (all Python versions)"
+    assert (
+        step_names.index("Enforce prerequisite results")
+        < steps.index(checkout)
+        < steps.index(pre_cleanup)
+        < step_names.index(producer)
+        < steps.index(post_cleanup)
+        < step_names.index(upload)
+    )
 
 
 def test_ci_lint_all_files_pre_commit_uses_project_node_version() -> None:
@@ -6467,10 +7147,15 @@ def _assert_ci_lint_node24_frontend_hook_dependency_contract(
         "contents": "read",
         "actions": "read",
         "packages": "read",
+        "pull-requests": "read",
     }, "ci_lint_reader_permissions"
     assert lint_job["env"] == {
         "PROMETHEUS_CONSUME_SECONDS": "900",
         "PROMETHEUS_CLEANUP_SECONDS": "120",
+        "ALERTMANAGER_JOB_TIMEOUT_MINUTES": "${{ fromJSON(vars.CI_LINT_TIMEOUT_MINUTES || '190') }}",
+        "ALERTMANAGER_CALLER_KIND": "ci-lint",
+        "ALERTMANAGER_GENERIC_NATIVE_MINUTES": "${{ vars.OBS2A_NATIVE_JOB_TIMEOUT_MINUTES || '40' }}",
+        "ALERTMANAGER_LINT_CHECK_MINUTES": "${{ vars.CI_LINT_CHECKS_TIMEOUT_MINUTES || '60' }}",
     }
     assert "environment" not in lint_job, "ci_lint_reader_environment"
     for forbidden_key in (
@@ -6496,6 +7181,7 @@ def _assert_ci_lint_node24_frontend_hook_dependency_contract(
     checkout_step = unique_step("Checkout")
     assert checkout_step == {
         "name": "Checkout",
+        "timeout-minutes": 1,
         "uses": f"actions/checkout@{CHECKOUT_V7_SHA}",
         "with": {
             "fetch-depth": 0,
@@ -6507,6 +7193,7 @@ def _assert_ci_lint_node24_frontend_hook_dependency_contract(
     setup_node_step = unique_step("Setup Node.js")
     assert setup_node_step == {
         "name": "Setup Node.js",
+        "timeout-minutes": 3,
         "uses": f"actions/setup-node@{SETUP_NODE_NODE24_SHA}",
         "with": {
             "node-version-file": "${{ env.FRONTEND_NODE_VERSION_FILE }}",
@@ -6522,15 +7209,99 @@ def _assert_ci_lint_node24_frontend_hook_dependency_contract(
     install_step = install_steps[0]
     assert install_step == {
         "uses": "./.github/actions/npm-ci-with-retry",
+        "timeout-minutes": 6,
         "with": {"working-directory": "frontend"},
     }
 
     pre_commit_step = unique_step("Pre-commit (lint/format/security quick checks)")
     assert pre_commit_step == {
         "name": "Pre-commit (lint/format/security quick checks)",
-        "timeout-minutes": "${{ fromJSON(vars.CI_LINT_CHECKS_TIMEOUT_MINUTES || '40') }}",
-        "run": "pre-commit run --all-files --show-diff-on-failure",
-        "env": {"SKIP": "no-commit-to-branch"},
+        "timeout-minutes": "${{ fromJSON(env.ALERTMANAGER_LINT_CHECK_MINUTES) }}",
+        "run": (
+            "set -euo pipefail\n"
+            ': "${RUNNER_TEMP:?RUNNER_TEMP is required for the owned pip seed.}"\n'
+            'pip_seed_root="$(mktemp -d "$RUNNER_TEMP/pulseplate-hook-seed.XXXXXXXX")"\n'
+            "trap 'rm -rf -- \"$pip_seed_root\"' EXIT\n"
+            "env -u PULSEPLATE_PSYCOPG_C_SDK python - \"$pip_seed_root\" <<'PY'\n"
+            "import json\n"
+            "from pathlib import Path\n"
+            "import sys\n"
+            "from scripts.ci.install_locked_python_requirements import (\n"
+            "    acquire_locked_wheelhouse,\n"
+            "    _validate_exact_wheelhouse,\n"
+            "    resolve_private_proxy_settings,\n"
+            ")\n"
+            "\n"
+            "root = Path(sys.argv[1])\n"
+            'requirement = root / "pip-seed.txt"\n'
+            'requirement.write_text("pip==26.2.2\\n", encoding="utf-8")\n'
+            "index, trusted_host = resolve_private_proxy_settings(index_url=None, trusted_host=None)\n"
+            "acquire_locked_wheelhouse(\n"
+            "    python_executable=sys.executable, requirement_files=[requirement],\n"
+            '    constraints_file=None, wheelhouse=root / "wheels",\n'
+            "    index_url=index, trusted_host=trusted_host, sdk=None,\n"
+            ")\n"
+            "artifacts = _validate_exact_wheelhouse(\n"
+            '    wheelhouse=root / "wheels", expected=frozenset({("pip", "26.2.2")}),\n'
+            ")\n"
+            "seed = artifacts[0]\n"
+            'if (seed.path.name != "pip-26.2.2-py3-none-any.whl"\n'
+            "    or seed.snapshot.size != 1819850\n"
+            '    or seed.snapshot.digest != "fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70"):\n'
+            '    raise SystemExit("Missing or incorrect reviewed pip seed")\n'
+            'print(json.dumps({"pip_seed": seed.path.name, "bytes": seed.snapshot.size,\n'
+            '                  "sha256": seed.snapshot.digest}))\n'
+            "PY\n"
+            "export VIRTUALENV_PIP=26.2.2\n"
+            'export VIRTUALENV_EXTRA_SEARCH_DIR="$pip_seed_root/wheels"\n'
+            "export VIRTUALENV_NO_PERIODIC_UPDATE=true\n"
+            "export VIRTUALENV_DOWNLOAD=false\n"
+            'export VIRTUALENV_APP_DATA="$pip_seed_root/app-data"\n'
+            'export PRE_COMMIT_HOME="$pip_seed_root/pre-commit"\n'
+            'mkdir -m 700 "$PRE_COMMIT_HOME"\n'
+            "pip_observation='import hashlib, importlib.metadata, json, sys\n"
+            "from pathlib import Path\n"
+            "import pip._vendor.certifi as certifi\n"
+            'version = importlib.metadata.version("pip")\n'
+            "trust = hashlib.sha256(Path(certifi.where()).read_bytes()).hexdigest()\n"
+            'print(json.dumps({"python": sys.executable, "prefix": sys.prefix,\n'
+            '                  "base_prefix": sys.base_prefix, "pip": version,\n'
+            '                  "embedded_trust_store_sha256": trust}))\n'
+            "assert sys.prefix != sys.base_prefix\n"
+            'assert version == "26.2.2"\n'
+            'assert trust == "50f79f98dac192b20dbf73f35c56f0b0c557ab267ff5199d1117cc1180b70785"\n'
+            "'\n"
+            "python -m virtualenv --no-download --no-periodic-update \\\n"
+            '  --app-data "$VIRTUALENV_APP_DATA" "$pip_seed_root/probe"\n'
+            '"$pip_seed_root/probe/bin/python" -I -c "$pip_observation"\n'
+            "if pre-commit run --all-files --show-diff-on-failure; then\n"
+            "  pre_commit_status=0\n"
+            "else\n"
+            "  pre_commit_status=$?\n"
+            "fi\n"
+            "shopt -s nullglob\n"
+            'hook_pythons=("$PRE_COMMIT_HOME"/repo*/py_env-*/bin/python)\n'
+            "observation_status=0\n"
+            'if [[ "${#hook_pythons[@]}" -eq 0 ]]; then\n'
+            '  echo "::error::No fresh Python hook interpreter was observed."\n'
+            "  observation_status=1\n"
+            "fi\n"
+            'for hook_python in "${hook_pythons[@]}"; do\n'
+            '  if ! "$hook_python" -I -c "$pip_observation"; then\n'
+            "    observation_status=1\n"
+            "  fi\n"
+            "done\n"
+            'if [[ "$pre_commit_status" -ne 0 ]]; then\n'
+            '  exit "$pre_commit_status"\n'
+            "fi\n"
+            'exit "$observation_status"\n'
+        ),
+        "env": {
+            "SKIP": "no-commit-to-branch",
+            "BACKEND_HOOK_CI_EVENT": "${{ github.event_name }}",
+            "BACKEND_HOOK_CI_BASE": "${{ github.event.pull_request.base.sha || github.event.before }}",
+            "BACKEND_HOOK_CI_HEAD": "${{ github.sha }}",
+        },
     }
 
     checkout_index = lint_steps.index(checkout_step)
@@ -6770,7 +7541,7 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
     assert isinstance(matrix, list)
 
     timeouts = {entry["python-version"]: entry["timeout-minutes"] for entry in matrix}
-    assert timeouts == {"3.11": 120, "3.12": 120, "3.13": 120}
+    assert timeouts == {"3.11": 180, "3.12": 180, "3.13": 180}
 
     workflow_text = CI_WORKFLOW_PATH.read_text(encoding="utf-8")
     test_main_section = _extract_job_section(workflow_text, "  test-main:")
@@ -6824,8 +7595,8 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
     assert "TEST_STEP_FINISHED_AT=" in shared_shard_runner_block
 
     assert "MAIN_TEST_SHARDS=32" in py313_block
-    assert "MAIN_TEST_MAX_PARALLEL=8" in py313_block
-    assert "export MAIN_TEST_SHARD_TIMEOUT_SECONDS=4800" in py313_block
+    assert "MAIN_TEST_MAX_PARALLEL=4" in py313_block
+    assert "export MAIN_TEST_SHARD_TIMEOUT_SECONDS=5400" in py313_block
     assert "PYTEST_XDIST_ARGS=(-p no:xdist)" not in py313_block
     assert "PYTEST_XDIST_ARGS=(-n 2 --dist=loadscope)" not in py313_block
     assert "PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)" not in py313_block
@@ -8008,7 +8779,7 @@ def _assert_frontend_node24_foundation_contract(
     assert isinstance(job, dict)
     assert (
         job.get("if")
-        == "${{ github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata' }}"
+        == "${{ github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet062-metadata' }}"
     )
     assert "continue-on-error" not in job
     assert job["defaults"] == {"run": {"working-directory": "frontend"}}
@@ -9081,3 +9852,227 @@ def test_fitchef_agent_structural_acceptance_still_requires_numeric_diff_coverag
     assert "No lines with coverage information" not in result.stdout
     assert f"Coverage: {0 if hits == 0 else 100}%" in result.stdout
     assert {path: path.read_bytes() for path in protected_paths} == parent_before
+
+
+@pytest.mark.parametrize(
+    ("partial_stdout", "partial_stderr"),
+    [
+        (b"partial-stdout\xff\n", b"partial-stderr\xfe\n"),
+        ("stdout é\n", "stderr é\n"),
+        (None, None),
+    ],
+    ids=["bytes", "text", "absent"],
+)
+@pytest.mark.parametrize("retention_failure", [False, True])
+def test_test_pr_contract_capture_preserves_timeout_output_and_primary_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    partial_stdout: bytes | str | None,
+    partial_stderr: bytes | str | None,
+    retention_failure: bool,
+) -> None:
+    import stat
+    import sys
+
+    timeout = subprocess.TimeoutExpired([], 60, output=partial_stdout, stderr=partial_stderr)
+    calls: list[str] = []
+
+    def observe_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        capture = "tee-sys" if not calls else "no"
+        profile = tmp_path / capture
+        database = profile / "batch.sqlite"
+        expected_environment = {
+            "PATH": os.defpath,
+            "HOME": str(profile / "home"),
+            "LANG": "C.UTF-8",
+            "CI": "true",
+            "TESTING": "true",
+            "APP_ENV": "test",
+            "ENVIRONMENT": "test",
+            "PYTHONUNBUFFERED": "1",
+            "PYTEST_FAULTHANDLER_TIMEOUT_S": "600",
+            "COVERAGE_FILE": str(profile / ".coverage"),
+            "COV_CORE_DATAFILE": str(profile / ".coverage"),
+            "TEST_DB_PATH": str(database),
+            "DATABASE_URL": "sqlite:///" + str(database),
+            "DB_FALLBACK_URL": "sqlite:///" + str(database),
+            "TMPDIR": str(profile / "tmp"),
+        }
+        assert command == [
+            sys.executable,
+            "-m",
+            "coverage",
+            "run",
+            "--append",
+            "-m",
+            "pytest",
+            "-q",
+            "--capture=" + capture,
+            "--verbosity=1",
+            "-p",
+            "no:xdist",
+            "tests/test_ci_workflow_pr_size_governance_contract.py::"
+            "test_contract_risk_suites_use_bounded_coverage_batches",
+            "--junitxml=" + str(profile / "result.xml"),
+            "--basetemp=" + str(profile / "pytest"),
+            "-o",
+            "junit_family=legacy",
+        ]
+        assert kwargs == {
+            "cwd": REPO_ROOT,
+            "env": expected_environment,
+            "capture_output": True,
+            "text": True,
+            "timeout": 60 if capture == "no" else 30,
+            "check": False,
+        }
+        calls.append(capture)
+        if capture == "tee-sys":
+            return subprocess.CompletedProcess(
+                command,
+                4,
+                "",
+                "conftest.py:22: faulthandler.enable() io.UnsupportedOperation: fileno",
+            )
+        timeout.cmd = command
+        raise timeout
+
+    original_write_bytes = Path.write_bytes
+
+    def fail_stdout_retention(path: Path, data: bytes) -> int:
+        if path == tmp_path / "ci-capture-no.stdout.log":
+            raise OSError("synthetic timeout retention failure")
+        return original_write_bytes(path, data)
+
+    monkeypatch.setattr(subprocess, "run", observe_run)
+    if retention_failure:
+        monkeypatch.setattr(Path, "write_bytes", fail_stdout_retention)
+    with pytest.raises(subprocess.TimeoutExpired) as caught:
+        test_test_pr_contract_capture_supports_real_ci_root_conftest(tmp_path)
+    assert caught.value is timeout and calls == ["tee-sys", "no"]
+    for suffix, raw in (("stdout", partial_stdout), ("stderr", partial_stderr)):
+        path = tmp_path / f"ci-capture-no.{suffix}.log"
+        if retention_failure and suffix == "stdout":
+            assert not path.exists()
+            assert any("synthetic timeout retention failure" in note for note in timeout.__notes__)
+        else:
+            assert path.read_bytes() == (raw if isinstance(raw, bytes) else (raw or "").encode())
+            assert stat.S_IMODE(path.stat().st_mode) == 0o600
+    assert json.loads((tmp_path / "ci-capture-observed.json").read_text())[0]["native_exit"] == 4
+
+
+def _ios_ui_boot_python() -> str:
+    """Return the actual first embedded boot block from the owning workflow."""
+    workflow = _load_ci_workflow()
+    job = workflow["jobs"]["ios-ui-smoke"]
+    step = next(
+        step
+        for step in job["steps"]
+        if step.get("name") == "iOS UI smoke (build-for-testing + test-without-building)"
+    )
+    blocks = step["run"].split("python3 - << 'PY'\n")
+    assert len(blocks) == 4
+    return blocks[1].split("\nPY", 1)[0]
+
+
+@pytest.mark.parametrize("timeout_seconds", [300, 420], ids=["iphone", "ipad"])
+@pytest.mark.parametrize(
+    ("readiness", "diagnostic", "expected_exit"),
+    [
+        ("ready", "unused", None),
+        ("timeout", "ready", 1),
+        ("timeout", "timeout", 1),
+        ("timeout", "oserror", 1),
+        ("nonzero", "ready", 17),
+        ("nonzero", "timeout", 17),
+        ("nonzero", "oserror", 17),
+        ("nonzero", "nonzero", 17),
+    ],
+)
+def test_ios_ui_boot_readiness_and_diagnostic_failures_preserve_original_result(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    timeout_seconds: int,
+    readiness: str,
+    diagnostic: str,
+    expected_exit: int | None,
+) -> None:
+    """Execute the real block with deterministic child results, never a simulator."""
+    monkeypatch.setenv("UDID", "00000000-0000-4000-8000-000000000001")
+    monkeypatch.setenv("SIM_BOOT_TIMEOUT_SECONDS", str(timeout_seconds))
+    monkeypatch.setenv("SIM_BOOT_DIAGNOSTIC_TIMEOUT_SECONDS", "30")
+    calls: list[list[str]] = []
+
+    def observe_run(
+        command: list[str], *, timeout: int, check: bool
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        if len(calls) == 1:
+            assert command == ["xcrun", "simctl", "bootstatus", os.environ["UDID"], "-b"]
+            assert timeout == timeout_seconds and check is True
+            if readiness == "timeout":
+                raise subprocess.TimeoutExpired(command, timeout)
+            if readiness == "nonzero":
+                raise subprocess.CalledProcessError(17, command)
+            return subprocess.CompletedProcess(command, 0)
+        assert len(calls) == 2
+        assert command == ["xcrun", "simctl", "list", "devices"]
+        assert timeout == 30 and check is False
+        if diagnostic == "timeout":
+            raise subprocess.TimeoutExpired(command, timeout)
+        if diagnostic == "oserror":
+            raise OSError("synthetic diagnostic launch failure")
+        return subprocess.CompletedProcess(command, 23 if diagnostic == "nonzero" else 0)
+
+    monkeypatch.setattr(subprocess, "run", observe_run)
+    code = compile(_ios_ui_boot_python(), "<workflow-ios-ui-boot>", "exec")
+    if expected_exit is None:
+        exec(code, {})
+        assert len(calls) == 1
+    else:
+        with pytest.raises(SystemExit) as caught:
+            exec(code, {})
+        assert caught.value.code == expected_exit
+        assert len(calls) == 2
+        error = capsys.readouterr().err
+        assert ("bootstatus timeout" if readiness == "timeout" else "bootstatus failed") in error
+        if diagnostic in {"timeout", "oserror"}:
+            assert "Simulator diagnostics unavailable:" in error
+
+
+@pytest.mark.parametrize(
+    "variable", ["SIM_BOOT_TIMEOUT_SECONDS", "SIM_BOOT_DIAGNOSTIC_TIMEOUT_SECONDS"]
+)
+@pytest.mark.parametrize("value", [None, "", "invalid", "0", "-1"])
+def test_ios_ui_boot_rejects_invalid_timeout_before_any_child(
+    monkeypatch: pytest.MonkeyPatch, variable: str, value: str | None
+) -> None:
+    monkeypatch.setenv("UDID", "00000000-0000-4000-8000-000000000001")
+    monkeypatch.setenv("SIM_BOOT_TIMEOUT_SECONDS", "420")
+    monkeypatch.setenv("SIM_BOOT_DIAGNOSTIC_TIMEOUT_SECONDS", "30")
+    if value is None:
+        monkeypatch.delenv(variable)
+    else:
+        monkeypatch.setenv(variable, value)
+
+    def unexpected_child(*args: object, **kwargs: object) -> None:
+        pytest.fail("invalid timeout started a child")
+
+    monkeypatch.setattr(subprocess, "run", unexpected_child)
+    with pytest.raises(SystemExit) as caught:
+        exec(compile(_ios_ui_boot_python(), "<workflow-ios-ui-boot>", "exec"), {})
+    assert caught.value.code == 2
+
+
+def test_ios_ui_boot_rejects_empty_udid_before_any_child(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("UDID", "")
+    monkeypatch.setenv("SIM_BOOT_TIMEOUT_SECONDS", "420")
+    monkeypatch.setenv("SIM_BOOT_DIAGNOSTIC_TIMEOUT_SECONDS", "30")
+
+    def unexpected_child(*args: object, **kwargs: object) -> None:
+        pytest.fail("empty UDID started a child")
+
+    monkeypatch.setattr(subprocess, "run", unexpected_child)
+    with pytest.raises(SystemExit) as caught:
+        exec(compile(_ios_ui_boot_python(), "<workflow-ios-ui-boot>", "exec"), {})
+    assert caught.value.code == 1

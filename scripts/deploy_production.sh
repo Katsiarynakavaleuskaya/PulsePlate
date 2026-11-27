@@ -488,29 +488,10 @@ validate_alertmanager_contract_files() {
 }
 
 alertmanager_selected() {
-  local remaining="${COMPOSE_PROFILES:-}"
-  local token
-  while :; do
-    token="${remaining%%,*}"
-    token="${token#"${token%%[![:space:]]*}"}"
-    token="${token%"${token##*[![:space:]]}"}"
-    if [ "$token" = alerting ]; then
-      return 0
-    fi
-    case "$remaining" in
-      *,*) remaining="${remaining#*,}" ;;
-      *) return 1 ;;
-    esac
-  done
+  [ "${ALERTMANAGER_SELECTION:?Canonical Alertmanager final admission is required}" = selected ]
 }
 
-validate_alertmanager_exception_time() {
-  "$PYTHON_BIN" - <<'PY'
-from datetime import datetime, timezone
-if datetime.now(timezone.utc) >= datetime(2026, 10, 21, tzinfo=timezone.utc):
-    raise SystemExit("Selected or running Alertmanager Trivy exception has expired")
-PY
-}
+
 
 validate_alertmanager_secret_if_selected() {
   if "$PYTHON_BIN" - "$ENV_FILE" <<'PY'
@@ -529,7 +510,6 @@ PY
   if ! alertmanager_selected; then
     return 0
   fi
-  validate_alertmanager_exception_time
   if [ -L "$ALERTMANAGER_SMTP_KEY" ] || [ ! -f "$ALERTMANAGER_SMTP_KEY" ]; then
     echo "❌ Selected Alertmanager requires a regular non-symlink SMTP key" >&2
     return 1
@@ -548,81 +528,7 @@ if not stat.S_ISREG(metadata.st_mode) or metadata.st_size <= 0:
 PY
 }
 
-validate_off_profile_alertmanager_runtime() {
-  if alertmanager_selected; then
-    return 0
-  fi
-  local container_id=""
-  local project_name=""
-  local runtime_state=""
-  if ! project_name="$(dc --profile alerting config --format json | "$PYTHON_BIN" -c '
-import json
-import re
-import sys
-try:
-    payload = json.load(sys.stdin)
-except (ValueError, TypeError) as exc:
-    raise SystemExit("Compose project identity is malformed") from exc
-name = payload.get("name") if type(payload) is dict else None
-if type(name) is not str or not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", name):
-    raise SystemExit("Compose project identity is missing or ambiguous")
-print(name)
-')"; then
-    echo "❌ Unable to bind Alertmanager census to one Compose project" >&2
-    return 1
-  fi
-  if ! container_id="$("$DOCKER_BIN" ps --all --no-trunc --quiet \
-    --filter "label=com.docker.compose.project=$project_name" \
-    --filter "label=com.docker.compose.service=alertmanager")"; then
-    echo "❌ Unable to census this Compose project's Alertmanager" >&2
-    return 1
-  fi
-  if [ -z "$container_id" ]; then
-    return 0
-  fi
-  if [[ "$container_id" == *$'\n'* ]] || [[ ! "$container_id" =~ ^[0-9a-f]{64}$ ]]; then
-    echo "❌ Alertmanager census returned ambiguous or malformed container IDs" >&2
-    return 1
-  fi
-  if ! runtime_state="$("$DOCKER_BIN" inspect "$container_id" | "$PYTHON_BIN" -c '
-import json
-import re
-import sys
-container_id, project_name = sys.argv[1:3]
-try:
-    records = json.load(sys.stdin)
-except (ValueError, TypeError) as exc:
-    raise SystemExit("Alertmanager inspect result is malformed") from exc
-if type(records) is not list or len(records) != 1 or type(records[0]) is not dict:
-    raise SystemExit("Alertmanager inspect must return exactly one container")
-record = records[0]
-full_id = record.get("Id")
-if type(full_id) is not str or not re.fullmatch(r"[0-9a-f]{64}", full_id) or full_id != container_id:
-    raise SystemExit("Alertmanager inspect ID differs from Compose census")
-config = record.get("Config")
-labels = config.get("Labels") if type(config) is dict else None
-if (type(labels) is not dict or labels.get("com.docker.compose.project") != project_name
-        or labels.get("com.docker.compose.service") != "alertmanager"):
-    raise SystemExit("Alertmanager inspect project or service identity is ambiguous")
-state = record.get("State")
-if type(state) is not dict or state.get("Restarting") is not False:
-    raise SystemExit("Alertmanager inspect state is unknown or restarting")
-if state.get("Paused") is not False or state.get("Dead") is not False:
-    raise SystemExit("Alertmanager inspect state is paused, dead, or unknown")
-if state.get("Status") == "running" and state.get("Running") is True:
-    print("running")
-elif state.get("Status") in ("created", "exited") and state.get("Running") is False:
-    print("stopped")
-else:
-    raise SystemExit("Alertmanager inspect state is unknown or inconsistent")
-' "$container_id" "$project_name")"; then
-    echo "❌ Unable to prove this Compose project's Alertmanager runtime state" >&2
-    return 1
-  fi
-  if [ "$runtime_state" = running ]; then
-    validate_alertmanager_exception_time
-  fi
-}
+
 
 validate_postgres_contract_files() {
   validate_regular_non_symlink_file "$POSTGRES_IMAGE_MANIFEST" \
@@ -630,10 +536,10 @@ validate_postgres_contract_files() {
 }
 
 PROMETHEUS_CONTRACT_HELPER="${PROMETHEUS_CONTRACT_HELPER:-${DEPLOY_DIR}/scripts/ci/prometheus_source_image.py}"
-PROMETHEUS_CONTRACT_HELPER_SHA256="0e7a73b0159c442cf5f9377aa862e38d643145f81ac6a54ee50b31682f6c3e3e" # Public source digest; pragma: allowlist secret
+PROMETHEUS_CONTRACT_HELPER_SHA256="d0f7521da2323e91fe289dfc58a16ba03b9dde4c83411eb09ef2dca25d045aa6" # pragma: allowlist secret - public source digest
 readonly PROMETHEUS_CONTRACT_HELPER PROMETHEUS_CONTRACT_HELPER_SHA256
 
-run_prometheus_contract() {
+run_trusted_contract() {
   "$PYTHON_BIN" -I -c '
 import hashlib
 import os
@@ -643,26 +549,38 @@ import stat
 import sys
 path, expected = sys.argv[1:3]
 if not os.path.isabs(path) or re.fullmatch(r"[0-9a-f]{64}", expected) is None:
-    raise SystemExit("Invalid trusted Prometheus helper operand")
+    raise SystemExit("Invalid trusted contract helper operand")
 for parent in Path(path).parents:
     if parent.is_symlink() or not parent.is_dir():
-        raise SystemExit("Trusted Prometheus helper parent is not a real directory")
+        raise SystemExit("Trusted contract helper parent is not a real directory")
 fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
 before = os.fstat(fd)
 if (not stat.S_ISREG(before.st_mode) or before.st_nlink != 1 or before.st_uid not in (0, os.getuid())
         or before.st_mode & 0o022 or not 0 < before.st_size <= 1048576):
-    raise SystemExit("Trusted Prometheus helper leaf is invalid")
+    raise SystemExit("Trusted contract helper leaf is invalid")
 raw = os.read(fd, before.st_size + 1)
 after, current = os.fstat(fd), os.lstat(path)
 if len(raw) != before.st_size or hashlib.sha256(raw).hexdigest() != expected or any(
     getattr(before, key) != getattr(after, key) or getattr(before, key) != getattr(current, key)
     for key in ("st_dev", "st_ino", "st_mode", "st_nlink", "st_size", "st_mtime_ns", "st_ctime_ns")
 ):
-    raise SystemExit("Trusted current-source Prometheus helper binding changed")
+    raise SystemExit("Trusted current-source contract helper binding changed")
 os.lseek(fd, 0, os.SEEK_SET)
 os.set_inheritable(fd, True)
-os.execv(sys.executable, [sys.executable, "-I", "/dev/fd/" + str(fd), *sys.argv[3:]])
-' "$PROMETHEUS_CONTRACT_HELPER" "$PROMETHEUS_CONTRACT_HELPER_SHA256" "$@"
+os.execv(sys.executable, [sys.executable, "-I", "-S", "/dev/fd/" + str(fd), *sys.argv[3:]])
+' "$@"
+}
+
+ALERTMANAGER_CONTRACT_HELPER="${ALERTMANAGER_CONTRACT_HELPER:-${DEPLOY_DIR}/scripts/ci/fetch_docker_source_artifacts.py}"
+ALERTMANAGER_CONTRACT_HELPER_SHA256="55974a5bdb4d4ee772a4d23e788afd1e32245d4ef084c85af6d55662b1d1a25b"  # pragma: allowlist secret - public AM helper SHA-256
+readonly ALERTMANAGER_CONTRACT_HELPER ALERTMANAGER_CONTRACT_HELPER_SHA256
+
+run_prometheus_contract() {
+  run_trusted_contract "$PROMETHEUS_CONTRACT_HELPER" "$PROMETHEUS_CONTRACT_HELPER_SHA256" "$@"
+}
+
+run_alertmanager_contract() {
+  run_trusted_contract "$ALERTMANAGER_CONTRACT_HELPER" "$ALERTMANAGER_CONTRACT_HELPER_SHA256" "$@"
 }
 
 read_prometheus_runtime_ref() {
@@ -683,7 +601,7 @@ import stat
 import sys
 
 manifest_path = sys.argv[1]
-expected_file_sha256 = "9aa310913af9799c39182428e0170b173fe2144367b302d7d2cafd87c93c03b2"  # pragma: allowlist secret
+expected_file_sha256 = "2583671c942aa7dead7047631e68992bdd8c301c3e76a83ea21a24cc6fa1a3d0"  # pragma: allowlist secret
 expected_keys = set(
     """
     schema repository tag platform platform_manifest_digest config_digest runtime_ref
@@ -709,17 +627,17 @@ expected_keys = set(
 expected_values = {
     "schema": "pulseplate.postgres_pgvector_image_manifest.v1",
     "repository": "ghcr.io/katsiarynakavaleuskaya/pulseplate",
-    "tag": "postgres-15.19-pgvector0.8.6-alpine3.23",
+    "tag": "postgres-15.20-pgvector0.8.6-alpine3.23",
     "platform": "linux/amd64",
-    "platform_manifest_digest": "sha256:d4437ad4970b4099e4cb7d05b7fa625c7e6959949d1374f1f2d4bd4149ae5fa3",
-    "config_digest": "sha256:643c5c00d70c37d83a0ab6db8b0996e4c03fb82c4769a45b03eef0cf3ee2abd5",
+    "platform_manifest_digest": "sha256:5b81202040bbcfbf4fc29ee32c6e6a8c824c27c50aa41c80e62418c5c2ec3adc",
+    "config_digest": "sha256:65d34d5f6a34bc6c365b3b326bfa593bdd43adbed1ece14c9b63171ba586004b",
     "runtime_user": "70",
     "runtime_entrypoint": "/usr/local/bin/docker-entrypoint.sh",
     "runtime_default_pgdata": "/var/lib/postgresql/15/data",
     "compose_pgdata": "/var/lib/postgresql/data",
     "compose_volume_target": "/var/lib/postgresql/data",
     "postgres_major": "15",
-    "postgres_version": "15.19",
+    "postgres_version": "15.20",
     "pgvector_version": "0.8.6",
     "mountpoint_layer_schema": "pulseplate.pgvector_mountpoint_layer.v1",
     "mountpoint_layer_digest": "sha256:4c539aa857412d283fe8d55b40227fbd17b9fd6f06834f81fd98ec6796ee7396",
@@ -826,7 +744,7 @@ PY
 validate_prometheus_compose_identity() {
   local compose_path="$1"
   local runtime_ref="$2"
-  "$DOCKER_BIN" compose --env-file "$ENV_FILE" -f "$compose_path" config --format json | \
+  "$DOCKER_BIN" compose --env-file "$ENV_FILE" --project-directory "$COMPOSE_CONTRACT_DIR" -f "$compose_path" config --format json | \
     "$PYTHON_BIN" -c '
 import json
 import sys
@@ -858,196 +776,30 @@ validate_alertmanager_contract() {
   local rules="$3"
   local alert_config="$4"
   local ignore="$5"
-  "$DOCKER_BIN" compose --env-file "$ENV_FILE" -f "$compose_path" --profile '*' config --format json | "$PYTHON_BIN" -c '
+  # Preserve the independently owned complete Prometheus config/rule checks.
+  "$PYTHON_BIN" - "$prometheus_config" "$rules" <<'PY_PROMETHEUS_REVIEWED'
 import hashlib
-import json
 from pathlib import Path
-import re
 import sys
-
-def unique(pairs):
-    result = {}
-    for key, value in pairs:
-        if key in result:
-            raise ValueError("duplicate rendered Compose key")
-        result[key] = value
-    return result
-
-compose, prometheus_config, rules, alert_config, ignore = map(Path, sys.argv[1:6])
-expected_environment = sys.argv[6]
-image = "prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3"
-try:
-    payload = json.load(sys.stdin, object_pairs_hook=unique)
-except (ValueError, TypeError) as exc:
-    raise SystemExit("Alertmanager rendered Compose is malformed") from exc
-services = payload.get("services", {})
-prometheus = services.get("prometheus", {})
-alertmanager = services.get("alertmanager", {})
-app = services.get("app", {})
-networks = payload.get("networks", {})
-if not all(isinstance(part, dict) for part in (services, prometheus, alertmanager, app, networks)):
-    raise SystemExit("Alertmanager Compose topology is malformed")
-raw = compose.read_text(encoding="utf-8")
-marker = "- PULSEPLATE_ENVIRONMENT=" + expected_environment
-if (len(re.findall(r"(?m)^\s*(?:-\s*)?PULSEPLATE_ENVIRONMENT\s*(?::|=)", raw)) != 1
-        or raw.count(marker) != 1):
-    raise SystemExit("Prometheus environment must be one literal contour value")
-if raw.count(image) != 1:
-    raise SystemExit("Raw Alertmanager image must use the admitted platform digest")
-if prometheus.get("environment", {}).get("PULSEPLATE_ENVIRONMENT") != expected_environment:
-    raise SystemExit("Rendered Prometheus environment is wrong")
-# Public canonical admission fingerprints; update only after reviewing source file changes.
-if hashlib.sha256(prometheus_config.read_bytes()).hexdigest() != (
-    "77c5d05a" "45798582" "decb02b0" "55e5a15e"
-    "93f7ce73" "471ee079" "39e818b4" "a0757960"
+for path, expected, diagnostic in (
+    (sys.argv[1], "77c5d05a45798582decb02b055e5a15e93f7ce73471ee07939e818b4a0757960", "Prometheus configuration differs from the admitted complete file"),
+    (sys.argv[2], "82ae2fb2c68b7d580b71fe81b507de64d5e4037d8b62da631449b88ff4fd8e74", "Prometheus rules differ from the admitted complete file"),
 ):
-    raise SystemExit("Prometheus configuration differs from the admitted complete file")
-if hashlib.sha256(rules.read_bytes()).hexdigest() != (
-    "82ae2fb2" "c68b7d58" "0b71fe81" "b507de64"
-    "d5e4037d" "8b62da63" "1449b88f" "f4fd8e74"
-):
-    raise SystemExit("Prometheus rules differ from the admitted complete file")
-if alertmanager.get("image") != image or alertmanager.get("platform") != "linux/amd64":
-    raise SystemExit("Alertmanager image identity differs from the admitted platform digest")
-if alertmanager.get("profiles") != ["alerting"] or alertmanager.get("ports") not in (None, []):
-    raise SystemExit("Alertmanager must be private and profile selected")
-if set(alertmanager.get("networks", {})) != {"alerting", "smtp-egress"}:
-    raise SystemExit("Alertmanager networks are not canonical")
-alertmanager_networks = alertmanager["networks"]
-if (type(alertmanager_networks["alerting"]) is not dict
-        or type(alertmanager_networks["smtp-egress"]) is not dict
-        or type(alertmanager_networks["alerting"].get("gw_priority")) is not int
-        or type(alertmanager_networks["smtp-egress"].get("gw_priority")) is not int
-        or alertmanager_networks["alerting"]["gw_priority"] != 1
-        or alertmanager_networks["smtp-egress"]["gw_priority"] != 2):
-    raise SystemExit("Alertmanager SMTP egress must be the explicit highest-priority gateway")
-if set(prometheus.get("networks", {})) != {"observability", "alerting"}:
-    raise SystemExit("Prometheus networks are not canonical")
-expected_app_networks = {"web", "observability", "database"} if expected_environment == "staging" else {"web", "observability"}
-if set(app.get("networks", {})) != expected_app_networks:
-    raise SystemExit("Product app networks changed or gained SMTP egress")
-if networks.get("alerting", {}).get("internal") is not True:
-    raise SystemExit("Alerting network must be internal")
-smtp_egress = networks.get("smtp-egress")
-if (type(smtp_egress) is not dict or smtp_egress.get("driver") != "bridge"
-        or smtp_egress.get("internal") not in (None, False)
-        or smtp_egress.get("external") not in (None, False)):
-    raise SystemExit("SMTP egress must be a non-internal, non-external bridge")
-commands = alertmanager.get("command", [])
-if commands != ["--config.file=/etc/alertmanager/alertmanager.yml", "--storage.path=/alertmanager", "--cluster.listen-address="] or alertmanager.get("entrypoint"):
-    raise SystemExit("Alertmanager command or disabled cluster listener changed")
-if alertmanager.get("environment") or alertmanager.get("env_file") or alertmanager.get("extra_hosts"):
-    raise SystemExit("Alertmanager gained an unreviewed environment or host mapping")
-if alertmanager.get("read_only") is not True or alertmanager.get("user") != "65534:65534":
-    raise SystemExit("Alertmanager runtime isolation changed")
-if alertmanager.get("cap_drop") != ["ALL"] or alertmanager.get("security_opt") != ["no-new-privileges:true"]:
-    raise SystemExit("Alertmanager capabilities or privilege policy changed")
-if alertmanager.get("tmpfs") != ["/alertmanager:size=16m,mode=0700,uid=65534,gid=65534,noexec,nosuid"]:
-    raise SystemExit("Alertmanager temporary storage contract changed")
-if alertmanager.get("healthcheck", {}).get("test") != ["CMD", "/bin/wget", "-q", "-T", "5", "-O", "/dev/null", "http://127.0.0.1:9093/-/ready"]:
-    raise SystemExit("Alertmanager readiness command is not the bounded native probe")
-if alertmanager.get("depends_on") or alertmanager.get("privileged") or alertmanager.get("network_mode"):
-    raise SystemExit("Alertmanager gained a dependency or privileged network")
-mounts = alertmanager.get("volumes", [])
-if len(mounts) != 1 or mounts[0].get("type") != "bind" or mounts[0].get("source") != str(alert_config) or mounts[0].get("target") != "/etc/alertmanager/alertmanager.yml" or mounts[0].get("read_only") is not True:
-    raise SystemExit("Alertmanager configuration mount changed")
-expected_secret = [{"source": "alertmanager_smtp_key", "target": "/run/secrets/alertmanager_smtp_key"}]
-if alertmanager.get("secrets") != expected_secret:
-    raise SystemExit("Alertmanager SMTP secret mount changed")
-secret_records = payload.get("secrets", {})
-if type(secret_records) is not dict:
-    raise SystemExit("Rendered Compose secrets are malformed")
-smtp_key_path = str(compose.parent / "secrets/alertmanager_smtp_key")
-for service_name, service in services.items():
-    if type(service) is not dict:
-        raise SystemExit("Rendered Compose service is malformed")
-    dependencies = service.get("depends_on", {})
-    if type(dependencies) is not dict or any(type(edge) is not dict for edge in dependencies.values()):
-        raise SystemExit("Rendered Compose dependency map is malformed")
-    if service_name != "alertmanager" and "alertmanager" in dependencies:
-        raise SystemExit("Another service may not depend on Alertmanager")
-    if service_name != "alertmanager":
-        if "network_mode" in service:
-            raise SystemExit("Another service may not share Alertmanager network namespace")
-        if "smtp-egress" in service.get("networks", {}):
-            raise SystemExit("SMTP egress leaked to another service")
-        for mount in service.get("volumes", []):
-            if type(mount) is not dict:
-                raise SystemExit("Rendered Compose service volume is malformed")
-            if (mount.get("type") == "bind"
-                    and (mount.get("source") == smtp_key_path
-                         or mount.get("target") == "/run/secrets/alertmanager_smtp_key")):
-                raise SystemExit("SMTP key bind mount leaked to another service")
-        for secret in service.get("secrets", []):
-            if type(secret) is not dict:
-                raise SystemExit("Rendered Compose service secret is malformed")
-            source = secret.get("source")
-            source_record = secret_records.get(source, {})
-            if (source == "alertmanager_smtp_key"
-                    or secret.get("target") == "/run/secrets/alertmanager_smtp_key"
-                    or (type(source_record) is dict and source_record.get("file") == smtp_key_path)):
-                raise SystemExit("SMTP secret leaked to another service")
-secret_record = secret_records.get("alertmanager_smtp_key", {})
-if type(secret_record) is not dict or secret_record.get("file") != smtp_key_path:
-    raise SystemExit("Alertmanager SMTP secret source changed")
-alert_bytes = alert_config.read_bytes()
-alert_text = alert_bytes.decode("utf-8")
-for required in ("smtp.resend.com:2465", "alerts@alerts.pulseplate.app", "pulseplate@pm.me",
-                 "smtp_auth_username: resend",
-                 "smtp_auth_password_file: /run/secrets/alertmanager_smtp_key",
-                 "smtp_require_tls: true", "smtp_force_implicit_tls: true",
-                 "group_wait: 30s", "group_interval: 5m", "repeat_interval: 24h",
-                 "send_resolved: false"):
-    if alert_text.count(required) != 1:
-        raise SystemExit("Alertmanager SMTP or route contract changed")
-# Finite complete-byte recognizer for the reviewed SMTP route and sole recipient.
-expected_alertmanager_lines = (
-    "global:",
-    "  smtp_smarthost: smtp.resend.com:2465",
-    "  smtp_from: alerts@alerts.pulseplate.app",
-    "  smtp_auth_username: resend",
-    "  smtp_auth_password_file: /run/secrets/alertmanager_smtp_key",
-    "  smtp_require_tls: true",
-    "  smtp_force_implicit_tls: true",
-    "",
-    "route:",
-    "  receiver: pulseplate-email",
-    "  group_by: [alertname, environment, alias]",
-    "  group_wait: 30s",
-    "  group_interval: 5m",
-    "  repeat_interval: 24h",
-    "",
-    "receivers:",
-    "  - name: pulseplate-email",
-    "    email_configs:",
-    "      - to: pulseplate@pm.me",
-    "        send_resolved: false",
-    "        force_implicit_tls: true",
-    "        text: |",
-    "          PulsePlate alert {{ .CommonLabels.alertname }} ({{ .CommonLabels.environment }}).",
-    "          Open PulsePlate monitoring runbook: https://github.com/Katsiarynakavaleuskaya/PulsePlate/blob/main/docs/deploy/OPERATIONAL_SIGNALS.md#daily-checkpoint",
-    "        html: |",
-    "          <p>PulsePlate alert {{ .CommonLabels.alertname }} ({{ .CommonLabels.environment }}).</p>",
-    "          <p><a href=\"https://github.com/Katsiarynakavaleuskaya/PulsePlate/blob/main/docs/deploy/OPERATIONAL_SIGNALS.md#daily-checkpoint\">Open PulsePlate monitoring runbook</a></p>",
-)
-if (len(re.findall(r"(?m)^route:\s*$", alert_text)) != 1
-    or len(re.findall(r"(?m)^  receiver: pulseplate-email\s*$", alert_text)) != 1
-    or len(re.findall(r"(?m)^receivers:\s*$", alert_text)) != 1
-    or len(re.findall(r"(?m)^  - name: pulseplate-email\s*$", alert_text)) != 1
-    or len(re.findall(r"(?m)^    email_configs:\s*$", alert_text)) != 1
-    or len(re.findall(r"(?m)^      - to: pulseplate@pm[.]me\s*$", alert_text)) != 1
-    or len(re.findall(r"(?m)^\s*(?:-\s*)?to\s*:", alert_text)) != 1
-    or re.search(r"(?m)^\s*smtp_auth_password\s*:", alert_text)
-    or alert_bytes != (chr(10).join(expected_alertmanager_lines) + chr(10)).encode("utf-8")):
-    raise SystemExit("Alertmanager route and sole recipient are not the exact reviewed config")
-if hashlib.sha256(ignore.read_bytes()).hexdigest() != (
-    "3018ef35" "c8c41c40" "ae486008" "93a28767"
-    "68ba69e2" "c95fd2cb" "63a525eb" "12212493"
-):
-    raise SystemExit("Alertmanager Trivy exception differs from the admitted complete file")
-' "$compose_path" "$prometheus_config" "$rules" \
-  "$alert_config" "$ignore" production
+    if hashlib.sha256(Path(path).read_bytes()).hexdigest() != expected:
+        raise SystemExit(diagnostic)
+PY_PROMETHEUS_REVIEWED
+  ALERTMANAGER_SELECTION="$(run_alertmanager_contract --alertmanager-contract-collect \
+    --compose "$compose_path" --installed-compose "$COMPOSE_CONTRACT_PATH" \
+    --config "$alert_config" --policy "$ignore" --contour production \
+    --profiles="${COMPOSE_PROFILES-}" --env-file "$ENV_FILE" --docker "$DOCKER_BIN")"
+  case "$ALERTMANAGER_SELECTION" in
+    'selected old'|'selected accepted'|'off old'|'off accepted') ;;
+    *) return 1 ;;
+  esac
+  ALERTMANAGER_CASE="${ALERTMANAGER_SELECTION#* }"
+  ALERTMANAGER_SELECTION="${ALERTMANAGER_SELECTION%% *}"
 }
+
 
 validate_prometheus_contract_identity() {
   local manifest_path="$1"
@@ -1063,7 +815,7 @@ validate_prometheus_contract_identity() {
 validate_postgres_compose_identity() {
   local compose_path="$1"
   local runtime_ref="$2"
-  "$DOCKER_BIN" compose --env-file "$ENV_FILE" -f "$compose_path" config --format json | \
+  "$DOCKER_BIN" compose --env-file "$ENV_FILE" --project-directory "$COMPOSE_CONTRACT_DIR" -f "$compose_path" config --format json | \
     "$PYTHON_BIN" -c '
 import json
 import sys
@@ -1119,21 +871,11 @@ validate_pulled_prometheus_image() {
 }
 
 validate_pulled_alertmanager_image() {
-  "$DOCKER_BIN" image inspect 'prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3' | \
-    "$PYTHON_BIN" -c '
-import json
-import sys
-rows = json.load(sys.stdin)
-expected = "prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3"
-if type(rows) is not list or len(rows) != 1 or type(rows[0]) is not dict:
-    raise SystemExit("Alertmanager image inspect must contain one image")
-row = rows[0]
-if row.get("Os") != "linux" or row.get("Architecture") != "amd64":
-    raise SystemExit("Alertmanager image platform is not linux/amd64")
-digests = row.get("RepoDigests")
-if type(digests) is not list or not ({expected, "docker.io/" + expected} & set(digests)):
-    raise SystemExit("Alertmanager image is not bound to the admitted platform digest")
-'
+  local selected_ref
+  selected_ref="$(run_alertmanager_contract --alertmanager-contract --phase selected-image \
+    --selected-case "$ALERTMANAGER_CASE" --field runtime_ref)"
+  "$DOCKER_BIN" image inspect "$selected_ref" | run_alertmanager_contract \
+    --alertmanager-contract --phase selected-image --selected-case "$ALERTMANAGER_CASE"
 }
 
 
@@ -1172,14 +914,21 @@ if type(payload) is not list or len(payload) != 1 or type(payload[0]) is not dic
     raise SystemExit("PostgreSQL image inspect must return exactly one image")
 record = payload[0]
 image_id = record.get("Id")
-if sys.argv[3] == "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@sha256:d4437ad4970b4099e4cb7d05b7fa625c7e6959949d1374f1f2d4bd4149ae5fa3":
+if sys.argv[3] == "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.20-pgvector0.8.6-alpine3.23@sha256:5b81202040bbcfbf4fc29ee32c6e6a8c824c27c50aa41c80e62418c5c2ec3adc":
+    expected_config = "sha256:65d34d5f6a34bc6c365b3b326bfa593bdd43adbed1ece14c9b63171ba586004b"
+    expected_platform = "sha256:5b81202040bbcfbf4fc29ee32c6e6a8c824c27c50aa41c80e62418c5c2ec3adc"
+    expected_base = "sha256:ac5f0af144f2123cfb0fd89d9e38843ece6bfaef6bb7240d9ed7e6da88565325"
+    expected_minor = "20"
+elif sys.argv[3] == "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@sha256:d4437ad4970b4099e4cb7d05b7fa625c7e6959949d1374f1f2d4bd4149ae5fa3":
     expected_config = "sha256:643c5c00d70c37d83a0ab6db8b0996e4c03fb82c4769a45b03eef0cf3ee2abd5"
     expected_platform = "sha256:d4437ad4970b4099e4cb7d05b7fa625c7e6959949d1374f1f2d4bd4149ae5fa3"
     expected_base = "sha256:3a241134f6d82eb6465622af948258e41806cfb4497e6c8f0f0a64ca6c4d34db"
+    expected_minor = "19"
 elif sys.argv[3] == "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380":
     expected_config = "sha256:c822c68e22d0358e66cee17e06f7b3ece5d1538cb8b607c1376b59620866ceff"
     expected_platform = "sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380"
     expected_base = "sha256:d94fee7e5e98fcb5cd58db6ad96fc6aa844f1af6dd56aba1f87d9f8e57a7a16d"
+    expected_minor = "19"
 else:
     raise SystemExit("PostgreSQL image reference is outside the closed transition set")
 if sys.argv[1] != expected_platform:
@@ -1200,7 +949,7 @@ environment = config.get("Env")
 required_environment = {
     "PGDATA": "/var/lib/postgresql/15/data",
     "PG_MAJOR": "15",
-    "PG_MINOR": "19",
+    "PG_MINOR": expected_minor,
 }
 
 if (
@@ -1299,7 +1048,7 @@ contract_destination_transaction() {
     "scripts/redeploy_caddy.sh" \
     "$source_backup_helper" \
     "scripts/ops/postgres_backup.sh" \
-    "$PROMETHEUS_CONTRACT_HELPER_SHA256" <<'PY'
+    "$PROMETHEUS_CONTRACT_HELPER_SHA256" "$ALERTMANAGER_CONTRACT_HELPER_SHA256" <<'PY'
 from __future__ import annotations
 
 import errno
@@ -1340,8 +1089,9 @@ prometheus_helper_target = "scripts/ci/prometheus_source_image.py"
 prometheus_helper_hash = "sha256:" + sys.argv[27]
 prometheus_helper_source = str(Path(source_backup_helper).parents[2] / prometheus_helper_target) if source_backup_helper else ""
 checkpoint_contracts = {
-    'scripts/verify_premium_alias_telemetry.py': 'sha256:6bd6d11a019f6a09a7bad1a5195b4b285fe747a781c494a12c3eaed0da996153',
-    'scripts/ops/notify_premium_alias_checkpoint_failure.py': 'sha256:23f12a00308632562ba09dd98b3c054efd65e93f34b55b6adff33bc66695ffa6',
+    "scripts/ci/fetch_docker_source_artifacts.py": "sha256:" + sys.argv[28],
+    'scripts/verify_premium_alias_telemetry.py': 'sha256:906db8d718e5818593f81b7a6a19585a2b273d9d5ff0af8d015d812e8102f829',
+    'scripts/ops/notify_premium_alias_checkpoint_failure.py': 'sha256:6d8ab4b1c0b94f7c067d753fd21d69ecde31f669456bdf8724e9435bef09b2cf',
     'deploy/systemd/pulseplate-premium-alias-checkpoint.service.example': 'sha256:a52742a89b87d02b3b75834b27db741b72a9c6c4a021711611db2a53b197a030',
     'deploy/systemd/pulseplate-premium-alias-checkpoint.timer.example': 'sha256:f6dd053b986cf68b133cf855208b86f44fc975e84dc7acbf490b35a6bb88c9cf',
     'deploy/systemd/pulseplate-premium-alias-checkpoint-failure.service.example': 'sha256:285c5e05bd72f4c99a22c9657a8443becfda4ff93975a21d70feb01812ed1b6d',
@@ -1794,7 +1544,7 @@ try:
     }
     parent_by_target.update({
         target: systemd_fd if target.startswith("deploy/systemd/") else
-        scripts_ops_fd if target.startswith("scripts/ops/") else scripts_fd
+        scripts_ops_fd if target.startswith("scripts/ops/") else scripts_ci_fd if target.startswith("scripts/ci/") else scripts_fd
         for target in checkpoint_contracts
     })
     for target in (
@@ -2255,6 +2005,7 @@ required_files = {
     "deploy/alertmanager/trivy-ignore.yaml",
     "scripts/diagnose_web.sh",
     "scripts/ci/prometheus_source_image.py",
+    "scripts/ci/fetch_docker_source_artifacts.py",
     "scripts/ops/postgres_backup.sh",
     'scripts/verify_premium_alias_telemetry.py',
     'scripts/ops/notify_premium_alias_checkpoint_failure.py',
@@ -2734,10 +2485,11 @@ validate_existing_postgres_image_identity() {
         echo "❌ Existing legacy PostgreSQL image ID does not match the frozen predecessor" >&2
         return 1
       fi
+      printf '%s\n' 150019
       ;;
     "$POSTGRES_RUNTIME_REF")
       local platform_image_id="${POSTGRES_RUNTIME_REF##*@}"
-      if [ "$image_id" = "sha256:643c5c00d70c37d83a0ab6db8b0996e4c03fb82c4769a45b03eef0cf3ee2abd5" ] || \
+      if [ "$image_id" = "sha256:65d34d5f6a34bc6c365b3b326bfa593bdd43adbed1ece14c9b63171ba586004b" ] || \
          [ "$image_id" = "$platform_image_id" ]; then
         if validate_postgres_image_metadata \
             "$POSTGRES_RUNTIME_REF" "$POSTGRES_RUNTIME_REF" "$image_id" 2>/dev/null; then
@@ -2750,21 +2502,16 @@ validate_existing_postgres_image_identity() {
         echo "❌ Existing current PostgreSQL image ID does not match the frozen candidate" >&2
         return 1
       fi
+      printf '%s\n' 150020
       ;;
-    "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380")
-      if [ "$image_id" = "sha256:c822c68e22d0358e66cee17e06f7b3ece5d1538cb8b607c1376b59620866ceff" ] || \
-         [ "$image_id" = "sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380" ]; then
-        if validate_postgres_image_metadata \
-            "$configured_image" "$configured_image" "$image_id" 2>/dev/null; then
-          :
-        else
-          echo "Existing prior PostgreSQL image metadata is not the frozen predecessor" >&2
-          return 1
-        fi
-      else
-        echo "Existing prior PostgreSQL image ID does not match the frozen predecessor" >&2
+    "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@sha256:d4437ad4970b4099e4cb7d05b7fa625c7e6959949d1374f1f2d4bd4149ae5fa3" | \
+      "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380")
+      if [ -z "$image_id" ] || ! validate_postgres_image_metadata \
+          "$configured_image" "$configured_image" "$image_id" 2>/dev/null; then
+        echo "Existing prior PostgreSQL image metadata is not the frozen predecessor" >&2
         return 1
       fi
+      printf '%s\n' 150019
       ;;
     *)
       echo "❌ Existing PostgreSQL configured image is outside the closed transition set" >&2
@@ -2775,31 +2522,35 @@ validate_existing_postgres_image_identity() {
 
 read_existing_postgres_runtime_state() {
   local container_id="$1"
+  local expected_server_version="$2"
   "$DOCKER_BIN" exec "$container_id" sh -ec '
 postgres_uid="$(id -u postgres)"
 server_version_num="$(psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --tuples-only --no-align --quiet --command "SHOW server_version_num")"
 data_directory="$(psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --tuples-only --no-align --quiet --command "SHOW data_directory")"
 test "$postgres_uid" = "70"
-test "$server_version_num" = "150019"
+test "$server_version_num" = "$1"
 test "$data_directory" = "/var/lib/postgresql/data"
 printf "%s\t%s\t%s\n" "$postgres_uid" "$server_version_num" "$data_directory"
-'
+' sh "$expected_server_version"
 }
 
 assert_existing_postgres_unchanged() {
   local expected_state="$1"
   local expected_runtime="$2"
-  local current_container=""
+  local expected_server_version="$3"
+  local current_container current_state current_runtime
   current_container="$(dc ps -q postgres | tr -d '\r')"
   if [ -z "$current_container" ] || [[ "$current_container" == *$'\n'* ]]; then
     echo "❌ Existing PostgreSQL container identity changed during transition" >&2
     return 1
   fi
-  if [ "$(read_existing_postgres_state "$current_container")" != "$expected_state" ]; then
+  if ! current_state="$(read_existing_postgres_state "$current_container")" || \
+      [ "$current_state" != "$expected_state" ]; then
     echo "❌ Existing PostgreSQL container/image/volume identity drifted" >&2
     return 1
   fi
-  if [ "$(read_existing_postgres_runtime_state "$current_container")" != "$expected_runtime" ]; then
+  if ! current_runtime="$(read_existing_postgres_runtime_state "$current_container" "$expected_server_version")" || \
+      [ "$current_runtime" != "$expected_runtime" ]; then
     echo "❌ Existing PostgreSQL runtime identity drifted" >&2
     return 1
   fi
@@ -3193,7 +2944,6 @@ validate_shell_bundle_contract() {
 run_preflight() {
   echo "Validating production secret and database contracts..."
   validate_metrics_secret_metadata
-  validate_alertmanager_secret_if_selected
   validate_contract_destinations_safely
   validate_shell_bundle_archive
   if [ -n "$SHELL_BUNDLE_DIR" ]; then
@@ -3214,7 +2964,7 @@ run_preflight() {
         "$COMPOSE_CONTRACT_PATH"
     fi
   fi
-  validate_off_profile_alertmanager_runtime
+  validate_alertmanager_secret_if_selected
   validate_production_database_contract
   validate_scheduler_mode_contract
   echo "✅ Production deploy preflight passed"
@@ -3251,7 +3001,6 @@ validate_prometheus_compose_identity "$COMPOSE_CONTRACT_PATH" "$PROMETHEUS_RUNTI
 validate_alertmanager_contract "$COMPOSE_CONTRACT_PATH" "$PROMETHEUS_CONFIG" \
   "$PROMETHEUS_RULES" "$ALERTMANAGER_CONFIG" "$ALERTMANAGER_TRIVY_IGNORE"
 validate_alertmanager_secret_if_selected
-validate_off_profile_alertmanager_runtime
 POSTGRES_RUNTIME_REF=""
 if [ "$PRODUCTION_DB_TOPOLOGY" = "self-hosted" ]; then
   validate_postgres_contract_files
@@ -3309,7 +3058,7 @@ if alertmanager_selected; then
     --user 65534:65534 --cap-drop ALL --security-opt no-new-privileges:true \
     --mount "type=bind,source=$ALERTMANAGER_CONFIG,target=/etc/alertmanager/alertmanager.yml,readonly" \
     --entrypoint /bin/amtool \
-    'prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3' \
+    "$(run_alertmanager_contract --alertmanager-contract --phase selected-image --selected-case "$ALERTMANAGER_CASE" --field runtime_ref)" \
     check-config /etc/alertmanager/alertmanager.yml
 fi
 
@@ -3343,8 +3092,8 @@ if [ "$PRODUCTION_DB_TOPOLOGY" = "self-hosted" ]; then
     postgres_state_receipt="$(read_existing_postgres_state "$postgres_container_raw")"
     IFS=$'\t' read -r postgres_container postgres_image_id postgres_configured_image \
       postgres_pgdata postgres_volume <<< "$postgres_state_receipt"
-    validate_existing_postgres_image_identity "$postgres_image_id" "$postgres_configured_image"
-    postgres_runtime_receipt="$(read_existing_postgres_runtime_state "$postgres_container")"
+    postgres_server_version="$(validate_existing_postgres_image_identity "$postgres_image_id" "$postgres_configured_image")"
+    postgres_runtime_receipt="$(read_existing_postgres_runtime_state "$postgres_container" "$postgres_server_version")"
     if [ "$postgres_volume" != "$POSTGRES_VOLUME_NAME" ]; then
       echo "❌ Existing PostgreSQL volume does not match rendered Compose identity" >&2
       exit 1
@@ -3362,7 +3111,7 @@ if [ "$PRODUCTION_DB_TOPOLOGY" = "self-hosted" ]; then
   fi
 
   if [ "$postgres_transition" = "existing" ]; then
-    if assert_existing_postgres_unchanged "$postgres_state_receipt" "$postgres_runtime_receipt"; then
+    if assert_existing_postgres_unchanged "$postgres_state_receipt" "$postgres_runtime_receipt" "$postgres_server_version"; then
       :
     else
       identity_status=$?
@@ -3391,7 +3140,7 @@ if [ "$PRODUCTION_DB_TOPOLOGY" = "self-hosted" ]; then
       echo "❌ PostgreSQL backup receipt validation failed; captured product writers remain quiesced" >&2
       exit "$receipt_status"
     fi
-    if assert_existing_postgres_unchanged "$postgres_state_receipt" "$postgres_runtime_receipt"; then
+    if assert_existing_postgres_unchanged "$postgres_state_receipt" "$postgres_runtime_receipt" "$postgres_server_version"; then
       :
     else
       identity_status=$?

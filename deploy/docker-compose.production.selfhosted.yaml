@@ -29,7 +29,7 @@ secrets:
 
 services:
   postgres:
-    image: ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@sha256:d4437ad4970b4099e4cb7d05b7fa625c7e6959949d1374f1f2d4bd4149ae5fa3
+    image: ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.20-pgvector0.8.6-alpine3.23@sha256:5b81202040bbcfbf4fc29ee32c6e6a8c824c27c50aa41c80e62418c5c2ec3adc
     platform: linux/amd64
     restart: unless-stopped
     networks: [web]
@@ -140,7 +140,7 @@ services:
       start_period: 10s
 
   alertmanager:
-    image: prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3
+    image: ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:873bc6cfae14edcf9f2acf2d81f9863f98ee8f78623125a7e02642a66e3bbe27
     platform: linux/amd64
     user: "65534:65534"
     profiles: ["alerting"]

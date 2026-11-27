@@ -151,10 +151,11 @@ The verifier must fail closed unless both checks pass:
 
 ## Validation commands
 
-Build the production target:
+Build the production target for the supported Linux amd64 platform:
 
 ```bash
 docker build \
+  --platform=linux/amd64 \
   --target production \
   --secret id=pp_py_index,env=PULSEPLATE_PYTHON_INDEX_URL \
   --secret id=pp_py_host,env=PULSEPLATE_PYTHON_TRUSTED_HOST \

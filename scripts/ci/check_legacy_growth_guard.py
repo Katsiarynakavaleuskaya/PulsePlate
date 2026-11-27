@@ -169,6 +169,8 @@ RETIRED_LEGACY_PYTHON_BINDINGS = frozenset(
         "_Limiter",
         "Limiter",
         "slowapi_available",
+        "get_api_key",
+        "_get_api_key_dynamic",
     }
 )
 ALLOWED_CANONICAL_LIFESPAN_APP_IMPORTS = frozenset(
@@ -260,13 +262,6 @@ FORBIDDEN_LEGACY_RUNTIME_REGISTRARS: Mapping[str, str] = {
 ALLOWED_ROUTER_IMPORT_FACTS = frozenset(
     {
         LegacyFact("router_import", "app.routers", "vip", "_vip_mod"),
-        LegacyFact(
-            "router_import",
-            "app.routers.api_key",
-            "_get_api_key_dynamic",
-            "_get_api_key_dynamic",
-        ),
-        LegacyFact("router_import", "app.routers.api_key", "get_api_key", "get_api_key"),
         LegacyFact("router_import", "app.routers.bmi", "bmi_calculate_handler", ""),
         LegacyFact(
             "router_import", "app.routers.pro_nutrition_contracts", "pro_nutrition_plate", ""
@@ -9298,25 +9293,6 @@ def validate_api_key_dependency_ownership(
             definition_visitor.visit(statement)
         for name in sorted(locally_defined):
             errors.append(f"{LEGACY_APP}: API-key dependency must not be defined locally: {name}")
-
-        exact_aliases: set[str] = set()
-        for statement in legacy_tree.body:
-            if (
-                not isinstance(statement, ast.ImportFrom)
-                or statement.module != "app.routers.api_key"
-            ):
-                continue
-            for alias in statement.names:
-                if alias.name in CANONICAL_API_KEY_SYMBOLS and alias.asname in {
-                    None,
-                    alias.name,
-                }:
-                    exact_aliases.add(alias.name)
-        for name in sorted(CANONICAL_API_KEY_SYMBOLS - exact_aliases):
-            errors.append(
-                f"{LEGACY_APP}: canonical API-key compatibility re-export must preserve "
-                f"identity: {name}"
-            )
 
         rebound_names: set[str] = set()
 

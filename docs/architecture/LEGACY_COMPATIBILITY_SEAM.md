@@ -29,15 +29,15 @@ test-only reassignment of `legacy_app.app` cannot rebind package, bootstrap, or
 not import `legacy_app`. Resolving `app.app` imports `app.main` without loading
 `legacy_app`; the canonical bootstrap no longer reverse-imports the compatibility
 facade. The eight former paid/BMI registration mirrors are absent from `app`,
-`app.main`, and `legacy_app.py`. Seventeen bounded Python-binding retirements remove
-only the exact 130 `legacy_app.py` Python bindings enumerated below; they do not
+`app.main`, and `legacy_app.py`. Eighteen bounded Python-binding retirements remove
+only the exact 132 `legacy_app.py` Python bindings enumerated below; they do not
 remove or redirect any HTTP path, change auth, alter OpenAPI, or change FastAPI
 object identity. Repository census found no tracked supported production
 consumer of the second ten-name, third eleven-name, fourth eight-name, fifth
 twelve-name, sixth seven-name, seventh three-name, eighth seven-name, ninth
 fifteen-name, tenth four-name, eleventh four-name, twelfth eight-name,
 thirteenth seven-name, fourteenth three-name, fifteenth six-name, sixteenth
-two-name, or seventeenth thirteen-name cohort;
+two-name, seventeenth thirteen-name, or eighteenth two-name cohort;
 it does not prove that no external or dynamic Python consumer exists.
 
 Application startup/shutdown behavior is canonically owned by
@@ -51,9 +51,11 @@ runtime resources or wrap `app.router.lifespan_context`.
 
 App-client API-key extraction and validation dependencies are canonically owned
 by `app/routers/api_key.py`. Canonical routers and bootstrap code import those
-callables directly. `legacy_app.py` may only re-export the exact same callable
-objects while compatibility imports remain; wrappers or mutable legacy-owned
-warning state would break FastAPI dependency identity.
+callables directly. The `legacy_app.get_api_key` and
+`legacy_app._get_api_key_dynamic` bindings are retired; callers import them from
+`app.routers.api_key`. The separate package aliases and the intentional
+`app.get_api_key` override remain exact canonical contracts; wrappers or mutable
+legacy-owned warning state would break FastAPI dependency identity.
 
 Application metadata is canonically owned by
 `app/application_metadata.py:56` and constructed through the environment-aware
@@ -458,9 +460,98 @@ main while another employee monitored it. This historical lane-specific start
 exception transferred no main PASS, publication validation, merge-readiness or
 merge permission and granted no bypass of this PR's required gates.
 
+## Legacy API-key Python export retirement
+
+The `LEGACY-API-KEY-EXPORT-RETIREMENT-1/v1` child is OPEN in
+[PR #2492](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2492), on
+`codex/retire-legacy-api-key-exports`. Exactly
+`get_api_key` and `_get_api_key_dynamic` retire from `legacy_app.py`, with no new
+authentication behavior. The independent ordered inventory appends only this
+cohort at `[130:132]`, retaining every prior130 member and rate-limit
+`[117:130]`. Three independently authored inventories contain exactly132 unique
+members (`scripts/ci/check_legacy_growth_guard.py:40`,
+`tests/test_legacy_growth_guard.py:13`, `tests/test_legacy_bmi_shims.py:29`).
+
+The canonical family remains `api_key_header`, `get_api_key`,
+`_get_api_key_dynamic`, `validate_app_api_key`, and `require_app_api_key` in
+`app/routers/api_key.py:16`. The separate package16, singleton, shared header,
+package override, FastAPI override identity, thirteen declared method/path
+bindings and `/premium_bmr` exception remain their existing contracts
+(`tests/test_api_key_dependency_ownership.py:22`). HTTP aliases, DTOs, OpenAPI,
+configuration, normalization and exact403/500 errors do not change. The new
+real protected BMR smoke checks invalid-key denial before calculation and
+configured-key success through the unchanged authentication dependency.
+
+### Selected API-key import migration — PR #2492
+
+PR #2492 intentionally removes exactly these two Python import paths. After this
+change, either selected import from `legacy_app` raises `ImportError`. Consumers
+of this pair must migrate before upgrading to the revision containing this
+retirement:
+
+```python
+# Before: retired by PR #2492.
+from legacy_app import get_api_key, _get_api_key_dynamic
+
+# After: import the same callables from their canonical owner.
+from app.routers.api_key import get_api_key, _get_api_key_dynamic
+```
+
+The finite package16 compatibility surface, including `app.get_api_key` and
+`app._get_api_key_dynamic`, remains supported by its existing contract. HTTP
+endpoints and exact callable/dependency identities are unchanged. The tracked
+consumer census and fresh-process checks do not establish migration of unknown
+external or computed callers. This notice covers only the selected two-name
+retirement; it creates no general versioning or support policy.
+
+### Reviewed behavior and lifecycle cutoff
+
+Only the obsolete Legacy exact-alias presence requirement and its two allowed
+router-import facts are removed from the existing guard. Its ownership
+component still recognizes identity-preserving imports; the independent
+retirement and import-growth consumers reject their return to Legacy. The
+existing canonical-symbol inventory and all ownership visitors remain intact.
+The protected fresh-process harness is reused unchanged for actual Legacy-first
+and API-key-first orders, selected-name namespace/getattr/direct-import absence
+and canonical/header/package/singleton preservation. These are bounded source
+and test controls, not universal caller, auth or operating-system isolation proof.
+
+The complete incoming #2490 reconciliation was applied and committed first at
+`16a6a3635747f86d86ec0e89a8fd45ca1cac12df`, updating the existing rate-limit
+section and ledger anchor with original Target PR #2490 and incoming #2489/#2488
+retained. It is APPLIED / COMMITTED / INCLUDED IN THE REVIEWED DIFF; the actual
+pre-open and post-open role reviews consumed that first commit. Reconciliation
+in receiving main still requires the separately authorized merge and proof.
+
+At the reviewed-head cutoff `a5f395dbfab5abaf86bf3cd24eda642802b1beb2`, own
+focused tests passed 2229 cases and host preservation passed 310; required narrow gates,
+actual pre-open premortems, admitted Oracle and the declared post-open
+Coordinator/QA/Bug Hunter/Security chain completed. The phase Oracle separately
+passed 2229 and preservation 309 with one existing toolchain-conditional skip;
+that skip is not guest full-pipeline proof. Stored canonical CI 39046595879 has
+successful security, Phase2 and OpenAPI sync plus successful Python setup in
+lint/test-pr/security; lint/test-pr were still pending at that observation.
+Merge readiness failed because the canonical PR2492 mapping blob was absent.
+The earlier CI 39046014523 SDK zlib SHA3 failure remains retained, without digest
+weakening or a permanent acquisition root-cause fix claim. This bounded review
+correction addresses actual-number documentation, selected import migration and
+new/modified test docstrings; its new-head narrow/Oracle/current-head CI and
+coverage proof remain pending. Final self-review, review dispositions, seal,
+pre-closeout, single mapping publication, strict readiness and review wait also
+remain required. No provider PASS or no-findings claim is made. A separate
+exact-head human merge decision precedes post-main proof, recoverable archive,
+same-ID continuity/readback, outgoing carryover and owned cleanup. Every original
+D1-D8 remains required. PROJECT_LEGACY stays OPEN, R29 PARTIAL / UNWAIVED,
+O1 historical NOT_ADMITTED and the shared-runtime P1 follow-up OPEN. Red
+infrastructure permits this independent start only; foreign #2476 recognizer
+repairs remain separately owned. The next candidate is one terminal
+`legacy_app.py` removal after census, with no cosmetic logger/comment micro-PR.
+Rollback reverts only this retirement and coupled guard/tests, preserving truthful
+incoming #2490 and all prior/foreign changes.
+
 ## Legacy rate-limit compatibility retirement
 
-The `LEGACY-RATE-LIMIT-COMPAT-RETIREMENT-1/v1` child is OPEN in
+The `LEGACY-RATE-LIMIT-COMPAT-RETIREMENT-1/v1` child is MERGED in
 [PR #2490](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2490), on
 `codex/retire-legacy-rate-limit-compatibility`. It retires exactly thirteen
 Python bindings from the facade: `limiter`, `limit_if_available`,
@@ -495,6 +586,18 @@ downstream calls (`tests/test_fitchef_insight_api.py:1030`). The protected handl
 checks supplement that real-route behavior; the latter's ambient environment
 and header evidence limits remain. Unknown external/computed callers and
 already-loaded module dictionaries remain outside fresh-process proof.
+
+### Terminal lifecycle receipt — PR #2490
+
+CLOSED / MERGED in PR #2490, actual separately authorized squash `d0ccf3e98cfcfce5dc6b0e68f564c2bc99dc672c` at `2026-10-17T11:01:26Z`, approved head `b018bb235144b534eb6b9ab131e3dfe2615ec1c0`, synchronized material `888f044f6c8c929cfa0bf9c3bdd9e455bb51b1de` / base `99b692dfd431d8dcc90c1d60d28f3c9fcfddb5b7`, whole-tree equality. Exactly13 facade bindings/scaffolding retired; all prior117 preserved and three independent inventories exactly130. Canonical five-object ownership, 429 handler/model/middleware/real routes and production/staging fail-closed invariants remain preserved; private scaffold names gain no replacement API. Whole incoming #2489 was first committed at `613603bd8b952b05590628eaa7d9d22179521e64` and is RECONCILED IN MAIN; original Target2489 and truthful incoming2488 are unchanged. Own approved-head CI39021031021 SUCCESS (15 successful jobs/7 conditional skips/0 failures); JUnit9826/0fail/0error/0skip; all5XML; numeric diff100%/1eligible/0missing, with PR full-main total unselected/unknown. Required narrow/role/red-first/premortem/admitted Oracle/self-review/disposition/static no-claim seal/strict/wait proof passed; no full local make verify or provider PASS/no-findings claim. Clean synchronized squash main, focused2560+18 overflow/0fail/0error/0skip and direct Legacy guard passed. Own exact-squash main CI39027114651 SUCCESS (10 successful jobs/14 conditional skips/0 failures/cancellations), all three Python test-main and coverage-main; native TOTAL97.63%/97.65%/97.65%, each threshold97. Failed CD/Docker remains independently owned under the direct human scope clarification; no global-green/deployment claim or foreign repair. Multipart core index <https://drive.google.com/file/d/1sm5qrBmJDDG9vX_S8RvaV1VKWQdRWEMc/view> reconstructs65963107bytes/SHA256 `6b02f5ddfbdec10a3ec58fb245cdd34ded951930823b9fcc01d147a581fe1f3c`; actual download/all865payloads866members/selected15-commit Git/fsck/tree/no-alternates/all6 native transport recovery verified, with83 private original companion refs preserved outside removed worktrees and excluded from public ZIP. One same-ID Living Doc and PROJECT_LEGACY-only capsule content pass/readback preserved864 native-prefix elements, styles/controls, ACL/parents and every existing capsule byte. Owned cleanup at `2026-10-17T12:49:42.290037+00:00`: M/T paths/registrations and local/remote owned branch absent, remote already server-absent; expected-head local CAS and native removals exited0; exact redundant staging/rehearsals removed after preservation, shared/foreign resources retained, no broad worktree prune. Same-ID terminal supplement <https://drive.google.com/file/d/10tt3NE0G56D1poA-okJ1wtqjDO4WSDQM/view> retains late QA/outgoing/publication receipts. Outgoing reconciliation is PREPARED / ARCHIVED / NOT YET APPLIED for the first next substantive Legacy child after fresh admission; this patch does not apply itself. PROJECT_LEGACY OPEN; R29 PARTIAL/UNWAIVED; O1 historical NOT_ADMITTED; shared-runtime P1 OPEN. External/computed/hot-state limitations and targeted rollback remain; no docs-only closeout or automatic next removal.
+
+Evidence: `scripts/ci/check_legacy_growth_guard.py:40`,
+`tests/test_legacy_growth_guard.py:164`, `tests/test_legacy_bmi_shims.py:344`,
+`tests/test_fitchef_insight_api.py:1030`,
+[canonical fixed mapping](../review/PR_2490_FIXED_MAPPING.md),
+[own exact-squash main CI](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/39027114651).
+
+### Historical reviewed-stage record — retained cutoff
 
 Whole incoming #2489 reconciliation and the separately dated operator-start
 clarification were committed first as
@@ -1248,7 +1351,7 @@ Forbidden in `legacy_app.py`:
 | Operational health/readiness routes | `app/routers/health.py` + `app/main.py` | Runtime paths unchanged; no legacy decorator ownership. |
 | Infra and observability bootstrap | `app/bootstrap/` | Register from canonical entrypoint, not from `legacy_app.py`. |
 | Application lifecycle and shared resources | `app/bootstrap/lifespan.py` | One explicit startup/shutdown owner; deterministic reverse-order cleanup. |
-| App-client API-key dependencies | `app/routers/api_key.py` | Canonical owner; legacy compatibility is identity-preserving re-export only. |
+| App-client API-key dependencies | `app/routers/api_key.py` | Canonical owner; both selected Legacy Python bindings are retired, while package aliases and exact dependency identities remain. |
 | Application metadata | `app/application_metadata.py` | Immutable source; every FastAPI projection receives fresh nested mutable inputs. |
 | Public OpenAPI policy and builder | `app/bootstrap/openapi.py` | Validate before mutation; install after complete route bootstrap; stale/foreign state fails closed. |
 | Hidden admin/debug routes | `app/routers/admin_operations.py` | Canonical HTTP owner; route methods, auth, hidden OpenAPI posture, and response contracts remain unchanged. |
@@ -1288,9 +1391,9 @@ implementations and canonical `app/**` reverse imports or dynamic lookups for
 those callables. Current facts may disappear as the seam shrinks; new facts fail
 closed with repo-relative diagnostics.
 
-For the 130 retired Python bindings, the guard has a deliberately bounded
+For the 132 retired Python bindings, the guard has a deliberately bounded
 finite mechanical claim over the exact repo-relative `legacy_app.py` source
-only. It freezes the exact 130-name set, uses the existing `_assigned_names`
+only. It freezes the exact 132-name set, uses the existing `_assigned_names`
 collector for statically visible ordinary module-scope `Name` Store/Del
 bindings, rejects explicit `global` declarations for a protected name, rejects
 all star imports, and rejects a statically bound module-level `__getattr__`.
@@ -1308,7 +1411,7 @@ import hooks, reflection, arbitrary helpers, and external monkeypatching. The
 rule neither accepts nor certifies those families and makes no completeness
 claim about them. Any new or changed dynamic namespace carrier in
 `legacy_app.py`, and any dynamic carrier intended to bind or rebind one of the
-130 protected names, requires manual STOP and review. The existing router-import
+132 protected names, requires manual STOP and review. The existing router-import
 recognizer separately rejects reintroduction of the former exact dynamic
 `app.routers.plan_export -> _plan_mod` fact; this does not widen the ordinary
 binding rule or certify arbitrary namespace mutation.

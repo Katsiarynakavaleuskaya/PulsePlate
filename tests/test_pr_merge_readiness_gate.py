@@ -665,6 +665,7 @@ def test_publication_inventory_rejects_unknown_or_changed_raw_members(
     "scenario",
     [
         "publication",
+        "native-update-metadata",
         "missing-I",
         "terminal-raw-drift",
         "independent-root",
@@ -679,12 +680,19 @@ def test_precloseout_inspected_history_uses_real_recognizer_and_two_observations
     capsys: pytest.CaptureFixture[str],
     scenario: str,
 ) -> None:
+    """Exercise native inspected admission while rejecting missing, independent or drifting
+    evidence.
+    """
     from tests.test_pr_review_material_seal import (
         _inspected_stale_seal_fixture,
         _mapping_artifact_with_seal,
     )
 
     state = _inspected_stale_seal_fixture(tmp_path, monkeypatch)
+    if scenario == "native-update-metadata":
+        owner = state["thread"].comments[1]
+        state["rows"][owner.url]["updated_at"] = "2026-08-12T10:30:01Z"
+        state["nodes"]["REVIEW_800"]["updatedAt"] = "2026-08-12T10:30:01Z"
     prior_candidate_hash = hashlib.sha256(state["candidate"]).hexdigest()
     if scenario == "false-no-actionables":
         state["candidate"] = _mapping_artifact_with_seal(state["seal"]).encode("utf-8")
@@ -836,10 +844,12 @@ def test_precloseout_inspected_history_uses_real_recognizer_and_two_observations
             merge_gate, "fetch_review_threads", lambda *_a, **_k: (state["thread"], independent)
         )
     assert merge_gate.main() == (
-        0 if scenario in {"publication", "legacy-current-impossible"} else 1
+        0
+        if scenario in {"publication", "native-update-metadata", "legacy-current-impossible"}
+        else 1
     )
     output = capsys.readouterr().out
-    if scenario in {"publication", "legacy-current-impossible"}:
+    if scenario in {"publication", "native-update-metadata", "legacy-current-impossible"}:
         assert observations == 3
         assert "awaits actual correction/FIXED proof" in output
         assert "not merge-readiness evidence" in output
@@ -925,12 +935,28 @@ def test_split_checkout_main_binds_authenticated_base_and_head(
     )
 
 
+@pytest.mark.parametrize(
+    "case",
+    [
+        "regular",
+        "absent",
+        "unknown",
+        "symlink",
+        "executable",
+        "empty",
+        "oversize",
+        "invalid-utf8",
+        "grafts",
+    ],
+)
 def test_split_material_reads_exact_git_blob_and_scoped_agents(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    case: str,
 ) -> None:
     git = shutil.which("git")
     assert git is not None
-    fixture_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    fixture_env = {"PATH": os.defpath, "LC_ALL": "C"}
     fixture_env.update(
         GIT_CONFIG_GLOBAL=os.devnull,
         GIT_CONFIG_NOSYSTEM="1",
@@ -939,11 +965,21 @@ def test_split_material_reads_exact_git_blob_and_scoped_agents(
     )
 
     def run_git(*argv: str) -> bytes:
-        completed = subprocess.run(  # nosec B603: fixed test-owned Git repository (remove-by: 2026-10-31, ref: PR-consol-ci-1)
-            [git, "-C", str(tmp_path), *argv],
+        completed = subprocess.run(
+            [
+                git,
+                "-c",
+                f"core.hooksPath={os.devnull}",
+                "-c",
+                "init.templateDir=",
+                "-C",
+                str(tmp_path),
+                *argv,
+            ],
             check=False,
             capture_output=True,
             env=fixture_env,
+            timeout=10,
         )
         if completed.returncode != 0:
             diagnostic = completed.stderr.decode("utf-8", "replace")[:512].strip()
@@ -964,6 +1000,19 @@ def test_split_material_reads_exact_git_blob_and_scoped_agents(
     (tmp_path / "scripts" / "orchestration" / "pr_review_evidence.py").write_text(
         "raise RuntimeError('untrusted material code executed')\n", encoding="utf-8"
     )
+    if case == "symlink":
+        mapping.unlink()
+        mapping.symlink_to("other")
+    elif case == "executable":
+        mapping.chmod(0o755)
+    elif case == "absent":
+        mapping.unlink()
+    elif case == "empty":
+        mapping.write_bytes(b"")
+    elif case == "oversize":
+        mapping.write_bytes(b"x" * (8 * 1024**2 + 1))
+    elif case == "invalid-utf8":
+        mapping.write_bytes(b"\xff")
     run_git("add", ".")
     run_git(
         "-c",
@@ -976,7 +1025,53 @@ def test_split_material_reads_exact_git_blob_and_scoped_agents(
         "fixture",
     )
     head = run_git("rev-parse", "HEAD").decode("ascii")
+    if mapping.is_symlink():
+        mapping.unlink()
     mapping.write_text("dirty worktree mapping", encoding="utf-8")
+    if case == "grafts":
+        (tmp_path / ".git/info").mkdir(exist_ok=True)
+        (tmp_path / ".git/info/grafts").write_text(head + "\n")
+    if case == "unknown":
+        head = "0" * 40
+    with monkeypatch.context() as isolated:
+        home = tmp_path / "hostile-home"
+        home.mkdir()
+        (home / ".gitconfig").write_text("malformed config [\n")
+        isolated.setenv("HOME", str(home))
+        calls: list[list[str]] = []
+        original_run = subprocess.run
+
+        def observe(argv: list[str], **kwargs: Any) -> Any:
+            assert kwargs["env"]["GIT_CONFIG_GLOBAL"] == os.devnull
+            assert kwargs["env"]["GIT_CONFIG_NOSYSTEM"] == "1"
+            assert kwargs["env"]["GIT_NO_REPLACE_OBJECTS"] == "1"
+            calls.append(argv[1:])
+            return original_run(argv, **kwargs)
+
+        isolated.setattr(subprocess, "run", observe)
+        if case != "regular":
+            error = (
+                FileNotFoundError
+                if case == "absent"
+                else (
+                    UnicodeDecodeError
+                    if case == "invalid-utf8"
+                    else evidence_module.ReviewEvidenceError
+                )
+            )
+            with pytest.raises(error):
+                merge_gate._read_material_mapping_artifact(
+                    42, material_repo_root=tmp_path, head_sha=head, split_checkout=True
+                )
+            assert any(cmd == ["rev-parse", "--git-path", "info/grafts"] for cmd in calls)
+            assert any(cmd[:2] == ["cat-file", "blob"] for cmd in calls) == (case == "invalid-utf8")
+            return
+        assert (
+            merge_gate._read_material_mapping_artifact(
+                42, material_repo_root=tmp_path, head_sha=head, split_checkout=True
+            )
+            == "committed mapping"
+        )
 
     assert (
         merge_gate._read_material_mapping_artifact(
@@ -987,6 +1082,48 @@ def test_split_material_reads_exact_git_blob_and_scoped_agents(
     assert evidence_module._applicable_scoped_agents(
         ["scripts/ci/example.py"], material_head_sha=head, repo_root=tmp_path
     ) == ["AGENTS.md", "scripts/AGENTS.md"]
+
+
+@pytest.mark.parametrize(
+    "fault", ["duplicate", "wrong-path", "wrong-mode", "short-read", "timeout"]
+)
+def test_mapping_reader_distinguishes_corrupt_and_unavailable_git_evidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str
+) -> None:
+    head, oid = "a" * 40, "b" * 40
+    name = b"docs/review/PR_42_FIXED_MAPPING.md"
+    calls: list[list[str]] = []
+
+    def query(root: Path, args: list[str], **kwargs: object) -> bytes:
+        assert root == tmp_path
+        calls.append(args)
+        if fault == "timeout":
+            raise evidence_module._GitCommandError("git could not execute")
+        if args == ["cat-file", "-t", head]:
+            return b"commit\n"
+        if args[0] == "ls-tree":
+            mode = b"120000" if fault == "wrong-mode" else b"100644"
+            path = b"other" if fault == "wrong-path" else name
+            row = mode + b" blob " + oid.encode() + b"\t" + path + b"\0"
+            return row * (2 if fault == "duplicate" else 1)
+        if args == ["cat-file", "-t", oid]:
+            return b"blob\n"
+        if args == ["cat-file", "-s", oid]:
+            return b"2\n"
+        assert args == ["cat-file", "blob", oid] and fault == "short-read"
+        return b"x"
+
+    monkeypatch.setattr(evidence_module, "_run_git", query)
+    for read in (
+        lambda: merge_gate._read_material_mapping_artifact(
+            42, material_repo_root=tmp_path, head_sha=head, split_checkout=True
+        ),
+        lambda: evidence_module._stale_seal_mapping_blob(tmp_path, commit_sha=head, pr_number=42),
+    ):
+        calls.clear()
+        with pytest.raises(evidence_module.ReviewEvidenceError):
+            read()
+        assert (["cat-file", "blob", oid] in calls) == (fault == "short-read")
 
 
 def test_duplicate_reply_coverage_uses_canonical_shared_validator() -> None:
@@ -2079,20 +2216,72 @@ def test_review_quiet_window_times_out_when_activity_never_settles(
 def _git(repo: Path, *args: str, env: dict[str, str] | None = None) -> str:
     git = shutil.which("git")
     assert git is not None
-    run_env = dict(env or os.environ)
-    allowed_git_prefixes = ("GIT_AUTHOR_", "GIT_COMMITTER_")
-    for key in tuple(run_env):
-        if key.startswith("GIT_") and not key.startswith(allowed_git_prefixes):
-            run_env.pop(key)
+    home = repo.parent / "git-fixture-home"
+    home.mkdir(mode=0o700, exist_ok=True)
+    run_env = {
+        "PATH": os.defpath,
+        "HOME": str(home),
+        "LC_ALL": "C",
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_TERMINAL_PROMPT": "0",
+    }
+    if env is not None:
+        for key in (
+            "GIT_AUTHOR_NAME",
+            "GIT_AUTHOR_EMAIL",
+            "GIT_COMMITTER_NAME",
+            "GIT_COMMITTER_EMAIL",
+        ):
+            if key in env:
+                run_env[key] = env[key]
     result = subprocess.run(
-        [git, *args],
+        [git, "-c", f"core.hooksPath={os.devnull}", "-c", "init.templateDir=", *args],
         cwd=repo,
         env=run_env,
         capture_output=True,
         text=True,
         check=True,
+        timeout=10,
     )
     return result.stdout.strip()
+
+
+def test_git_fixture_blocks_host_global_hook(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    hooks = tmp_path / "hooks"
+    hooks.mkdir()
+    hook = hooks / "pre-commit"
+    hook.write_text('#!/bin/sh\nprintf ran > "$PWD/hook-ran"\n')
+    hook.chmod(0o700)
+    config = tmp_path / "host.gitconfig"
+    config.write_text(f'[core]\n\thooksPath = "{hooks}"\n')
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(config))
+    identity = {
+        "GIT_AUTHOR_NAME": "Fixture",
+        "GIT_COMMITTER_NAME": "Fixture",
+        "GIT_AUTHOR_EMAIL": "test@example.invalid",
+        "GIT_COMMITTER_EMAIL": "test@example.invalid",
+    }
+    _git(repo, "init", "-q")
+    _git(
+        repo,
+        "-c",
+        f"include.path={config}",
+        "commit",
+        "--allow-empty",
+        "-m",
+        "control",
+        env=identity,
+    )
+    marker = repo / "hook-ran"
+    assert marker.read_text() == "ran"
+    marker.unlink()
+    _git(repo, "commit", "--allow-empty", "-m", "isolated", env=identity)
+    assert not marker.exists()
 
 
 def _commit(repo: Path, message: str) -> str:
@@ -4090,7 +4279,12 @@ def test_merge_readiness_executes_exact_base_policy_over_separate_head_material(
     ],
 )
 def test_ios_merge_gate_executes_exact_selection_result_policy(
-    selected: str, unit_result: str, smoke_result: str, passes: bool
+    selected: str,
+    unit_result: str,
+    smoke_result: str,
+    passes: bool,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     workflow_path = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "ci.yml"
     workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
@@ -4101,7 +4295,7 @@ def test_ios_merge_gate_executes_exact_selection_result_policy(
     )
     bash = shutil.which("bash")
     assert bash is not None
-    env = os.environ.copy()
+    env = {"PATH": os.defpath, "HOME": str(tmp_path), "LC_ALL": "C"}
     env.update(
         CHANGES_RESULT="success",
         PR_BODY_PHASE2_GATES_RESULT="success",
@@ -4115,7 +4309,28 @@ def test_ios_merge_gate_executes_exact_selection_result_policy(
         IOS_UI_SMOKE_RESULT=smoke_result,
     )
 
-    result = subprocess.run([bash, "-e", "-c", step["run"]], env=env, capture_output=True)
+    marker = tmp_path / "startup-marker"
+    startup = tmp_path / "startup"
+    startup.write_text('printf "%s" "$GH_TOKEN" > startup-marker\n', encoding="utf-8")
+    monkeypatch.setenv("BASH_ENV", str(startup))
+    monkeypatch.setenv("GH_TOKEN", "synthetic-gate-credential")
+    for control in (True, False):
+        execution_env = dict(env)
+        if control:
+            execution_env.update(BASH_ENV=str(startup), GH_TOKEN="synthetic-gate-credential")
+        result = subprocess.run(
+            [bash, "-e", "-c", step["run"]],
+            env=execution_env,
+            cwd=tmp_path,
+            capture_output=True,
+            timeout=10,
+        )
+        if control:
+            assert marker.read_text() == "synthetic-gate-credential"
+            marker.unlink()
+        else:
+            assert not marker.exists()
+
     assert (result.returncode == 0) is passes, result.stdout.decode() + result.stderr.decode()
 
 
@@ -4123,7 +4338,9 @@ def test_ios_merge_gate_executes_exact_selection_result_policy(
     ("changed_path", "expected"),
     [(".github/workflows/ci.yml", True), ("ios/AGENTS.md", False)],
 )
-def test_ci_hook_selects_prerequisite_consumer_contract(changed_path: str, expected: bool) -> None:
+def test_ci_hook_selects_prerequisite_consumer_contract(
+    changed_path: str, expected: bool, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     hook = Path(__file__).resolve().parents[1] / "scripts/run-backend-tests-pre-commit.sh"
     source = hook.read_text(encoding="utf-8")
     start = source.index("add_extra_tests_for_changed_files() {")
@@ -4141,7 +4358,29 @@ def test_ci_hook_selects_prerequisite_consumer_contract(changed_path: str, expec
     )
     bash = shutil.which("bash")
     assert bash is not None
-    result = subprocess.run([bash, "-c", script], capture_output=True, text=True, check=True)
+    marker = tmp_path / "startup-marker"
+    startup = tmp_path / "startup"
+    startup.write_text('printf "%s" "$GITHUB_TOKEN" > startup-marker\n', encoding="utf-8")
+    monkeypatch.setenv("BASH_ENV", str(startup))
+    monkeypatch.setenv("GITHUB_TOKEN", "synthetic-hook-credential")
+    for control in (True, False):
+        env = {"PATH": os.defpath, "HOME": str(tmp_path), "LC_ALL": "C"}
+        if control:
+            env.update(BASH_ENV=str(startup), GITHUB_TOKEN="synthetic-hook-credential")
+        result = subprocess.run(
+            [bash, "-c", script],
+            capture_output=True,
+            text=True,
+            check=True,
+            env=env,
+            cwd=tmp_path,
+            timeout=10,
+        )
+        if control:
+            assert marker.read_text() == "synthetic-hook-credential"
+            marker.unlink()
+        else:
+            assert not marker.exists()
     targets = (
         "tests/test_private_python_proxy_workflow_contract.py",
         "tests/test_ci_workflow_pr_size_governance_contract.py",
@@ -4207,3 +4446,73 @@ def test_fetch_pr_context_includes_exact_head_ref(monkeypatch: pytest.MonkeyPatc
         "body",
         "codex/review",
     )
+
+
+@pytest.mark.parametrize("mutation", ["valid", "unavailable-Q", "material-after-R"])
+def test_ordinary_retirement_fixed_q_and_mapping_add_r_use_existing_gate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mutation: str
+) -> None:
+    """Validate material M independently of Q_fix proof identity and reject later material drift."""
+    from scripts.orchestration import pr_commit_identity as identity
+    from tests.test_pr_review_closeout import (
+        _ordinary_retirement_closeout_fixture,
+        _publication_git,
+    )
+
+    fixture = _ordinary_retirement_closeout_fixture(tmp_path, monkeypatch)
+    snapshot = fixture["snapshot"]
+    if mutation == "material-after-R":
+        (fixture["repo"] / "README.md").write_text(
+            "material drift after sealing\n", encoding="utf-8"
+        )
+        _publication_git(fixture["repo"], "add", "README.md")
+        _publication_git(fixture["repo"], "commit", "-qm", "later real material")
+        snapshot = replace(
+            snapshot, head_sha=_publication_git(fixture["repo"], "rev-parse", "HEAD")
+        )
+    monkeypatch.setattr(
+        merge_gate,
+        "classify_commit_ref",
+        lambda sha, *_a, **_k: (
+            identity.ReviewExecutionRef(sha, CommitRefKind.API_UNKNOWN, "synthetic unknown")
+            if mutation == "unavailable-Q" and sha == fixture["q"]
+            else RepositoryCommitRef(sha, CommitRefKind.PR_COMMIT)
+        ),
+    )
+    monkeypatch.setattr(
+        merge_gate,
+        "is_ancestor",
+        lambda first, second, **_k: not _publication_git(
+            fixture["repo"], "rev-list", first.sha, f"^{second.sha}"
+        ),
+    )
+    kwargs = dict(
+        artifact_text=fixture["target"].read_text(encoding="utf-8"),
+        repository="owner/repo",
+        pr_number=42,
+        snapshot=snapshot,
+        token="opaque",
+        material_repo_root=fixture["repo"],
+        enforce_outage_security_checks=False,
+    )
+    if mutation == "material-after-R":
+        with pytest.raises(ReviewEvidenceError, match="live material digest"):
+            merge_gate._validate_v1_seal(**kwargs)
+        return
+    # Material M and its earlier genuine FIXED proof Q_fix have separate consumers.
+    seal = merge_gate._validate_v1_seal(**kwargs)
+    assert seal["material"]["material_head_sha"] == fixture["m"]
+    assert fixture["q"] != fixture["m"]
+    proof_args = dict(
+        mapping_entries={fixture["root"]: fixture["q"]},
+        snapshot=snapshot,
+        repository="owner/repo",
+        token="opaque",
+    )
+    if mutation == "unavailable-Q":
+        with pytest.raises(
+            identity.CommitIdentityError, match="mapped FIXED SHA is not a real PR commit"
+        ):
+            merge_gate._prove_v1_fixed_commits(**proof_args)
+    else:
+        merge_gate._prove_v1_fixed_commits(**proof_args)

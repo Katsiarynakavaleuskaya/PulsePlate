@@ -11,6 +11,7 @@ import pytest
 
 import scripts.orchestration.experiment_bootstrap as experiment_bootstrap
 from scripts.orchestration.experiment_contract import (
+    is_cv_experiment,
     validate_creative_research_origin,
     validate_cv_context,
     validate_experiment_packet,
@@ -1266,3 +1267,286 @@ def test_main_fails_cleanly_on_output_write_error(
     captured = capsys.readouterr()
     assert exit_code == 1
     assert "FAIL: unable to write experiment packet:" in captured.out
+
+
+# A fixed source-governance counterexample, not optical data or a live evidence receipt.
+_CV_ORACLE_REVIEW_PATHS = (
+    ".github/workflows/cd.yml",
+    ".github/workflows/ci.yml",
+    ".secrets.baseline",
+    "docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md",
+    "docs/roadmap/BACKLOG_LEDGER.md",
+    "scripts/AGENTS.md",
+    "scripts/QUICK_FIX_PRODUCTION.sh",
+    "scripts/ci/prometheus_source_image.py",
+    "scripts/deploy.sh",
+    "scripts/deploy_production.sh",
+    "scripts/orchestration/experiment_bootstrap.py",
+    "scripts/orchestration/experiment_contract.py",
+    "tests/AGENTS.md",
+    "tests/test_caddy_deploy_provenance.py",
+    "tests/test_cd_workflow_production_deploy_gate.py",
+    "tests/test_ci_workflow_pr_size_governance_contract.py",
+    "tests/test_deploy_contract_scripts.py",
+    "tests/test_experiment_bootstrap.py",
+    "tests/test_legacy_growth_guard.py",
+    "tests/test_prometheus_source_image.py",
+)
+_CV_ORACLE_REVIEW_QUESTION = (
+    "For PR2493 actual post-sync committed head "
+    "29f5bf2a0333352a2590dc5a5fa335e0f268c826, "
+    "current base/merge-base "
+    "13556deaf2ddcbff733b7c4ff1a4f0516494770b, "
+    "genuine merge parents "
+    "a546b95a1a17f346669d4a85daa9364f20d7d544/"
+    "13556deaf2ddcbff733b7c4ff1a4f0516494770b, "
+    "net diff sha256:"
+    "7e3634ebb2432dd60d69b31851a6eb44715a135b2c97a6b3664791118098cd57, "
+    "do the complete baseline and historical Prometheus admission preserve original18 criteria, "
+    "exact native/source/credential boundaries and all negative controls? "
+    "Synthetic oracles do not prove actual image publication, successor-main B7/DK2 or D8."
+)
+
+
+def _cv_applicability_inputs() -> dict[str, Any]:
+    """Supply valid existing paths and oracles without optical intent or metadata."""
+    return {
+        "decision_question": "Check deterministic source controls",
+        "task_class": "bugfix",
+        "mutable_paths": ["core/rag/vector_rag.py"],
+        "oracle_commands": ["pytest -q tests/test_experiment_bootstrap.py"],
+        "metrics": ["required_controls_pass"],
+        "negative_controls": ["no candidate mutation", "all source paths retained"],
+        "promotion_target": "audit_artifact",
+    }
+
+
+def test_cv_oracle_constructor_retains_complete_source_review_context() -> None:
+    """Keep all twenty real review paths without fabricating an optical overlay."""
+    kwargs = _cv_applicability_inputs()
+    kwargs.update(
+        decision_question=_CV_ORACLE_REVIEW_QUESTION,
+        mutable_paths=list(_CV_ORACLE_REVIEW_PATHS),
+        runner_mode="oracle_only_governance_reviewer",
+    )
+    packet = build_experiment_packet(**kwargs)
+    assert packet["runner_mode"] == "oracle_only_governance_reviewer"
+    assert packet["mutable_candidate_surface"] == sorted(_CV_ORACLE_REVIEW_PATHS)
+    assert "cv_context" not in packet
+    assert "cv-agent" not in packet["recommended_agents"]
+    validated = validate_experiment_packet(packet)
+    assert validated["mutable_candidate_surface"] == sorted(_CV_ORACLE_REVIEW_PATHS)
+    assert "cv_context" not in validated
+    assert validated["runner_mode"] == packet["runner_mode"]
+    assert validated["immutable_oracles"] == packet["immutable_oracles"]
+    kwargs["mutable_paths"] = list(reversed(_CV_ORACLE_REVIEW_PATHS))
+    assert build_experiment_packet(**kwargs)["experiment_id"] == packet["experiment_id"]
+    kwargs["mutable_paths"] = [
+        path
+        for path in _CV_ORACLE_REVIEW_PATHS
+        if path != "scripts/orchestration/experiment_bootstrap.py"
+    ]
+    assert build_experiment_packet(**kwargs)["experiment_id"] != packet["experiment_id"]
+
+
+def test_cv_oracle_constructor_preserves_canonical_context_domain() -> None:
+    """Propagate Oracle mode so a CV context path reaches canonical domain routing."""
+    kwargs = _cv_applicability_inputs()
+    kwargs.update(
+        mutable_paths=["docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md"],
+        runner_mode="oracle_only_governance_reviewer",
+    )
+    packet = build_experiment_packet(**kwargs)
+    assert "cv_context" not in packet
+    assert packet["domain"] == "cv"
+
+
+def test_cv_oracle_downstream_independently_accepts_complete_review_context() -> None:
+    """Reach downstream validation even while the full-context constructor is broken."""
+    kwargs = _cv_applicability_inputs()
+    kwargs["runner_mode"] = "oracle_only_governance_reviewer"
+    packet = build_experiment_packet(**kwargs)
+    assert (
+        validate_experiment_packet(packet)["mutable_candidate_surface"] == kwargs["mutable_paths"]
+    )
+    packet["decision_question"] = _CV_ORACLE_REVIEW_QUESTION
+    packet["mutable_candidate_surface"] = list(_CV_ORACLE_REVIEW_PATHS)
+    validated = validate_experiment_packet(packet)
+    assert validated["mutable_candidate_surface"] == sorted(_CV_ORACLE_REVIEW_PATHS)
+    assert validated["runner_mode"] == "oracle_only_governance_reviewer"
+    assert "cv_context" not in validated
+
+
+@pytest.mark.parametrize("runner_mode", ["candidate_patch", "oracle_only_governance_reviewer"])
+@pytest.mark.parametrize("field", ["decision_question", "task_class"])
+@pytest.mark.parametrize(
+    "cue",
+    [
+        "cv",
+        "photo",
+        "vision",
+        "multimodal",
+        "image recognition",
+        "image classification",
+        "image segmentation",
+    ],
+)
+def test_cv_explicit_intent_requires_overlay_in_both_modes(
+    runner_mode: str, field: str, cue: str
+) -> None:
+    """Retain every finite intent cue in both input fields and both execution modes."""
+    kwargs = _cv_applicability_inputs()
+    kwargs.update(runner_mode=runner_mode, cv_context=_cv_context())
+    kwargs[field] = "Container image work with " + cue
+    packet = build_experiment_packet(**kwargs)
+    assert validate_experiment_packet(packet)["cv_context"] == packet["cv_context"]
+    kwargs["cv_context"] = None
+    with pytest.raises(ValueError, match="CV-oriented experiment packets must include cv_context"):
+        build_experiment_packet(**kwargs)
+    packet.pop("cv_context")
+    with pytest.raises(ValueError, match="CV-oriented experiment packets must include cv_context"):
+        validate_experiment_packet(packet)
+
+
+@pytest.mark.parametrize(
+    "runner_mode,expected_mode,requires_overlay",
+    [
+        (None, "candidate_patch", True),
+        ("candidate_patch", "candidate_patch", True),
+        (" CANDIDATE_PATCH ", "candidate_patch", True),
+        ("oracle_only_governance_reviewer", "oracle_only_governance_reviewer", False),
+        (" ORACLE_ONLY_GOVERNANCE_REVIEWER ", "oracle_only_governance_reviewer", False),
+    ],
+)
+def test_cv_mode_distinguishes_candidate_paths_from_oracle_context(
+    runner_mode: str | None, expected_mode: str, requires_overlay: bool
+) -> None:
+    """The same admitted CV path has different input roles, with legacy mode normalization."""
+    kwargs = _cv_applicability_inputs()
+    kwargs.update(
+        mutable_paths=["docs/prompts/cv/program.md"],
+        runner_mode=runner_mode,
+        cv_context=_cv_context(),
+    )
+    packet = build_experiment_packet(**kwargs)
+    assert validate_experiment_packet(packet)["runner_mode"] == expected_mode
+    assert (
+        is_cv_experiment(
+            kwargs["decision_question"],
+            runner_mode=runner_mode,
+            surface_paths=kwargs["mutable_paths"],
+        )
+        is requires_overlay
+    )
+    kwargs["cv_context"] = None
+    packet.pop("cv_context")
+    if requires_overlay:
+        with pytest.raises(ValueError, match="must include cv_context"):
+            build_experiment_packet(**kwargs)
+        with pytest.raises(ValueError, match="must include cv_context"):
+            validate_experiment_packet(packet)
+    else:
+        assert "cv_context" not in build_experiment_packet(**kwargs)
+        assert "cv_context" not in validate_experiment_packet(packet)
+
+
+def test_cv_legacy_positional_and_omitted_mode_keep_candidate_intent() -> None:
+    """Existing creative-style positional calls and omitted mode retain CV path intent."""
+    assert is_cv_experiment("Check controls", "Experimentation", "docs/prompts/cv/program.md")
+    assert is_cv_experiment("Check controls", surface_paths=["docs/prompts/cv/program.md"])
+    kwargs = _cv_applicability_inputs()
+    kwargs["mutable_paths"] = ["docs/prompts/cv/program.md"]
+    with pytest.raises(ValueError, match="must include cv_context"):
+        build_experiment_packet(**kwargs)
+
+
+@pytest.mark.parametrize("runner_mode", ["", "  ", "unknown", 7, False])
+def test_cv_invalid_mode_cannot_bypass_overlay_admission(runner_mode: object) -> None:
+    """Invalid modes fail through the existing mode owner, never an oracle fallback."""
+    kwargs = _cv_applicability_inputs()
+    packet = build_experiment_packet(**kwargs)
+    assert validate_experiment_packet(packet)["runner_mode"] == "candidate_patch"
+    with pytest.raises(ValueError, match="runner_mode must be one of"):
+        is_cv_experiment("Check controls", runner_mode=runner_mode, surface_paths=[])
+    kwargs["runner_mode"] = runner_mode
+    with pytest.raises(ValueError, match="runner_mode must be one of"):
+        build_experiment_packet(**kwargs)
+    packet["runner_mode"] = runner_mode
+    with pytest.raises(ValueError, match="runner_mode must be one of"):
+        validate_experiment_packet(packet)
+
+
+@pytest.mark.parametrize(
+    "section,key,diagnostic",
+    [
+        ("dataset", "id", "dataset must include a non-empty id"),
+        (
+            "privacy_packet",
+            "consent_policy",
+            "privacy_packet must include a non-empty consent_policy",
+        ),
+        ("degrade_state_matrix", "unknown", "degrade_state_matrix entries must be one of"),
+        ("uncertainty_band_policy", "bands", "uncertainty_band_policy.bands must be a list"),
+    ],
+)
+def test_cv_negative_oracle_intent_still_validates_supplied_metadata(
+    section: str, key: str, diagnostic: str
+) -> None:
+    """A cue-negative oracle cannot bypass malformed non-None metadata validation."""
+    kwargs = _cv_applicability_inputs()
+    kwargs["runner_mode"] = "oracle_only_governance_reviewer"
+    packet = build_experiment_packet(**kwargs)
+    assert "cv_context" not in validate_experiment_packet(packet)
+    invalid = _cv_context()
+    invalid[section].pop(key)
+    kwargs["cv_context"] = invalid
+    with pytest.raises(ValueError, match=diagnostic):
+        build_experiment_packet(**kwargs)
+    packet["cv_context"] = invalid
+    with pytest.raises(ValueError, match=diagnostic):
+        validate_experiment_packet(packet)
+
+
+@pytest.mark.parametrize(
+    "parts,expected",
+    [
+        (("container image publication",), False),
+        (("scripts/ci/prometheus_source_image.py",), False),
+        (("visionary cve photograph",), False),
+        (("preimage classification",), False),
+        (("image classificationish",), False),
+        (("image", "classification"), False),
+        (("image", "recognition"), False),
+        (("image classification",), True),
+        (("image_classification",), True),
+        (("image-recognition",), True),
+        (("image/segmentation",), True),
+        (("cv",), True),
+        (("photo",), True),
+        (("vision",), True),
+        (("multimodal",), True),
+        (("container image", "photo"), True),
+    ],
+)
+def test_cv_cues_are_bounded_and_do_not_join_independent_parts(
+    parts: tuple[str, ...], expected: bool
+) -> None:
+    """Require same-part optical compounds and preserve finite token boundaries."""
+    assert is_cv_experiment(*parts) is expected
+
+
+def test_cv_advisor_preserves_task_class_input_asymmetry() -> None:
+    """Task-class-only admission stays mandatory without adding that input to the advisor."""
+    kwargs = _cv_applicability_inputs()
+    kwargs.update(
+        task_class="CV",
+        runner_mode="oracle_only_governance_reviewer",
+        mutable_paths=list(_CV_ORACLE_REVIEW_PATHS),
+        cv_context=_cv_context(),
+    )
+    packet = build_experiment_packet(**kwargs)
+    assert packet["domain"] == "ml"
+    assert "cv-agent" not in packet["recommended_agents"]
+    assert validate_experiment_packet(packet)["cv_context"] == packet["cv_context"]
+    kwargs["decision_question"] = "Evaluate photo recognition"
+    assert "cv-agent" in build_experiment_packet(**kwargs)["recommended_agents"]

@@ -4,10 +4,6 @@ import logging
 from typing import Any, cast
 
 from app.bootstrap.application import app as _canonical_app
-from app.routers.api_key import (  # noqa: F401 - identity-preserving compatibility re-exports
-    _get_api_key_dynamic as _get_api_key_dynamic,
-    get_api_key as get_api_key,
-)
 
 # Preserve the declared lexical legacy surface while re-exporting the exact canonical object.
 app = cast(Any, _canonical_app)

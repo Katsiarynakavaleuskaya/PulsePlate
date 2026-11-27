@@ -591,8 +591,13 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
 - Canonical routers and bootstrap code import these callables directly from the
   canonical module, never from `legacy_app.py` or through legacy-module
   `getattr` lookup.
-- `legacy_app.py` may temporarily re-export the exact callable objects; wrappers
-  are forbidden because FastAPI dependency overrides key on callable identity.
+- The `legacy_app.get_api_key` and `legacy_app._get_api_key_dynamic` Python
+  bindings are retired. Import both callables from `app.routers.api_key`; do not
+  restore Legacy aliases, wrappers or lazy fallbacks. The separate package
+  `app.get_api_key` / `app._get_api_key_dynamic` exports and intentional package
+  override remain unchanged; FastAPI dependency overrides key on exact callable
+  identity. Reuse the protected fresh-process retirement harness for import-order
+  proof, which does not establish external/computed-caller or hot-reload absence.
 - API keys are app-client credentials, not authenticated user/principal truth.
 - Unexpected validation failures must keep stable generic client envelopes and
   must not log key values, exception messages, or credential-bearing traceback.

@@ -533,3 +533,86 @@ def test_cli_invocation_works_without_pythonpath() -> None:
     )
 
     assert result.returncode == 0, result.stdout + "\n" + result.stderr
+
+
+@pytest.mark.parametrize("exit_code", (0, 7))
+def test_preflight_run_preserves_native_result_with_git_deadline(
+    monkeypatch: pytest.MonkeyPatch, exit_code: int
+) -> None:
+    def run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        assert argv == [preflight.GIT_EXECUTABLE, "status", "--porcelain"]
+        assert kwargs["timeout"] == preflight.GIT_COMMAND_TIMEOUT_SECONDS == 30
+        assert kwargs["cwd"] == preflight.ROOT and kwargs["check"] is False
+        return subprocess.CompletedProcess(argv, exit_code, "native stdout", "native stderr\n")
+
+    monkeypatch.setattr(preflight.subprocess, "run", run)
+    assert preflight._run(["git", "status", "--porcelain"]) == (
+        exit_code,
+        "native stdout\nnative stderr",
+    )
+
+
+@pytest.mark.parametrize(
+    "consumer", ("direct", "worktrees", "clean", "scope", "analyze", "consistency")
+)
+def test_preflight_timeout_remains_nonzero_for_each_decision_consumer(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], consumer: str
+) -> None:
+    calls: list[list[str]] = []
+    expected = (
+        preflight.AGENT_CONSISTENCY_TIMEOUT_SECONDS
+        if consumer == "consistency"
+        else preflight.GIT_COMMAND_TIMEOUT_SECONDS
+    )
+
+    def run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        calls.append(argv)
+        assert kwargs["timeout"] == expected
+        raise subprocess.TimeoutExpired(
+            argv, expected, output="synthetic-secret-output", stderr="synthetic-secret-error"
+        )
+
+    monkeypatch.setattr(preflight.subprocess, "run", run)
+    if consumer == "direct":
+        assert preflight._run(["git", "status", "--porcelain"]) == (
+            124,
+            "Preflight command timed out after 30 seconds",
+        )
+    elif consumer == "consistency":
+        assert preflight.check_agent_consistency() is False
+        assert calls == [[sys.executable, "scripts/orchestration/check_agent_consistency.py"]]
+        assert expected == 120
+    elif consumer == "worktrees":
+        assert preflight.check_worktrees_untracked() is False
+    elif consumer == "clean":
+        assert preflight.check_working_tree_clean() is False
+    elif consumer == "scope":
+        assert (
+            preflight.check_task_scope_isolated(["scripts/orchestration/check_preflight.py"])
+            is False
+        )
+    else:
+        monkeypatch.setattr(preflight, "check_sot_files", lambda: True)
+        monkeypatch.setattr(preflight, "check_worktrees_untracked", lambda: True)
+        monkeypatch.setattr(preflight, "check_agent_consistency", lambda: True)
+        monkeypatch.setattr(preflight, "check_artifact_gitignore", lambda: True)
+        monkeypatch.setattr(preflight, "_role_dispatch_bridge_smoke", lambda: True)
+        monkeypatch.setattr(preflight, "check_private_python_index_url_shape", lambda *_args: True)
+        assert preflight.main(["--mode", "analyze"]) == 1
+    output = capsys.readouterr()
+    assert "synthetic-secret" not in output.out + output.err
+    if consumer != "direct":
+        assert "FAIL:" in output.out and "timed out" in output.out
+    assert calls
+
+
+def test_preflight_consistency_child_has_distinct_success_deadline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        assert argv == [sys.executable, "scripts/orchestration/check_agent_consistency.py"]
+        assert kwargs["timeout"] == preflight.AGENT_CONSISTENCY_TIMEOUT_SECONDS == 120
+        return subprocess.CompletedProcess(argv, 0, "consistent", "")
+
+    monkeypatch.setattr(preflight.subprocess, "run", run)
+    assert preflight.check_agent_consistency() is True

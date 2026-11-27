@@ -64,10 +64,23 @@ Required `cv_context` fields:
 
 Rule:
 
-- If an experiment question or mutable surface is CV-oriented, missing `cv_context`
-  is a fail-closed validation error.
-- Non-CV packets remain backward compatible and must not be forced to include
-  CV metadata.
+- The shared `experiment_contract.is_cv_experiment` selector validates `runner_mode`
+  through the existing mode validator before selecting inputs. Omitted or `None`
+  mode means `candidate_patch`; supported strings normalize as usual, and invalid
+  modes fail closed.
+- In `candidate_patch`, question, task class and candidate paths supply CV cues.
+  In `oracle_only_governance_reviewer`, only question and task class supply intent;
+  every context path still undergoes surface validation and remains in packet identity.
+  Existing positional callers retain candidate intent semantics.
+- The finite cues are `cv`, `multimodal`, `photo`, `vision`, `image recognition`,
+  `image classification` and `image segmentation`, with normalized token boundaries
+  within each individual input part. Separate parts cannot form a compound cue.
+  Singleton `image` is not a cue. This bounded matcher does not infer all possible CV intent.
+- A matching intent requires `cv_context`; any supplied non-`None` context is validated
+  even without a cue. Non-CV packets need no fabricated dataset or privacy metadata.
+- Constructor, domain and downstream validation share the selector. Advisory selection
+  retains its existing question/path inputs without adding task class; mandatory CV
+  metadata admission remains independent of whether the advisor recommends `cv-agent`.
 
 ---
 

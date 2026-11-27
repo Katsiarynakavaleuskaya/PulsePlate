@@ -6,12 +6,13 @@ EN: Shared constants and fail-closed validation helpers for experiment packets.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 import os
 from pathlib import Path
 import re
 import shlex
 import shutil
-import subprocess  # nosec B404: bounded git ls-files validation only (remove-by: 2026-10-31, ref: ledger-p1-experiment-runner-oracle-only-governance-reviewer)
+import subprocess  # nosec B404: bounded git ls-files validation only (remove-by: 2027-02-01, ref: ledger-p1-experiment-runner-oracle-only-governance-reviewer)
 from typing import Any
 
 from scripts.orchestration.context_pack import REPO_ROOT, normalize_text, repo_relative_paths
@@ -216,7 +217,9 @@ CREATIVE_RESEARCH_PROMOTION_DECISIONS: tuple[str, ...] = (
 CREATIVE_RESEARCH_ORIGIN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 CV_EXPERIMENT_HINTS: tuple[str, ...] = (
     "cv",
-    "image",
+    "image recognition",
+    "image classification",
+    "image segmentation",
     "multimodal",
     "photo",
     "vision",
@@ -332,23 +335,42 @@ def validate_oracle_context_surface(paths: list[str] | tuple[str, ...]) -> list[
         )
 
     git_binary = shutil.which("git")
-    if not git_binary:
-        raise ValueError("git binary is required to validate oracle-only context paths.")
-    tracked_process = subprocess.run(  # nosec B603: absolute git binary checks tracked context paths without shell (remove-by: 2026-10-31, ref: ledger-p1-experiment-runner-oracle-only-governance-reviewer)
-        [git_binary, "--literal-pathspecs", "ls-files", "--error-unmatch", "--", *normalized_paths],
-        cwd=str(REPO_ROOT),
-        env=_git_env_without_parent_state(),
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if tracked_process.returncode != 0:
-        diagnostic = tracked_process.stderr.strip() or tracked_process.stdout.strip()
-        raise ValueError(
-            "Oracle-only context paths must already be tracked by git: "
-            f"{diagnostic or ', '.join(normalized_paths)}"
+    if (
+        not git_binary
+        or not Path(git_binary).is_absolute()
+        or not Path(git_binary).is_file()
+        or not os.access(git_binary, os.X_OK)
+    ):
+        raise ValueError("An absolute executable Git is required for the context query.")
+    try:
+        tracked_process = subprocess.run(  # nosec B603: absolute git binary checks tracked context paths without shell (remove-by: 2027-01-01, ref: ledger-p1-experiment-runner-oracle-only-governance-reviewer)
+            [
+                git_binary,
+                "--literal-pathspecs",
+                "ls-files",
+                "--error-unmatch",
+                "--",
+                *normalized_paths,
+            ],
+            cwd=str(REPO_ROOT),
+            env=_git_env_without_parent_state(),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=30,
+            check=False,
         )
-    return normalized_paths
+    except subprocess.TimeoutExpired:
+        failure = "Git tracked-context query timed out."
+    except OSError:
+        failure = "Git tracked-context query could not execute."
+    else:
+        if tracked_process.returncode == 0:
+            return normalized_paths
+        if tracked_process.returncode == 1:
+            raise ValueError("Oracle-only context paths must already be tracked by git.")
+        failure = "Git tracked-context query failed."
+    raise ValueError(failure)
 
 
 def validate_runner_mode(value: Any) -> str:
@@ -554,11 +576,20 @@ def validate_creative_research_origin(raw_origin: Any) -> dict[str, str] | None:
     return normalized
 
 
-def is_cv_experiment(*parts: Any) -> bool:
-    """Return whether the experiment intent is CV-oriented and needs cv_context."""
+def is_cv_experiment(
+    *parts: Any,
+    runner_mode: Any = DEFAULT_RUNNER_MODE,
+    surface_paths: Sequence[str] = (),
+) -> bool:
+    """Match finite CV cues per intent part, adding candidate paths only in candidate mode."""
 
-    normalized = normalize_text(*[str(part) for part in parts if str(part).strip()])
-    return bool(normalized) and _contains_hint(normalized, CV_EXPERIMENT_HINTS)
+    validated_mode = validate_runner_mode(runner_mode)
+    selected_parts = parts
+    if validated_mode == DEFAULT_RUNNER_MODE:
+        selected_parts = (*parts, *surface_paths)
+    return any(
+        _contains_hint(normalize_text(str(part)), CV_EXPERIMENT_HINTS) for part in selected_parts
+    )
 
 
 def _require_non_empty_string(
@@ -792,7 +823,9 @@ def validate_experiment_packet(packet: dict[str, Any]) -> dict[str, Any]:
 
     promotion_target = validate_promotion_target(str(packet.get("promotion_target", "")))
     cv_context_raw = packet.get("cv_context")
-    requires_cv_context = is_cv_experiment(decision_question, task_class, *mutable_surface)
+    requires_cv_context = is_cv_experiment(
+        decision_question, task_class, runner_mode=runner_mode, surface_paths=mutable_surface
+    )
     if cv_context_raw is None:
         if requires_cv_context:
             raise ValueError(

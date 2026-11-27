@@ -3,7 +3,7 @@
 # Optimized for production with minimal image size and security
 
 # Centralize pip upgrade range (SoT) to avoid drift across stages.
-ARG PIP_VERSION_RANGE="pip>=26.1,<27.0"
+ARG PIP_VERSION_RANGE="pip>=26.2.2,<27.0"
 # SQLite source pins are intentionally mirrored in scripts/ci/docker_source_artifacts.json.
 # Docker COPY source paths are literal, so a SQLite bump must update the manifest,
 # the COPY filename below, and these SHA3 parts together.
@@ -17,8 +17,13 @@ ARG SQLITE_AUTOCONF_SHA3_256_PART_6="bed2bd81"
 ARG SQLITE_AUTOCONF_SHA3_256_PART_7="d47e98ba"
 ARG SQLITE_AUTOCONF_SHA3_256_PART_8="1b72983b"
 
-# Exact SDK target family; default and runtime Python keep their existing amd64 pin.
+# The default SDK image selects amd64. Production and staging require linux/amd64
+# even though the pinned runtime Python image index supports multiple architectures.
 ARG PSYCOPG_SDK_PYTHON_IMAGE="python@sha256:7a6b87c02e1f4d6bb572e379235cbbdd7892add0572442c9b0b860a3f5aa9857"
+
+# Compose supplies the same four verified inputs when the checkout has no source cache.
+FROM scratch AS sdk-source-archives
+COPY build/docker-sources/zlib-71747d1d39168833e0cae8ed84b8ce77cb049699.tar.gz build/docker-sources/ncurses-snapshots-dc909d77781ef5c2a0684e9ad9eb9f0c0baf5ecc.tar.gz build/docker-sources/openssl-3.5.9.tar.gz build/docker-sources/postgresql-18.6.tar.gz /input/native/
 
 FROM ${PSYCOPG_SDK_PYTHON_IMAGE} AS native-builder
 ARG PSYCOPG_SDK_PYTHON_IMAGE
@@ -28,8 +33,7 @@ RUN python -I -c 'import os, sys; sys.path.insert(0, "/tooling/scripts/ci"); fro
     && apt-get install -y --no-install-recommends build-essential bison flex ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 COPY scripts/ci/docker_source_artifacts.json scripts/ci/fetch_docker_source_artifacts.py /tooling/scripts/ci/
-COPY build/docker-sources/zlib-1.3.2.tar.gz build/docker-sources/ncurses-6.6.tar.gz build/docker-sources/openssl-3.5.9.tar.gz build/docker-sources/postgresql-18.6.tar.gz build/docker-sources/zlib-gzwrite-fix-df84af25dc1942490e1d1c899a07619152a46148.patch /input/native/
-COPY build/docker-sources/zlib-gzwrite-null-fix-e3dc0a85b7032e98380dec011bc8f2c2ee0d8fca.patch build/docker-sources/zlib-gzvprintf-return-fix-bbc2ccf3d0de267576b524b875c769a724a513b0.patch build/docker-sources/zlib-gzprintf-return-fix-7235b0a581227c56a79a43ff828f8ef6794194c8.patch build/docker-sources/zlib-blocked-errno-fix-813dac5dcb5902ed241e9b0d38abd2d847a335a9.patch build/docker-sources/zlib-gzprintf-contract-fix-d81c2d7eb705c62294ba03299255672078e89115.patch build/docker-sources/zlib-errno-order-fix-a82e0db392178a3e05fb27bf551a6ce757a47898.patch /input/native/
+COPY --from=sdk-source-archives /input/native/ /input/native/
 RUN --network=none python - <<'PY'
 import sys
 sys.path.insert(0, "/tooling/scripts/ci")
@@ -38,7 +42,7 @@ import tarfile
 from fetch_docker_source_artifacts import load_manifest, validate_source_payload
 
 records = load_manifest(Path("/tooling/scripts/ci/docker_source_artifacts.json"))
-for name in ("zlib", "ncurses", "openssl", "postgresql", "zlib-gzwrite-fix", "zlib-gzwrite-null-fix", "zlib-gzvprintf-return-fix", "zlib-gzprintf-return-fix", "zlib-blocked-errno-fix", "zlib-gzprintf-contract-fix", "zlib-errno-order-fix"):
+for name in ("zlib", "ncurses", "openssl", "postgresql"):
     matches = [record for record in records if record.name == name]
     if len(matches) != 1:
         raise SystemExit("Native source identity is missing or duplicated")
@@ -51,43 +55,12 @@ for name in ("zlib", "ncurses", "openssl", "postgresql", "zlib-gzwrite-fix", "zl
 PY
 RUN --network=none <<'SH'
 set -eu
-cd /build/source/zlib-1.3.2
-python - <<'PY'
-from hashlib import sha256
-from pathlib import Path
-import json
-rows = {p.as_posix(): sha256(p.read_bytes()).hexdigest() for p in Path(".").rglob("*") if p.is_file() and not p.is_symlink()}
-Path("/tmp/zlib-original-members.json").write_text(json.dumps(rows))
-PY
-patch --batch --forward --fuzz=0 --no-backup-if-mismatch -p1 --input /input/native/zlib-gzwrite-null-fix-e3dc0a85b7032e98380dec011bc8f2c2ee0d8fca.patch
-patch --batch --forward --fuzz=0 --no-backup-if-mismatch -p1 --input /input/native/zlib-gzvprintf-return-fix-bbc2ccf3d0de267576b524b875c769a724a513b0.patch
-patch --batch --forward --fuzz=0 --no-backup-if-mismatch -p1 --input /input/native/zlib-gzwrite-fix-df84af25dc1942490e1d1c899a07619152a46148.patch
-patch --batch --forward --fuzz=0 --no-backup-if-mismatch -p1 --input /input/native/zlib-gzprintf-return-fix-7235b0a581227c56a79a43ff828f8ef6794194c8.patch
-patch --batch --forward --fuzz=0 --no-backup-if-mismatch -p1 --input /input/native/zlib-blocked-errno-fix-813dac5dcb5902ed241e9b0d38abd2d847a335a9.patch
-patch --batch --forward --fuzz=0 --no-backup-if-mismatch -p1 --input /input/native/zlib-gzprintf-contract-fix-d81c2d7eb705c62294ba03299255672078e89115.patch
-patch --batch --forward --fuzz=0 --no-backup-if-mismatch -p1 --input /input/native/zlib-errno-order-fix-a82e0db392178a3e05fb27bf551a6ce757a47898.patch
-python - <<'PY'
-from hashlib import sha256
-from pathlib import Path
-import json
-before = json.loads(Path("/tmp/zlib-original-members.json").read_text())
-after = {p.as_posix(): sha256(p.read_bytes()).hexdigest() for p in Path(".").rglob("*") if p.is_file() and not p.is_symlink()}
-expected = {
-    "gzguts.h": ('6c366344' 'bc1f1e25' '3892a33e' '06a01e97' '005c9340' 'f9a44f93' '1e6cec8c' 'b9878ffc'),
-    "gzread.c": ('22178dd5' '092c89bc' '46e0a3eb' 'bcd808f0' '3e8aafa3' '15c2a452' '4a6a0a2f' 'f7c65038'),
-    "gzwrite.c": ('548eb543' '23313b70' 'b74a5564' 'a61ccd4b' '968200ef' '89cbb70a' '6152d50b' '373515c5'),
-    "zlib.h": ('648069fd' 'ae548705' 'c3a1c02d' 'ac97a1dd' '7794e9e0' 'bd32b46f' 'b2afb357' '164b8037'),
-}
-if set(before) != set(after) or {name for name in before if before[name] != after[name]} != set(expected):
-    raise SystemExit("zlib patches changed another source member or failed to apply")
-if len(before) != 254 or any(after[name] != digest for name, digest in expected.items()):
-    raise SystemExit("zlib patched source fingerprint mismatch")
-PY
+cd /build/source/zlib-71747d1d39168833e0cae8ed84b8ce77cb049699
 ./configure --prefix=/usr/local --libdir=/usr/local/lib --shared
 make -j2
 make DESTDIR=/native install
 cp -a /native/usr/local/. /usr/local/
-cd /build/source/ncurses-6.6
+cd /build/source/ncurses-snapshots-dc909d77781ef5c2a0684e9ad9eb9f0c0baf5ecc
 ./configure --prefix=/usr/local --with-shared --without-debug --without-ada \
     --enable-widec --with-abi-version=6 --with-termlib=tinfo --with-versioned-syms --enable-pc-files \
     --with-pkg-config-libdir=/usr/local/lib/pkgconfig
@@ -135,8 +108,8 @@ install -m 644 src/include/libpq/libpq-fs.h /native/usr/local/include/libpq/
 cp -a /native/usr/local/. /usr/local/
 ldconfig
 install -d /native/usr/local/share/doc/pulseplate-native
-install -m 644 /build/source/zlib-1.3.2/LICENSE /native/usr/local/share/doc/pulseplate-native/ZLIB-LICENSE
-install -m 644 /build/source/ncurses-6.6/COPYING /native/usr/local/share/doc/pulseplate-native/NCURSES-COPYING
+install -m 644 /build/source/zlib-71747d1d39168833e0cae8ed84b8ce77cb049699/LICENSE /native/usr/local/share/doc/pulseplate-native/ZLIB-LICENSE
+install -m 644 /build/source/ncurses-snapshots-dc909d77781ef5c2a0684e9ad9eb9f0c0baf5ecc/COPYING /native/usr/local/share/doc/pulseplate-native/NCURSES-COPYING
 install -m 644 /build/source/openssl-openssl-45e844f/LICENSE.txt /native/usr/local/share/doc/pulseplate-native/OPENSSL-LICENSE
 install -m 644 /build/source/openssl-openssl-45e844f/apps/openssl.cnf /native/usr/local/share/doc/pulseplate-native/openssl.cnf
 install -m 644 /build/source/postgresql-18.6/COPYRIGHT /native/usr/local/share/doc/pulseplate-native/LIBPQ-COPYRIGHT
@@ -639,12 +612,58 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 # ensure scripts/CI pass DATABASE_URL/API_KEY envs as needed)
 CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
+# Build Debian's corrected source against Bookworm, without donor binary packages.
+FROM python:3.13.14-slim-bookworm@sha256:9d7f287598e1a5a978c015ee176d8216435aaf335ed69ac3c38dd1bbb10e8d64 AS libzstd-bookworm-build
+COPY --chmod=0644 scripts/ci/build_bookworm_libzstd.sh /tmp/build_bookworm_libzstd.sh
+RUN /bin/bash /tmp/build_bookworm_libzstd.sh prepare
+ENV HOME=/home/pulseplate-zstd-build
+USER pulseplate-zstd-build
+RUN --network=none /bin/bash /tmp/build_bookworm_libzstd.sh build
+
+FROM scratch AS libzstd-bookworm-package
+COPY --chown=0:0 --from=libzstd-bookworm-build /opt/pulseplate-libzstd/ /
+
 # Stage 3: Production stage (hardened)
 FROM runtime-base AS production
 
 # RU: Временный возврат к root нужен только для production-only slimming/hardening.
 # EN: Temporarily switch back to root only for production-only slimming/hardening.
 USER root
+
+# The local revision replaces only the qualified Bookworm package. Rebuild
+# without this backport when a reviewed official Bookworm fix is available.
+RUN --network=none --mount=type=bind,from=libzstd-bookworm-package,source=/,target=/opt/pulseplate-libzstd <<'SH'
+set -eu
+test "$(dpkg-query -W -f='${Version}' libzstd1)" = 1.5.4+dfsg2-5
+(cd /opt/pulseplate-libzstd && sha256sum -c SHA256SUMS)
+dpkg -i /opt/pulseplate-libzstd/libzstd1.deb
+test "$(dpkg-query -W -f='${Status} ${source:Package} ${Version}' libzstd1)" = 'install ok installed libzstd 1.5.7+dfsg-1+deb13u1~pulseplate12+1'
+scratch="$(mktemp -d)"
+trap 'rm -rf "$scratch"' EXIT
+library_file=/usr/lib/x86_64-linux-gnu/libzstd.so.1.5.7
+dpkg-deb --extract /opt/pulseplate-libzstd/libzstd1.deb "$scratch/packaged"
+test "$(dpkg-query -S "$library_file")" = "libzstd1:amd64: $library_file"
+cmp "$scratch/packaged$library_file" "$library_file"
+linked="$(ldd /usr/bin/dpkg-deb)"
+library="$(printf '%s\n' "$linked" | awk '$1 == "libzstd.so.1" && $2 == "=>" { print $3 }')"
+test -n "$library"
+test "$(readlink -f "$library")" = "$library_file"
+# Bind the temporarily excepted scanner identity to the qualified loaded DSO.
+printf '%s  %s\n' a0a281900c6fd880b754ff0fb453c8914927aff6aab2862b2925a89507510f72 "$library_file" | sha256sum -c -
+
+mkdir -p "$scratch/input/DEBIAN" "$scratch/input/usr/share/pulseplate-check"
+cat > "$scratch/input/DEBIAN/control" <<'CONTROL'
+Package: pulseplate-zstd-check
+Version: 1
+Architecture: all
+Maintainer: PulsePlate Build <pulseplate@pm.me>
+Description: Temporary package to exercise normal zstd compression
+CONTROL
+printf '%s\n' 'PulsePlate Bookworm zstd package roundtrip' > "$scratch/input/usr/share/pulseplate-check/payload"
+dpkg-deb --build --root-owner-group -Zzstd "$scratch/input" "$scratch/check.deb"
+dpkg-deb --extract "$scratch/check.deb" "$scratch/output"
+cmp "$scratch/input/usr/share/pulseplate-check/payload" "$scratch/output/usr/share/pulseplate-check/payload"
+SH
 
 # Keep the Python _uuid ABI while retiring the vulnerable Debian package family.
 COPY --from=uuid-builder /opt/libuuid/libuuid.so.1.3.0 /usr/local/lib/libuuid.so.1.3.0
@@ -738,9 +757,10 @@ RUN perl_module_packages="$(dpkg-query -W -f='${Package}\n' 'perl-modules-*' 2>/
         libpcre2-8-0 \
         perl-base \
         ${perl_module_packages} \
+    && dpkg --purge libapt-pkg6.0 \
     && ldconfig \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/* \
-    && for package in apt gzip gpgv libacl1 libattr1 libgnutls30 libsqlite3-0 libpcre2-8-0 perl-base ${perl_module_packages} bsdutils libblkid1 libmount1 libsmartcols1 libuuid1 mount util-linux util-linux-extra libsystemd0 libudev1; do \
+    && for package in apt libapt-pkg6.0 gzip gpgv libacl1 libattr1 libgnutls30 libsqlite3-0 libpcre2-8-0 perl-base ${perl_module_packages} bsdutils libblkid1 libmount1 libsmartcols1 libuuid1 mount util-linux util-linux-extra libsystemd0 libudev1; do \
         status="$(dpkg-query -W -f='${db:Status-Abbrev}' "${package}" 2>/dev/null || true)"; \
         if [ "${status#ii}" != "${status}" ]; then \
             echo "${package} remains installed after production package pruning" >&2; \
@@ -812,13 +832,15 @@ def check_native_empty_panel_stack(panel: ctypes.CDLL) -> None:
         if function(None) is not None:
             raise SystemExit("Native panel empty-stack boundary returned a non-NULL panel")
 
-if zlib.ZLIB_RUNTIME_VERSION != "1.3.2" or not ssl.OPENSSL_VERSION.startswith("OpenSSL 3.5.9 "):
+print("Native versions", zlib.ZLIB_RUNTIME_VERSION, ssl.OPENSSL_VERSION)
+if zlib.ZLIB_RUNTIME_VERSION != "1.3.2.1-motley" or not ssl.OPENSSL_VERSION.startswith("OpenSSL 3.5.9 "):
     raise SystemExit("System native replacement version mismatch")
 ncurses = ctypes.CDLL("libncursesw.so.6")
 ncurses.curses_version.argtypes = []
 ncurses.curses_version.restype = ctypes.c_char_p
 actual_ncurses = ncurses.curses_version().decode("ascii")
-if not actual_ncurses.startswith("ncurses 6.6"):
+print("Ncurses runtime", actual_ncurses)
+if actual_ncurses != "ncurses 6.6.20261024":
     raise SystemExit("Ncurses replacement version mismatch")
 print("Ncurses runtime", actual_ncurses, "Python metadata", tuple(curses.ncurses_version))
 payload = b"pulseplate native compression round trip"
@@ -1207,8 +1229,8 @@ RUN /opt/venv/bin/alembic -c /app/alembic.ini heads
 # Can be customized for staging needs (e.g., debug logging, extended health checks)
 #
 # HOW TO BUILD FOR STAGING:
-#   docker build --target=staging -t myapp:staging .
-#   docker build --target=staging --build-arg LOG_LEVEL=INFO -t myapp:staging .
+#   docker build --platform=linux/amd64 --target=staging -t myapp:staging .
+#   docker build --platform=linux/amd64 --target=staging --build-arg LOG_LEVEL=INFO -t myapp:staging .
 #
 # HOW TO RUN STAGING CONTAINER:
 #   docker run -e LOG_LEVEL=INFO -e DATABASE_URL=staging_db_url myapp:staging

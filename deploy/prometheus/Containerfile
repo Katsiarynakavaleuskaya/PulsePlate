@@ -1,6 +1,6 @@
 # Finite payload declaration; prometheus_source_image.py compares these exact bytes.
 # This file is DATA. No Dockerfile frontend or build executor consumes it.
-FROM gcr.io/distroless/static-debian13@sha256:2293b36c7c9082bf4115aab724b4d2cddec82c8eba39bf27ac0517e159acf150
+FROM gcr.io/distroless/static-debian13@sha256:433bb346cd0b6b8346462f879adaa4ac0fbb463a72901b46736ede4aeca3dadc
 COPY prometheus /usr/bin/prometheus
 COPY promtool /usr/bin/promtool
 COPY prometheus.yml /etc/prometheus/prometheus.yml

@@ -100,6 +100,36 @@ runs:
           password ${DEVPI_CI_PASSWORD}
         EOF
 
+    - name: Upgrade and observe parent pip
+      if: ${{ inputs.skip-base-install != 'true' }}
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        set -euo pipefail
+        : "${PULSEPLATE_PYTHON_INDEX_URL:?Set the approved private Python proxy.}"
+        pip_args=(--index-url "$PULSEPLATE_PYTHON_INDEX_URL")
+        if [[ -n "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" ]]; then
+          pip_args+=(--trusted-host "$PULSEPLATE_PYTHON_TRUSTED_HOST")
+        fi
+        python "$GITHUB_WORKSPACE/scripts/ci/install_locked_python_requirements.py" \
+          --python-executable python \
+          --upgrade-pip-only --upgrade-pip-spec 'pip==26.2.2' \
+          --emergency-wheel-manifest "$GITHUB_WORKSPACE/scripts/ci/emergency_python_wheels.json" \
+          "${pip_args[@]}"
+        python -I - <<'PY'
+        import hashlib
+        import importlib.metadata
+        import json
+        from pathlib import Path
+        import pip._vendor.certifi
+
+        version = importlib.metadata.version("pip")
+        trust = hashlib.sha256(Path(pip._vendor.certifi.where()).read_bytes()).hexdigest()
+        if version != "26.2.2" or trust != "50f79f98dac192b20dbf73f35c56f0b0c557ab267ff5199d1117cc1180b70785":
+            raise SystemExit("Parent pip version or embedded trust store differs from the reviewed target")
+        print(json.dumps({"parent_pip": version, "embedded_trust_store_sha256": trust}))
+        PY
+
     - name: Build exact Psycopg C client SDK
       id: psycopg_sdk
       if: ${{ inputs.skip-base-install != 'true' }}

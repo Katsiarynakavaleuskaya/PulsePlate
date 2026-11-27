@@ -11,18 +11,22 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shlex
 import shutil
 import subprocess
 import sys
 
-import pytest
+from datetime import date
 from pathlib import Path
 
+import pytest
 import yaml
+from scripts.ci import fetch_docker_source_artifacts as source_artifacts
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEVCONTAINER_DIR = REPO_ROOT / ".devcontainer"
+SDK_SOURCE_NAMES = ("zlib", "ncurses", "openssl", "postgresql")
 
 
 # ---------------------------------------------------------------------------
@@ -100,7 +104,7 @@ def test_devcontainer_json_configuration() -> None:
 
 
 def test_devcontainer_json_does_not_auto_execute_workspace_bootstrap() -> None:
-    """Opening the devcontainer must not auto-run repository-controlled code."""
+    """Host preparation and workspace bootstrap require an explicit user action."""
     data = json.loads((DEVCONTAINER_DIR / "devcontainer.json").read_text(encoding="utf-8"))
 
     assert "initializeCommand" not in data
@@ -302,6 +306,283 @@ def test_devcontainer_sdk_artifacts_keep_source_build_and_auth_in_the_producer()
         assert root["services"][service]["platform"] == "linux/amd64"
 
 
+def test_direct_devcontainer_build_supplies_the_four_verified_sdk_archives() -> None:
+    """A clean checkout provides the original SDK inputs before the native stage runs."""
+    config = json.loads((DEVCONTAINER_DIR / "devcontainer.json").read_text())
+    assert config["dockerComposeFile"] == ["docker-compose.source-inputs.yml"]
+    source_config = yaml.safe_load((DEVCONTAINER_DIR / config["dockerComposeFile"][0]).read_text())
+    base_config = yaml.safe_load((DEVCONTAINER_DIR / "docker-compose.devcontainer.yml").read_text())
+    services = source_config["services"]
+    assert set(services) == {
+        "devcontainer",
+        "sdk-source-downloads",
+        "sdk-source-inputs",
+        "native-sdk-artifacts",
+    }
+    assert services["devcontainer"] == {
+        "extends": {"file": "docker-compose.devcontainer.yml", "service": "devcontainer"}
+    }
+    assert source_config["secrets"] == {"pp_netrc": base_config["secrets"]["pp_netrc"]}
+    assert source_config["volumes"] == base_config["volumes"]
+    acquisition = services["sdk-source-downloads"]
+    source = services["sdk-source-inputs"]
+    for staged in (acquisition, source):
+        assert set(staged) == {"platform", "build", "deploy"}
+        assert staged["platform"] == "linux/amd64" and staged["deploy"] == {"replicas": 0}
+        assert staged["build"]["context"] == ".."
+    assert set(acquisition["build"]) == {"context", "dockerfile_inline"}
+    assert set(source["build"]) == {
+        "context",
+        "dockerfile_inline",
+        "no_cache",
+        "additional_contexts",
+    }
+    assert source["build"]["no_cache"] is True
+    assert source["build"]["additional_contexts"] == {
+        "sdk-downloads": "service:sdk-source-downloads"
+    }
+    assert not base_config["services"]["devcontainer"]["build"].get("no_cache")
+    assert not services["native-sdk-artifacts"]["build"].get("no_cache")
+
+    manifest = json.loads((REPO_ROOT / "scripts/ci/docker_source_artifacts.json").read_text())
+    names = set(SDK_SOURCE_NAMES)
+    filenames = {a["filename"] for a in manifest["artifacts"] if a["name"] in names}
+    assert len(filenames) == len(names)
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text()
+    sdk_base = re.search(r'^ARG PSYCOPG_SDK_PYTHON_IMAGE="([^"]+)"$', dockerfile, re.MULTILINE)
+    assert sdk_base is not None
+    download = acquisition["build"]["dockerfile_inline"].splitlines()
+    tooling = (
+        "COPY scripts/ci/docker_source_artifacts.json scripts/ci/fetch_docker_source_artifacts.py "
+        "/tooling/scripts/ci/"
+    )
+    assert download[:3] == [
+        f"FROM {sdk_base[1]} AS fetch",
+        tooling,
+        "RUN python -I - /tooling/scripts/ci/docker_source_artifacts.json /downloaded <<'PY'",
+    ]
+    assert download[-3:] == ["PY", "FROM scratch", "COPY --from=fetch /downloaded/ /input/native/"]
+    offline = source["build"]["dockerfile_inline"].splitlines()
+    assert offline[:4] == [
+        f"FROM {sdk_base[1]} AS verify",
+        tooling,
+        "COPY --from=sdk-downloads /input/native/ /input/native/",
+        "RUN --network=none python -I - /tooling/scripts/ci/docker_source_artifacts.json /input/native <<'PY'",
+    ]
+    assert offline[-3:] == [
+        "PY",
+        "FROM scratch",
+        "COPY --from=verify /input/native/ /input/native/",
+    ]
+
+    ordinary = dockerfile.split("FROM scratch AS sdk-source-archives\n", 1)[1].split("\nFROM ", 1)[
+        0
+    ]
+    local_copy = shlex.split(ordinary.strip())
+    assert local_copy[0] == "COPY" and local_copy[-1] == "/input/native/"
+    assert sorted(local_copy[1:-1]) == sorted(f"build/docker-sources/{name}" for name in filenames)
+    native = dockerfile.split(" AS native-builder\n", 1)[1].split("\nFROM ", 1)[0]
+    assert (
+        native.index("COPY --from=sdk-source-archives /input/native/ /input/native/")
+        < native.index("validate_source_payload(record, payload)")
+        < native.index("archive.extractall(")
+    )
+
+    # The credential-free proxy is already selected by the repository's dependency owner.
+    proxy = yaml.safe_load((REPO_ROOT / ".github/dependabot.yml").read_text())["registries"][
+        "python-index"
+    ]["url"]
+    base_sdk = base_config["services"]["native-sdk-artifacts"]
+    assert services["native-sdk-artifacts"] == {
+        **base_sdk,
+        "build": {
+            **base_sdk["build"],
+            "additional_contexts": {"sdk-source-archives": "service:sdk-source-inputs"},
+            "args": {"PULSEPLATE_PYTHON_INDEX_URL": proxy},
+            "secrets": ["pp_netrc"],
+        },
+    }
+
+
+def _sdk_source_program(service: str) -> str:
+    config = yaml.safe_load((DEVCONTAINER_DIR / "docker-compose.source-inputs.yml").read_text())
+    recipe = config["services"][service]["build"]["dockerfile_inline"]
+    return recipe.split("<<'PY'\n", 1)[1].split("\nPY\n", 1)[0]
+
+
+def _run_sdk_source_step(
+    monkeypatch: pytest.MonkeyPatch, service: str, manifest: Path, directory: Path
+) -> None:
+    monkeypatch.setattr(sys, "argv", ["-", str(manifest), str(directory)])
+    monkeypatch.setattr(sys, "path", sys.path.copy())
+    exec(compile(_sdk_source_program(service), "<codespaces-sdk-source-step>", "exec"), {})
+
+
+def test_devcontainer_source_step_admits_cold_and_warm_inputs_before_stale_rejection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Exercise the staged selector with canonical date admission and synthetic writer bytes."""
+    manifest = REPO_ROOT / "scripts/ci/docker_source_artifacts.json"
+    review_by = date.fromisoformat(json.loads(manifest.read_text())["review_by"])
+    observed_today = review_by
+    cache = tmp_path / "downloads"
+    events: list[tuple[str, str]] = []
+    load = source_artifacts.load_manifest
+    selected = {item.name: item for item in load(manifest, today=review_by)}
+    expected = {selected[name].filename: name.encode() for name in SDK_SOURCE_NAMES}
+
+    def load_manifest(path: Path) -> tuple[source_artifacts.DockerSourceArtifact, ...]:
+        events.append(("admit", observed_today.isoformat()))
+        return load(path, today=observed_today)
+
+    def write_verified(artifact: source_artifacts.DockerSourceArtifact, directory: Path) -> Path:
+        assert directory == cache
+        directory.mkdir(exist_ok=True)
+        path = directory / artifact.filename
+        events.append(("fetch", artifact.name))
+        path.write_bytes(expected[path.name])
+        return path
+
+    def validate(artifact: source_artifacts.DockerSourceArtifact, payload: bytes) -> None:
+        events.append(("verify", artifact.name))
+        assert payload == expected[artifact.filename]
+
+    monkeypatch.setattr(source_artifacts, "load_manifest", load_manifest)
+    monkeypatch.setattr(source_artifacts, "_write_verified_artifact", write_verified)
+    monkeypatch.setattr(source_artifacts, "validate_source_payload", validate)
+    _run_sdk_source_step(monkeypatch, "sdk-source-downloads", manifest, cache)
+    assert events == [("admit", review_by.isoformat())] + [
+        ("fetch", name) for name in SDK_SOURCE_NAMES
+    ]
+    for _ in range(2):
+        events.clear()
+        _run_sdk_source_step(monkeypatch, "sdk-source-inputs", manifest, cache)
+        assert events == [("admit", review_by.isoformat())] + [
+            ("verify", name) for name in SDK_SOURCE_NAMES
+        ]
+        assert {path.name: path.read_bytes() for path in cache.iterdir()} == expected
+    observed_today = date.fromordinal(review_by.toordinal() + 1)
+    events.clear()
+    with pytest.raises(RuntimeError, match=f"review_by is stale: {review_by.isoformat()}"):
+        _run_sdk_source_step(monkeypatch, "sdk-source-inputs", manifest, cache)
+    assert events == [("admit", observed_today.isoformat())]
+    assert {path.name: path.read_bytes() for path in cache.iterdir()} == expected
+
+
+@pytest.mark.parametrize("fault", ("stale", "missing-sdk", "malformed-unselected"))
+@pytest.mark.parametrize("service", ("sdk-source-downloads", "sdk-source-inputs"))
+def test_devcontainer_source_step_rejects_incomplete_admission_before_the_writer(
+    tmp_path: Path, fault: str, service: str
+) -> None:
+    canonical = REPO_ROOT / "scripts/ci"
+    tooling = tmp_path / "tooling"
+    staged = tooling / "scripts/ci"
+    staged.mkdir(parents=True)
+    shutil.copyfile(
+        canonical / "fetch_docker_source_artifacts.py", staged / "fetch_docker_source_artifacts.py"
+    )
+    manifest = json.loads((canonical / "docker_source_artifacts.json").read_text())
+    manifest["review_by"] = date.max.isoformat()
+    cache = tmp_path / "sdk-source-cache"
+    cache.mkdir()
+    selected = next(row for row in manifest["artifacts"] if row["name"] == "zlib")
+    warm_file = cache / selected["filename"]
+    warm_file.write_bytes(b"sentinel: rejected admission must preserve this file")
+    if fault == "stale":
+        manifest["review_by"] = "2000-01-01"
+        reason = "Docker source artifact manifest review_by is stale: 2000-01-01"
+    elif fault == "missing-sdk":
+        manifest["artifacts"] = [row for row in manifest["artifacts"] if row["name"] != "openssl"]
+        reason = "Native SDK manifest is missing: openssl"
+    else:
+        unrelated = next(row for row in manifest["artifacts"] if row["name"] == "sqlite-autoconf")
+        unrelated["url"] = None
+        reason = "Docker source artifacts require non-empty name/version/filename/url fields."
+    input_path = staged / "docker_source_artifacts.json"
+    input_path.write_text(json.dumps(manifest))
+    source = _sdk_source_program(service)
+    assert source.count('"/tooling"') == 1
+    source = source.replace('"/tooling"', repr(str(tooling)), 1)
+    network_guard = (
+        "import sys\n"
+        "def deny_network(event, args):\n"
+        "    if event in ('socket.connect', 'urllib.Request'):\n"
+        "        raise RuntimeError('unexpected SDK download')\n"
+        "sys.addaudithook(deny_network)\n"
+    )
+    rejected = subprocess.run(
+        [sys.executable, "-I", "-", str(input_path), str(cache)],
+        input=network_guard + source,
+        cwd=tmp_path,
+        env={"PATH": os.defpath, "HOME": str(tmp_path)},
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+    assert rejected.returncode == 1
+    assert rejected.stderr.splitlines()[-1] == f"RuntimeError: {reason}"
+    assert not rejected.stdout and "unexpected SDK download" not in rejected.stderr
+    assert list(cache.iterdir()) == [warm_file]
+    assert warm_file.read_bytes() == b"sentinel: rejected admission must preserve this file"
+
+
+@pytest.mark.parametrize(
+    "fault,reason",
+    (
+        pytest.param("missing", "Native SDK download inventory differs", id="missing"),
+        pytest.param("extra", "Native SDK download inventory differs", id="extra"),
+        pytest.param("link", "Native SDK download must be a regular file: {filename}", id="link"),
+        pytest.param("digest", "zlib SHA3 mismatch", id="digest"),
+    ),
+)
+def test_devcontainer_source_step_rejects_invalid_downloads(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str, reason: str
+) -> None:
+    manifest = REPO_ROOT / "scripts/ci/docker_source_artifacts.json"
+    review_by = date.fromisoformat(json.loads(manifest.read_text())["review_by"])
+    load = source_artifacts.load_manifest
+    records = {item.name: item for item in load(manifest, today=review_by)}
+    downloads = tmp_path / "downloads"
+    downloads.mkdir()
+    payloads = {
+        name: f"synthetic source archive for {name}\n".encode() for name in SDK_SOURCE_NAMES
+    }
+    for name, payload in payloads.items():
+        (downloads / records[name].filename).write_bytes(payload)
+    monkeypatch.setattr(source_artifacts, "load_manifest", lambda path: load(path, today=review_by))
+
+    verified: list[str] = []
+
+    def validate_synthetic(artifact: source_artifacts.DockerSourceArtifact, payload: bytes) -> None:
+        assert artifact == records[artifact.name]
+        assert payload == payloads[artifact.name]
+        verified.append(artifact.name)
+
+    if fault != "digest":
+        monkeypatch.setattr(source_artifacts, "validate_source_payload", validate_synthetic)
+        _run_sdk_source_step(monkeypatch, "sdk-source-inputs", manifest, downloads)
+        assert verified == list(SDK_SOURCE_NAMES)
+        verified.clear()
+
+    first = downloads / records["zlib"].filename
+    if fault == "missing":
+        first.unlink()
+    elif fault == "extra":
+        (downloads / "extra.tar.gz").write_bytes(b"synthetic unrelated bytes")
+    elif fault == "link":
+        backing_file = tmp_path / first.name
+        backing_file.write_bytes(payloads["zlib"])
+        first.unlink()
+        first.symlink_to(backing_file)
+    elif fault == "digest":
+        # The real validator rejects the deliberately corrupt first archive.
+        first.write_bytes(b"intentionally corrupt zlib archive")
+    with pytest.raises(RuntimeError) as rejected:
+        _run_sdk_source_step(monkeypatch, "sdk-source-inputs", manifest, downloads)
+    assert str(rejected.value) == reason.format(filename=first.name)
+    assert verified == []
+
+
 def test_root_development_consumes_prefetched_sdk_offline_and_provides_make() -> None:
     dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
     development = dockerfile.split("FROM runtime-base AS development\n", 1)[1]
@@ -451,15 +732,17 @@ def _standalone_bootstrap_fixture(tmp_path: Path) -> tuple[Path, dict[str, str],
 def test_host_native_sources_prerequisite_hands_off_only_to_canonical_fetcher(
     tmp_path: Path, override_interpreter: bool
 ) -> None:
-    """Prove the documented pre-Reopen Make transport; owning fetcher tests prove verification."""
+    """Exercise the explicit Make source transport used by dc-up on the host."""
     guide = (
         (REPO_ROOT / "CONTRIBUTING.md")
         .read_text()
         .split("### Dev Container (recommended)", 1)[1]
         .split("### Backend SDK bootstrap", 1)[0]
     )
-    assert guide.index("make docker-source-artifacts") < guide.index(
-        "Dev Containers: Reopen in Container"
+    assert (
+        guide.index("from a reviewed/trusted checkout")
+        < guide.index("make docker-source-artifacts")
+        < guide.index("make dc-up")
     )
     fixture, environment, log = _standalone_bootstrap_fixture(tmp_path)
     control = Path(environment["PATH"].split(os.pathsep)[0])
@@ -497,6 +780,79 @@ def test_host_native_sources_prerequisite_hands_off_only_to_canonical_fetcher(
     assert not (fixture / "docker-called").exists()
     # The synthetic interpreter records delegation only; it does not author source-verification truth.
     assert not (fixture / "build").exists()
+
+
+@pytest.mark.parametrize("failure", (None, "missing-manifest", "fetch-error", "missing-python"))
+def test_explicit_host_make_preparation_preserves_workspace_and_source_failure(
+    tmp_path: Path, failure: str | None
+) -> None:
+    """Run the explicit host prerequisite with real Make and synthetic source transport."""
+    fixture, environment, log = _standalone_bootstrap_fixture(tmp_path)
+    workspace = tmp_path / "trusted checkout with spaces"
+    fixture.rename(workspace)
+    control = Path(environment["PATH"].split(os.pathsep)[0])
+    # Keep only the actual Make parse-time host tools and the synthetic interpreter.
+    # An explicit DEV_PYTHON=python3 must fail if that interpreter is missing.
+    for name in ("cksum", "cut"):
+        binary = shutil.which(name)
+        assert binary is not None
+        (control / name).symlink_to(binary)
+    environment["PATH"] = str(control)
+    for key in ("PULSEPLATE_PSYCOPG_C_SDK", "PULSEPLATE_BOOTSTRAP_WHEELHOUSE"):
+        environment.pop(key)
+
+    fetcher = "scripts/ci/fetch_docker_source_artifacts.py"
+    manifest = "scripts/ci/docker_source_artifacts.json"
+    (workspace / fetcher).write_bytes((REPO_ROOT / fetcher).read_bytes())
+    if failure != "missing-manifest":
+        (workspace / manifest).write_bytes((REPO_ROOT / manifest).read_bytes())
+    venv_python = workspace / ".venv/bin/python"
+    venv_python.parent.mkdir()
+    venv_python.write_text("#!/bin/sh\necho unexpected-venv > venv-selected\nexit 88\n")
+    venv_python.chmod(0o755)
+    python = control / "python3"
+    if failure == "missing-python":
+        python.unlink()
+    elif failure == "fetch-error":
+        transport = python.read_text()
+        branch = "elif args == ['scripts/ci/fetch_docker_source_artifacts.py']:\n"
+        assert transport.count(branch) == 1
+        python.write_text(transport.replace(branch, branch + "    raise SystemExit(7)\n", 1))
+
+    make = shutil.which("make")
+    assert make is not None
+    argv = [make, "-C", str(workspace), "docker-source-artifacts", "DEV_PYTHON=python3"]
+    for _ in range(2 if failure is None else 1):
+        result = subprocess.run(
+            argv,
+            cwd=tmp_path,
+            env=environment,
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+        if failure is None:
+            assert result.returncode == 0, result.stdout + result.stderr
+        else:
+            assert result.returncode != 0
+            if failure == "missing-python":
+                assert any(
+                    line == "make: python3: No such file or directory"
+                    or re.search(r"(?:^|: )python3: (?:[Cc]ommand )?not found$", line)
+                    for line in result.stderr.splitlines()
+                ), result.stderr
+            else:
+                expected_exit = 6 if failure == "missing-manifest" else 7
+                assert f"docker-source-artifacts] Error {expected_exit}" in result.stderr
+    calls = [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
+    expected_calls = 0 if failure == "missing-python" else 2 if failure is None else 1
+    assert calls == [[fetcher]] * expected_calls
+    assert not (workspace / "venv-selected").exists()
+    assert not (workspace / ".venv/pyvenv.cfg").exists()
+    assert not (workspace / "build").exists()
+    # This proves argv/delegation and failure propagation, not verified sources,
+    # Codespaces host availability, repeated cache verification or a native build.
 
 
 @pytest.mark.parametrize("target", ("venv", "devcontainer-bootstrap"))

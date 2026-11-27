@@ -32,4 +32,22 @@ if [[ "${CURRENT_NODE_VERSION}" != "${EXPECTED_NODE_VERSION}" ]]; then
   echo "Continuing with the installed Node runtime to avoid implicit network bootstrap; switch to ${EXPECTED_NODE_VERSION} for exact CI parity." >&2
 fi
 
-exec npm "$@"
+# Only these canonical frontend ci forms receive the explicit source transition.
+CHECKED_FRONTEND_CI=0
+if [[ "$PWD" == "$REPO_ROOT" && "$#" -ge 3 && "$1" == "--prefix" && "$2" == "frontend" && "$3" == "ci" ]]; then
+  CHECKED_FRONTEND_CI=1
+  for argument in "${@:4}"; do
+    case "$argument" in --no-audit|--no-fund) ;; *) CHECKED_FRONTEND_CI=0 ;; esac
+  done
+elif [[ "$PWD" == "$REPO_ROOT/frontend" && "$#" -ge 1 && "$1" == "ci" ]]; then
+  CHECKED_FRONTEND_CI=1
+  for argument in "${@:2}"; do
+    case "$argument" in --no-audit|--no-fund) ;; *) CHECKED_FRONTEND_CI=0 ;; esac
+  done
+fi
+if (( CHECKED_FRONTEND_CI )); then
+  npm "$@"
+  node "$REPO_ROOT/frontend/scripts/check-redocly-compat.mjs" apply
+else
+  exec npm "$@"
+fi
