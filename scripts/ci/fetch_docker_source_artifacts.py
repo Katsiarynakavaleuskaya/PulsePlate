@@ -12213,7 +12213,7 @@ def _alertmanager_publisher_history(
     from scripts.ci.prometheus_source_image import require
     from scripts.ci.check_docker_runtime_dependency_surface import (
         publisher_repair_dispatch,
-        require_publisher_repair_paths,
+        require_dispatched_publisher_repair_paths,
     )
 
     read = _alertmanager_repair_reader(api)
@@ -12403,7 +12403,9 @@ def _alertmanager_publisher_history(
         full_delta = {path.decode() for path in full[:-1].split(b"\0")}
         if pr["head"]["sha"] != grant["callers"]:
             full_delta.discard(f"docs/review/PR_{pr['number']}_FIXED_MAPPING.md")
-        require_publisher_repair_paths(full_delta)
+        require_dispatched_publisher_repair_paths(
+            read, pr["number"], grant, full_delta, historical=True
+        )
         # The shared verifier has bound K to the exact authorized base and complete tree.
         import base64
 
@@ -12746,10 +12748,16 @@ def _alertmanager_transition_successor(
     query("merge-base", "--is-ancestor", base, controller)
     if grant is not None:
         from scripts.ci.check_docker_runtime_dependency_surface import (
-            require_publisher_repair_paths,
+            require_dispatched_publisher_repair_paths,
         )
 
-        require_publisher_repair_paths({name.decode() for name in paths(base, controller)[:-1]})
+        require_dispatched_publisher_repair_paths(
+            _alertmanager_repair_reader(api),
+            number,
+            grant,
+            {name.decode() for name in paths(base, controller)[:-1]},
+            historical=False,
+        )
         graft = Path(
             os.fsdecode(
                 query("rev-parse", "--path-format=absolute", "--git-path", "info/grafts")

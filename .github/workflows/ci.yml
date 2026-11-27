@@ -905,7 +905,7 @@ jobs:
         if: github.event_name == 'pull_request' && steps.checkpoint-selection.outputs.selected == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: &prometheus_test_revision 2ebe53024febe8e026c4a1f1e056f19482f0fca9 # pragma: allowlist secret - public trusted control commit
+          ref: &prometheus_test_revision ab43f352eb1206b091f01f03338bb83a222027d5 # pragma: allowlist secret - public trusted control commit
           persist-credentials: false
           path: artifacts/orchestration/prometheus-control
           sparse-checkout: scripts/ci/prometheus_source_image.py
@@ -986,18 +986,18 @@ jobs:
               if not helper.is_file() or helper.stat().st_nlink != 1 or stat.S_IMODE(helper.stat().st_mode) != 0o644:
                   raise SystemExit("Prometheus_control_mode_HOLD")
               raw = helper.read_bytes()
-              if len(raw) != 501077 or hashlib.sha256(raw).hexdigest() != "caeef6254bb44aa0a1ac54c069e0f88c095d91bd17da1adc568c0d57d400e858":  # pragma: allowlist secret - public trusted control digest
+              if len(raw) != 503920 or hashlib.sha256(raw).hexdigest() != "f899596b9584c1e042c50ee34914309bae50bd4f5178a035a2980d506650b970":  # pragma: allowlist secret - public trusted control digest
                   raise SystemExit("Prometheus_control_bytes_HOLD")
               environment = {"PATH": "/usr/bin:/bin", "LANG": "C", "GIT_NO_REPLACE_OBJECTS": "1",
                              "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_COUNT": "0"}
               revision = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
                                          "rev-parse", "HEAD"], env=environment, capture_output=True, check=True)
-              if revision.stderr or revision.stdout != b"2ebe53024febe8e026c4a1f1e056f19482f0fca9" + b"\n":  # pragma: allowlist secret - public trusted control commit
+              if revision.stderr or revision.stdout != b"ab43f352eb1206b091f01f03338bb83a222027d5" + b"\n":  # pragma: allowlist secret - public trusted control commit
                   raise SystemExit("Prometheus_control_revision_HOLD")
               object_row = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
                                           "ls-tree", "-z", "HEAD", "--", "scripts/ci/prometheus_source_image.py"],
                                          env=environment, capture_output=True, check=True)
-              if object_row.stderr or object_row.stdout != b"100644 blob 0db1e4cbb72cd85da8f684a5c57615092105ab6f\tscripts/ci/prometheus_source_image.py\0":  # pragma: allowlist secret - public trusted control blob
+              if object_row.stderr or object_row.stdout != b"100644 blob 25198549a3e142d1271da8fdbe59afefb32949fc\tscripts/ci/prometheus_source_image.py\0":  # pragma: allowlist secret - public trusted control blob
                   raise SystemExit("Prometheus_control_object_HOLD")
               trusted = runpy.run_path(str(helper))
               if not all(callable(trusted.get(name)) for name in
@@ -1052,18 +1052,18 @@ jobs:
           if not helper.is_file() or helper.stat().st_nlink != 1 or stat.S_IMODE(helper.stat().st_mode) != 0o644:
               raise SystemExit("Prometheus_control_mode_HOLD")
           raw = helper.read_bytes()
-          if len(raw) != 501077 or hashlib.sha256(raw).hexdigest() != "caeef6254bb44aa0a1ac54c069e0f88c095d91bd17da1adc568c0d57d400e858":  # pragma: allowlist secret - public trusted control digest
+          if len(raw) != 503920 or hashlib.sha256(raw).hexdigest() != "f899596b9584c1e042c50ee34914309bae50bd4f5178a035a2980d506650b970":  # pragma: allowlist secret - public trusted control digest
               raise SystemExit("Prometheus_control_bytes_HOLD")
           environment = {"PATH": "/usr/bin:/bin", "LANG": "C", "GIT_NO_REPLACE_OBJECTS": "1",
                          "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_COUNT": "0"}
           revision = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
                                      "rev-parse", "HEAD"], env=environment, capture_output=True, check=True)
-          if revision.stderr or revision.stdout != b"2ebe53024febe8e026c4a1f1e056f19482f0fca9" + b"\n":  # pragma: allowlist secret - public trusted control commit
+          if revision.stderr or revision.stdout != b"ab43f352eb1206b091f01f03338bb83a222027d5" + b"\n":  # pragma: allowlist secret - public trusted control commit
               raise SystemExit("Prometheus_control_revision_HOLD")
           object_row = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
                                       "ls-tree", "-z", "HEAD", "--", "scripts/ci/prometheus_source_image.py"],
                                      env=environment, capture_output=True, check=True)
-          if object_row.stderr or object_row.stdout != b"100644 blob 0db1e4cbb72cd85da8f684a5c57615092105ab6f\tscripts/ci/prometheus_source_image.py\0":  # pragma: allowlist secret - public trusted control blob
+          if object_row.stderr or object_row.stdout != b"100644 blob 25198549a3e142d1271da8fdbe59afefb32949fc\tscripts/ci/prometheus_source_image.py\0":  # pragma: allowlist secret - public trusted control blob
               raise SystemExit("Prometheus_control_object_HOLD")
           trusted = runpy.run_path(str(helper))
           if not all(callable(trusted.get(name)) for name in
@@ -1160,18 +1160,18 @@ jobs:
           if not helper.is_file() or helper.stat().st_nlink != 1 or stat.S_IMODE(helper.stat().st_mode) != 0o644:
               raise SystemExit("Prometheus_control_mode_HOLD")
           raw = helper.read_bytes()
-          if len(raw) != 501077 or hashlib.sha256(raw).hexdigest() != "caeef6254bb44aa0a1ac54c069e0f88c095d91bd17da1adc568c0d57d400e858":  # pragma: allowlist secret - public trusted control digest
+          if len(raw) != 503920 or hashlib.sha256(raw).hexdigest() != "f899596b9584c1e042c50ee34914309bae50bd4f5178a035a2980d506650b970":  # pragma: allowlist secret - public trusted control digest
               raise SystemExit("Prometheus_control_bytes_HOLD")
           environment = {"PATH": "/usr/bin:/bin", "LANG": "C", "GIT_NO_REPLACE_OBJECTS": "1",
                          "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_COUNT": "0"}
           revision = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
                                      "rev-parse", "HEAD"], env=environment, capture_output=True, check=True)
-          if revision.stderr or revision.stdout != b"2ebe53024febe8e026c4a1f1e056f19482f0fca9" + b"\n":  # pragma: allowlist secret - public trusted control commit
+          if revision.stderr or revision.stdout != b"ab43f352eb1206b091f01f03338bb83a222027d5" + b"\n":  # pragma: allowlist secret - public trusted control commit
               raise SystemExit("Prometheus_control_revision_HOLD")
           object_row = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
                                       "ls-tree", "-z", "HEAD", "--", "scripts/ci/prometheus_source_image.py"],
                                      env=environment, capture_output=True, check=True)
-          if object_row.stderr or object_row.stdout != b"100644 blob 0db1e4cbb72cd85da8f684a5c57615092105ab6f\tscripts/ci/prometheus_source_image.py\0":  # pragma: allowlist secret - public trusted control blob
+          if object_row.stderr or object_row.stdout != b"100644 blob 25198549a3e142d1271da8fdbe59afefb32949fc\tscripts/ci/prometheus_source_image.py\0":  # pragma: allowlist secret - public trusted control blob
               raise SystemExit("Prometheus_control_object_HOLD")
           trusted = runpy.run_path(str(helper))
           if not all(callable(trusted.get(name)) for name in
@@ -1220,8 +1220,10 @@ jobs:
           if type(admission) is not dict or admission != result["admission"]:
               raise SystemExit("Prometheus_unchanged_admission_HOLD" if route == "unchanged_pr_published" else "Prometheus_candidate_admission_HOLD")
           selection = result["selection"]
+          expected_ref = selection["runtime_ref"] if route == "unchanged_pr_published" else selection["config_digest"]
+          trusted["require"](result.get("runtime_ref") == expected_ref, "Prometheus_route_runtime_ref_HOLD")
           outputs = {"manifest_digest": selection["manifest_digest"], "config_digest": selection["config_digest"],
-                     "source_revision": selection["source_revision"], "runtime_ref": result.get("runtime_ref", selection["runtime_ref"])}
+                     "source_revision": selection["source_revision"], "runtime_ref": result["runtime_ref"]}
           with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
               for key, value in outputs.items():
                   trusted["require"](type(value) is str and "\n" not in value and "\r" not in value, "native_output_single_line")
@@ -1261,7 +1263,7 @@ jobs:
         timeout-minutes: 2
         shell: bash
         env:
-          CONTROLLER_SHA: *prometheus_test_revision
+          CONTROLLER_SHA: *prometheus_test_revision  # pragma: allowlist secret - public trusted control commit
           GIT_TERMINAL_PROMPT: "0"
           GIT_NO_REPLACE_OBJECTS: "1"
         run: |
@@ -1388,15 +1390,19 @@ jobs:
           AM_IMAGE_ID: ${{ steps.alertmanager-image.outputs.image_id }}
           AM_CONFIG_SHA256: ${{ steps.alertmanager-image.outputs.config_sha256 }}
           PROMETHEUS_RUNTIME_REF: ${{ steps.checkpoint-image.outputs.runtime_ref }}
+          PROMETHEUS_ROUTE: ${{ steps.checkpoint-evidence.outputs.mode }}
         run: |
           set -euo pipefail
           native_python="$(command -v python)"
+          evidence="$RUNNER_TEMP/prometheus-obs2a-consumer-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT/evidence"
+          raw_input="$("$native_python" -c 'import sys; from tests.test_notify_premium_alias_checkpoint_failure import checkpoint_prometheus_raw_input; print(checkpoint_prometheus_raw_input(*sys.argv[1:]))' "$evidence" "$PROMETHEUS_ROUTE" "$PROMETHEUS_RUNTIME_REF")"
           mkdir -p artifacts/orchestration/obs2a_pr3
           if {
             sudo /usr/bin/env -i PATH=/usr/local/bin:/usr/bin:/bin LANG=C HOME=/tmp PYTHONDONTWRITEBYTECODE=1 \
             "$native_python" -m tests.test_notify_premium_alias_checkpoint_failure --native \
+              --prometheus-route "$PROMETHEUS_ROUTE" --prometheus-runtime-ref "$PROMETHEUS_RUNTIME_REF" \
               --alertmanager-image-id "$AM_IMAGE_ID" --alertmanager-config-sha256 "$AM_CONFIG_SHA256"
-          } 2>&1 | tee artifacts/orchestration/obs2a_pr3/native-result.log; then
+          } 2>&1 < "$raw_input" | tee artifacts/orchestration/obs2a_pr3/native-result.log; then
             pipeline_status=("${PIPESTATUS[@]}")
           else
             pipeline_status=("${PIPESTATUS[@]}")

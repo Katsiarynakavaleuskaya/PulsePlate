@@ -4679,7 +4679,10 @@ def _synthetic_fixed_prometheus_control(
             " mode='unchanged_published' if route=='unchanged_pr_published' else route\n"
             " admission={'mode':mode,'head':event['pull_request']['head']['sha'],'publisher_head':event['pull_request']['base']['sha'] if route=='unchanged_pr_published' else None}\n"
             " selection={'manifest_digest':'sha256:'+ '1'*64,'config_digest':'sha256:'+ '2'*64,'source_revision':'3'*40,'runtime_ref':'synthetic@sha256:'+ '1'*64}\n"
-            " result={'admission':dict(admission),'selection':selection}\n"
+            " runtime_ref=selection['runtime_ref'] if route=='unchanged_pr_published' else selection['config_digest']\n"
+            " result={'admission':dict(admission),'selection':selection,'runtime_ref':runtime_ref}\n"
+            " if outcome=='missing-runtime-ref': del result['runtime_ref']\n"
+            " if outcome=='swapped-runtime-ref': result['runtime_ref']=selection['config_digest'] if route=='unchanged_pr_published' else selection['runtime_ref']\n"
             " if outcome=='head-drift': admission['head']='f'*40\n"
             " if outcome=='base-drift': admission['publisher_head']='f'*40\n"
             " if outcome=='mode-drift': admission['mode']='changed_pr_candidate'\n"
@@ -5053,6 +5056,8 @@ def _run_prometheus_pr_selector(
         ("missing-result", "Prometheus_unchanged_result_HOLD"),
         ("malformed-result", "JSONDecodeError"),
         ("consume-failure", "synthetic_original_consumer_failed"),
+        ("missing-runtime-ref", "Prometheus_route_runtime_ref_HOLD"),
+        ("swapped-runtime-ref", "Prometheus_route_runtime_ref_HOLD"),
         ("cleanup-failure", "synthetic_owned_cleanup_failed"),
         *[
             (f"{side}-source-{index}-{fault}", "Prometheus_regular_blob_HOLD")
@@ -5276,6 +5281,8 @@ def test_prometheus_cd_classifies_before_pr_code_and_binds_trusted_handoff(
         ("head-drift", "Prometheus_unchanged_admission_HOLD"),
         ("base-drift", "Prometheus_unchanged_admission_HOLD"),
         ("mode-drift", "Prometheus_unchanged_admission_HOLD"),
+        ("missing-runtime-ref", "Prometheus_route_runtime_ref_HOLD"),
+        ("swapped-runtime-ref", "Prometheus_route_runtime_ref_HOLD"),
         ("missing-result", "Prometheus_unchanged_result_HOLD"),
         ("malformed-result", "JSONDecodeError"),
         ("material-head-drift", "Prometheus_material_revision_HOLD"),

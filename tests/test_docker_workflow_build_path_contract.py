@@ -18592,3 +18592,114 @@ def test_publisher_repair_routes_only_the_designated_read(
     if fault == "ordinary":
         monkeypatch.delenv("ALERTMANAGER_REPAIR_PIN_CHANGED")
         assert route()["mode"] == "ordinary_published_PR"
+
+
+@pytest.mark.parametrize(
+    "historical,fault",
+    [
+        (False, None),
+        (True, None),
+        (True, "corrected-pre-W"),
+        (True, "corrected-post-W"),
+        (True, "corrected-AM-helper"),
+        (False, "corrected-post-W"),
+        (True, "prior-W-only"),
+        (False, "prior-W-only"),
+        (False, "no-grant"),
+        (True, "missing-CI"),
+        (True, "altered-squash"),
+        (False, "material-checkout-drift"),
+        (True, "stale-W-slot"),
+    ],
+)
+def test_prometheus_transition_binds_caddy_grant_to_am_native_git(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, historical: bool, fault: str | None
+) -> None:
+    from scripts.ci import check_docker_runtime_dependency_surface as authority
+    from scripts.ci import prometheus_source_image as prom
+    from tests.test_docker_runtime_dependency_surface import _prometheus_repair_git_fixture
+
+    root = tmp_path / "repository"
+    read, pr, material = _prometheus_repair_git_fixture(
+        monkeypatch, fault, historical=historical, repository=root, dispatched=fault != "no-grant"
+    )
+    prefix = "/repos/" + authority.CADDY_REPOSITORY
+
+    class API:
+        private = tmp_path
+
+        def json(self, path: str) -> Any:
+            assert path.startswith(prefix)
+            return read(path.removeprefix(prefix))
+
+        def raw(self, path: str, *, maximum: int) -> bytes:
+            assert path.startswith(prefix)
+            data = read(path.removeprefix(prefix))
+            assert type(data) is bytes and len(data) <= maximum
+            return data
+
+        def _capture(self, argv: list[str], maximum: int, *, environment: dict[str, str]) -> bytes:
+            assert argv[0] == shutil.which("git")
+            data = subprocess.run(argv, env=environment, capture_output=True, check=True).stdout
+            assert len(data) <= maximum
+            return data
+
+    api = API()
+    if historical:
+
+        def run() -> str:
+            return docker_sources._alertmanager_publisher_history(
+                api, root, material["base"], pr["merge_commit_sha"], "a" * 40
+            )
+
+        if fault not in (None, "corrected-pre-W", "corrected-post-W", "corrected-AM-helper"):
+            diagnostic = {
+                "prior-W-only": "AM_history_protected_repair_dispatch",
+                "missing-CI": "publisher_repair_missing_authorized_native_lint",
+                "altered-squash": "publisher_repair_exact_squash",
+                "stale-W-slot": "publisher_repair_exact_caller_pin_bytes",
+            }[fault]
+            with pytest.raises(prom.QualificationError, match="^" + diagnostic + "$"):
+                run()
+        else:
+            assert run() == material["controller"]
+        return
+    grant = authority.publisher_repair_dispatch(read, pr)
+    if fault in ("no-grant", "prior-W-only"):
+        assert grant is None
+        return
+    assert grant is not None
+    monkeypatch.setenv(
+        "GITHUB_WORKFLOW_REF",
+        authority.CADDY_REPOSITORY + "/.github/workflows/ci.yml@refs/pull/81/merge",
+    )
+    monkeypatch.setenv("GITHUB_WORKFLOW_SHA", pr["head"]["sha"])
+    if fault == "material-checkout-drift":
+        (root / "tests/test_notify_premium_alias_checkpoint_failure.py").write_bytes(
+            b"replaced local checkout"
+        )
+        with pytest.raises(
+            prom.QualificationError, match="^AM_transition_actual_native_fixture_closure$"
+        ):
+            docker_sources._alertmanager_transition_successor(
+                api, root, material["callers"], material["controller"], 81, grant=grant
+            )
+    else:
+        docker_sources._alertmanager_transition_successor(
+            api, root, material["callers"], material["controller"], 81, grant=grant
+        )
+
+
+@pytest.mark.parametrize("history", ["corrected-pre-W", "corrected-post-W"])
+def test_prometheus_same_pr_corrected_controller_uses_new_grant(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, history: str
+) -> None:
+    from scripts.ci import check_docker_runtime_dependency_surface as authority
+    from tests.test_docker_runtime_dependency_surface import _prometheus_repair_git_fixture
+
+    read, pr, material = _prometheus_repair_git_fixture(
+        monkeypatch, history, repository=tmp_path / "isolated-git", dispatched=True
+    )
+    grant = authority.publisher_repair_dispatch(read, pr)
+    assert grant is not None
+    assert (grant["controller"], grant["callers"]) == (material["controller"], material["callers"])

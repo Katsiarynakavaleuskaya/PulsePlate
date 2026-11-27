@@ -217,7 +217,7 @@ if [ "$secret_file_metadata" != "${EUID}:444" ]; then
 fi
 
 PROMETHEUS_CONTRACT_HELPER="${PROMETHEUS_CONTRACT_HELPER:-${PROJECT_DIR}/scripts/ci/prometheus_source_image.py}"
-PROMETHEUS_CONTRACT_HELPER_SHA256="d0f7521da2323e91fe289dfc58a16ba03b9dde4c83411eb09ef2dca25d045aa6" # pragma: allowlist secret - public source digest
+PROMETHEUS_CONTRACT_HELPER_SHA256="f899596b9584c1e042c50ee34914309bae50bd4f5178a035a2980d506650b970" # pragma: allowlist secret - public source digest
 readonly PROMETHEUS_CONTRACT_HELPER PROMETHEUS_CONTRACT_HELPER_SHA256
 
 run_trusted_contract() {
@@ -253,7 +253,7 @@ os.execv(sys.executable, [sys.executable, "-I", "-S", "/dev/fd/" + str(fd), *sys
 }
 
 ALERTMANAGER_CONTRACT_HELPER="${ALERTMANAGER_CONTRACT_HELPER:-${PROJECT_DIR}/scripts/ci/fetch_docker_source_artifacts.py}"
-ALERTMANAGER_CONTRACT_HELPER_SHA256="55974a5bdb4d4ee772a4d23e788afd1e32245d4ef084c85af6d55662b1d1a25b"  # pragma: allowlist secret - public AM helper SHA-256
+ALERTMANAGER_CONTRACT_HELPER_SHA256="38793bd794a423d5263a787efb9588f6c04147b14210e466bc1b3f4746db9d25"  # pragma: allowlist secret - public AM helper SHA-256
 readonly ALERTMANAGER_CONTRACT_HELPER ALERTMANAGER_CONTRACT_HELPER_SHA256
 
 run_prometheus_contract() {

@@ -665,6 +665,49 @@ _PUBLISHER_REPAIR_FILES = _PUBLISHER_REPAIR_CONTROLS | {
 }
 
 
+# Public repository objects from the designated Prometheus repair and reviewed G3 implementation.
+_PROM_REPAIR_BRANCH = "codex/prometheus-published-reader-repair"
+_PROM_REPAIR_BASE = "563dc8689f4d5cef73f769addf56ba9fb00558a2"  # pragma: allowlist secret - reviewed public Git object ID
+_PROM_REPAIR_HOOK = "3e498c215f546387860d85323a3da21bc84b24a5"  # pragma: allowlist secret - reviewed public Git object ID
+_PROM_REPAIR_SOURCE = "ab43f352eb1206b091f01f03338bb83a222027d5"  # pragma: allowlist secret - reviewed public Git object ID
+_PROM_SOURCE = "scripts/ci/prometheus_source_image.py"
+_PROM_TEST = "tests/test_prometheus_source_image.py"
+_PROM_REPAIR_SOURCE_BLOBS = {
+    _PROM_SOURCE: "25198549a3e142d1271da8fdbe59afefb32949fc",  # pragma: allowlist secret - reviewed public Git object ID
+    _PROM_TEST: "30fb44cead52a17a5443aefde48bb722c9327ad0",  # pragma: allowlist secret - reviewed public Git object ID
+}
+_PROM_REPAIR_CALLER_BLOBS = {
+    ".github/workflows/ci.yml": "64be9916d8a9a1ecf168183df2620861dcafb1bb",  # pragma: allowlist secret - reviewed public Git object ID
+    ".github/workflows/cd.yml": "0cc4aa075fac10c430cb477c7240a9f3227d09ef",  # pragma: allowlist secret - reviewed public Git object ID
+    "tests/test_notify_premium_alias_checkpoint_failure.py": "a27163601493acec88d8558e9b7a4a65f44b35e2",  # pragma: allowlist secret - reviewed public Git object ID
+}
+_PROM_REPAIR_WRAPPERS = (
+    "scripts/deploy.sh",
+    "scripts/deploy_production.sh",
+    "scripts/QUICK_FIX_PRODUCTION.sh",
+)
+_PROM_NIGHTLY = ".github/workflows/nightly-tests.yml"
+_PROM_REPAIR_PATHS = frozenset(
+    {
+        *_PROM_REPAIR_SOURCE_BLOBS,
+        *_PROM_REPAIR_CALLER_BLOBS,
+        *_PROM_REPAIR_WRAPPERS,
+        _PROM_NIGHTLY,
+        ".secrets.baseline",
+        "scripts/ci/check_docker_runtime_dependency_surface.py",
+        "scripts/ci/fetch_docker_source_artifacts.py",
+        "tests/test_docker_runtime_dependency_surface.py",
+        "tests/test_docker_workflow_build_path_contract.py",
+        "tests/test_caddy_deploy_provenance.py",
+        "tests/test_deploy_contract_scripts.py",
+        "scripts/AGENTS.md",
+        "docs/roadmap/BACKLOG_LEDGER.md",
+    }
+)
+_PublisherEntry = tuple[str, str]
+_PublisherDelta = dict[str, tuple[_PublisherEntry | None, _PublisherEntry | None]]
+
+
 def require_publisher_repair_paths(changed: set[str]) -> None:
     from scripts.ci.prometheus_source_image import require
 
@@ -778,15 +821,11 @@ def _publisher_baseline_change(
     require(canonical_data(original) == current, diagnostic)
 
 
-def _publisher_repair_material(read: Callable[[str], Any], base: str, controller: str) -> None:
-    """Compare complete Git trees, descending only into changed, explicitly owned directories."""
-    from types import SimpleNamespace
-    from typing import cast
-    from scripts.ci.prometheus_source_image import GitHubRead, require, require_native_ancestor
-
-    prefix = "/repos/" + CADDY_REPOSITORY
-    proof = SimpleNamespace(json=lambda path: read(path.removeprefix(prefix)))
-    require_native_ancestor(cast(GitHubRead, proof), base, controller)
+def _publisher_tree_delta(
+    read: Callable[[str], Any], base: str, controller: str, allowed: frozenset[str] | set[str]
+) -> _PublisherDelta:
+    """Walk both complete trees, rejecting every unlisted or nonregular changed leaf."""
+    from scripts.ci.prometheus_source_image import require
 
     def root(revision: str) -> str:
         commit = read("/git/commits/" + revision)
@@ -837,8 +876,7 @@ def _publisher_repair_material(read: Callable[[str], Any], base: str, controller
         return rows
 
     pending: list[tuple[str, str | None, str | None]] = [("", root(base), root(controller))]
-    changed: set[str] = set()
-    changed_blobs: dict[str, tuple[str, str]] = {}
+    delta: _PublisherDelta = {}
     structural: set[str] = set()
     while pending:
         parent, before, after = pending.pop()
@@ -851,16 +889,12 @@ def _publisher_repair_material(read: Callable[[str], Any], base: str, controller
                 continue
             path = parent + name
             modes = {row[0] for row in (old, new) if row is not None}
-            if modes == {"040000"} and any(
-                p.startswith(path + "/") for p in _PUBLISHER_REPAIR_FILES
-            ):
+            if modes == {"040000"} and any(p.startswith(path + "/") for p in allowed):
                 structural.add(path + "/")
                 pending.append((path + "/", old[1] if old else None, new[1] if new else None))
                 continue
             require(
-                path in _PUBLISHER_REPAIR_FILES
-                and len(modes) == 1
-                and modes <= {"100644", "100755"},
+                path in allowed and len(modes) == 1 and modes <= {"100644", "100755"},
                 "publisher_repair_complete_maintenance_delta",
             )
             if path == ".secrets.baseline":
@@ -868,16 +902,346 @@ def _publisher_repair_material(read: Callable[[str], Any], base: str, controller
                     old is not None and new is not None and modes == {"100644"},
                     "publisher_repair_existing_regular_baseline",
                 )
-            if old is not None and new is not None:
-                changed_blobs[path] = (old[1], new[1])
-            changed.add(path)
+            delta[path] = (old, new)
     require(
-        all(any(path.startswith(directory) for path in changed) for directory in structural),
+        all(any(path.startswith(directory) for path in delta) for directory in structural),
         "publisher_repair_empty_directory_delta",
     )
+    return delta
+
+
+def _prometheus_repair_parent(read: Callable[[str], Any], revision: str) -> str:
+    from scripts.ci.prometheus_source_image import require
+
+    node = read("/git/commits/" + revision)
+    parents = node["parents"]
+    require(
+        node["sha"] == revision
+        and type(parents) is list
+        and len(parents) == 1
+        and re.fullmatch(_REPAIR_SHA, parents[0]["sha"]) is not None,
+        "publisher_prometheus_direct_parent",
+    )
+    return str(parents[0]["sha"])
+
+
+def _prometheus_test_control_source(
+    read: Callable[[str], Any], blobs: dict[str, tuple[str, str]]
+) -> bytes:
+    """Bind CI's annotated YAML alias and the sole public Git prefetch substitution in Nightly."""
+    from scripts.ci.prometheus_source_image import require
+
+    diagnostic = "publisher_prometheus_baseline_alias"
+    before, after = (_publisher_git_blob(read, oid) for oid in blobs[".github/workflows/ci.yml"])
+    alias = b"          CONTROLLER_SHA: *prometheus_test_revision"
+    marker = b"# pragma: allowlist secret - public trusted control commit"
+    anchor = (
+        rb"^          ref: &prometheus_test_revision ([0-9a-f]{40}) " + re.escape(marker) + b"$"
+    )
+    old_refs = re.findall(anchor, before, re.MULTILINE)
+    require(
+        len(old_refs) == 1
+        and old_refs[0] != _PROM_REPAIR_SOURCE.encode("ascii")
+        and re.findall(anchor, after, re.MULTILINE) == [_PROM_REPAIR_SOURCE.encode("ascii")]
+        and before.splitlines().count(alias) == 1
+        and after.splitlines().count(alias + b"  " + marker) == 1,
+        diagnostic,
+    )
+    old: bytes = old_refs[0]
+    prefix = b"          CONTROLLER_SHA: "
+    source_line = prefix + old + b" " + marker
+    replacement = prefix + _PROM_REPAIR_SOURCE.encode("ascii") + b" " + marker
+    prior, current = (_publisher_git_blob(read, oid) for oid in blobs[_PROM_NIGHTLY])
+    require(
+        prior.splitlines().count(source_line) == 1
+        and prior.count(old) == 1
+        and prior.replace(source_line, replacement, 1) == current,
+        "publisher_prometheus_nightly_operand",
+    )
+    return old
+
+
+def _prometheus_retired_alias_baseline(original: bytes, old_ref: bytes) -> bytes:
+    """Remove exactly the unverified fingerprint of the independently selected old CI operand."""
+    from scripts.ci.prometheus_source_image import canonical_data, one_object, require
+
+    diagnostic = "publisher_prometheus_baseline_alias"
+    filename = ".github/workflows/ci.yml"
+    data = one_object(original)
+    rows = data["results"].get(filename)
+    fingerprint = hashlib.sha1(old_ref, usedforsecurity=False).hexdigest()
+    expected = canonical_data(
+        {
+            "filename": filename,
+            "type": "Hex High Entropy String",
+            "hashed_secret": fingerprint,
+            "is_verified": False,
+        }
+    )
+    require(type(rows) is list, diagnostic)
+    matching = [i for i, row in enumerate(rows) if canonical_data(row) == expected]
+    require(len(matching) == 1, diagnostic)
+    del rows[matching[0]]
+    normalized: bytes = canonical_data(data)
+    return normalized
+
+
+def _prometheus_repair_material(
+    read: Callable[[str], Any],
+    base: str,
+    controller: str,
+    callers: str,
+    pr: dict[str, Any],
+    ancestors: set[str],
+) -> None:
+    """Bind this one Git transition; the independent native dispatch still decides authority."""
+    from functools import cache
+    from scripts.ci.prometheus_source_image import require
+
+    h, p = _PROM_REPAIR_HOOK, _PROM_REPAIR_SOURCE
+    require(
+        base == _PROM_REPAIR_BASE
+        and _prometheus_repair_parent(read, h) == base
+        and _prometheus_repair_parent(read, p) == h,
+        "publisher_prometheus_designated_topology",
+    )
+    hook = _publisher_tree_delta(read, base, h, {".secrets.baseline"})
+    require(set(hook) == {".secrets.baseline"}, "publisher_prometheus_hook_delta")
+    pair = _publisher_tree_delta(read, h, p, set(_PROM_REPAIR_SOURCE_BLOBS))
+    require(
+        set(pair) == set(_PROM_REPAIR_SOURCE_BLOBS)
+        and all(
+            old and old[0] == "100644" and new == ("100644", _PROM_REPAIR_SOURCE_BLOBS[path])
+            for path, (old, new) in pair.items()
+        ),
+        "publisher_prometheus_designated_source",
+    )
+
+    material = _publisher_tree_delta(read, base, controller, _PROM_REPAIR_PATHS)
+    require(set(material) == _PROM_REPAIR_PATHS, "publisher_prometheus_exact_material")
+    blobs: dict[str, tuple[str, str]] = {}
+    for path, (old, new) in material.items():
+        mode = "100755" if path in _PROM_REPAIR_WRAPPERS else "100644"
+        if old is None or new is None or old[0] != mode or new[0] != mode:
+            raise ValueError("publisher_prometheus_existing_regular_material")
+        blobs[path] = (old[1], new[1])
+    for path, expected in {**_PROM_REPAIR_SOURCE_BLOBS, **_PROM_REPAIR_CALLER_BLOBS}.items():
+        require(blobs[path][1] == expected, "publisher_prometheus_exact_source_or_caller")
+
+    # Replay the independently bounded linear commit inventory in publication order.
+    edges = []
+    current = controller
+    while current != p:
+        require(current in ancestors and current != h, "publisher_prometheus_source_ancestry")
+        ancestors.remove(current)
+        parent = _prometheus_repair_parent(read, current)
+        edges.append((parent, current))
+        current = parent
+    require(ancestors == {h, p}, "publisher_prometheus_source_ancestry")
+
+    @cache
+    def projection(oid: str) -> bytes:
+        return _publisher_baseline_projection(read, oid)
+
+    baseline_path = ".secrets.baseline"
+    original = projection(blobs[baseline_path][0])
+    old_ref = _prometheus_test_control_source(read, blobs)
+    retired = _prometheus_retired_alias_baseline(original, old_ref)
+    hook_leaf = hook[baseline_path][1]
+    if hook_leaf is None or projection(hook_leaf[1]) != original:
+        raise ValueError("publisher_prometheus_hook_delta")
+    require(
+        projection(blobs[baseline_path][1]) == retired, "publisher_prometheus_baseline_findings"
+    )
+
+    def baseline(before: str, after: str) -> None:
+        old, new = projection(before), projection(after)
+        require(
+            (old == original and new in (original, retired)) or (old == retired and new == retired),
+            "publisher_prometheus_baseline_findings",
+        )
+
+    _prometheus_repair_edges(read, base, blobs, hook_leaf[1], reversed(edges), baseline)
+
+    caller_paths = {".github/workflows/ci.yml", ".github/workflows/cd.yml"}
+    require(
+        _prometheus_repair_parent(read, callers) == controller
+        and set(_publisher_tree_delta(read, controller, callers, caller_paths)) == caller_paths,
+        "publisher_prometheus_direct_callers",
+    )
+    final = pr["head"]["sha"]
+    if final != callers:
+        mapping = f"docs/review/PR_{pr['number']}_FIXED_MAPPING.md"
+        require(
+            _prometheus_repair_parent(read, final) == callers
+            and set(_publisher_tree_delta(read, callers, final, {mapping})) == {mapping},
+            "publisher_prometheus_mapping_only",
+        )
+
+
+def _prometheus_repair_edges(
+    read: Callable[[str], Any],
+    base: str,
+    blobs: dict[str, tuple[str, str]],
+    hook_blob: str,
+    edges: Iterator[tuple[str, str]],
+    baseline: Callable[[str, str], None],
+) -> None:
+    """Keep review corrections inside the admitted history; former caller pins grant no authority."""
+    from functools import cache
+    from scripts.ci.prometheus_source_image import require
+
+    callers = {".github/workflows/ci.yml", ".github/workflows/cd.yml"}
+    harness = "tests/test_notify_premium_alias_checkpoint_failure.py"
+    am = "scripts/ci/fetch_docker_source_artifacts.py"
+    allowed = _PROM_REPAIR_PATHS - _PROM_REPAIR_SOURCE_BLOBS.keys()
+    current = {path: before for path, (before, _) in blobs.items()}
+    current.update(_PROM_REPAIR_SOURCE_BLOBS)
+    current[".secrets.baseline"] = hook_blob
+    seen = {path: {oid} for path, oid in current.items()}
+
+    @cache
+    def digest(oid: str) -> bytes:
+        return hashlib.sha256(_publisher_git_blob(read, oid)).hexdigest().encode()
+
+    @cache
+    def wrapper_bytes(wrapper: str, am_blob: str) -> bytes:
+        raw = _publisher_git_blob(read, blobs[wrapper][0])
+        pins = [("PROMETHEUS", _PROM_SOURCE, blobs[_PROM_SOURCE][1])]
+        if wrapper != "scripts/QUICK_FIX_PRODUCTION.sh":
+            pins.append(("ALERTMANAGER", am, am_blob))
+        for key, path, selected in pins:
+            prefix = key.encode() + b'_CONTRACT_HELPER_SHA256="'
+            before = prefix + digest(blobs[path][0]) + b'"'
+            require(raw.count(before) == 1, "publisher_prometheus_wrapper_pin")
+            raw = raw.replace(before, prefix + digest(selected) + b'"', 1)
+        return raw
+
+    pending_restore = False
+    needs_correction = False
+    for parent, revision in edges:
+        delta = _publisher_tree_delta(read, parent, revision, allowed)
+        require(bool(delta), "publisher_prometheus_empty_edge")
+        for path, (old, new) in delta.items():
+            mode = "100755" if path in _PROM_REPAIR_WRAPPERS else "100644"
+            if old != (mode, current[path]) or new is None or new[0] != mode:
+                raise ValueError("publisher_prometheus_existing_regular_material")
+            oid = new[1]
+            if path == ".secrets.baseline":
+                baseline(current[path], oid)
+            elif path not in callers:
+                require(oid not in seen[path], "publisher_prometheus_transient_material")
+                seen[path].add(oid)
+                needs_correction = False
+            if path == _PROM_NIGHTLY:
+                require(oid == blobs[path][1], "publisher_prometheus_nightly_operand")
+            if path == harness:
+                require(
+                    oid == _PROM_REPAIR_CALLER_BLOBS[path],
+                    "publisher_prometheus_exact_source_or_caller",
+                )
+            current[path] = oid
+
+        # An activated wrapper must match this revision's actual AM and designated Prom bytes.
+        if delta.keys() & {*_PROM_REPAIR_WRAPPERS, am}:
+            for wrapper in _PROM_REPAIR_WRAPPERS:
+                if current[wrapper] != blobs[wrapper][0]:
+                    require(
+                        _publisher_git_blob(read, current[wrapper])
+                        == wrapper_bytes(wrapper, current[am]),
+                        "publisher_prometheus_wrapper_pin",
+                    )
+
+        touched = delta.keys() & callers
+        if not touched:
+            continue
+        frozen = all(current[path] == _PROM_REPAIR_CALLER_BLOBS[path] for path in touched)
+        if pending_restore:
+            require(touched == callers and frozen, "publisher_prometheus_coordinated_restore")
+            pending_restore = False
+        elif not frozen:
+            # Only a direct two-caller W1 on the reviewed K1 may introduce a prior pin.
+            require(
+                set(delta) == callers
+                and all(
+                    delta[path][0] == ("100644", _PROM_REPAIR_CALLER_BLOBS[path])
+                    for path in callers
+                )
+                and current[harness] == _PROM_REPAIR_CALLER_BLOBS[harness]
+                and all(current[path] != blobs[path][0] for path in _PROM_REPAIR_WRAPPERS)
+                and not needs_correction,
+                "publisher_prometheus_prior_caller_edge",
+            )
+            _publisher_git_inputs(read, base, parent, revision)
+            pending_restore = True
+            needs_correction = True
+    require(
+        not pending_restore and not needs_correction, "publisher_prometheus_distinct_correction"
+    )
+    require(
+        all(current[path] == endpoint for path, (_, endpoint) in blobs.items()),
+        "publisher_prometheus_exact_material",
+    )
+
+
+def _publisher_repair_material(
+    read: Callable[[str], Any], base: str, controller: str, callers: str, pr: dict[str, Any]
+) -> None:
+    from functools import cache
+    from types import SimpleNamespace
+    from typing import cast
+    from scripts.ci.prometheus_source_image import GitHubRead, require_native_ancestor
+
+    special = pr["head"]["ref"] == _PROM_REPAIR_BRANCH
+    if special:
+        # Only immutable Git data is cached within this material check.
+        read = cache(read)
+    prefix = "/repos/" + CADDY_REPOSITORY
+    proof = SimpleNamespace(json=lambda path: read(path.removeprefix(prefix)))
+    require_native_ancestor(cast(GitHubRead, proof), base, controller)
+    if special:
+        rows = read(f"/compare/{base}...{controller}")["commits"]
+        _prometheus_repair_material(
+            read, base, controller, callers, pr, {row["sha"] for row in rows}
+        )
+        return
+    delta = _publisher_tree_delta(read, base, controller, _PUBLISHER_REPAIR_FILES)
+    require_publisher_repair_paths(set(delta))
+    if ".secrets.baseline" in delta:
+        _publisher_baseline_change(
+            read,
+            {
+                path: (old[1], new[1])
+                for path, (old, new) in delta.items()
+                if old is not None and new is not None
+            },
+        )
+
+
+def require_dispatched_publisher_repair_paths(
+    read: Callable[[str], Any],
+    number: int,
+    grant: dict[str, str],
+    changed: set[str],
+    *,
+    historical: bool,
+) -> None:
+    """Cross-check AM's local full path set against the same authenticated B/K/W coordinates."""
+    from scripts.ci.prometheus_source_image import require
+
+    if grant["base"] == _PROM_REPAIR_BASE:
+        pr = read(f"/pulls/{number}")
+        if pr["head"]["ref"] == _PROM_REPAIR_BRANCH:
+            require(
+                grant["pr"] == str(number)
+                and pr["number"] == number
+                and publisher_repair_head(read, pr, historical=historical)
+                == (grant["base"], grant["controller"], grant["callers"])
+                and changed == _PROM_REPAIR_PATHS,
+                "publisher_prometheus_exact_material",
+            )
+            return
     require_publisher_repair_paths(changed)
-    if ".secrets.baseline" in changed:
-        _publisher_baseline_change(read, changed_blobs)
 
 
 def _publisher_live_base(read: Callable[[str], Any], base: str) -> None:
@@ -1026,10 +1390,10 @@ def _publisher_source_files(
     return files
 
 
-def _publisher_input_source(
-    read: Callable[[str], Any], b: str, k: str, w: str, horizons: list[datetime] | None = None
-) -> dict[str, str]:
-    """Bind both caller substitutions, original Q/S/C service records and independent BASE Compose subject."""
+def _publisher_git_inputs(
+    read: Callable[[str], Any], b: str, k: str, w: str
+) -> tuple[dict[str, Any], dict[str, set[tuple[str, str, str]]]]:
+    """Bind complete caller substitutions, original Q/S/C coordinates and BASE Compose/producer bytes."""
     import ast
     from scripts.ci.prometheus_source_image import require
 
@@ -1120,6 +1484,17 @@ def _publisher_input_source(
             base[path].splitlines().count(b"  alertmanager:") == 1 and images == [image.encode()],
             "publisher_repair_base_compose_manifest",
         )
+    return accepted, slots
+
+
+def _publisher_input_source(
+    read: Callable[[str], Any], b: str, k: str, w: str, horizons: list[datetime] | None = None
+) -> dict[str, str]:
+    """Verify original service records for the current material's immutable Git inputs."""
+    from scripts.ci.prometheus_source_image import require
+
+    accepted, slots = _publisher_git_inputs(read, b, k, w)
+    image = accepted["graph"]["manifest"]["digest"]
     names = {
         "qualification": ("q", "alertmanager-module-qualification"),
         "support": ("s", "alertmanager-input-inspection"),
@@ -2195,7 +2570,7 @@ def publisher_repair_dispatch(
     from scripts.ci.prometheus_source_image import QualificationError, exact_data, require
 
     base, controller, callers = publisher_repair_head(read, pr, historical=historical)
-    _publisher_repair_material(read, base, controller)
+    _publisher_repair_material(read, base, controller, callers, pr)
     horizons: list[datetime] = []
     accepted = _publisher_input_source(read, base, controller, callers, horizons)
     require(len(horizons) == 3, "publisher_repair_source_horizon")
