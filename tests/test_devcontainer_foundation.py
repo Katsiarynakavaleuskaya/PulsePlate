@@ -194,10 +194,17 @@ def test_devcontainer_compose_does_not_import_full_env_file() -> None:
     service = data["services"]["devcontainer"]
 
     assert "env_file" not in service, "Devcontainer must not import ../.env wholesale"
-    build_cfg = service.get("build", {})
+    producer = data["services"]["native-sdk-artifacts"]
+    checkout_sdk_image = (
+        "pulseplate-sdk.invalid/native-checkout:"
+        "local-${COMPOSE_PROJECT_NAME:?Compose project name required}"
+    )
     assert (
-        "args" not in build_cfg
-    ), "Compose build must NOT pass args (secrets leak into image layers)"
+        producer.get("image") == checkout_sdk_image
+    ), "Checkout SDK producer must export its local image"
+    assert service["build"].get("args") == {
+        "DEVCONTAINER_NATIVE_SDK_IMAGE": checkout_sdk_image
+    }, "Final devcontainer must consume the checkout SDK image"
 
 
 def test_devcontainer_compose_forwards_only_bootstrap_proxy_env() -> None:
