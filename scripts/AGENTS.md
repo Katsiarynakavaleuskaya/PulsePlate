@@ -544,6 +544,21 @@ pin successor exists. One ordinary push may publish both real commits; authentic
 remote controller/live head before protected execution. The new library selector
 alone does not establish that a still-old fixed caller executes the correction.
 
+Keep the registry login in its owned Docker configuration directory. Give the
+Buildx raw-manifest command a separate private directory. Check identities and
+finish cleanup before recording publication success. OBS2A receives the selected
+route and runtime handle as explicit operands across its clean environment.
+For a published subject, pass the verified raw OCI manifest on stdin and bind
+the local Docker descriptor to it when the engine returns a manifest ID.
+The loaded candidate retains its config ID and empty stdin.
+
+For a protected Prometheus controller repair, verify the designated helper in
+both complete workflows and all three deployment scripts. Preserve the accepted
+Alertmanager subject and the original publication evidence. The existing
+publisher-repair procedure binds its own controller and caller pair before any
+protected operation. Record the terminal publisher result before using it as
+the predecessor for CD.
+
 The PR-only evidence-selection caller uses GitHub read credentials, no registry
 credential, one bounded observation and owned cleanup. Consume independently
 rederives the route and rejects disagreement; candidate acquisition rechecks live
