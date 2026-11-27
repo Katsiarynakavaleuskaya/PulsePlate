@@ -44,8 +44,8 @@ setuptools>=84.1.0,<85.0.0
 
 # Control-plane CI tooling only.
 pre-commit~=4.6.1
-# virtualenv: security floor for the reconciled October 24 advisory cutoff.
-virtualenv>=21.14.10
+# virtualenv: activation-script fix for GHSA-cx6f-vjhg-g3cc.
+virtualenv>=21.14.13
 bandit>=1.9.4
 pip-audit>=2.10.1
 # Security floor: CVE-2026-114613 / GHSA-j586-36cw-2gc2.

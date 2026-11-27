@@ -144,14 +144,16 @@ REMEDIATION_FIXED_FLOORS = {
     "opentelemetry-api": Version("1.45.2"),
     "pillow": Version("13.0.0"),
     "urllib3": Version("2.8.0"),
-    "virtualenv": Version("21.14.10"),
+    "virtualenv": Version("21.14.13"),
 }
 
 VIRTUALENV_F_CUTOFF = {
     "GHSA-394h-qwmc-48pf": "<21.14.9",
     "GHSA-3jhc-wjqf-5f2c": "<1.5",
+    "GHSA-43mp-35q3-x3fq": "<21.14.9",
     "GHSA-494p-63j8-28p3": "<21.14.9",
     "GHSA-4f8h-vr72-p32c": "<21.14.10,>=21.14.8",
+    "GHSA-558c-9hv2-4prj": "<21.14.9",
     "GHSA-597g-3phw-6986": "<20.36.1",
     "GHSA-5vjq-rrrf-7h2q": "<=21.14.3",
     "GHSA-6w3r-xr62-4xcp": "<21.14.9",
@@ -160,8 +162,11 @@ VIRTUALENV_F_CUTOFF = {
     "GHSA-9h9j-4vrj-gf7g": "<=21.7.10",
     "GHSA-c947-3pg5-gm8q": "<=21.14.1",
     "GHSA-c978-59m8-c77v": "<21.14.9",
+    "GHSA-cw65-gx24-rc82": "<21.14.9",
     "GHSA-cx28-75q4-x26q": "<21.14.9",
+    "GHSA-cx6f-vjhg-g3cc": "<21.14.13,>=21.14.9",
     "GHSA-fc2g-4w5p-6whm": "<21.14.9",
+    "GHSA-hhxq-47xx-j5xx": "<21.14.9",
     "GHSA-p58f-9548-mpm2": "<=21.7.12",
     "GHSA-qmx5-4p3x-wvqf": "<21.14.9",
     "GHSA-rqc4-2hc7-8c8v": "<20.26.6",
@@ -3731,26 +3736,30 @@ def test_virtualenv_current_governed_surfaces_are_safe() -> None:
         )
 
 
-@pytest.mark.parametrize(
-    "advisory,affected",
-    (
-        ("GHSA-3jhc-wjqf-5f2c", "1.4.9"),
-        ("GHSA-597g-3phw-6986", "20.36.0"),
-        ("GHSA-5vjq-rrrf-7h2q", "21.14.3"),
-        ("GHSA-8rjx-v5ww-45pp", "20.26.6"),
-        ("GHSA-94p9-xgh2-xp45", "21.7.11"),
-        ("GHSA-9h9j-4vrj-gf7g", "21.7.10"),
-        ("GHSA-c947-3pg5-gm8q", "21.14.1"),
-        ("GHSA-p58f-9548-mpm2", "21.7.12"),
-        ("GHSA-rqc4-2hc7-8c8v", "20.26.5"),
-        ("GHSA-x78j-v8h9-3j2q", "21.7.11"),
-    ),
-)
+@pytest.mark.parametrize("advisory,affected_range", sorted(VIRTUALENV_F_CUTOFF.items()))
 def test_virtualenv_each_cutoff_advisory_rejects_affected_occurrence(
-    tmp_path: Path, advisory: str, affected: str
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, advisory: str, affected_range: str
 ) -> None:
-    """Historical cutoff members remain enforced after the October floor rotation."""
-    assert SpecifierSet(VIRTUALENV_F_CUTOFF[advisory]).contains(affected, prereleases=True)
+    """Each advisory independently rejects an affected version, including shared intervals."""
+    affected = {
+        "<1.5": "1.4.9",
+        "<20.26.6": "20.26.5",
+        "<20.36.1": "20.36.0",
+        "<21.14.10,>=21.14.8": "21.14.9",
+        "<21.14.13,>=21.14.9": "21.14.12",
+        "<21.14.9": "21.14.8",
+        "<=21.14.1": "21.14.1",
+        "<=21.14.1,>=20.26.6": "20.26.6",
+        "<=21.14.3": "21.14.3",
+        "<=21.14.6": "21.14.6",
+        "<=21.7.10": "21.7.10",
+        "<=21.7.11": "21.7.11",
+        "<=21.7.12": "21.7.12",
+    }[affected_range]
+    assert SpecifierSet(affected_range).contains(affected, prereleases=True), advisory
+    schema = deepcopy(_load_schema(SCHEMA_PATH))
+    schema["blocked_versions"]["virtualenv"] = [affected_range]
+    monkeypatch.setattr(f"{__name__}._load_schema", lambda _path: schema)
     path = tmp_path / "requirements.txt"
     path.write_text(f"virtualenv=={affected}\n", encoding="utf-8")
     with pytest.raises(AssertionError, match="matches blocked range"):
@@ -3760,25 +3769,47 @@ def test_virtualenv_each_cutoff_advisory_rejects_affected_occurrence(
 
 
 @pytest.mark.parametrize(
+    "carrier,requirement",
+    (
+        ("requirements-ci-lite.in", "virtualenv>=21.14.12"),
+        ("requirements-dev.in", "virtualenv>=21.14.12"),
+        ("requirements-ci-lite.txt", "virtualenv==21.14.12"),
+        ("requirements-dev.txt", "virtualenv==21.14.12"),
+        ("requirements-lock.txt", "virtualenv==21.14.12"),
+    ),
+)
+def test_virtualenv_consumer_rejects_affected_activation_version_in_each_owner(
+    idna_consumer_repo: Path, carrier: str, requirement: str
+) -> None:
+    (idna_consumer_repo / carrier).write_text(f"{requirement}\n", encoding="utf-8")
+    with pytest.raises(AssertionError, match=rf"{re.escape(carrier)}: virtualenv .*blocked range"):
+        test_virtualenv_current_governed_surfaces_are_safe()
+
+
+@pytest.mark.parametrize(
     "name,text",
     (
         ("requirements.txt", "# missing required identity\n"),
         ("requirements.txt", "virtualenv==21.7.13\n"),
+        ("requirements.txt", "virtualenv==21.14.10\n"),
+        ("requirements.txt", "virtualenv==21.14.11\n"),
+        ("requirements.txt", "virtualenv==21.14.13rc1\n"),
+        ("requirements.in", "virtualenv>=21.14.13.dev1\n"),
         ("requirements.txt", "virtualenv==21.14.4rc1\n"),
         ("requirements.txt", "virtualenv==21.14.4.dev1\n"),
-        ("requirements.txt", "virtualenv==21.14.5\nVirtualEnv==21.14.5\n"),
+        ("requirements.txt", "virtualenv==21.14.13\nVirtualEnv==21.14.13\n"),
         ("requirements.txt", "virtualenv==21.*\n"),
-        ("requirements.txt", "virtualenv>=21.14.5\n"),
-        ("requirements.txt", "virtualenv===21.14.5\n"),
-        ("requirements.txt", 'virtualenv==21.14.5; python_version < "0"\n'),
-        ("requirements.txt", "virtualenv[extra]==21.14.5\n"),
+        ("requirements.txt", "virtualenv>=21.14.13\n"),
+        ("requirements.txt", "virtualenv===21.14.13\n"),
+        ("requirements.txt", 'virtualenv==21.14.13; python_version < "0"\n'),
+        ("requirements.txt", "virtualenv[extra]==21.14.13\n"),
         ("requirements.in", "virtualenv\n"),
         ("requirements.in", "virtualenv>=21.14.3\n"),
-        ("requirements.in", "virtualenv>=21.14.4,!=21.14.4\n"),
-        ("requirements.in", "virtualenv>=21.14.4,===21.14.4\n"),
-        ("requirements-evals.txt", "virtual_env==21.14.5\n"),
-        ("requirements-evals.txt", "virtual.env==21.14.5\n"),
-        ("requirements-evals.txt", "virtual-env==21.14.5\n"),
+        ("requirements.in", "virtualenv>=21.14.13,!=21.14.13\n"),
+        ("requirements.in", "virtualenv>=21.14.13,===21.14.13\n"),
+        ("requirements-evals.txt", "virtual_env==21.14.13\n"),
+        ("requirements-evals.txt", "virtual.env==21.14.13\n"),
+        ("requirements-evals.txt", "virtual-env==21.14.13\n"),
     ),
 )
 def test_virtualenv_surface_rejects_unsafe_or_noncanonical_carriers(
@@ -3818,10 +3849,9 @@ def test_virtualenv_surface_rejects_malformed_url_or_editable_carriers(
 @pytest.mark.parametrize(
     "name,text,required,pinned",
     (
-        ("requirements.txt", "virtualenv==21.14.11\n", True, True),
-        ("requirements.txt", "virtualenv==21.14.10\n", True, True),
+        ("requirements.txt", "virtualenv==21.14.13\n", True, True),
         ("requirements.txt", "virtualenv==22.0.0\n", True, True),
-        ("requirements.in", "virtualenv>=21.14.10,<23\n", True, False),
+        ("requirements.in", "virtualenv>=21.14.13,<23\n", True, False),
         ("requirements-evals.txt", "# optional absence\n", False, True),
         ("requirements-all.txt", "virtualenv>=22.0.0\n", False, False),
     ),
@@ -3850,6 +3880,7 @@ def test_virtualenv_surface_accepts_safe_future_versions_and_optional_absence(
     "text",
     (
         "virtualenv==21.14.3\n",
+        "virtualenv==21.14.12\n",
         "virtualenv==21.14.4rc1\n",
         "virtualenv==21..14.5\n",
         "virtual_env==22.0.0\n",
@@ -3921,11 +3952,13 @@ def test_virtualenv_surface_rejects_missing_file(tmp_path: Path) -> None:
         )
 
 
+@pytest.mark.parametrize("missing_range", ("<21.14.13,>=21.14.9", "<21.14.9", "<=21.7.12"))
 def test_virtualenv_consumer_rejects_omitted_advisory_member(
     monkeypatch: pytest.MonkeyPatch,
+    missing_range: str,
 ) -> None:
     schema = deepcopy(_load_schema(SCHEMA_PATH))
-    schema["blocked_versions"]["virtualenv"].pop()
+    schema["blocked_versions"]["virtualenv"].remove(missing_range)
     monkeypatch.setattr(f"{__name__}._load_schema", lambda _path: schema)
     with pytest.raises(AssertionError, match="retain every advisory range member"):
         test_virtualenv_current_governed_surfaces_are_safe()
