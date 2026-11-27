@@ -740,6 +740,11 @@ If it is not recorded here — it does not exist.
     together with the approved RubyZip 3.7.0 and Addressable 2.9.1 updates.
     Merged-main CD attempt 3 verified the PostgreSQL candidate and its attestations, then stopped
     before canonical tag promotion. [Publisher job](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/45907123503/job/140224710589).
+    On November 27, the published Prometheus reader on #2484 verified the expected raw OCI
+    manifest, then failed the credential-directory member check. A local native Buildx test
+    reproduced the failure and verified that separate private Buildx state kept the credential
+    directory isolated. CI and CD execute an independently pinned controller. A successor pin
+    and its protected-history transition require separate owner approval. CAB remains open. [Reader job](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/45924516048/job/140262799326).
     The October 22, 2026 checkpoint recorded a temporary decision for 18 advisories across
     six packages. Its review deadline was `2026-10-24T00:00:00Z` and its hard expiry was
     `2026-10-29T00:00:00Z`. Both deadlines have passed. The retained October 21 diagnostic
