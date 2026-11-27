@@ -60,20 +60,19 @@ RUN --network=none \
     --mount=type=bind,source=requirements.txt,target=/tmp/pulseplate-sdk-admission/requirements.txt \
     --mount=type=bind,source=requirements-dev.txt,target=/tmp/pulseplate-sdk-admission/requirements-dev.txt \
     python3 -I - /tmp/pulseplate-sdk-admission /opt/psycopg-sdk /opt/dev-wheelhouse / <<'PY'
-from pathlib import Path
+# Dev Containers CLI detects FROM even inside this heredoc.
+import pathlib
 import sys
 
-inputs, sdk, wheelhouse, native_root = map(Path, sys.argv[1:])
+inputs, sdk, wheelhouse, native_root = map(pathlib.Path, sys.argv[1:])
 sys.path.insert(0, str(inputs))
-from scripts.ci.install_locked_python_requirements import (
-    _exact_locked_artifacts,
-    _validate_exact_wheelhouse,
-    read_psycopg_c_sdk,
-)
+import scripts.ci.install_locked_python_requirements as installer
 
-admitted = read_psycopg_c_sdk(sdk, native_root=native_root)
-expected = _exact_locked_artifacts((inputs / "requirements.txt", inputs / "requirements-dev.txt"))
-artifacts = _validate_exact_wheelhouse(wheelhouse=wheelhouse, expected=expected)
+admitted = installer.read_psycopg_c_sdk(sdk, native_root=native_root)
+expected = installer._exact_locked_artifacts(
+    (inputs / "requirements.txt", inputs / "requirements-dev.txt")
+)
+artifacts = installer._validate_exact_wheelhouse(wheelhouse=wheelhouse, expected=expected)
 current = next((wheel for wheel in artifacts if wheel.artifact_key == admitted.artifact_key), None)
 if current is None or current.snapshot.digest != admitted.snapshot.digest:
     raise RuntimeError("Consumed Psycopg C differs from the admitted SDK wheel.")

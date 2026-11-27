@@ -78,6 +78,16 @@ def test_devcontainer_dockerfile_does_not_bake_package_proxy_secrets() -> None:
         )
 
 
+def test_devcontainer_features_discover_only_the_real_dockerfile_stages() -> None:
+    """Dev Containers CLI scans for FROM even inside RUN heredocs."""
+    dockerfile = (DEVCONTAINER_DIR / "Dockerfile").read_text(encoding="utf-8")
+    assert re.findall(r"^[\t ]*(FROM.*)", dockerfile, re.IGNORECASE | re.MULTILINE) == [
+        "FROM ${DEVCONTAINER_NATIVE_SDK_IMAGE} AS native_sdk",
+        "FROM mcr.microsoft.com/devcontainers/python:1-3.13-bookworm AS tooling",
+        "FROM tooling AS devcontainer",
+    ]
+
+
 def test_devcontainer_dockerfile_has_no_build_args() -> None:
     """Devcontainer Dockerfile must not use ARG for secret-like values."""
     text = (DEVCONTAINER_DIR / "Dockerfile").read_text(encoding="utf-8")
