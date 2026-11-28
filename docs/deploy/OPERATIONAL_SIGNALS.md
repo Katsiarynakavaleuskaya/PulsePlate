@@ -505,8 +505,11 @@ in both censuses. A checkpoint selecting the staging filename verifies the
 canonical file before native work in each census. An unsafe installed file,
 copied model or path alias at startup produces an incomplete HOLD without
 contacting Docker.
-A conflicting binding after service selection retains point observations
-and produces an incomplete HOLD without range measurements.
+If the first census finds a conflicting binding after service selection, the
+checkpoint keeps point observations, skips range queries and marks the window
+incomplete (HOLD). If the second census first detects a binding change, the
+receipt keeps the range measurements already collected and marks the window
+incomplete (HOLD).
 During the first second after baseline, the checkpoint records only point
 observations and publishes an incomplete HOLD. Range queries use whole seconds.
 Production checkpoints keep their full baseline window. Historical receipts
