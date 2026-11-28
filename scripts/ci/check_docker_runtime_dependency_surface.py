@@ -2327,7 +2327,12 @@ def _publisher_zip_record(
 
 
 def _publisher_dispatch_inventory(
-    read: Callable[[str], Any], pr: dict[str, Any], material: dict[str, str], horizon: str
+    read: Callable[[str], Any],
+    pr: dict[str, Any],
+    material: dict[str, str],
+    horizon: str,
+    *,
+    original_expiries: dict[str, datetime] | None = None,
 ) -> list[dict[str, str]]:
     from scripts.ci.prometheus_source_image import exact_data, require
 
@@ -2556,6 +2561,11 @@ def _publisher_dispatch_inventory(
                     == 1043311030,
                     "publisher_repair_original_D_native_binding",
                 )
+                if original_expiries is not None:
+                    # A renewal can reference D from another W with a different retention horizon.
+                    original_expiries[record["run"]] = _publisher_time(
+                        original_artifact["expires_at"]
+                    )
                 snapshot.append([earlier, original_job, original_artifact])
             required = (
                 "Admit existing Caddy producer or exact retained subject",
@@ -2640,6 +2650,7 @@ def publisher_repair_dispatch(
     historical: bool = False,
     subject: dict[str, str] | None = None,
     current_event: bool = False,
+    historical_retention: list[datetime] | None = None,
 ) -> dict[str, str] | None:
     from scripts.ci.prometheus_source_image import QualificationError, exact_data, require
 
@@ -2658,7 +2669,10 @@ def publisher_repair_dispatch(
         **accepted,
     }
     result = _publisher_live_dispatch(read, pr, data) if current_event else None
-    records = _publisher_dispatch_inventory(read, pr, data, horizon)
+    original_expiries: dict[str, datetime] | None = {} if historical_retention is not None else None
+    records = _publisher_dispatch_inventory(
+        read, pr, data, horizon, original_expiries=original_expiries
+    )
     if result is not None:
         exact_data(result, _publisher_live_dispatch(read, pr, data))
     fresh = read(f"/pulls/{pr['number']}")
@@ -2714,6 +2728,13 @@ def publisher_repair_dispatch(
                     raise
                 failure = exc
             else:
+                if historical_retention is not None and original_expiries is not None:
+                    # The original dispatch archive must outlive the current Q/S/C minimum.
+                    # Report the observed bound separately from the archived 24-hour read grant.
+                    expiry = min(horizons)
+                    if receipt["action"] == "contract":
+                        expiry = min(expiry, original_expiries[receipt["run"]])
+                    historical_retention.append(expiry)
                 return receipt
         if failure is not None:
             raise failure
@@ -3374,48 +3395,94 @@ def _caddy_receiver_material(
     return True
 
 
-def _caddy_main_job_succeeded(
-    run: dict[str, Any], job: dict[str, Any], inventory: list[dict[str, Any]]
+def _caddy_main_import_upload(
+    run: dict[str, Any],
+    job: dict[str, Any],
+    inventory: list[dict[str, Any]],
+    *,
+    listed: dict[str, Any],
+    merged_at: str,
+    uploaded_at: datetime,
 ) -> bool:
-    """An independent build-and-test failure may coexist with the successful Caddy import."""
+    """Bind one native upload. Return False for a known negative and reject incomplete evidence."""
     from scripts.ci.prometheus_source_image import require
 
-    require(
-        all(
-            type(row["conclusion"]) is str and row["conclusion"] in _CADDY_TERMINAL_CONCLUSIONS
-            for row in (run, job)
-        ),
-        "caddy_issuer_main_artifact_conclusion",
-    )
-    if job["conclusion"] != "success":
-        return False
-    if run["conclusion"] == "success":
-        return True
+    def completed(row: dict[str, Any]) -> bool:
+        return (
+            row["status"] == "completed"
+            and type(row["conclusion"]) is str
+            and row["conclusion"] in _CADDY_TERMINAL_CONCLUSIONS
+        )
 
-    # Only these three jobs exist in the bound Frontend workflow. Caddy needs changes.
-    expected = {"changes": "success", "caddy-contract": "success", "build-and-test": "failure"}
     require(
-        run["conclusion"] == "failure"
-        and len(inventory) == len(expected)
-        and {row["name"] for row in inventory} == set(expected)
+        run["workflow_id"] == _REPAIR_CADDY_WORKFLOW
         and all(
-            type(row["run_id"]) is int
-            and row["run_id"] == run["id"]
-            and type(row["run_attempt"]) is int
-            and row["run_attempt"] == run["run_attempt"]
-            and row["head_sha"] == run["head_sha"]
-            and row["head_branch"] == "main"
-            and row["status"] == "completed"
-            and row["conclusion"] == expected[row["name"]]
-            for row in inventory
-        ),
-        "caddy_issuer_main_independent_failure",
+            run[key] == listed[key]
+            for key in ("id", "event", "path", "workflow_id", "head_sha", "head_branch")
+        )
+        and run["head_branch"] == job["head_branch"] == "main"
+        and run["status"] == job["status"] == "completed"
+        and _publisher_time(merged_at)
+        <= _publisher_time(run["created_at"])
+        <= _publisher_time(job["started_at"])
+        <= uploaded_at
+        <= _publisher_time(job["completed_at"]),
+        "caddy_issuer_main_run",
     )
-    return True
+    require(completed(run) and completed(job), "caddy_issuer_main_artifact_conclusion")
+    required = {
+        "Download original retained Caddy candidate": "success",
+        _REPAIR_IMPORT_STEP: "success",
+        _REPAIR_BUILD_STEP: "skipped",
+        _REPAIR_DECISION_STEP: "success",
+        _REPAIR_UPLOAD_STEP: "success",
+    }
+    steps = [step for step in job["steps"] if step["name"] in required]
+    require(
+        [step["name"] for step in steps] == list(required)
+        and all(completed(step) for step in steps),
+        "caddy_issuer_main_import_steps",
+    )
+    upload = steps[-1]
+    require(
+        upload["conclusion"] == "success"
+        and _publisher_time(upload["started_at"])
+        <= uploaded_at
+        <= _publisher_time(upload["completed_at"]),
+        "caddy_issuer_main_import_artifact",
+    )
+    if job["conclusion"] != "success" or run["conclusion"] not in {"success", "failure"}:
+        return False
+    if run["conclusion"] == "failure":
+        # Only these three jobs exist in the bound Frontend workflow. Caddy needs changes.
+        expected = {"changes": "success", "caddy-contract": "success", "build-and-test": "failure"}
+        require(
+            len(inventory) == len(expected)
+            and {row["name"] for row in inventory} == set(expected)
+            and any(row["conclusion"] != "success" for row in inventory)
+            and all(
+                type(row["run_id"]) is int
+                and row["run_id"] == run["id"]
+                and type(row["run_attempt"]) is int
+                and row["run_attempt"] == run["run_attempt"]
+                and row["head_sha"] == run["head_sha"]
+                and row["head_branch"] == "main"
+                and completed(row)
+                for row in inventory
+            ),
+            "caddy_issuer_main_independent_failure",
+        )
+        if any(row["conclusion"] != expected[row["name"]] for row in inventory):
+            return False
+    return all(step["conclusion"] == required[step["name"]] for step in steps)
 
 
 def _caddy_main_witness_candidates(
-    read: Callable[[str], Any], listed: dict[str, Any], artifacts: list[dict[str, Any]]
+    read: Callable[[str], Any],
+    listed: dict[str, Any],
+    artifacts: list[dict[str, Any]],
+    *,
+    merged_at: str,
 ) -> list[dict[str, Any]]:
     """When failed reruns uploaded evidence too, attribute each upload before excluding it."""
     from functools import cache
@@ -3476,22 +3543,20 @@ def _caddy_main_witness_candidates(
             "caddy_issuer_main_attempt",
         )
         run, job, inventory = observe(attempt)
-        require(
-            job == owner
-            and run["head_branch"] == owner["head_branch"] == "main"
-            and run["status"] == owner["status"] == "completed"
-            and _publisher_time(owner["started_at"])
-            <= created
-            <= _publisher_time(owner["completed_at"]),
-            "caddy_issuer_main_artifact_owner",
-        )
-        if _caddy_main_job_succeeded(run, owner, inventory):
+        require(job == owner, "caddy_issuer_main_artifact_owner")
+        if _caddy_main_import_upload(
+            run, owner, inventory, listed=listed, merged_at=merged_at, uploaded_at=created
+        ):
             candidates.append(artifact)
     return candidates
 
 
 def _caddy_main_import(
-    read: Callable[[str], Any], issuer: dict[str, Any], grant: dict[str, str]
+    read: Callable[[str], Any],
+    issuer: dict[str, Any],
+    grant: dict[str, str],
+    *,
+    source_expiry: datetime,
 ) -> dict[str, str]:
     """Bind the successful trusted-main import to the original native D in its uploaded bytes."""
     from scripts.ci.prometheus_source_image import require
@@ -3532,15 +3597,28 @@ def _caddy_main_import(
         "caddy_issuer_main_artifact_inventory",
     )
     artifacts = [a for a in items["artifacts"] if a["name"] == "caddy-contract-evidence"]
-    artifacts = _caddy_main_witness_candidates(read, listed, artifacts)
-    require(len(artifacts) == 1, "caddy_issuer_main_artifact_inventory")
-    artifact = artifacts[0]
     require(
-        artifact["workflow_run"]["head_branch"] == "main"
-        and _publisher_time(artifact["expires_at"]) > datetime.now(timezone.utc),
+        all(type(a.get("id")) is int and a["id"] > 0 for a in artifacts),
+        "caddy_issuer_main_artifact_id",
+    )
+    require(all(type(a["expired"]) is bool for a in artifacts), "caddy_issuer_main_import_artifact")
+    expiries = {a["id"]: _publisher_time(a["expires_at"]) for a in artifacts}
+    require(len(expiries) == len(artifacts), "caddy_issuer_main_artifact_inventory")
+    artifacts = _caddy_main_witness_candidates(
+        read, listed, artifacts, merged_at=issuer["merged_at"]
+    )
+    now = datetime.now(timezone.utc)
+    available = [a for a in artifacts if not a["expired"] and expiries[a["id"]] > now]
+    require(not artifacts or bool(available), "caddy_issuer_main_import_artifact")
+    require(len(available) == 1, "caddy_issuer_main_artifact_inventory")
+    artifact = available[0]
+    expiry = min(expiries[artifact["id"]], source_expiry)
+    require(
+        artifact["workflow_run"]["head_branch"] == "main" and now < expiry,
         "caddy_issuer_main_import_artifact",
     )
     original = _publisher_artifact_record(read, artifact, listed, {}, main_import=grant)
+    require(datetime.now(timezone.utc) < expiry, "caddy_issuer_main_import_artifact")
     attempt = int(original["main_attempt"])
     require(1 <= attempt <= listed["run_attempt"], "caddy_issuer_main_attempt")
     inventory: list[dict[str, Any]] = []
@@ -3557,44 +3635,20 @@ def _caddy_main_import(
     if job is None:
         raise ValueError("caddy_issuer_main_run")
     require(
-        run["workflow_id"] == _REPAIR_CADDY_WORKFLOW
-        and all(
-            run[key] == listed[key]
-            for key in ("id", "event", "path", "workflow_id", "head_sha", "head_branch")
-        )
-        and run["head_branch"] == job["head_branch"] == "main"
-        and run["status"] == job["status"] == "completed"
-        and _caddy_main_job_succeeded(run, job, inventory)
-        and _publisher_time(issuer["merged_at"])
-        <= _publisher_time(run["created_at"])
-        <= _publisher_time(job["started_at"])
-        <= _publisher_time(job["completed_at"]),
-        "caddy_issuer_main_run",
-    )
-    required = {
-        "Download original retained Caddy candidate": "success",
-        _REPAIR_IMPORT_STEP: "success",
-        _REPAIR_BUILD_STEP: "skipped",
-        _REPAIR_DECISION_STEP: "success",
-        _REPAIR_UPLOAD_STEP: "success",
-    }
-    selected = [step for step in job["steps"] if step["name"] in required]
-    require(
-        [step["name"] for step in selected] == list(required)
-        and all(
-            step["status"] == "completed" and step["conclusion"] == required[step["name"]]
-            for step in selected
+        _caddy_main_import_upload(
+            run,
+            job,
+            inventory,
+            listed=listed,
+            merged_at=issuer["merged_at"],
+            uploaded_at=_publisher_time(artifact["created_at"]),
         ),
-        "caddy_issuer_main_import_steps",
+        "caddy_issuer_main_import_ineligible",
     )
-    require(
-        _publisher_time(selected[-1]["started_at"])
-        <= _publisher_time(artifact["created_at"])
-        <= _publisher_time(selected[-1]["completed_at"]),
-        "caddy_issuer_main_import_artifact",
-    )
+    require(datetime.now(timezone.utc) < expiry, "caddy_issuer_main_import_artifact")
     return {
         **original,
+        "evidence_expires_at": _publisher_utc(expiry),
         "main_run": str(run_id),
         "main_job": str(job["id"]),
         "main_artifact": str(artifact["id"]),
@@ -3700,10 +3754,13 @@ def _caddy_ordinary_pr(
             return git_read(endpoint)
         return read(endpoint)
 
-    grant = publisher_repair_dispatch(historical_read, issuer, historical=True)
-    if grant is None or grant["controller"] != controller:
+    retention: list[datetime] = []
+    grant = publisher_repair_dispatch(
+        historical_read, issuer, historical=True, historical_retention=retention
+    )
+    if grant is None or grant["controller"] != controller or len(retention) != 1:
         raise ValueError("caddy_issuer_historical_grant")
-    witness = _caddy_main_import(read, issuer, grant)
+    witness = _caddy_main_import(read, issuer, grant, source_expiry=retention[0])
     # Acquiring source and native evidence can span minutes. Bind this receiver again afterwards.
     fresh = read(f"/pulls/{pr['number']}")
     for key in ("number", "state", "merged"):
@@ -3717,6 +3774,10 @@ def _caddy_ordinary_pr(
         exact_data(fresh["merge_commit_sha"], selected)
     else:
         _publisher_live_base(read, base)
+    require(
+        datetime.now(timezone.utc) < _publisher_time(witness["evidence_expires_at"]),
+        "caddy_ordinary_evidence_expired",
+    )
     return {
         **pr,
         "ordinary_reader": {

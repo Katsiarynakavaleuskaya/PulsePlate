@@ -6115,7 +6115,14 @@ def _prometheus_repair_git_fixture(
 
         monkeypatch.setattr(runtime_surface, "datetime", FixtureClock)
     if dispatched and fault != "prior-W-only":
-        native.add(native.projection(started="2026-01-01T00:00:00Z"))
+        if renewal and fault == "corrected-post-W":
+            original = _DispatchNativeFixture(
+                pr, {**material, "controller": original_k, "callers": original_w}
+            )
+            original.add(original.projection())
+            native.records.update(original.records)
+        else:
+            native.add(native.projection(started="2026-01-01T00:00:00Z"))
         if renewal:
             native.add(native.projection(run=74, action="contract", started="2026-01-02T00:00:00Z"))
         if historical:
@@ -6352,6 +6359,8 @@ def test_corrected_controller_requires_implementation_or_regression_delta(
         ("pull_request", "extra-byte", "exact_verifier_pin"),
         ("pull_request", "stale-base", "live_base"),
         ("pull_request", "changed-during-proof", "declared_data_value"),
+        ("pull_request", "expires-final", "ordinary_evidence_expired"),
+        ("push", "expires-final", "ordinary_evidence_expired"),
         ("pull_request", "mode", "complete_maintenance_delta"),
         ("pull_request", "deleted-doc", "regular_delta"),
         ("pull_request", "fork", "receiver_repository"),
@@ -6489,7 +6498,22 @@ def test_caddy_ordinary_receiver(
             "commits": [{"sha": later, "parents": [{"sha": prior}]}],
         }
 
-    def grant(read: Any, observed: dict, *, historical: bool) -> dict | None:
+    from datetime import datetime, timedelta
+
+    deadline = runtime_surface._publisher_time("2099-01-01T00:00:00Z")
+    now = deadline - timedelta(seconds=1)
+
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz: Any = None) -> datetime:
+            return now.astimezone(tz)
+
+    monkeypatch.setattr(runtime_surface, "datetime", Clock)
+
+    def grant(
+        read: Any, observed: dict, *, historical: bool, historical_retention: list
+    ) -> dict | None:
+        historical_retention.append(deadline)
         assert observed == issuer and historical is True
         assert read("/git/commits/" + base)["sha"] == base
         assert read(f"/pulls/{producer}") == issuer
@@ -6504,10 +6528,28 @@ def test_caddy_ordinary_receiver(
         )
 
     monkeypatch.setattr(runtime_surface, "publisher_repair_dispatch", grant)
-    monkeypatch.setattr(
-        runtime_surface, "_caddy_main_import", lambda *_: {"producer_artifact": "31"}
-    )
-    args = (endpoints.__getitem__, pr, squash if kind == "push" else head, kind, event)
+    bound = runtime_surface._publisher_utc(deadline)
+    main_validated = False
+
+    def main_import(*args: Any, source_expiry: datetime) -> dict[str, str]:
+        nonlocal main_validated
+        assert source_expiry == deadline
+        main_validated = True
+        return {"producer_artifact": "31", "evidence_expires_at": bound}
+
+    def native_read(endpoint: str) -> Any:
+        nonlocal now
+        if (
+            fault == "expires-final"
+            and main_validated
+            and endpoint
+            == ("/git/ref/heads/main" if kind == "pull_request" else f"/pulls/{number}")
+        ):
+            now = deadline
+        return endpoints[endpoint]
+
+    monkeypatch.setattr(runtime_surface, "_caddy_main_import", main_import)
+    args = (native_read, pr, squash if kind == "push" else head, kind, event)
     if diagnostic:
         with pytest.raises((ValueError, QualificationError), match=diagnostic):
             runtime_surface._caddy_ordinary_pr(*args)
@@ -6538,6 +6580,7 @@ def test_caddy_ordinary_receiver(
             assert record["number"] == number and "publisher_repair" not in record
             assert record["ordinary_reader"] == {
                 "base": base,
+                "evidence_expires_at": bound,
                 "controller": k,
                 "issuer_pr": producer,
                 "issuer_head": issuer["head"]["sha"],
@@ -6556,11 +6599,11 @@ def test_caddy_ordinary_receiver(
         ("renewal", None),
         ("archived-grant-drift", "declared_data_value"),
         ("sibling-failure", None),
-        ("sibling-timeout", "main_independent_failure"),
-        ("sibling-neutral", "main_independent_failure"),
-        ("sibling-skipped", "main_independent_failure"),
+        ("sibling-timeout", "main_import_ineligible"),
+        ("sibling-neutral", "main_import_ineligible"),
+        ("sibling-skipped", "main_import_ineligible"),
         ("sibling-failure-with-failed-upload", None),
-        ("failed-precursor", "main_independent_failure"),
+        ("failed-precursor", "main_import_ineligible"),
         ("unknown-sibling", "main_independent_failure"),
         ("unfinished-sibling", "main_independent_failure"),
         ("foreign-sibling-attempt", "main_independent_failure"),
@@ -6580,14 +6623,27 @@ def test_caddy_ordinary_receiver(
         ("two-witnesses", "main_artifact_inventory"),
         ("no-witness", "main_artifact_inventory"),
         ("expired-witness", "main_import_artifact"),
+        ("main-expires-during-transfer", "main_import_artifact"),
+        ("shortened-Q-expires-during-job", "main_import_artifact"),
+        ("prior-D-expires-during-job", "main_import_artifact"),
+        ("expired-extra-still-live", None),
+        ("unowned-expired-extra", "main_artifact_owner"),
+        ("unparseable-extra-expiry", "native_timestamp"),
+        ("typed-extra-expiry", "main_import_artifact"),
+        ("supplemental-steps", None),
+        ("supplemental-step-unknown", "main_import_steps"),
+        ("supplemental-step-missing", "main_import_steps"),
+        ("supplemental-step-duplicate", "main_import_steps"),
+        ("two-negative", "main_artifact_inventory"),
+        ("all-succeeded-failed-aggregate", "main_independent_failure"),
         ("artifact-id", "retained_import"),
         ("copied-witness", "native_artifact_identity"),
         ("bad-digest", "native_artifact_bytes"),
-        ("failed-job", "main_run"),
+        ("failed-job", "main_import_ineligible"),
         ("ambiguous-run", "main_run"),
         ("no-job", "main_run"),
-        ("no-import", "main_import_steps"),
-        ("did-build", "main_import_steps"),
+        ("no-import", "main_import_ineligible"),
+        ("did-build", "main_import_ineligible"),
         ("wrong-action", "not_a_dispatch"),
         ("wrong-attempt", "original_job"),
         ("protected-parser", "missing_checked_input_record"),
@@ -6604,22 +6660,58 @@ def _assert_caddy_main_import(
     fault: str | None,
     diagnostic: str | None,
     supplemental_conclusions: tuple[object, object] = ("failure", "failure"),
+    malformed_id: object = None,
 ) -> None:
     from io import BytesIO
     from zipfile import ZipFile
     from scripts.ci.prometheus_source_image import QualificationError
 
+    from datetime import datetime, timedelta, timezone
+
+    renewal = fault in {"renewal", "prior-D-expires-during-job"}
     history, issuer, material = _prometheus_repair_git_fixture(
-        monkeypatch, None, historical=True, dispatched=True, renewal=fault == "renewal"
+        monkeypatch,
+        "corrected-post-W" if fault == "prior-D-expires-during-job" else None,
+        historical=True,
+        dispatched=True,
+        renewal=renewal,
     )
-    grant = runtime_surface.publisher_repair_dispatch(history, issuer, historical=True)
-    assert grant is not None and grant["action"] == (
-        "contract" if fault == "renewal" else "candidate-D"
+    now = datetime(2026, 1, 7, 1, tzinfo=timezone.utc)
+    expiry = now + timedelta(seconds=1)
+
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz: Any = None) -> datetime:
+            return now.astimezone(tz)
+
+    monkeypatch.setattr(runtime_surface, "datetime", Clock)
+
+    def selected_history(endpoint: str) -> Any:
+        result = history(endpoint)
+        if (
+            fault == "shortened-Q-expires-during-job"
+            and endpoint == "/actions/artifacts/14199242996"
+            or fault == "prior-D-expires-during-job"
+            and endpoint == "/actions/artifacts/10073"
+        ):
+            return {**result, "expires_at": runtime_surface._publisher_utc(expiry)}
+        return result
+
+    retention: list[datetime] = []
+    grant = runtime_surface.publisher_repair_dispatch(
+        selected_history, issuer, historical=True, historical_retention=retention
     )
+    assert grant is not None and grant["action"] == ("contract" if renewal else "candidate-D")
+    assert len(retention) == 1
+    if fault in {"shortened-Q-expires-during-job", "prior-D-expires-during-job"}:
+        assert (
+            retention[0] == expiry
+            and runtime_surface._publisher_time(grant["source_horizon"]) > expiry
+        )
     squash = issuer["merge_commit_sha"]
     # The archived import contains what the issuer actually selected prior to its push.
     # Independently project that observation from the original dispatch ZIP plus native upload.
-    source_run = 74 if fault == "renewal" else 73
+    source_run = 74 if renewal else 73
     source_job = history(f"/actions/runs/{source_run}/attempts/1/jobs?per_page=100&page=1")["jobs"][
         0
     ]
@@ -6650,6 +6742,12 @@ def _assert_caddy_main_import(
         if fault
         in {
             "failed-first",
+            "bad-extra-id",
+            "supplemental-steps",
+            "supplemental-step-unknown",
+            "supplemental-step-missing",
+            "supplemental-step-duplicate",
+            "two-negative",
             "failed-attempt-witness",
             "sibling-failure-with-failed-upload",
             "claims-future-attempt",
@@ -6657,10 +6755,13 @@ def _assert_caddy_main_import(
         }
         else 1
     )
-    main_run.update(event="push", head_sha=squash, head_branch="main")
+    main_run.update(
+        event="push", head_sha=squash, head_branch="main", created_at="2026-01-03T00:01:00Z"
+    )
     main_job.update(head_sha=squash, head_branch="main")
     sibling_failure = fault in {
         "sibling-failure",
+        "all-succeeded-failed-aggregate",
         "sibling-timeout",
         "sibling-neutral",
         "sibling-skipped",
@@ -6670,7 +6771,9 @@ def _assert_caddy_main_import(
         "unfinished-sibling",
         "foreign-sibling-attempt",
     }
-    if sibling_failure:
+    if fault == "singleton-terminal":
+        main_job["conclusion"], main_run["conclusion"] = supplemental_conclusions
+    elif sibling_failure:
         main_run["conclusion"] = "failure"
     elif fault == "original-aggregate-incomplete":
         main_run.update(status="in_progress", conclusion=None)
@@ -6682,10 +6785,14 @@ def _assert_caddy_main_import(
         main_job["conclusion"] = "future"
     main_artifact.update(name="caddy-contract-evidence")
     main_artifact["workflow_run"].update(head_sha=squash, head_branch="main")
+    if fault == "bad-single-id":
+        main_artifact["id"] = malformed_id
     if fault == "expired-witness":
         main_artifact["expires_at"] = "2026-01-03T01:00:00Z"
+    elif fault == "main-expires-during-transfer":
+        main_artifact["expires_at"] = runtime_surface._publisher_utc(expiry)
     elif fault == "upload-time-mismatch":
-        main_artifact["created_at"] = "2026-01-03T05:00:00Z"
+        main_artifact["created_at"] = "2026-01-05T00:06:00Z"
     elif fault == "copied-witness":
         main_artifact["workflow_run"]["id"] = 999
     elif fault == "failed-job":
@@ -6740,18 +6847,34 @@ def _assert_caddy_main_import(
     api.records[75] = main_run, main_job, main_artifact, raw
 
     attempt_reads: list[int] = []
-    second_run = fault in {
+    step_faults = {
+        "supplemental-steps",
+        "supplemental-step-unknown",
+        "supplemental-step-missing",
+        "supplemental-step-duplicate",
+        "two-negative",
+    }
+    second_run = fault in step_faults or fault in {
         "failed-first",
         "failed-latest",
         "wrong-native-attempt",
         "failed-attempt-witness",
+        "bad-extra-id",
         "sibling-failure-with-failed-upload",
         "failed-latest-witness",
     }
-    duplicate = fault in {
+    duplicate = fault in step_faults or fault in {
+        "supplemental-steps",
+        "two-negative",
+        "expired-extra-still-live",
+        "unowned-expired-extra",
+        "unparseable-extra-expiry",
+        "typed-extra-expiry",
+        "supplemental-step-unknown",
         "two-witnesses",
         "unbound-second-witness",
         "failed-attempt-witness",
+        "bad-extra-id",
         "sibling-failure-with-failed-upload",
         "failed-latest-witness",
     }
@@ -6775,6 +6898,20 @@ def _assert_caddy_main_import(
                 )
                 for step in job["steps"]
             ]
+        if fault in step_faults and (attempt != archived_attempt or fault == "two-negative"):
+            job["conclusion"] = "success"
+            target = runtime_surface._REPAIR_IMPORT_STEP
+            steps = [dict(step) for step in job["steps"]]
+            selected = next(step for step in steps if step["name"] == target)
+            if fault == "supplemental-step-missing":
+                steps.remove(selected)
+            elif fault == "supplemental-step-duplicate":
+                steps.append(dict(selected))
+            else:
+                selected["conclusion"] = (
+                    "future" if fault == "supplemental-step-unknown" else "skipped"
+                )
+            job["steps"] = steps
         return job
 
     def attempt_jobs(job: dict[str, Any], aggregate: object) -> dict[str, Any]:
@@ -6796,13 +6933,27 @@ def _assert_caddy_main_import(
                 "conclusion": {
                     "sibling-timeout": "timed_out",
                     "sibling-neutral": "neutral",
+                    "all-succeeded-failed-aggregate": "success",
                     "sibling-skipped": "skipped",
                 }.get(fault or "", "failure"),
             },
         ]
         return {"total_count": 3, "jobs": [*siblings, job]}
 
+    reads_at_expiry: list[str] = []
+
     def read(endpoint: str) -> Any:
+        nonlocal now
+        if fault == "main-expires-during-transfer" and reads_at_expiry:
+            pytest.fail("Expired ZIP must stop the read before native job lookup")
+        if (
+            fault == "main-expires-during-transfer" and endpoint == "/actions/artifacts/10075/zip"
+        ) or (
+            fault in {"shortened-Q-expires-during-job", "prior-D-expires-during-job"}
+            and endpoint == "/actions/runs/75/attempts/1/jobs?per_page=100&page=1"
+        ):
+            reads_at_expiry.append(endpoint)
+            now = expiry
         if second_run:
             if endpoint.startswith("/actions/workflows/frontend-ci.yml/runs?"):
                 latest = {
@@ -6823,6 +6974,8 @@ def _assert_caddy_main_import(
                     if attempt == archived_attempt
                     else supplemental_conclusions[1]
                 )
+                if fault in step_faults:
+                    aggregate = "success"
                 if "/jobs?" in endpoint:
                     return attempt_jobs(job, aggregate)
                 attempt_reads.append(attempt)
@@ -6831,12 +6984,19 @@ def _assert_caddy_main_import(
                     "run_attempt": job["run_attempt"],
                     "conclusion": aggregate,
                 }
-        elif sibling_failure and "/attempts/1/jobs?" in endpoint:
+        elif (sibling_failure or fault == "singleton-terminal") and "/attempts/1/jobs?" in endpoint:
+
             return attempt_jobs(main_job, main_run["conclusion"])
         if duplicate:
             if "/artifacts?" in endpoint:
-                extra = {**main_artifact, "id": 19000}
-                if fault != "two-witnesses":
+                extra = {**main_artifact, "id": malformed_id if fault == "bad-extra-id" else 19000}
+                if fault.startswith(("expired-extra", "unowned-expired")):
+                    extra["expires_at"] = runtime_surface._publisher_utc(now)
+                elif fault == "unparseable-extra-expiry":
+                    extra["expires_at"] = "unknown"
+                elif fault == "typed-extra-expiry":
+                    extra["expired"] = 0
+                if fault not in {"two-witnesses", "expired-extra-still-live"}:
                     extra["created_at"] = (
                         "2026-01-06T00:08:00Z"
                         if fault == "failed-latest-witness"
@@ -6861,10 +7021,15 @@ def _assert_caddy_main_import(
             runtime_surface._publisher_zip_record(BytesIO(raw), len(raw), 75, squash)
     elif diagnostic is not None:
         with pytest.raises((QualificationError, ValueError), match=diagnostic):
-            runtime_surface._caddy_main_import(read, issuer, grant)
+            runtime_surface._caddy_main_import(read, issuer, grant, source_expiry=retention[0])
     else:
-        assert runtime_surface._caddy_main_import(read, issuer, grant) == {
+        assert runtime_surface._caddy_main_import(
+            read, issuer, grant, source_expiry=retention[0]
+        ) == {
             "main_run": "75",
+            "evidence_expires_at": runtime_surface._publisher_utc(
+                min(retention[0], runtime_surface._publisher_time(main_artifact["expires_at"]))
+            ),
             "main_attempt": str(archived_attempt),
             "main_job": str(1074 + archived_attempt),
             "main_artifact": "10075",
@@ -6875,37 +7040,38 @@ def _assert_caddy_main_import(
         }
         if fault in ("failed-first", "failed-latest"):
             assert attempt_reads == [archived_attempt]
+    if fault in {
+        "main-expires-during-transfer",
+        "shortened-Q-expires-during-job",
+        "prior-D-expires-during-job",
+    }:
+        assert len(reads_at_expiry) == 1
+        assert now == expiry
     if fault == "failed-attempt-witness":
         # At most one read per owner in duplicate attribution; rebind the winner before use.
         assert attempt_reads == ([2, 1] if diagnostic is not None else [2, 1, 2])
 
 
+@pytest.mark.parametrize("multiple", [False, True], ids=("single", "supplemental"))
+@pytest.mark.parametrize("job", sorted(runtime_surface._CADDY_TERMINAL_CONCLUSIONS))
+@pytest.mark.parametrize("aggregate", sorted(runtime_surface._CADDY_TERMINAL_CONCLUSIONS))
+def test_caddy_witness_terminal_outcome_matrix(
+    monkeypatch: pytest.MonkeyPatch, multiple: bool, job: str, aggregate: str
+) -> None:
+    # The fixture proves the independent sibling when the aggregate failed and Caddy succeeded.
+    eligible = job == "success" and aggregate in {"success", "failure"}
+    if multiple:
+        diagnostic = "main_artifact_inventory" if eligible else None
+        fault = "failed-attempt-witness"
+    else:
+        diagnostic = None if eligible else "main_import_ineligible"
+        fault = "singleton-terminal"
+    _assert_caddy_main_import(monkeypatch, fault, diagnostic, (job, aggregate))
+
+
 @pytest.mark.parametrize(
     ("job_conclusion", "run_conclusion", "diagnostic"),
     [
-        (
-            job,
-            run,
-            (
-                None
-                if job != "success"
-                else "main_artifact_inventory" if run == "failure" else "main_independent_failure"
-            ),
-        )
-        for outcome in (
-            "failure",
-            "cancelled",
-            "skipped",
-            "timed_out",
-            "neutral",
-            "action_required",
-            "stale",
-            "startup_failure",
-        )
-        for job, run in ((outcome, "success"), ("success", outcome))
-    ]
-    + [
-        ("success", "success", "main_artifact_inventory"),
         ("future_outcome", "failure", "main_artifact_conclusion"),
         ("cancelled", "future_outcome", "main_artifact_conclusion"),
         (None, "failure", "main_artifact_conclusion"),
@@ -6920,4 +7086,14 @@ def test_caddy_supplemental_witness_requires_known_native_conclusions(
 ) -> None:
     _assert_caddy_main_import(
         monkeypatch, "failed-attempt-witness", diagnostic, (job_conclusion, run_conclusion)
+    )
+
+
+@pytest.mark.parametrize("fault", ["bad-single-id", "bad-extra-id"])
+@pytest.mark.parametrize("identity", [None, True, 1.0, "19000", 0, -1])
+def test_caddy_named_main_archive_requires_native_positive_id(
+    monkeypatch: pytest.MonkeyPatch, fault: str, identity: object
+) -> None:
+    _assert_caddy_main_import(
+        monkeypatch, fault, "caddy_issuer_main_artifact_id", malformed_id=identity
     )
