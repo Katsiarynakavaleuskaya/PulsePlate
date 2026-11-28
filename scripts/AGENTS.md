@@ -633,7 +633,9 @@ exclude that upload. Missing, unknown or ambiguous ownership or execution eviden
 blocks the read. A failed workflow qualifies only with successful `changes` and
 `caddy-contract` jobs and an independently failed `build-and-test` job in the
 same authenticated attempt. The independently designated D still requires
-attempt one. Check the earliest observed expiry of the retained main witness,
+attempt one. At acquisition and final recheck, the ordinary reader binds the
+selected original D job and its raw ZIP to its successful upload and transport
+verification, including when a later contract import renewed the read window. Check the earliest observed expiry of the retained main witness,
 the original D and the live Q/S/C sources after acquisition and again after the
 final receiver/base read. Equality at either check blocks admission. The original
 24-hour window governs the historical CI/CD reads. Both PR and squash run the current native checks. A change to
