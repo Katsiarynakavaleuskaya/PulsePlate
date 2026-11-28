@@ -749,13 +749,21 @@ If it is not recorded here — it does not exist.
     Buildx directory preserves the credential inventory. [Published reader code](https://github.com/Katsiarynakavaleuskaya/PulsePlate/blob/2ebe53024febe8e026c4a1f1e056f19482f0fca9/scripts/ci/prometheus_source_image.py#L11568-L11673)
     · [CD workflow](https://github.com/Katsiarynakavaleuskaya/PulsePlate/blob/b424ff1fb9fc94bd02b8d8e4223142ad0447b65e/.github/workflows/cd.yml#L1514).
 
-    The owner chose to close #2484 first, with only those two advisory CD failures carried
-    forward after required current-head CI, native SDK evidence, review, and the ordinary seal
-    and merge gates pass. Branch protection applies in full, and deployment and release require
-    separate approval. CAB-07C remains pending those gates.
-    Prometheus follow-up is P1, owned by DevOps / Security, and targets the first substantive
-    Prometheus repair after the actual CAB squash. Before activation, independently designate the
-    exact successor and obtain the required protected-history decision. Verify trusted publication
+    [CAB-07C #2484](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2484)
+    merged at `563dc8689f4d5cef73f769addf56ba9fb00558a2` after its required
+    checks and review. On that main commit the PostgreSQL 15.20/pgvector 0.8.6
+    publisher verified the promoted digest, and the managed Codespaces prebuild
+    uploaded its template. The Prometheus publisher read the existing immutable
+    image, then failed its credential directory check. The dependent CD job
+    rejected the failed predecessor.
+    [PostgreSQL publication](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/45979191294/job/140443313508)
+    · [Codespaces prebuild](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/45979210836)
+    · [Prometheus publisher](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/45979191213/job/140440436134)
+    · [Dependent CD job](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/45979191294/job/140445636730).
+
+    Prometheus follow-up is P1, owned by DevOps / Security, and targets `codex/prometheus-published-reader-repair`.
+    The owner designated Prometheus source `ab43f352` for CI and CD. The
+    separate protected operation requires its own verified source and caller pair. Verify trusted publication
     and immutable pullback on the actual merged source, then require successful published-path
     CI/CD reads and owned credential and Buildx cleanup. Test that an unexpected credential
     member still fails closed, and review retained evidence and authorization expiry before use.
@@ -776,8 +784,11 @@ If it is not recorded here — it does not exist.
     - `npm:undici` `7.29.0` — [GHSA-2gqq-gqf2-x968](https://github.com/advisories/GHSA-2gqq-gqf2-x968), [GHSA-2jfj-6hjv-fm6j](https://github.com/advisories/GHSA-2jfj-6hjv-fm6j), [GHSA-3wwx-pv8p-q78v](https://github.com/advisories/GHSA-3wwx-pv8p-q78v), [GHSA-3xpg-4rpp-hhhm](https://github.com/advisories/GHSA-3xpg-4rpp-hhhm), [GHSA-8436-99hf-9mmv](https://github.com/advisories/GHSA-8436-99hf-9mmv), [GHSA-pmjh-fq2x-6v4x](https://github.com/advisories/GHSA-pmjh-fq2x-6v4x), [GHSA-r53p-7pc4-xj5r](https://github.com/advisories/GHSA-r53p-7pc4-xj5r), [GHSA-rfgv-xxqx-mfg5](https://github.com/advisories/GHSA-rfgv-xxqx-mfg5), [GHSA-rx4f-c7p8-82vq](https://github.com/advisories/GHSA-rx4f-c7p8-82vq), [GHSA-w293-vg96-wgc3](https://github.com/advisories/GHSA-w293-vg96-wgc3).
     - `npm:vite` `8.0.16` — [GHSA-587h-7wmj-h5pm](https://github.com/advisories/GHSA-587h-7wmj-h5pm), [GHSA-698v-4r3x-3vcv](https://github.com/advisories/GHSA-698v-4r3x-3vcv), [GHSA-r825-w8mm-5pxw](https://github.com/advisories/GHSA-r825-w8mm-5pxw).
 
-    Acceptance of CAB-07C remains pending final-head checks and review, actual merge,
-    merged-main sanity, same-ID continuity updates, verified archive recovery and cleanup.
+    CAB-07C achieved 13 of 14 acceptance criteria. Main CI and local sanity passed.
+    The owner verified anonymous delivery of the encrypted archive. The six continuity
+    records retain their original Drive IDs, and both CAB branches and all four CAB
+    worktrees have been removed after recovery. C13 remains partial until the
+    Prometheus publisher and its downstream CD checks succeed on the repaired main.
     CLIENT-ARCH-1, CapEOS, CAB-07D, CAB-08 and CAB-09 remain open.
     No standalone docs-only, backlog-only or housekeeping PR is planned.
   - Reason (EN): Keep the accepted continuation visible without mixing production Swift,

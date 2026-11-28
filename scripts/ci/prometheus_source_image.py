@@ -11359,13 +11359,53 @@ def candidate_payload(api: GitHubRead, root: Path, work: Path) -> dict[str, Any]
     }
 
 
-def native_image_contract(image: Any, selection: dict[str, Any], *, local: bool = False) -> None:
+class _PublishedManifest:
+    """The original raw registry response bound to the selected config and ordered layers."""
+
+    def __init__(self, raw: bytes, selection: dict[str, Any]) -> None:
+        digest = "sha256:" + sha(raw)
+        require(digest == selection["manifest_digest"], "published_raw_OCI_root")
+        root = one_object(raw)
+        config = _descriptor(root.get("config"), OCI_CONFIG)
+        require(config["digest"] == selection["config_digest"], "published_config_descriptor")
+        exact_data(
+            root,
+            {
+                "schemaVersion": 2,
+                "mediaType": OCI_MANIFEST,
+                "config": config,
+                "layers": selection["layers"],
+            },
+        )
+        self.selection = canonical_data(selection)
+        self.descriptor = {"mediaType": OCI_MANIFEST, "digest": digest, "size": len(raw)}
+
+
+def native_image_contract(
+    image: Any,
+    selection: dict[str, Any],
+    *,
+    local: bool = False,
+    published_manifest: _PublishedManifest | None = None,
+) -> None:
     validate_selection(selection)
+    require(type(image) is dict, "consumer_native_config_layers")
+    published_manifest_id = False
+    if published_manifest is not None:
+        require(
+            not local and published_manifest.selection == canonical_data(selection),
+            "consumer_published_manifest_binding",
+        )
+        if "Descriptor" in image or image.get("Id") == selection["manifest_digest"]:
+            _native_descriptor(
+                image.get("Descriptor"), published_manifest.descriptor, platform=False
+            )
+            published_manifest_id = image.get("Id") == selection["manifest_digest"]
     require(
-        type(image) is dict
-        and image.get("Id") == selection["config_digest"]
+        (image.get("Id") == selection["config_digest"] or published_manifest_id)
         and (image.get("Os"), image.get("Architecture")) == ("linux", "amd64")
-        and image.get("RootFS", {}).get("Layers") == selection["diff_ids"],
+        and type(image.get("RootFS")) is dict
+        and image["RootFS"].get("Layers") == selection["diff_ids"],
         "consumer_native_config_layers",
     )
     config = image.get("Config")
@@ -11470,6 +11510,149 @@ def _bind_consumer_route(
             )
 
 
+@dataclass
+class _RegistryState:
+    """Private auth and Buildx state for one already-admitted credentialed operation."""
+
+    owner: str
+    auth: Path
+    buildx: Path
+    auth_identity: os.stat_result | None = None
+    leaf_identity: os.stat_result | None = None
+    buildx_identity: os.stat_result | None = None
+
+    def create_auth(self) -> None:
+        fresh_directory(self.auth)
+        self.auth_identity = self.auth.lstat()
+        self._check_directory(self.auth, self.auth_identity, "_credential_directory_identity")
+
+    def _credential(self, diagnostic: str) -> os.stat_result:
+        info = (self.auth / "config.json").lstat()
+        require(
+            stat.S_ISREG(info.st_mode)
+            and info.st_uid == os.getuid()
+            and info.st_nlink == 1
+            and stat.S_IMODE(info.st_mode) == 0o600,
+            self.owner + diagnostic,
+        )
+        return info
+
+    def bind_login(self) -> None:
+        require(
+            {path.name for path in self.auth.iterdir()} == {"config.json"},
+            self.owner + "_credential_leaf",
+        )
+        self.leaf_identity = self._credential("_credential_leaf")
+
+    def read_raw(
+        self, api: GitHubRead, docker: str, env: dict[str, str], runtime_ref: str
+    ) -> bytes:
+        fresh_directory(self.buildx)
+        self.buildx_identity = self.buildx.lstat()
+        self._check_directory(self.buildx, self.buildx_identity, "_buildx_state_identity")
+        return api._capture(
+            [
+                docker,
+                "--config",
+                str(self.auth),
+                "buildx",
+                "imagetools",
+                "inspect",
+                "--raw",
+                runtime_ref,
+            ],
+            1024**2,
+            environment={**env, "BUILDX_CONFIG": str(self.buildx)},
+        )
+
+    def _check_directory(self, path: Path, expected: os.stat_result, failure: str) -> None:
+        real_directory(path.parent)
+        current = path.lstat()
+        require(
+            stat.S_ISDIR(current.st_mode)
+            and current.st_uid == os.getuid()
+            and stat.S_IMODE(current.st_mode) == 0o700
+            and os.path.samestat(current, expected),
+            self.owner + failure,
+        )
+
+    def _remove_buildx(self, deadline: float, root: os.stat_result) -> None:
+        """Validate the complete quiescent private tree before removing any member."""
+        self._check_directory(self.buildx, root, "_buildx_state_identity")
+        members = [(self.buildx, root)]
+        pending = members.copy()
+        while pending:
+            check_deadline(deadline)
+            directory, expected = pending.pop()
+            real_directory(directory)
+            require(
+                os.path.samestat(directory.lstat(), expected), self.owner + "_buildx_state_identity"
+            )
+            with os.scandir(directory) as entries:
+                for entry in entries:
+                    check_deadline(deadline)
+                    info = entry.stat(follow_symlinks=False)
+                    require(
+                        info.st_uid == os.getuid()
+                        and info.st_dev == root.st_dev
+                        and (
+                            stat.S_ISDIR(info.st_mode)
+                            or (stat.S_ISREG(info.st_mode) and info.st_nlink == 1)
+                        ),
+                        self.owner + "_buildx_state_member",
+                    )
+                    path = Path(entry.path)
+                    members.append((path, info))
+                    if stat.S_ISDIR(info.st_mode):
+                        pending.append((path, info))
+        for path, expected in reversed(members):
+            check_deadline(deadline)
+            real_directory(path.parent)
+            require(os.path.samestat(path.lstat(), expected), self.owner + "_buildx_state_identity")
+            if stat.S_ISDIR(expected.st_mode):
+                path.rmdir()
+            else:
+                path.unlink()
+        require(not os.path.lexists(self.buildx), self.owner + "_buildx_state_absence")
+
+    def _cleanup_leaf(self, directory: os.stat_result) -> os.stat_result | None:
+        self._check_directory(self.auth, directory, "_credential_directory_identity")
+        found_leaf = False
+        with os.scandir(self.auth) as entries:
+            for member in entries:
+                require(member.name == "config.json", self.owner + "_credential_members")
+                found_leaf = True
+        if not found_leaf:
+            require(self.leaf_identity is None, self.owner + "_credential_cleanup_leaf")
+            return None
+        leaf = self._credential("_credential_cleanup_leaf")
+        require(
+            self.leaf_identity is None or os.path.samestat(leaf, self.leaf_identity),
+            self.owner + "_credential_cleanup_leaf",
+        )
+        return leaf
+
+    def cleanup(self, deadline: float) -> None:
+        # The caller first proves the GitHub/registry process group absent.
+        if self.auth_identity is None:
+            return
+        check_deadline(deadline)
+        leaf = self._cleanup_leaf(self.auth_identity)
+        if self.buildx_identity is not None:
+            self._remove_buildx(deadline, self.buildx_identity)
+            current = self._cleanup_leaf(self.auth_identity)
+            require(
+                (leaf is None and current is None)
+                or (leaf is not None and current is not None and os.path.samestat(leaf, current)),
+                self.owner + "_credential_cleanup_leaf",
+            )
+        check_deadline(deadline)
+        if leaf is not None:
+            (self.auth / "config.json").unlink()
+        self.auth.rmdir()
+        require(not os.path.lexists(self.auth), self.owner + "_credential_cleanup_absence")
+
+
 def consume_image(work: Path, root: Path, seconds: int, cleanup: int) -> dict[str, Any]:
     require(
         type(seconds) is int
@@ -11501,8 +11684,8 @@ def consume_image(work: Path, root: Path, seconds: int, cleanup: int) -> dict[st
     }
     api = GitHubRead(work / "GitHub-private", evidence, native.deadline, cleanup)
     payload = None
-    reader: Path | None = None
-    reader_identity: tuple[int, int] | None = None
+    registry: _RegistryState | None = None
+    published_manifest: _PublishedManifest | None = None
     primary: BaseException | None = None
     cleanup_error: BaseException | None = None
     try:
@@ -11562,9 +11745,8 @@ def consume_image(work: Path, root: Path, seconds: int, cleanup: int) -> dict[st
             require(
                 reader.parent == runner and reader.name == name, "consumer_owned_registry_config"
             )
-            fresh_directory(reader)
-            info = reader.lstat()
-            reader_identity = (info.st_dev, info.st_ino)
+            registry = _RegistryState("consumer", reader, work / "buildx-state")
+            registry.create_auth()
             published_env = {**env, "HOME": str(api.private / "home"), "DOCKER_CONFIG": str(reader)}
             api._capture(
                 [
@@ -11581,16 +11763,7 @@ def consume_image(work: Path, root: Path, seconds: int, cleanup: int) -> dict[st
                 environment=published_env,
                 input_data=token.encode() + b"\n",
             )
-            credential = reader / "config.json"
-            info = credential.lstat()
-            require(
-                {path.name for path in reader.iterdir()} == {"config.json"}
-                and stat.S_ISREG(info.st_mode)
-                and info.st_uid == os.getuid()
-                and info.st_nlink == 1
-                and stat.S_IMODE(info.st_mode) == 0o600,
-                "consumer_credential_leaf",
-            )
+            registry.bind_login()
             api._capture(
                 [
                     docker,
@@ -11604,70 +11777,15 @@ def consume_image(work: Path, root: Path, seconds: int, cleanup: int) -> dict[st
                 MAX_NATIVE_OUTPUT,
                 environment=published_env,
             )
-            raw = api._capture(
-                [
-                    docker,
-                    "--config",
-                    str(reader),
-                    "buildx",
-                    "imagetools",
-                    "inspect",
-                    "--raw",
-                    selection["runtime_ref"],
-                ],
-                1024**2,
-                environment=published_env,
-            )
-            require("sha256:" + sha(raw) == selection["manifest_digest"], "published_raw_OCI_root")
-            observed_root = one_object(raw)
-            descriptor = _descriptor(observed_root.get("config"), OCI_CONFIG)
-            require(
-                descriptor["digest"] == selection["config_digest"], "published_config_descriptor"
-            )
-            exact_data(
-                observed_root,
-                {
-                    "schemaVersion": 2,
-                    "mediaType": OCI_MANIFEST,
-                    "config": descriptor,
-                    "layers": selection["layers"],
-                },
-            )
+            raw = registry.read_raw(api, docker, published_env, selection["runtime_ref"])
+            published_manifest = _PublishedManifest(raw, selection)
     except BaseException as error:
         primary = error
     finally:
         try:
             api.close()
-            if reader is not None:
-                check_deadline(api.begin_cleanup())
-                info = reader.lstat()
-                require(
-                    stat.S_ISDIR(info.st_mode)
-                    and info.st_uid == os.getuid()
-                    and stat.S_IMODE(info.st_mode) == 0o700
-                    and (info.st_dev, info.st_ino) == reader_identity,
-                    "consumer_credential_directory_identity",
-                )
-                require(
-                    {path.name for path in reader.iterdir()} in ({"config.json"}, set()),
-                    "consumer_credential_members",
-                )
-                credential = reader / "config.json"
-                if credential.exists() or credential.is_symlink():
-                    info = credential.lstat()
-                    require(
-                        stat.S_ISREG(info.st_mode)
-                        and info.st_uid == os.getuid()
-                        and info.st_nlink == 1
-                        and stat.S_IMODE(info.st_mode) == 0o600,
-                        "consumer_credential_cleanup_leaf",
-                    )
-                    credential.unlink()
-                reader.rmdir()
-                require(
-                    not reader.exists() and not reader.is_symlink(),
-                    "consumer_credential_cleanup_absence",
-                )
+            if registry is not None:
+                registry.cleanup(api.begin_cleanup())
         except BaseException as error:
             cleanup_error = error
     if primary is not None:
@@ -11713,7 +11831,9 @@ def consume_image(work: Path, root: Path, seconds: int, cleanup: int) -> dict[st
             cwd=work,
         )
     )
-    native_image_contract(image, selection, local=payload is not None)
+    native_image_contract(
+        image, selection, local=payload is not None, published_manifest=published_manifest
+    )
     result = {
         "admission": admission,
         "component_consumption": component,
@@ -11837,8 +11957,7 @@ def promote_image(work: Path, root: Path, seconds: int, cleanup: int) -> dict[st
     evidence = work / "evidence"
     fresh_directory(evidence)
     api = GitHubRead(work / "GitHub-private", evidence, time.monotonic() + seconds, cleanup)
-    config: Path | None = None
-    config_identity: tuple[int, int] | None = None
+    registry: _RegistryState | None = None
     primary: BaseException | None = None
     cleanup_error: BaseException | None = None
     result: dict[str, Any] | None = None
@@ -11976,9 +12095,8 @@ def promote_image(work: Path, root: Path, seconds: int, cleanup: int) -> dict[st
         require(
             config.parent == runner and config.name == name, "publisher_owned_credential_directory"
         )
-        fresh_directory(config)
-        directory = config.lstat()
-        config_identity = (directory.st_dev, directory.st_ino)
+        registry = _RegistryState("publisher", config, work / "buildx-state")
+        registry.create_auth()
         credential = config / "config.json"
         env = {
             "PATH": "/usr/bin:/bin",
@@ -12004,15 +12122,7 @@ def promote_image(work: Path, root: Path, seconds: int, cleanup: int) -> dict[st
             environment=env,
             input_data=writer_token.encode() + b"\n",
         )
-        info = credential.lstat()
-        require(
-            {path.name for path in config.iterdir()} == {"config.json"}
-            and stat.S_ISREG(info.st_mode)
-            and info.st_uid == os.getuid()
-            and info.st_nlink == 1
-            and stat.S_IMODE(info.st_mode) == 0o600,
-            "publisher_credential_leaf",
-        )
+        registry.bind_login()
         if candidate is not None:
             if not present:
                 current = api.json(f"/repos/{GHCR_REPOSITORY}/git/ref/heads/main")
@@ -12090,20 +12200,7 @@ def promote_image(work: Path, root: Path, seconds: int, cleanup: int) -> dict[st
                 (evidence / output).write_bytes(verified)
         else:
             result["publication_predecessor"] = predecessor
-            raw = api._capture(
-                [
-                    docker,
-                    "--config",
-                    str(config),
-                    "buildx",
-                    "imagetools",
-                    "inspect",
-                    "--raw",
-                    selection["runtime_ref"],
-                ],
-                1024**2,
-                environment=env,
-            )
+            raw = registry.read_raw(api, docker, env, selection["runtime_ref"])
             require(
                 "sha256:" + sha(raw) == selection["manifest_digest"],
                 "unchanged_published_raw_digest",
@@ -12116,44 +12213,14 @@ def promote_image(work: Path, root: Path, seconds: int, cleanup: int) -> dict[st
         )
         current = api.json(f"/repos/{GHCR_REPOSITORY}/git/ref/heads/main")
         require(current.get("object", {}).get("sha") == head, "publisher_main_after_write")
-        result["status"] = "observed_published_exact_immutable_subject"
-        (evidence / "publication.json").write_bytes(canonical_data(result))
     except BaseException as error:
         primary = error
     finally:
         try:
             # A failed/uncertain group check retains BOTH private auth directories.
             api.close()
-            if config is not None:
-                check_deadline(api.begin_cleanup())
-                directory = config.lstat()
-                require(
-                    stat.S_ISDIR(directory.st_mode)
-                    and directory.st_uid == os.getuid()
-                    and stat.S_IMODE(directory.st_mode) == 0o700
-                    and (directory.st_dev, directory.st_ino) == config_identity,
-                    "publisher_credential_directory_identity",
-                )
-                require(
-                    {path.name for path in config.iterdir()} in ({"config.json"}, set()),
-                    "publisher_credential_members",
-                )
-                credential = config / "config.json"
-                if credential.exists() or credential.is_symlink():
-                    info = credential.lstat()
-                    require(
-                        stat.S_ISREG(info.st_mode)
-                        and info.st_uid == os.getuid()
-                        and info.st_nlink == 1
-                        and stat.S_IMODE(info.st_mode) == 0o600,
-                        "publisher_credential_cleanup_leaf",
-                    )
-                    credential.unlink()
-                config.rmdir()
-                require(
-                    not config.exists() and not config.is_symlink(),
-                    "publisher_credential_cleanup_absence",
-                )
+            if registry is not None:
+                registry.cleanup(api.begin_cleanup())
         except BaseException as error:
             cleanup_error = error
     if primary is not None:
@@ -12167,7 +12234,10 @@ def promote_image(work: Path, root: Path, seconds: int, cleanup: int) -> dict[st
     if cleanup_error is not None:
         raise cleanup_error
     require(result is not None, "publisher_result_missing")
-    return cast(dict[str, Any], result)
+    result = cast(dict[str, Any], result)
+    result["status"] = "observed_published_exact_immutable_subject"
+    (evidence / "publication.json").write_bytes(canonical_data(result))
+    return result
 
 
 def main() -> int:

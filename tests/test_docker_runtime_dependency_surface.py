@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from functools import lru_cache
 import hashlib
 import json
 from pathlib import Path
@@ -5604,3 +5605,723 @@ def test_caddy_upload_observation_binds_actual_server_transport(fault: str | Non
     else:
         with pytest.raises(QualificationError, match="publisher_repair_uploaded_transport"):
             runtime_surface.verify_repair_evidence_upload(record, env)
+
+
+def _fixture_git(directory: Path, *args: str, data: bytes | None = None) -> bytes:
+    import shutil
+    from scripts.orchestration.creative_code_patch_workspace import (
+        git_env_without_parent_state,
+        safe_git_config_args,
+    )
+
+    git = shutil.which("git")
+    assert git
+    return subprocess.run(
+        [git, *safe_git_config_args(), "-C", str(directory), *args],
+        input=data,
+        env=git_env_without_parent_state(),
+        capture_output=True,
+        check=True,
+        timeout=30,
+    ).stdout
+
+
+@lru_cache(maxsize=1024)
+def _fixture_git_object_id(kind: str, contents: bytes) -> str:
+    """Use Git's object framing outside any checkout, sharing immutable IDs across test cases."""
+    root = Path(Path.cwd().anchor)
+    return _fixture_git(root, "hash-object", "-t", kind, "--stdin", data=contents).decode().strip()
+
+
+def _prometheus_repair_git_fixture(
+    monkeypatch: pytest.MonkeyPatch,
+    fault: str | None,
+    *,
+    historical: bool = False,
+    repository: Path | None = None,
+    dispatched: bool = False,
+) -> tuple[Any, dict[str, Any], dict[str, str]]:
+    """Closed immutable Git-response fixture, using real blob content addressing and original Q/S/C."""
+    import base64
+
+    from scripts.ci import prometheus_source_image as prom
+
+    if repository is not None:
+        repository.mkdir()
+        _fixture_git(repository, "init", "-q", "--object-format=sha1")
+    stored = set()
+
+    def git_object(kind: str, contents: bytes) -> str:
+        oid = _fixture_git_object_id(kind, contents)
+        if repository is not None and oid not in stored:
+            written = _fixture_git(
+                repository, "hash-object", "-t", kind, "-w", "--stdin", data=contents
+            )
+            assert written.decode().strip() == oid
+            stored.add(oid)
+        return oid
+
+    incumbent = "a" * 40
+    subject, accepted = _repair_subject_fixture()
+    repo = {"id": 1043311030, "full_name": runtime_surface.CADDY_REPOSITORY}
+    endpoints: dict[str, Any] = {}
+
+    def blob(raw: bytes) -> str:
+        oid = git_object("blob", raw)
+        endpoints["/git/blobs/" + oid] = {
+            "sha": oid,
+            "size": len(raw),
+            "encoding": "base64",
+            "content": base64.b64encode(raw).decode(),
+        }
+        return oid
+
+    def tree(files: dict[str, tuple[str, bytes]]) -> str:
+        children: dict[str, dict[str, tuple[str, bytes]]] = {}
+        rows = []
+        for path, (mode, content) in files.items():
+            first, slash, rest = path.partition("/")
+            if slash:
+                children.setdefault(first, {})[rest] = (mode, content)
+            else:
+                rows.append({"path": first, "mode": mode, "type": "blob", "sha": blob(content)})
+        for name, members in children.items():
+            rows.append({"path": name, "mode": "040000", "type": "tree", "sha": tree(members)})
+        rows.sort(key=lambda row: (row["path"] + ("/" if row["type"] == "tree" else "")).encode())
+        oid = git_object(
+            "tree",
+            b"".join(
+                row["mode"].lstrip("0").encode()
+                + b" "
+                + row["path"].encode()
+                + b"\0"
+                + bytes.fromhex(row["sha"])
+                for row in rows
+            ),
+        )
+        endpoints["/git/trees/" + oid] = {"sha": oid, "tree": rows, "truncated": False}
+        return oid
+
+    def node(
+        parent: str | None,
+        files: dict[str, tuple[str, bytes]],
+        label: str,
+        second_parent: str | None = None,
+    ) -> str:
+        tree_oid = tree(files)
+        parents = [revision for revision in (parent, second_parent) if revision is not None]
+        parent_header = "".join("parent " + revision + "\n" for revision in parents)
+        identity = "Native Fixture <fixture@example.invalid> 1770000000 +0000"
+        oid = git_object(
+            "commit",
+            (
+                f"tree {tree_oid}\n{parent_header}author {identity}\ncommitter {identity}\n\n{label}\n"
+            ).encode(),
+        )
+        endpoints["/git/commits/" + oid] = {
+            "sha": oid,
+            "parents": [{"sha": revision} for revision in parents],
+            "tree": {"sha": tree_oid},
+        }
+        return oid
+
+    ci = ".github/workflows/ci.yml"
+    old_prom = "b" * 40
+    old_finding = {
+        "type": "Hex High Entropy String",
+        "filename": ci,
+        "hashed_secret": hashlib.sha1(old_prom.encode(), usedforsecurity=False).hexdigest(),
+        "is_verified": fault == "baseline-verified-old",
+        "line_number": 1264,
+    }
+    other_finding = {**old_finding, "hashed_secret": "f" * 40, "line_number": 99}
+    alias = b"          CONTROLLER_SHA: *prometheus_test_revision"
+    public_marker = b"# pragma: allowlist secret - public trusted control commit"
+    anchor = b"          ref: &prometheus_test_revision "
+
+    def baseline(day: str, *, retired: bool = False) -> bytes:
+        rows = [dict(other_finding)] if retired else [dict(other_finding), dict(old_finding)]
+        return prom.canonical_data(
+            {"generated_at": "2026-01-" + day + "T00:00:00Z", "results": {ci: rows}}
+        )
+
+    original = {path: ("100644", path.encode()) for path in runtime_surface._PROM_REPAIR_PATHS}
+    am = "scripts/ci/fetch_docker_source_artifacts.py"
+    original[am] = (
+        "100644",
+        ("_ALERT_ACCEPTED_CANDIDATE: dict = " + repr(accepted) + "\n").encode(),
+    )
+    ps = runtime_surface._PROM_SOURCE
+    pt = runtime_surface._PROM_TEST
+    nightly = runtime_surface._PROM_NIGHTLY
+    original[nightly] = (
+        "100644",
+        b"header\n          CONTROLLER_SHA: "
+        + old_prom.encode()
+        + b" "
+        + public_marker
+        + b"\nread-only command\n",
+    )
+    original[".secrets.baseline"] = ("100644", baseline("01"))
+
+    def digest(raw: bytes) -> bytes:
+        return hashlib.sha256(raw).hexdigest().encode()
+
+    for wrapper in runtime_surface._PROM_REPAIR_WRAPPERS:
+        raw = b'PROMETHEUS_CONTRACT_HELPER_SHA256="' + digest(original[ps][1]) + b'"\n'
+        if "QUICK_FIX" not in wrapper:
+            raw += b'ALERTMANAGER_CONTRACT_HELPER_SHA256="' + digest(original[am][1]) + b'"\n'
+        original[wrapper] = ("100755", raw)
+    caller_names = (".github/workflows/ci.yml", ".github/workflows/cd.yml")
+    for name in caller_names:
+        raw = f"  ALERTMANAGER_CONTROLLER_SOURCE: '{incumbent}'\n"
+        for key, label in (("qualification", "q"), ("support", "s"), ("candidate", "c")):
+            run, artifact = subject[label].split("/")
+            raw += (
+                f"--alertmanager-{key}-run {run} --alertmanager-{key}-artifact {artifact} "
+                + chr(92)
+                + f"\n  --alertmanager-{key}-source {subject['source']}\n"
+            )
+        caller = raw.encode()
+        if name == ci:
+            caller += anchor + old_prom.encode() + b" " + public_marker + b"\n" + alias + b"\n"
+        original[name] = ("100644", caller)
+    for name in ("staging", "production", "production.selfhosted"):
+        original["deploy/docker-compose." + name + ".yaml"] = (
+            "100644",
+            (
+                "  alertmanager:\n    image: ghcr.io/katsiarynakavaleuskaya/pulseplate@"
+                + subject["manifest"]
+                + "\n"
+            ).encode(),
+        )
+    for stable in ("scripts/ops/notify_premium_alias_checkpoint_failure.py", "tests/__init__.py"):
+        original[stable] = ("100644", b"stable fixture input")
+    b = node(None, original, "B")
+    hook = {**original, ".secrets.baseline": ("100644", baseline("02"))}
+    if fault == "hook-extra":
+        hook["transient.py"] = ("100644", b"extra")
+    h = node("0" * 40 if fault == "wrong-base" else b, hook, "H")
+    pair = {**hook, ps: ("100644", b"designated P"), pt: ("100644", b"P tests")}
+    monkeypatch.setattr(
+        runtime_surface, "_PROM_REPAIR_SOURCE_BLOBS", {ps: blob(pair[ps][1]), pt: blob(pair[pt][1])}
+    )
+    if fault == "wrong-P":
+        pair[pt] = ("100644", b"foreign tests")
+    p = node(b if fault == "wrong-H" else h, pair, "P")
+    for constant, value in (
+        ("_PROM_REPAIR_BASE", b),
+        ("_PROM_REPAIR_HOOK", h),
+        ("_PROM_REPAIR_SOURCE", p),
+    ):
+        monkeypatch.setattr(runtime_surface, constant, value)
+    final = pair.copy()
+    for name in runtime_surface._PROM_REPAIR_PATHS - {
+        ps,
+        pt,
+        ".secrets.baseline",
+        *runtime_surface._PROM_REPAIR_WRAPPERS,
+    }:
+        final[name] = ("100644", final[name][1] + b"\n# reviewed repair\n")
+    for name in runtime_surface._PROM_REPAIR_WRAPPERS:
+        before = original[name][1]
+        after = before.replace(digest(original[ps][1]), digest(final[ps][1])).replace(
+            digest(original[am][1]), digest(final[am][1])
+        )
+        final[name] = ("100755", after)
+    final[nightly] = ("100644", original[nightly][1].replace(old_prom.encode(), p.encode()))
+    if fault == "nightly-extra-byte":
+        final[nightly] = ("100644", final[nightly][1] + b"# extra\n")
+    if fault == "nightly-mode":
+        final[nightly] = ("100755", final[nightly][1])
+    if fault == "nightly-wrong-target":
+        final[nightly] = ("100644", original[nightly][1].replace(old_prom.encode(), b"e" * 40))
+    new_alias = alias if fault == "baseline-unannotated" else alias + b"  " + public_marker
+    final[ci] = (
+        "100644",
+        final[ci][1]
+        .replace(anchor + old_prom.encode(), anchor + p.encode())
+        .replace(alias + b"\n", new_alias + b"\n"),
+    )
+    final[".secrets.baseline"] = ("100644", baseline("03", retired=True))
+    if fault in (
+        "baseline-extra-remove",
+        "baseline-extra-add",
+        "baseline-other-change",
+        "baseline-p-ref",
+    ):
+        damaged = json.loads(final[".secrets.baseline"][1])
+        rows = damaged["results"][ci]
+        if fault == "baseline-extra-remove":
+            rows.clear()
+        elif fault == "baseline-extra-add":
+            rows.append({**other_finding, "hashed_secret": "e" * 40})
+        elif fault == "baseline-p-ref":
+            rows.append(
+                {
+                    **old_finding,
+                    "hashed_secret": hashlib.sha1(p.encode(), usedforsecurity=False).hexdigest(),
+                }
+            )
+        else:
+            rows[0]["is_verified"] = True
+        final[".secrets.baseline"] = ("100644", prom.canonical_data(damaged))
+    harness = runtime_surface._PROM_HARNESS
+    first_harness = final[harness]
+    corrected_harness = ("100644", first_harness[1] + b"# exact capture diagnostic tests\n")
+    monkeypatch.setattr(runtime_surface, "_PROM_FIRST_HARNESS", blob(first_harness[1]))
+    caller_blobs = {
+        name: blob(final[name][1]) for name in runtime_surface._PROM_REPAIR_CALLER_BLOBS
+    }
+    caller_blobs[harness] = blob(corrected_harness[1])
+    monkeypatch.setattr(runtime_surface, "_PROM_REPAIR_CALLER_BLOBS", caller_blobs)
+    if fault == "stale-prom-caller":
+        final[caller_names[0]] = ("100644", original[caller_names[0]][1] + b"# stale P\n")
+    if fault == "substituted-P":
+        final[ps] = ("100644", b"different helper")
+    if fault == "substituted-harness":
+        final["tests/test_notify_premium_alias_checkpoint_failure.py"] = (
+            "100644",
+            b"other harness",
+        )
+    if fault in ("wrong-wrapper", "extra-wrapper-byte", "wrapper-mode"):
+        name = runtime_surface._PROM_REPAIR_WRAPPERS[-1]
+        final[name] = (
+            "100644" if fault == "wrapper-mode" else "100755",
+            original[name][1] + b"# stale\n" if fault == "wrong-wrapper" else final[name][1] + b" ",
+        )
+    if fault == "unapproved-path":
+        final[".github/workflows/frontend-ci.yml"] = ("100644", b"previously allowed generic path")
+    if fault == "baseline-policy":
+        final[".secrets.baseline"] = (
+            "100644",
+            prom.canonical_data(
+                {"generated_at": "2026-01-03T00:00:00Z", "results": {}, "new_policy": True}
+            ),
+        )
+    parent = p
+    if fault == "nightly-transient":
+        parent = node(
+            p,
+            {**pair, nightly: ("100644", final[nightly][1] + b"# temporary mutation")},
+            "unapproved nightly change",
+        )
+    if fault in ("hook-before-U", "restored-retired-alias"):
+        intermediate = {**pair, ".secrets.baseline": ("100644", baseline("03", retired=True))}
+        parent = node(p, intermediate, "native baseline-only hook")
+        if fault == "restored-retired-alias":
+            parent = node(
+                parent,
+                {**intermediate, ".secrets.baseline": ("100644", baseline("04"))},
+                "restore retired finding",
+            )
+    correction_path = "tests/test_docker_runtime_dependency_surface.py"
+    if fault == "edit-revert":
+        temporary = {**pair, "scripts/AGENTS.md": ("100644", b"transient text")}
+        parent = node(p, temporary, "temporary edit")
+        parent = node(parent, pair, "revert to base bytes")
+    if fault == "corrected-pre-W":
+        interim = {**pair, correction_path: ("100644", b"first regression coverage")}
+        parent = node(p, interim, "first scoped test implementation")
+    first_publication = None
+    if fault in (
+        "corrected-post-W",
+        "prior-W-only",
+        "partial-restore",
+        "prior-no-fix",
+        "docs-before-restore",
+        "docs-with-restore",
+        "premature-harness",
+        "regressed-harness",
+        "stale-final-harness",
+        "wrong-first-publication",
+        "corrected-AM-helper",
+        "wrong-prior-W",
+        "prior-outside",
+        "prior-P",
+        "prior-harness",
+        "prior-wrapper",
+    ):
+        first = {**final, correction_path: ("100644", b"first regression coverage")}
+        if fault in ("prior-no-fix", "corrected-AM-helper"):
+            first = final.copy()
+        if fault in ("docs-before-restore", "docs-with-restore"):
+            first = {**final, "scripts/AGENTS.md": ("100644", b"earlier instructions")}
+        if fault == "corrected-AM-helper":
+            first[am] = ("100644", final[am][1] + b"# earlier checked implementation\n")
+            for wrapper in runtime_surface._PROM_REPAIR_WRAPPERS[:2]:
+                first[wrapper] = (
+                    "100755",
+                    final[wrapper][1].replace(digest(final[am][1]), digest(first[am][1])),
+                )
+        if fault == "prior-outside":
+            first["outside.txt"] = ("100644", b"foreign path")
+        if fault == "prior-P":
+            first[ps] = ("100644", b"substituted protected source")
+        final[harness] = corrected_harness
+        if fault == "premature-harness":
+            first[harness] = corrected_harness
+        if fault == "stale-final-harness":
+            final[harness] = first_harness
+        if fault == "prior-harness":
+            first[harness] = (
+                "100644",
+                b"unreviewed protected harness",
+            )
+        if fault == "prior-wrapper":
+            first["scripts/deploy.sh"] = ("100755", b"other wrapper")
+        k1 = node(p, first, "K1")
+        pinned = {
+            **first,
+            **{
+                name: ("100644", first[name][1].replace(incumbent.encode(), k1.encode()))
+                for name in caller_names
+            },
+        }
+        if fault == "wrong-prior-W":
+            pinned[caller_names[1]] = (
+                "100644",
+                pinned[caller_names[1]][1] + b"other caller change",
+            )
+        w1 = node(k1, pinned, "W1")
+        parent = w1
+        first_publication = (k1, w1 if fault != "wrong-first-publication" else "f" * 40)
+        if fault == "regressed-harness":
+            advanced = {**pinned, harness: corrected_harness}
+            parent = node(w1, advanced, "advance to corrected harness")
+            parent = node(parent, pinned, "restore old harness")
+        if fault == "docs-before-restore":
+            docs_only = {**pinned, "scripts/AGENTS.md": final["scripts/AGENTS.md"]}
+            parent = node(w1, docs_only, "update instructions before restoring callers")
+        if fault == "partial-restore":
+            partial = {**pinned, caller_names[0]: final[caller_names[0]]}
+            parent = node(w1, partial, "restore only one pin")
+    if fault == "rewound-controller":
+        parent = h
+    k = node(parent, final, "K", b if fault == "ambiguous-controller" else None)
+    successor = {
+        **final,
+        **{
+            name: ("100644", final[name][1].replace(incumbent.encode(), k.encode()))
+            for name in caller_names
+        },
+    }
+    if fault == "second-W-edit":
+        successor["scripts/AGENTS.md"] = ("100644", b"extra W byte")
+    if fault == "stale-W-slot":
+        name = caller_names[1]
+        successor[name] = ("100644", successor[name][1] + b"# extra W caller byte\n")
+    w = node(k, successor, "W")
+    original_k, original_w = first_publication or (k, w)
+    monkeypatch.setattr(runtime_surface, "_PROM_FIRST_CONTROLLER", original_k)
+    monkeypatch.setattr(runtime_surface, "_PROM_FIRST_CALLERS", original_w)
+    endpoints[f"/commits/{w}?per_page=100&page=1"] = {
+        "sha": w,
+        "parents": [{"sha": k}],
+        "files": [{"filename": name, "status": "modified"} for name in caller_names],
+    }
+    mapping = "docs/review/PR_81_FIXED_MAPPING.md"
+    mapped = {**successor, mapping: ("100644", b"mapping")}
+    close = node(w, mapped, "Mapping")
+    endpoints[f"/commits/{close}?per_page=100&page=1"] = {
+        **endpoints["/git/commits/" + close],
+        "files": [{"filename": mapping, "status": "added", "sha": blob(b"mapping")}],
+        "commit": {"tree": endpoints["/git/commits/" + close]["tree"]},
+    }
+    landed = (
+        mapped if fault != "altered-squash" else {**mapped, "unrelated": ("100644", b"changed")}
+    )
+    squash = node(b, landed, "squash")
+    pr = {
+        "number": 81,
+        "base": {"ref": "main", "sha": b, "repo": repo},
+        "head": {
+            "ref": runtime_surface._PROM_REPAIR_BRANCH,
+            "sha": close if historical else w,
+            "repo": repo,
+        },
+        "state": "closed" if historical else "open",
+        "merged": historical,
+        "merge_commit_sha": squash,
+        "created_at": "2025-12-01T00:00:00Z",
+        "merged_at": "2026-01-02T00:00:00Z",
+    }
+
+    endpoints["/git/ref/heads/main"] = {
+        "ref": "refs/heads/main",
+        "object": {"type": "commit", "sha": b},
+    }
+    material = {"pr": "81", "base": b, "controller": k, "callers": w, **subject}
+    chain = []
+    at = k
+    while at != b and "/git/commits/" + at in endpoints:
+        n = endpoints["/git/commits/" + at]
+        chain.append(n)
+        at = n["parents"][0]["sha"]
+    endpoints[f"/compare/{b}...{k}"] = {
+        "status": "ahead" if at == b else "diverged",
+        "base_commit": {"sha": b},
+        "merge_base_commit": {"sha": at},
+        "behind_by": 0,
+        "ahead_by": len(chain),
+        "total_commits": len(chain),
+        "commits": list(reversed(chain)),
+    }
+    native = _DispatchNativeFixture(pr, material, fault)
+
+    for path in caller_names:
+        oid = blob(final[path][1])
+        endpoints[f"/contents/{path}?ref={k}"] = {
+            **endpoints["/git/blobs/" + oid],
+            "type": "file",
+            "path": path,
+        }
+    root_tree = endpoints["/git/commits/" + k]["tree"]["sha"]
+    endpoints["/git/trees/" + root_tree + "?recursive=1"] = {
+        "sha": root_tree,
+        "truncated": False,
+        "tree": [
+            {"path": path, "mode": mode, "type": "blob", "sha": blob(raw)}
+            for path, (mode, raw) in final.items()
+        ],
+    }
+    endpoints[f"/commits/{squash}/pulls?per_page=2"] = [{"number": 81}]
+    if repository is not None:
+        _fixture_git(repository, "checkout", "--detach", "-q", squash if historical else w)
+    if fault == "prior-W-only":
+        old = _DispatchNativeFixture(pr, {**material, "controller": k1, "callers": w1})
+        old.add(old.projection(run=74, producer=74))
+        native.records.update(old.records)
+        assert (
+            native.read(
+                f"/actions/workflows/frontend-ci.yml/runs?event=workflow_dispatch&head_sha={w1}&per_page=100&page=1"
+            )["total_count"]
+            == 1
+        )
+    if dispatched:
+        from datetime import datetime, timezone
+
+        class FixtureClock(datetime):
+            @classmethod
+            def now(cls, tz: Any = None) -> datetime:
+                return cls(2026, 1, 1, 1, tzinfo=timezone.utc)
+
+        monkeypatch.setattr(runtime_surface, "datetime", FixtureClock)
+    if dispatched and fault != "prior-W-only":
+        native.add(native.projection(started="2026-01-01T00:00:00Z"))
+        if historical:
+            for run_number, ((workflow, jobname), steps) in enumerate(
+                runtime_surface._REPAIR_NATIVE_STEPS.items(), 22
+            ):
+                flow_id = 123 if workflow == "cd.yml" else 124
+                workflow_path = ".github/workflows/" + workflow
+                endpoints["/actions/workflows/" + workflow] = {"id": flow_id, "path": workflow_path}
+                row = {
+                    "id": run_number,
+                    "run_attempt": 1,
+                    "event": "pull_request",
+                    "head_sha": w,
+                    "workflow_id": flow_id,
+                    "repository": repo,
+                    "head_repository": repo,
+                    "path": workflow_path,
+                    "head_branch": pr["head"]["ref"],
+                    "pull_requests": [{**pr, "head": {**pr["head"], "sha": w}}],
+                    "created_at": "2026-01-01T01:00:00Z",
+                    "run_started_at": "2026-01-01T01:00:05Z",
+                    "status": "completed",
+                    "conclusion": "success",
+                }
+                for at, rows in ((w, [row]), (close, [])):
+                    endpoints[
+                        f"/actions/workflows/{workflow}/runs?event=pull_request&head_sha={at}&per_page=100&page=1"
+                    ] = {"total_count": len(rows), "workflow_runs": rows}
+                endpoints[f"/actions/runs/{run_number}/attempts/1"] = row
+                endpoints[f"/actions/runs/{run_number}/attempts/1/jobs?per_page=100&page=1"] = {
+                    "total_count": 1,
+                    "jobs": [
+                        {
+                            "id": run_number + 100,
+                            "name": jobname,
+                            "run_id": run_number,
+                            "run_attempt": 1,
+                            "head_sha": w,
+                            "started_at": "2026-01-01T01:01:00Z",
+                            "completed_at": "2026-01-01T01:30:00Z",
+                            "status": "completed",
+                            "conclusion": "success",
+                            "steps": [
+                                {
+                                    "name": step,
+                                    "started_at": "2026-01-01T01:02:00Z",
+                                    "completed_at": "2026-01-01T01:15:00Z",
+                                    "status": "completed",
+                                    "conclusion": (
+                                        "skipped"
+                                        if fault == "missing-CI" and workflow == "ci.yml"
+                                        else "success"
+                                    ),
+                                }
+                                for step in steps
+                            ],
+                        }
+                    ],
+                }
+
+    def read(path: str) -> Any:
+        if fault == "prior-W-only" and "/runs?" in path and f"head_sha={w1}&" in path:
+            raise AssertionError("An earlier W cannot supply this dispatch")
+        return endpoints[path] if path in endpoints else native.read(path)
+
+    return read, pr, material
+
+
+@pytest.mark.parametrize("historical", [False, True])
+def test_prometheus_designated_tree_and_original_artifacts_still_need_dispatch(
+    monkeypatch: pytest.MonkeyPatch, historical: bool
+) -> None:
+    read, pr, material = _prometheus_repair_git_fixture(monkeypatch, None, historical=historical)
+    b, k, w = runtime_surface.publisher_repair_head(read, pr, historical=historical)
+    runtime_surface._publisher_repair_material(read, b, k, w, pr)
+    assert runtime_surface._publisher_input_source(read, b, k, w) == _repair_subject_fixture()[0]
+    assert runtime_surface.publisher_repair_dispatch(read, pr, historical=historical) is None
+
+
+@pytest.mark.parametrize(
+    "fault,diagnostic",
+    [
+        ("wrong-base", "native_ancestor_relation"),
+        ("wrong-H", "publisher_prometheus_designated_topology"),
+        ("wrong-P", "publisher_prometheus_designated_source"),
+        ("hook-extra", "publisher_repair_complete_maintenance_delta"),
+        ("substituted-P", "publisher_prometheus_exact_source_or_caller"),
+        ("substituted-harness", "publisher_prometheus_exact_source_or_caller"),
+        ("stale-prom-caller", "publisher_prometheus_exact_source_or_caller"),
+        ("wrong-wrapper", "publisher_prometheus_wrapper_pin"),
+        ("extra-wrapper-byte", "publisher_prometheus_wrapper_pin"),
+        ("wrapper-mode", "publisher_repair_complete_maintenance_delta"),
+        ("unapproved-path", "publisher_repair_complete_maintenance_delta"),
+        ("edit-revert", "publisher_prometheus_transient_material"),
+        ("baseline-extra-remove", "publisher_prometheus_baseline_findings"),
+        ("baseline-extra-add", "publisher_prometheus_baseline_findings"),
+        ("baseline-p-ref", "publisher_prometheus_baseline_findings"),
+        ("baseline-other-change", "publisher_prometheus_baseline_findings"),
+        ("restored-retired-alias", "publisher_prometheus_baseline_findings"),
+        ("baseline-unannotated", "publisher_prometheus_baseline_alias"),
+        ("baseline-verified-old", "publisher_prometheus_baseline_alias"),
+        ("nightly-extra-byte", "publisher_prometheus_nightly_operand"),
+        ("nightly-wrong-target", "publisher_prometheus_nightly_operand"),
+        ("nightly-transient", "publisher_prometheus_nightly_operand"),
+        ("nightly-mode", "publisher_repair_complete_maintenance_delta"),
+        ("baseline-policy", "publisher_prometheus_baseline_findings"),
+        ("second-W-edit", "publisher_repair_complete_maintenance_delta"),
+        ("stale-W-slot", "publisher_repair_exact_caller_pin_bytes"),
+        ("wrong-prior-W", "publisher_repair_exact_caller_pin_bytes"),
+        ("partial-restore", "publisher_prometheus_coordinated_restore"),
+        ("prior-no-fix", "publisher_prometheus_distinct_correction"),
+        ("prior-outside", "publisher_repair_complete_maintenance_delta"),
+        ("prior-P", "publisher_repair_complete_maintenance_delta"),
+        ("prior-harness", "publisher_prometheus_exact_source_or_caller"),
+        ("premature-harness", "publisher_prometheus_exact_source_or_caller"),
+        ("regressed-harness", "publisher_prometheus_transient_material"),
+        ("stale-final-harness", "publisher_prometheus_exact_source_or_caller"),
+        ("wrong-first-publication", "publisher_prometheus_exact_source_or_caller"),
+        ("prior-wrapper", "publisher_prometheus_wrapper_pin"),
+        ("rewound-controller", "publisher_prometheus_source_ancestry"),
+        ("ambiguous-controller", "publisher_prometheus_direct_parent"),
+        ("altered-squash", "publisher_repair_exact_squash"),
+        ("wrong-original-Q", "publisher_repair_original_artifact"),
+        ("wrong-original-S", "publisher_repair_original_artifact"),
+        ("wrong-original-C", "publisher_repair_original_candidate_zip"),
+    ],
+)
+def test_prometheus_repair_rejects_substituted_graph_or_original_subject(
+    monkeypatch: pytest.MonkeyPatch, fault: str, diagnostic: str
+) -> None:
+    from scripts.ci.prometheus_source_image import QualificationError
+
+    historical = fault == "altered-squash"
+    read, pr, _ = _prometheus_repair_git_fixture(monkeypatch, fault, historical=historical)
+    with pytest.raises((QualificationError, ValueError), match="^" + diagnostic + "$"):
+        runtime_surface.publisher_repair_dispatch(read, pr, historical=historical)
+
+
+@pytest.mark.parametrize(
+    "fault", ["wrong-controller", "wrong-callers", "wrong-number", "incomplete", "extra"]
+)
+def test_dispatched_prometheus_paths_crossbind_same_authenticated_coordinates(
+    monkeypatch: pytest.MonkeyPatch, fault: str
+) -> None:
+    from scripts.ci.prometheus_source_image import QualificationError
+
+    read, pr, _ = _prometheus_repair_git_fixture(monkeypatch, None, dispatched=True)
+    grant = runtime_surface.publisher_repair_dispatch(read, pr)
+    assert grant
+    paths = set(runtime_surface._PROM_REPAIR_PATHS)
+    runtime_surface.require_dispatched_publisher_repair_paths(
+        read, pr["number"], grant, paths, historical=False
+    )
+    if fault == "wrong-controller":
+        grant["controller"] = "d" * 40
+    elif fault == "wrong-callers":
+        grant["callers"] = "c" * 40
+    elif fault == "wrong-number":
+        grant["pr"] = "82"
+    elif fault == "incomplete":
+        paths.remove("scripts/QUICK_FIX_PRODUCTION.sh")
+    else:
+        paths.add(".github/workflows/frontend-ci.yml")
+    with pytest.raises(QualificationError, match="^publisher_prometheus_exact_material$"):
+        runtime_surface.require_dispatched_publisher_repair_paths(
+            read, pr["number"], grant, paths, historical=False
+        )
+
+
+def test_prometheus_repair_paths_remain_outside_generic_maintenance_class() -> None:
+    from scripts.ci.prometheus_source_image import QualificationError
+
+    additions = runtime_surface._PROM_REPAIR_PATHS - runtime_surface._PUBLISHER_REPAIR_FILES
+    assert len(runtime_surface._PROM_REPAIR_PATHS) == 18
+    assert additions == {
+        "scripts/ci/prometheus_source_image.py",
+        "tests/test_prometheus_source_image.py",
+        "tests/test_notify_premium_alias_checkpoint_failure.py",
+        ".github/workflows/nightly-tests.yml",
+        "scripts/QUICK_FIX_PRODUCTION.sh",
+    }
+    for path in additions:
+        with pytest.raises(
+            QualificationError, match="^publisher_repair_complete_maintenance_delta$"
+        ):
+            runtime_surface.require_publisher_repair_paths({".github/workflows/ci.yml", path})
+
+
+def test_special_baseline_can_record_native_hook_as_separate_commit(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    read, pr, material = _prometheus_repair_git_fixture(
+        monkeypatch, "hook-before-U", repository=tmp_path / "git", dispatched=True
+    )
+    grant = runtime_surface.publisher_repair_dispatch(read, pr)
+    assert grant is not None and grant["controller"] == material["controller"]
+
+
+@pytest.mark.parametrize(
+    "history",
+    ["docs-before-restore", "docs-with-restore", "corrected-post-W", "corrected-AM-helper"],
+)
+def test_corrected_controller_requires_implementation_or_regression_delta(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, history: str
+) -> None:
+    from scripts.ci.prometheus_source_image import QualificationError
+
+    read, pr, material = _prometheus_repair_git_fixture(
+        monkeypatch, history, repository=tmp_path / "git", dispatched=True
+    )
+    if history in ("docs-before-restore", "docs-with-restore"):
+        with pytest.raises(QualificationError, match="^publisher_prometheus_distinct_correction$"):
+            runtime_surface.publisher_repair_dispatch(read, pr)
+        return
+    grant = runtime_surface.publisher_repair_dispatch(read, pr)
+    assert grant is not None
+    assert (grant["controller"], grant["callers"]) == (material["controller"], material["callers"])
