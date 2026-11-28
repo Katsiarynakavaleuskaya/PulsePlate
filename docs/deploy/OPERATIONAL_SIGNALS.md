@@ -501,7 +501,12 @@ the configured 30-second scrape interval requires 86,400 samples. Staging
 requires the checkout's `deploy/docker-compose.staging.yaml` or the protected
 installed `/srv/pulseplate-staging/docker-compose.staging.yaml`, plus exactly
 one `PULSEPLATE_ENVIRONMENT=staging` on the same inspected Prometheus container
-in both censuses. A conflicting binding produces an incomplete HOLD.
+in both censuses. A checkpoint selecting the staging filename verifies the
+canonical file before native work in each census. An unsafe installed file,
+copied model or path alias at startup produces an incomplete HOLD without
+contacting Docker.
+A conflicting binding after service selection retains point observations
+and produces an incomplete HOLD without range measurements.
 During the first second after baseline, the checkpoint records only point
 observations and publishes an incomplete HOLD. Range queries use whole seconds.
 Production checkpoints keep their full baseline window. Historical receipts

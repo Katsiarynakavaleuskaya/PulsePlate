@@ -1088,7 +1088,7 @@ def test_staging_checkpoint_without_a_whole_second_publishes_only_point_observat
         ("canonical", ["PULSEPLATE_ENVIRONMENT=unknown"], "checkpoint_environment_mismatch"),
         ("canonical", ["PULSEPLATE_ENVIRONMENT=production"], "checkpoint_environment_mismatch"),
         ("canonical", ["OTHER_PULSEPLATE_ENVIRONMENT=staging"], "checkpoint_environment_ambiguous"),
-        ("docker-compose.staging.yaml", _STAGING_ENV, "checkpoint_staging_compose_untrusted"),
+        ("lost-protection-during-census", _STAGING_ENV, "checkpoint_staging_compose_untrusted"),
         ("docker-compose.production.yaml", _STAGING_ENV, "checkpoint_environment_mismatch"),
         ("custom.yaml", _STAGING_ENV * 2, "checkpoint_environment_mismatch"),
     ],
@@ -1096,10 +1096,16 @@ def test_staging_checkpoint_without_a_whole_second_publishes_only_point_observat
 def test_checkpoint_conflicting_identity_publishes_incomplete_hold(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str, env: object, reason: str
 ) -> None:
-    compose = _STAGING_COMPOSE if name == "canonical" else tmp_path / name
-    client = _FakePromtoolClient(
-        snapshot=_checkpoint_snapshot(compose, env), anchor=_T0 + timedelta(days=51)
+    compose = (
+        _STAGING_COMPOSE
+        if name in {"canonical", "lost-protection-during-census"}
+        else tmp_path / name
     )
+    snapshot = _checkpoint_snapshot(compose, env)
+    if name == "lost-protection-during-census":
+        # The initial native census observed the file losing protection after its pre-use check.
+        snapshot = replace(snapshot, checkpoint_contour="checkpoint_staging_compose_untrusted")
+    client = _FakePromtoolClient(snapshot=snapshot, anchor=_T0 + timedelta(days=51))
     monkeypatch.setenv("PULSEPLATE_ENVIRONMENT", "staging")
     monkeypatch.setattr(verifier.DockerPromtoolClient, "create", lambda *, compose_file: client)
     assert (
@@ -1113,6 +1119,113 @@ def test_checkpoint_conflicting_identity_publishes_incomplete_hold(
     assert evidence["reasons"] == [reason]
     assert evidence["window"]["complete"] is False
     assert evidence["window"]["duration_seconds"] == 4_406_400
+    assert evidence["target"]["observed_count"] == evidence["target"]["current_up"] == 1
+    assert all(
+        evidence["target"][key] is None
+        for key in ("minimum_up", "sample_count", "required_samples", "restart_changes")
+    )
+    for alias in evidence["aliases"]:
+        assert alias["current_value"] == 0
+        assert all(alias[key] is None for key in ("increase", "resets", "sample_count"))
+    assert len(client.queries) == 2 + len(verifier.ALIAS_ROUTES)
+    assert all(
+        "[" not in query and when == evidence["observed_at"] for query, when in client.queries
+    )
+
+
+@pytest.mark.parametrize("unsafe_at", ["startup", "first-census", "second-census", "never"])
+def test_installed_checkpoint_checks_input_before_native_use(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, unsafe_at: str
+) -> None:
+    installed = verifier._INSTALLED_STAGING_COMPOSE
+    protected = unsafe_at != "startup"
+    original_lstat = Path.lstat
+
+    def _lstat(path: Path) -> os.stat_result:
+        if path == installed:
+            mode = stat.S_IFREG | (0o644 if protected else 0o666)
+        elif path in installed.parents:
+            mode = stat.S_IFDIR | 0o755
+        else:
+            return original_lstat(path)
+        return os.stat_result((mode, 1, 1, 1, 0, 0, 1, 0, 0, 0))
+
+    class ObservedClient(_FakePromtoolClient):
+        def query_scalar(self, expression: str, *, evaluation_time: str) -> float:
+            nonlocal protected
+            if unsafe_at == "second-census":
+                protected = False
+            return super().query_scalar(expression, evaluation_time=evaluation_time)
+
+    client = ObservedClient(
+        snapshot=_checkpoint_snapshot(environment=_STAGING_ENV), anchor=_T0 + timedelta(days=51)
+    )
+    created: list[Path] = []
+
+    def _create(*, compose_file: Path) -> ObservedClient:
+        nonlocal protected
+        created.append(compose_file)
+        if unsafe_at == "first-census":
+            protected = False
+        return client
+
+    monkeypatch.setattr(Path, "lstat", _lstat)
+    monkeypatch.setattr(verifier.DockerPromtoolClient, "create", _create)
+    assert (
+        verifier.write_evidence_new_only(tmp_path, "baseline.json", _passing_baseline(tmp_path))
+        == "published"
+    )
+    arguments = _cli_args(tmp_path, "checkpoint")
+    arguments[2] = str(installed)
+    assert verifier.main(arguments) == (0 if unsafe_at == "never" else 1)
+    receipt = json.loads((tmp_path / "checkpoint.json").read_bytes())
+    verifier._validate_evidence_asset(receipt)
+    if unsafe_at == "never":
+        assert receipt["decision"] == "PASS" and receipt["target"]["required_samples"] == 86_400
+        assert created == [installed] and client.census_count == 2
+        assert sum("[2592000s]" in query for query, _ in client.queries) == 15
+        return
+    assert receipt["decision"] == "HOLD" and receipt["window"]["complete"] is False
+    assert "checkpoint_staging_compose_untrusted" in receipt["reasons"]
+    assert "docker_unavailable" not in receipt["reasons"]
+    assert created == ([] if unsafe_at == "startup" else [installed])
+    assert client.census_count == (1 if unsafe_at == "second-census" else 0)
+    if unsafe_at != "second-census":
+        assert receipt["reasons"] == ["checkpoint_staging_compose_untrusted"]
+        assert client.queries == []
+        assert receipt["observed_at"] is None
+        assert all(value is None for value in receipt["identities"].values())
+        assert receipt["target"]["required_samples"] is None
+
+
+@pytest.mark.parametrize("kind", ["copy", "symlink", "traversal"])
+def test_staging_named_impostor_is_rejected_before_native_work(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, kind: str
+) -> None:
+    selected = tmp_path / _STAGING_COMPOSE.name
+    if kind == "copy":
+        selected.write_bytes(_STAGING_COMPOSE.read_bytes())
+    elif kind == "symlink":
+        selected.symlink_to(_STAGING_COMPOSE)
+    else:
+        selected = _STAGING_COMPOSE.parent / ".." / "deploy" / _STAGING_COMPOSE.name
+
+    def _unexpected_client(*, compose_file: Path) -> verifier.DockerPromtoolClient:
+        pytest.fail("untrusted staging input reached native client setup")
+
+    monkeypatch.setattr(verifier.DockerPromtoolClient, "create", _unexpected_client)
+    assert (
+        verifier.write_evidence_new_only(tmp_path, "baseline.json", _passing_baseline(tmp_path))
+        == "published"
+    )
+    arguments = _cli_args(tmp_path, "checkpoint")
+    arguments[2] = str(selected)
+    assert verifier.main(arguments) == 1
+    receipt = json.loads((tmp_path / "checkpoint.json").read_bytes())
+    verifier._validate_evidence_asset(receipt)
+    assert receipt["decision"] == "HOLD" and receipt["window"]["complete"] is False
+    assert receipt["reasons"] == ["checkpoint_staging_compose_untrusted"]
+    assert receipt["observed_at"] is None and receipt["target"]["required_samples"] is None
 
 
 @pytest.mark.parametrize(

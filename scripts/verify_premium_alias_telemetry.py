@@ -709,6 +709,15 @@ def _checkpoint_contour(selected: Path, environment: object) -> str:
     return "staging" if markers[0] == staging else "checkpoint_environment_mismatch"
 
 
+def _require_staging_checkpoint_input(config: VerificationConfig) -> None:
+    if (
+        config.mode == "checkpoint"
+        and config.compose_file.name == _INSTALLED_STAGING_COMPOSE.name
+        and not _canonical_staging_compose(config.compose_file.absolute())
+    ):
+        raise VerificationError("checkpoint_staging_compose_untrusted")
+
+
 def _parse_prometheus_args(value: object) -> list[str]:
     typed_arguments, _config_path = _parse_single_flag_value(
         value,
@@ -2203,10 +2212,15 @@ def build_evidence(
 
     reasons = list(initial_reasons)
     snapshot: LiveRuntimeSnapshot | None = None
+    native_input_blocked = False
     try:
+        _require_staging_checkpoint_input(config)
         snapshot = client.collect_live_snapshot()
     except VerificationError as exc:
         reasons.extend(("live_snapshot_unavailable", exc.code))
+        if exc.code == "checkpoint_staging_compose_untrusted":
+            native_input_blocked = True
+            client = _UnavailablePromtoolClient(exc.code)
     try:
         healthy = client.check_healthy()
     except VerificationError as exc:
@@ -2310,10 +2324,11 @@ def build_evidence(
     if baseline_start is not None and observed_at is not None and baseline_start > observed_at:
         reasons.append("window_order_invalid")
     window_start = baseline_start
-    query_ranges = config.mode != "baseline"
+    query_ranges = config.mode != "baseline" and not native_input_blocked
     if config.mode == "checkpoint" and snapshot is not None:
         if snapshot.checkpoint_contour not in {"staging", "other"}:
             reasons.append(snapshot.checkpoint_contour)
+            query_ranges = False
         elif snapshot.checkpoint_contour == "staging":
             if baseline_start is None or observed_at is None:
                 query_ranges = False
@@ -2461,6 +2476,7 @@ def build_evidence(
         )
 
     try:
+        _require_staging_checkpoint_input(config)
         post_snapshot = client.collect_live_snapshot()
     except VerificationError as exc:
         post_snapshot = None
@@ -2512,6 +2528,9 @@ def build_evidence(
         or reason.endswith("_sample_count_too_low")
         for reason in reasons
     )
+    if native_input_blocked:
+        # Unobserved services and measurements supply no additional failure diagnosis.
+        reasons = [*initial_reasons, "checkpoint_staging_compose_untrusted"]
     unique_reasons = sorted(set(reasons))
     evidence: dict[str, object] = {
         "schema": SCHEMA,
@@ -2733,11 +2752,14 @@ def write_evidence_new_only(
 
 
 class _UnavailablePromtoolClient:
+    def __init__(self, reason: str = "docker_unavailable") -> None:
+        self._reason = reason
+
     def collect_live_snapshot(self) -> LiveRuntimeSnapshot:
-        raise VerificationError("docker_unavailable")
+        raise VerificationError(self._reason)
 
     def get_evaluation_anchor(self) -> datetime:
-        raise VerificationError("docker_unavailable")
+        raise VerificationError(self._reason)
 
     def check_healthy(self) -> bool:
         return False
@@ -2748,7 +2770,7 @@ class _UnavailablePromtoolClient:
     def query_scalar(self, expression: str, *, evaluation_time: str) -> float:
         del expression
         del evaluation_time
-        raise VerificationError("docker_unavailable")
+        raise VerificationError(self._reason)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -2763,10 +2785,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             initial_reasons.append(exc.code)
 
     try:
+        _require_staging_checkpoint_input(config)
         client: PromtoolClient = DockerPromtoolClient.create(compose_file=config.compose_file)
     except VerificationError as exc:
         initial_reasons.append(exc.code)
-        client = _UnavailablePromtoolClient()
+        client = _UnavailablePromtoolClient(exc.code)
     evidence = build_evidence(
         config,
         client,

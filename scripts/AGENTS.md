@@ -139,8 +139,10 @@ phase budget, and its failure still blocks a successful cleanup result.
   the same service and preserved protected flock inode as the timer.
 - Only a staging checkpoint with a valid matching baseline, canonical staging
   Compose selection and one exact staging environment marker on the inspected
-  Prometheus container may roll forward. Bind both censuses. Use the later of
-  the baseline and 30 days before the live anchor for every range, sample
+  Prometheus container may roll forward. Check staging file selection and
+  protection before native use in both censuses. Suppress range queries for an
+  untrusted or contradictory contour. Use the later of the baseline and 30 days
+  before the live anchor for every range, sample
   threshold and receipt. Preserve production's baseline window, human final T0,
   and the existing new-only v1 receipt contract.
 - Keep the existing verifier as receipt/decision owner. Failed exit 1/2, missing
