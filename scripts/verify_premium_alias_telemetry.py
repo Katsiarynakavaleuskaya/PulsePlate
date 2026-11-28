@@ -17,7 +17,7 @@ import subprocess  # nosec B404: # stdlib subprocess required for the isolated v
 import sys
 import tarfile
 from contextlib import suppress
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path, PurePosixPath
@@ -31,6 +31,8 @@ SCRAPE_TIMEOUT_SECONDS = 10
 MIN_RETENTION_DAYS = 45
 FINAL_WINDOW = timedelta(days=30)
 FINAL_MIN_SAMPLES = 86_400
+STAGING_CHECKPOINT_WINDOW = timedelta(days=30)
+_INSTALLED_STAGING_COMPOSE = Path("/srv/pulseplate-staging/docker-compose.staging.yaml")
 MAX_JSON_BYTES = 1_048_576
 COMMAND_TIMEOUT_SECONDS = 30.0
 PROCESS_CLEANUP_TIMEOUT_SECONDS = 1.0
@@ -239,6 +241,8 @@ class LiveRuntimeSnapshot:
     target_scrape_interval_seconds: int
     target_scrape_timeout_seconds: int
     loaded_target_fingerprint: str
+    # Checkpoint-only observation. It is outside v1 receipt identity and other modes' census.
+    checkpoint_contour: str = field(default="other", compare=False)
 
 
 @dataclass(frozen=True)
@@ -655,6 +659,54 @@ def _parse_compose_service_identity(
     ):
         raise VerificationError("compose_service_identity_mismatch")
     return app_project
+
+
+def _canonical_staging_compose(selected: Path) -> bool:
+    """Recognize the checkout source or the protected installed staging file."""
+
+    try:
+        if selected == _INSTALLED_STAGING_COMPOSE:
+            for parent in reversed(selected.parents):
+                entry = parent.lstat()
+                if (
+                    not stat.S_ISDIR(entry.st_mode)
+                    or entry.st_uid != 0
+                    or entry.st_gid != 0
+                    or entry.st_mode & 0o022
+                ):
+                    return False
+        else:
+            root = Path(__file__).resolve().parents[1]
+            if selected != root / "deploy" / _INSTALLED_STAGING_COMPOSE.name:
+                return False
+            if not ((root / ".git").is_dir() or (root / ".git").is_file()):
+                return False
+            if selected.resolve(strict=True) != selected:
+                return False
+        metadata = selected.lstat()
+        if selected == _INSTALLED_STAGING_COMPOSE and (
+            metadata.st_uid != 0 or metadata.st_gid != 0 or metadata.st_mode & 0o022
+        ):
+            return False
+        return stat.S_ISREG(metadata.st_mode) and metadata.st_nlink == 1
+    except (OSError, RuntimeError):
+        return False
+
+
+def _checkpoint_contour(selected: Path, environment: object) -> str:
+    """Classify only the marker from the ID-checked Prometheus inspect record."""
+
+    key = "PULSEPLATE_ENVIRONMENT"
+    entries = environment if isinstance(environment, list) else []
+    markers = [item for item in entries if isinstance(item, str) and item.partition("=")[0] == key]
+    staging = "PULSEPLATE_ENVIRONMENT=staging"
+    if selected.name != _INSTALLED_STAGING_COMPOSE.name:
+        return "checkpoint_environment_mismatch" if staging in markers else "other"
+    if not _canonical_staging_compose(selected):
+        return "checkpoint_staging_compose_untrusted"
+    if len(markers) != 1 or not all(isinstance(item, str) for item in entries):
+        return "checkpoint_environment_ambiguous"
+    return "staging" if markers[0] == staging else "checkpoint_environment_mismatch"
 
 
 def _parse_prometheus_args(value: object) -> list[str]:
@@ -1251,6 +1303,9 @@ class DockerPromtoolClient:
             target_scrape_interval_seconds=target_binding.scrape_interval_seconds,
             target_scrape_timeout_seconds=target_binding.scrape_timeout_seconds,
             loaded_target_fingerprint=_target_binding_fingerprint(loaded_target_binding),
+            checkpoint_contour=_checkpoint_contour(
+                self._compose_file, prometheus_config.get("Env")
+            ),
         )
 
     def check_healthy(self) -> bool:
@@ -2064,6 +2119,12 @@ def _baseline_start(
         _validate_evidence_asset(baseline)
     except VerificationError as exc:
         reasons.append(exc.code)
+        if (
+            config.mode == "checkpoint"
+            and snapshot is not None
+            and snapshot.checkpoint_contour == "staging"
+        ):
+            reasons.append("baseline_evidence_invalid")
         return None
     if snapshot is None:
         reasons.append("live_snapshot_unavailable")
@@ -2248,13 +2309,27 @@ def build_evidence(
     )
     if baseline_start is not None and observed_at is not None and baseline_start > observed_at:
         reasons.append("window_order_invalid")
+    window_start = baseline_start
+    query_ranges = config.mode != "baseline"
+    if config.mode == "checkpoint" and snapshot is not None:
+        if snapshot.checkpoint_contour not in {"staging", "other"}:
+            reasons.append(snapshot.checkpoint_contour)
+        elif snapshot.checkpoint_contour == "staging":
+            if baseline_start is None or observed_at is None:
+                query_ranges = False
+            else:
+                elapsed = observed_at - baseline_start
+                query_ranges = elapsed >= timedelta(seconds=1)
+                if not query_ranges and elapsed >= timedelta(0):
+                    reasons.append("checkpoint_window_too_short")
+                if elapsed > STAGING_CHECKPOINT_WINDOW:
+                    window_start = observed_at - STAGING_CHECKPOINT_WINDOW
     duration_seconds = (
-        max(0, int((observed_at - baseline_start).total_seconds()))
-        if baseline_start is not None and observed_at is not None
+        max(0, int((observed_at - window_start).total_seconds()))
+        if window_start is not None and observed_at is not None
         else 0
     )
     t0 = config.t0
-    window_start = baseline_start
     final_range_seconds: int | None = None
     if config.mode == "final":
         if t0 is None:
@@ -2277,7 +2352,7 @@ def build_evidence(
     sample_count: float | None = None
     restart_changes: float | None = None
     required_samples: int | None = None
-    if config.mode != "baseline":
+    if query_ranges:
         min_up = _query(
             client,
             f"min_over_time(up{{{TARGET_INSTANCE_SELECTOR}}}[{range_selector}])",
@@ -2330,7 +2405,7 @@ def build_evidence(
         increase: float | None = None
         resets: float | None = None
         alias_sample_count: float | None = None
-        if config.mode != "baseline":
+        if query_ranges:
             increase = _query(
                 client,
                 f"sum(increase(http_requests_total{{{selector}}}[{range_selector}]))",
@@ -2392,6 +2467,13 @@ def build_evidence(
         reasons.extend(("runtime_post_census_failed", exc.code))
     if snapshot is not None and post_snapshot != snapshot:
         reasons.append("runtime_identity_drift")
+    if (
+        config.mode == "checkpoint"
+        and snapshot is not None
+        and post_snapshot is not None
+        and post_snapshot.checkpoint_contour != snapshot.checkpoint_contour
+    ):
+        reasons.append("runtime_identity_drift")
 
     incomplete_window_reasons = {
         "window_order_invalid",
@@ -2407,6 +2489,9 @@ def build_evidence(
         "process_restart_negative",
         "runtime_post_census_failed",
         "runtime_identity_drift",
+        "checkpoint_environment_mismatch",
+        "checkpoint_environment_ambiguous",
+        "checkpoint_staging_compose_untrusted",
         "compose_service_identity_mismatch",
         "prometheus_config_path_mismatch",
         "prometheus_storage_path_mismatch",
@@ -2419,7 +2504,7 @@ def build_evidence(
         "prometheus_loaded_target_invalid",
         "prometheus_loaded_target_mismatch",
     }
-    complete = not any(
+    complete = (config.mode == "baseline" or query_ranges) and not any(
         reason in incomplete_window_reasons
         or reason.startswith("baseline_")
         or "_reset_" in reason

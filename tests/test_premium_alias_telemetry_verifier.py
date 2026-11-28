@@ -12,6 +12,7 @@ import re
 import stat
 import sys
 import tarfile
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -28,6 +29,10 @@ _APP_CONTAINER_A = "a" * 64
 _PROMETHEUS_CONTAINER_A = "b" * 64
 _PROCESS_A = "sha256:" + "c" * 64
 _T0 = datetime(2026, 8, 22, 12, 0, tzinfo=timezone.utc)
+_STAGING_COMPOSE = (
+    Path(verifier.__file__).resolve().parents[1] / "deploy/docker-compose.staging.yaml"
+)
+_STAGING_ENV = ["PULSEPLATE_ENVIRONMENT=staging"]
 
 
 def _live_snapshot(
@@ -164,6 +169,14 @@ def _passing_baseline(tmp_path: Path) -> dict[str, object]:
     return verifier.build_evidence(
         _config(tmp_path, mode="baseline"),
         _FakePromtoolClient(),
+    )
+
+
+def _checkpoint_snapshot(
+    compose: Path = _STAGING_COMPOSE, environment: object = None
+) -> verifier.LiveRuntimeSnapshot:
+    return replace(
+        _live_snapshot(), checkpoint_contour=verifier._checkpoint_contour(compose, environment)
     )
 
 
@@ -960,6 +973,377 @@ def test_gap_reset_restart_and_short_window_each_force_hold(tmp_path: Path) -> N
     assert any(reason.endswith("_reset_positive") for reason in reasons)
 
 
+@pytest.mark.parametrize(
+    ("age", "seconds", "samples"),
+    [
+        (timedelta(seconds=1), 1, 1),
+        (timedelta(days=29), 2_505_600, 83_520),
+        (timedelta(days=29, milliseconds=500), 2_505_600, 83_520),
+        (timedelta(days=30), 2_592_000, 86_400),
+        (timedelta(days=30, seconds=1), 2_592_000, 86_400),
+        (timedelta(days=51, milliseconds=500), 2_592_000, 86_400),
+        (timedelta(days=51), 2_592_000, 86_400),
+        (timedelta(days=60), 2_592_000, 86_400),
+        (timedelta(days=61), 2_592_000, 86_400),
+    ],
+    ids=[
+        "one-second",
+        "day29",
+        "day29-fractional",
+        "day30",
+        "day30-plus-one-second",
+        "day51-fractional",
+        "day51",
+        "day60",
+        "day61",
+    ],
+)
+def test_staging_checkpoint_ranges_follow_the_daily_anchor(
+    tmp_path: Path, age: timedelta, seconds: int, samples: int
+) -> None:
+    baseline = _passing_baseline(tmp_path)
+    anchor = _T0 + age
+    client = _FakePromtoolClient(
+        snapshot=_checkpoint_snapshot(environment=_STAGING_ENV), anchor=anchor
+    )
+    config = replace(_config(tmp_path, mode="checkpoint"), compose_file=_STAGING_COMPOSE)
+    evidence = verifier.build_evidence(config, client, baseline=baseline)
+    assert evidence["decision"] == "PASS"
+    assert evidence["window"] == {
+        "started_at": verifier._canonical_timestamp(max(_T0, anchor - timedelta(days=30))),
+        "ended_at": verifier._canonical_timestamp(anchor),
+        "t0": None,
+        "duration_seconds": seconds,
+        "complete": True,
+    }
+    assert (
+        isinstance(evidence["target"], dict) and evidence["target"]["required_samples"] == samples
+    )
+    assert isinstance(evidence["upstream_assets"], list)
+    assert evidence["upstream_assets"][-1]["fingerprint"] == baseline["fingerprint"]
+    selectors = [query for query, _ in client.queries if "[" in query]
+    assert len(selectors) == 15
+    assert all(f"[{seconds}s]" in query for query in selectors)
+    assert {when for _, when in client.queries} == {evidence["observed_at"]}
+    verifier._validate_evidence_asset(evidence)
+
+
+@pytest.mark.parametrize(
+    "age", [timedelta(0), timedelta(milliseconds=500)], ids=["equal", "fractional"]
+)
+def test_staging_checkpoint_without_a_whole_second_publishes_only_point_observations(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, age: timedelta
+) -> None:
+    anchor = _T0 + age
+    client = _FakePromtoolClient(
+        snapshot=_checkpoint_snapshot(environment=_STAGING_ENV), anchor=anchor
+    )
+    monkeypatch.setattr(verifier.DockerPromtoolClient, "create", lambda *, compose_file: client)
+    assert (
+        verifier.write_evidence_new_only(tmp_path, "baseline.json", _passing_baseline(tmp_path))
+        == "published"
+    )
+    arguments = _cli_args(tmp_path, "checkpoint")
+    arguments[2] = str(_STAGING_COMPOSE)
+    assert verifier.main(arguments) == 1
+    receipt = json.loads((tmp_path / "checkpoint.json").read_bytes())
+    verifier._validate_evidence_asset(receipt)
+    assert receipt["decision"] == "HOLD"
+    assert receipt["reasons"] == ["checkpoint_window_too_short"]
+    assert receipt["window"] == {
+        "started_at": verifier._canonical_timestamp(_T0),
+        "ended_at": verifier._canonical_timestamp(anchor),
+        "duration_seconds": 0,
+        "t0": None,
+        "complete": False,
+    }
+    assert len(client.queries) == 2 + len(verifier.ALIAS_ROUTES)
+    assert all(
+        "[" not in query and when == receipt["observed_at"] for query, when in client.queries
+    )
+    assert receipt["target"]["observed_count"] == receipt["target"]["current_up"] == 1
+    assert all(
+        receipt["target"][key] is None
+        for key in ("minimum_up", "sample_count", "required_samples", "restart_changes")
+    )
+    for alias in receipt["aliases"]:
+        assert alias["current_value"] == 0
+        assert alias["observation"] == "observed_exact_zero"
+        assert all(alias[key] is None for key in ("increase", "resets", "sample_count"))
+
+
+@pytest.mark.parametrize(
+    ("name", "env", "reason"),
+    [
+        ("canonical", None, "checkpoint_environment_ambiguous"),
+        ("canonical", _STAGING_ENV * 2, "checkpoint_environment_ambiguous"),
+        (
+            "canonical",
+            [*_STAGING_ENV, "PULSEPLATE_ENVIRONMENT=production"],
+            "checkpoint_environment_ambiguous",
+        ),
+        ("canonical", [*_STAGING_ENV, 42], "checkpoint_environment_ambiguous"),
+        ("canonical", ["PULSEPLATE_ENVIRONMENT"], "checkpoint_environment_mismatch"),
+        ("canonical", ["PULSEPLATE_ENVIRONMENT="], "checkpoint_environment_mismatch"),
+        ("canonical", ["PULSEPLATE_ENVIRONMENT=unknown"], "checkpoint_environment_mismatch"),
+        ("canonical", ["PULSEPLATE_ENVIRONMENT=production"], "checkpoint_environment_mismatch"),
+        ("canonical", ["OTHER_PULSEPLATE_ENVIRONMENT=staging"], "checkpoint_environment_ambiguous"),
+        ("docker-compose.staging.yaml", _STAGING_ENV, "checkpoint_staging_compose_untrusted"),
+        ("docker-compose.production.yaml", _STAGING_ENV, "checkpoint_environment_mismatch"),
+        ("custom.yaml", _STAGING_ENV * 2, "checkpoint_environment_mismatch"),
+    ],
+)
+def test_checkpoint_conflicting_identity_publishes_incomplete_hold(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str, env: object, reason: str
+) -> None:
+    compose = _STAGING_COMPOSE if name == "canonical" else tmp_path / name
+    client = _FakePromtoolClient(
+        snapshot=_checkpoint_snapshot(compose, env), anchor=_T0 + timedelta(days=51)
+    )
+    monkeypatch.setenv("PULSEPLATE_ENVIRONMENT", "staging")
+    monkeypatch.setattr(verifier.DockerPromtoolClient, "create", lambda *, compose_file: client)
+    assert (
+        verifier.write_evidence_new_only(tmp_path, "baseline.json", _passing_baseline(tmp_path))
+        == "published"
+    )
+    arguments = _cli_args(tmp_path, "checkpoint")
+    arguments[2] = str(compose)
+    assert verifier.main(arguments) == 1
+    evidence = json.loads((tmp_path / "checkpoint.json").read_bytes())
+    assert evidence["reasons"] == [reason]
+    assert evidence["window"]["complete"] is False
+    assert evidence["window"]["duration_seconds"] == 4_406_400
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["docker-compose.production.yaml", "docker-compose.production.selfhosted.yaml", "custom.yaml"],
+)
+def test_nonstaging_checkpoint_preserves_full_baseline_window(tmp_path: Path, name: str) -> None:
+    compose = _STAGING_COMPOSE.with_name(name)
+    environment = None if name == "custom.yaml" else ["PULSEPLATE_ENVIRONMENT=production"]
+    client = _FakePromtoolClient(
+        snapshot=_checkpoint_snapshot(compose, environment), anchor=_T0 + timedelta(days=51)
+    )
+    config = replace(_config(tmp_path, mode="checkpoint"), compose_file=compose)
+    evidence = verifier.build_evidence(config, client, baseline=_passing_baseline(tmp_path))
+    assert evidence["decision"] == "PASS"
+    assert (
+        isinstance(evidence["window"], dict) and evidence["window"]["duration_seconds"] == 4_406_400
+    )
+    assert (
+        isinstance(evidence["target"], dict) and evidence["target"]["required_samples"] == 146_880
+    )
+    assert all("[4406400s]" in query for query, _ in client.queries if "[" in query)
+
+
+@pytest.mark.parametrize("mode", ["baseline", "checkpoint", "final"])
+def test_contour_change_at_second_census_is_checkpoint_specific(tmp_path: Path, mode: str) -> None:
+    old_snapshot = _checkpoint_snapshot(environment=_STAGING_ENV)
+    changed = _checkpoint_snapshot(environment=["PULSEPLATE_ENVIRONMENT=production"])
+    config = replace(
+        _config(tmp_path, mode=mode, t0=_T0 if mode == "final" else None),
+        compose_file=_STAGING_COMPOSE,
+    )
+    client = _FakePromtoolClient(
+        snapshot=old_snapshot, post_snapshot=changed, anchor=_T0 + timedelta(days=51)
+    )
+    evidence = verifier.build_evidence(
+        config, client, baseline=None if mode == "baseline" else _passing_baseline(tmp_path)
+    )
+    assert isinstance(evidence["window"], dict)
+    if mode == "checkpoint":
+        assert evidence["decision"] == "HOLD"
+        assert evidence["reasons"] == ["runtime_identity_drift"]
+        assert evidence["window"]["complete"] is False
+    else:
+        assert evidence["decision"] == "PASS"
+        assert evidence["window"]["duration_seconds"] == (4_406_400 if mode == "final" else 0)
+        verifier._validate_evidence_asset(evidence)
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "none",
+        "missing",
+        "file-symlink",
+        "directory-symlink",
+        "hardlink",
+        "traversal",
+        "non-checkout",
+    ],
+)
+def test_checkout_staging_path_rejects_substituted_sources(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str
+) -> None:
+    root = tmp_path.resolve()
+    monkeypatch.setattr(
+        verifier, "__file__", str(root / "scripts/verify_premium_alias_telemetry.py")
+    )
+    if fault != "non-checkout":
+        (root / ".git").mkdir()
+    deployed = root / "deploy"
+    if fault == "directory-symlink":
+        actual = root / "elsewhere"
+        actual.mkdir()
+        deployed.symlink_to(actual, target_is_directory=True)
+    else:
+        deployed.mkdir()
+    selected = deployed / _STAGING_COMPOSE.name
+    if fault in {"file-symlink", "hardlink"}:
+        source = root / "other.yaml"
+        source.touch()
+        if fault == "file-symlink":
+            selected.symlink_to(source)
+        else:
+            selected.hardlink_to(source)
+    elif fault != "missing":
+        selected.touch()
+    if fault == "traversal":
+        selected = deployed / ".." / "deploy" / selected.name
+    assert verifier._checkpoint_contour(selected, _STAGING_ENV) == (
+        "staging" if fault == "none" else "checkpoint_staging_compose_untrusted"
+    )
+
+
+@pytest.mark.parametrize(
+    ("fault", "permissions", "uid", "gid", "links"),
+    [
+        ("none", 0, 0, 0, 1),
+        ("file", stat.S_IFREG | 0o664, 0, 0, 1),
+        ("file", stat.S_IFREG | 0o644, 1, 0, 1),
+        ("file", stat.S_IFREG | 0o644, 0, 1, 1),
+        ("file", stat.S_IFREG | 0o644, 0, 0, 2),
+        ("file", stat.S_IFLNK | 0o777, 0, 0, 1),
+        ("parent", stat.S_IFDIR | 0o775, 0, 0, 1),
+        ("parent", stat.S_IFDIR | 0o755, 1, 0, 1),
+        ("parent", stat.S_IFDIR | 0o755, 0, 1, 1),
+        ("parent", stat.S_IFLNK | 0o755, 0, 0, 1),
+    ],
+)
+def test_installed_staging_path_needs_protected_root_owned_components(
+    monkeypatch: pytest.MonkeyPatch, fault: str, permissions: int, uid: int, gid: int, links: int
+) -> None:
+    selected = Path("/srv/pulseplate-staging/docker-compose.staging.yaml")
+    original = Path.lstat
+
+    def _lstat(path: Path) -> os.stat_result:
+        if path != selected and path not in selected.parents:
+            return original(path)
+        if (fault == "parent" and path == Path("/srv")) or (fault == "file" and path == selected):
+            return os.stat_result((permissions, 1, 1, links, uid, gid, 1, 0, 0, 0))
+        mode = stat.S_IFREG | 0o644 if path == selected else stat.S_IFDIR | 0o755
+        return os.stat_result((mode, 1, 1, 1, 0, 0, 1, 0, 0, 0))
+
+    monkeypatch.setattr(Path, "lstat", _lstat)
+    assert verifier._checkpoint_contour(selected, _STAGING_ENV) == (
+        "staging" if fault == "none" else "checkpoint_staging_compose_untrusted"
+    )
+
+
+@pytest.mark.parametrize(
+    ("overrides", "reason", "complete"),
+    [
+        ({"min_over_time": 0.0}, "scrape_gap_detected", False),
+        ({"changes(process_start_time": 1.0}, "process_restart_positive", False),
+        ({"count_over_time(up": 86_399.0}, "sample_count_too_low", False),
+        ({"count_over_time(http_requests": 86_399.0}, "alias_bmr_sample_count_too_low", False),
+        ({"resets(http_requests": 1.0}, "alias_bmr_reset_positive", False),
+        ({"increase(http_requests": 1.0}, "alias_bmr_increase_positive", True),
+    ],
+)
+def test_rolling_window_keeps_observed_failure_semantics(
+    tmp_path: Path,
+    overrides: dict[str, float | verifier.VerificationError],
+    reason: str,
+    complete: bool,
+) -> None:
+    client = _FakePromtoolClient(
+        snapshot=_checkpoint_snapshot(environment=_STAGING_ENV),
+        anchor=_T0 + timedelta(days=51),
+        overrides=overrides,
+    )
+    config = replace(_config(tmp_path, mode="checkpoint"), compose_file=_STAGING_COMPOSE)
+    evidence = verifier.build_evidence(config, client, baseline=_passing_baseline(tmp_path))
+    assert evidence["decision"] == "HOLD"
+    assert reason in evidence["reasons"]
+    assert isinstance(evidence["window"], dict) and evidence["window"]["complete"] is complete
+    verifier._validate_evidence_asset(evidence)
+
+
+@pytest.mark.parametrize("fault", ["missing", "invalid", "drift", "future"])
+def test_rolling_checkpoint_requires_valid_matching_prior_baseline(
+    tmp_path: Path, fault: str
+) -> None:
+    snapshot = _checkpoint_snapshot(environment=_STAGING_ENV)
+    anchor = _T0 + timedelta(days=51)
+    baseline: dict[str, object] | None = _passing_baseline(tmp_path)
+    if fault == "missing":
+        baseline = None
+        reason = "baseline_evidence_invalid"
+    elif fault == "invalid":
+        baseline["fingerprint"] = _DIGEST_B
+        reason = "evidence_asset_invalid"
+    elif fault == "drift":
+        snapshot = replace(snapshot, release_id=_RELEASE_B)
+        reason = "baseline_evidence_invalid_or_drifted"
+    else:
+        anchor = _T0 - timedelta(seconds=1)
+        reason = "window_order_invalid"
+    config = replace(_config(tmp_path, mode="checkpoint"), compose_file=_STAGING_COMPOSE)
+    client = _FakePromtoolClient(snapshot=snapshot, anchor=anchor)
+    evidence = verifier.build_evidence(config, client, baseline=baseline)
+    assert evidence["decision"] == "HOLD"
+    assert reason in evidence["reasons"]
+    assert isinstance(evidence["window"], dict) and evidence["window"]["duration_seconds"] == 0
+    assert evidence["window"]["complete"] is False
+    assert all("[" not in query for query, _ in client.queries)
+    verifier._validate_evidence_asset(evidence)
+
+
+def test_rolling_checkpoint_preserves_legacy_bytes_on_same_anchor_divergence(
+    tmp_path: Path,
+) -> None:
+    config = _config(tmp_path, mode="checkpoint")
+    baseline = _passing_baseline(tmp_path)
+    old_anchor = _T0 + timedelta(days=51)
+    legacy = verifier.build_evidence(
+        config, _FakePromtoolClient(anchor=old_anchor), baseline=baseline
+    )
+    old_name = verifier._default_output_name("checkpoint", old_anchor)
+    assert verifier.write_evidence_new_only(tmp_path, old_name, legacy) == "published"
+    archived = (tmp_path / old_name).read_bytes()
+    # Canonical synthetic v1 bytes independently captured on the unmodified predecessor.
+    assert (
+        f"sha256:{hashlib.sha256(archived).hexdigest()}"
+        == "sha256:36367c6ea78edc51109cebf1080f6b7799049bf50fdd0002ad4cef05ec55ea6c"
+    )
+    assert verifier.write_evidence_new_only(tmp_path, old_name, legacy) == "identical_replay"
+
+    config = replace(config, compose_file=_STAGING_COMPOSE)
+    snapshot = _checkpoint_snapshot(environment=_STAGING_ENV)
+    rolling = verifier.build_evidence(
+        config, _FakePromtoolClient(snapshot=snapshot, anchor=old_anchor), baseline=baseline
+    )
+    assert rolling["idempotency_key"] == legacy["idempotency_key"]
+    assert rolling["fingerprint"] != legacy["fingerprint"]
+    with pytest.raises(verifier.VerificationError, match="evidence_replay_divergent"):
+        verifier.write_evidence_new_only(tmp_path, old_name, rolling)
+    next_anchor = old_anchor + timedelta(days=1)
+    next_day = verifier.build_evidence(
+        config, _FakePromtoolClient(snapshot=snapshot, anchor=next_anchor), baseline=baseline
+    )
+    assert next_day["idempotency_key"] != legacy["idempotency_key"]
+    assert (
+        verifier.write_evidence_new_only(
+            tmp_path, verifier._default_output_name("checkpoint", next_anchor), next_day
+        )
+        == "published"
+    )
+    assert (tmp_path / old_name).read_bytes() == archived
+
+
 def test_malformed_baseline_file_is_rejected_without_coercion(tmp_path: Path) -> None:
     baseline_file = tmp_path / "baseline.json"
     baseline_file.write_text('{"schema": NaN}', encoding="utf-8")
@@ -1675,8 +2059,19 @@ def test_sync_docker_runner_rejects_active_event_loop_before_spawn(
     assert spawn_calls == 0
 
 
+@pytest.mark.parametrize(
+    ("select_staging", "prometheus_env", "expected_contour"),
+    [
+        (False, ["PULSEPLATE_ENVIRONMENT=production"], "other"),
+        (True, _STAGING_ENV, "staging"),
+        (True, ["PULSEPLATE_ENVIRONMENT=production"], "checkpoint_environment_mismatch"),
+    ],
+)
 def test_docker_promtool_uses_absolute_argv_without_shell(
     tmp_path: Path,
+    select_staging: bool,
+    prometheus_env: list[str],
+    expected_contour: str,
 ) -> None:
     from tests.test_deploy_contract_scripts import _synthetic_prometheus_manifest
 
@@ -1701,11 +2096,12 @@ def test_docker_promtool_uses_absolute_argv_without_shell(
                 "Id": app_id,
                 "Image": _DIGEST_A,
                 "Config": {
+                    "Env": ["PULSEPLATE_ENVIRONMENT=staging"],
                     "Labels": {
                         "org.opencontainers.image.revision": _RELEASE_A,
                         "com.docker.compose.project": "pulseplate-test",
                         "com.docker.compose.service": "app",
-                    }
+                    },
                 },
             },
             {
@@ -1713,6 +2109,7 @@ def test_docker_promtool_uses_absolute_argv_without_shell(
                 "Image": _DIGEST_B,
                 "Config": {
                     "Image": _PROMETHEUS_REFERENCE,
+                    "Env": prometheus_env,
                     "Labels": {
                         "com.docker.compose.project": "pulseplate-test",
                         "com.docker.compose.service": "prometheus",
@@ -1811,12 +2208,14 @@ else:
         encoding="utf-8",
     )
     fake_docker.chmod(0o700)
+    compose = _STAGING_COMPOSE if select_staging else tmp_path / "compose.yaml"
     client = verifier.DockerPromtoolClient(
         docker=os.fspath(fake_docker),
-        compose_file=tmp_path / "compose.yaml",
+        compose_file=compose,
     )
 
     snapshot = client.collect_live_snapshot()
+    assert snapshot.checkpoint_contour == expected_contour
     assert client.check_healthy() is True
     assert client.check_ready() is True
     anchor = client.get_evaluation_anchor()
@@ -1873,7 +2272,8 @@ else:
     child_refs = [
         json.loads(line) for line in (tmp_path / "compose-env.jsonl").read_text().splitlines()
     ]
-    assert child_refs == [_synthetic_prometheus_manifest()["selection"]["runtime_ref"]] * 2
+    selected_manifest = json.loads((compose.parent / "prometheus/image-manifest.json").read_bytes())
+    assert child_refs == [selected_manifest["selection"]["runtime_ref"]] * 2
     assert [call[-3:] for call in calls[:2]] == [
         ["ps", "-q", "app"],
         ["ps", "-q", "prometheus"],
