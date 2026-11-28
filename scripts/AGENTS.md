@@ -617,9 +617,22 @@ handoff after any governed input change. For #2484 on
 and the historical controller and ORAS corrections, dispatch `candidate-D`
 with `caddy_source_sha` equal to the frozen published head. Subsequent publisher
 repairs use the source-bound operand in the publisher repair procedure above. A build start spends that
-head's authorization. Ordinary PR and exact merged-main runs require one
-successful original artifact from the same designated PR and identical governed
-inputs. At prebuild, confirm the admitted PR number and exact source head. Stage the
+head's authorization. Designated producer PRs and their main merges require
+one original artifact from the same designated PR and identical governed inputs.
+A same-repository verifier change may consume the original D from an independently
+merged publisher repair. Update the verifier and the matching digest in both
+deployment wrappers. The bounded receiver also admits the existing verifier test,
+its operational instructions and ledger, and the direct per-PR mapping closeout.
+Keep every Caddy build input identical. The current base's two controller pins
+identify the merged issuer. Its original CI/CD reads, successful main import
+and retained archive must bind the same original D. Use the main archive's
+recorded run attempt, its successful native job and its timed upload. A failed
+rerun can retain its own diagnostic archive. Exclude it only after binding that
+upload to its failed attempt. Multiple possible successful witnesses block the
+read. The independently designated D still requires attempt one. The main import evidence
+normally expires after 30 days, separately from the original D. Missing evidence
+blocks this read. Both PR and squash run the current native checks. A change to
+the Caddy checker or workflow uses the designated publisher-repair procedure. At prebuild, confirm the admitted PR number and exact source head. Stage the
 verified tracked frontend files in a fresh private Docker build context so ignored
 checkout files cannot enter the image. The historical #2494 designated branch
 retains its manual route.
