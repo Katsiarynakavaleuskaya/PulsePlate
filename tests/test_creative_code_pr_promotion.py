@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import shutil
 from typing import Any, cast
 
 import pytest
@@ -943,19 +944,26 @@ def test_remote_main_lookup_matches_only_exact_ref_with_suffix_branch(
 ) -> None:
     """A release/main branch must not make live-main freshness unavailable."""
 
-    git_binary = creative_code_pr_promotion._resolve_binary("git")
-    clean_env = creative_code_patch_workspace.git_env_without_parent_state()
-    clean_env.update(
-        GIT_CONFIG_GLOBAL=os.devnull,
-        GIT_CONFIG_NOSYSTEM="1",
-        GIT_NO_REPLACE_OBJECTS="1",
-    )
+    git_binary = shutil.which("git", path=os.defpath)
+    assert git_binary is not None and Path(git_binary).is_absolute() and Path(git_binary).is_file()
+    clean_env = {
+        "PATH": os.defpath,
+        "HOME": str(tmp_path),
+        "LC_ALL": "C",
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_NO_REPLACE_OBJECTS": "1",
+        "GIT_TERMINAL_PROMPT": "0",
+        "GIT_ALLOW_PROTOCOL": "file",
+    }
 
     def run(*argv: str) -> subprocess.CompletedProcess[str]:
-        return subprocess.run(  # nosec B603: absolute Git and test-owned refs only (remove-by: 2026-10-31, ref: PR-2455)
-            [git_binary, *argv],
+        return subprocess.run(
+            [git_binary, "-c", f"core.hooksPath={os.devnull}", "-c", "init.templateDir=", *argv],
             cwd=tmp_path,
             env=clean_env,
+            stdin=subprocess.DEVNULL,
+            timeout=30,
             check=True,
             capture_output=True,
             text=True,
@@ -3395,3 +3403,111 @@ def test_promote_rejects_approval_artifact_cross_mismatch(
     fresh_approval = creative_code_pr_promotion._load_approval(promotion_dir)
     assert fresh_approval["confirmed_target_branch"] == plan["target_head_branch"]
     assert not any(call[:2] == ["pr", "create"] for call in github.calls)
+
+
+@pytest.mark.parametrize("fault", ["success", "nonzero", "timeout", "launch", "decode", "encode"])
+def test_promotion_transport_keeps_raw_completed_output_private(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], fault: str
+) -> None:
+    secret = "synthetic-promotion-private"
+
+    def run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        assert kwargs["input"] == secret and kwargs["timeout"] == 7
+        if fault == "timeout":
+            raise subprocess.TimeoutExpired([secret], 7, output=secret, stderr=secret)
+        if fault == "launch":
+            raise OSError(secret)
+        if fault == "decode":
+            raise UnicodeDecodeError("utf-8", secret.encode(), 0, 1, secret)
+        if fault == "encode":
+            raise UnicodeEncodeError("utf-8", secret, 0, 1, secret)
+        return subprocess.CompletedProcess(
+            argv, 8 if fault == "nonzero" else 0, stdout=secret, stderr=secret
+        )
+
+    monkeypatch.setattr(creative_code_pr_promotion.subprocess, "run", run)
+
+    def execute(check: bool) -> subprocess.CompletedProcess[str]:
+        return creative_code_pr_promotion._run_process(
+            ["/fixture/" + secret],
+            cwd=tmp_path,
+            env={},
+            input_text=secret,
+            timeout_seconds=7,
+            check=check,
+        )
+
+    if fault in ("success", "nonzero"):
+        raw = execute(False)
+        assert raw.stdout == raw.stderr == secret
+        assert raw.returncode == (8 if fault == "nonzero" else 0)
+    if fault == "success":
+        assert execute(True).stdout == secret
+    else:
+        cls = {
+            "timeout": subprocess.TimeoutExpired,
+            "launch": OSError,
+            "decode": UnicodeDecodeError,
+            "encode": UnicodeEncodeError,
+        }.get(fault, creative_code_pr_promotion.CreativeCodePRPromotionError)
+        with pytest.raises(cls) as caught:
+            execute(True)
+        assert secret not in str(caught.value) + repr(caught.value) + repr(caught.value.args)
+        assert caught.value.__cause__ is None and caught.value.__context__ is None
+        if isinstance(caught.value, subprocess.TimeoutExpired):
+            assert (
+                caught.value.output is None
+                and caught.value.stderr is None
+                and caught.value.timeout == 7
+            )
+    assert capsys.readouterr() == ("", "")
+
+
+@pytest.mark.parametrize("code", [0, 2, 128])
+def test_remote_branch_existence_preserves_absent_vs_failed(
+    monkeypatch: pytest.MonkeyPatch, code: int
+) -> None:
+    transport = creative_code_pr_promotion.GitTransport(git_binary="/fixture/git")
+    secret = "synthetic-remote-lookup"
+
+    def run(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        assert args == ["ls-remote", "--exit-code", "--heads", "origin", "refs/heads/fixture"]
+        assert kwargs["check"] is False
+        return subprocess.CompletedProcess(args, code, stdout=secret, stderr=secret)
+
+    monkeypatch.setattr(transport, "run", run)
+    if code == 128:
+        with pytest.raises(creative_code_pr_promotion.CreativeCodePRPromotionError) as caught:
+            transport.remote_branch_exists("refs/heads/fixture")
+        assert str(caught.value) == "remote branch lookup failed (exit 128)"
+    else:
+        assert transport.remote_branch_exists("refs/heads/fixture") is (code == 0)
+
+
+@pytest.mark.parametrize("stream", ["stdout", "stderr", "no-new-branch"])
+def test_upload_requires_completed_new_branch_porcelain(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stream: str
+) -> None:
+    transport = creative_code_pr_promotion.GitTransport(git_binary="/fixture/git")
+    branch = "experiment/promotion-upload-fixture"
+    positive = "*\tHEAD:refs/heads/" + branch + "\t[new branch]\n"
+
+    def run(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        assert args == ["push", "--porcelain", "origin", "HEAD:refs/heads/" + branch]
+        assert kwargs["cwd"] == tmp_path and kwargs["timeout_seconds"] == 600
+        return subprocess.CompletedProcess(
+            args,
+            0,
+            stdout=positive if stream == "stdout" else "up to date",
+            stderr=positive if stream == "stderr" else "",
+        )
+
+    monkeypatch.setattr(transport, "run", run)
+    if stream == "no-new-branch":
+        with pytest.raises(
+            creative_code_pr_promotion.CreativeCodePRPromotionError,
+            match="did not create a new branch",
+        ):
+            transport.push_upload_branch(cwd=tmp_path, branch=branch)
+    else:
+        transport.push_upload_branch(cwd=tmp_path, branch=branch)

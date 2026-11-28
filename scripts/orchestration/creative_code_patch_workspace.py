@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from contextlib import contextmanager
 import importlib
 import json
@@ -9,7 +10,8 @@ import os
 from pathlib import Path
 import re
 import shutil
-import subprocess  # nosec B404: fixed git subprocess wrappers only (remove-by: 2026-10-31, ref: PR-2)
+import stat
+import subprocess  # nosec B404: fixed git subprocess wrappers only (remove-by: 2027-01-01, ref: PR-2)
 import sys
 import tempfile
 from typing import Any, Iterator
@@ -384,10 +386,11 @@ def run_git(
     cwd: Path,
     check: bool = True,
     input_text: str | None = None,
+    timeout: int | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run git with a resolved binary, no shell, and bounded capture."""
 
-    process = subprocess.run(  # nosec B603: absolute git binary with bounded argv for isolated PR-2 checkouts (remove-by: 2026-10-31, ref: PR-2)
+    process = subprocess.run(  # nosec B603: absolute git binary with bounded argv for isolated PR-2 checkouts (remove-by: 2027-01-01, ref: PR-2)
         [resolve_git_binary(), *safe_git_config_args(), *args],
         cwd=str(cwd),
         env=git_env_without_parent_state(),
@@ -395,10 +398,14 @@ def run_git(
         text=True,
         check=False,
         input=input_text,
+        timeout=timeout,
     )
     if check and process.returncode != 0:
-        stderr = process.stderr.strip() or process.stdout.strip() or "unknown git failure"
-        raise CreativeCodePatchWorkspaceError(f"git {' '.join(args)} failed: {stderr}")
+        allowed = {"add", "apply", "checkout", "clone", "diff", "remote", "rev-parse", "status"}
+        operation = args[0] if args and args[0] in allowed else "operation"
+        raise CreativeCodePatchWorkspaceError(
+            f"Git {operation} failed (exit {process.returncode})."
+        )
     return process
 
 
@@ -422,35 +429,158 @@ def verify_origin_main_base(base_commit_sha: str) -> None:
         )
 
 
-def prepare_generation_checkout(*, run_dir: Path, base_commit_sha: str) -> dict[str, Any]:
-    """Create an isolated detached checkout at the exact base SHA."""
-
-    verify_origin_main_base(base_commit_sha)
-    status = shared_tree_status()
-    if status.strip():
-        raise CreativeCodePatchWorkspaceError("shared worktree must be clean before generation.")
-    checkout = run_dir / CHECKOUT_DIRNAME
-    if checkout.exists() or checkout.is_symlink():
-        raise CreativeCodePatchWorkspaceError("generation checkout already exists.")
-    run_git(["clone", "--no-hardlinks", str(REPO_ROOT), str(checkout)], cwd=REPO_ROOT)
+@contextmanager
+def _reserved_patch_checkout(
+    run_dir: Path, leaf_name: str
+) -> Iterator[tuple[Path, Callable[[list[str], Path, str | None], None], Callable[[], None]]]:
+    """Hold one private generation/validation leaf through its actual caller operation."""
+    label = "Generation" if leaf_name == CHECKOUT_DIRNAME else "Validation"
+    if leaf_name not in {CHECKOUT_DIRNAME, "validation_checkout"}:
+        raise CreativeCodePatchWorkspaceError("Unsupported private checkout.")
+    if run_dir != resolve_existing_run_dir(run_dir.name):
+        raise CreativeCodePatchWorkspaceError("Private checkout run directory identity mismatch.")
+    checkout = run_dir / leaf_name
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    parent_fd = os.open(run_dir, flags)
+    leaf_fd = None
+    created = False
+    primary: BaseException | None = None
     try:
-        run_git(["checkout", "--detach", base_commit_sha], cwd=checkout)
-        run_git(["remote", "remove", "origin"], cwd=checkout)
-        head_sha = run_git(["rev-parse", "HEAD"], cwd=checkout).stdout.strip()
-        if head_sha != base_commit_sha:
-            raise CreativeCodePatchWorkspaceError("generation checkout HEAD mismatch.")
-        remotes = run_git(["remote"], cwd=checkout).stdout.strip()
-        if remotes:
-            raise CreativeCodePatchWorkspaceError("generation checkout must not retain remotes.")
-        checkout_status = run_git(
-            ["status", "--porcelain=v1", "--untracked-files=all"],
-            cwd=checkout,
-        ).stdout
-        if checkout_status.strip():
-            raise CreativeCodePatchWorkspaceError("generation checkout must start clean.")
-    except Exception:
-        destroy_generation_checkout(run_dir)
+        try:
+            os.mkdir(leaf_name, 0o700, dir_fd=parent_fd)
+            created = True
+        except FileExistsError:
+            raise CreativeCodePatchWorkspaceError(
+                f"{label.lower()} checkout already exists."
+            ) from None
+        bound_leaf = os.open(leaf_name, flags, dir_fd=parent_fd)
+        leaf_fd = bound_leaf
+        identity = os.fstat(bound_leaf)
+
+        def verify_identity() -> None:
+            if not os.path.samestat(run_dir.lstat(), os.fstat(parent_fd)) or not os.path.samestat(
+                checkout.lstat(), identity
+            ):
+                raise CreativeCodePatchWorkspaceError(f"{label} reservation identity changed.")
+
+        def discard() -> None:
+            verify_identity()
+            for name in os.listdir(bound_leaf):
+                if stat.S_ISDIR(os.stat(name, dir_fd=bound_leaf, follow_symlinks=False).st_mode):
+                    shutil.rmtree(name, dir_fd=bound_leaf)
+                else:
+                    os.unlink(name, dir_fd=bound_leaf)
+            verify_identity()
+            os.rmdir(leaf_name, dir_fd=parent_fd)
+            try:
+                os.stat(leaf_name, dir_fd=parent_fd, follow_symlinks=False)
+            except FileNotFoundError:
+                return
+            raise CreativeCodePatchWorkspaceError("Checkout removal unconfirmed.")
+
+        writer_uncertain = False
+
+        def mutate(args: list[str], cwd: Path, input_text: str | None = None) -> None:
+            nonlocal writer_uncertain
+            verify_identity()
+            writer_uncertain = True
+            result = run_git(args, cwd=cwd, check=False, input_text=input_text)
+            if result.returncode < 0:
+                raise CreativeCodePatchWorkspaceError(f"{label} Git writer was interrupted.")
+            if (
+                leaf_name == "validation_checkout"
+                and result.returncode
+                and args[:2] != ["apply", "--check"]
+            ):
+                raise CreativeCodePatchWorkspaceError(
+                    f"Validation Git {args[0]} failed (exit {result.returncode})."
+                )
+            writer_uncertain = False
+            if result.returncode:
+                raise CreativeCodePatchWorkspaceError(
+                    f"{label} Git {args[0]} failed (exit {result.returncode})."
+                )
+
+        try:
+            verify_identity()
+            if os.listdir(bound_leaf) or stat.S_IMODE(identity.st_mode) & 0o077:
+                writer_uncertain = True
+                raise CreativeCodePatchWorkspaceError(
+                    f"{label} checkout reservation is not private and empty."
+                )
+            yield checkout, mutate, verify_identity
+            verify_identity()
+        except BaseException as failure:
+            if writer_uncertain:
+                failure.add_note(f"{label} checkout retained after an unsettled writer.")
+            else:
+                try:
+                    discard()
+                except BaseException as cleanup:
+                    failure.add_note(
+                        f"{label} checkout cleanup unconfirmed: " + type(cleanup).__name__
+                    )
+            raise
+        else:
+            if leaf_name == "validation_checkout":
+                discard()
+    except BaseException as error:
+        if created and leaf_fd is None:
+            error.add_note(f"{label} checkout retained before descriptor binding.")
+        primary = error
         raise
+    finally:
+        close_failed = False
+        for fd in (leaf_fd, parent_fd):
+            if fd is not None:
+                try:
+                    os.close(fd)
+                except OSError as cleanup:
+                    close_failed = True
+                    if primary is not None:
+                        primary.add_note(
+                            f"{label} descriptor cleanup failed: " + type(cleanup).__name__
+                        )
+        if close_failed and primary is None:
+            raise CreativeCodePatchWorkspaceError(f"{label} descriptor cleanup failed.")
+
+
+def prepare_generation_checkout(*, run_dir: Path, base_commit_sha: str) -> dict[str, Any]:
+    """Reserve and populate only this generation checkout before transferring ownership."""
+    if run_dir != resolve_existing_run_dir(run_dir.name):
+        raise CreativeCodePatchWorkspaceError("Generation run directory identity mismatch.")
+
+    def revision(ref: str, cwd: Path) -> str:
+        try:
+            result = run_git(["rev-parse", ref], cwd=cwd, check=False, timeout=30)
+        except (OSError, subprocess.TimeoutExpired, UnicodeError):
+            result = None
+        if (
+            result is None
+            or result.returncode
+            or not re.fullmatch(r"[0-9a-f]{40}\n?", result.stdout)
+        ):
+            raise CreativeCodePatchWorkspaceError("Generation revision metadata unavailable.")
+        return result.stdout.strip()
+
+    if revision("origin/main", REPO_ROOT) != base_commit_sha:
+        raise CreativeCodePatchWorkspaceError("base_commit_sha must match current origin/main.")
+    if shared_tree_status().strip():
+        raise CreativeCodePatchWorkspaceError("shared worktree must be clean before generation.")
+    with _reserved_patch_checkout(run_dir, CHECKOUT_DIRNAME) as (checkout, mutate, verify_identity):
+        mutate(["clone", "--no-hardlinks", str(REPO_ROOT), str(checkout)], REPO_ROOT, None)
+        mutate(["checkout", "--detach", base_commit_sha], checkout, None)
+        mutate(["remote", "remove", "origin"], checkout, None)
+        verify_identity()
+        if revision("HEAD", checkout) != base_commit_sha:
+            raise CreativeCodePatchWorkspaceError("generation checkout HEAD mismatch.")
+        if run_git(["remote"], cwd=checkout).stdout.strip():
+            raise CreativeCodePatchWorkspaceError("generation checkout must not retain remotes.")
+        if run_git(
+            ["status", "--porcelain=v1", "--untracked-files=all"], cwd=checkout
+        ).stdout.strip():
+            raise CreativeCodePatchWorkspaceError("generation checkout must start clean.")
+        verify_identity()
     return {
         "detached_base_sha": base_commit_sha,
         "origin_removed": True,

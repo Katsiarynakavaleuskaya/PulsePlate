@@ -23,23 +23,23 @@
         "go.sum": "2b0f11cdccdc6605922c8f48d7afc68ae44fdc90df6b5d2f6f677b447b07d99e"
       },
       "derived_locks": {
-        "go.mod": "d85af091d5bf9ba19f98e4d92e24b368d3e5537af086521ef10c7dd669695fd7",
-        "go.sum": "eaeb5e4f16a9edcab1aeeb2b1a90a0f85decbd0065b3bf63e03729d324f7fc1f"
+        "go.mod": "6e2dfa8d25b5cd3da5513334134e63549aff7e70915958f98893893c825d609e",
+        "go.sum": "673bf9d73e667b94aa125f5ac3987bfb4a26b7ccbe1b0e51e7de030bc45fcce5"
       }
     },
     "go": {
       "archive": {
         "name": "go",
-        "url": "https://dl.google.com/go/go1.27.3.linux-amd64.tar.gz",
-        "size": 70588678,
-        "digest": "65efbc80fdc1fa2cd2631cad5b481777a68e8725f34e89f50fc6ac714e379b40",
+        "url": "https://dl.google.com/go/go1.27.4.linux-amd64.tar.gz",
+        "size": 70680823,
+        "digest": "7226736c2339719cda28fbf3a54d71aa63bcefe376e98cef00034268dab24840",
         "root": "go",
-        "members": 17373,
-        "files": 15657,
+        "members": 17375,
+        "files": 15659,
         "expanded": 314572800,
         "release": false
       },
-      "version": "go version go1.27.3 linux/amd64\n"
+      "version": "go version go1.27.4 linux/amd64\n"
     },
     "ui": {
       "archive": {
@@ -313,7 +313,7 @@
         "go.sum": "4f30ae58ea70de3be56e6befa2d9b737dc37379261fd812a8b51236a216d654f"
       },
       "license_sha256": "eccb04b94c71454ea03f00ecb518b997952c4f2f23aca50baab98230f5c8dc00",
-      "compiler": "go1.27.3 linux/amd64 CGO_ENABLED=0",
+      "compiler": "go1.27.4 linux/amd64 CGO_ENABLED=0",
       "command": "oras.land/oras/cmd/oras",
       "flags": [
         "-mod=readonly",
@@ -323,14 +323,14 @@
         "-ldflags=-X oras.land/oras/internal/version.Version=1.3.4 -X oras.land/oras/internal/version.GitCommit=db9e29505c3059f2b8fde34ae8cae266c5c765e9 -X oras.land/oras/internal/version.BuildMetadata= -X oras.land/oras/internal/version.GitTreeState=clean"
       ],
       "retained": {
-        "source_head": "7d2805f8ac60ac17c178c92f24c8f484c89e31f8",
-        "run_id": 40309564942,
-        "artifact_id": 12643927396,
-        "artifact_name": "prometheus-oras-40309564942-1",
-        "artifact_digest": "sha256:b69df2d1ec38ef5cbf15bfa865960d8369930cb392658065dc32c6b691fd6f05",
-        "binary_sha256": "28ba5c8d0ef01f095f1547a322ad1661a9904c61f982d4e5255d4c6a08ad3b3a",
-        "binary_bytes": 18507943,
-        "input_digest": "sha256:eb980914b066b569e723886956e8f034b81c4e573cd90acbac08bf8a7189fa41"
+        "source_head": "47f18515a13136bb5ae4d6836f237735dcdd6498",
+        "run_id": 44141651971,
+        "artifact_id": 14354572705,
+        "artifact_name": "prometheus-oras-44141651971-1",
+        "artifact_digest": "sha256:c70496239d47dbe63cbddf162454bd01b2afcd2be0d0a5d467995ef581a3d960",
+        "binary_sha256": "fd0f289bb157b3bc2daf79af5387ad0ff5100c41aee4c521aa90e4c9939fdb61",
+        "binary_bytes": 18509383,
+        "input_digest": "sha256:99d69b0c72151f19c867ddf94e382014e7ea235796a000c9130ddf204b394cd8"
       }
     },
     "platform": "linux/amd64",
@@ -357,33 +357,11 @@
     }
   },
   "selection": {
-    "binaries": {
-      "prometheus": {
-        "sha256": "2db376d9609e3299e754cfb99f0cc700a604f96b19f2174b08471118fdea8227",
-        "version": "3.15.0"
-      },
-      "promtool": {
-        "sha256": "62dcf892f95341f831417a32bb74893e4b6f5212083830d8126f139e9b3ffe31",
-        "version": "3.15.0"
-      }
-    },
-    "config_digest": "sha256:39fd14edf8113fac7434e71b8d11bf9ffc72ae657e5daa658c71dd3f88b66fb5",
-    "diff_ids": [
-      "sha256:9486261b5a13f63ca6904b36721527ac8f19df53d300560138d69ae9b4c203de",
-      "sha256:621c35e751a51a9a9dc3e80aa0b7fe8be2a93402ea6ccd307d30852cd7776cda",
-      "sha256:92a3b02188b326c1b10a0a375d3c0019dff4ee8ff02a4b51a7e640bb9400932f",
-      "sha256:ef430e4865b6130e131d5777c1d072fdcc89478668d10ab41a18549e0fdc88b5",
-      "sha256:275a30dd8ce958b21daa9ad962c6fbc09f98306ee2f486b65c9075dc257b1412",
-      "sha256:4d049f83d9cf21d1f5cc0e11deaf36df02790d0e60c1a3829538fb4b61685368",
-      "sha256:af5aa97ebe6ce1604747ec1e21af7136ded391bcabe4acef882e718a87c86bcc",
-      "sha256:6f1cdceb6a3146f0ccb986521156bef8a422cdbb0863396f7f751f575ba308f4",
-      "sha256:bd3cdfae1d3fdd83a2231d608969b38b82349777c2fff9a7c12d54f8ac5c9b38",
-      "sha256:4cde6b0bb6f50a5f255eef7b2a42162c661cf776b803225dcac9a659e396bb6b",
-      "sha256:ad51d0769d16ba578106a177987dfe3d2e02c1668c852b795b2f6b024068242a",
-      "sha256:187cfc6d1e3e8a40a5e64653bcd3239c140807dcf1c09e48021178705a5a6139",
-      "sha256:0762a1f6557d1e88a761ab05aa7f65a10dc0e559913ea13befb873d907e1a396",
-      "sha256:a55c0a1db7dc1ae9c601bb8e55151f781dcda6fc737d86d3010c4eae903d0aef"
-    ],
+    "repository": "ghcr.io/katsiarynakavaleuskaya/pulseplate",
+    "platform": "linux/amd64",
+    "root_media_type": "application/vnd.oci.image.manifest.v1+json",
+    "manifest_digest": "sha256:af382351ec15d9b11d42093a05289361a74e56f43a48200d295349044a6e9e44",
+    "config_digest": "sha256:4e023bf562b1737886be0127ad177f397221b7d54a57adf283484c4f26870a81",
     "layers": [
       {
         "digest": "sha256:2cc7ee286bf3a9e6af5f71756d7fc8e22e23ce65fec9047d774511ffcef79fa8",
@@ -451,18 +429,40 @@
         "size": 142002
       },
       {
-        "digest": "sha256:803c1947d45b416ae359a087042fdce5e4f601c558caff173d32c38c153f9c9d",
+        "digest": "sha256:8bd9d1734df87a83f5a38868270d01f0cecb2b20d07c474d3dee52781a899ef3",
         "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
-        "size": 111528432
+        "size": 111540999
       }
     ],
-    "manifest_digest": "sha256:3eabaf5fd37ab36005765149a4ec2ab180b3963bc514426a19730cfd4af90a76",
-    "platform": "linux/amd64",
-    "repository": "ghcr.io/katsiarynakavaleuskaya/pulseplate",
-    "root_media_type": "application/vnd.oci.image.manifest.v1+json",
-    "runtime_ref": "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:3eabaf5fd37ab36005765149a4ec2ab180b3963bc514426a19730cfd4af90a76",
-    "source_revision": "5241a27fe3c6983549fccc32f6e65917408c63cd",
+    "diff_ids": [
+      "sha256:9486261b5a13f63ca6904b36721527ac8f19df53d300560138d69ae9b4c203de",
+      "sha256:621c35e751a51a9a9dc3e80aa0b7fe8be2a93402ea6ccd307d30852cd7776cda",
+      "sha256:92a3b02188b326c1b10a0a375d3c0019dff4ee8ff02a4b51a7e640bb9400932f",
+      "sha256:ef430e4865b6130e131d5777c1d072fdcc89478668d10ab41a18549e0fdc88b5",
+      "sha256:275a30dd8ce958b21daa9ad962c6fbc09f98306ee2f486b65c9075dc257b1412",
+      "sha256:4d049f83d9cf21d1f5cc0e11deaf36df02790d0e60c1a3829538fb4b61685368",
+      "sha256:af5aa97ebe6ce1604747ec1e21af7136ded391bcabe4acef882e718a87c86bcc",
+      "sha256:6f1cdceb6a3146f0ccb986521156bef8a422cdbb0863396f7f751f575ba308f4",
+      "sha256:bd3cdfae1d3fdd83a2231d608969b38b82349777c2fff9a7c12d54f8ac5c9b38",
+      "sha256:4cde6b0bb6f50a5f255eef7b2a42162c661cf776b803225dcac9a659e396bb6b",
+      "sha256:ad51d0769d16ba578106a177987dfe3d2e02c1668c852b795b2f6b024068242a",
+      "sha256:187cfc6d1e3e8a40a5e64653bcd3239c140807dcf1c09e48021178705a5a6139",
+      "sha256:0762a1f6557d1e88a761ab05aa7f65a10dc0e559913ea13befb873d907e1a396",
+      "sha256:cc98062b6b7a85e013a1abc67fa31054cba382b7612eb2f78b283ec3469882ed"
+    ],
+    "runtime_ref": "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:af382351ec15d9b11d42093a05289361a74e56f43a48200d295349044a6e9e44",
+    "binaries": {
+      "prometheus": {
+        "sha256": "8c72f86543c8fea010689aae95e72f9de79e3477e15c04dfb9d0399bd2f5d02e",
+        "version": "3.15.0"
+      },
+      "promtool": {
+        "sha256": "5a0e20cdced715442007f09d8dcb531d48c4ca39cf2aba84b12e9a39d0560834",
+        "version": "3.15.0"
+      }
+    },
     "ui_inventory_sha256": "4b2cc436986f469e58640ef3a4cf61d0920bb0d28405e7289924bc5c81472fa3",
+    "source_revision": "5241a27fe3c6983549fccc32f6e65917408c63cd",
     "version": "3.15.0"
   },
   "candidate": {
@@ -473,46 +473,46 @@
     "producer": {
       "workflow_id": 199904435,
       "workflow_path": ".github/workflows/build.yml",
-      "source_head": "a8c9b361dbd57d86e2adf8f01f7880830fc04e53",
-      "source_ref": "refs/heads/codex/python-setup-security-stabilization",
-      "pr_number": 2497,
-      "run_id": 40384356149,
+      "source_head": "fa06fb96157b358f06056a3555b7aa21b56a5f6c",
+      "source_ref": "refs/heads/codex/dependency-alertmanager-remediation",
+      "pr_number": 2494,
+      "run_id": 44266270718,
       "run_attempt": 1,
       "job_ids": [
-        121788589461
+        134671470932
       ],
       "raw_producer": {
+        "scripts/ci/prometheus_source_image.py": {
+          "bytes": 501077,
+          "sha256": "caeef6254bb44aa0a1ac54c069e0f88c095d91bd17da1adc568c0d57d400e858"
+        },
         ".github/workflows/build.yml": {
-          "bytes": 70345,
-          "sha256": "31860b30580c3b389380d7f88722d150fa0ac14ab3c9b773e29f9113d43422e7"
+          "bytes": 78204,
+          "sha256": "3c22a13fbabdc282c40ed7b57fa02566a9625d9ce69f62f241ebc34ec124aa3e"
         },
         "deploy/prometheus/Containerfile": {
           "bytes": 587,
           "sha256": "9608dfd00932fcec4c8be42bece02782aaf61936d957cb9b6c3eae6fa6273aa8"
-        },
-        "scripts/ci/prometheus_source_image.py": {
-          "bytes": 352899,
-          "sha256": "d812e79fce6138426131f266e4f5fd8de03b72c9a56acea19bedb43a22f172f6"
         }
       },
-      "input_projection_sha256": "92b896589b89c9dc9ae0b0cfc22b3f2fff2633be25dc6936fd5297cbdd4ea113"
+      "input_projection_sha256": "4e34b3f4a2fdb383ab260abc2827c310b41cfcfc1df7fc837fb4a753400ecb22"
     },
     "artifact": {
-      "id": 12681122266,
-      "name": "prometheus-source-candidate-40384356149-1",
-      "digest": "sha256:cb17a15c4d2c6d0596585ea8ca63fad92b2746349738bbccf49fd548b0dd56f6",
-      "size": 945132316,
-      "expires_at": "2027-01-24T19:10:32Z",
-      "archive_sha256": "cb17a15c4d2c6d0596585ea8ca63fad92b2746349738bbccf49fd548b0dd56f6"
+      "id": 14412210191,
+      "name": "prometheus-source-candidate-44266270718-1",
+      "digest": "sha256:2137e93d0606cba6544431caa6fb3ee07f7fa4e4f9531696739570b21e9b1eeb",
+      "size": 933565360,
+      "expires_at": "2027-02-16T08:21:27Z",
+      "archive_sha256": "2137e93d0606cba6544431caa6fb3ee07f7fa4e4f9531696739570b21e9b1eeb"
     },
     "outputs": {
-      "oci_archive_sha256": "1e242e74ea88dd633db0a1fc08efb3ba8ba0c7e2a941a8f8975e52e5d1277183",
-      "docker_archive_sha256": "d388569bac5ab00cabb5880d4193722735a6542d88c6d32762c6cc608910f7f8",
-      "pair_report_sha256": "0421c5e5deac24c70dee894f9edb8f9cf7258da6a74384cc43d73611405964c1",
-      "native_report_sha256": "5efad55be691b23cf3394d5625f77029e6d48e824e0f6648e58d814e0e85e473",
-      "spdx_sha256": "a4529c5ded93a2b7a14d6e479b3e5f4823682abf0601190f99bf435840ee46c2",
-      "provenance_bundle_sha256": "b2bf494ea4df1d601bc312f406049ba5064abeb999eb750e02e854078bcfcb6e",
-      "sbom_bundle_sha256": "b07665672d1c6b97daaaefaa37496c2145bebe25b8d3fa57cb4653c49be1dd7b"
+      "oci_archive_sha256": "5b913df0a83a290e698774124d24c2f6cc4bde3ac547a012c7bb03e80f0323c3",
+      "docker_archive_sha256": "71b248bd9a6d03f52450387a1e9c8b10e7e735f93b82419bbb5914fdfe4d1658",
+      "native_report_sha256": "b3788558c74628585cc3e9646d7caa2497c825ed8b5a7aa88871560b1702b42d",
+      "pair_report_sha256": "5e250cf399bc666b5389a9db9e8f405601375258e0a2a71b7c3ede4b63fb5402",
+      "spdx_sha256": "b4ff09e635e8167dd97dc6e08c9ff9c07fa05a88e5d2df87bb373655453862ce",
+      "provenance_bundle_sha256": "4b388f7ec3f87473dd0a141e9572b389a2b503b5061c325f597ef76edf4d8f51",
+      "sbom_bundle_sha256": "84125c25812c36afd1918cf01bdd8b79897b2dd1dbec191f7be729e792b76106"
     }
   }
 }

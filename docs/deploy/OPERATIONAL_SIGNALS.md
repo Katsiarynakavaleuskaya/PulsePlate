@@ -211,7 +211,7 @@ these identities before any activation or `T₀` claim.
 The closed repository record is
 `deploy/postgres-pgvector/image-manifest.json`. It binds:
 
-- DHI PostgreSQL `15.19-alpine3.23` runtime and `15.19-alpine3.23-dev` exact
+- DHI PostgreSQL `15.20-alpine3.23` runtime and `15.20-alpine3.23-dev` exact
   linux/amd64 platform manifests;
 - pgvector `0.8.6` commit/archive SHA-256 and the exact two-stage
   `deploy/postgres-pgvector/Containerfile`;
@@ -232,8 +232,9 @@ initialization precondition for the tested Docker engine while preserving the
 inherited non-root UID 70 entrypoint. A mounted existing volume hides that
 image directory; therefore the layer cannot repair, chown, migrate, inspect,
 or prove any existing staging or production volume. Host activation still
-requires one exact legacy-or-current image/config identity, UID 70, one exact
-`PGDATA`/named-volume target, live PostgreSQL `15.19`, stable container/runtime
+requires one exact predecessor or current image/config identity, UID 70, one exact
+`PGDATA`/named-volume target, live PostgreSQL `15.19` for the verified predecessor or
+`15.20` for the current image, stable container/runtime
 identity across the quiesced backup, and a mode-0600 custom dump that
 `pg_restore --list` can parse before the old database stops. Any identity,
 ownership, receipt, or data drift is `HOLD`, not permission for an automatic
@@ -1066,3 +1067,14 @@ separate. Keep parent OPS-04 open until its original outcome is proven.
 Actual AM11 CA-qualified producer outputs are now selected as receiver data.
 Final C/H consumer admission, current-head gates and merged-main outcomes remain. See [AM11 vendor CA source preparation](../security/CVE-2026-111943-go-trust-store.md#am11-vendor-ca-source-preparation)
 for the exact vendor delta, Q/S byte binding and remaining native proof.
+
+### Adopted controller context — 2026-10-31
+
+PR #2494 integrates merged main `d20922f741f431b6eb3e47386ae944ca441a971e`
+and its actual designated controller
+`dab47fc6153f87e35233e20aa255d97e68a5ed93`. Earlier instructions to create a
+future C/H pair describe the original preparation; they do not require another
+controller for these unchanged protected blobs. Current source, selected AM11
+and old-running cutoff checks remain independent of ordinary publication,
+current-material validation and operational deployment evidence. No deployment
+or new native acceptance is claimed by this synchronization.

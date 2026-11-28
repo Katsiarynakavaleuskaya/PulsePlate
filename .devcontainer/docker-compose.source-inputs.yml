@@ -1,0 +1,115 @@
+# Keep each engine-local tag identical to the next consumer's build argument.
+x-sdk-downloads-image: &sdk-downloads-image "pulseplate-sdk.invalid/downloads:local-${COMPOSE_PROJECT_NAME:?Compose project name required}"
+x-sdk-verified-image: &sdk-verified-image "pulseplate-sdk.invalid/verified:local-${COMPOSE_PROJECT_NAME:?Compose project name required}"
+x-native-sdk-image: &native-sdk-image "pulseplate-sdk.invalid/native:local-${COMPOSE_PROJECT_NAME:?Compose project name required}"
+
+services:
+  devcontainer:
+    extends:
+      file: docker-compose.devcontainer.yml
+      service: devcontainer
+    build:
+      args:
+        DEVCONTAINER_NATIVE_SDK_IMAGE: *native-sdk-image
+
+  sdk-source-downloads:
+    image: *sdk-downloads-image
+    platform: linux/amd64
+    build:
+      context: ..
+      dockerfile_inline: |
+        FROM python@sha256:7a6b87c02e1f4d6bb572e379235cbbdd7892add0572442c9b0b860a3f5aa9857 AS fetch
+        COPY scripts/ci/docker_source_artifacts.json scripts/ci/fetch_docker_source_artifacts.py /tooling/scripts/ci/
+        RUN python -I - /tooling/scripts/ci/docker_source_artifacts.json /downloaded <<'PY'
+        from pathlib import Path
+        import sys
+
+        sys.path.insert(0, "/tooling")
+        from scripts.ci.fetch_docker_source_artifacts import load_manifest, _write_verified_artifact
+
+        manifest, output = map(Path, sys.argv[1:])
+        records = {record.name: record for record in load_manifest(manifest)}
+        names = ("zlib", "ncurses", "openssl", "postgresql")
+        if missing := set(names) - records.keys():
+            raise RuntimeError("Native SDK manifest is missing: " + ", ".join(sorted(missing)))
+        for name in names:
+            _write_verified_artifact(records[name], output)
+        PY
+        FROM scratch
+        COPY --from=fetch /downloaded/ /input/native/
+    deploy:
+      replicas: 0
+
+  sdk-source-inputs:
+    image: *sdk-verified-image
+    platform: linux/amd64
+    build:
+      context: ..
+      no_cache: true
+      args:
+        SDK_SOURCE_DOWNLOADS_IMAGE: *sdk-downloads-image
+      additional_contexts:
+        sdk-downloads: service:sdk-source-downloads
+      dockerfile_inline: |
+        ARG SDK_SOURCE_DOWNLOADS_IMAGE=scratch
+        FROM $${SDK_SOURCE_DOWNLOADS_IMAGE} AS sdk-downloads
+        FROM python@sha256:7a6b87c02e1f4d6bb572e379235cbbdd7892add0572442c9b0b860a3f5aa9857 AS verify
+        COPY scripts/ci/docker_source_artifacts.json scripts/ci/fetch_docker_source_artifacts.py /tooling/scripts/ci/
+        COPY --from=sdk-downloads /input/native/ /input/native/
+        RUN --network=none python -I - /tooling/scripts/ci/docker_source_artifacts.json /input/native <<'PY'
+        from pathlib import Path
+        from stat import S_ISREG
+        import sys
+
+        sys.path.insert(0, "/tooling")
+        from scripts.ci.fetch_docker_source_artifacts import load_manifest, validate_source_payload
+
+        manifest, archives = map(Path, sys.argv[1:])
+        records = {record.name: record for record in load_manifest(manifest)}
+        names = ("zlib", "ncurses", "openssl", "postgresql")
+        if missing := set(names) - records.keys():
+            raise RuntimeError("Native SDK manifest is missing: " + ", ".join(sorted(missing)))
+        expected = {records[name].filename for name in names}
+        if {path.name for path in archives.iterdir()} != expected:
+            raise RuntimeError("Native SDK download inventory differs")
+        for name in names:
+            record = records[name]
+            path = archives / record.filename
+            if not S_ISREG(path.lstat().st_mode):
+                raise RuntimeError("Native SDK download must be a regular file: " + path.name)
+            validate_source_payload(record, path.read_bytes())
+            print(f"{name}: verified SDK source archive {path.name}")
+        PY
+        FROM scratch
+        COPY --from=verify /input/native/ /input/native/
+    deploy:
+      replicas: 0
+
+  native-sdk-artifacts:
+    image: *native-sdk-image
+    platform: linux/amd64
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: dev-bootstrap-sdk
+      platforms:
+        - linux/amd64
+      additional_contexts:
+        sdk-source-archives: service:sdk-source-inputs
+      args:
+        SDK_SOURCE_ARCHIVES_IMAGE: *sdk-verified-image
+        PULSEPLATE_PYTHON_INDEX_URL: https://packages.pulseplate.app/root/pulseplate/+simple/
+      secrets:
+        - pp_netrc
+    deploy:
+      replicas: 0
+
+# Compose extends imports service fields. Its referenced resources are declared here.
+secrets:
+  pp_netrc:
+    file: ${PULSEPLATE_NATIVE_SDK_NETRC_FILE:-/dev/null}
+
+volumes:
+  pulseplate-dev-venv:
+  pulseplate-pip-cache:
+  pulseplate-npm-cache:

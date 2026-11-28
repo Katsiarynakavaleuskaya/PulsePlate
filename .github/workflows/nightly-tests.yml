@@ -29,6 +29,26 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      # Keep this step aligned with the Prometheus test preparation in ci.yml.
+      - name: Prepare pinned Prometheus Git object for tests
+        timeout-minutes: 2
+        shell: bash
+        env:
+          CONTROLLER_SHA: ab43f352eb1206b091f01f03338bb83a222027d5 # pragma: allowlist secret - public trusted control commit
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_NO_REPLACE_OBJECTS: "1"
+        run: |
+          set -euo pipefail
+          [[ "$CONTROLLER_SHA" =~ ^[0-9a-f]{40}$ ]]
+          if ! /usr/bin/git cat-file -e "$CONTROLLER_SHA^{commit}" 2>/dev/null; then
+            /usr/bin/git -c credential.helper= -c http.extraHeader= -c http.https://github.com/.extraHeader= \
+              -c http.followRedirects=false fetch --no-tags --no-recurse-submodules \
+              --no-write-fetch-head --no-auto-maintenance \
+              https://github.com/Katsiarynakavaleuskaya/PulsePlate.git "$CONTROLLER_SHA"
+          fi
+          resolved="$(/usr/bin/git rev-parse --verify --end-of-options "$CONTROLLER_SHA^{commit}")"
+          test "$resolved" = "$CONTROLLER_SHA"
+
       - name: Setup Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:

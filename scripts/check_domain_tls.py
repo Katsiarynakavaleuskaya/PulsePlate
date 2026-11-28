@@ -11,7 +11,7 @@ import argparse
 import re
 import shutil
 import socket
-import subprocess  # nosec B404 # B404: read-only diagnostics require bounded subprocess calls (remove-by: 2026-10-30, ref: PR-main-nightly-nosec-ttl)
+import subprocess  # nosec B404 # B404: required bounded native DNS/HTTPS diagnostics; validated targets and explicit argv binding (remove-by: 2027-01-31, ref: PR-main-nightly-nosec-ttl)
 from dataclasses import dataclass
 from typing import cast
 
@@ -60,15 +60,21 @@ class DomainReport:
 def _normalize_domain(raw_domain: str) -> str:
     """Accept a hostname only; reject URLs and obvious invalid input."""
 
-    domain = raw_domain.strip().lower().rstrip(".")
+    stripped = raw_domain.strip()
+    if not stripped.isascii():
+        raise ValueError("--domain must contain ASCII hostname characters only")
+    domain = stripped.lower().rstrip(".")
     if not domain:
         raise ValueError("--domain must not be empty")
     if "://" in domain or "/" in domain:
         raise ValueError("--domain must be a hostname without scheme or path")
-    if not re.fullmatch(r"[a-z0-9.-]+", domain):
-        raise ValueError("--domain contains invalid characters")
-    if ".." in domain or domain.startswith(".") or domain.endswith("."):
-        raise ValueError("--domain is malformed")
+    if len(domain) > 253:
+        raise ValueError("--domain exceeds the 253-character hostname limit")
+    if any(
+        re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", label) is None
+        for label in domain.split(".")
+    ):
+        raise ValueError("--domain contains an invalid hostname label")
     return domain
 
 
@@ -88,7 +94,7 @@ def _run_command(argv: list[str], *, timeout: int) -> CommandResult:
     """Execute a bounded diagnostic command and capture its text output."""
 
     try:
-        completed = subprocess.run(  # nosec B603 # B603: argv uses absolute binaries and fixed diagnostic flags (remove-by: 2026-10-30, ref: PR-main-nightly-nosec-ttl)
+        completed = subprocess.run(  # nosec B603 # B603: validated ASCII hosts, explicit dig -q/-t or HTTPS URL; resolved binaries, no shell, 15s timeout (remove-by: 2027-01-31, ref: PR-main-nightly-nosec-ttl)
             argv,
             capture_output=True,
             text=True,
@@ -109,7 +115,7 @@ def _dig_answers(dig_path: str, hostname: str, record_type: str) -> tuple[str, .
     """Read DNS answers via dig +short."""
 
     result = _run_command(
-        [dig_path, "+short", hostname, record_type],
+        [dig_path, "+short", "-q", hostname, "-t", record_type],
         timeout=HTTP_TIMEOUT_SEC,
     )
     if result.returncode != 0:
@@ -194,9 +200,9 @@ def collect_domain_report(domain: str) -> DomainReport:
     """Gather DNS answers and HTTPS probe results for apex and www."""
 
     normalized_domain = _normalize_domain(domain)
-    curl_path = _resolve_binary("curl")
     apex_host = normalized_domain
-    www_host = f"www.{normalized_domain}"
+    www_host = _normalize_domain(f"www.{normalized_domain}")
+    curl_path = _resolve_binary("curl")
     return DomainReport(
         domain=normalized_domain,
         apex_a=_collect_dns_answers(apex_host, "A"),

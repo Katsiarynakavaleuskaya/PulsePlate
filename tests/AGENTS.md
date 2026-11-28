@@ -15,6 +15,7 @@
 
 ## Conventions
 
+- Give distinct test scenarios unique function names within each module or class namespace; a later definition with the same name silently replaces the earlier test. Use parametrization with distinct case IDs when scenarios share one test body. After adding or changing regression scenarios, confirm that pytest collects each intended case ID.
 - Use pytest fixtures from `conftest.py`; keep tests isolated.
 - For a negative test targeting a specific guard, start from a valid complete
   baseline, change the intended input, and assert the guard's stable diagnostic
@@ -64,6 +65,13 @@
   shallow fallback must run in parallel, isolate it in a temporary repository
   or assign it to a serialized owner instead of mutating shared refs,
   replacement objects, grafts, or `.git/shallow`.
+- The Prometheus workflow contracts read the designated controller commit from
+  local Git. After a donor branch is squash-merged and deleted, a normal fetch
+  of main can omit that commit. Before running the contracts in a fresh clone,
+  fetch the exact public controller revision named by the workflow into the
+  material repository without a depth limit. CI prepares the object before lint
+  and parallel main tests. The Nightly Full Tests workflow prepares it before
+  starting its shards. The tests themselves remain offline.
 - Workflow tests for pinned external verifier output must exercise the successful
   consumer path using an observed native output shape, as well as rejection
   paths. Keep statement-schema and predicate-schema versions independent;
@@ -89,6 +97,10 @@
   `tests/conftest.py` and must enter `tests._client.open_test_client(...)`.
   The managed wrapper owns one lifespan, exact `dependency_overrides`
   restoration, and temporary finite SlowAPI limiter isolation.
+- Singleton-reset discovery reads only concrete `app` / `main_app` bindings
+  observed during the finite loaded-module traversal; do not invoke arbitrary
+  lazy module exports. Later client lifecycle and limiter ownership remain with
+  `tests._client.open_test_client(...)`, respecting explicit rate-limit opt-in.
 - The root `MetricsAwareTestClient` assignment is a temporary PR-TC2
   compatibility bridge. Do not add another patch owner or new callers of raw
   `make_test_client()`, `get_client()`, or `TestClient(...)` in shared provider
@@ -162,11 +174,17 @@
   (e.g., `_boost.py`, `_v2.py` variants). Fixing one file and missing its twin is a recurring incident.
 - Repo policy guards must not reference temporary/untracked files; AST scan path lists must filter by `.exists()`.
 - Npm dependency guards that claim safety for every tracked lock occurrence must
-  inspect opaque inner-graph metadata on **every** lock package record before
-  checking target versions. Reuse the existing shared lock-v3 admission for
-  `hasShrinkwrap`, both bundled-dependency fields, and `inBundle`; test a
-  non-target carrier, malformed values, and valid empty controls. A safe
-  target pin or outer `packages` map alone does not prove the installed graph.
+  consume the canonical provenance producer in `test_root_npm_dependency_guards.py`
+  before checking targets. Its bounded flat-bundle class binds current parent
+  registry URL/SHA-512 archive bytes, every exact-basename `package.json`
+  strictly decoded, complete archive/lock inventory and physically npm-bound
+  Arborist `loadActual` metadata. All other payload files remain bounded,
+  retained bytes and confer no npm graph or provenance authority.
+  Consumers inspect the returned publisher declarations (including dev fields)
+  and parent-owned leaf data, never fabricated leaf registry provenance or an
+  approval boolean. Nested bundles, shrinkwrap, links and unsupported metadata
+  fail closed. Synthetic controls start from a complete native positive graph,
+  use no real network, and mutate independent inventory/provenance boundaries.
 - `ui_labels` is a required part of `WHOTargetsResponse` contract (SoT: `app/schemas/premium_contracts.py`); assert ES anchor string (`"Calorías diarias"`) in snapshot tests and do not feature-gate this contract after implementation.
 - Any new authenticated, paid-tier, hidden mutating, or object-identifier API route must be registered in `tests/security/_api_authz_contracts.py` with method, path, authentication class, minimum tier, principal source, ownership policy, OpenAPI exposure, and a cross-principal negative test where applicable.
 
@@ -810,6 +828,10 @@ rg -n "sys\.modules\.get\(\"recipe_store\"\)|recipe_store.*spec_from_file_locati
 
 ## Finite source-image producer tests
 
+- Native execution validators must derive expected compiler identity from the selected
+  canonical source context before native setup. Keep synthetic profiles complete and
+  expected stdout and wrong-version test literals independently authored; deriving
+  both the implementation and its test oracle from one selector masks identity drift.
 - For already-approved public-checksum annotations in source-image fixtures,
   inspect the actual literal line after formatting and rerun the real detector.
   Keep strict checksum assertions; formatting or AST equivalence alone does not

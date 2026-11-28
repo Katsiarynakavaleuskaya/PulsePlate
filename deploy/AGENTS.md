@@ -240,7 +240,7 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
 
 - The sole repository image record is
   `deploy/postgres-pgvector/image-manifest.json`. It binds the exact DHI
-  PostgreSQL 15.19 Alpine 3.23 runtime/dev platform manifests, pgvector 0.8.6
+  PostgreSQL 15.20 Alpine 3.23 runtime/dev platform manifests, pgvector 0.8.6
   source commit/archive hash, exact APK build closure and acquisition record,
   supplier-signed index, pinned Buildx/BuildKit inputs, reproducible build
   epoch, Containerfile hash, derived GHCR platform/config digests, and Trivy
@@ -263,12 +263,22 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   `/usr/libexec/postgresql15/pg_config`, `make -j1`, empty `OPTFLAGS`, and the
   closed artifact inventory. Do not add curl, git, floating APK packages, a
   second source path, or a host build toolchain.
-- Native pre-publication proof must reach each affected image consumer. Trivy
-  0.74 consumes the already verified OCI layout directory; a Docker tar archive
-  and an OCI tar archive are not interchangeable scanner inputs. Retain exact
-  scanner/database and subject identity, and keep newly revealed blocking
-  findings open until remediated. Matching build digests do not prove a current
-  clean scan or the later trusted publication path.
+- Native pre-publication proof must reach each affected image consumer. The
+  existing PG publisher owns a 240-minute job budget and env-defined scan,
+  process, pull and inspect budgets. Collect all four exact subjects against
+  one frozen Trivy 0.74 database, retaining later available observations after
+  a finding or tool failure, then reject any failed aggregate. Full collection
+  exit zero is not acceptance: retain the separate native HIGH/CRITICAL gate.
+  Keep full raw JSON/stdout/stderr private outside every upload root. Publish
+  only byte-identical Docker-image reports admitted by the existing structural
+  image owner and empty/omitted Secrets projection; this is not a universal
+  sanitizer. Final verified OCI layout reports stay private, with only bounded
+  status/hash/size and the existing proven subject digest public. Do not pass
+  OCI paths to the Docker report helper or rewrite native reports. Always-upload
+  includes only the explicit public directory. Private hosted-runner files have
+  no presumed durable retrieval channel; retain complete originals in the OWN
+  qualified environment for owner consumption. Matching build digests, partial
+  public reports or collection success do not prove full security acceptance.
 - Native PostgreSQL directory admission requires successful native `find`
   completion before consuming empty output, a count, sorted paths, or a hash-bound
   inventory. Capture output in a standalone assignment under the existing
@@ -436,7 +446,8 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   platform/config/labels, and remove credentials. An existing self-hosted
   transition then captures container/image/volume identity, quiesces worker,
   Caddy, and app, and requires the closed predecessor/current image identity,
-  UID 70, exact PGDATA, PostgreSQL 15.19, stable runtime identity, and a
+  UID 70, exact PGDATA, PostgreSQL 15.19 for a predecessor or 15.20 for the
+  selected current image, stable runtime identity, and a
   mode-0600 custom dump accepted by `pg_restore --list` from the still-running
   old database before stopping it. Only then may the candidate use
   `--pull never`; orphan or ambiguous identities/volumes fail closed. Hosts

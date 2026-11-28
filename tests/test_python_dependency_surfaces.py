@@ -37,9 +37,24 @@ OBSERVABILITY_REMOVALS = frozenset({"importlib-metadata", "zipp"})
 def _run_fixture_git(repo: Path, *args: str) -> None:
     git_binary = shutil.which("git")
     assert git_binary is not None
-    fixture_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
-    subprocess.run(  # nosec B603: resolved Git binary with test-owned argv (remove-by: 2026-10-31, ref: PR-2181)
-        [git_binary, "-C", str(repo), *args],
+    fixture_env = {
+        "PATH": os.defpath,
+        "LC_ALL": "C",
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_TERMINAL_PROMPT": "0",
+    }
+    subprocess.run(
+        [
+            git_binary,
+            "-c",
+            f"core.hooksPath={os.devnull}",
+            "-c",
+            "init.templateDir=",
+            "-C",
+            str(repo),
+            *args,
+        ],
         check=True,
         capture_output=True,
         env=fixture_env,

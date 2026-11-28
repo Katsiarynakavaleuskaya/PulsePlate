@@ -67,7 +67,7 @@ on:
         required: false
         type: string
       alertmanager_candidate_run:
-        description: Actual successful retained AM candidate producer run, publication only
+        description: Actual completed successful same-main-H AM producer run, publication only
         required: false
         type: string
       alertmanager_candidate_artifact:
@@ -75,7 +75,7 @@ on:
         required: false
         type: string
       alertmanager_candidate_source:
-        description: Actual original candidate producer source, publication only
+        description: Actual same-main-H producer source, publication only
         required: false
         type: string
       alertmanager_pr:
@@ -104,7 +104,7 @@ env:
   IMAGE_NAME: ${{ github.repository }}
   # Phase values are workflow-owned. Code validates ceilings without fallback values.
   # ROOT creates C, independently reviews/designates it, then pins C before one normal C,H push.
-  ALERTMANAGER_CONTROLLER_SOURCE: 'dab47fc6153f87e35233e20aa255d97e68a5ed93' # Public immutable controller commit
+  ALERTMANAGER_CONTROLLER_SOURCE: '7ac70b7c8097695a4049b50a5bf1eb9afa58b752' # pragma: allowlist secret - public immutable controller commit
   ALERTMANAGER_PREPARATION_MINUTES: '14'
   ALERTMANAGER_NATIVE_STEP_MINUTES: '42'
   ALERTMANAGER_LIVE_SECURITY_MINUTES: '32'
@@ -129,16 +129,20 @@ jobs:
       github.event_name == 'workflow_dispatch'
       && inputs.alertmanager_mode == 'module-qualify'
       && github.repository == 'Katsiarynakavaleuskaya/PulsePlate'
-      && startsWith(github.ref, 'refs/heads/') && github.run_attempt == 1
+      && (github.ref == 'refs/heads/codex/dependency-alertmanager-remediation' || github.ref == 'refs/heads/main')
+      && github.run_attempt == 1
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 25
     permissions:
       contents: read
       actions: read
     env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      PYTHONNOUSERSITE: '1'
       ALERTMANAGER_QUALIFY_SECONDS: '825'
     steps:
       - name: Authenticate manual Alertmanager source and hold all build starts
+        timeout-minutes: 1
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SOURCE_SHA: ${{ inputs.source_sha }}
@@ -153,11 +157,25 @@ jobs:
           source_api_sha="$(gh api "repos/$GITHUB_REPOSITORY/commits/$SOURCE_SHA" --jq .sha)"
           test "$source_api_sha" = "$SOURCE_SHA"
       - name: Checkout authenticated Alertmanager preparation
+        timeout-minutes: 1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
+          fetch-depth: 0
           persist-credentials: false
+      - name: Require clean AM source before executable imports
+        timeout-minutes: 1
+        run: |
+          set -euo pipefail
+          export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_NO_REPLACE_OBJECTS=1
+          untracked_bytes="$(git -c core.fsmonitor=false ls-files --others --exclude-standard -z | wc -c)"
+          ignored_bytes="$(git -c core.fsmonitor=false ls-files --others --ignored --exclude-standard -z | wc -c)"
+          test "$untracked_bytes" -eq 0
+          test "$ignored_bytes" -eq 0
+          git -c core.fsmonitor=false diff --quiet
+          git -c core.fsmonitor=false diff --cached --quiet
       - name: Qualify exact inputs and modules under one metadata-only clock
+        timeout-minutes: 16
         run: |
           set -euo pipefail
           checkout_sha="$(git rev-parse HEAD)"
@@ -165,13 +183,15 @@ jobs:
           umask 077
           # The remaining 825-second owner begins before source/UI/Go/base acquisition.
           # Source/UI clips its 300-second acquisition bound to remaining time.
-          python3 -m scripts.ci.fetch_docker_source_artifacts --artifact alertmanager --alertmanager-module-qualify
+          python3 -B -m scripts.ci.fetch_docker_source_artifacts --artifact alertmanager --alertmanager-module-qualify \
+            --output-dir "$RUNNER_TEMP/alertmanager-module-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
       - name: Retain actual metadata qualification outputs
+        timeout-minutes: 5
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
         with:
           name: alertmanager-module-qualification-${{ github.run_id }}-${{ github.run_attempt }}
-          path: build/docker-sources/alertmanager-module-evidence
+          path: ${{ runner.temp }}/alertmanager-module-${{ github.run_id }}-${{ github.run_attempt }}/alertmanager-module-evidence
           if-no-files-found: warn
 
   alertmanager-input-inspection:
@@ -179,26 +199,43 @@ jobs:
       github.event_name == 'workflow_dispatch'
       && inputs.alertmanager_mode == 'support-inspect'
       && github.repository == 'Katsiarynakavaleuskaya/PulsePlate'
-      && github.ref == 'refs/heads/codex/python-setup-security-stabilization' && github.run_attempt == 1
+      && (github.ref == 'refs/heads/codex/dependency-alertmanager-remediation' || github.ref == 'refs/heads/main') && github.run_attempt == 1
       && inputs.postgres_mode == 'disabled'
     runs-on: ubuntu-24.04
-    timeout-minutes: 55
+    timeout-minutes: 61
     permissions:
       contents: read
       actions: read
+      pull-requests: read
       packages: read
     env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      PYTHONNOUSERSITE: '1'
       ALERTMANAGER_TOOL_CONNECT_SECONDS: '15'
       ALERTMANAGER_TOOL_FETCH_SECONDS: '180'
       ALERTMANAGER_INPUT_INSPECT_SECONDS: '600'
       ALERTMANAGER_SUPPORT_SECONDS: '1800'
     steps:
       - name: Checkout exact Alertmanager inspection implementation
+        timeout-minutes: 1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
+          fetch-depth: 0
           persist-credentials: false
+      - name: Require clean AM source before executable imports
+        timeout-minutes: 1
+        run: |
+          set -euo pipefail
+          export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_NO_REPLACE_OBJECTS=1
+          untracked_bytes="$(git -c core.fsmonitor=false ls-files --others --exclude-standard -z | wc -c)"
+          ignored_bytes="$(git -c core.fsmonitor=false ls-files --others --ignored --exclude-standard -z | wc -c)"
+          test "$untracked_bytes" -eq 0
+          test "$ignored_bytes" -eq 0
+          git -c core.fsmonitor=false diff --quiet
+          git -c core.fsmonitor=false diff --cached --quiet
       - name: Prepare exact existing Alertmanager support scanner and Buildx CLI
+        timeout-minutes: 7
         if: inputs.alertmanager_mode == 'support-inspect'
         run: |
           set -euo pipefail
@@ -224,6 +261,7 @@ jobs:
           chmod 0555 "$native_tools/trivy" "$native_tools/docker-buildx"
           printf 'TRIVY_BIN=%s\nBUILDX_BIN=%s\n' "$native_tools/trivy" "$native_tools/docker-buildx" >> "$GITHUB_ENV"
       - name: Inspect authenticated retained Alertmanager inputs and read existing package metadata
+        timeout-minutes: 45
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -251,9 +289,11 @@ jobs:
           test "$ALERTMANAGER_STAGE" = support-inspect
           python3 -m scripts.ci.fetch_docker_source_artifacts --artifact alertmanager \
             --alertmanager-stage "$ALERTMANAGER_STAGE" --source-sha "$INSPECTION_SOURCE" \
-            "${qualification_args[@]}" \
+            ${qualification_args[@]+"${qualification_args[@]}"} \
             --output-dir "$RUNNER_TEMP/alertmanager-input-inspection-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
       - name: Retain Alertmanager input observations without compiler authority
+        timeout-minutes: 5
+        id: support-upload
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
         with:
@@ -264,25 +304,121 @@ jobs:
             ${{ runner.temp }}/alertmanager-input-inspection-${{ github.run_id }}-${{ github.run_attempt }}/native-support/
           if-no-files-found: warn
 
+      - name: Verify the completed support upload identity and size
+        if: success()
+        timeout-minutes: 1
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AM_ARTIFACT_ID: ${{ steps.support-upload.outputs.artifact-id }}
+          AM_ARTIFACT_DIGEST: ${{ steps.support-upload.outputs.artifact-digest }}
+        run: |
+          set -euo pipefail
+          timeout --kill-after=1s 55s python3 -B -E -s -S - <<'PY'
+          import os, re, time
+          from email.utils import parsedate_to_datetime
+          from http.client import HTTPException
+          from urllib.error import HTTPError, URLError
+          from urllib.request import Request
+          from scripts.ci.fetch_docker_source_artifacts import _alertmanager_support_upload
+          from scripts.ci.prometheus_source_image import GHCR_REPOSITORY, one_object, opener
+
+          ident = os.environ["AM_ARTIFACT_ID"]
+          if not re.fullmatch(r"[1-9][0-9]{0,18}", ident) or not re.fullmatch(r"[0-9a-f]{64}", os.environ["AM_ARTIFACT_DIGEST"]):
+              raise SystemExit("Missing support upload identity or digest")
+          url = f"https://api.github.com/repos/{GHCR_REPOSITORY}/actions/artifacts/{ident}"
+          request = Request(url, headers={"Authorization": "Bearer " + os.environ["GH_TOKEN"],
+                                          "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"})
+          deadline = time.monotonic() + 50
+          for attempt in range(1, 4):
+              delay = float(attempt)
+              remaining = deadline - time.monotonic()
+              if remaining <= 0:
+                  raise SystemExit("Support upload metadata deadline")
+              try:
+                  with opener().open(request, timeout=min(12, remaining)) as response:
+                      if response.geturl() != url or response.status != 200:
+                          raise SystemExit("Unexpected support upload metadata response")
+                      raw = response.read(65537)
+                  break
+              except HTTPError as error:
+                  with error:
+                      status = error.code
+                      retry_after = error.headers.get_all("Retry-After", [])
+                      same_url = error.geturl() == url
+                  failure = f"Support upload metadata HTTP {status} on attempt {attempt}"
+                  if not same_url or status not in (404, 429, 500, 502, 503, 504) or len(retry_after) > 1:
+                      raise SystemExit(failure) from None
+                  if retry_after:
+                      hint = retry_after[0]
+                      try:
+                          if re.fullmatch(r"[0-9]{1,9}", hint):
+                              delay = max(delay, int(hint))
+                          else:
+                              stamp = parsedate_to_datetime(hint)
+                              if stamp.tzinfo is None:
+                                  raise ValueError
+                              delay = max(delay, stamp.timestamp() - time.time())
+                      except (TypeError, ValueError, OverflowError, OSError):
+                          raise SystemExit("Invalid support metadata retry delay") from None
+              except (HTTPException, OSError, ValueError) as error:
+                  cause = error.reason if isinstance(error, URLError) else error
+                  if not isinstance(cause, (TimeoutError, ConnectionResetError)):
+                      raise SystemExit("Support upload metadata transport failed") from None
+                  failure = f"Support upload metadata temporary transport failure on attempt {attempt}"
+              if attempt == 3 or delay >= deadline - time.monotonic():
+                  raise SystemExit(failure)
+              time.sleep(delay)
+          if len(raw) > 65536:
+              raise SystemExit("Support upload metadata exceeds its bound")
+          _alertmanager_support_upload(one_object(raw), os.environ)
+          PY
+
   alertmanager-candidate-build:
     if: >-
       github.event_name == 'workflow_dispatch' && inputs.alertmanager_mode == 'build'
       && github.repository == 'Katsiarynakavaleuskaya/PulsePlate' && github.repository_id == '1043311030'
-      && github.ref == 'refs/heads/codex/python-setup-security-stabilization'
+      && (github.ref == 'refs/heads/codex/dependency-alertmanager-remediation' || github.ref == 'refs/heads/main')
       && github.run_attempt == 1 && inputs.postgres_mode == 'disabled'
     runs-on: ubuntu-24.04
-    timeout-minutes: 140
+    timeout-minutes: &am-producer-job-timeout ${{ fromJSON(vars.ALERTMANAGER_PRODUCER_JOB_MINUTES || '180') }}
     permissions:
       contents: read
       actions: read
+      pull-requests: read
       packages: read
+    env:
+      ALERTMANAGER_PRODUCER_JOB_MINUTES: *am-producer-job-timeout
+      ALERTMANAGER_PRODUCER_STEP_MINUTES: '138'
+      ALERTMANAGER_PRODUCER_SECONDS: '8160'
+      ALERTMANAGER_PRODUCER_MATERIAL_SECONDS: '840'
+      ALERTMANAGER_PRODUCER_OTHER_CLEANUP_SECONDS: '600'
+      ALERTMANAGER_PRODUCER_RETENTION_SECONDS: '225'
+      ALERTMANAGER_PRODUCER_FAILURE_SECONDS: '120'
+      PYTHONDONTWRITEBYTECODE: '1'
+      PYTHONNOUSERSITE: '1'
+      PYTHONPATH: ''
+      PYTHONHOME: ''
     steps:
       - name: Checkout exact AM executable proposal
+        timeout-minutes: 1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+          fetch-depth: 0
+      - name: Require clean AM source before executable imports
+        timeout-minutes: 1
+        run: |
+          set -euo pipefail
+          export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_NO_REPLACE_OBJECTS=1
+          untracked_bytes="$(git -c core.fsmonitor=false ls-files --others --exclude-standard -z | wc -c)"
+          ignored_bytes="$(git -c core.fsmonitor=false ls-files --others --ignored --exclude-standard -z | wc -c)"
+          test "$untracked_bytes" -eq 0
+          test "$ignored_bytes" -eq 0
+          git -c core.fsmonitor=false diff --quiet
+          git -c core.fsmonitor=false diff --cached --quiet
       - name: Validate existing credential-free AM native Python proxy
+        timeout-minutes: 1
         env:
           PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
           PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
@@ -427,6 +563,7 @@ jobs:
           "$am_python" -m tests.test_notify_premium_alias_checkpoint_failure --help
           printf 'python=%s\n' "$am_python" >> "$GITHUB_OUTPUT"
       - name: Execute separately dispatched AM pair and retained candidate acceptance
+        timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_PRODUCER_STEP_MINUTES) }}
         env:
           AM_HOST_PYTHON: ${{ steps.am-python.outputs.python }}
           PYTHONHOME: ''
@@ -469,7 +606,7 @@ jobs:
           test "$checkout_sha" = "$SOURCE_SHA"
           "$AM_HOST_PYTHON" -m scripts.ci.fetch_docker_source_artifacts --artifact alertmanager --alertmanager-stage build \
             --source-sha "$SOURCE_SHA" \
-            "${qualification_args[@]}" "${support_args[@]}" \
+            ${qualification_args[@]+"${qualification_args[@]}"} ${support_args[@]+"${support_args[@]}"} \
             --output-dir "$RUNNER_TEMP/alertmanager-candidate-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
       - name: Retain the actual AM candidate and raw execution observations
         if: always()
@@ -495,9 +632,9 @@ jobs:
       ALERTMANAGER_JOB_TIMEOUT_MINUTES: '80'
       ALERTMANAGER_CALLER_KIND: standalone
       # Real retained coordinates are set only after the separately admitted candidate exists.
-      AM_CANDIDATE_RUN: '40387641620'
-      AM_CANDIDATE_ARTIFACT: '12684611600'
-      AM_CANDIDATE_SOURCE: 'a8c9b361dbd57d86e2adf8f01f7880830fc04e53'
+      AM_CANDIDATE_RUN: '43811981051'
+      AM_CANDIDATE_ARTIFACT: '14202207192'
+      AM_CANDIDATE_SOURCE: 'e91033b4528a83782de3e7dc1e73e6def398348a'
     steps:
       - name: Checkout exact current AM PR source
         timeout-minutes: 1
@@ -524,6 +661,22 @@ jobs:
           fetch-depth: 0
           path: artifacts/orchestration/alertmanager-control
 
+      - name: Verify designated AM controller checkout before credential use
+        if: steps.alertmanager-control.outcome == 'success'
+        timeout-minutes: 1
+        run: |
+          set -euo pipefail
+          export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_NO_REPLACE_OBJECTS=1
+          controller="$GITHUB_WORKSPACE/artifacts/orchestration/alertmanager-control"
+          test ! -L "$controller"
+          control_git=(git -C "$controller" -c core.fsmonitor=false -c core.hooksPath=/dev/null)
+          test "$("${control_git[@]}" rev-parse HEAD)" = "$ALERTMANAGER_CONTROLLER_SOURCE"
+          "${control_git[@]}" diff --quiet --no-ext-diff HEAD --
+          "${control_git[@]}" diff --cached --quiet --no-ext-diff HEAD --
+          untracked_bytes="$("${control_git[@]}" ls-files --others --exclude-standard -z | wc -c)"
+          ignored_bytes="$("${control_git[@]}" ls-files --others --ignored --exclude-standard -z | wc -c)"
+          test "$untracked_bytes" -eq 0 && test "$ignored_bytes" -eq 0
+
       - name: Prepare exact AM subject before material execution
         id: alertmanager-image
         timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_PREPARATION_MINUTES) }}
@@ -542,16 +695,16 @@ jobs:
           docker version --format 'client={{json .Client.Version}} server={{json .Server.Version}}'
           docker info --format 'driver={{json .Driver}} driver_status={{json .DriverStatus}} os={{json .OSType}} arch={{json .Architecture}}'
           cd "$controller"
-          python3 -E -s -S -m scripts.ci.fetch_docker_source_artifacts \
+          python3 -B -E -s -S -m scripts.ci.fetch_docker_source_artifacts \
             --artifact alertmanager --alertmanager-stage candidate-check --alertmanager-prepare-only \
             --source-sha "$SOURCE_SHA" --material-root "$material" \
             --alertmanager-controller-source "$ALERTMANAGER_CONTROLLER_SOURCE" \
-            --alertmanager-qualification-run 40379971373 --alertmanager-qualification-artifact 12677328773 \
-            --alertmanager-qualification-source a8c9b361dbd57d86e2adf8f01f7880830fc04e53 \
-            --alertmanager-support-run 40383803043 --alertmanager-support-artifact 12679243318 \
-            --alertmanager-support-source a8c9b361dbd57d86e2adf8f01f7880830fc04e53 \
-            --alertmanager-candidate-run 40387641620 --alertmanager-candidate-artifact 12684611600 \
-            --alertmanager-candidate-source a8c9b361dbd57d86e2adf8f01f7880830fc04e53 \
+            --alertmanager-qualification-run 43808505545 --alertmanager-qualification-artifact 14199242996 \
+            --alertmanager-qualification-source e91033b4528a83782de3e7dc1e73e6def398348a \
+            --alertmanager-support-run 43810186398 --alertmanager-support-artifact 14200227448 \
+            --alertmanager-support-source e91033b4528a83782de3e7dc1e73e6def398348a \
+            --alertmanager-candidate-run 43811981051 --alertmanager-candidate-artifact 14202207192 \
+            --alertmanager-candidate-source e91033b4528a83782de3e7dc1e73e6def398348a \
             --output-dir "$RUNNER_TEMP/alertmanager-consumer-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
 
       - name: Remove designated AM controller after credential cleanup
@@ -741,13 +894,24 @@ jobs:
       && github.repository == 'Katsiarynakavaleuskaya/PulsePlate' && github.repository_id == '1043311030'
       && github.ref == 'refs/heads/main' && github.run_attempt == 1 && inputs.postgres_mode == 'disabled'
     runs-on: ubuntu-24.04
-    timeout-minutes: 110
+    timeout-minutes: &am-publisher-job-timeout ${{ fromJSON(vars.ALERTMANAGER_PUBLISHER_JOB_MINUTES || '240') }}
+    env:
+      ALERTMANAGER_PUBLISHER_JOB_MINUTES: *am-publisher-job-timeout
+      ALERTMANAGER_PUBLISHER_STEP_MINUTES: '176'
+      ALERTMANAGER_PUBLISHER_SECONDS: '10440'
+      ALERTMANAGER_PUBLISHER_REBIND_SECONDS: '600'
+      ALERTMANAGER_PUBLISHER_OTHER_CLEANUP_SECONDS: '600'
+      ALERTMANAGER_PUBLISHER_API_CLEANUP_SECONDS: '120'
+      ALERTMANAGER_PUBLISHER_RETENTION_SECONDS: '225'
+      ALERTMANAGER_PUBLISHER_FAILURE_SECONDS: '120'
     permissions:
       contents: read
       actions: read
+      pull-requests: read
       packages: write
     steps:
       - name: Checkout exact AM executable proposal
+        timeout-minutes: 15
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
@@ -884,6 +1048,7 @@ jobs:
           "$am_python" -m tests.test_notify_premium_alias_checkpoint_failure --help
           printf 'python=%s\n' "$am_python" >> "$GITHUB_OUTPUT"
       - name: Publish the accepted AM bytes after canonical merged-main package and tag admission
+        timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_PUBLISHER_STEP_MINUTES) }}
         env:
           AM_HOST_PYTHON: ${{ steps.am-python.outputs.python }}
           PYTHONHOME: ''
@@ -1362,6 +1527,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      pull-requests: read
       packages: read
     steps: &prometheus-image-security-steps
       - name: Validate exact Prometheus checkout revisions
@@ -1442,7 +1608,7 @@ jobs:
         if: ${{ success() && github.event_name == 'pull_request' }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: dab47fc6153f87e35233e20aa255d97e68a5ed93 # pragma: allowlist secret - public trusted control commit
+          ref: ab43f352eb1206b091f01f03338bb83a222027d5 # pragma: allowlist secret - public trusted control commit
           persist-credentials: false
           path: artifacts/orchestration/prometheus-control
           sparse-checkout: scripts/ci/prometheus_source_image.py
@@ -1519,21 +1685,21 @@ jobs:
                       raise SystemExit("Prometheus_control_path_HOLD")
                   if path != helper and not stat.S_ISDIR(info.st_mode):
                       raise SystemExit("Prometheus_control_path_HOLD")
-              if not helper.is_file() or stat.S_IMODE(helper.stat().st_mode) != 0o644:
+              if not helper.is_file() or helper.stat().st_nlink != 1 or stat.S_IMODE(helper.stat().st_mode) != 0o644:
                   raise SystemExit("Prometheus_control_mode_HOLD")
               raw = helper.read_bytes()
-              if len(raw) != 352899 or hashlib.sha256(raw).hexdigest() != "d812e79fce6138426131f266e4f5fd8de03b72c9a56acea19bedb43a22f172f6":  # pragma: allowlist secret - public trusted control digest
+              if len(raw) != 503920 or hashlib.sha256(raw).hexdigest() != "f899596b9584c1e042c50ee34914309bae50bd4f5178a035a2980d506650b970":  # pragma: allowlist secret - public trusted control digest
                   raise SystemExit("Prometheus_control_bytes_HOLD")
               environment = {"PATH": "/usr/bin:/bin", "LANG": "C", "GIT_NO_REPLACE_OBJECTS": "1",
                              "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_COUNT": "0"}
               revision = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
                                          "rev-parse", "HEAD"], env=environment, capture_output=True, check=True)
-              if revision.stdout.strip() != b"dab47fc6153f87e35233e20aa255d97e68a5ed93":  # pragma: allowlist secret - public trusted control commit
+              if revision.stderr or revision.stdout != b"ab43f352eb1206b091f01f03338bb83a222027d5" + b"\n":  # pragma: allowlist secret - public trusted control commit
                   raise SystemExit("Prometheus_control_revision_HOLD")
               object_row = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
                                           "ls-tree", "-z", "HEAD", "--", "scripts/ci/prometheus_source_image.py"],
                                          env=environment, capture_output=True, check=True)
-              if object_row.stdout != b"100644 blob b57db038ec82126429333ce3a3e8609151cceb1d\tscripts/ci/prometheus_source_image.py\0":  # pragma: allowlist secret - public trusted control blob
+              if object_row.stderr or object_row.stdout != b"100644 blob 25198549a3e142d1271da8fdbe59afefb32949fc\tscripts/ci/prometheus_source_image.py\0":  # pragma: allowlist secret - public trusted control blob
                   raise SystemExit("Prometheus_control_object_HOLD")
               trusted = runpy.run_path(str(helper))
               if not all(callable(trusted.get(name)) for name in
@@ -1551,6 +1717,118 @@ jobs:
               mode = "trusted_published"
           else:
               raise SystemExit("Prometheus_event_identity_HOLD")
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
+              output.write("mode=" + mode + "\nhead=" + head + "\nbase=" + base + "\n")
+          PY
+
+      - name: Select authenticated Prometheus PR evidence
+        timeout-minutes: 4
+        id: prometheus-evidence
+        if: ${{ success() && github.event_name == 'pull_request' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROMETHEUS_ROUTE_HEAD: ${{ steps.prometheus-route.outputs.head }}
+          PROMETHEUS_ROUTE_BASE: ${{ steps.prometheus-route.outputs.base }}
+          PROMETHEUS_CLASSIFIED_MODE: ${{ steps.prometheus-route.outputs.mode }}
+          PROMETHEUS_SELECT_SECONDS: "60"
+        run: |
+          set -euo pipefail
+          python3 -I -S - <<'PY'
+          import hashlib, os, re, runpy, signal, stat, subprocess, time
+          from pathlib import Path
+
+          if not os.environ.get("GH_TOKEN") or not os.environ.get("GITHUB_TOKEN"):
+              raise SystemExit("Prometheus_selection_API_credential_HOLD")
+          if any(os.environ.get(key) for key in ("GHCR_READ_TOKEN", "GHCR_TOKEN", "DOCKER_CONFIG", "DOCKER_AUTH_CONFIG",
+                                                 "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN")):
+              raise SystemExit("Prometheus_selection_credentials_HOLD")
+          material = Path(os.environ["GITHUB_WORKSPACE"])
+          control = material / "artifacts/orchestration/prometheus-control"
+          helper = control / "scripts/ci/prometheus_source_image.py"
+          for path in (material / "artifacts", material / "artifacts/orchestration", control,
+                       control / "scripts", control / "scripts/ci", helper):
+              info = path.lstat()
+              if info.st_uid != os.getuid() or stat.S_ISLNK(info.st_mode):
+                  raise SystemExit("Prometheus_control_path_HOLD")
+              if path != helper and not stat.S_ISDIR(info.st_mode):
+                  raise SystemExit("Prometheus_control_path_HOLD")
+          if not helper.is_file() or helper.stat().st_nlink != 1 or stat.S_IMODE(helper.stat().st_mode) != 0o644:
+              raise SystemExit("Prometheus_control_mode_HOLD")
+          raw = helper.read_bytes()
+          if len(raw) != 503920 or hashlib.sha256(raw).hexdigest() != "f899596b9584c1e042c50ee34914309bae50bd4f5178a035a2980d506650b970":  # pragma: allowlist secret - public trusted control digest
+              raise SystemExit("Prometheus_control_bytes_HOLD")
+          environment = {"PATH": "/usr/bin:/bin", "LANG": "C", "GIT_NO_REPLACE_OBJECTS": "1",
+                         "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_COUNT": "0"}
+          revision = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
+                                     "rev-parse", "HEAD"], env=environment, capture_output=True, check=True)
+          if revision.stderr or revision.stdout != b"ab43f352eb1206b091f01f03338bb83a222027d5" + b"\n":  # pragma: allowlist secret - public trusted control commit
+              raise SystemExit("Prometheus_control_revision_HOLD")
+          object_row = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
+                                      "ls-tree", "-z", "HEAD", "--", "scripts/ci/prometheus_source_image.py"],
+                                     env=environment, capture_output=True, check=True)
+          if object_row.stderr or object_row.stdout != b"100644 blob 25198549a3e142d1271da8fdbe59afefb32949fc\tscripts/ci/prometheus_source_image.py\0":  # pragma: allowlist secret - public trusted control blob
+              raise SystemExit("Prometheus_control_object_HOLD")
+          trusted = runpy.run_path(str(helper))
+          if not all(callable(trusted.get(name)) for name in
+                     ("select_pr_evidence_route", "GitHubRead", "fresh_directory", "one_object", "interrupt", "diagnostic_code", "require", "check_deadline")):
+              raise SystemExit("Prometheus_control_interface_HOLD")
+          event_head = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(material),
+                                      "rev-parse", "HEAD"], env=environment, capture_output=True, check=True)
+          event = trusted["one_object"](Path(os.environ["GITHUB_EVENT_PATH"]).read_bytes())
+          head, base = os.environ["PROMETHEUS_ROUTE_HEAD"], os.environ["PROMETHEUS_ROUTE_BASE"]
+          pr = event.get("pull_request", {})
+          if not (os.environ["GITHUB_EVENT_NAME"] == "pull_request"
+                  and os.environ["GITHUB_REPOSITORY"].lower() == "katsiarynakavaleuskaya/pulseplate"
+                  and type(event.get("number")) is int and event["number"] > 0
+                  and os.environ["GITHUB_REF"] == "refs/pull/" + str(event["number"]) + "/merge"
+                  and event.get("repository", {}).get("id") == 1043311030
+                  and pr.get("head", {}).get("repo", {}).get("id") == 1043311030
+                  and pr.get("base", {}).get("repo", {}).get("id") == 1043311030
+                  and pr.get("base", {}).get("ref") == "main"
+                  and re.fullmatch("[0-9a-f]{40}", head) and re.fullmatch("[0-9a-f]{40}", base)
+                  and not event_head.stderr and event_head.stdout == (head + "\n").encode("ascii")
+                  and pr["head"].get("sha") == head and pr["base"].get("sha") == base):
+              raise SystemExit("Prometheus_material_revision_HOLD")
+          seconds, cleanup = int(os.environ["PROMETHEUS_SELECT_SECONDS"]), int(os.environ["PROMETHEUS_CLEANUP_SECONDS"])
+          reserved_minutes = 168
+          if int(os.environ["ALERTMANAGER_JOB_TIMEOUT_MINUTES"]) < reserved_minutes:
+              raise SystemExit("Prometheus_selection_enclosing_budget_HOLD")
+          if seconds != 60 or cleanup != 120:
+              raise SystemExit("Prometheus_selection_budget_HOLD")
+          deadline = time.monotonic() + seconds
+          work = Path(os.environ["RUNNER_TEMP"]) / ("prometheus-pr-selection-" + os.environ["GITHUB_RUN_ID"] + "-" + os.environ["GITHUB_RUN_ATTEMPT"])
+          trusted["fresh_directory"](work)
+          evidence = work / "evidence"
+          trusted["fresh_directory"](evidence)
+          private = work / "GitHub-private"
+          signal.signal(signal.SIGTERM, trusted["interrupt"])
+          signal.signal(signal.SIGINT, trusted["interrupt"])
+          primary = cleanup_error = None
+          api = None
+          try:
+              api = trusted["GitHubRead"](private, evidence, deadline, cleanup)
+              mode = trusted["select_pr_evidence_route"](api, material, event, head)
+              classified = os.environ["PROMETHEUS_CLASSIFIED_MODE"]
+              compatible = {"changed_pr_candidate": ("changed_pr_candidate",),
+                            "historical_pr_candidate": ("historical_pr_candidate",),
+                            "unchanged_pr_published": ("unchanged_pr_published", "historical_pr_candidate")}
+              trusted["require"](mode in compatible.get(classified, ()), "consumer_route_binding")
+              trusted["check_deadline"](deadline)
+          except (Exception, KeyboardInterrupt) as error:
+              primary = trusted["diagnostic_code"](error) or type(error).__name__
+          finally:
+              if api is not None:
+                  try:
+                      api.close()
+                  except (Exception, KeyboardInterrupt) as error:
+                      cleanup_error = trusted["diagnostic_code"](error) or type(error).__name__
+          if private.exists() or private.is_symlink():
+              cleanup_error = cleanup_error or "Prometheus_selection_cleanup_HOLD"
+          if primary or cleanup_error:
+              raise SystemExit("Prometheus_selection_HOLD:" + ",".join(filter(None, (primary, cleanup_error))))
+          trusted["require"](not trusted["INTERRUPTIONS"], "selection_interrupted")
+          trusted["check_deadline"](deadline + cleanup)
           with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
               output.write("mode=" + mode + "\nhead=" + head + "\nbase=" + base + "\n")
           PY
@@ -1622,8 +1900,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GHCR_READ_TOKEN: ${{ github.event_name == 'pull_request' && steps.prometheus-route.outputs.mode == 'unchanged_pr_published' && secrets.GITHUB_TOKEN || github.event_name != 'pull_request' && steps.prometheus-route.outputs.mode == 'trusted_published' && secrets.GHCR_READ_TOKEN || '' }}
-          PROMETHEUS_CREDENTIAL_ROUTE: ${{ steps.prometheus-route.outputs.mode }}
+          GHCR_READ_TOKEN: ${{ github.event_name == 'pull_request' && steps.prometheus-evidence.outcome == 'success' && steps.prometheus-evidence.outputs.mode == 'unchanged_pr_published' && secrets.GITHUB_TOKEN || github.event_name != 'pull_request' && steps.prometheus-route.outputs.mode == 'trusted_published' && secrets.GHCR_READ_TOKEN || '' }}
+          PROMETHEUS_CREDENTIAL_ROUTE: ${{ github.event_name == 'pull_request' && steps.prometheus-evidence.outputs.mode || github.event_name != 'pull_request' && steps.prometheus-route.outputs.mode || '' }}
+          PROMETHEUS_ROUTE_HEAD: ${{ steps.prometheus-evidence.outputs.head }}
+          PROMETHEUS_ROUTE_BASE: ${{ steps.prometheus-evidence.outputs.base }}
         run: |
           set -euo pipefail
           case "$PROMETHEUS_CREDENTIAL_ROUTE" in
@@ -1638,7 +1918,7 @@ jobs:
           docker info --format 'driver={{json .Driver}} driver_status={{json .DriverStatus}} os={{json .OSType}} arch={{json .Architecture}}'
           if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
           python3 -I -S - <<'PY'
-          import hashlib, os, runpy, signal, stat, subprocess
+          import hashlib, os, re, runpy, signal, stat, subprocess
           from pathlib import Path
 
           material = Path(os.environ["GITHUB_WORKSPACE"])
@@ -1651,21 +1931,21 @@ jobs:
                   raise SystemExit("Prometheus_control_path_HOLD")
               if path != helper and not stat.S_ISDIR(info.st_mode):
                   raise SystemExit("Prometheus_control_path_HOLD")
-          if not helper.is_file() or stat.S_IMODE(helper.stat().st_mode) != 0o644:
+          if not helper.is_file() or helper.stat().st_nlink != 1 or stat.S_IMODE(helper.stat().st_mode) != 0o644:
               raise SystemExit("Prometheus_control_mode_HOLD")
           raw = helper.read_bytes()
-          if len(raw) != 352899 or hashlib.sha256(raw).hexdigest() != "d812e79fce6138426131f266e4f5fd8de03b72c9a56acea19bedb43a22f172f6":  # pragma: allowlist secret - public trusted control digest
+          if len(raw) != 503920 or hashlib.sha256(raw).hexdigest() != "f899596b9584c1e042c50ee34914309bae50bd4f5178a035a2980d506650b970":  # pragma: allowlist secret - public trusted control digest
               raise SystemExit("Prometheus_control_bytes_HOLD")
           environment = {"PATH": "/usr/bin:/bin", "LANG": "C", "GIT_NO_REPLACE_OBJECTS": "1",
                          "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_COUNT": "0"}
           revision = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
                                      "rev-parse", "HEAD"], env=environment, capture_output=True, check=True)
-          if revision.stdout.strip() != b"dab47fc6153f87e35233e20aa255d97e68a5ed93":  # pragma: allowlist secret - public trusted control commit
+          if revision.stderr or revision.stdout != b"ab43f352eb1206b091f01f03338bb83a222027d5" + b"\n":  # pragma: allowlist secret - public trusted control commit
               raise SystemExit("Prometheus_control_revision_HOLD")
           object_row = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
                                       "ls-tree", "-z", "HEAD", "--", "scripts/ci/prometheus_source_image.py"],
                                      env=environment, capture_output=True, check=True)
-          if object_row.stdout != b"100644 blob b57db038ec82126429333ce3a3e8609151cceb1d\tscripts/ci/prometheus_source_image.py\0":  # pragma: allowlist secret - public trusted control blob
+          if object_row.stderr or object_row.stdout != b"100644 blob 25198549a3e142d1271da8fdbe59afefb32949fc\tscripts/ci/prometheus_source_image.py\0":  # pragma: allowlist secret - public trusted control blob
               raise SystemExit("Prometheus_control_object_HOLD")
           trusted = runpy.run_path(str(helper))
           if not all(callable(trusted.get(name)) for name in
@@ -1674,7 +1954,19 @@ jobs:
           event_head = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(material),
                                       "rev-parse", "HEAD"], env=environment, capture_output=True, check=True)
           event = trusted["one_object"](Path(os.environ["GITHUB_EVENT_PATH"]).read_bytes())
-          if os.environ["GITHUB_EVENT_NAME"] != "pull_request" or event_head.stdout.strip().decode() != event["pull_request"]["head"]["sha"]:
+          head, base = os.environ["PROMETHEUS_ROUTE_HEAD"], os.environ["PROMETHEUS_ROUTE_BASE"]
+          pr = event.get("pull_request", {})
+          if not (os.environ["GITHUB_EVENT_NAME"] == "pull_request"
+                  and os.environ["GITHUB_REPOSITORY"].lower() == "katsiarynakavaleuskaya/pulseplate"
+                  and type(event.get("number")) is int and event["number"] > 0
+                  and os.environ["GITHUB_REF"] == "refs/pull/" + str(event["number"]) + "/merge"
+                  and event.get("repository", {}).get("id") == 1043311030
+                  and pr.get("head", {}).get("repo", {}).get("id") == 1043311030
+                  and pr.get("base", {}).get("repo", {}).get("id") == 1043311030
+                  and pr.get("base", {}).get("ref") == "main"
+                  and re.fullmatch("[0-9a-f]{40}", head) and re.fullmatch("[0-9a-f]{40}", base)
+                  and not event_head.stderr and event_head.stdout == (head + "\n").encode("ascii")
+                  and pr["head"].get("sha") == head and pr["base"].get("sha") == base):
               raise SystemExit("Prometheus_material_revision_HOLD")
           route = os.environ["PROMETHEUS_CREDENTIAL_ROUTE"]
           if route not in ("changed_pr_candidate", "historical_pr_candidate", "unchanged_pr_published"):
@@ -1702,8 +1994,10 @@ jobs:
           if type(admission) is not dict or admission != result["admission"]:
               raise SystemExit("Prometheus_unchanged_admission_HOLD" if route == "unchanged_pr_published" else "Prometheus_candidate_admission_HOLD")
           selection = result["selection"]
+          expected_ref = selection["runtime_ref"] if route == "unchanged_pr_published" else selection["config_digest"]
+          trusted["require"](result.get("runtime_ref") == expected_ref, "Prometheus_route_runtime_ref_HOLD")
           outputs = {"manifest_digest": selection["manifest_digest"], "config_digest": selection["config_digest"],
-                     "source_revision": selection["source_revision"], "runtime_ref": result.get("runtime_ref", selection["runtime_ref"])}
+                     "source_revision": selection["source_revision"], "runtime_ref": result["runtime_ref"]}
           with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
               for key, value in outputs.items():
                   trusted["require"](type(value) is str and "\n" not in value and "\r" not in value, "native_output_single_line")
@@ -1746,10 +2040,27 @@ jobs:
           fetch-depth: 0
           path: artifacts/orchestration/alertmanager-control
 
+      - name: Verify designated AM controller checkout before credential use
+        if: steps.alertmanager-control.outcome == 'success'
+        timeout-minutes: 1
+        run: |
+          set -euo pipefail
+          export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_NO_REPLACE_OBJECTS=1
+          controller="$GITHUB_WORKSPACE/artifacts/orchestration/alertmanager-control"
+          test ! -L "$controller"
+          control_git=(git -C "$controller" -c core.fsmonitor=false -c core.hooksPath=/dev/null)
+          test "$("${control_git[@]}" rev-parse HEAD)" = "$ALERTMANAGER_CONTROLLER_SOURCE"
+          "${control_git[@]}" diff --quiet --no-ext-diff HEAD --
+          "${control_git[@]}" diff --cached --quiet --no-ext-diff HEAD --
+          untracked_bytes="$("${control_git[@]}" ls-files --others --exclude-standard -z | wc -c)"
+          ignored_bytes="$("${control_git[@]}" ls-files --others --ignored --exclude-standard -z | wc -c)"
+          test "$untracked_bytes" -eq 0 && test "$ignored_bytes" -eq 0
+
       - name: Prepare exact AM subject before material execution
         id: alertmanager-image
         timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_PREPARATION_MINUTES) }}
         env:
+          AM_PR_BASE: ${{ github.event.pull_request.base.sha }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GHCR_READ_TOKEN: ${{ github.event_name != 'pull_request' && secrets.GHCR_READ_TOKEN || '' }}
@@ -1772,30 +2083,27 @@ jobs:
           fi
           test ! -L "$controller"
           test "$(git -C "$controller" rev-parse HEAD)" = "$controller_source"
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            old_pin="$(git --no-replace-objects -c core.fsmonitor=false -c core.hooksPath=/dev/null -C "$material" cat-file blob "$AM_PR_BASE:.github/workflows/cd.yml" | sed -nE "s/^  ALERTMANAGER_CONTROLLER_SOURCE: '([0-9a-f]{40})'.*$/\1/p")"
+            [[ "$old_pin" =~ ^[0-9a-f]{40}$ ]]
+            if [ "$old_pin" != "$ALERTMANAGER_CONTROLLER_SOURCE" ]; then
+              export ALERTMANAGER_REPAIR_PIN_CHANGED=true
+            fi
+          fi
           export ALERTMANAGER_CONTROLLER_SOURCE="$controller_source"
           cd "$controller"
-          python3 -E -s -S -m scripts.ci.fetch_docker_source_artifacts \
+          python3 -B -E -s -S -m scripts.ci.fetch_docker_source_artifacts \
             --artifact alertmanager --alertmanager-stage candidate-check --alertmanager-prepare-only \
             --source-sha "$SOURCE_SHA" --material-root "$material" \
             --alertmanager-controller-source "$controller_source" \
-            --alertmanager-qualification-run 40379971373 --alertmanager-qualification-artifact 12677328773 \
-            --alertmanager-qualification-source a8c9b361dbd57d86e2adf8f01f7880830fc04e53 \
-            --alertmanager-support-run 40383803043 --alertmanager-support-artifact 12679243318 \
-            --alertmanager-support-source a8c9b361dbd57d86e2adf8f01f7880830fc04e53 \
-            --alertmanager-candidate-run 40387641620 --alertmanager-candidate-artifact 12684611600 \
-            --alertmanager-candidate-source a8c9b361dbd57d86e2adf8f01f7880830fc04e53 \
+            --alertmanager-qualification-run 43808505545 --alertmanager-qualification-artifact 14199242996 \
+            --alertmanager-qualification-source e91033b4528a83782de3e7dc1e73e6def398348a \
+            --alertmanager-support-run 43810186398 --alertmanager-support-artifact 14200227448 \
+            --alertmanager-support-source e91033b4528a83782de3e7dc1e73e6def398348a \
+            --alertmanager-candidate-run 43811981051 --alertmanager-candidate-artifact 14202207192 \
+            --alertmanager-candidate-source e91033b4528a83782de3e7dc1e73e6def398348a \
             --output-dir "$RUNNER_TEMP/alertmanager-consumer-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
           printf 'controller_source=%s\n' "$controller_source" >> "$GITHUB_OUTPUT"
-
-      - name: Remove designated AM controller after credential cleanup
-        if: always() && (steps.alertmanager-control.outcome == 'success' || steps.alertmanager-control.outcome == 'failure')
-        timeout-minutes: 1
-        run: |
-          set -euo pipefail
-          controller="$GITHUB_WORKSPACE/artifacts/orchestration/alertmanager-control"
-          test ! -L "$controller"
-          rm -rf -- "$controller"
-          test ! -e "$controller" && test ! -L "$controller"
 
       - name: Check canonical Prometheus config with exact-image promtool
         timeout-minutes: 2
@@ -1904,6 +2212,37 @@ jobs:
             --ignorefile "$TRIVY_IGNORE_FILE" \
             --cache-dir /tmp/trivy-cache-prometheus-image-security \
             "$PROMETHEUS_RUNTIME_REF"
+
+      - name: Scan accepted AM and execute all four current controls
+        timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_LIVE_SECURITY_MINUTES) }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ALERTMANAGER_CONTROLLER_SOURCE: ${{ steps.alertmanager-image.outputs.controller_source }}
+          TRIVY_BIN: ${{ steps.prometheus_trivy.outputs.path }}
+          TRIVY_CACHE_DIR: /tmp/trivy-cache-prometheus-image-security
+        run: |
+          set -euo pipefail
+          umask 077
+          controller="$GITHUB_WORKSPACE/artifacts/orchestration/alertmanager-control"
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then controller="$GITHUB_WORKSPACE"; fi
+          test ! -L "$controller"
+          test "$(git -C "$controller" rev-parse HEAD)" = "$ALERTMANAGER_CONTROLLER_SOURCE"
+          cd "$controller"
+          python3 -B -E -s -S -m scripts.ci.fetch_docker_source_artifacts --artifact alertmanager \
+            --alertmanager-stage security-check --alertmanager-scanner "$TRIVY_BIN" \
+            --alertmanager-cache "$TRIVY_CACHE_DIR" \
+            --output-dir "$RUNNER_TEMP/alertmanager-live-security-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+
+      - name: Remove designated AM controller after credential cleanup
+        if: always() && (steps.alertmanager-control.outcome == 'success' || steps.alertmanager-control.outcome == 'failure')
+        timeout-minutes: 1
+        run: |
+          set -euo pipefail
+          controller="$GITHUB_WORKSPACE/artifacts/orchestration/alertmanager-control"
+          test ! -L "$controller"
+          rm -rf -- "$controller"
+          test ! -e "$controller" && test ! -L "$controller"
 
       - name: Select AM Python without dependency or SDK installation
         if: github.event_name == 'pull_request'
@@ -2070,27 +2409,13 @@ jobs:
           for binary in alertmanager amtool; do
             docker run --rm --pull never --platform linux/amd64 --network none --read-only \
               --user 65534:65534 --cap-drop ALL --security-opt no-new-privileges:true \
-              --entrypoint "/bin/$binary" "$AM_IMAGE_ID" --version | grep -F 'version 0.34.1'
+              --entrypoint "/bin/$binary" "$AM_IMAGE_ID" --version | grep -F 'version 0.34.2'
           done
           docker run --rm --pull never --platform linux/amd64 --network none --read-only \
             --user 65534:65534 --cap-drop ALL --security-opt no-new-privileges:true \
             --entrypoint /bin/amtool \
             --mount "type=bind,source=$GITHUB_WORKSPACE/deploy/alertmanager/alertmanager.yml,target=/etc/alertmanager/alertmanager.yml,readonly" \
             "$AM_IMAGE_ID" check-config /etc/alertmanager/alertmanager.yml
-
-      - name: Scan accepted AM and execute all four current controls
-        timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_LIVE_SECURITY_MINUTES) }}
-        env:
-          ALERTMANAGER_CONTROLLER_SOURCE: ${{ steps.alertmanager-image.outputs.controller_source }}
-          TRIVY_BIN: ${{ steps.prometheus_trivy.outputs.path }}
-          TRIVY_CACHE_DIR: /tmp/trivy-cache-prometheus-image-security
-        run: |
-          set -euo pipefail
-          umask 077
-          python -m scripts.ci.fetch_docker_source_artifacts --artifact alertmanager \
-            --alertmanager-stage security-check --alertmanager-scanner "$TRIVY_BIN" \
-            --alertmanager-cache "$TRIVY_CACHE_DIR" \
-            --output-dir "$RUNNER_TEMP/alertmanager-live-security-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
 
       - name: Prove staging environment label reaches Alertmanager despite forged metric label
         timeout-minutes: 3
@@ -2416,6 +2741,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      pull-requests: read
       packages: read
     steps: *prometheus-image-security-steps
 
@@ -2476,6 +2802,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      pull-requests: read
       packages: read
     steps:
       - name: Checkout immutable OBS2A native contracts
@@ -2546,16 +2873,16 @@ jobs:
           docker version --format 'client={{json .Client.Version}} server={{json .Server.Version}}'
           docker info --format 'driver={{json .Driver}} driver_status={{json .DriverStatus}} os={{json .OSType}} arch={{json .Architecture}}'
           cd "$controller"
-          python3 -E -s -S -m scripts.ci.fetch_docker_source_artifacts \
+          python3 -B -E -s -S -m scripts.ci.fetch_docker_source_artifacts \
             --artifact alertmanager --alertmanager-stage candidate-check --alertmanager-prepare-only \
             --source-sha "$SOURCE_SHA" --material-root "$material" \
             --alertmanager-controller-source "$controller_source" \
-            --alertmanager-qualification-run 40379971373 --alertmanager-qualification-artifact 12677328773 \
-            --alertmanager-qualification-source a8c9b361dbd57d86e2adf8f01f7880830fc04e53 \
-            --alertmanager-support-run 40383803043 --alertmanager-support-artifact 12679243318 \
-            --alertmanager-support-source a8c9b361dbd57d86e2adf8f01f7880830fc04e53 \
-            --alertmanager-candidate-run 40387641620 --alertmanager-candidate-artifact 12684611600 \
-            --alertmanager-candidate-source a8c9b361dbd57d86e2adf8f01f7880830fc04e53 \
+            --alertmanager-qualification-run 43808505545 --alertmanager-qualification-artifact 14199242996 \
+            --alertmanager-qualification-source e91033b4528a83782de3e7dc1e73e6def398348a \
+            --alertmanager-support-run 43810186398 --alertmanager-support-artifact 14200227448 \
+            --alertmanager-support-source e91033b4528a83782de3e7dc1e73e6def398348a \
+            --alertmanager-candidate-run 43811981051 --alertmanager-candidate-artifact 14202207192 \
+            --alertmanager-candidate-source e91033b4528a83782de3e7dc1e73e6def398348a \
             --output-dir "$RUNNER_TEMP/alertmanager-consumer-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
           printf 'controller_source=%s\n' "$controller_source" >> "$GITHUB_OUTPUT"
 
@@ -2686,9 +3013,11 @@ jobs:
           "$am_python" -m tests.test_notify_premium_alias_checkpoint_failure --help
           printf 'python=%s\n' "$am_python" >> "$GITHUB_OUTPUT"
       - name: Consume exact Prometheus before main native fixtures
+        id: checkpoint-image
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.checkpoint-native.outputs.selected == 'true'
         timeout-minutes: 18
         env:
+          PROMETHEUS_CREDENTIAL_ROUTE: trusted_published
           AM_HOST_PYTHON: ${{ steps.am-python.outputs.python }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -2707,15 +3036,20 @@ jobs:
           AM_HOST_PYTHON: ${{ steps.am-python.outputs.python }}
           AM_IMAGE_ID: ${{ steps.alertmanager-image.outputs.image_id }}
           AM_CONFIG_SHA256: ${{ steps.alertmanager-image.outputs.config_sha256 }}
+          PROMETHEUS_RUNTIME_REF: ${{ steps.checkpoint-image.outputs.runtime_ref }}
+          PROMETHEUS_ROUTE: trusted_published
         run: |
           set -euo pipefail
           native_python="$AM_HOST_PYTHON"
+          evidence="$RUNNER_TEMP/prometheus-obs2a-consumer-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT/evidence"
+          raw_input="$("$native_python" -c 'import sys; from tests.test_notify_premium_alias_checkpoint_failure import checkpoint_prometheus_raw_input; print(checkpoint_prometheus_raw_input(*sys.argv[1:]))' "$evidence" "$PROMETHEUS_ROUTE" "$PROMETHEUS_RUNTIME_REF")"
           mkdir -p artifacts/orchestration/obs2a_pr3
           if {
             sudo /usr/bin/env -i PATH=/usr/local/bin:/usr/bin:/bin LANG=C HOME=/tmp PYTHONDONTWRITEBYTECODE=1 \
             "$native_python" -m tests.test_notify_premium_alias_checkpoint_failure --native \
+              --prometheus-route "$PROMETHEUS_ROUTE" --prometheus-runtime-ref "$PROMETHEUS_RUNTIME_REF" \
               --alertmanager-image-id "$AM_IMAGE_ID" --alertmanager-config-sha256 "$AM_CONFIG_SHA256"
-          } 2>&1 | tee artifacts/orchestration/obs2a_pr3/native-result.log; then
+          } 2>&1 < "$raw_input" | tee artifacts/orchestration/obs2a_pr3/native-result.log; then
             pipeline_status=("${PIPESTATUS[@]}")
           else
             pipeline_status=("${PIPESTATUS[@]}")
@@ -2797,27 +3131,27 @@ jobs:
               raise SystemExit("PostgreSQL Containerfile must be one regular file")
           manifest_bytes = manifest_path.read_bytes()
           if hashlib.sha256(manifest_bytes).hexdigest() != (
-              "9aa310913af9799c39182428e0170b173fe2144367b302d7d2cafd87c93c03b2"
+              "2583671c942aa7dead7047631e68992bdd8c301c3e76a83ea21a24cc6fa1a3d0"
           ):
               raise SystemExit("PostgreSQL image manifest bytes drifted")
           manifest = json.loads(manifest_bytes)
           expected = {
               "schema": "pulseplate.postgres_pgvector_image_manifest.v1",
               "repository": "ghcr.io/katsiarynakavaleuskaya/pulseplate",
-              "tag": "postgres-15.19-pgvector0.8.6-alpine3.23",
+              "tag": "postgres-15.20-pgvector0.8.6-alpine3.23",
               "platform": "linux/amd64",
-              "platform_manifest_digest": "sha256:d4437ad4970b4099e4cb7d05b7fa625c7e6959949d1374f1f2d4bd4149ae5fa3",
-              "config_digest": "sha256:643c5c00d70c37d83a0ab6db8b0996e4c03fb82c4769a45b03eef0cf3ee2abd5",
+              "platform_manifest_digest": "sha256:5b81202040bbcfbf4fc29ee32c6e6a8c824c27c50aa41c80e62418c5c2ec3adc",
+              "config_digest": "sha256:65d34d5f6a34bc6c365b3b326bfa593bdd43adbed1ece14c9b63171ba586004b",
               "source_date_epoch": "1785349734",
-              "containerfile_sha256": "sha256:aae2bfb779a3139d402d1e0a70085ab5bd565e938c46dcab024bad817b6d5c42",
-              "builder_apk_inputs_sha256": "sha256:2fc2d58bb4eb48681e4dec665e461e860b8198d74bbf7771d4db32c205927739",
-              "builder_apk_index_sha256": "sha256:ecdb6930ca663e4484c5ea41bec6682889601892ec46eefd85f5a4745318d781",
+              "containerfile_sha256": "sha256:c5ab2d853895333dd7a06bddf5ada287ee2e55a6bb367a59b86358cf14005928",
+              "builder_apk_inputs_sha256": "sha256:7accbd8b01528806c565ed982cdf7268cc54d8e05b38b220db38b371d7368b25",
+              "builder_apk_index_sha256": "sha256:c3b3248b0d0065d57cada12615ddb1584a7db77835922852831f58e8b98686db",
               "builder_apk_input_count": "41",
               "buildkit_platform_manifest_digest": "sha256:040d34121c27906c4ff9ac152a30d52bf2c5d328d3bb748916bb3d2743c02528",
               "buildkit_version": "0.32.2",
               "buildx_version": "0.37.0",
               "buildx_linux_amd64_sha256": "sha256:ae43fa08c796b44efc86d7a63c55f73f7c35f3101188dea7bf93bcd6f99577ba",
-              "postgres_version": "15.19",
+              "postgres_version": "15.20",
               "pgvector_version": "0.8.6",
               "mountpoint_layer_schema": "pulseplate.pgvector_mountpoint_layer.v1",
               "mountpoint_layer_digest": "sha256:4c539aa857412d283fe8d55b40227fbd17b9fd6f06834f81fd98ec6796ee7396",
@@ -3071,7 +3405,7 @@ jobs:
       && needs.staging-postgres-native-integration.result == 'success'
     needs: [main-push-admission, postgres-pgvector-contract, postgres-pgvector-material-change, postgres-pgvector-ci-admission, staging-postgres-native-integration]
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 240
     environment:
       name: pgvector-publish
     concurrency:
@@ -3202,8 +3536,8 @@ jobs:
           : "${DOCKER_SCOUT_HUB_USER:?Docker Scout Hub user is required}"
           : "${DOCKER_SCOUT_HUB_PASSWORD:?Docker Scout Hub authentication is required}"
           test -f "$SCOUT_BIN" && test ! -L "$SCOUT_BIN" && test -x "$SCOUT_BIN"
-          runtime_base='registry://dhi.io/postgres@sha256:3a241134f6d82eb6465622af948258e41806cfb4497e6c8f0f0a64ca6c4d34db'
-          builder_base='registry://dhi.io/postgres@sha256:74cde2c2febf7d7ddacfd3d23dbc66ea0fcbc1bdb9ae4b1ed654d717d203a2a5'
+          runtime_base='registry://dhi.io/postgres@sha256:ac5f0af144f2123cfb0fd89d9e38843ece6bfaef6bb7240d9ed7e6da88565325'
+          builder_base='registry://dhi.io/postgres@sha256:d518873fc4894f792f948bca16ab195f34212057dddc78ff2f0e4329469ecacd'
           "$SCOUT_BIN" attestation get \
             --predicate-type https://slsa.dev/provenance/v1 \
             --verify \
@@ -3230,13 +3564,13 @@ jobs:
           expected = (
               (
                   Path("dhi-postgres-runtime-provenance.json"),
-                  "pkg:docker/dhi/postgres@15-alpine3.23&platform=linux/amd64",
-                  "3a241134f6d82eb6465622af948258e41806cfb4497e6c8f0f0a64ca6c4d34db",
+                  "pkg:docker/dhi/postgres@15.20-alpine3.23&platform=linux/amd64",
+                  "ac5f0af144f2123cfb0fd89d9e38843ece6bfaef6bb7240d9ed7e6da88565325",
               ),
               (
                   Path("dhi-postgres-builder-provenance.json"),
-                  "pkg:docker/dhi/postgres@15-alpine3.23-dev&platform=linux/amd64",
-                  "74cde2c2febf7d7ddacfd3d23dbc66ea0fcbc1bdb9ae4b1ed654d717d203a2a5",
+                  "pkg:docker/dhi/postgres@15.20-alpine3.23-dev&platform=linux/amd64",
+                  "d518873fc4894f792f948bca16ab195f34212057dddc78ff2f0e4329469ecacd",
               ),
           )
           for path, expected_name, expected_digest in expected:
@@ -3437,7 +3771,7 @@ jobs:
               raise SystemExit("Reproduced PostgreSQL manifest bytes have the wrong digest")
           manifest = json.loads(manifest_bytes)
           layers = manifest.get("layers")
-          if not isinstance(layers, list) or len(layers) != 16:
+          if not isinstance(layers, list) or len(layers) != 13:
               raise SystemExit("Reproduced PostgreSQL layer count drifted")
           mountpoint_descriptor = layers[-1]
           expected_mountpoint_descriptor = {
@@ -3514,7 +3848,7 @@ jobs:
           if (
               not isinstance(rootfs, dict)
               or not isinstance(rootfs.get("diff_ids"), list)
-              or len(rootfs["diff_ids"]) != 16
+              or len(rootfs["diff_ids"]) != 13
               or rootfs["diff_ids"][-1] != expected_mountpoint_diff_id
           ):
               raise SystemExit("PostgreSQL mountpoint layer diff ID drifted")
@@ -3526,7 +3860,7 @@ jobs:
               "entrypoint": ["/usr/local/bin/docker-entrypoint.sh"],
               "pgdata": "/var/lib/postgresql/15/data",
               "pg_major": "15",
-              "pg_minor": "19",
+              "pg_minor": "20",
           }
           environment = runtime.get("Env") if isinstance(runtime, dict) else None
           observed_runtime = {
@@ -3584,7 +3918,7 @@ jobs:
           import sys
 
           layers = json.loads(sys.argv[1])
-          if not isinstance(layers, list) or len(layers) != 16:
+          if not isinstance(layers, list) or len(layers) != 13:
               raise SystemExit("Loaded PostgreSQL image rootfs cardinality drifted")
           if layers[-1] != sys.argv[2]:
               raise SystemExit("Loaded PostgreSQL image mountpoint diff ID drifted")
@@ -3632,42 +3966,262 @@ jobs:
           TRIVY_BIN: ${{ steps.pgvector-trivy.outputs.path }}
           TRIVY_IGNORE_FILE: ${{ steps.pgvector-trivy.outputs.ignore }}
           TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db
+          PGVECTOR_EXPECTED_PLATFORM_DIGEST: ${{ needs.postgres-pgvector-contract.outputs.platform_manifest_digest }}
+          PGVECTOR_SCAN_SECONDS: '900'
+          PGVECTOR_SCAN_PROCESS_SECONDS: '930'
+          PGVECTOR_PULL_PROCESS_SECONDS: '180'
+          PGVECTOR_INSPECT_PROCESS_SECONDS: '30'
         run: |
           set -euo pipefail
-          test -x "$TRIVY_BIN" && test ! -L "$TRIVY_BIN"
-          test -f "$TRIVY_IGNORE_FILE" && test ! -L "$TRIVY_IGNORE_FILE" \
-            && test ! -s "$TRIVY_IGNORE_FILE"
-          runtime_base='dhi.io/postgres@sha256:3a241134f6d82eb6465622af948258e41806cfb4497e6c8f0f0a64ca6c4d34db'
-          builder_base='dhi.io/postgres@sha256:74cde2c2febf7d7ddacfd3d23dbc66ea0fcbc1bdb9ae4b1ed654d717d203a2a5'
-          docker pull --platform linux/amd64 "$runtime_base"
-          docker pull --platform linux/amd64 "$builder_base"
-          scan_number=0
-          for image_ref in \
-            "$runtime_base" \
-            "$builder_base" \
-            "$PGVECTOR_BUILDER_LOCAL_TAG"; do
-            scan_number=$((scan_number + 1))
-            "$TRIVY_BIN" image \
-              --scanners vuln,secret \
-              --format table \
-              --pkg-types os,library \
-              --severity CRITICAL,HIGH \
-              --exit-code 1 \
-              --timeout 15m \
-              --ignorefile "$TRIVY_IGNORE_FILE" \
-              --cache-dir "${RUNNER_TEMP}/trivy-cache-pgvector-${scan_number}" \
-              "$image_ref"
-          done
-          "$TRIVY_BIN" image \
-            --input "$PGVECTOR_OCI_OUTPUT_DIR/oci-1" \
-            --scanners vuln,secret \
-            --format table \
-            --pkg-types os,library \
-            --severity CRITICAL,HIGH \
-            --exit-code 1 \
-            --timeout 15m \
-            --ignorefile "$TRIVY_IGNORE_FILE" \
-            --cache-dir "${RUNNER_TEMP}/trivy-cache-pgvector-exact-final"
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import re
+          import shutil
+          import stat
+          import subprocess
+          import tempfile
+
+          from scripts.ci.check_docker_runtime_dependency_surface import validate_trivy_image_report
+
+
+          def file_facts(path: Path) -> dict[str, int | str]:
+              metadata = path.lstat()
+              if not stat.S_ISREG(metadata.st_mode):
+                  raise ValueError("pg_scan_nonregular_file")
+              digest = hashlib.sha256()
+              with path.open("rb") as stream:
+                  for block in iter(lambda: stream.read(1024 * 1024), b""):
+                      digest.update(block)
+              return {"bytes": metadata.st_size, "sha256": digest.hexdigest()}
+
+
+          def publish_pg_report(
+              image: str | None, report: Path, public: Path, ordinal: int, native_status: int
+          ) -> bool:
+              # Existing image structure plus Secrets projection, not a universal sanitizer.
+              if native_status != 0 or image is None:
+                  return False
+              destination = public / (str(ordinal) + ".full.json")
+              pending = report.parent / (str(ordinal) + ".public-copy.json")
+              try:
+                  before = file_facts(report)
+                  if not 0 < before["bytes"] <= 64 * 1024 * 1024:
+                      return False
+                  raw = report.read_bytes()
+                  validate_trivy_image_report(image, report)
+                  data = json.loads(raw)
+                  for result in data["Results"]:
+                      if "Secrets" in result and (type(result["Secrets"]) is not list or result["Secrets"]):
+                          return False
+                  if file_facts(report) != before or report.read_bytes() != raw:
+                      return False
+                  if destination.exists() or destination.is_symlink():
+                      return False
+                  with pending.open("xb") as output:
+                      output.write(raw)
+                  if file_facts(pending) != before or pending.read_bytes() != raw:
+                      return False
+                  os.replace(pending, destination)
+                  return True
+              except (OSError, ValueError, KeyError, TypeError, RuntimeError, subprocess.SubprocessError):
+                  # Never expose raw scanner/decoder/transport exception prose.
+                  return False
+
+
+          os.umask(0o077)
+          runner = Path(os.environ["RUNNER_TEMP"])
+          private = Path(tempfile.mkdtemp(prefix="pulseplate-pg-scan-private-", dir=runner))
+          public = runner / "pulseplate-pg-scan-public"
+          public.mkdir(mode=0o700)
+          trivy = Path(os.environ["TRIVY_BIN"])
+          ignore = Path(os.environ["TRIVY_IGNORE_FILE"])
+          if not trivy.is_absolute() or trivy.is_symlink() or not trivy.is_file() or not os.access(trivy, os.X_OK):
+              raise SystemExit("pg_scan_tool_invalid")
+          if ignore.is_symlink() or not stat.S_ISREG(ignore.stat().st_mode) or ignore.stat().st_size:
+              raise SystemExit("pg_scan_ignore_invalid")
+          docker = shutil.which("docker")
+          if docker is None or not Path(docker).is_absolute():
+              raise SystemExit("pg_scan_docker_missing")
+          # The step env owns every process timeout; no duplicate production defaults.
+          native_seconds = int(os.environ["PGVECTOR_SCAN_SECONDS"])
+          process_seconds = int(os.environ["PGVECTOR_SCAN_PROCESS_SECONDS"])
+          pull_seconds = int(os.environ["PGVECTOR_PULL_PROCESS_SECONDS"])
+          inspect_seconds = int(os.environ["PGVECTOR_INSPECT_PROCESS_SECONDS"])
+          if not 0 < native_seconds < process_seconds or min(pull_seconds, inspect_seconds) <= 0:
+              raise SystemExit("pg_scan_budget_invalid")
+          expected_final = os.environ["PGVECTOR_EXPECTED_PLATFORM_DIGEST"]
+          if re.fullmatch(r"sha256:[0-9a-f]{64}", expected_final) is None:
+              raise SystemExit("pg_scan_final_subject_invalid")
+          cache = private / "cache"
+          config = private / "trivy.yaml"
+          config.write_text("{}\n")
+          home = private / "home"
+          home.mkdir(mode=0o700)
+          scan_env = {
+              "PATH": os.defpath,
+              "HOME": str(home),
+              "LANG": "C.UTF-8",
+              "XDG_CONFIG_HOME": str(home),
+              "XDG_DATA_HOME": str(home),
+              "TRIVY_DB_REPOSITORY": os.environ["TRIVY_DB_REPOSITORY"],
+              "DOCKER_CONFIG": os.environ["PGVECTOR_DOCKER_CONFIG"],
+          }
+          # Existing trusted host Docker authentication stays in its owned configuration;
+          # no registry token or inherited scanner/ignore/config environment is forwarded.
+
+
+          def native(label: str, argv: list[str], timeout: int) -> int:
+              with (private / (label + ".stdout")).open("xb") as out, (private / (label + ".stderr")).open("xb") as err:
+                  try:
+                      return subprocess.run(
+                          argv, env=scan_env, stdin=subprocess.DEVNULL,
+                          stdout=out, stderr=err, timeout=timeout, check=False,
+                      ).returncode
+                  except subprocess.TimeoutExpired:
+                      return 124
+                  except OSError:
+                      return 125
+
+
+          def database_facts() -> dict[str, dict[str, int | str]]:
+              db = cache / "db"
+              if db.is_symlink() or not db.is_dir():
+                  raise ValueError("pg_scan_database_missing")
+              if {path.name for path in db.iterdir()} != {"trivy.db", "metadata.json"}:
+                  raise ValueError("pg_scan_database_inventory")
+              return {name: file_facts(db / name) for name in ("trivy.db", "metadata.json")}
+
+
+          base = [str(trivy), "--config", str(config), "image"]
+          db_status = native("database", base + [
+              "--download-db-only", "--cache-dir", str(cache),
+              "--timeout", str(native_seconds) + "s",
+          ], process_seconds)
+          (public / "database-status.txt").write_text(str(db_status) + "\n")
+          if db_status != 0:
+              raise SystemExit("pg_scan_database_failed_private_diagnostics")
+          try:
+              db_hashes = database_facts()
+          except (OSError, ValueError):
+              raise SystemExit("pg_scan_database_inventory_invalid") from None
+          (public / "database-sha256.json").write_text(json.dumps(db_hashes, sort_keys=True) + "\n")
+          tool_facts = file_facts(trivy)
+          (public / "scanner-sha256.json").write_text(json.dumps(tool_facts, sort_keys=True) + "\n")
+          subjects = [
+              "dhi.io/postgres@sha256:ac5f0af144f2123cfb0fd89d9e38843ece6bfaef6bb7240d9ed7e6da88565325",
+              "dhi.io/postgres@sha256:d518873fc4894f792f948bca16ab195f34212057dddc78ff2f0e4329469ecacd",
+              os.environ["PGVECTOR_BUILDER_LOCAL_TAG"],
+              None,
+          ]
+          failed = False
+          for ordinal, reference in enumerate(subjects, 1):
+              status_path = public / (str(ordinal) + ".status.json")
+              status = {"subject_ordinal": ordinal, "public_full_report": False}
+              image = None
+              try:
+                  if database_facts() != db_hashes or file_facts(trivy) != tool_facts:
+                      raise ValueError("frozen_input_drift")
+              except (OSError, ValueError):
+                  status["failure"] = "frozen_input_drift"
+                  status_path.write_text(json.dumps(status, sort_keys=True) + "\n")
+                  failed = True
+                  continue
+              if reference is not None:
+                  if ordinal <= 2:
+                      pull_status = native(str(ordinal) + ".pull", [
+                          docker, "pull", "--platform", "linux/amd64", reference,
+                      ], pull_seconds)
+                      status["pull_native_exit"] = pull_status
+                      if pull_status != 0:
+                          status["failure"] = "subject_pull_failed"
+                          status_path.write_text(json.dumps(status, sort_keys=True) + "\n")
+                          failed = True
+                          continue
+                  inspect_status = native(str(ordinal) + ".inspect", [
+                      docker, "image", "inspect", "--format", "{{.Id}}", reference,
+                  ], inspect_seconds)
+                  status["inspect_native_exit"] = inspect_status
+                  try:
+                      inspected = private / (str(ordinal) + ".inspect.stdout")
+                      if inspect_status != 0 or file_facts(inspected)["bytes"] > 1024:
+                          raise ValueError("subject_binding_failed")
+                      image = inspected.read_text().strip()
+                      if re.fullmatch(r"sha256:[0-9a-f]{64}", image) is None:
+                          raise ValueError("subject_binding_failed")
+                  except (OSError, ValueError):
+                      status["failure"] = "subject_binding_failed"
+                      status_path.write_text(json.dumps(status, sort_keys=True) + "\n")
+                      failed = True
+                      continue
+                  target = [image]
+                  status["subject"] = image
+              else:
+                  # Earlier exact OCI/provenance owner binds this directory and digest.
+                  # Never pass an OCI filesystem path to the Docker image report helper.
+                  target = ["--input", str(Path(os.environ["PGVECTOR_OCI_OUTPUT_DIR"]) / "oci-1")]
+                  status["subject"] = expected_final
+                  status["publication_scope"] = "private_OCI_report_status_and_hash_only"
+                  status["full_report_validation"] = "private_OCI_no_public_image_validation"
+              common = [
+                  "--scanners", "vuln,secret", "--pkg-types", "os,library",
+                  "--ignorefile", str(ignore), "--ignore-unfixed=false",
+                  "--cache-dir", str(cache), "--skip-db-update", "--skip-java-db-update",
+                  "--timeout", str(native_seconds) + "s",
+              ]
+              raw = private / (str(ordinal) + ".full.json")
+              full_status = native(str(ordinal) + ".full", base + common + [
+                  "--format", "json", "--list-all-pkgs",
+                  "--severity", "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL",
+                  "--exit-code", "0", "--output", str(raw),
+              ] + target, process_seconds)
+              # Original native HC rejection remains independent; its output is private.
+              # A drifted database/tool cannot become a second admitted scanner epoch.
+              try:
+                  still_frozen = database_facts() == db_hashes and file_facts(trivy) == tool_facts
+              except (OSError, ValueError):
+                  still_frozen = False
+              hc_status = None
+              if still_frozen:
+                  hc_status = native(str(ordinal) + ".hc", base + common + [
+                      "--format", "table", "--severity", "CRITICAL,HIGH", "--exit-code", "1",
+                  ] + target, process_seconds)
+              status.update(full_native_exit=full_status, hc_native_exit=hc_status)
+              readable = False
+              try:
+                  facts = file_facts(raw)
+                  status["raw"] = facts
+                  if 0 < facts["bytes"] <= 64 * 1024 * 1024:
+                      # Decode only to detect missing/malformed collection output; final OCI
+                      # structure/identity is not generalized into a new image recognizer.
+                      json.loads(raw.read_bytes())
+                      readable = True
+              except (OSError, ValueError):
+                  status["failure"] = "raw_report_missing_or_malformed"
+              try:
+                  frozen = database_facts() == db_hashes and file_facts(trivy) == tool_facts
+              except (OSError, ValueError):
+                  frozen = False
+              safe = publish_pg_report(image, raw, public, ordinal, full_status) if readable and frozen else False
+              status["public_full_report"] = safe
+              if not frozen:
+                  status["failure"] = "frozen_input_drift"
+              elif full_status != 0:
+                  status["failure"] = "full_native_failed"
+              elif not readable:
+                  status["failure"] = "raw_report_missing_or_malformed"
+              elif image is not None and not safe:
+                  status["failure"] = "report_publication_projection_rejected"
+              elif hc_status != 0:
+                  status["failure"] = "HC_native_failed"
+              status_path.write_text(json.dumps(status, sort_keys=True) + "\n")
+              if "failure" in status:
+                  failed = True
+          if failed:
+              raise SystemExit("pg_scan_failed_private_diagnostics")
+          PY
 
       - name: Prove PostgreSQL 15 pgvector 0.8.6 and same-volume continuity
         run: |
@@ -3682,9 +4236,6 @@ jobs:
           legacy_container_name="${prefix}-legacy-postgres"
           legacy_volume_name="${prefix}-legacy-data"
           legacy_image='postgres:15-alpine@sha256:a2c20749c564b4eb73a77bfda626f8a3cde1bbfae020fb97c616a00cdc1a2181'
-          prior_container_name="${prefix}-prior-postgres"
-          prior_volume_name="${prefix}-prior-data"
-          prior_image='ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380'
           database_name="pgvector_compat"
           database_user="pgvector_compat"
           database_password="pgvector_compat_test_password" # pragma: allowlist secret
@@ -3729,7 +4280,7 @@ jobs:
             --cap-drop ALL \
             --security-opt no-new-privileges:true \
             --entrypoint /bin/sh \
-            dhi.io/postgres@sha256:3a241134f6d82eb6465622af948258e41806cfb4497e6c8f0f0a64ca6c4d34db \
+            dhi.io/postgres@sha256:ac5f0af144f2123cfb0fd89d9e38843ece6bfaef6bb7240d9ed7e6da88565325 \
             -ec 'stat -c "%n %u:%g:%a" /var /var/lib /var/lib/postgresql')"
           test "$base_parent_metadata" = $'/var 0:0:755\n/var/lib 0:0:755\n/var/lib/postgresql 70:70:750'
           if docker volume inspect "$volume_name" >/dev/null 2>&1; then
@@ -3825,51 +4376,61 @@ jobs:
           test "$transitioned_oid" = "$legacy_oid"
           test "$transitioned_sentinel" = "legacy-persistent"
           test "$transitioned_vector" = "0.8.6"
-          test "$transitioned_postgres" = "postgres (PostgreSQL) 15.19"
+          test "$transitioned_postgres" = "postgres (PostgreSQL) 15.20"
           docker rm -f "$legacy_container_name" >/dev/null
 
-          docker pull --platform linux/amd64 "$prior_image"
-          if docker volume inspect "$prior_volume_name" >/dev/null 2>&1; then
-            echo "Synthetic prior-volume name already exists" >&2
-            exit 1
-          fi
-          docker volume create "$prior_volume_name" >/dev/null
-          start_postgres "$prior_container_name" "$prior_volume_name" "$prior_image"
-          docker exec "$prior_container_name" psql \
-            --username "$database_user" --dbname "$database_name" \
-            --set ON_ERROR_STOP=1 \
-            --command 'CREATE EXTENSION vector;' \
-            --command 'CREATE TABLE pulseplate_prior_sentinel (value text PRIMARY KEY, embedding vector(3));' \
-            --command "INSERT INTO pulseplate_prior_sentinel VALUES ('prior-persistent', '[1,2,3]');"
-          prior_oid="$(docker exec "$prior_container_name" psql \
-            --username "$database_user" --dbname "$database_name" \
-            --set ON_ERROR_STOP=1 --tuples-only --no-align \
-            --command 'SELECT oid FROM pg_database WHERE datname = current_database();')"
-          [[ "$prior_oid" =~ ^[0-9]+$ ]]
-          docker rm -f "$prior_container_name" >/dev/null
-          start_postgres "$prior_container_name" "$prior_volume_name" "$PGVECTOR_FINAL_LOCAL_TAG"
-          prior_transitioned_oid="$(docker exec "$prior_container_name" psql \
-            --username "$database_user" --dbname "$database_name" \
-            --set ON_ERROR_STOP=1 --tuples-only --no-align \
-            --command 'SELECT oid FROM pg_database WHERE datname = current_database();')"
-          prior_transitioned_data="$(docker exec "$prior_container_name" psql \
-            --username "$database_user" --dbname "$database_name" \
-            --set ON_ERROR_STOP=1 --tuples-only --no-align \
-            --command "SELECT value || ':' || embedding::text FROM pulseplate_prior_sentinel;")"
-          prior_transitioned_vector="$(docker exec "$prior_container_name" psql \
-            --username "$database_user" --dbname "$database_name" \
-            --set ON_ERROR_STOP=1 --tuples-only --no-align \
-            --command "SELECT extversion FROM pg_extension WHERE extname = 'vector';")"
-          prior_vector_distance="$(docker exec "$prior_container_name" psql \
-            --username "$database_user" --dbname "$database_name" \
-            --set ON_ERROR_STOP=1 --tuples-only --no-align \
-            --command "SELECT embedding <-> '[1,2,3]'::vector FROM pulseplate_prior_sentinel;")"
-          prior_transitioned_postgres="$(docker exec "$prior_container_name" postgres --version)"
-          test "$prior_transitioned_oid" = "$prior_oid"
-          test "$prior_transitioned_data" = "prior-persistent:[1,2,3]"
-          test "$prior_transitioned_vector" = "0.8.6"
-          test "$prior_vector_distance" = "0"
-          test "$prior_transitioned_postgres" = "postgres (PostgreSQL) 15.19"
+          prove_prior_transition() {
+            local prior_container_name="$1" prior_volume_name="$2" prior_image="$3"
+            local prior_oid prior_transitioned_oid prior_transitioned_data prior_transitioned_vector
+            local prior_vector_distance prior_transitioned_postgres
+            docker pull --platform linux/amd64 "$prior_image"
+            if docker volume inspect "$prior_volume_name" >/dev/null 2>&1; then
+              echo "Synthetic prior-volume name already exists" >&2
+              exit 1
+            fi
+            docker volume create "$prior_volume_name" >/dev/null
+            start_postgres "$prior_container_name" "$prior_volume_name" "$prior_image"
+            docker exec "$prior_container_name" psql \
+              --username "$database_user" --dbname "$database_name" \
+              --set ON_ERROR_STOP=1 \
+              --command 'CREATE EXTENSION vector;' \
+              --command 'CREATE TABLE pulseplate_prior_sentinel (value text PRIMARY KEY, embedding vector(3));' \
+              --command "INSERT INTO pulseplate_prior_sentinel VALUES ('prior-persistent', '[1,2,3]');"
+            prior_oid="$(docker exec "$prior_container_name" psql \
+              --username "$database_user" --dbname "$database_name" \
+              --set ON_ERROR_STOP=1 --tuples-only --no-align \
+              --command 'SELECT oid FROM pg_database WHERE datname = current_database();')"
+            [[ "$prior_oid" =~ ^[0-9]+$ ]]
+            docker rm -f "$prior_container_name" >/dev/null
+            start_postgres "$prior_container_name" "$prior_volume_name" "$PGVECTOR_FINAL_LOCAL_TAG"
+            prior_transitioned_oid="$(docker exec "$prior_container_name" psql \
+              --username "$database_user" --dbname "$database_name" \
+              --set ON_ERROR_STOP=1 --tuples-only --no-align \
+              --command 'SELECT oid FROM pg_database WHERE datname = current_database();')"
+            prior_transitioned_data="$(docker exec "$prior_container_name" psql \
+              --username "$database_user" --dbname "$database_name" \
+              --set ON_ERROR_STOP=1 --tuples-only --no-align \
+              --command "SELECT value || ':' || embedding::text FROM pulseplate_prior_sentinel;")"
+            prior_transitioned_vector="$(docker exec "$prior_container_name" psql \
+              --username "$database_user" --dbname "$database_name" \
+              --set ON_ERROR_STOP=1 --tuples-only --no-align \
+              --command "SELECT extversion FROM pg_extension WHERE extname = 'vector';")"
+            prior_vector_distance="$(docker exec "$prior_container_name" psql \
+              --username "$database_user" --dbname "$database_name" \
+              --set ON_ERROR_STOP=1 --tuples-only --no-align \
+              --command "SELECT embedding <-> '[1,2,3]'::vector FROM pulseplate_prior_sentinel;")"
+            prior_transitioned_postgres="$(docker exec "$prior_container_name" postgres --version)"
+            test "$prior_transitioned_oid" = "$prior_oid"
+            test "$prior_transitioned_data" = "prior-persistent:[1,2,3]"
+            test "$prior_transitioned_vector" = "0.8.6"
+            test "$prior_vector_distance" = "0"
+            test "$prior_transitioned_postgres" = "postgres (PostgreSQL) 15.20"
+            docker rm -f "$prior_container_name" >/dev/null
+          }
+          prove_prior_transition "${prefix}-prior-postgres" "${prefix}-prior-data" \
+            'ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380'
+          prove_prior_transition "${prefix}-last-postgres" "${prefix}-last-data" \
+            'ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@sha256:d4437ad4970b4099e4cb7d05b7fa625c7e6959949d1374f1f2d4bd4149ae5fa3'
 
       - name: Verify existing public GHCR package identity before candidate write
         env:
@@ -4073,7 +4634,7 @@ jobs:
           test "$(docker image inspect "$RUNTIME_REF" --format '{{.Config.User}}')" = "70"
           docker run --rm --platform linux/amd64 --entrypoint /usr/bin/postgres \
             "$RUNTIME_REF" --version | \
-            grep -Fx 'postgres (PostgreSQL) 15.19'
+            grep -Fx 'postgres (PostgreSQL) 15.20'
 
       - name: Inspect the exact PostgreSQL platform manifest with native Docker
         env:
@@ -4201,6 +4762,7 @@ jobs:
             postgres-pgvector-provenance-attestation-check.md
             dhi-postgres-runtime-provenance.json
             dhi-postgres-builder-provenance.json
+            ${{ runner.temp }}/pulseplate-pg-scan-public/
           if-no-files-found: warn
           retention-days: 30
 
@@ -4256,7 +4818,8 @@ jobs:
               for synthetic_container in \
                 "${prefix}-postgres" \
                 "${prefix}-legacy-postgres" \
-                "${prefix}-prior-postgres"; do
+                "${prefix}-prior-postgres" \
+                "${prefix}-last-postgres"; do
                 if inventory_contains "$synthetic_container" docker container ls --all --format '{{.Names}}'; then
                   if ! docker rm -f "$synthetic_container" >/dev/null; then
                     cleanup_failed=1
@@ -4266,7 +4829,8 @@ jobs:
               for synthetic_volume in \
                 "${prefix}-data" \
                 "${prefix}-legacy-data" \
-                "${prefix}-prior-data"; do
+                "${prefix}-prior-data" \
+                "${prefix}-last-data"; do
                 if inventory_contains "$synthetic_volume" docker volume ls --format '{{.Name}}'; then
                   if ! docker volume rm "$synthetic_volume" >/dev/null; then
                     cleanup_failed=1

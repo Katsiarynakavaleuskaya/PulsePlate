@@ -1,7 +1,6 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import '../../../i18n';
 import i18n from '../../../i18n';
 import WelcomeGateV1 from '../WelcomeGateV1';
 
@@ -11,13 +10,12 @@ async function waitForI18n(): Promise<void> {
   }
 
   await new Promise<void>((resolve, reject) => {
-    let timeout: ReturnType<typeof setTimeout>;
     const handler = (): void => {
       i18n.off('initialized', handler);
       clearTimeout(timeout);
       resolve();
     };
-    timeout = setTimeout(() => {
+    const timeout: ReturnType<typeof setTimeout> = setTimeout(() => {
       i18n.off('initialized', handler);
       reject(new Error('i18n initialization timeout'));
     }, 5000);

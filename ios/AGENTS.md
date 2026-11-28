@@ -157,10 +157,10 @@
 
 **Xcode selection:**
 
-- Preferred exact alias: Xcode 27.0 (`/Applications/Xcode_27.0.0.app`)
-- Alternate exact alias: `/Applications/Xcode_27.0.app`
-- Final fallback: `/Applications/Xcode.app`, only if `xcodebuild -version` resolves to Xcode 27.0
-- CI fails if Xcode, Swift 6.4, iOS 27.0 SDK, or simulator runtime is absent (see `.github/workflows/ci.yml` `select-xcode` step).
+- Preferred exact alias: Xcode 27.2 (`/Applications/Xcode_27.2.0.app`)
+- Alternate exact alias: `/Applications/Xcode_27.2.app`
+- Final fallback: `/Applications/Xcode.app`, only if `xcodebuild -version` resolves to Xcode 27.2
+- CI fails if Xcode, Swift 6.4, iOS 27.2 SDK, or simulator runtime is absent (see `.github/workflows/ci.yml` `select-xcode` step).
 - `PulsePlate`, `PulsePlateTests`, and `PulsePlateUITests` enable Swift
   `SWIFT_TREAT_WARNINGS_AS_ERRORS` in Debug and Release. This does not classify
   Xcode build-tool messages such as AppIntents metadata extraction.
@@ -168,7 +168,7 @@
 **Simulator (CI):**
 
 - **Auto-selected** from available simulators in the requested family at runtime (no hard-coded device)
-- **Runtime policy:** require the exact available iOS 27.0 simulator; no older-runtime fallback
+- **Runtime policy:** require the exact available iOS 27.2 simulator; no older-runtime fallback
 - **Device preference:** the iPhone row prefers `iPhone 18 Pro Max` → `iPhone 18 Pro` → `iPhone 17e` → `iPhone 17`; the iPad row prefers known iPad models. Missing preferred models fall back to the same family in deterministic order.
 - **Family proof:** `deviceTypeIdentifier` joins the `simctl` device type inventory, where
   `productFamily` must match the matrix row. A missing family fails its row.
@@ -237,7 +237,7 @@ orders and inventories. CI output and Step Summary show family, runtime, UDID an
 **Destination policy (CI):**
 
 - CI **auto-selects** destination from available simulators in each row's family
-- Requires **iOS 27.0 runtime**; missing runtime fails the job
+- Requires **iOS 27.2 runtime**; missing runtime fails the job
 - Preferred device ordering is family-specific and never changes the requested family
 - **Hard rule:** never pin a simulator that may not exist; CI must discover availability first
 - Never uses `OS=latest` for named devices (to avoid nondeterministic runtime resolution)
@@ -257,8 +257,8 @@ orders and inventories. CI output and Step Summary show family, runtime, UDID an
 
 **Recommended before pushing an iOS PR:**
 
-- Run `make ios-test IOS_DESTINATION="platform=iOS Simulator,id=<iOS-27.0-UDID>"` locally
-  on an available iOS 27.0 simulator (xcodebuild test)
+- Run `make ios-test IOS_DESTINATION="platform=iOS Simulator,id=<iOS-27.2-UDID>"` locally
+  on an available iOS 27.2 simulator (xcodebuild test)
 - This runs all unit tests including guard tests
 - Catches issues before CI
 
@@ -285,7 +285,7 @@ orders and inventories. CI output and Step Summary show family, runtime, UDID an
   - iPhone preference order is `iPhone 18 Pro Max` → `iPhone 18 Pro` → `iPhone 17e` → `iPhone 17`.
   - iPad preference order and fallback remain within iPad models. `productFamily` from
     `simctl list devicetypes -j` is the sole family recognizer.
-  - Requires iOS 27.0 runtime (no older-runtime fallback)
+  - Requires iOS 27.2 runtime (no older-runtime fallback)
   - **Never uses `OS=latest`** (guard fails job if `latest` detected)
 - Both use `-project PulsePlate.xcodeproj` (canonical: app scheme tests = project-based)
 - By default both use `-only-testing:PulsePlateTests` with
@@ -303,8 +303,12 @@ orders and inventories. CI output and Step Summary show family, runtime, UDID an
 
 - Preferred models only affect order within the requested family. If none is present,
   select any available device of the same `productFamily`, sorted by name and UDID.
-- If that family, the exact iOS 27.0 runtime, a known device type, or a valid UDID
+- If that family, the exact iOS 27.2 runtime, a known device type, or a valid UDID
   is unavailable, fail the row. Never use device-name prefixes or cross-family fallback.
+- Runtime selection reads only the literal
+  `com.apple.CoreSimulator.SimRuntime.iOS-27-2` entry in the string-keyed devices
+  map. Unselected runtime keys and values have no effect on selection. Validate
+  every available device in that entry and the complete device-type inventory.
 - Output must include: `family`, `ios_runtime_id`, `device_name`, `udid`, and `destination`.
 - Each family has a distinct check and artifact name. Both family rows must succeed
   before the iOS-selected PR can pass the required merge gate.
@@ -318,7 +322,12 @@ orders and inventories. CI output and Step Summary show family, runtime, UDID an
 
 - CI **must** run `xcrun simctl bootstatus "$UDID" -b` after boot
 - `bootstatus -b` **must** succeed (exit code 0); CI fails if simulator doesn't become ready
-- Timeout: 300 seconds (configurable via `SIM_BOOT_TIMEOUT_SECONDS`; live default 300)
+- `SIM_BOOT_TIMEOUT_SECONDS` remains 300 seconds for unit jobs and iPhone UI.
+  The iPad UI step supplies 420 seconds through the same variable. A later
+  `Booted` inventory row does not replace successful `bootstatus -b`.
+- UI failure diagnostics use `SIM_BOOT_DIAGNOSTIC_TIMEOUT_SECONDS=30`; diagnostic
+  timeout or execution failure preserves the original readiness failure.
+  Empty selected UDID and invalid timeout inputs fail before dependent work.
 - Rationale: Deterministic boot verification prevents downstream "Unable to find a destination" errors; longer timeout accounts for runner data migrations (70-120s+)
 - **Timeout tuning:** Do not lower the live 300-second default to address runner failures; diagnose
   simulator state before changing the bounded timeout in a dedicated CI fix.
@@ -326,8 +335,10 @@ orders and inventories. CI output and Step Summary show family, runtime, UDID an
 **UI matrix job budget:**
 
 - The existing `ios-ui-smoke` job has a 45-minute enclosing limit for both families.
-- Its sequential boot, Debug build, and UI test caps total 30 minutes; the remaining
-  15 minutes are nominal setup/diagnostic headroom, not a guarantee or SLA.
+- Sequential caps are seven minutes for iPad UI boot (five for iPhone),
+  15 minutes for UI Debug build and 15 minutes for UI execution. The iPad
+  37-minute sum leaves eight minutes of nominal setup/diagnostic headroom
+  within the unchanged 45-minute job; iPhone retains its 35-minute sum.
 - Preserve the separate phase timeouts and current-head terminal UI test evidence.
 
 **System services warmup:**
@@ -343,7 +354,11 @@ orders and inventories. CI output and Step Summary show family, runtime, UDID an
 
 **Timeout policy:**
 
-- `xcodebuild build-for-testing` **must** be wrapped in timeout (10 minutes)
+- The unit Debug `xcodebuild build-for-testing` retains its 10-minute timeout.
+- The UI Debug build uses the existing `ios-ui-smoke` step environment value
+  `IOS_UI_SMOKE_BUILD_TIMEOUT_SECONDS=900`. Validate the required positive integer
+  before starting `xcodebuild build-for-testing` and use that value for the
+  start message, subprocess timeout, and expiry message.
 - `xcodebuild test-without-building` **must** be wrapped in timeout (15 minutes)
 - The `ios-tests` job budget must use
   `${{ fromJSON(vars.IOS_TESTS_JOB_TIMEOUT_MINUTES || '60') }}`; repository vars may override the
@@ -352,7 +367,7 @@ orders and inventories. CI output and Step Summary show family, runtime, UDID an
   `15m` + Release build `10m`. The 60-minute fallback leaves nominal 20-minute setup/diagnostic
   headroom; that headroom is neither guaranteed nor an SLA.
 - Implementation: Python `subprocess.run(timeout=...)` (macOS doesn't have `timeout` by default)
-- If timeout triggers, error message is explicit ("xcodebuild ... timed out after X minutes")
+- If a child times out, its error message identifies the phase and its limit.
 
 **Environment variables (hard rule):**
 
@@ -366,8 +381,11 @@ orders and inventories. CI output and Step Summary show family, runtime, UDID an
 1. Check Step Summary for: runtime, device, UDID, destination
 2. Check logs for `bootstatus -b` exit code (must be 0)
 3. Check logs for build-for-testing vs test-without-building failures
-4. If timeout: distinguish the `5m` boot, `10m` Debug build, `15m` unit, and `10m` Release bounds
-   from the vars-overridable 60-minute job fallback.
+4. For a timeout, identify the phase and parent job. UI boot is `7m` for iPad
+   and `5m` for iPhone, followed by `15m` Debug build and `15m` UI execution
+   under `45m` overall. The unit job
+   retains its `5m` boot, `10m` Debug build, `15m` unit, and `10m` Release caps
+   under the vars-overridable `60m` job fallback.
 
 **Required (CI):**
 

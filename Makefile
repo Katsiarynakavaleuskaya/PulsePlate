@@ -627,9 +627,11 @@ openapi: frontend-install ## Generate OpenAPI schema and regenerate FE types (de
 frontend-install: ## Install frontend dependencies
 	@if [ -d frontend/node_modules ] && [ -f frontend/node_modules/.package-lock.json ] \
 		&& cmp -s frontend/package-lock.json frontend/node_modules/.package-lock.json; then \
+		node frontend/scripts/check-redocly-compat.mjs verify && \
 		echo "Frontend dependencies already installed"; \
 	else \
 		./scripts/frontend_npm.sh --prefix frontend ci --no-audit --no-fund && \
+		node frontend/scripts/check-redocly-compat.mjs verify && \
 		cp frontend/package-lock.json frontend/node_modules/.package-lock.json; \
 	fi
 
@@ -713,9 +715,11 @@ ios-appstore-verify: ## Verify repo-local App Store release gates (no upload)
 devcontainer-bootstrap: venv ## Canonical venv install + hooks inside dev container
 	@echo "$(GREEN)Devcontainer bootstrap complete$(NC)"
 
+# Older Compose does not build the SDK service when up selects only devcontainer.
 dc-up: ensure-python-proxy docker-source-artifacts ## Start dev container (build + detach)
-	@netrc_file="$${PULSEPLATE_NATIVE_SDK_NETRC_FILE:-/dev/null}"; \
-	PULSEPLATE_NATIVE_SDK_NETRC_FILE="$$netrc_file" docker compose -f "$(DEVCONTAINER_COMPOSE)" up -d --build devcontainer
+	@export PULSEPLATE_NATIVE_SDK_NETRC_FILE="$${PULSEPLATE_NATIVE_SDK_NETRC_FILE:-/dev/null}" && \
+	docker compose -f "$(DEVCONTAINER_COMPOSE)" build native-sdk-artifacts && \
+	docker compose -f "$(DEVCONTAINER_COMPOSE)" up -d --build devcontainer
 
 dc-shell: ## Open shell inside dev container
 	docker compose -f "$(DEVCONTAINER_COMPOSE)" exec devcontainer bash

@@ -1921,7 +1921,7 @@ def test_cd_exact_pgvector_image_proves_fresh_and_legacy_volume_contracts() -> N
     publish_job = workflow.split("\n  postgres-pgvector-publish:\n", maxsplit=1)[1].split(
         "\n  postgres-pgvector-reuse:\n", maxsplit=1
     )[0]
-    assert "sha256:d4437ad4970b4099e4cb7d05b7fa625c7e6959949d1374f1f2d4bd4149ae5fa3" in contract_job
+    assert "sha256:5b81202040bbcfbf4fc29ee32c6e6a8c824c27c50aa41c80e62418c5c2ec3adc" in contract_job
     assert (
         "EXPECTED_PLATFORM_DIGEST: "
         "${{ needs.postgres-pgvector-contract.outputs.platform_manifest_digest }}" in publish_job
@@ -1957,13 +1957,14 @@ def test_cd_exact_pgvector_image_proves_fresh_and_legacy_volume_contracts() -> N
         'test "$prior_transitioned_data" = "prior-persistent:[1,2,3]"',
         'test "$prior_transitioned_vector" = "0.8.6"',
         'test "$prior_vector_distance" = "0"',
-        'test "$prior_transitioned_postgres" = "postgres (PostgreSQL) 15.19"',
+        'test "$prior_transitioned_postgres" = "postgres (PostgreSQL) 15.20"',
         '"${prefix}-prior-postgres"',
         '"${prefix}-prior-data"',
     ):
         assert required in publish_job
-    assert '--input "$PGVECTOR_OCI_OUTPUT_DIR/oci-1"' in publish_job
-    assert '--input "$PGVECTOR_OCI_OUTPUT_DIR/image-1.oci.tar"' not in publish_job
+    # Executed OCI argv and all four scan subjects remain in the existing
+    # test_pg_scan_loop_retains_later_available_subjects_and_rejects_aggregate owner.
+    # The CD-only backend-hook mapping selects both pure contracts.
 
 
 def _ci_authority_environment(database_url: URL | None = None) -> dict[str, str]:

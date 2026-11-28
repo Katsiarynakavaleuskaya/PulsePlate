@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+import ast
 import copy
 import base64
 import json
 import hashlib
+import os
+import shutil
+import stat
 from pathlib import Path
 import subprocess
+from typing import Any
 
 import pytest
 import yaml
@@ -921,3 +926,319 @@ def test_empty_inventory_rejects_invalid_subject_before_create_outputs(
     )
     assert not result.exists()
     assert not output.exists()
+
+
+def _pg_scan_program() -> tuple[dict[str, Any], dict[str, Any], str]:
+    workflow = yaml.safe_load(Path(".github/workflows/cd.yml").read_text())
+    job = workflow["jobs"]["postgres-pgvector-publish"]
+    step = next(
+        item
+        for item in job["steps"]
+        if item.get("name")
+        == "Scan exact bases, post-APK builder, and final image without suppressions"
+    )
+    source = step["run"].split("python3 - <<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
+    return job, step, source
+
+
+@pytest.mark.parametrize(
+    "case",
+    ["safe-hc", "secret", "null-secret", "malformed", "wrong-image", "native-error", "oci-private"],
+)
+def test_pg_scan_publication_keeps_unsafe_native_reports_private(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: str
+) -> None:
+    from scripts.ci import check_docker_runtime_dependency_surface as surface
+
+    job, _step, source = _pg_scan_program()
+    tree = ast.parse(source)
+    nodes = [
+        n
+        for n in tree.body
+        if isinstance(n, ast.FunctionDef) and n.name in {"file_facts", "publish_pg_report"}
+    ]
+    image = "sha256:" + "a" * 64
+    monkeypatch.setattr(
+        surface, "_run_docker", lambda argv: subprocess.CompletedProcess(argv, 0, image + "\n", "")
+    )
+    report: dict[str, Any] = {
+        "SchemaVersion": 2,
+        "ArtifactType": "container_image",
+        "ArtifactName": image,
+        "Metadata": {"ImageID": image},
+        "Results": [
+            {
+                "Target": "alpine",
+                "Class": "os-pkgs",
+                "Type": "alpine",
+                "Vulnerabilities": [{"Severity": "HIGH", "VulnerabilityID": "synthetic"}],
+            }
+        ],
+    }
+    if case == "secret":
+        report["Results"][0]["Secrets"] = [{"Match": "synthetic-private-secret"}]
+    elif case == "null-secret":
+        report["Results"][0]["Secrets"] = None
+    elif case == "wrong-image":
+        report["Metadata"]["ImageID"] = "sha256:" + "b" * 64
+    raw = tmp_path / "private.json"
+    raw.write_bytes(
+        b"malformed synthetic private" if case == "malformed" else json.dumps(report).encode()
+    )
+    before = raw.read_bytes()
+    public = tmp_path / "public"
+    public.mkdir()
+    namespace: dict[str, Any] = {
+        "Path": Path,
+        "os": os,
+        "stat": stat,
+        "hashlib": hashlib,
+        "json": json,
+        "subprocess": subprocess,
+        "validate_trivy_image_report": surface.validate_trivy_image_report,
+    }
+    exec(
+        compile(ast.Module(body=nodes, type_ignores=[]), "<PG-publication-helper>", "exec"),
+        namespace,
+    )
+    accepted = namespace["publish_pg_report"](
+        None if case == "oci-private" else image, raw, public, 1, 2 if case == "native-error" else 0
+    )
+    assert accepted is (case == "safe-hc")
+    assert raw.read_bytes() == before
+    if accepted:
+        assert (public / "1.full.json").read_bytes() == before
+    else:
+        assert list(public.iterdir()) == []
+    upload = next(
+        item
+        for item in job["steps"]
+        if item.get("name") == "Upload PostgreSQL pgvector admission evidence"
+    )
+    assert upload["if"] == "${{ always() }}"
+    assert "pulseplate-pg-scan-public/" in upload["with"]["path"]
+    assert "private" not in upload["with"]["path"]
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "finding",
+        "full-timeout",
+        "full-error",
+        "missing",
+        "malformed",
+        "secret",
+        "null-secret",
+        "wrong-image",
+        "validation-error",
+        "oci-malformed",
+        "pull-error",
+        "inspect-error",
+        "db-drift",
+    ],
+)
+def test_pg_scan_loop_retains_later_available_subjects_and_rejects_aggregate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fault: str | None,
+) -> None:
+    """Execute the actual whole workflow program with synthetic native boundaries and real files."""
+    from scripts.ci import check_docker_runtime_dependency_surface as surface
+
+    _job, step, source = _pg_scan_program()
+    trivy = tmp_path / "trivy"
+    trivy.write_bytes(b"synthetic pinned scanner")
+    trivy.chmod(0o700)
+    ignore = tmp_path / "empty-ignore"
+    ignore.write_bytes(b"")
+    docker_config = tmp_path / "docker-config"
+    docker_config.mkdir()
+    oci = tmp_path / "oci"
+    (oci / "oci-1").mkdir(parents=True)
+    final_digest = "sha256:" + "f" * 64
+    for name, value in step["env"].items():
+        if name.startswith("PGVECTOR_") and name.endswith("SECONDS"):
+            monkeypatch.setenv(name, value)
+    for name, value in {
+        "RUNNER_TEMP": str(tmp_path),
+        "TRIVY_BIN": str(trivy),
+        "TRIVY_IGNORE_FILE": str(ignore),
+        "TRIVY_DB_REPOSITORY": "ghcr.io/aquasecurity/trivy-db",
+        "PGVECTOR_BUILDER_LOCAL_TAG": "synthetic-builder",
+        "PGVECTOR_DOCKER_CONFIG": str(docker_config),
+        "PGVECTOR_OCI_OUTPUT_DIR": str(oci),
+        "PGVECTOR_EXPECTED_PLATFORM_DIGEST": final_digest,
+        "TRIVY_IGNORE_POLICY": "synthetic-forbidden-policy",
+        "GH_TOKEN": "synthetic-forbidden-token",
+    }.items():
+        monkeypatch.setenv(name, value)
+    original_which = shutil.which
+    monkeypatch.setattr(
+        shutil,
+        "which",
+        lambda name: "/absolute/docker" if name == "docker" else original_which(name),
+    )
+    inspected_public: list[str] = []
+
+    def inspect_image(argv: list[str]) -> subprocess.CompletedProcess[str]:
+        assert argv[-1].startswith("sha256:")  # The OCI directory never enters this owner.
+        inspected_public.append(argv[-1])
+        if fault == "validation-error" and argv[-1] == "sha256:" + "1" * 64:
+            raise RuntimeError("synthetic-private-native-diagnostic")
+        return subprocess.CompletedProcess(argv, 0, argv[-1] + "\n", "")
+
+    monkeypatch.setattr(surface, "_run_docker", inspect_image)
+    calls: list[tuple[str, list[str]]] = []
+    originals: dict[int, bytes] = {}
+    private_marker = b"synthetic-private-native-diagnostic"
+
+    def run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[bytes]:
+        label = Path(kwargs["stdout"].name).name.removesuffix(".stdout")
+        calls.append((label, argv))
+        environment = kwargs["env"]
+        assert "GH_TOKEN" not in environment and "TRIVY_IGNORE_POLICY" not in environment
+        assert environment["DOCKER_CONFIG"] == str(docker_config)
+        assert environment["HOME"] != os.environ.get("HOME")
+        assert kwargs["stdin"] == subprocess.DEVNULL
+        assert kwargs["check"] is False
+        kwargs["stderr"].write(private_marker)
+        if label == "database":
+            cache = Path(argv[argv.index("--cache-dir") + 1])
+            (cache / "db").mkdir(parents=True)
+            (cache / "db/trivy.db").write_bytes(b"one frozen synthetic DB")
+            (cache / "db/metadata.json").write_text('{"Version":2}')
+            return subprocess.CompletedProcess(argv, 0)
+        ordinal = int(label.split(".", 1)[0])
+        if label.endswith(".pull"):
+            assert kwargs["timeout"] == int(step["env"]["PGVECTOR_PULL_PROCESS_SECONDS"])
+            return subprocess.CompletedProcess(
+                argv, 7 if fault == "pull-error" and ordinal == 1 else 0
+            )
+        if label.endswith(".inspect"):
+            assert kwargs["timeout"] == int(step["env"]["PGVECTOR_INSPECT_PROCESS_SECONDS"])
+            kwargs["stdout"].write(("sha256:" + str(ordinal) * 64 + "\n").encode())
+            return subprocess.CompletedProcess(
+                argv, 7 if fault == "inspect-error" and ordinal == 1 else 0
+            )
+        assert kwargs["timeout"] == int(step["env"]["PGVECTOR_SCAN_PROCESS_SECONDS"])
+        assert argv[argv.index("--timeout") + 1] == step["env"]["PGVECTOR_SCAN_SECONDS"] + "s"
+        assert "--skip-db-update" in argv and "--skip-java-db-update" in argv
+        assert argv[argv.index("--scanners") + 1] == "vuln,secret"
+        if ordinal == 4:
+            assert argv[-2:] == ["--input", str(oci / "oci-1")]
+        else:
+            assert argv[-1] == "sha256:" + str(ordinal) * 64
+        if label.endswith(".hc"):
+            assert argv[argv.index("--severity") + 1] == "CRITICAL,HIGH"
+            assert argv[argv.index("--exit-code") + 1] == "1"
+            assert argv[argv.index("--format") + 1] == "table"
+            kwargs["stdout"].write(private_marker)
+            return subprocess.CompletedProcess(
+                argv, 1 if fault == "finding" and ordinal == 1 else 0
+            )
+        assert argv[argv.index("--severity") + 1] == "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL"
+        assert argv[argv.index("--exit-code") + 1] == "0" and "--list-all-pkgs" in argv
+        report_path = Path(argv[argv.index("--output") + 1])
+        image = argv[-1]
+        report: dict[str, Any] = {
+            "SchemaVersion": 2,
+            "ArtifactType": "container_image",
+            "ArtifactName": image,
+            "Metadata": {"ImageID": image},
+            "Results": [
+                {"Target": "alpine", "Class": "os-pkgs", "Type": "alpine", "Vulnerabilities": []}
+            ],
+        }
+        if ordinal == 1:
+            if fault == "finding":
+                report["Results"][0]["Vulnerabilities"] = [
+                    {"Severity": "HIGH", "VulnerabilityID": "synthetic"}
+                ]
+            elif fault == "secret":
+                report["Results"][0]["Secrets"] = [{"Match": private_marker.decode()}]
+            elif fault == "null-secret":
+                report["Results"][0]["Secrets"] = None
+            elif fault == "wrong-image":
+                report["Metadata"]["ImageID"] = final_digest
+            elif fault == "db-drift":
+                cache = Path(argv[argv.index("--cache-dir") + 1])
+                (cache / "db/trivy.db").write_bytes(b"changed DB")
+        body = json.dumps(report).encode()
+        if fault == "malformed" and ordinal == 1 or fault == "oci-malformed" and ordinal == 4:
+            body = b"{" + private_marker
+        if not (fault == "missing" and ordinal == 1):
+            report_path.write_bytes(body)
+            originals[ordinal] = body
+        if fault == "full-timeout" and ordinal == 1:
+            raise subprocess.TimeoutExpired(argv, kwargs["timeout"], stderr=private_marker)
+        return subprocess.CompletedProcess(argv, 2 if fault == "full-error" and ordinal == 1 else 0)
+
+    monkeypatch.setattr(subprocess, "run", run)
+    previous_umask = os.umask(0o077)
+    try:
+        if fault is None:
+            exec(compile(source, "<cd.yml:pgvector-scan-loop>", "exec"), {})
+        else:
+            with pytest.raises(SystemExit, match="pg_scan_failed_private_diagnostics"):
+                exec(compile(source, "<cd.yml:pgvector-scan-loop>", "exec"), {})
+    finally:
+        os.umask(previous_umask)
+    output = capsys.readouterr()
+    assert private_marker.decode() not in output.out + output.err
+    public = tmp_path / "pulseplate-pg-scan-public"
+    statuses = {n: json.loads((public / f"{n}.status.json").read_text()) for n in range(1, 5)}
+    assert statuses[4].get("public_full_report") is False
+    assert not (public / "4.full.json").exists()
+    if fault != "db-drift":
+        for ordinal in (2, 3, 4):
+            assert any(label == f"{ordinal}.full" for label, _ in calls)
+            assert any(label == f"{ordinal}.hc" for label, _ in calls)
+        assert statuses[4]["subject"] == final_digest
+        assert statuses[4]["raw"]["sha256"] == hashlib.sha256(originals[4]).hexdigest()
+    else:
+        assert not any(label == "1.hc" for label, _ in calls)
+        assert all(statuses[n]["failure"] == "frozen_input_drift" for n in range(1, 5))
+    private_dirs = list(tmp_path.glob("pulseplate-pg-scan-private-*"))
+    assert len(private_dirs) == 1
+    private = private_dirs[0]
+    assert stat.S_IMODE(private.stat().st_mode) == 0o700
+    assert all(
+        stat.S_IMODE(path.stat().st_mode) == 0o600 for path in private.rglob("*") if path.is_file()
+    )
+    assert final_digest not in inspected_public
+    for ordinal, body in originals.items():
+        assert (private / f"{ordinal}.full.json").read_bytes() == body
+    for path in public.iterdir():
+        assert private_marker not in path.read_bytes()
+        if path.name.endswith(".full.json"):
+            assert path.read_bytes() == originals[int(path.name.split(".", 1)[0])]
+    if fault == "full-timeout":
+        assert statuses[1]["full_native_exit"] == 124
+    if fault == "finding":
+        assert statuses[1]["hc_native_exit"] == 1
+        assert statuses[1]["public_full_report"] is True
+
+
+def test_pg_scan_job_budget_covers_dual_scans_and_remaining_native_work() -> None:
+    from scripts.ci.check_docker_runtime_dependency_surface import DOCKER_TIMEOUT_SECONDS
+
+    job, step, source = _pg_scan_program()
+    budgets = {name: int(value) for name, value in step["env"].items() if name.endswith("SECONDS")}
+    assert job["timeout-minutes"] == 240
+    assert 0 < budgets["PGVECTOR_SCAN_SECONDS"] < budgets["PGVECTOR_SCAN_PROCESS_SECONDS"]
+    # One DB acquisition, four full and four HC scans, two pulls, three direct
+    # inspections and three existing structural-owner Docker inspections.
+    scan_envelope = (
+        9 * budgets["PGVECTOR_SCAN_PROCESS_SECONDS"]
+        + 2 * budgets["PGVECTOR_PULL_PROCESS_SECONDS"]
+        + 3 * budgets["PGVECTOR_INSPECT_PROCESS_SECONDS"]
+        + 3 * DOCKER_TIMEOUT_SECONDS
+    )
+    assert job["timeout-minutes"] * 60 - scan_envelope >= 90 * 60
+    assert "continue-on-error" not in step
+    assert "--download-db-only" in source
+    assert source.count('"--download-db-only"') == 1
+    assert "print(" not in source and "tee " not in source

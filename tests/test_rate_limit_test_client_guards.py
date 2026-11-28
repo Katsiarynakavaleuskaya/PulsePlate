@@ -1,14 +1,97 @@
 """Guards for test-client limiter neutralization seams."""
 
 import os
+from types import ModuleType, SimpleNamespace
 
-from typing import cast
+from typing import Callable, cast
 
 import pytest
 from fastapi import FastAPI
 
 import app as app_mod
 from tests._client import disable_rate_limiting_for_test_app, open_test_client
+
+
+@pytest.mark.parametrize("lazy_raises", [False, True], ids=["returns_app", "raises"])
+def test_singleton_reset_does_not_resolve_lazy_module_apps(
+    monkeypatch: pytest.MonkeyPatch,
+    lazy_raises: bool,
+) -> None:
+    """Discovery must not evaluate lazy exports or admit manufactured apps."""
+    from tests import conftest as suite_conftest
+
+    module = ModuleType("synthetic_lazy_app_module")
+    lookup_attempts: list[str] = []
+    reset_targets: list[FastAPI] = []
+
+    def lazy_export(name: str) -> FastAPI:
+        lookup_attempts.append(name)
+        if lazy_raises:
+            raise AttributeError(name)
+        return FastAPI()
+
+    def observe_reset(app_instance: FastAPI) -> None:
+        reset_targets.append(app_instance)
+
+    monkeypatch.setattr(module, "__getattr__", lazy_export, raising=False)
+    monkeypatch.setattr(
+        suite_conftest,
+        "sys",
+        SimpleNamespace(modules={"lazy": module}),
+    )
+    monkeypatch.setattr(suite_conftest, "disable_rate_limiting_for_test_app", observe_reset)
+    reset_singletons = cast(
+        Callable[[], None], suite_conftest._disable_singleton_rate_limiters.__wrapped__
+    )
+
+    reset_singletons()
+
+    assert lookup_attempts == [], (
+        f"lazy export lookup attempts: {lookup_attempts!r}; " f"reset targets: {len(reset_targets)}"
+    )
+    assert reset_targets == []
+
+
+def test_singleton_reset_deduplicates_concrete_app_bindings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Both concrete names retain their owner, including repeated aliases."""
+    from tests import conftest as suite_conftest
+
+    first_app, second_app = FastAPI(), FastAPI()
+    primary_module = ModuleType("synthetic_primary_apps")
+    alias_module = ModuleType("synthetic_alias_apps")
+    unrelated_module = ModuleType("synthetic_non_apps")
+    vars(primary_module).update(app=first_app, main_app=second_app)
+    vars(alias_module).update(app=second_app, main_app=first_app)
+    vars(unrelated_module).update(app=object(), main_app=42)
+    reset_targets: list[FastAPI] = []
+
+    def observe_reset(app_instance: FastAPI) -> None:
+        reset_targets.append(app_instance)
+
+    monkeypatch.setattr(
+        suite_conftest,
+        "sys",
+        SimpleNamespace(
+            modules={
+                "primary": primary_module,
+                "same_module_alias": primary_module,
+                "aliases": alias_module,
+                "unrelated": unrelated_module,
+                "missing": None,
+            }
+        ),
+    )
+    monkeypatch.setattr(suite_conftest, "disable_rate_limiting_for_test_app", observe_reset)
+    reset_singletons = cast(
+        Callable[[], None], suite_conftest._disable_singleton_rate_limiters.__wrapped__
+    )
+
+    reset_singletons()
+
+    assert len(reset_targets) == 2
+    assert {id(app_instance) for app_instance in reset_targets} == {id(first_app), id(second_app)}
 
 
 def test_open_test_client_disables_and_restores_shared_rate_limiter(

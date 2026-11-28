@@ -25,6 +25,7 @@ from scripts.orchestration.creative_code_patch_workspace import (
     git_env_without_parent_state,
     safe_git_config_args,
 )
+from tests.helpers.prometheus_control import pinned_prometheus_control_bytes
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CD_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "cd.yml"
@@ -152,11 +153,250 @@ def _synthetic_prometheus_manifest_text() -> str:
 _HISTORICAL_AM_TEST_ROOT: Path | None = None
 
 
+_HISTORICAL_AM_EXPECTED_MODULES = {
+    "alertmanager": {
+        "github.com/KimMachineGun/automemlimit": "v0.7.5",
+        "github.com/alecthomas/kingpin/v2": "v2.4.0",
+        "github.com/alecthomas/units": "v0.0.0-20240927000941-0f3dac36c52b",
+        "github.com/armon/go-metrics": "v0.4.1",
+        "github.com/aws/aws-sdk-go-v2": "v1.43.2",
+        "github.com/aws/aws-sdk-go-v2/config": "v1.32.33",
+        "github.com/aws/aws-sdk-go-v2/credentials": "v1.19.32",
+        "github.com/aws/aws-sdk-go-v2/feature/ec2/imds": "v1.18.33",
+        "github.com/aws/aws-sdk-go-v2/internal/configsources": "v1.4.33",
+        "github.com/aws/aws-sdk-go-v2/internal/endpoints/v2": "v2.7.33",
+        "github.com/aws/aws-sdk-go-v2/internal/v4a": "v1.4.34",
+        "github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding": "v1.13.14",
+        "github.com/aws/aws-sdk-go-v2/service/internal/presigned-url": "v1.13.33",
+        "github.com/aws/aws-sdk-go-v2/service/signin": "v1.5.2",
+        "github.com/aws/aws-sdk-go-v2/service/sns": "v1.42.2",
+        "github.com/aws/aws-sdk-go-v2/service/sso": "v1.33.2",
+        "github.com/aws/aws-sdk-go-v2/service/ssooidc": "v1.38.2",
+        "github.com/aws/aws-sdk-go-v2/service/sts": "v1.45.2",
+        "github.com/aws/smithy-go": "v1.27.5",
+        "github.com/beorn7/perks": "v1.0.1",
+        "github.com/cenkalti/backoff/v5": "v5.0.3",
+        "github.com/cespare/xxhash/v2": "v2.3.0",
+        "github.com/coreos/go-systemd/v22": "v22.7.0",
+        "github.com/docker/go-units": "v0.5.0",
+        "github.com/felixge/httpsnoop": "v1.0.4",
+        "github.com/fsnotify/fsnotify": "v1.10.1",
+        "github.com/go-logr/logr": "v1.4.4",
+        "github.com/go-logr/stdr": "v1.2.2",
+        "github.com/go-openapi/analysis": "v0.25.5",
+        "github.com/go-openapi/errors": "v0.22.8",
+        "github.com/go-openapi/jsonpointer": "v1.0.0",
+        "github.com/go-openapi/jsonreference": "v1.0.0",
+        "github.com/go-openapi/loads": "v0.25.0",
+        "github.com/go-openapi/runtime": "v0.33.0",
+        "github.com/go-openapi/runtime/server-middleware": "v0.33.0",
+        "github.com/go-openapi/spec": "v0.22.9",
+        "github.com/go-openapi/strfmt": "v0.27.0",
+        "github.com/go-openapi/swag": "v0.28.0",
+        "github.com/go-openapi/swag/cmdutils": "v0.28.0",
+        "github.com/go-openapi/swag/conv": "v0.28.0",
+        "github.com/go-openapi/swag/fileutils": "v0.28.0",
+        "github.com/go-openapi/swag/jsonutils": "v0.28.0",
+        "github.com/go-openapi/swag/loading": "v0.28.0",
+        "github.com/go-openapi/swag/mangling": "v0.28.0",
+        "github.com/go-openapi/swag/netutils": "v0.28.0",
+        "github.com/go-openapi/swag/pools": "v0.28.0",
+        "github.com/go-openapi/swag/stringutils": "v0.28.0",
+        "github.com/go-openapi/swag/typeutils": "v0.28.0",
+        "github.com/go-openapi/swag/yamlutils": "v0.28.0",
+        "github.com/go-openapi/validate": "v0.26.1",
+        "github.com/go-viper/mapstructure/v2": "v2.5.0",
+        "github.com/golang-jwt/jwt/v5": "v5.3.1",
+        "github.com/google/btree": "v1.1.3",
+        "github.com/google/uuid": "v1.6.0",
+        "github.com/grpc-ecosystem/grpc-gateway/v2": "v2.29.0",
+        "github.com/hashicorp/errwrap": "v1.1.0",
+        "github.com/hashicorp/go-immutable-radix": "v1.3.1",
+        "github.com/hashicorp/go-metrics": "v0.6.0",
+        "github.com/hashicorp/go-msgpack/v2": "v2.1.5",
+        "github.com/hashicorp/go-multierror": "v1.1.1",
+        "github.com/hashicorp/go-sockaddr": "v1.0.7",
+        "github.com/hashicorp/golang-lru": "v0.5.4",
+        "github.com/hashicorp/golang-lru/v2": "v2.0.7",
+        "github.com/hashicorp/memberlist": "v0.6.0",
+        "github.com/jessevdk/go-flags": "v1.6.1",
+        "github.com/jpillora/backoff": "v1.0.0",
+        "github.com/julienschmidt/httprouter": "v1.3.0",
+        "github.com/klauspost/compress": "v1.19.1",
+        "github.com/mdlayher/socket": "v0.6.0",
+        "github.com/mdlayher/vsock": "v1.3.0",
+        "github.com/miekg/dns": "v1.1.72",
+        "github.com/munnerz/goautoneg": "v0.0.0-20191010083416-a7dc8b61c822",
+        "github.com/mwitkow/go-conntrack": "v0.0.0-20190716064945-2f068394615f",
+        "github.com/oklog/run": "v1.2.0",
+        "github.com/oklog/ulid/v2": "v2.1.2",
+        "github.com/pbnjay/memory": "v0.0.0-20210728143218-7b4eea64cf58",
+        "github.com/pierrec/lz4/v4": "v4.1.26",
+        "github.com/prometheus/alertmanager": "0.34.1",
+        "github.com/prometheus/client_golang": "v1.24.1",
+        "github.com/prometheus/client_model": "v0.6.2",
+        "github.com/prometheus/common": "v0.70.1",
+        "github.com/prometheus/exporter-toolkit": "v0.17.1",
+        "github.com/prometheus/procfs": "v0.21.1",
+        "github.com/prometheus/sigv4": "v0.4.1",
+        "github.com/rs/cors": "v1.11.1",
+        "github.com/sean-/seed": "v0.0.0-20170313163322-e2103e2c3529",
+        "github.com/twmb/franz-go": "v1.21.5",
+        "github.com/twmb/franz-go/pkg/kmsg": "v1.13.1",
+        "github.com/twmb/franz-go/plugin/kslog": "v1.0.0",
+        "github.com/xhit/go-str2duration/v2": "v2.1.0",
+        "go.opentelemetry.io/auto/sdk": "v1.2.1",
+        "go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace": "v0.69.0",
+        "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp": "v0.69.0",
+        "go.opentelemetry.io/otel": "v1.44.0",
+        "go.opentelemetry.io/otel/exporters/otlp/otlptrace": "v1.44.0",
+        "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc": "v1.44.0",
+        "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp": "v1.44.0",
+        "go.opentelemetry.io/otel/metric": "v1.44.0",
+        "go.opentelemetry.io/otel/sdk": "v1.44.0",
+        "go.opentelemetry.io/otel/trace": "v1.44.0",
+        "go.opentelemetry.io/proto/otlp": "v1.10.0",
+        "go.yaml.in/yaml/v2": "v2.4.4",
+        "go.yaml.in/yaml/v3": "v3.0.4",
+        "golang.org/x/crypto": "v0.57.0",
+        "golang.org/x/net": "v0.60.0",
+        "golang.org/x/oauth2": "v0.36.0",
+        "golang.org/x/sync": "v0.23.0",
+        "golang.org/x/sys": "v0.48.0",
+        "golang.org/x/text": "v0.42.0",
+        "golang.org/x/time": "v0.15.0",
+        "google.golang.org/genproto/googleapis/api": "v0.0.0-20260526163538-3dc84a4a5aaa",
+        "google.golang.org/genproto/googleapis/rpc": "v0.0.0-20260526163538-3dc84a4a5aaa",
+        "google.golang.org/grpc": "v1.83.2",
+        "google.golang.org/protobuf": "v1.36.11",
+        "gopkg.in/telebot.v3": "v3.3.8",
+        "gopkg.in/yaml.v2": "v2.4.0",
+        "stdlib": "v1.27.3",
+    },
+    "amtool": {
+        "github.com/alecthomas/kingpin/v2": "v2.4.0",
+        "github.com/alecthomas/units": "v0.0.0-20240927000941-0f3dac36c52b",
+        "github.com/armon/go-metrics": "v0.4.1",
+        "github.com/aws/aws-sdk-go-v2": "v1.43.2",
+        "github.com/aws/aws-sdk-go-v2/config": "v1.32.33",
+        "github.com/aws/aws-sdk-go-v2/credentials": "v1.19.32",
+        "github.com/aws/aws-sdk-go-v2/feature/ec2/imds": "v1.18.33",
+        "github.com/aws/aws-sdk-go-v2/internal/configsources": "v1.4.33",
+        "github.com/aws/aws-sdk-go-v2/internal/endpoints/v2": "v2.7.33",
+        "github.com/aws/aws-sdk-go-v2/internal/v4a": "v1.4.34",
+        "github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding": "v1.13.14",
+        "github.com/aws/aws-sdk-go-v2/service/internal/presigned-url": "v1.13.33",
+        "github.com/aws/aws-sdk-go-v2/service/signin": "v1.5.2",
+        "github.com/aws/aws-sdk-go-v2/service/sso": "v1.33.2",
+        "github.com/aws/aws-sdk-go-v2/service/ssooidc": "v1.38.2",
+        "github.com/aws/aws-sdk-go-v2/service/sts": "v1.45.2",
+        "github.com/aws/smithy-go": "v1.27.5",
+        "github.com/beorn7/perks": "v1.0.1",
+        "github.com/cenkalti/backoff/v5": "v5.0.3",
+        "github.com/cespare/xxhash/v2": "v2.3.0",
+        "github.com/coreos/go-systemd/v22": "v22.7.0",
+        "github.com/felixge/httpsnoop": "v1.0.4",
+        "github.com/fsnotify/fsnotify": "v1.10.1",
+        "github.com/go-logr/logr": "v1.4.4",
+        "github.com/go-logr/stdr": "v1.2.2",
+        "github.com/go-openapi/analysis": "v0.25.5",
+        "github.com/go-openapi/errors": "v0.22.8",
+        "github.com/go-openapi/jsonpointer": "v1.0.0",
+        "github.com/go-openapi/jsonreference": "v1.0.0",
+        "github.com/go-openapi/loads": "v0.25.0",
+        "github.com/go-openapi/runtime": "v0.33.0",
+        "github.com/go-openapi/runtime/server-middleware": "v0.33.0",
+        "github.com/go-openapi/spec": "v0.22.9",
+        "github.com/go-openapi/strfmt": "v0.27.0",
+        "github.com/go-openapi/swag": "v0.28.0",
+        "github.com/go-openapi/swag/cmdutils": "v0.28.0",
+        "github.com/go-openapi/swag/conv": "v0.28.0",
+        "github.com/go-openapi/swag/fileutils": "v0.28.0",
+        "github.com/go-openapi/swag/jsonutils": "v0.28.0",
+        "github.com/go-openapi/swag/loading": "v0.28.0",
+        "github.com/go-openapi/swag/mangling": "v0.28.0",
+        "github.com/go-openapi/swag/netutils": "v0.28.0",
+        "github.com/go-openapi/swag/pools": "v0.28.0",
+        "github.com/go-openapi/swag/stringutils": "v0.28.0",
+        "github.com/go-openapi/swag/typeutils": "v0.28.0",
+        "github.com/go-openapi/swag/yamlutils": "v0.28.0",
+        "github.com/go-openapi/validate": "v0.26.1",
+        "github.com/go-viper/mapstructure/v2": "v2.5.0",
+        "github.com/golang-jwt/jwt/v5": "v5.3.1",
+        "github.com/google/btree": "v1.1.3",
+        "github.com/google/uuid": "v1.6.0",
+        "github.com/grpc-ecosystem/grpc-gateway/v2": "v2.29.0",
+        "github.com/hashicorp/errwrap": "v1.1.0",
+        "github.com/hashicorp/go-immutable-radix": "v1.3.1",
+        "github.com/hashicorp/go-metrics": "v0.6.0",
+        "github.com/hashicorp/go-msgpack/v2": "v2.1.5",
+        "github.com/hashicorp/go-multierror": "v1.1.1",
+        "github.com/hashicorp/go-sockaddr": "v1.0.7",
+        "github.com/hashicorp/golang-lru": "v0.5.4",
+        "github.com/hashicorp/golang-lru/v2": "v2.0.7",
+        "github.com/hashicorp/memberlist": "v0.6.0",
+        "github.com/jpillora/backoff": "v1.0.0",
+        "github.com/klauspost/compress": "v1.19.1",
+        "github.com/mdlayher/socket": "v0.6.0",
+        "github.com/mdlayher/vsock": "v1.3.0",
+        "github.com/miekg/dns": "v1.1.72",
+        "github.com/munnerz/goautoneg": "v0.0.0-20191010083416-a7dc8b61c822",
+        "github.com/mwitkow/go-conntrack": "v0.0.0-20190716064945-2f068394615f",
+        "github.com/oklog/run": "v1.2.0",
+        "github.com/oklog/ulid/v2": "v2.1.2",
+        "github.com/pierrec/lz4/v4": "v4.1.26",
+        "github.com/prometheus/alertmanager": "0.34.1",
+        "github.com/prometheus/client_golang": "v1.24.1",
+        "github.com/prometheus/client_model": "v0.6.2",
+        "github.com/prometheus/common": "v0.70.1",
+        "github.com/prometheus/exporter-toolkit": "v0.17.1",
+        "github.com/prometheus/procfs": "v0.21.1",
+        "github.com/prometheus/sigv4": "v0.4.1",
+        "github.com/sean-/seed": "v0.0.0-20170313163322-e2103e2c3529",
+        "github.com/twmb/franz-go": "v1.21.5",
+        "github.com/twmb/franz-go/pkg/kmsg": "v1.13.1",
+        "github.com/twmb/franz-go/plugin/kslog": "v1.0.0",
+        "github.com/xhit/go-str2duration/v2": "v2.1.0",
+        "github.com/xlab/treeprint": "v1.2.0",
+        "go.opentelemetry.io/auto/sdk": "v1.2.1",
+        "go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace": "v0.69.0",
+        "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp": "v0.69.0",
+        "go.opentelemetry.io/otel": "v1.44.0",
+        "go.opentelemetry.io/otel/exporters/otlp/otlptrace": "v1.44.0",
+        "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc": "v1.44.0",
+        "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp": "v1.44.0",
+        "go.opentelemetry.io/otel/metric": "v1.44.0",
+        "go.opentelemetry.io/otel/sdk": "v1.44.0",
+        "go.opentelemetry.io/otel/trace": "v1.44.0",
+        "go.opentelemetry.io/proto/otlp": "v1.10.0",
+        "go.yaml.in/yaml/v2": "v2.4.4",
+        "go.yaml.in/yaml/v3": "v3.0.4",
+        "golang.org/x/crypto": "v0.57.0",
+        "golang.org/x/mod": "v0.41.0",
+        "golang.org/x/net": "v0.60.0",
+        "golang.org/x/oauth2": "v0.36.0",
+        "golang.org/x/sync": "v0.23.0",
+        "golang.org/x/sys": "v0.48.0",
+        "golang.org/x/text": "v0.42.0",
+        "golang.org/x/time": "v0.15.0",
+        "google.golang.org/genproto/googleapis/api": "v0.0.0-20260526163538-3dc84a4a5aaa",
+        "google.golang.org/genproto/googleapis/rpc": "v0.0.0-20260526163538-3dc84a4a5aaa",
+        "google.golang.org/grpc": "v1.83.2",
+        "google.golang.org/protobuf": "v1.36.11",
+        "gopkg.in/telebot.v3": "v3.3.8",
+        "gopkg.in/yaml.v2": "v2.4.0",
+        "stdlib": "v1.27.3",
+    },
+}
+
+
 def _historical_AM_scan_oracle() -> dict[str, Any]:
     """Build synthetic C10-shaped scan data, not original native evidence."""
-    oracle = json.loads(json.dumps(alertmanager_source._ALERT_CURRENT_SCAN_ORACLE))
+    oracle = {"expected_modules": json.loads(json.dumps(_HISTORICAL_AM_EXPECTED_MODULES))}
     graph = alertmanager_source._ALERT_HISTORICAL_C10["graph"]
     oracle["subject"] = {
+        "source": alertmanager_source._ALERT_HISTORICAL_C10["source"],
+        "upstream_version": "0.34.1",
         "manifest": graph["manifest"]["digest"],
         "config": graph["config"]["digest"],
         "binary_sha256": {
@@ -708,14 +948,14 @@ def test_deploy_relative_directory_reaches_verified_helper_without_product_mutat
 
 
 POSTGRES_RUNTIME_REF = (
-    "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@"
-    "sha256:d4437ad4970b4099e4cb7d05b7fa625c7e6959949d1374f1f2d4bd4149ae5fa3"
+    "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.20-pgvector0.8.6-alpine3.23@"
+    "sha256:5b81202040bbcfbf4fc29ee32c6e6a8c824c27c50aa41c80e62418c5c2ec3adc"
 )
 POSTGRES_PLATFORM_MANIFEST_DIGEST = (
-    "sha256:d4437ad4970b4099e4cb7d05b7fa625c7e6959949d1374f1f2d4bd4149ae5fa3"
+    "sha256:5b81202040bbcfbf4fc29ee32c6e6a8c824c27c50aa41c80e62418c5c2ec3adc"
 )
-POSTGRES_CONFIG_DIGEST = "sha256:643c5c00d70c37d83a0ab6db8b0996e4c03fb82c4769a45b03eef0cf3ee2abd5"
-POSTGRES_BASE_DIGEST = "sha256:3a241134f6d82eb6465622af948258e41806cfb4497e6c8f0f0a64ca6c4d34db"
+POSTGRES_CONFIG_DIGEST = "sha256:65d34d5f6a34bc6c365b3b326bfa593bdd43adbed1ece14c9b63171ba586004b"
+POSTGRES_BASE_DIGEST = "sha256:ac5f0af144f2123cfb0fd89d9e38843ece6bfaef6bb7240d9ed7e6da88565325"
 POSTGRES_PRIOR_PLATFORM_DIGEST = (
     "sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380"
 )
@@ -729,6 +969,39 @@ POSTGRES_PRIOR_RUNTIME_REF = (
     "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@"
     + POSTGRES_PRIOR_PLATFORM_DIGEST
 )
+POSTGRES_LAST_PLATFORM_DIGEST = (
+    "sha256:d4437ad4970b4099e4cb7d05b7fa625c7e6959949d1374f1f2d4bd4149ae5fa3"
+)
+POSTGRES_LAST_CONFIG_DIGEST = (
+    "sha256:643c5c00d70c37d83a0ab6db8b0996e4c03fb82c4769a45b03eef0cf3ee2abd5"
+)
+POSTGRES_LAST_BASE_DIGEST = (
+    "sha256:3a241134f6d82eb6465622af948258e41806cfb4497e6c8f0f0a64ca6c4d34db"
+)
+POSTGRES_LAST_RUNTIME_REF = (
+    "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@"
+    + POSTGRES_LAST_PLATFORM_DIGEST
+)
+POSTGRES_DERIVED_IMAGES = {
+    "prior": (
+        POSTGRES_PRIOR_RUNTIME_REF,
+        POSTGRES_PRIOR_PLATFORM_DIGEST,
+        POSTGRES_PRIOR_CONFIG_DIGEST,
+        POSTGRES_PRIOR_BASE_DIGEST,
+    ),
+    "last": (
+        POSTGRES_LAST_RUNTIME_REF,
+        POSTGRES_LAST_PLATFORM_DIGEST,
+        POSTGRES_LAST_CONFIG_DIGEST,
+        POSTGRES_LAST_BASE_DIGEST,
+    ),
+    "current": (
+        POSTGRES_RUNTIME_REF,
+        POSTGRES_PLATFORM_MANIFEST_DIGEST,
+        POSTGRES_CONFIG_DIGEST,
+        POSTGRES_BASE_DIGEST,
+    ),
+}
 FAKE_PROMETHEUS_COMPOSE_JSON = json.dumps(
     {
         "services": {
@@ -847,7 +1120,7 @@ FAKE_POSTGRES_IMAGE_INSPECT_JSON = json.dumps(
                 "Env": [
                     "PGDATA=/var/lib/postgresql/15/data",
                     "PG_MAJOR=15",
-                    "PG_MINOR=19",
+                    "PG_MINOR=20",
                 ],
                 "Labels": {
                     "com.pulseplate.pgvector.version": "0.8.6",
@@ -855,7 +1128,7 @@ FAKE_POSTGRES_IMAGE_INSPECT_JSON = json.dumps(
                         "8ee86c96f0fd72390f890aa8a336fda6d3ab4c6c"
                     ),
                     "com.pulseplate.postgres.base-manifest": (
-                        "sha256:3a241134f6d82eb6465622af948258e41806cfb4497e6c8f0f0a64ca6c4d34db"
+                        "sha256:ac5f0af144f2123cfb0fd89d9e38843ece6bfaef6bb7240d9ed7e6da88565325"
                     ),
                 },
             },
@@ -1213,18 +1486,18 @@ def test_postgres_pgvector_manifest_binds_reproducible_image_and_scan_contract()
     """Bind the image recipe and every deployment consumer to the same immutable subject."""
     manifest_bytes = POSTGRES_MANIFEST_PATH.read_bytes()
     assert hashlib.sha256(manifest_bytes).hexdigest() == (
-        "9aa310913af9799c39182428e0170b173fe2144367b302d7d2cafd87c93c03b2"  # pragma: allowlist secret
+        "2583671c942aa7dead7047631e68992bdd8c301c3e76a83ea21a24cc6fa1a3d0"  # pragma: allowlist secret
     )
     manifest = json.loads(manifest_bytes)
     assert manifest["schema"] == "pulseplate.postgres_pgvector_image_manifest.v1"
     assert manifest["repository"] == "ghcr.io/katsiarynakavaleuskaya/pulseplate"
-    assert manifest["tag"] == "postgres-15.19-pgvector0.8.6-alpine3.23"
+    assert manifest["tag"] == "postgres-15.20-pgvector0.8.6-alpine3.23"
     assert manifest["platform"] == "linux/amd64"
     assert manifest["platform_manifest_digest"] == POSTGRES_PLATFORM_MANIFEST_DIGEST
     assert manifest["config_digest"] == POSTGRES_CONFIG_DIGEST
     assert manifest["runtime_ref"] == POSTGRES_RUNTIME_REF
     assert manifest["source_date_epoch"] == "1785349734"
-    assert manifest["postgres_version"] == "15.19"
+    assert manifest["postgres_version"] == "15.20"
     assert manifest["pgvector_version"] == "0.8.6"
     assert manifest["runtime_user"] == "70"
     assert manifest["runtime_entrypoint"] == "/usr/local/bin/docker-entrypoint.sh"
@@ -1232,19 +1505,19 @@ def test_postgres_pgvector_manifest_binds_reproducible_image_and_scan_contract()
     assert manifest["compose_pgdata"] == "/var/lib/postgresql/data"
     assert manifest["compose_volume_target"] == "/var/lib/postgresql/data"
     assert manifest["runtime_base_platform_manifest_digest"] == (
-        "sha256:3a241134f6d82eb6465622af948258e41806cfb4497e6c8f0f0a64ca6c4d34db"
+        "sha256:ac5f0af144f2123cfb0fd89d9e38843ece6bfaef6bb7240d9ed7e6da88565325"
     )
     assert manifest["builder_base_platform_manifest_digest"] == (
-        "sha256:74cde2c2febf7d7ddacfd3d23dbc66ea0fcbc1bdb9ae4b1ed654d717d203a2a5"
+        "sha256:d518873fc4894f792f948bca16ab195f34212057dddc78ff2f0e4329469ecacd"
     )
     assert manifest["legacy_platform_manifest_digest"] == (
         "sha256:a2c20749c564b4eb73a77bfda626f8a3cde1bbfae020fb97c616a00cdc1a2181"
     )
-    assert manifest["builder_packages"] == "build-base=0.5-r3,postgresql15-dev=15.19-r0"
+    assert manifest["builder_packages"] == "build-base=0.5-r3,postgresql15-dev=15.20-r0"
     assert manifest["builder_apk_closure_count"] == "94"
     assert manifest["runtime_artifact_count"] == "64"
     assert manifest["runtime_artifact_inventory_sha256"] == (
-        "sha256:a51a19ba4c626d476611205144c79c89ccdfc136acdddb9e9eb2ef5921e8ea57"
+        "sha256:1bca0c016eec425dd0c6dfd0bf866d9f95a17cc75c88d9c1362976d32aef15a7"
     )
     assert manifest["mountpoint_layer_schema"] == "pulseplate.pgvector_mountpoint_layer.v1"
     assert manifest["mountpoint_layer_digest"] == (
@@ -1493,12 +1766,12 @@ def test_postgres_containerfile_is_exact_multistage_source_build() -> None:
     assert containerfile.count("FROM dhi.io/postgres@sha256:") == 2
     assert (
         "FROM dhi.io/postgres@sha256:"
-        "74cde2c2febf7d7ddacfd3d23dbc66ea0fcbc1bdb9ae4b1ed654d717d203a2a5 AS builder"  # pragma: allowlist secret
+        "d518873fc4894f792f948bca16ab195f34212057dddc78ff2f0e4329469ecacd AS builder"  # pragma: allowlist secret
         in containerfile
     )
     assert (
         "FROM dhi.io/postgres@sha256:"
-        "3a241134f6d82eb6465622af948258e41806cfb4497e6c8f0f0a64ca6c4d34db"  # pragma: allowlist secret
+        "ac5f0af144f2123cfb0fd89d9e38843ece6bfaef6bb7240d9ed7e6da88565325"  # pragma: allowlist secret
         in containerfile
     )
     assert "--repository /tmp/builder-apks add" in containerfile
@@ -1528,7 +1801,7 @@ def test_postgres_containerfile_is_exact_multistage_source_build() -> None:
     )
     final_stage = containerfile.split(
         "FROM dhi.io/postgres@sha256:"
-        "3a241134f6d82eb6465622af948258e41806cfb4497e6c8f0f0a64ca6c4d34db",  # pragma: allowlist secret
+        "ac5f0af144f2123cfb0fd89d9e38843ece6bfaef6bb7240d9ed7e6da88565325",  # pragma: allowlist secret
         maxsplit=1,
     )[1]
     for forbidden in ("\nRUN ", "\nUSER ", "\nENV ", "\nVOLUME ", "\nENTRYPOINT ", "\nCMD "):
@@ -1565,7 +1838,8 @@ def test_cd_postgres_pgvector_contract_is_pr_secret_free_and_main_publish_only()
     assert "--exit-code 1" in publish
     assert "--ignorefile" in publish
     assert "ignore-policy" not in publish
-    assert "ignore-unfixed" not in publish
+    assert publish.count("ignore-unfixed") == 1
+    assert publish.count('"--ignore-unfixed=false"') == 1
     assert "0.74.0" in workflow
     assert POSTGRES_PLATFORM_MANIFEST_DIGEST in workflow
     assert "sha256:4c539aa857412d283fe8d55b40227fbd17b9fd6f06834f81fd98ec6796ee7396" in workflow
@@ -2442,7 +2716,7 @@ def test_cd_postgres_candidate_is_verified_before_canonical_promotion() -> None:
     normalized_verify_run = " ".join(verify_run.replace("\\\n", " ").split())
     assert (
         "docker run --rm --platform linux/amd64 --entrypoint /usr/bin/postgres "
-        "\"$RUNTIME_REF\" --version | grep -Fx 'postgres (PostgreSQL) 15.19'"
+        "\"$RUNTIME_REF\" --version | grep -Fx 'postgres (PostgreSQL) 15.20'"
         in normalized_verify_run
     )
     assert '"$RUNTIME_REF" postgres --version' not in normalized_verify_run
@@ -2555,7 +2829,7 @@ if a[:2] == ["image", "inspect"]:
     assert a[4] in values; print(values[a[4]]); sys.exit(0)
 if a[:2] == ["run", "--rm"]:
     assert a[-1] == "--version" and "/usr/bin/postgres" in a
-    print("postgres (PostgreSQL) 15.19"); sys.exit(0)
+    print("postgres (PostgreSQL) 15.20"); sys.exit(0)
 if a[:3] == ["buildx", "imagetools", "create"]:
     assert a == ["buildx", "imagetools", "create", "--tag", os.environ["CANONICAL_TAG_REF"], os.environ["CANDIDATE_RUNTIME_REF"]]
     event("canonical-promotion"); sys.exit(0)
@@ -2563,7 +2837,7 @@ raise SystemExit(99)
 """)
     docker.chmod(0o700)
     repository = "ghcr.io/katsiarynakavaleuskaya/pulseplate"
-    tag = "postgres-15.19-pgvector0.8.6-alpine3.23"
+    tag = "postgres-15.20-pgvector0.8.6-alpine3.23"
     sha = "a" * 40
     candidate = f"{repository}:{tag}-candidate-{sha}-1-1@{POSTGRES_PLATFORM_MANIFEST_DIGEST}"
     oracle = """python3() {
@@ -2913,10 +3187,10 @@ def test_cd_postgres_pins_scout_and_binds_exact_dhi_source_subjects() -> None:
     assert '"$SCOUT_BIN" attestation get' in verify_run
     assert "--verify" in verify_run and "--skip-tlog" in verify_run
     for exact_subject in (
-        "pkg:docker/dhi/postgres@15-alpine3.23&platform=linux/amd64",
-        "3a241134f6d82eb6465622af948258e41806cfb4497e6c8f0f0a64ca6c4d34db",  # pragma: allowlist secret
-        "pkg:docker/dhi/postgres@15-alpine3.23-dev&platform=linux/amd64",
-        "74cde2c2febf7d7ddacfd3d23dbc66ea0fcbc1bdb9ae4b1ed654d717d203a2a5",  # pragma: allowlist secret
+        "pkg:docker/dhi/postgres@15.20-alpine3.23&platform=linux/amd64",
+        "ac5f0af144f2123cfb0fd89d9e38843ece6bfaef6bb7240d9ed7e6da88565325",  # pragma: allowlist secret
+        "pkg:docker/dhi/postgres@15.20-alpine3.23-dev&platform=linux/amd64",
+        "d518873fc4894f792f948bca16ab195f34212057dddc78ff2f0e4329469ecacd",  # pragma: allowlist secret
         "https://slsa.dev/provenance/v1",
     ):
         assert exact_subject in verify_run
@@ -3018,12 +3292,12 @@ def test_postgres_scout_source_statement_consumer(
     """
     identities = {
         "runtime": (
-            "pkg:docker/dhi/postgres@15-alpine3.23&platform=linux/amd64",
-            "3a241134f6d82eb6465622af948258e41806cfb4497e6c8f0f0a64ca6c4d34db",  # pragma: allowlist secret
+            "pkg:docker/dhi/postgres@15.20-alpine3.23&platform=linux/amd64",
+            "ac5f0af144f2123cfb0fd89d9e38843ece6bfaef6bb7240d9ed7e6da88565325",  # pragma: allowlist secret
         ),
         "builder": (
-            "pkg:docker/dhi/postgres@15-alpine3.23-dev&platform=linux/amd64",
-            "74cde2c2febf7d7ddacfd3d23dbc66ea0fcbc1bdb9ae4b1ed654d717d203a2a5",  # pragma: allowlist secret
+            "pkg:docker/dhi/postgres@15.20-alpine3.23-dev&platform=linux/amd64",
+            "d518873fc4894f792f948bca16ab195f34212057dddc78ff2f0e4329469ecacd",  # pragma: allowlist secret
         ),
     }
     fixtures = tmp_path / "fixtures"
@@ -3932,10 +4206,10 @@ def test_postgres_final_scanner_consumes_the_verified_oci_layout() -> None:
         if step.get("name")
         == "Scan exact bases, post-APK builder, and final image without suppressions"
     )
-    assert '--input "$PGVECTOR_OCI_OUTPUT_DIR/oci-1"' in scan
-    assert '--input "$PGVECTOR_OCI_OUTPUT_DIR/image-1.oci.tar"' not in scan
-    assert "--exit-code 1" in scan
-    assert "--scanners vuln,secret" in scan
+    assert '["--input", str(Path(os.environ["PGVECTOR_OCI_OUTPUT_DIR"]) / "oci-1")]' in scan
+    assert "image-1.oci.tar" not in scan
+    assert '"--exit-code", "1"' in scan
+    assert '"--scanners", "vuln,secret"' in scan
 
 
 def _postgres_oci_verifier_program() -> str:
@@ -4023,12 +4297,12 @@ def _write_postgres_oci_verifier_fixture(
                 "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
                 "PGDATA=/var/lib/postgresql/15/data",
                 "PG_MAJOR=15",
-                "PG_MINOR=19",
+                "PG_MINOR=20",
             ],
         },
         "rootfs": {
             "type": "layers",
-            "diff_ids": ["sha256:" + "0" * 64] * 15
+            "diff_ids": ["sha256:" + "0" * 64] * 12
             + ["sha256:" + "f" * 64 if variant == "diff-id" else layer_diff_id],
         },
     }
@@ -4048,7 +4322,7 @@ def _write_postgres_oci_verifier_fixture(
             "mediaType": "application/vnd.oci.image.config.v1+json",
             "size": len(config_bytes),
         },
-        "layers": [dummy_layer] * 15
+        "layers": [dummy_layer] * 12
         + [
             {
                 "annotations": {"buildkit/rewritten-timestamp": "1785349734"},
@@ -4152,8 +4426,9 @@ def test_prometheus_cd_uses_authenticated_finite_consumer_and_retains_strict_sca
     assert 'trusted["consume_image"](work, material' in consumer["run"]
     assert "python3 -I -S" in consumer["run"]
     fixed = steps["Checkout fixed trusted Prometheus control"]
+    assert re.fullmatch(r"[0-9a-f]{40}", fixed["with"]["ref"])
     assert fixed["with"] == {
-        "ref": "dab47fc6153f87e35233e20aa255d97e68a5ed93",  # pragma: allowlist secret - public trusted control commit
+        "ref": fixed["with"]["ref"],
         "persist-credentials": False,
         "path": "artifacts/orchestration/prometheus-control",
         "sparse-checkout": "scripts/ci/prometheus_source_image.py",
@@ -4175,6 +4450,17 @@ def test_prometheus_cd_uses_authenticated_finite_consumer_and_retains_strict_sca
         "PROMETHEUS_EVENT_BASE": "${{ steps.prometheus-event.outputs.base }}",
     }
     assert 'trusted["classify_source_change"](previous, current)' in classifier["run"]
+    selector = steps["Select authenticated Prometheus PR evidence"]
+    assert selector["if"] == fixed["if"]
+    assert selector["id"] == "prometheus-evidence"
+    assert selector["env"] == {
+        "GH_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
+        "GITHUB_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
+        "PROMETHEUS_SELECT_SECONDS": "60",
+        "PROMETHEUS_ROUTE_HEAD": "${{ steps.prometheus-route.outputs.head }}",
+        "PROMETHEUS_ROUTE_BASE": "${{ steps.prometheus-route.outputs.base }}",
+        "PROMETHEUS_CLASSIFIED_MODE": "${{ steps.prometheus-route.outputs.mode }}",
+    }
     assert "secrets." not in str(classifier)
     assert "Require the trusted base published consumer capability" not in names
     assert "Bind the unchanged PR admission after trusted cleanup" not in names
@@ -4187,6 +4473,7 @@ def test_prometheus_cd_uses_authenticated_finite_consumer_and_retains_strict_sca
         initial["name"],
         fixed["name"],
         classifier["name"],
+        "Select authenticated Prometheus PR evidence",
         consumer["name"],
         cleanup["name"],
         "Check canonical Prometheus config with exact-image promtool",
@@ -4194,20 +4481,29 @@ def test_prometheus_cd_uses_authenticated_finite_consumer_and_retains_strict_sca
     assert [names.index(name) for name in ordered_names] == sorted(
         names.index(name) for name in ordered_names
     )
-    control_bytes = (REPO_ROOT / "scripts/ci/prometheus_source_image.py").read_bytes()
+    control_bytes = pinned_prometheus_control_bytes(REPO_ROOT, fixed["with"]["ref"])
     control_blob = hashlib.sha1(
         b"blob " + str(len(control_bytes)).encode("ascii") + b"\0" + control_bytes,
         usedforsecurity=False,
     ).hexdigest()
     control_object = f"100644 blob {control_blob}\\tscripts/ci/prometheus_source_image.py\\0"
-    for program in (classifier["run"], consumer["run"]):
+    for program in (
+        classifier["run"],
+        steps["Select authenticated Prometheus PR evidence"]["run"],
+        consumer["run"],
+    ):
         assert str(len(control_bytes)) in program
         assert control_object in program
         assert hashlib.sha256(control_bytes).hexdigest() in program
         assert "Prometheus_control_interface_HOLD" in program
     assert "historical_pr_candidate" in consumer["run"]
     assert 'trusted["one_object"](raw).get("admission")' in consumer["run"]
-    assert job["permissions"] == {"contents": "read", "actions": "read", "packages": "read"}
+    assert job["permissions"] == {
+        "contents": "read",
+        "actions": "read",
+        "packages": "read",
+        "pull-requests": "read",
+    }
     assert "environment" not in job
     assert job["env"] == {
         "PROMETHEUS_CONSUME_SECONDS": "900",
@@ -4218,8 +4514,10 @@ def test_prometheus_cd_uses_authenticated_finite_consumer_and_retains_strict_sca
     assert consumer["env"] == {
         "GH_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
         "GITHUB_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
-        "GHCR_READ_TOKEN": "${{ github.event_name == 'pull_request' && steps.prometheus-route.outputs.mode == 'unchanged_pr_published' && secrets.GITHUB_TOKEN || github.event_name != 'pull_request' && steps.prometheus-route.outputs.mode == 'trusted_published' && secrets.GHCR_READ_TOKEN || '' }}",
-        "PROMETHEUS_CREDENTIAL_ROUTE": "${{ steps.prometheus-route.outputs.mode }}",
+        "GHCR_READ_TOKEN": "${{ github.event_name == 'pull_request' && steps.prometheus-evidence.outcome == 'success' && steps.prometheus-evidence.outputs.mode == 'unchanged_pr_published' && secrets.GITHUB_TOKEN || github.event_name != 'pull_request' && steps.prometheus-route.outputs.mode == 'trusted_published' && secrets.GHCR_READ_TOKEN || '' }}",
+        "PROMETHEUS_CREDENTIAL_ROUTE": "${{ github.event_name == 'pull_request' && steps.prometheus-evidence.outputs.mode || github.event_name != 'pull_request' && steps.prometheus-route.outputs.mode || '' }}",
+        "PROMETHEUS_ROUTE_HEAD": "${{ steps.prometheus-evidence.outputs.head }}",
+        "PROMETHEUS_ROUTE_BASE": "${{ steps.prometheus-evidence.outputs.base }}",
     }
     assert not any(
         step.get("uses", "").startswith("docker/login-action@")
@@ -4249,27 +4547,87 @@ def _prometheus_cd_python(step: dict[str, object]) -> str:
     return run.split("<<'PY'\n", 1)[1].split("\nPY", 1)[0]
 
 
+# Synthetic transport and historical producer inputs for the separately pinned control.
+# The real classification, publication observer, selector and fresh consume binding execute.
+_PROMETHEUS_SELECTOR_API_FIXTURE = """
+def read_image_manifest(path):
+    producer = {"pr_number": 2477, "source_head": "1"*40, "source_ref": "synthetic"}
+    inputs = {"source": {"derived_locks": XNET060_INCUMBENT_LOCKS}}
+    return {"candidate": {"producer": producer}, "inputs": inputs}
+def authenticate_pr_source(*args): return {}
+def authenticate_producer_inputs(*args): pass
+def _historical_selected_files(api, manifest, base, head, current):
+    return "3"*40, current
+class GitHubRead(GitHubRead):
+    def __init__(self, private, evidence, deadline, cleanup):
+        self.private, self.deadline = private, deadline
+        self.selecting = private.name == "GitHub-private"
+        self.outcome = os.environ["SYNTHETIC_OUTCOME"]
+        self.event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_bytes())
+        if self.selecting:
+            assert os.environ["GH_TOKEN"] == os.environ["GITHUB_TOKEN"] == "synthetic.ephemeral.reader"
+            assert not os.environ.get("GHCR_READ_TOKEN")
+            assert cleanup == 120 and 0 < deadline-time.monotonic() <= 60
+            private.mkdir()
+            with Path(os.environ["SYNTHETIC_TRACE"]).open("a") as stream: print(json.dumps("CONTROL-select"), file=stream)
+    def source_files(self, ref, names):
+        env = {"PATH": "/usr/bin:/bin", "GIT_NO_REPLACE_OBJECTS": "1"}
+        return {name: subprocess.check_output(["/usr/bin/git", "show", ref+":"+name], env=env) for name in names}
+    def json(self, endpoint):
+        pr = self.event["pull_request"]
+        if endpoint.endswith("/pulls/2477"):
+            if self.outcome in {"selector-api-error", "selector-api-and-cleanup-error"}: raise QualificationError("synthetic_selector_api")
+            live = {"state": "open", **pr}
+            if self.outcome == "selector-base-retarget": live["base"] = {**pr["base"], "ref": "release"}
+            if self.outcome == "selector-head-drift": live["head"] = {**pr["head"], "sha": "e"*40}
+            return live
+        base = pr["base"]["sha"]
+        state = {"status": "completed", "conclusion": "success"}
+        run = {"id": 12, "run_attempt": 1, "workflow_id": 42, "head_sha": base,
+               "head_branch": "main", "event": "push", "path": ".github/workflows/build.yml",
+               "repository": {"id": 1043311030}, "head_repository": {"id": 1043311030}, **state}
+        empty = self.outcome == "unchanged-candidate" or self.outcome == "selector-consumer-drift" and self.selecting
+        if "/workflows/build.yml/runs?" in endpoint:
+            if self.outcome == "selector-malformed": return {"total_count": "1"}
+            return {"total_count": 0 if empty else 1, "workflow_runs": [] if empty else [run]}
+        if "/jobs?" in endpoint:
+            job = {"id": 121, "run_id": 12, "run_attempt": 1, "head_sha": base,
+                   "name": "prometheus-publish", **state}
+            jobs = [job, {**job, "id": 122}] if self.outcome == "selector-ambiguous" else [job]
+            return {"total_count": len(jobs), "jobs": jobs}
+        assert endpoint.endswith("/runs/12")
+        return run
+    def close(self):
+        if self.selecting:
+            with Path(os.environ["SYNTHETIC_TRACE"]).open("a") as stream: print(json.dumps("CONTROL-selector-close"), file=stream)
+            if self.outcome in {"selector-cleanup-error", "selector-api-and-cleanup-error"}: raise QualificationError("synthetic_selector_cleanup")
+            if self.outcome != "selector-private-remains": self.private.rmdir()
+"""
+
+
 def _synthetic_fixed_prometheus_control(
-    repository: Path, environment: dict[str, str], programs: tuple[str, ...]
+    repository: Path, environment: dict[str, str], programs: tuple[str, ...], *, revision: str
 ) -> tuple[str, ...]:
     """Run the real canonical classifier; substitute only image/API work and fixed coordinates.
 
     Actual workflow Git/control checks still run. This synthetic consumer grants
     no native image, original-producer, publisher or authenticated API proof.
     """
-    production_bytes = (REPO_ROOT / "scripts/ci/prometheus_source_image.py").read_bytes()
+    production_bytes = pinned_prometheus_control_bytes(REPO_ROOT, revision)
     production_blob = hashlib.sha1(
         b"blob " + str(len(production_bytes)).encode("ascii") + b"\0" + production_bytes,
         usedforsecurity=False,
     ).hexdigest()
     production_object = f"100644 blob {production_blob}\\tscripts/ci/prometheus_source_image.py\\0"
     for program in programs:
+        assert program.count(revision) == 1
         assert program.count(production_object) == 1
         assert str(len(production_bytes)) in program
         assert hashlib.sha256(production_bytes).hexdigest() in program
     object_failure = environment["SYNTHETIC_OUTCOME"] in {
         "changed-control-object",
         "changed-consumer-control-object",
+        "changed-selector-control-object",
     }
     import_marker = (
         "with Path(os.environ['SYNTHETIC_TRACE']).with_name('control-imports').open('a') as stream: stream.write('import\\n')\n"
@@ -4282,9 +4640,11 @@ def _synthetic_fixed_prometheus_control(
     helper.write_bytes(
         production_bytes
         + b"\n"
+        + _PROMETHEUS_SELECTOR_API_FIXTURE.encode()
         + (
             import_marker + "_fixture_real_classifier=classify_source_change\n"
             "def classify_source_change(base, head):\n"
+            " if os.environ.get('GH_TOKEN'): return _fixture_real_classifier(base, head)\n"
             " assert not any(os.environ.get(key) for key in ('GH_TOKEN','GITHUB_TOKEN','GHCR_READ_TOKEN','GHCR_TOKEN','GH_ENTERPRISE_TOKEN','GITHUB_ENTERPRISE_TOKEN','DOCKER_CONFIG','DOCKER_AUTH_CONFIG'))\n"
             " with Path(os.environ['SYNTHETIC_TRACE']).open('a') as stream: stream.write(json.dumps('CONTROL-classify')+'\\n')\n"
             " return _fixture_real_classifier(base, head)\n"
@@ -4298,6 +4658,13 @@ def _synthetic_fixed_prometheus_control(
             " trace=Path(os.environ['SYNTHETIC_TRACE'])\n"
             " def record(value):\n"
             "  with trace.open('a') as stream: stream.write(json.dumps(value)+'\\n')\n"
+            " event=json.loads(Path(os.environ['GITHUB_EVENT_PATH']).read_bytes())\n"
+            " api=GitHubRead(work/'private',work/'evidence',time.monotonic()+60,cleanup)\n"
+            " try:\n"
+            "  fresh=event_admission(api,material,event,'pull_request',event['pull_request']['head']['sha'])\n"
+            "  _bind_consumer_route(event,'pull_request',event['pull_request']['head']['sha'],fresh)\n"
+            "  _require_consumer_current(api,event,'pull_request',event['pull_request']['head']['sha'])\n"
+            " finally: api.close()\n"
             " record('CONTROL-consume')\n"
             " outcome=os.environ['SYNTHETIC_OUTCOME']\n"
             " if outcome in ('changed-api-failure','historical-api-failure'): raise QualificationError('synthetic_API_failed')\n"
@@ -4312,7 +4679,10 @@ def _synthetic_fixed_prometheus_control(
             " mode='unchanged_published' if route=='unchanged_pr_published' else route\n"
             " admission={'mode':mode,'head':event['pull_request']['head']['sha'],'publisher_head':event['pull_request']['base']['sha'] if route=='unchanged_pr_published' else None}\n"
             " selection={'manifest_digest':'sha256:'+ '1'*64,'config_digest':'sha256:'+ '2'*64,'source_revision':'3'*40,'runtime_ref':'synthetic@sha256:'+ '1'*64}\n"
-            " result={'admission':dict(admission),'selection':selection}\n"
+            " runtime_ref=selection['runtime_ref'] if route=='unchanged_pr_published' else selection['config_digest']\n"
+            " result={'admission':dict(admission),'selection':selection,'runtime_ref':runtime_ref}\n"
+            " if outcome=='missing-runtime-ref': del result['runtime_ref']\n"
+            " if outcome=='swapped-runtime-ref': result['runtime_ref']=selection['config_digest'] if route=='unchanged_pr_published' else selection['runtime_ref']\n"
             " if outcome=='head-drift': admission['head']='f'*40\n"
             " if outcome=='base-drift': admission['publisher_head']='f'*40\n"
             " if outcome=='mode-drift': admission['mode']='changed_pr_candidate'\n"
@@ -4347,15 +4717,11 @@ def _synthetic_fixed_prometheus_control(
     git("config", "--local", "gc.auto", "0")
     git("add", "scripts/ci/prometheus_source_image.py")
     git("commit", "-qm", "synthetic fixed control")
-    revision = git("rev-parse", "HEAD")
+    fixture_revision = git("rev-parse", "HEAD")
     blob = git("rev-parse", "HEAD:scripts/ci/prometheus_source_image.py")
     raw = helper.read_bytes()
     rebound = tuple(
-        program.replace(
-            # pragma: allowlist nextline secret - public trusted control commit
-            "dab47fc6153f87e35233e20aa255d97e68a5ed93",
-            revision,
-        )
+        program.replace(revision, fixture_revision)
         .replace(production_blob, blob)
         .replace(str(len(production_bytes)), str(len(raw)))
         .replace(
@@ -4366,7 +4732,11 @@ def _synthetic_fixed_prometheus_control(
     )
     variant = environment["SYNTHETIC_OUTCOME"]
     if object_failure:
-        target = 1 if variant == "changed-consumer-control-object" else 0
+        target = {
+            "changed-control-object": 0,
+            "changed-selector-control-object": 1,
+            "changed-consumer-control-object": 2,
+        }[variant]
         native_object = f"100644 blob {blob}\\tscripts/ci/prometheus_source_image.py\\0"
         assert rebound[target].count(native_object) == 1
         rebound = tuple(
@@ -4577,6 +4947,60 @@ def _prometheus_cd_route_fixture(tmp_path: Path, variant: str) -> tuple[Path, di
     return repository, environment
 
 
+def _run_prometheus_pr_selector(
+    repository: Path,
+    environment: dict[str, str],
+    step: dict[str, Any],
+    output: Path,
+    *,
+    budget: int,
+) -> subprocess.CompletedProcess[str]:
+    classified = dict(line.split("=", 1) for line in output.read_text().splitlines())
+    environment.update(
+        PROMETHEUS_ROUTE_HEAD=classified["head"],
+        PROMETHEUS_ROUTE_BASE=classified["base"],
+        PROMETHEUS_CLASSIFIED_MODE=classified["mode"],
+        PROMETHEUS_SELECT_SECONDS="60",
+        ALERTMANAGER_JOB_TIMEOUT_MINUTES=str(budget),
+        ALERTMANAGER_GENERIC_NATIVE_MINUTES="40",
+        ALERTMANAGER_LINT_CHECK_MINUTES="60",
+    )
+    env = {
+        **environment,
+        "GH_TOKEN": "synthetic.ephemeral.reader",
+        "GITHUB_TOKEN": "synthetic.ephemeral.reader",
+    }
+    outcome = env["SYNTHETIC_OUTCOME"]
+    if outcome == "selector-registry-env":
+        env["GHCR_READ_TOKEN"] = "synthetic.registry.reader"
+    elif outcome == "selector-missing-api":
+        env.pop("GH_TOKEN")
+    elif outcome == "selector-coordinate-drift":
+        env["PROMETHEUS_ROUTE_BASE"] = "e" * 40
+    output.write_text("")
+    result = subprocess.run(
+        [sys.executable, "-I", "-S", "-c", _prometheus_cd_python(step)],
+        cwd=repository,
+        env=env,
+        text=True,
+        capture_output=True,
+        timeout=20,
+        check=False,
+    )
+    if result.returncode:
+        assert not output.read_bytes()
+    else:
+        admitted = dict(line.split("=", 1) for line in output.read_text().splitlines())
+        assert admitted["head"] == classified["head"] and admitted["base"] == classified["base"]
+        assert not (
+            Path(env["RUNNER_TEMP"]) / "prometheus-pr-selection-123-1/GitHub-private"
+        ).exists()
+        environment.update(
+            PROMETHEUS_ROUTE_HEAD=admitted["head"], PROMETHEUS_ROUTE_BASE=admitted["base"]
+        )
+    return result
+
+
 @pytest.mark.parametrize(
     "variant,diagnostic",
     [
@@ -4585,6 +5009,21 @@ def _prometheus_cd_route_fixture(tmp_path: Path, variant: str) -> tuple[Path, di
         ("historical", None),
         ("manifest-and-helper", None),
         ("recipe-only", None),
+        ("unchanged-candidate", None),
+        ("selector-consumer-drift", "consumer_route_binding"),
+        ("selector-base-retarget", "consumer_actual_open_PR"),
+        ("selector-head-drift", "consumer_actual_open_PR"),
+        ("selector-malformed", "GitHub_finite_page_count"),
+        ("selector-ambiguous", "publication_predecessor_publisher_ambiguous"),
+        ("selector-registry-env", "Prometheus_selection_credentials_HOLD"),
+        ("selector-coordinate-drift", "Prometheus_material_revision_HOLD"),
+        ("selector-api-error", "synthetic_selector_api"),
+        ("selector-api-and-cleanup-error", "synthetic_selector_api,synthetic_selector_cleanup"),
+        ("selector-missing-api", "Prometheus_selection_API_credential_HOLD"),
+        ("selector-cleanup-error", "synthetic_selector_cleanup"),
+        ("selector-private-remains", "Prometheus_selection_cleanup_HOLD"),
+        ("selector-small-budget", "Prometheus_selection_enclosing_budget_HOLD"),
+        ("changed-selector-control-object", "Prometheus_control_object_HOLD"),
         ("metadata-failure", "synthetic_docker_metadata_failed"),
         ("changed-control-bytes", "Prometheus_control_bytes_HOLD"),
         ("changed-control-mode", "Prometheus_control_mode_HOLD"),
@@ -4617,6 +5056,8 @@ def _prometheus_cd_route_fixture(tmp_path: Path, variant: str) -> tuple[Path, di
         ("missing-result", "Prometheus_unchanged_result_HOLD"),
         ("malformed-result", "JSONDecodeError"),
         ("consume-failure", "synthetic_original_consumer_failed"),
+        ("missing-runtime-ref", "Prometheus_route_runtime_ref_HOLD"),
+        ("swapped-runtime-ref", "Prometheus_route_runtime_ref_HOLD"),
         ("cleanup-failure", "synthetic_owned_cleanup_failed"),
         *[
             (f"{side}-source-{index}-{fault}", "Prometheus_regular_blob_HOLD")
@@ -4675,8 +5116,14 @@ def test_prometheus_cd_classifies_before_pr_code_and_binds_trusted_handoff(
         )
         classification = steps["Classify the fixed regular Prometheus source blobs"]
         consumer = steps["Admit retained PR candidate or published immutable subject"]
-        classification["run"], consumer["run"] = _synthetic_fixed_prometheus_control(
-            repository, environment, (classification["run"], consumer["run"])
+        selector = steps["Select authenticated Prometheus PR evidence"]
+        classification["run"], selector["run"], consumer["run"] = (
+            _synthetic_fixed_prometheus_control(
+                repository,
+                environment,
+                (classification["run"], selector["run"], consumer["run"]),
+                revision=steps["Checkout fixed trusted Prometheus control"]["with"]["ref"],
+            )
         )
         control_created = True
         if variant == "classification-token":
@@ -4684,11 +5131,19 @@ def test_prometheus_cd_classifies_before_pr_code_and_binds_trusted_handoff(
         result = python_step("Classify the fixed regular Prometheus source blobs")
         environment.pop("GH_TOKEN", None)
     if result.returncode == 0:
+        result = _run_prometheus_pr_selector(
+            repository,
+            environment,
+            selector,
+            output_file,
+            budget=166 if variant == "selector-small-budget" else 170,
+        )
+    if result.returncode == 0:
         route = dict(line.split("=", 1) for line in output_file.read_text().splitlines())
         mode = "unknown" if variant == "unknown-mode" else route["mode"]
         if variant in {"changed", "manifest-and-helper"}:
             assert mode == "changed_pr_candidate"
-        elif variant == "historical":
+        elif variant in {"historical", "unchanged-candidate", "selector-consumer-drift"}:
             assert mode == "historical_pr_candidate"
         elif variant == "unchanged":
             assert mode == "unchanged_pr_published"
@@ -4733,12 +5188,28 @@ def test_prometheus_cd_classifies_before_pr_code_and_binds_trusted_handoff(
     )
     assert "PR-import" not in observed and "PR-helper-import" not in observed
     assert "synthetic.registry.reader" not in result.stdout + result.stderr
-    if variant in {"changed-control-object", "changed-consumer-control-object"}:
+    if variant in {
+        "changed-control-object",
+        "changed-selector-control-object",
+        "changed-consumer-control-object",
+    }:
         marker = tmp_path / "control-imports"
         imports = marker.read_text() if marker.exists() else ""
-        assert imports == ("import\n" if variant == "changed-consumer-control-object" else "")
+        assert imports == (
+            "import\n"
+            * {
+                "changed-control-object": 0,
+                "changed-selector-control-object": 1,
+                "changed-consumer-control-object": 2,
+            }[variant]
+        )
     if variant == "metadata-failure":
-        assert observed == ["CONTROL-classify", "DOCKER-version"]
+        assert observed == [
+            "CONTROL-classify",
+            "CONTROL-select",
+            "CONTROL-selector-close",
+            "DOCKER-version",
+        ]
         assert not (tmp_path / "synthetic-registry-state").exists()
     if diagnostic is not None:
         assert result.returncode != 0 and diagnostic in result.stderr
@@ -4746,6 +5217,8 @@ def test_prometheus_cd_classifies_before_pr_code_and_binds_trusted_handoff(
     assert result.returncode == 0, result.stderr
     assert observed == [
         "CONTROL-classify",
+        "CONTROL-select",
+        "CONTROL-selector-close",
         "DOCKER-version",
         "DOCKER-info",
         "CONTROL-consume",
@@ -4775,6 +5248,21 @@ def test_prometheus_cd_classifies_before_pr_code_and_binds_trusted_handoff(
         ("historical", None),
         ("manifest-and-helper", None),
         ("recipe-only", None),
+        ("unchanged-candidate", None),
+        ("selector-consumer-drift", "consumer_route_binding"),
+        ("selector-base-retarget", "consumer_actual_open_PR"),
+        ("selector-head-drift", "consumer_actual_open_PR"),
+        ("selector-malformed", "GitHub_finite_page_count"),
+        ("selector-ambiguous", "publication_predecessor_publisher_ambiguous"),
+        ("selector-registry-env", "Prometheus_selection_credentials_HOLD"),
+        ("selector-coordinate-drift", "Prometheus_material_revision_HOLD"),
+        ("selector-api-error", "synthetic_selector_api"),
+        ("selector-api-and-cleanup-error", "synthetic_selector_api,synthetic_selector_cleanup"),
+        ("selector-missing-api", "Prometheus_selection_API_credential_HOLD"),
+        ("selector-cleanup-error", "synthetic_selector_cleanup"),
+        ("selector-private-remains", "Prometheus_selection_cleanup_HOLD"),
+        ("selector-small-budget", "Prometheus_selection_enclosing_budget_HOLD"),
+        ("changed-selector-control-object", "Prometheus_control_object_HOLD"),
         ("unselected", None),
         ("changed-control-bytes", "Prometheus_control_bytes_HOLD"),
         ("changed-control-mode", "Prometheus_control_mode_HOLD"),
@@ -4793,6 +5281,8 @@ def test_prometheus_cd_classifies_before_pr_code_and_binds_trusted_handoff(
         ("head-drift", "Prometheus_unchanged_admission_HOLD"),
         ("base-drift", "Prometheus_unchanged_admission_HOLD"),
         ("mode-drift", "Prometheus_unchanged_admission_HOLD"),
+        ("missing-runtime-ref", "Prometheus_route_runtime_ref_HOLD"),
+        ("swapped-runtime-ref", "Prometheus_route_runtime_ref_HOLD"),
         ("missing-result", "Prometheus_unchanged_result_HOLD"),
         ("malformed-result", "JSONDecodeError"),
         ("material-head-drift", "Prometheus_material_revision_HOLD"),
@@ -4836,8 +5326,12 @@ def test_prometheus_ci_trusted_control_precedes_first_pr_import(
         return
     classification = steps["Classify the fixed regular Prometheus source blobs"]
     consumer = steps["Consume exact Prometheus subject before PR startup"]
-    classification["run"], consumer["run"] = _synthetic_fixed_prometheus_control(
-        repository, environment, (classification["run"], consumer["run"])
+    selector = steps["Select authenticated Prometheus PR evidence"]
+    classification["run"], selector["run"], consumer["run"] = _synthetic_fixed_prometheus_control(
+        repository,
+        environment,
+        (classification["run"], selector["run"], consumer["run"]),
+        revision=steps["Checkout fixed trusted Prometheus control"]["with"]["ref"],
     )
     output.write_text("")
     if variant == "classification-token":
@@ -4854,10 +5348,19 @@ def test_prometheus_ci_trusted_control_precedes_first_pr_import(
     )
     environment.pop("GH_TOKEN", None)
     if result.returncode == 0:
+        result = _run_prometheus_pr_selector(
+            repository,
+            environment,
+            selector,
+            output,
+            budget=189 if variant == "selector-small-budget" else 190,
+        )
+    if result.returncode == 0:
         route = dict(line.split("=", 1) for line in output.read_text().splitlines())["mode"]
         expected = (
             "historical_pr_candidate"
             if variant.startswith("historical")
+            or variant in {"unchanged-candidate", "selector-consumer-drift"}
             else (
                 "changed_pr_candidate"
                 if variant in {"changed", "manifest-and-helper"} or variant.startswith("changed-")
@@ -4920,15 +5423,32 @@ def test_prometheus_ci_trusted_control_precedes_first_pr_import(
     )
     assert "PR-import" not in observed and "PR-helper-import" not in observed
     assert "synthetic.ephemeral.reader" not in result.stdout + result.stderr
-    if variant in {"changed-control-object", "changed-consumer-control-object"}:
+    if variant in {
+        "changed-control-object",
+        "changed-selector-control-object",
+        "changed-consumer-control-object",
+    }:
         marker = tmp_path / "control-imports"
         imports = marker.read_text() if marker.exists() else ""
-        assert imports == ("import\n" if variant == "changed-consumer-control-object" else "")
+        assert imports == (
+            "import\n"
+            * {
+                "changed-control-object": 0,
+                "changed-selector-control-object": 1,
+                "changed-consumer-control-object": 2,
+            }[variant]
+        )
     if diagnostic is not None:
         assert result.returncode != 0 and diagnostic in result.stderr
         return
     assert result.returncode == 0, result.stderr
-    assert observed == ["CONTROL-classify", "CONTROL-consume", "CONTROL-cleanup"]
+    assert observed == [
+        "CONTROL-classify",
+        "CONTROL-select",
+        "CONTROL-selector-close",
+        "CONTROL-consume",
+        "CONTROL-cleanup",
+    ]
     names = list(steps)
     assert (
         names.index("Remove fixed trusted Prometheus control checkout")
@@ -5962,6 +6482,19 @@ def test_manual_shell_sync_docs_are_merged_truth_only(relative_path: str) -> Non
         assert "dirty" in provenance_window or "unmerged" in provenance_window
 
 
+def _install_unused_preflight_curl(bin_dir: Path) -> tuple[Path, Path]:
+    """Prove that the instrumented curl detects a call, then arm it for preflight."""
+    curl = bin_dir / "curl"
+    marker = bin_dir / "curl.called"
+    _write_executable(curl, '#!/bin/sh\nprintf "called\\n" > "$0.called"\nexit 97\n')
+    witness = subprocess.run(
+        [str(curl)], cwd=bin_dir, env={"PATH": os.defpath}, timeout=5, check=False
+    )
+    assert witness.returncode == 97 and marker.read_bytes() == b"called\n"
+    marker.unlink()
+    return curl, marker
+
+
 def test_deploy_production_rejects_shell_bundle_without_redeploy_helper(
     tmp_path: Path,
 ) -> None:
@@ -5983,13 +6516,11 @@ def test_deploy_production_rejects_shell_bundle_without_redeploy_helper(
 set -euo pipefail
 printf 'docker %s\\n' "$*" >> "{log_file}"
 """
-    curl_stub = """#!/usr/bin/env bash
-set -euo pipefail
-"""
     _write_executable(bin_dir / "docker", docker_stub)
-    _write_executable(bin_dir / "curl", curl_stub)
 
+    curl, curl_marker = _install_unused_preflight_curl(bin_dir)
     env = os.environ.copy()
+    env["CURL_BIN"] = str(curl)
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
     env["PYTHON_BIN"] = sys.executable
@@ -6010,6 +6541,7 @@ set -euo pipefail
         check=False,
     )
 
+    assert not curl_marker.exists(), "preflight unexpectedly invoked curl"
     assert completed.returncode == 1
     assert "SHELL_BUNDLE_DIR is missing scripts/redeploy_caddy.sh" in completed.stderr
     assert not log_file.exists()
@@ -6060,13 +6592,11 @@ def test_deploy_production_preflight_rejects_shell_bundle_without_frontend(
 set -euo pipefail
 printf 'docker %s\\n' "$*" >> "{log_file}"
 """
-    curl_stub = """#!/usr/bin/env bash
-set -euo pipefail
-"""
     _write_executable(bin_dir / "docker", docker_stub)
-    _write_executable(bin_dir / "curl", curl_stub)
 
+    curl, curl_marker = _install_unused_preflight_curl(bin_dir)
     env = os.environ.copy()
+    env["CURL_BIN"] = str(curl)
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
     env["PYTHON_BIN"] = sys.executable
@@ -6088,6 +6618,7 @@ set -euo pipefail
         check=False,
     )
 
+    assert not curl_marker.exists(), "preflight unexpectedly invoked curl"
     assert completed.returncode == 1
     assert "SHELL_BUNDLE_DIR is missing frontend/" in completed.stderr
     assert not log_file.exists()
@@ -6379,7 +6910,12 @@ print(json.dumps(payload))
     if [ "${{STUB_POSTGRES_RUNTIME_STATUS:-0}}" -ne 0 ]; then
       exit "${{STUB_POSTGRES_RUNTIME_STATUS}}"
     fi
-    printf '70\\t150019\\t/var/lib/postgresql/data\\n'
+    server_version=150019
+    case "${{STUB_POSTGRES_CONTAINER_INSPECT_JSON:-}}" in
+      *'{POSTGRES_RUNTIME_REF}'*) server_version=150020 ;;
+    esac
+    test "$server_version" = "$7" || exit 65
+    printf '70\\t%s\\t/var/lib/postgresql/data\\n' "$server_version"
     exit 0
     ;;
   exec\\ -i\\ aaaaaaaaaaaa*\\ pg_restore\\ --list*)
@@ -6409,7 +6945,7 @@ print(json.dumps(payload))
     fi
     printf '%s' "$volume_list_output"
     ;;
-  image\\ inspect\\ *postgres-15.19-pgvector0.8.6-alpine3.23*)
+  image\\ inspect\\ *postgres-15.20-pgvector0.8.6-alpine3.23*)
     if [ -n "${{STUB_POSTGRES_IMAGE_INSPECT_COUNTER_FILE:-}}" ]; then
       inspect_count=0
       if [ -f "$STUB_POSTGRES_IMAGE_INSPECT_COUNTER_FILE" ]; then
@@ -8366,7 +8902,7 @@ def _postgres_image_inspect_variant(variant: str) -> str:
     elif variant == "wrong-entrypoint":
         config["Entrypoint"] = ["/bin/sh"]
     elif variant == "wrong-environment":
-        config["Env"] = ["PGDATA=/var/lib/postgresql/data", "PG_MAJOR=15", "PG_MINOR=19"]
+        config["Env"] = ["PGDATA=/var/lib/postgresql/data", "PG_MAJOR=15", "PG_MINOR=20"]
     elif variant == "wrong-label":
         config["Labels"]["com.pulseplate.pgvector.version"] = "0.8.5"
     elif variant == "wrong-repository-digest":
@@ -9590,7 +10126,9 @@ printf 'docker %s\\n' "$*" >> "{log_file}"
 """
     _write_executable(bin_dir / "docker", docker_stub)
 
+    curl, curl_marker = _install_unused_preflight_curl(bin_dir)
     env = os.environ.copy()
+    env["CURL_BIN"] = str(curl)
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
     env["PYTHON_BIN"] = sys.executable
@@ -9606,6 +10144,7 @@ printf 'docker %s\\n' "$*" >> "{log_file}"
         check=False,
     )
 
+    assert not curl_marker.exists(), "preflight unexpectedly invoked curl"
     assert completed.returncode == 1
     assert f"Missing production env file: {project_dir / 'deploy' / '.env'}" in completed.stderr
     assert "GitHub Actions does not provision it." in completed.stderr
@@ -9639,7 +10178,9 @@ printf 'docker %s\\n' "$*" >> "{log_file}"
 """
     _write_executable(bin_dir / "docker", docker_stub)
 
+    curl, curl_marker = _install_unused_preflight_curl(bin_dir)
     env = os.environ.copy()
+    env["CURL_BIN"] = str(curl)
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
     env["PYTHON_BIN"] = sys.executable
@@ -9658,6 +10199,7 @@ printf 'docker %s\\n' "$*" >> "{log_file}"
         check=False,
     )
 
+    assert not curl_marker.exists(), "preflight unexpectedly invoked curl"
     assert completed.returncode == 1
     assert "RESOLVED_COMPOSE_FILE does not exist: deploy/docker-compose.production.yaml" in (
         completed.stderr
@@ -10417,16 +10959,13 @@ case "$*" in
     ;;
 esac
 """
-    curl_stub = f"""#!/usr/bin/env bash
-set -euo pipefail
-printf 'curl %s\\n' "$*" >> "{log_file}"
-"""
     sleep_stub = "#!/usr/bin/env bash\nset -euo pipefail\n"
     _write_executable(bin_dir / "docker", docker_stub)
-    _write_executable(bin_dir / "curl", curl_stub)
     _write_executable(bin_dir / "sleep", sleep_stub)
 
+    curl, curl_marker = _install_unused_preflight_curl(bin_dir)
     env = os.environ.copy()
+    env["CURL_BIN"] = str(curl)
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
     env["PYTHON_BIN"] = sys.executable
@@ -10446,6 +10985,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
         check=False,
     )
 
+    assert not curl_marker.exists(), "preflight unexpectedly invoked curl"
     assert completed.returncode == 1
     assert "COMPOSE_FILE must select one exact canonical production Compose identity" in (
         completed.stderr
@@ -13240,7 +13780,7 @@ def test_postgres_identity_revalidation_failure_keeps_product_writers_quiesced(
     assert bash_bin is not None
     marker = (
         'if assert_existing_postgres_unchanged "$postgres_state_receipt" '
-        '"$postgres_runtime_receipt"; then'
+        '"$postgres_runtime_receipt" "$postgres_server_version"; then'
     )
 
     for relative_path in ("scripts/deploy.sh", "scripts/deploy_production.sh"):
@@ -13264,6 +13804,7 @@ def test_postgres_identity_revalidation_failure_keeps_product_writers_quiesced(
                 "set -euo pipefail\n"
                 'postgres_state_receipt="state"\n'
                 'postgres_runtime_receipt="runtime"\n'
+                'postgres_server_version="150020"\n'
                 "assert_existing_postgres_unchanged() { return 42; }\n"
                 "restart_captured_product_containers_after_failure() {\n"
                 f"  printf 'restarted\\n' > \"{restart_log}\"\n"
@@ -13465,7 +14006,7 @@ def _current_postgres_image_inspect_variant(
     elif variant == "wrong-entrypoint":
         record["Config"]["Entrypoint"] = ["/bin/sh"]
     elif variant == "wrong-environment":
-        record["Config"]["Env"] = ["PG_MAJOR=15", "PG_MINOR=19"]
+        record["Config"]["Env"] = ["PG_MAJOR=15", "PG_MINOR=20"]
     elif variant == "wrong-label":
         record["Config"]["Labels"]["com.pulseplate.pgvector.version"] = "0.8.5"
     else:
@@ -14183,7 +14724,7 @@ def test_signed_apk_index_size_exception_preserves_unrelated_file_limit() -> Non
     assert len(hooks) == 2
     normal, index = hooks
     assert normal.get("args", []) == []
-    assert index["args"] == ["--maxkb=2048", "--enforce-all"]
+    assert index["args"] == ["--maxkb=2641", "--enforce-all"]
     index_path = "deploy/postgres-pgvector/builder-apk-index.tar.gz"
     for path in (index_path, index_path + ".extra", "unrelated.bin", "deploy/other/index.tar.gz"):
         selected = [
@@ -15127,7 +15668,7 @@ validate_staging_database_binding --storage-only
 
 
 @pytest.mark.parametrize("surface", ("staging", "production"))
-@pytest.mark.parametrize("image_case", ("prior", "current"))
+@pytest.mark.parametrize("image_case", ("prior", "last", "current"))
 @pytest.mark.parametrize("id_form", ("config", "platform"))
 @pytest.mark.parametrize(
     "fault",
@@ -15137,6 +15678,7 @@ validate_staging_database_binding --storage-only
         "config-crosspair",
         "platform-crosspair",
         "base-crosspair",
+        "minor-crosspair",
         "repo-crosspair",
         "captured-crosspair",
         "inspect-crosspair",
@@ -15153,35 +15695,17 @@ def test_postgres_metadata_selects_one_exact_derived_tuple(
     script_name = "deploy.sh" if surface == "staging" else "deploy_production.sh"
     source = (REPO_ROOT / "scripts" / script_name).read_text(encoding="utf-8")
     program = _postgres_function_source(source, "validate_postgres_image_metadata")
-    if image_case == "prior":
-        runtime_ref = POSTGRES_PRIOR_RUNTIME_REF
-        platform = POSTGRES_PRIOR_PLATFORM_DIGEST
-        config = POSTGRES_PRIOR_CONFIG_DIGEST
-        base = POSTGRES_PRIOR_BASE_DIGEST
-        other_ref = POSTGRES_RUNTIME_REF
-        other_platform, other_config, other_base = (
-            POSTGRES_PLATFORM_MANIFEST_DIGEST,
-            POSTGRES_CONFIG_DIGEST,
-            POSTGRES_BASE_DIGEST,
-        )
-    else:
-        runtime_ref = POSTGRES_RUNTIME_REF
-        platform, config, base = (
-            POSTGRES_PLATFORM_MANIFEST_DIGEST,
-            POSTGRES_CONFIG_DIGEST,
-            POSTGRES_BASE_DIGEST,
-        )
-        other_ref = POSTGRES_PRIOR_RUNTIME_REF
-        other_platform, other_config, other_base = (
-            POSTGRES_PRIOR_PLATFORM_DIGEST,
-            POSTGRES_PRIOR_CONFIG_DIGEST,
-            POSTGRES_PRIOR_BASE_DIGEST,
-        )
+    runtime_ref, platform, config, base = POSTGRES_DERIVED_IMAGES[image_case]
+    other_ref, other_platform, other_config, other_base = POSTGRES_DERIVED_IMAGES[
+        "prior" if image_case == "current" else "current"
+    ]
     image_id = config if id_form == "config" else platform
     record = json.loads(FAKE_POSTGRES_IMAGE_INSPECT_JSON)[0]
     record["Id"] = image_id
     record["RepoDigests"] = [f"ghcr.io/katsiarynakavaleuskaya/pulseplate@{platform}"]
     record["Config"]["Labels"]["com.pulseplate.postgres.base-manifest"] = base
+    if image_case != "current":
+        record["Config"]["Env"][-1] = "PG_MINOR=19"
     captured_image = image_id
     inspect_subject = runtime_ref
     if fault == "extra-repo-digest":
@@ -15189,6 +15713,8 @@ def test_postgres_metadata_selects_one_exact_derived_tuple(
     elif fault in {"config-crosspair", "platform-crosspair"}:
         record["Id"] = other_config if fault == "config-crosspair" else other_platform
         captured_image = record["Id"]
+    elif fault == "minor-crosspair":
+        record["Config"]["Env"][-1] = "PG_MINOR=19" if image_case == "current" else "PG_MINOR=20"
     elif fault == "base-crosspair":
         record["Config"]["Labels"]["com.pulseplate.postgres.base-manifest"] = other_base
     elif fault == "repo-crosspair":
@@ -15241,12 +15767,12 @@ def test_postgres_metadata_selects_one_exact_derived_tuple(
 
 
 @pytest.mark.parametrize("surface", ("staging", "production"))
-@pytest.mark.parametrize("image_case", ("prior", "current"))
+@pytest.mark.parametrize("image_case", ("prior", "last", "current"))
 @pytest.mark.parametrize("id_form", ("config", "platform"))
 def test_existing_postgres_prior_and_current_use_own_inspection(
     tmp_path: Path, surface: str, image_case: str, id_form: str
 ) -> None:
-    """Exercise both existing-service branches without admitting a prior candidate pull."""
+    """Preserve each admitted predecessor and permit candidate pulls only for the current ref."""
     bash = shutil.which("bash")
     assert bash is not None
     script_name = "deploy.sh" if surface == "staging" else "deploy_production.sh"
@@ -15259,25 +15785,14 @@ def test_existing_postgres_prior_and_current_use_own_inspection(
             "validate_existing_postgres_image_identity",
         )
     )
-    if image_case == "prior":
-        runtime_ref, platform, config, base = (
-            POSTGRES_PRIOR_RUNTIME_REF,
-            POSTGRES_PRIOR_PLATFORM_DIGEST,
-            POSTGRES_PRIOR_CONFIG_DIGEST,
-            POSTGRES_PRIOR_BASE_DIGEST,
-        )
-    else:
-        runtime_ref, platform, config, base = (
-            POSTGRES_RUNTIME_REF,
-            POSTGRES_PLATFORM_MANIFEST_DIGEST,
-            POSTGRES_CONFIG_DIGEST,
-            POSTGRES_BASE_DIGEST,
-        )
+    runtime_ref, platform, config, base = POSTGRES_DERIVED_IMAGES[image_case]
     image_id = config if id_form == "config" else platform
     record = json.loads(FAKE_POSTGRES_IMAGE_INSPECT_JSON)[0]
     record["Id"] = image_id
     record["RepoDigests"] = [f"ghcr.io/katsiarynakavaleuskaya/pulseplate@{platform}"]
     record["Config"]["Labels"]["com.pulseplate.postgres.base-manifest"] = base
+    if image_case != "current":
+        record["Config"]["Env"][-1] = "PG_MINOR=19"
     inspect_file = tmp_path / "inspect.json"
     inspect_file.write_text(json.dumps([record]), encoding="utf-8")
     log = tmp_path / "inspect-log"
@@ -15312,6 +15827,7 @@ def test_existing_postgres_prior_and_current_use_own_inspection(
         check=False,
     )
     assert existing.returncode == 0, existing.stderr
+    assert existing.stdout.strip() == ("150020" if image_case == "current" else "150019")
     assert log.read_text().splitlines() == [f"image inspect {runtime_ref}"]
     pulled = subprocess.run(
         [
@@ -15329,8 +15845,53 @@ def test_existing_postgres_prior_and_current_use_own_inspection(
         check=False,
     )
     assert (pulled.returncode == 0) is (image_case == "current"), pulled.stderr
-    if image_case == "prior":
+    if image_case != "current":
         assert log.read_text().splitlines() == [f"image inspect {runtime_ref}"]
+
+
+@pytest.mark.parametrize("script", ("deploy.sh", "deploy_production.sh"))
+@pytest.mark.parametrize(
+    ("expected", "observed"),
+    (("150019", "150019"), ("150020", "150020"), ("150019", "150020"), ("150020", "150019")),
+)
+def test_existing_postgres_live_version_must_match_the_inspected_image(
+    tmp_path: Path, script: str, expected: str, observed: str
+) -> None:
+    """Run the server probe with the authenticated image's selected version."""
+    source = (REPO_ROOT / "scripts" / script).read_text(encoding="utf-8")
+    program = _postgres_function_source(source, "read_existing_postgres_runtime_state")
+    docker = tmp_path / "docker"
+    _write_executable(
+        docker,
+        '#!/bin/sh\ntest "$1" = exec && test "$2" = pg || exit 2\nshift 2\nexec "$@"\n',
+    )
+    _write_executable(tmp_path / "id", '#!/bin/sh\nprintf "70\\n"\n')
+    _write_executable(
+        tmp_path / "psql",
+        '#!/bin/sh\ncase "$*" in\n'
+        '*"SHOW server_version_num") printf "%s\\n" "$VERSION" ;;\n'
+        '*"SHOW data_directory") printf "/var/lib/postgresql/data\\n" ;;\n'
+        "*) exit 2 ;;\nesac\n",
+    )
+    bash = shutil.which("bash")
+    assert bash is not None
+    completed = subprocess.run(
+        [bash, "-ec", program + 'read_existing_postgres_runtime_state pg "$1"', "sh", expected],
+        env={
+            "PATH": f"{tmp_path}{os.pathsep}{os.defpath}",
+            "DOCKER_BIN": str(docker),
+            "POSTGRES_USER": "test",
+            "POSTGRES_DB": "test",
+            "VERSION": observed,
+        },
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert (completed.returncode == 0) is (expected == observed)
+    assert completed.stdout == (
+        f"70\t{observed}\t/var/lib/postgresql/data\n" if expected == observed else ""
+    )
 
 
 @pytest.mark.parametrize("surface", ("staging", "production", "cd"))
@@ -15575,7 +16136,7 @@ def test_cd_postgres_prior_transition_releases_fixed_port_after_legacy_proof(
         if step.get("name") == "Prove PostgreSQL 15 pgvector 0.8.6 and same-volume continuity"
     )
     boundary = (
-        'test "$transitioned_postgres" = "postgres (PostgreSQL) 15.19"\n'
+        'test "$transitioned_postgres" = "postgres (PostgreSQL) 15.20"\n'
         'docker rm -f "$legacy_container_name" >/dev/null\n'
     )
     assert run.count(boundary) == 1
@@ -15635,7 +16196,7 @@ case "$1:$2" in
         printf 'version:%s\n' "$2" >> "$STATE_ROOT/lifecycle"
         case "$2:$CASE_SCENARIO" in
           *-legacy-postgres:legacy-proof-fails) printf 'postgres (PostgreSQL) 0\n' ;;
-          *) printf 'postgres (PostgreSQL) 15.19\n' ;;
+          *) printf 'postgres (PostgreSQL) 15.20\n' ;;
         esac
         ;;
       *'SELECT 1'*) printf '1\n' ;;
@@ -15679,7 +16240,13 @@ esac
         assert result.returncode == 0, result.stderr
         assert len(stops) == 2
         assert legacy_version < stops[-1] < events.index("start:" + prior)
-        assert (state / "port-owner").read_text().strip() == prior
+        last = prefix + "-last-postgres"
+        assert events.index("version:" + prior) < events.index("start:" + last)
+        assert events[-2:] == ["version:" + last, "stop:" + last]
+        assert not (state / "port-owner").exists()
+        calls = (state / "commands").read_text().splitlines()
+        for ref in (POSTGRES_PRIOR_RUNTIME_REF, POSTGRES_LAST_RUNTIME_REF):
+            assert calls.count("pull --platform linux/amd64 " + ref) == 1
     else:
         assert result.returncode != 0
         assert len(stops) == 1 and stops[0] < legacy_version
@@ -15883,6 +16450,157 @@ def test_checkpoint_admission_rejects_before_protected_publication(
         assert not any(path.name.startswith(".pulseplate-") for path in project.rglob("*"))
 
 
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "none",
+        "candidate-placement",
+        "candidate-copy",
+        "early-cleanup",
+        "missing-checkout",
+        "missing-subject",
+        "missing-scanner",
+        "retained-missing-cleanup",
+        "retained-early-cleanup",
+        "retained-duplicate-cleanup",
+    ],
+)
+def test_alertmanager_current_four_controls_live_steps_are_in_same_trusted_consumer_job(
+    fault: str,
+) -> None:
+    import copy
+
+    workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    jobs = workflow["jobs"]
+    expected_jobs = {"prometheus-image-security-pr", "prometheus-image-security-trusted"}
+    live_name = "Scan accepted AM and execute all four current controls"
+    cleanup_name = "Remove designated AM controller after credential cleanup"
+    scan_name = "Scan exact Prometheus image without suppressions"
+    setup_name = "Select AM Python without dependency or SDK installation"
+
+    def assert_placement(candidate_jobs: dict[str, Any]) -> None:
+        for name, expected in (
+            (live_name, expected_jobs),
+            (cleanup_name, expected_jobs | {"alertmanager-retained-candidate"}),
+        ):
+            assert {
+                job_name
+                for job_name, job in candidate_jobs.items()
+                if any(step.get("name") == name for step in job.get("steps", []))
+            } == expected
+        retained = candidate_jobs["alertmanager-retained-candidate"]["steps"]
+        retained_names = [step.get("name") for step in retained]
+        assert retained_names.count(cleanup_name) == 1
+        assert live_name not in retained_names
+        prepare = retained_names.index("Prepare exact AM subject before material execution")
+        cleanup = retained_names.index(cleanup_name)
+        proxy = retained_names.index("Validate existing credential-free AM native Python proxy")
+        assert prepare + 1 == cleanup and cleanup + 1 == proxy
+        assert retained[prepare]["id"] == "alertmanager-image"
+        retained_ids = [step.get("id") for step in retained]
+        assert retained_ids.count("alertmanager-control") == 1
+        assert retained_ids.index("alertmanager-control") < prepare
+        assert retained[cleanup]["if"] == (
+            "always() && (steps.alertmanager-control.outcome == 'success' || "
+            "steps.alertmanager-control.outcome == 'failure')"
+        )
+        assert "env" not in retained[cleanup]
+        assert 'rm -rf -- "$controller"' in retained[cleanup]["run"]
+        assert 'test ! -e "$controller" && test ! -L "$controller"' in retained[cleanup]["run"]
+        assert (
+            candidate_jobs["prometheus-image-security-pr"]["steps"]
+            is candidate_jobs["prometheus-image-security-trusted"]["steps"]
+        )
+        for job_name in expected_jobs:
+            job = candidate_jobs[job_name]
+            assert job["permissions"] == {
+                "contents": "read",
+                "actions": "read",
+                "pull-requests": "read",
+                "packages": "read",
+            }
+            steps = job["steps"]
+            names = [step.get("name") for step in steps]
+            for name in (scan_name, live_name, cleanup_name, setup_name):
+                assert names.count(name) == 1
+            scan, live, cleanup, setup = (
+                names.index(name) for name in (scan_name, live_name, cleanup_name, setup_name)
+            )
+            assert scan + 1 == live and live + 1 == cleanup and cleanup + 1 == setup
+            ids = [step.get("id") for step in steps]
+            for step_id in (
+                "alertmanager-control",
+                "alertmanager-image",
+                "prometheus-image",
+                "prometheus_trivy",
+            ):
+                assert ids.count(step_id) == 1
+            checkout = ids.index("alertmanager-control")
+            subject = ids.index("alertmanager-image")
+            assert checkout < subject < scan
+            assert ids.index("prometheus-image") < scan
+            assert ids.index("prometheus_trivy") < scan
+            assert steps[checkout]["with"]["path"] == "artifacts/orchestration/alertmanager-control"
+            assert steps[checkout]["with"]["persist-credentials"] is False
+            assert steps[scan]["env"]["TRIVY_BIN"] == "${{ steps.prometheus_trivy.outputs.path }}"
+            live_step = steps[live]
+            assert live_step["env"]["ALERTMANAGER_CONTROLLER_SOURCE"] == (
+                "${{ steps.alertmanager-image.outputs.controller_source }}"
+            )
+            assert live_step["env"]["TRIVY_BIN"] == "${{ steps.prometheus_trivy.outputs.path }}"
+            for token in ("GH_TOKEN", "GITHUB_TOKEN"):
+                assert live_step["env"][token] == "${{ secrets.GITHUB_TOKEN }}"
+                assert token not in job.get("env", {})
+            assert 'cd "$controller"' in live_step["run"]
+            assert 'test "$(git -C "$controller" rev-parse HEAD)"' in live_step["run"]
+            assert (
+                "python3 -B -E -s -S -m scripts.ci.fetch_docker_source_artifacts"
+                in live_step["run"]
+            )
+            assert steps[cleanup]["if"] == (
+                "always() && (steps.alertmanager-control.outcome == 'success' || "
+                "steps.alertmanager-control.outcome == 'failure')"
+            )
+            assert "env" not in steps[cleanup]
+            assert 'test ! -e "$controller" && test ! -L "$controller"' in steps[cleanup]["run"]
+
+    assert_placement(jobs)
+    if fault == "none":
+        return
+    changed = copy.deepcopy(jobs)
+    steps = changed["prometheus-image-security-pr"]["steps"]
+    live = next(step for step in steps if step.get("name") == live_name)
+    cleanup = next(step for step in steps if step.get("name") == cleanup_name)
+    if fault in {"candidate-placement", "candidate-copy"}:
+        changed["alertmanager-candidate-build"]["steps"].extend([live, cleanup])
+        if fault == "candidate-placement":
+            steps.remove(live)
+            steps.remove(cleanup)
+    elif fault.startswith("retained-"):
+        retained = changed["alertmanager-retained-candidate"]["steps"]
+        retained_cleanup = next(step for step in retained if step.get("name") == cleanup_name)
+        if fault == "retained-duplicate-cleanup":
+            retained.append(retained_cleanup)
+        else:
+            retained.remove(retained_cleanup)
+            if fault == "retained-early-cleanup":
+                retained.insert(0, retained_cleanup)
+    elif fault == "early-cleanup":
+        steps.remove(cleanup)
+        steps.insert(
+            next(i for i, step in enumerate(steps) if step.get("name") == scan_name), cleanup
+        )
+    else:
+        removed_id = {
+            "missing-checkout": "alertmanager-control",
+            "missing-subject": "alertmanager-image",
+            "missing-scanner": "prometheus_trivy",
+        }[fault]
+        next(step for step in steps if step.get("id") == removed_id).pop("id")
+    with pytest.raises(AssertionError):
+        assert_placement(changed)
+
+
 def test_prometheus_cd_separates_pr_and_staging_without_duplicating_steps() -> None:
     workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
     jobs = workflow["jobs"]
@@ -15903,7 +16621,7 @@ def test_prometheus_cd_separates_pr_and_staging_without_duplicating_steps() -> N
     assert (
         pr["permissions"]
         == trusted["permissions"]
-        == {"contents": "read", "actions": "read", "packages": "read"}
+        == {"contents": "read", "actions": "read", "packages": "read", "pull-requests": "read"}
     )
     assert gate["permissions"] == {}
     assert "environment" not in gate
@@ -15917,7 +16635,7 @@ def test_prometheus_cd_separates_pr_and_staging_without_duplicating_steps() -> N
     consumer = next(step for step in pr["steps"] if step.get("id") == "prometheus-image")
     assert consumer["env"]["GHCR_READ_TOKEN"] == (
         "${{ github.event_name == 'pull_request' && "
-        "steps.prometheus-route.outputs.mode == 'unchanged_pr_published' && "
+        "steps.prometheus-evidence.outcome == 'success' && steps.prometheus-evidence.outputs.mode == 'unchanged_pr_published' && "
         "secrets.GITHUB_TOKEN || github.event_name != 'pull_request' && "
         "steps.prometheus-route.outputs.mode == 'trusted_published' && "
         "secrets.GHCR_READ_TOKEN || '' }}"
@@ -17144,14 +17862,22 @@ def test_alertmanager_compiler_epoch_is_exact(current: bool) -> None:
         "\tbuild\t-tags=netgo\n\tbuild\t-trimpath=true\n"
     ).encode()
     assert (
-        alertmanager_source._alertmanager_build_information(raw, "alertmanager", current=current)[
-            "Go"
-        ]
+        alertmanager_source._alertmanager_build_information(
+            raw,
+            "alertmanager",
+            current=current,
+            compiler_artifact=prometheus_source.RETAINED_GO if (current) else prometheus_source.GO,
+        )["Go"]
         == compiler
     )
     with pytest.raises(prometheus_source.QualificationError, match="AM_actual_Go_build_version"):
         alertmanager_source._alertmanager_build_information(
-            raw, "alertmanager", current=not current
+            raw,
+            "alertmanager",
+            current=not current,
+            compiler_artifact=(
+                prometheus_source.RETAINED_GO if (not current) else prometheus_source.GO
+            ),
         )
 
 
@@ -17219,6 +17945,41 @@ def test_alertmanager_negative_control_keeps_disjoint_epochs(
                 )
 
 
+@pytest.mark.parametrize("severity", ["UNKNOWN", "LOW", "MEDIUM", "HIGH", "CRITICAL"])
+@pytest.mark.parametrize("current", [False, True])
+def test_alertmanager_historical_control_retains_non062_lower_severity(
+    current: bool, severity: str
+) -> None:
+    report = _synthetic_AM_negative_control(current)
+    for row in report["Results"]:
+        row["Vulnerabilities"].append(
+            {
+                "VulnerabilityID": "CVE-2026-78661",
+                "Severity": severity,
+                "PkgIdentifier": {"PURL": "pkg:golang/golang.org/x/net@v0.58.0"},
+            }
+        )
+    plan = {"state": "DECLARED_ONLY_COMPILER_HOLD"}
+    assert "derivation_epoch" not in plan
+    before = json.dumps(report, sort_keys=True)
+    if severity in ("HIGH", "CRITICAL"):
+        with pytest.raises(prometheus_source.QualificationError, match="inventory_changed_HOLD"):
+            alertmanager_source._alertmanager_vulnerability_control(
+                report, "synthetic-control", current=current, qualification_plan=plan
+            )
+    else:
+        result = alertmanager_source._alertmanager_vulnerability_control(
+            report, "synthetic-control", current=current, qualification_plan=plan
+        )
+        assert result == {
+            "scope": "KNOWN_VULNERABLE_CONTROL_ONLY_NEVER_CANDIDATE",
+            "known_HIGH_occurrences": 12 if current else 10,
+            "all_severity_findings_retained": True,
+            "image_config": "synthetic-control",
+        }
+    assert json.dumps(report, sort_keys=True) == before
+
+
 @pytest.mark.parametrize("ca_severity", ["HIGH", "MEDIUM"])
 @pytest.mark.parametrize(
     "fault",
@@ -17280,6 +18041,7 @@ def test_alertmanager_current_negative_control_rejects_incomplete_or_changed_rep
         ca_finding["PkgIdentifier"]["PURL"] = "pkg:golang/stdlib@v1.27.3"
     elif fault == "missing-PURL":
         ca_finding["PkgIdentifier"].pop("PURL")
+        diagnostic = "AM_vulnerable_control_PURL"
     elif fault == "malformed-PURL":
         ca_finding["PkgIdentifier"] = []
         diagnostic = "AM_vulnerable_control_PURL"
@@ -17378,6 +18140,303 @@ def test_alertmanager_current_support_transport_is_complete(
         else:
             with pytest.raises(prometheus_source.QualificationError):
                 check()
+
+
+@pytest.mark.parametrize(
+    ("outcomes", "terminal"),
+    [
+        (("404", "ok"), ""),
+        (("500", "502", "ok"), ""),
+        (("503-after", "ok"), ""),
+        (("429-after", "ok"), ""),
+        (("reset", "ok"), ""),
+        (("wrapped-timeout", "ok"), ""),
+        (("reset", "wrapped-reset", "timeout"), "temporary transport failure on attempt 3"),
+        (("429-long",), "HTTP 429 on attempt 1"),
+        (("429-invalid",), "Invalid support metadata retry delay"),
+        (("wrapped-tls",), "transport failed"),
+        (("unknown-url-error",), "transport failed"),
+        (("404", "404", "404"), "HTTP 404 on attempt 3"),
+        (("504", "504", "504"), "HTTP 504 on attempt 3"),
+        (("403",), "HTTP 403 on attempt 1"),
+        (("401",), "HTTP 401 on attempt 1"),
+        (("501",), "HTTP 501 on attempt 1"),
+        (("503-long",), "HTTP 503 on attempt 1"),
+        (("tls",), "transport failed"),
+        (("redirect",), "HTTP 302 on attempt 1"),
+        (("invalid-json",), "JSONDecodeError"),
+        (("wrong-digest",), "AM_support_uploaded_archive_identity"),
+        (("oversized",), "metadata exceeds its bound"),
+    ],
+)
+def test_alertmanager_S_reads_only_its_fresh_upload_before_validating(
+    tmp_path: Path,
+    outcomes: tuple[str, ...],
+    terminal: str,
+) -> None:
+    import textwrap
+
+    job = yaml.safe_load(CD_WORKFLOW_PATH.read_bytes())["jobs"]["alertmanager-input-inspection"]
+    step = next(
+        s
+        for s in job["steps"]
+        if s["name"] == "Verify the completed support upload identity and size"
+    )
+    assert step["if"] == "success()" and step["timeout-minutes"] == 1
+    assert "timeout --kill-after=1s 55s python3 -B -E -s -S -" in step["run"]
+    trace = tmp_path / "native-requests"
+    native = textwrap.dedent("""
+        import io, json, os, ssl, time, urllib.error, urllib.request, urllib.response
+        from email.message import Message
+        from pathlib import Path
+        trace = Path(os.environ["FIXTURE_TRACE"])
+        outcomes = iter(json.loads(os.environ["FIXTURE_RESPONSES"]))
+        now = time.monotonic()
+        time.monotonic = lambda: now
+        def wait(delay):
+            global now
+            now += delay
+            with trace.open("a") as stream: print("wait", delay, file=stream)
+        time.sleep = wait
+        def exchange(handler, request):
+            assert request.get_method() == "GET"
+            assert request.full_url == "https://api.github.com/repos/Katsiarynakavaleuskaya/PulsePlate/actions/artifacts/33"
+            assert request.get_header("Authorization") == "Bearer " + os.environ["GH_TOKEN"]
+            assert 0 < request.timeout <= 12
+            item = next(outcomes)
+            with trace.open("a") as stream: print("GET", item, file=stream)
+            headers = Message()
+            status = int(item[:3]) if item[:3].isdigit() else 302 if item == "redirect" else 200
+            if item == "tls": raise ssl.SSLCertVerificationError("PRIVATE-TRANSPORT")
+            if item == "wrapped-tls": raise urllib.error.URLError(ssl.SSLCertVerificationError("PRIVATE-TRANSPORT"))
+            if item == "timeout": raise TimeoutError("PRIVATE-TRANSPORT")
+            if item == "wrapped-timeout": raise urllib.error.URLError(TimeoutError("PRIVATE-TRANSPORT"))
+            if item == "reset": raise ConnectionResetError("PRIVATE-TRANSPORT")
+            if item == "wrapped-reset": raise urllib.error.URLError(ConnectionResetError("PRIVATE-TRANSPORT"))
+            if item == "unknown-url-error": raise urllib.error.URLError("PRIVATE-TRANSPORT")
+            if item == "redirect": headers["Location"] = "https://foreign.invalid/redacted"
+            if item in ("503-after", "429-after"): headers["Retry-After"] = "3"
+            if item in ("503-long", "429-long"): headers["Retry-After"] = "999"
+            if item == "429-invalid": headers["Retry-After"] = "PRIVATE-TRANSPORT"
+            body = os.environ["FIXTURE_BODY"].encode()
+            if item == "invalid-json" or status != 200: body = b"PRIVATE-TRANSPORT"
+            if item == "oversized": body = b"x" * 65537
+            res = urllib.response.addinfourl(io.BytesIO(body), headers, request.full_url, status)
+            res.msg = "status"
+            return res
+        urllib.request.HTTPSHandler.https_open = exchange
+    """)
+    # Use the actual workflow body, canonical no-redirect HTTPS opener and strict S verifier.
+    digest = hashlib.sha256(b"synthetic support ZIP").hexdigest()
+    sha = "a" * 40
+    artifact = {
+        "id": 33,
+        "expired": False,
+        "size_in_bytes": 1024,
+        "digest": "sha256:" + ("0" * 64 if "wrong-digest" in outcomes else digest),
+        "name": "alertmanager-input-inspection-22-1",
+        "workflow_run": {
+            "id": 22,
+            "head_sha": sha,
+            "repository_id": 1043311030,
+            "head_repository_id": 1043311030,
+        },
+    }
+    result = subprocess.run(
+        [sys.executable, "-B", "-E", "-s", "-S", "-c", native + _prometheus_cd_python(step)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+        env={
+            "GH_TOKEN": "synthetic-support-only",
+            "AM_ARTIFACT_DIGEST": digest,
+            "AM_ARTIFACT_ID": "33",
+            "GITHUB_RUN_ID": "22",
+            "GITHUB_RUN_ATTEMPT": "1",
+            "GITHUB_SHA": sha,
+            "FIXTURE_TRACE": str(trace),
+            "FIXTURE_RESPONSES": json.dumps(outcomes),
+            "FIXTURE_BODY": json.dumps(artifact),
+        },
+    )
+    assert (result.returncode != 0) == bool(terminal), result.stderr
+    if terminal:
+        assert terminal in result.stderr
+    assert (
+        "PRIVATE-TRANSPORT" not in result.stderr and "synthetic-support-only" not in result.stderr
+    )
+    assert result.stdout == ""
+    lines = trace.read_text().splitlines()
+    assert [line for line in lines if line.startswith("GET ")] == [
+        "GET " + status for status in outcomes
+    ]
+    expected = (
+        [3.0]
+        if outcomes[0] in ("503-after", "429-after")
+        else [float(i) for i in range(1, len(outcomes))]
+    )
+    assert [float(line.split()[1]) for line in lines if line.startswith("wait ")] == expected
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "one-over",
+        "empty",
+        "expired",
+        "digest",
+        "other-run",
+        "other-source",
+        "foreign",
+        "other-name",
+        "wrong-id",
+    ],
+)
+def test_alertmanager_requires_actual_completed_S_upload(fault: str | None) -> None:
+    source = "1" * 40
+    env = {
+        "GITHUB_RUN_ID": "22",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "AM_ARTIFACT_ID": "33",
+        "AM_ARTIFACT_DIGEST": "a" * 64,
+        "GITHUB_SHA": source,
+    }
+    record = {
+        "id": 34 if fault == "wrong-id" else 33,
+        "expired": fault == "expired",
+        "size_in_bytes": (
+            0
+            if fault == "empty"
+            else alertmanager_source._ALERT_S_ARCHIVE_BYTES + int(fault == "one-over")
+        ),
+        "digest": "sha256:" + ("b" if fault == "digest" else "a") * 64,
+        "name": "other" if fault == "other-name" else "alertmanager-input-inspection-22-1",
+        "workflow_run": {
+            "id": 23 if fault == "other-run" else 22,
+            "head_sha": "2" * 40 if fault == "other-source" else source,
+            "repository_id": 1043311030,
+            "head_repository_id": 7 if fault == "foreign" else 1043311030,
+        },
+    }
+    if fault is None:
+        alertmanager_source._alertmanager_support_upload(record, env)
+    else:
+        with pytest.raises(
+            prometheus_source.QualificationError, match="AM_support_uploaded_archive_identity"
+        ):
+            alertmanager_source._alertmanager_support_upload(record, env)
+
+
+@pytest.mark.parametrize(
+    "name,minimum,maximum,diagnostic",
+    [
+        ("native-support/trivy-cache/db/trivy.db", 1, 1856 * 1024**2, "DB_size"),
+        ("native-support/trivy", 0, 192 * 1024**2, "native_size"),
+        ("native-support/artifact-payload-members.json", 1, 2 * 1024**2, "size"),
+        ("native-support/evidence/native-report.json", 0, 16 * 1024**2, "native_size"),
+        ("github-read-evidence/GitHub-1.stdout", 0, 16 * 1024**2, "API_size"),
+        ("input-inspection.json", 1, 2 * 1024**2, "inspection_size"),
+    ],
+)
+def test_alertmanager_support_file_resource_boundaries(
+    name: str, minimum: int, maximum: int, diagnostic: str
+) -> None:
+    budget = alertmanager_source._alertmanager_support_sizes
+    assert budget([(name, minimum)]) == minimum
+    assert budget([(name, maximum)]) == maximum
+    with pytest.raises(prometheus_source.QualificationError, match="size"):
+        budget([(name, minimum - 1)])
+    with pytest.raises(prometheus_source.QualificationError, match=diagnostic):
+        budget([(name, maximum + 1)])
+
+
+def test_alertmanager_support_accounts_for_all_four_classes_and_shared_space() -> None:
+    budget = alertmanager_source._alertmanager_support_sizes
+    mib = 1024**2
+    # Two admitted class limits can fill the independent expanded ceiling.
+    db = ("native-support/trivy-cache/db/trivy.db", 1856 * mib)
+    native = [("native-support/a", 192 * mib), ("native-support/b", 192 * mib - 3)]
+    footer = ("native-support/artifact-payload-members.json", 1)
+    api = ("github-read-evidence/GitHub-1.stdout", 1)
+    inspection = ("input-inspection.json", 1)
+    files = [db, *native, footer, api, inspection]
+    assert budget(files, complete=True) == 2240 * mib
+    for omitted in (db, footer, api, inspection):
+        with pytest.raises(prometheus_source.QualificationError, match="required_classes"):
+            budget((row for row in files if row != omitted), complete=True)
+    for extra, diagnostic in (
+        (("native-support/c", 1), "AM_support_size"),
+        (("native-support/c", 4), "AM_support_native_size"),
+        (db, "AM_support_DB_size"),
+        (("other", 0), "AM_support_inspection_size"),
+        (("github-read-evidence/other", 0), "AM_support_inspection_size"),
+    ):
+        with pytest.raises(prometheus_source.QualificationError, match=diagnostic):
+            budget([*files, extra], complete=True)
+    api_sizes = [(f"github-read-evidence/GitHub-{i}.stdout", 16 * mib) for i in (1, 2)]
+    assert budget(api_sizes) == 32 * mib
+    with pytest.raises(prometheus_source.QualificationError, match="API_size"):
+        budget([*api_sizes, ("github-read-evidence/GitHub-3.stdout", 1)])
+
+
+def test_alertmanager_support_member_counts_and_disk_reserve(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    budget = alertmanager_source._alertmanager_support_sizes
+    native = [(f"native-support/file-{i}", 0) for i in range(256)]
+    api = [(f"github-read-evidence/GitHub-{i+1}.stdout", 0) for i in range(768)]
+    assert budget(native + api) == 0
+    for members, extra, diagnostic in (
+        (native, ("native-support/extra", 0), "native_size"),
+        (api, ("github-read-evidence/GitHub-769.stderr", 0), "API_size"),
+        (native + api, ("input-inspection.json", 1), "AM_support_size"),
+    ):
+        with pytest.raises(prometheus_source.QualificationError, match=diagnostic):
+            budget([*members, extra])
+    current = shutil.disk_usage(tmp_path)
+    required = 8192
+    free_at_boundary = required + alertmanager_source._ALERT_S_FREE_RESERVE
+    for free in (free_at_boundary, free_at_boundary - 1):
+        monkeypatch.setattr(shutil, "disk_usage", lambda _: current._replace(free=free))
+        if free == free_at_boundary:
+            alertmanager_source._alertmanager_support_space(tmp_path, required)
+        else:
+            with pytest.raises(prometheus_source.QualificationError, match="AM_support_free_space"):
+                alertmanager_source._alertmanager_support_space(tmp_path, required)
+
+
+def test_alertmanager_support_bounds_zip_metadata_without_restricting_member_reads(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Force a real ZIP64 end record, including its locator, without a multi-GiB fixture.
+    monkeypatch.setattr(zipfile, "ZIP64_LIMIT", 1024)
+    path = tmp_path / "S.zip"
+    payload_size = 2 * 1024**2
+    with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_STORED) as producer:
+        producer.comment = b"valid uploader comment"
+        with producer.open("payload", "w", force_zip64=True) as member:
+            member.write(b"a" * payload_size)
+    with alertmanager_source._AlertmanagerSupportZipStream(io.FileIO(path, "rb")) as source:
+        with pytest.raises(prometheus_source.QualificationError, match="AM_support_ZIP_directory"):
+            source.read()
+        with zipfile.ZipFile(source) as archive:
+            assert archive.comment == b"valid uploader comment"
+            assert archive.getinfo("payload").compress_type == zipfile.ZIP_STORED
+            source.reading_directory = False
+            assert archive.read("payload") == b"a" * payload_size
+    bad_path = tmp_path / "oversized-directory.zip"
+    with zipfile.ZipFile(bad_path, "w") as producer:
+        for index in range(20):
+            producer.writestr(str(index) + "x" * 60000, b"")
+    with (
+        alertmanager_source._AlertmanagerSupportZipStream(io.FileIO(bad_path, "rb")) as source,
+        pytest.raises(prometheus_source.QualificationError, match="AM_support_ZIP_directory"),
+        zipfile.ZipFile(source),
+    ):
+        pytest.fail("an oversized ZIP directory was allocated")
 
 
 @pytest.mark.parametrize(
@@ -17493,3 +18552,1379 @@ def test_alertmanager_current_inputs_select_exact_actual_predecessor(
                 API(), source_sha, tmp_path / "qualification.zip", **arguments
             )
         assert observed == []
+
+
+def test_historical_AM_oracle_is_independent_of_current_static_data(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    before = _historical_AM_scan_oracle()
+    monkeypatch.setattr(alertmanager_source, "_ALERT_CURRENT_SCAN_ORACLE", {})
+    assert _historical_AM_scan_oracle() == before
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "missing",
+        "both-missing",
+        "duplicate-low",
+        "duplicate-high",
+        "wrong-row",
+        "wrong-purl",
+        "wrong-target",
+        "wrong-class",
+        "unknown",
+        "critical",
+        "mixed",
+        "epoch",
+        "inputs",
+        "not-current",
+    ],
+)
+def test_alertmanager_negative_control_062_exact_fourteen_and_all_severity_identity(
+    fault: str | None,
+) -> None:
+    report = _synthetic_AM_negative_control(True)
+    plan = {
+        "derivation_epoch": alertmanager_source._ALERT_XNET062_METADATA_EPOCH,
+        "command_module_inputs": {"alertmanager": {}, "amtool": {}},
+    }
+    for row in report["Results"]:
+        row["Vulnerabilities"].append(
+            {
+                "VulnerabilityID": "CVE-2026-97054",
+                "Severity": "UNKNOWN",
+                "PkgIdentifier": {"PURL": "pkg:golang/stdlib@v1.26.8"},
+            }
+        )
+        row["Vulnerabilities"].append(
+            {
+                "VulnerabilityID": "CVE-2026-78661",
+                "Severity": "HIGH",
+                "PkgIdentifier": {"PURL": "pkg:golang/golang.org/x/net@v0.58.0"},
+            }
+        )
+    if fault == "missing":
+        report["Results"][0]["Vulnerabilities"].pop()
+    elif fault == "both-missing":
+        for row in report["Results"]:
+            row["Vulnerabilities"].pop()
+    elif fault == "duplicate-high":
+        report["Results"][0]["Vulnerabilities"].append(
+            dict(report["Results"][0]["Vulnerabilities"][-1])
+        )
+    elif fault == "wrong-target":
+        report["Results"][0]["Target"] = "bin/other"
+    elif fault == "wrong-class":
+        report["Results"][0]["Class"] = "os-pkgs"
+    elif fault in ("unknown", "critical", "mixed"):
+        for row in report["Results"]:
+            row["Vulnerabilities"][-1]["Severity"] = (
+                "CRITICAL" if fault == "critical" else "UNKNOWN"
+            )
+            if fault == "mixed":
+                break
+    elif fault == "epoch":
+        plan["derivation_epoch"] = "unrecognized"
+    elif fault == "inputs":
+        plan["command_module_inputs"] = {"alertmanager": {}}
+    elif fault in ("duplicate-low", "wrong-row"):
+        finding = {
+            "VulnerabilityID": "CVE-2026-78661",
+            "Severity": "LOW",
+            "PkgIdentifier": {"PURL": "pkg:golang/golang.org/x/net@v0.58.0"},
+        }
+        if fault == "wrong-row":
+            report["Results"].append(
+                {
+                    "Target": "bin/alertmanager",
+                    "Class": "os-pkgs",
+                    "Type": "alpine",
+                    "Vulnerabilities": [finding],
+                }
+            )
+        else:
+            report["Results"][0]["Vulnerabilities"].append(finding)
+    elif fault == "wrong-purl":
+        report["Results"][0]["Vulnerabilities"][-1]["PkgIdentifier"][
+            "PURL"
+        ] = "pkg:golang/stdlib@v1.26.8"
+    if fault is not None:
+        with pytest.raises(
+            prometheus_source.QualificationError,
+            match="AM_(known_vulnerable_control|control_062_qualification)",
+        ):
+            alertmanager_source._alertmanager_vulnerability_control(
+                report, "synthetic-control", current=fault != "not-current", qualification_plan=plan
+            )
+    else:
+        observed = alertmanager_source._alertmanager_vulnerability_control(
+            report, "synthetic-control", current=True, qualification_plan=plan
+        )
+        assert observed["known_HIGH_occurrences"] == 14
+        with pytest.raises(prometheus_source.QualificationError):
+            alertmanager_source._alertmanager_vulnerability_control(
+                report, "synthetic-control", current=True
+            )
+
+
+@pytest.mark.parametrize("field", ["ID", "PURL"])
+@pytest.mark.parametrize("malformed", [None, [], {}, 1, True])
+def test_alertmanager_negative_control_consumed_identity_types_before_hash(
+    field: str, malformed: Any
+) -> None:
+    report = _synthetic_AM_negative_control(True)
+    finding = report["Results"][0]["Vulnerabilities"][0]
+    if field == "ID":
+        finding["VulnerabilityID"] = malformed
+    else:
+        finding["PkgIdentifier"]["PURL"] = malformed
+    with pytest.raises(
+        prometheus_source.QualificationError,
+        match="AM_vulnerable_control_" + ("ID_type" if field == "ID" else "PURL"),
+    ):
+        alertmanager_source._alertmanager_vulnerability_control(
+            report, "synthetic-control", current=True
+        )
+
+
+@pytest.mark.parametrize(
+    ("fresh", "severity", "expected_high"),
+    [(False, "UNKNOWN", 14), (True, "MEDIUM", 14), (True, "HIGH", 16)],
+)
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "missing",
+        "duplicate",
+        "mixed",
+        "low",
+        "critical",
+        "wrong-purl",
+        "wrong-target",
+        "extra-high",
+        "extra-critical",
+    ],
+)
+def test_alertmanager_062_old_control_requires_exact_vendor_pair(
+    fresh: bool, severity: str, expected_high: int, fault: str | None
+) -> None:
+    report = _synthetic_AM_negative_control(True)
+    plan = {
+        "derivation_epoch": alertmanager_source._ALERT_XNET062_METADATA_EPOCH,
+        "command_module_inputs": {"alertmanager": {}, "amtool": {}},
+    }
+    for row in report["Results"]:
+        for cve, level, purl in (
+            ("CVE-2026-78661", "HIGH", "pkg:golang/golang.org/x/net@v0.58.0"),
+            ("CVE-2026-97054", severity, "pkg:golang/stdlib@v1.26.8"),
+        ):
+            row["Vulnerabilities"].append(
+                {"VulnerabilityID": cve, "Severity": level, "PkgIdentifier": {"PURL": purl}}
+            )
+    first, second = report["Results"]
+    finding = first["Vulnerabilities"][-1]
+    if fault == "missing":
+        first["Vulnerabilities"].pop()
+    elif fault == "duplicate":
+        first["Vulnerabilities"].append(finding.copy())
+    elif fault == "mixed":
+        finding["Severity"] = "HIGH" if severity == "MEDIUM" else "MEDIUM"
+    elif fault in ("low", "critical"):
+        for row in report["Results"]:
+            row["Vulnerabilities"][-1]["Severity"] = fault.upper()
+    elif fault == "wrong-purl":
+        finding["PkgIdentifier"] = {"PURL": "pkg:golang/stdlib@v1.26.9"}
+    elif fault == "wrong-target":
+        second["Vulnerabilities"].append(first["Vulnerabilities"].pop())
+    elif fault in ("extra-high", "extra-critical"):
+        first["Vulnerabilities"].append(
+            {
+                **finding,
+                "VulnerabilityID": "CVE-unexpected",
+                "Severity": fault.split("-")[1].upper(),
+            }
+        )
+    if fault is None:
+        assert (
+            alertmanager_source._alertmanager_vulnerability_control(
+                report,
+                "synthetic-control",
+                current=True,
+                qualification_plan=plan,
+                fresh_scan=fresh,
+            )["known_HIGH_occurrences"]
+            == expected_high
+        )
+        fresh = not fresh
+    diagnostic = "AM_known_vulnerable_control_inventory_changed_HOLD"
+    if fault == "duplicate":
+        diagnostic += "_duplicate_or_identity"
+    with pytest.raises(prometheus_source.QualificationError, match=f"^{diagnostic}$"):
+        alertmanager_source._alertmanager_vulnerability_control(
+            report,
+            "synthetic-control",
+            current=True,
+            qualification_plan=plan,
+            fresh_scan=fresh,
+        )
+
+
+@pytest.mark.parametrize(
+    "fault", [None, "missing-swap", "extra-byte", "duplicate-source", "policy"]
+)
+def test_alertmanager_2495_only_the_two_regular_compose_images(fault: str | None) -> None:
+    files = alertmanager_source._ALERT_SELECTION_FILES
+    base = {path: b"other data\n" for path in files}
+    old = b"    image: ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@sha256:d4437ad4970b4099e4cb7d05b7fa625c7e6959949d1374f1f2d4bd4149ae5fa3\n"
+    new = b"    image: ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.20-pgvector0.8.6-alpine3.23@sha256:5b81202040bbcfbf4fc29ee32c6e6a8c824c27c50aa41c80e62418c5c2ec3adc\n"
+    head = base.copy()
+    for path in (files[0], files[2]):
+        base[path] += old
+        head[path] += new
+    if fault == "missing-swap":
+        head[files[2]] = base[files[2]]
+    elif fault == "extra-byte":
+        head[files[0]] += b" "
+    elif fault == "duplicate-source":
+        base[files[0]] += old
+    elif fault == "policy":
+        head[files[4]] += b"# altered\n"
+    assert alertmanager_source._alertmanager_2495_compose_sources(base, head) is (fault is None)
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "pins",
+        "mapping",
+        "extra",
+        "altered-caller",
+        "wrong-mapping",
+        "wrong-workflow",
+        "synthetic-merge",
+        "synthetic-wrong-base",
+        "nonbytes-git",
+        "null-parents",
+        "nonstr-parent",
+        "boolean-pr",
+    ],
+)
+@pytest.mark.parametrize("profile", ["transition", "corrective", "owner-first", "owner-second"])
+def test_alertmanager_transition_binds_real_git_successor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: str, profile: str
+) -> None:
+    corrective = profile == "corrective"
+    designated = profile.startswith("owner-")
+    number = 29 if profile == "owner-second" else 17
+    git = shutil.which("git")
+    assert git is not None
+    repo = tmp_path / "repository"
+    repo.mkdir()
+
+    def command(*args: str) -> bytes:
+        return subprocess.run(
+            [git, *safe_git_config_args(), "-C", str(repo), *args],
+            check=True,
+            capture_output=True,
+            env=git_env_without_parent_state(),
+        ).stdout
+
+    def commit(subject: str) -> str:
+        command("add", ".")
+        command(
+            "-c",
+            "user.name=Example",
+            "-c",
+            "user.email=example@example.invalid",
+            "commit",
+            "-qm",
+            subject,
+        )
+        return command("rev-parse", "HEAD").decode().strip()
+
+    command("init", "-q")
+    (repo / "policy").write_text("frozen\n")
+    incumbent = (
+        alertmanager_source._ALERT_COPY_INCUMBENT
+        if corrective
+        else alertmanager_source._ALERT_INCUMBENT_CONTROLLER
+    )
+    for name in alertmanager_source._ALERT_CALLERS:
+        file = repo / name
+        file.parent.mkdir(parents=True, exist_ok=True)
+        file.write_text(f"  ALERTMANAGER_CONTROLLER_SOURCE: '{incumbent}'\n")
+    for name in (
+        "scripts/ci/check_docker_runtime_dependency_surface.py",
+        "scripts/ci/prometheus_source_image.py",
+        "scripts/ops/notify_premium_alias_checkpoint_failure.py",
+        "tests/__init__.py",
+        "tests/test_notify_premium_alias_checkpoint_failure.py",
+    ):
+        fixture = repo / name
+        fixture.parent.mkdir(parents=True, exist_ok=True)
+        fixture.write_text("reviewed native dependency\n")
+    base = commit("base")
+    monkeypatch.setattr(
+        alertmanager_source, "_ALERT_COPY_BASE" if corrective else "_ALERT_TRANSITION_BASE", base
+    )
+    if designated:
+        command("checkout", "-b", "maintenance-a" if number == 17 else "another-owner-ref")
+    (repo / "scripts/ci/check_docker_runtime_dependency_surface.py").write_text(
+        "reviewed repair control: " + profile
+    )
+    controller = commit("controller")
+    for name in alertmanager_source._ALERT_CALLERS:
+        file = repo / name
+        file.write_text(file.read_text().replace(incumbent, controller))
+    if case == "extra":
+        (repo / "other").write_text("drift")
+    if case == "altered-caller":
+        file.write_text(file.read_text() + "# altered caller\n")
+    head = commit("pin controller")
+    grant = {"base": base, "controller": controller, "callers": head} if designated else None
+    if case in ("mapping", "wrong-mapping"):
+        mapping = (
+            repo
+            / "docs/review"
+            / (f"PR_{number}_FIXED_MAPPING.md" if case == "mapping" else "PR_18_FIXED_MAPPING.md")
+        )
+        mapping.parent.mkdir(parents=True)
+        mapping.write_text("closeout\n")
+        head = commit("mapping")
+    monkeypatch.setenv(
+        "GITHUB_WORKFLOW_REF",
+        f"Katsiarynakavaleuskaya/PulsePlate/.github/workflows/ci.yml@refs/pull/{number}/merge",
+    )
+    workflow_sha = base if case == "wrong-workflow" else head
+    if case in ("synthetic-merge", "synthetic-wrong-base"):
+        first_parent = base if case == "synthetic-merge" else controller
+        workflow_sha = (
+            command(
+                "-c",
+                "user.name=Example",
+                "-c",
+                "user.email=example@example.invalid",
+                "commit-tree",
+                head + "^{tree}",
+                "-p",
+                first_parent,
+                "-p",
+                head,
+                "-m",
+                "GitHub PR test merge",
+            )
+            .decode()
+            .strip()
+        )
+        assert workflow_sha != head
+    monkeypatch.setenv("GITHUB_WORKFLOW_SHA", workflow_sha)
+
+    class API:
+        private = tmp_path
+
+        def json(self, endpoint: str) -> dict[str, Any]:
+            revision = endpoint.rsplit("/", 1)[1]
+            return {
+                "sha": revision,
+                "tree": {"sha": command("rev-parse", revision + "^{tree}").decode().strip()},
+                "parents": (
+                    None
+                    if case == "null-parents"
+                    else [
+                        {"sha": True if case == "nonstr-parent" else value}
+                        for value in command("log", "-1", "--format=%P", revision).decode().split()
+                    ]
+                ),
+            }
+
+        def _capture(
+            self, argv: list[str], maximum: int, *, environment: dict[str, str]
+        ) -> bytes | str:
+            assert argv[0] == git and "--no-replace-objects" in argv
+            if case == "nonbytes-git":
+                return "malformed native output"
+            return subprocess.run(argv, env=environment, check=True, capture_output=True).stdout
+
+    if case in ("pins", "mapping", "synthetic-merge"):
+        alertmanager_source._alertmanager_transition_successor(
+            API(), repo, head, controller, number, corrective=corrective, grant=grant
+        )
+    else:
+        diagnostic = {
+            "extra": "AM_transition_only_two_callers",
+            "altered-caller": "AM_transition_exact_caller_pin",
+            "wrong-mapping": "AM_transition_closeout_only",
+            "wrong-workflow": "AM_transition_executing_tree",
+            "synthetic-wrong-base": "AM_transition_executing_tree",
+            "nonbytes-git": "AM_transition_native_Git_bytes",
+            "null-parents": "AM_transition_direct_parent",
+            "nonstr-parent": "AM_transition_direct_parent",
+            "boolean-pr": "AM_transition_controller_designation",
+        }[case]
+        with pytest.raises(prometheus_source.QualificationError, match=diagnostic):
+            alertmanager_source._alertmanager_transition_successor(
+                API(),
+                repo,
+                head,
+                controller,
+                True if case == "boolean-pr" else number,
+                corrective=corrective,
+                grant=grant,
+            )
+
+
+def test_alertmanager_transition_merge_proves_distant_native_ancestry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import time
+
+    git = shutil.which("git")
+    assert git is not None
+    root = tmp_path / "full"
+    root.mkdir()
+    env = git_env_without_parent_state()
+
+    def command(*args: str, payload: bytes | None = None) -> str:
+        result = subprocess.run(
+            [git, *safe_git_config_args(), "-C", str(root), *args],
+            check=True,
+            capture_output=True,
+            input=payload,
+            env=env,
+        )
+        return result.stdout.decode().strip()
+
+    command("init", "-q")
+    command("symbolic-ref", "HEAD", "refs/heads/main")
+    commits = []
+    for i in range(1, 254):
+        parent = f"from :{i-1}\n" if i > 1 else ""
+        commits.append(
+            f"commit refs/heads/main\nmark :{i}\ncommitter Fixture <test@example.invalid> 1000000000 +0000\ndata 1\nx\n{parent}\n"
+        )
+    command("fast-import", "--quiet", payload="".join(commits).encode())
+    base = command("rev-parse", "HEAD~252")
+    merged = command("rev-parse", "HEAD~251")
+    head = command("rev-parse", "HEAD")
+    monkeypatch.setattr(alertmanager_source, "_ALERT_TRANSITION_BASE", base)
+    calls: list[str] = []
+
+    class API:
+        deadline = time.monotonic() + 60
+
+        def json(self, endpoint: str) -> dict[str, Any]:
+            calls.append(endpoint)
+            assert endpoint == "/repos/Katsiarynakavaleuskaya/PulsePlate/pulls/2501"
+            return {
+                "number": 2501,
+                "state": "closed",
+                "merged": True,
+                "merge_commit_sha": merged,
+                "head": {
+                    "ref": alertmanager_source._ALERT_TRANSITION_BRANCH,
+                    "repo": {"id": 1043311030},
+                },
+                "base": {"ref": "main", "repo": {"id": 1043311030}},
+            }
+
+    api = API()
+    assert (
+        alertmanager_source._alertmanager_merged_ref(
+            api,
+            alertmanager_source._ALERT_TRANSITION_BRANCH,
+            head,
+            root,
+            number=2501,
+        )
+        == merged
+    )
+    assert len(calls) == 1
+    with pytest.raises(prometheus_source.QualificationError, match="^native_failed$"):
+        alertmanager_source._alertmanager_native_ancestor(api, root, head, base)
+    unrelated = command(
+        "-c",
+        "user.name=Fixture",
+        "-c",
+        "user.email=test@example.invalid",
+        "commit-tree",
+        command("rev-parse", "HEAD^{tree}"),
+        "-m",
+        "unrelated root",
+    )
+    with pytest.raises(prometheus_source.QualificationError, match="^native_failed$"):
+        alertmanager_source._alertmanager_native_ancestor(api, root, unrelated, head)
+    shallow = tmp_path / "shallow"
+    command("clone", "--quiet", "--depth", "1", root.as_uri(), str(shallow))
+    with pytest.raises(prometheus_source.QualificationError, match="^AM_ancestry_shallow_history$"):
+        alertmanager_source._alertmanager_native_ancestor(api, shallow, head, head)
+    (root / ".git/info/grafts").write_text(f"{head} {base}\n")
+    with pytest.raises(prometheus_source.QualificationError, match="^AM_ancestry_grafts$"):
+        alertmanager_source._alertmanager_native_ancestor(api, root, base, head)
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "no-closeout",
+        "old-failure",
+        "wrong-parent",
+        "different-tree",
+        "wrong-mapping",
+        "wrong-pin",
+        "matching-foreign-pin",
+        "wrong-executing-PR",
+        "approved-executing-PR",
+        "unbound-content",
+        "symlink-final-caller",
+        "extra-W-file",
+        "wrong-controller-mode",
+        "wrong-owner",
+        "no-PR",
+        "two-PRs",
+        "reserved",
+        "stale-list",
+        "stale-publisher",
+    ],
+)
+def test_corrective_squash_preserves_controller_callers_and_original_producer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str | None
+) -> None:
+    """A deleted topic branch after squash still has authenticated PR commits and trees."""
+    source = alertmanager_source
+    base = source._ALERT_COPY_BASE
+    controller, pins, final, merged, publisher = (c * 40 for c in "12345")
+    repo = {"id": 1043311030, "full_name": prometheus_source.GHCR_REPOSITORY}
+    number = 2495 if fault == "reserved" else 1729
+    mapping = f"docs/review/PR_{number}_FIXED_MAPPING.md"
+    pr = {
+        "number": number,
+        "state": "closed",
+        "merged": True,
+        "merge_commit_sha": base if fault == "old-failure" else merged,
+        "head": {
+            "sha": pins if fault == "no-closeout" else final,
+            "ref": source._ALERT_COPY_BRANCH,
+            "repo": repo,
+        },
+        "base": {"ref": "main", "sha": base, "repo": repo},
+    }
+    reader_pr = fault in ("wrong-executing-PR", "approved-executing-PR")
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request" if reader_pr else "push")
+    monkeypatch.setenv("GITHUB_REF", "refs/pull/2495/merge" if reader_pr else "refs/heads/main")
+    monkeypatch.setenv("GITHUB_SHA", publisher)
+    monkeypatch.setenv(
+        "ALERTMANAGER_CONTROLLER_SOURCE",
+        controller if fault == "approved-executing-PR" else publisher,
+    )
+    foreign = "9" * 40
+    before = f"  ALERTMANAGER_CONTROLLER_SOURCE: '{source._ALERT_COPY_INCUMBENT}'\n".encode()
+    after = before.replace(source._ALERT_COPY_INCUMBENT.encode(), controller.encode())
+
+    def blob(data: bytes) -> str:
+        return hashlib.sha1(
+            b"blob " + str(len(data)).encode() + b"\0" + data, usedforsecurity=False
+        ).hexdigest()
+
+    callers = dict.fromkeys(source._ALERT_CALLERS, after)
+    if fault == "wrong-pin":
+        callers[source._ALERT_CALLERS[0]] = before
+    elif fault == "matching-foreign-pin":
+        callers = dict.fromkeys(
+            source._ALERT_CALLERS, after.replace(controller.encode(), foreign.encode())
+        )
+
+    trees = {}
+    for tree, raw in (("a" * 40, before), ("b" * 40, after), ("c" * 40, after)):
+        trees[tree] = {p: ("100644", blob(raw)) for p in source._ALERT_CALLERS}
+    for entries in trees.values():
+        entries["scripts/ci/fetch_docker_source_artifacts.py"] = (
+            "100644",
+            blob(b"reviewed publisher"),
+        )
+    trees["c" * 40][mapping] = ("100644", blob(b"mapping"))
+    if fault == "wrong-mapping":
+        trees["c" * 40]["unrelated"] = ("100644", blob(b"extra"))
+    for tree in ("b" * 40, "c" * 40):
+        for path, raw in callers.items():
+            trees[tree][path] = ("100644", blob(raw))
+        if fault == "symlink-final-caller":
+            trees[tree][source._ALERT_CALLERS[0]] = ("120000", blob(after))
+    if fault == "extra-W-file":
+        for tree in ("b" * 40, "c" * 40):
+            trees[tree]["extra"] = ("100644", blob(b"extra"))
+    if fault == "wrong-controller-mode":
+        trees["a" * 40][source._ALERT_CALLERS[0]] = ("120000", blob(before))
+    head_tree = "b" * 40 if fault == "no-closeout" else "c" * 40
+    commits = {
+        publisher: (head_tree, merged),
+        controller: ("a" * 40, base),
+        pins: ("b" * 40, controller),
+        final: ("c" * 40, pins),
+        merged: (
+            "d" * 40 if fault == "different-tree" else head_tree,
+            publisher if fault == "wrong-parent" else base,
+        ),
+    }
+    required_edges = {
+        (source._ALERT_TRANSITION_BASE, base),
+        (base, merged),
+        (merged, publisher),
+    }
+    seen: list[tuple[str, str]] = []
+
+    def ancestor(api: Any, root: Path, a: str, b: str) -> None:
+        assert root == tmp_path
+        assert (a, b) in required_edges
+        if fault == "stale-publisher" and a == merged:
+            raise RuntimeError("publisher predates correction")
+        seen.append((a, b))
+
+    monkeypatch.setattr(source, "_alertmanager_native_ancestor", ancestor)
+
+    def history(api: Any, root: Path, start: str, end: str, active: str) -> str:
+        assert root == tmp_path and start == merged and end == publisher
+        # The real first-parent recognizer has separate immutable Git fixtures.
+        return active
+
+    monkeypatch.setattr(source, "_alertmanager_publisher_history", history)
+
+    class API:
+        def json(self, endpoint: str) -> Any:
+            path = endpoint.removeprefix("/repos/" + prometheus_source.GHCR_REPOSITORY)
+            if path.startswith("/pulls?"):
+                assert (
+                    path
+                    == "/pulls?state=all&head=Katsiarynakavaleuskaya%3Acodex%2Falertmanager-oras-copy-fix&base=main&per_page=2"
+                )
+                if fault == "no-PR":
+                    return []
+                if fault == "two-PRs":
+                    return [pr, pr]
+                listed = dict(pr)
+                if fault == "wrong-owner":
+                    listed["head"] = {**pr["head"], "repo": {**repo, "full_name": "foreign/fork"}}
+                if fault == "stale-list":
+                    listed["head"] = {**pr["head"], "sha": "9" * 40}
+                return [listed]
+            if path == f"/pulls/{number}":
+                return pr
+            if path == "/pulls/2501":
+                return {
+                    **pr,
+                    "number": 2501,
+                    "head": {**pr["head"], "ref": source._ALERT_TRANSITION_BRANCH},
+                    "merge_commit_sha": base,
+                }
+            if path == f"/compare/{base}...{foreign}":
+                return {"status": "diverged"}
+            if path == f"/compare/{base}...{controller}":
+                return {
+                    "base_commit": {"sha": base},
+                    "merge_base_commit": {"sha": base},
+                    "status": "ahead",
+                    "behind_by": 0,
+                    "total_commits": 1,
+                    "ahead_by": 1,
+                    "commits": [{"sha": controller, "parents": [{"sha": base}]}],
+                }
+            revision = path.rsplit("/", 1)[1]
+            if path.startswith("/git/commits/"):
+                tree, parent = commits[revision]
+                return {"sha": revision, "tree": {"sha": tree}, "parents": [{"sha": parent}]}
+            if path.startswith("/git/trees/"):
+                tree = revision.removesuffix("?recursive=1")
+                return {
+                    "sha": tree,
+                    "truncated": False,
+                    "tree": [
+                        {"path": k, "type": "blob", "mode": m, "sha": oid}
+                        for k, (m, oid) in trees[tree].items()
+                    ],
+                }
+            name = path.removeprefix("/contents/").removesuffix("?ref=" + merged)
+            raw = before if fault == "unbound-content" else callers[name]
+            assert name in source._ALERT_CALLERS
+            return {
+                "type": "file",
+                "path": name,
+                "encoding": "base64",
+                "size": len(raw),
+                "sha": blob(raw),
+                "content": base64.b64encode(raw).decode(),
+            }
+
+    if fault in (None, "no-closeout", "approved-executing-PR"):
+        source._alertmanager_copy_merge(API(), tmp_path, publisher)
+        assert set(seen) == required_edges
+    else:
+        diagnostic = {
+            "old-failure": "AM_corrective_merged_PR_and_controller",
+            "wrong-parent": "AM_corrective_exact_squash",
+            "different-tree": "AM_corrective_exact_squash",
+            "wrong-mapping": "AM_corrective_final_mapping_only",
+            "wrong-pin": "AM_corrective_matching_merged_pins",
+            "matching-foreign-pin": "native_ancestor_relation",
+            "wrong-executing-PR": "AM_corrective_PR_executing_controller",
+            "unbound-content": "AM_corrective_merged_caller_pin",
+            "symlink-final-caller": "AM_corrective_merged_caller_pin",
+            "extra-W-file": "AM_corrective_two_exact_caller_pins",
+            "wrong-controller-mode": "AM_corrective_original_pin",
+            "wrong-owner": "AM_corrective_native_PR_binding",
+            "no-PR": "AM_corrective_unique_PR",
+            "two-PRs": "AM_corrective_unique_PR",
+            "reserved": "AM_corrective_PR_number",
+            "stale-list": "AM_corrective_native_PR_binding",
+            "stale-publisher": "publisher predates correction",
+        }
+        with pytest.raises(RuntimeError, match=diagnostic[fault]):
+            source._alertmanager_copy_merge(API(), tmp_path, publisher)
+
+
+def _exercise_publisher_history(
+    root: Path,
+    overlay: dict[str, tuple[bytes, bytes]],
+    *,
+    fault: str | None = None,
+    cab_workflow: tuple[bytes, bytes] = (b"prior frontend CI", b"CAB ordinary web lint"),
+) -> dict[str, str]:
+    """Replay exact supplied #2495 bytes, unrelated main material and a second owner-designated repair."""
+    from scripts.ci.prometheus_source_image import GHCR_REPOSITORY
+
+    source = alertmanager_source
+    git = shutil.which("git")
+    assert git is not None
+    root.mkdir()
+
+    def cmd(*args: str, data: bytes | None = None) -> bytes:
+        env = git_env_without_parent_state()
+        env.update(
+            GIT_AUTHOR_NAME="Native fixture",
+            GIT_COMMITTER_NAME="Native fixture",
+            GIT_AUTHOR_EMAIL="git@example.invalid",
+            GIT_COMMITTER_EMAIL="git@example.invalid",
+        )
+        return subprocess.run(
+            [git, *safe_git_config_args(), "-C", str(root), *args],
+            input=data,
+            capture_output=True,
+            check=True,
+            env=env,
+        ).stdout
+
+    def commit(msg: str) -> str:
+        cmd("add", ".")
+        cmd("commit", "-qm", msg)
+        return cmd("rev-parse", "HEAD").decode().strip()
+
+    from tests.test_docker_runtime_dependency_surface import (
+        _DispatchNativeFixture,
+        _repair_subject_fixture,
+    )
+
+    subject, original_accepted = _repair_subject_fixture()
+    declaration = ("_ALERT_ACCEPTED_CANDIDATE: dict = " + repr(original_accepted) + "\n").encode()
+    helper = "scripts/ci/fetch_docker_source_artifacts.py"
+
+    def write(name: str, raw: bytes) -> None:
+        if name == helper and not raw.startswith(declaration):
+            raw = declaration + b"# " + raw
+        if fault == "wrong-base-compose" and name == "deploy/docker-compose.production.yaml":
+            raw = raw.replace(subject["manifest"].encode(), b"sha256:" + b"f" * 64)
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(raw)
+
+    cmd("init", "-q")
+    callers = source._ALERT_CALLERS
+    synthetic_pin = "a" * 40
+    raw_callers = (
+        f"  ALERTMANAGER_CONTROLLER_SOURCE: '{synthetic_pin}'\n"
+        + "".join(
+            f"--alertmanager-{kind}-run {subject[label].split('/')[0]} --alertmanager-{kind}-artifact {subject[label].split('/')[1]} "
+            + chr(92)
+            + "\n"
+            + f"    --alertmanager-{kind}-source {subject['source']} \n"
+            for kind, label in (("qualification", "q"), ("support", "s"), ("candidate", "c"))
+        )
+    ).encode()
+    am_image = f"  alertmanager:\n    image: ghcr.io/katsiarynakavaleuskaya/pulseplate@{subject['manifest']}\n".encode()
+    for path in source._ALERT_SELECTION_FILES[:3]:
+        write(path, am_image)
+    overlay = {
+        path: tuple(
+            (
+                raw + am_image
+                if path in source._ALERT_SELECTION_FILES[:3] and b"  alertmanager:\n" not in raw
+                else raw
+            )
+            for raw in pair
+        )
+        for path, pair in overlay.items()
+    }
+    for path in callers:
+        write(path, raw_callers)
+    for path, (old, _) in overlay.items():
+        write(path, old)
+    helper = "scripts/ci/fetch_docker_source_artifacts.py"
+    write(helper, b"independently checked first repair")
+    write(".github/workflows/frontend-ci.yml", cab_workflow[0])
+    publisher = commit("First repair publication source")
+    incumbent = (
+        re.search(
+            rb"ALERTMANAGER_CONTROLLER_SOURCE: '([0-9a-f]{40})'", (root / callers[0]).read_bytes()
+        )
+        .group(1)
+        .decode()
+    )
+    for path, (_, new) in overlay.items():
+        write(path, new)
+    n = commit("Exact #2495 projected squash")
+    # Native Git builds 300 unrelated first-parent commits in one local process.
+    branch = "refs/heads/long-lived-main-fixture"
+    changes = []
+    churn_path = helper if fault == "protected-overflow" else "ordinary.txt"
+    previous = n
+    for index in range(300):
+        body = f"ordinary file change {index}".encode()
+        changes.append(
+            f"commit {branch}\nmark :{index+1}\ncommitter Native Fixture <git@example.invalid> 1770000000 +0000\ndata 7\nchurned\nfrom {previous}\nM 100644 inline {churn_path}\ndata {len(body)}\n".encode()
+            + body
+            + b"\n"
+        )
+        previous = ":" + str(index + 1)
+    cmd("fast-import", "--quiet", data=b"".join(changes) + b"done\n")
+    cmd("checkout", "-q", "--detach", branch)
+    if fault == "edit-revert":
+        original = (root / helper).read_bytes()
+        write(helper, b"unapproved intermediate controller")
+        changed = commit("Unapproved protected edit")
+        write(helper, original)
+        reverted = commit("Revert to identical protected input")
+    if fault in ("protected-merge", "second-parent-only"):
+        first = cmd("rev-parse", "HEAD").decode().strip()
+        write(helper, b"side branch changes protected material")
+        side = commit("Side change")
+        merged = (
+            cmd(
+                "commit-tree",
+                side + "^{tree}",
+                "-p",
+                first,
+                "-p",
+                side,
+                "-m",
+                "Merge side material",
+            )
+            .decode()
+            .strip()
+        )
+        cmd("checkout", "-q", "--detach", merged)
+    write("ordinary.txt", b"independent change")
+    descendant = commit("Unrelated main commit")
+    corrected = fault in ("corrected-same-pr", "old-native-only", "same-pr-stale-grant")
+    if corrected:
+        write(helper, b"first reviewed iteration on the second maintenance PR")
+        k1 = commit("K1 before review correction")
+        for path in callers:
+            write(path, (root / path).read_bytes().replace(incumbent.encode(), k1.encode()))
+        w1 = commit("W1 before review correction")
+        for path in callers:
+            write(path, (root / path).read_bytes().replace(k1.encode(), incumbent.encode()))
+    write(
+        helper,
+        b"second independently reviewed controller" if fault != "missing" else b"unauthorized",
+    )
+    write("docs/security/CVE-2026-84445-alertmanager.md", b"reviewed historical qualification note")
+    if fault in ("mixed-squash", "mixed-native"):
+        write("app/routers/ordinary.py", b"foreign application change")
+    controller = commit("Second controller")
+    for path in callers:
+        raw = (root / path).read_bytes()
+        assert raw.count(incumbent.encode()) >= 1
+        pin = f"  ALERTMANAGER_CONTROLLER_SOURCE: '{incumbent}'".encode()
+        write(path, raw.replace(pin, pin.replace(incumbent.encode(), controller.encode())))
+    if fault in ("extra-W-caller-byte", "extra-W-CD-byte"):
+        path = callers[1] if fault == "extra-W-CD-byte" else callers[0]
+        write(path, (root / path).read_bytes() + b"# not an immutable pin substitution\n")
+    w = commit("Pin second controller K")
+    final_head = w
+    mapping = "docs/review/PR_81_FIXED_MAPPING.md"
+    if fault == "mapping-successor":
+        write(mapping, b"sole regular mapping successor")
+        final_head = commit("Mapping only")
+    squash = (
+        cmd("commit-tree", final_head + "^{tree}", "-p", descendant, "-m", "Second repair squash")
+        .decode()
+        .strip()
+    )
+    cmd("checkout", "-q", "--detach", squash)
+    write(".github/workflows/frontend-ci.yml", cab_workflow[1])
+    cab_main = commit("Ordinary CAB web lint squash")
+    write("ordinary.txt", b"a later ordinary consumer")
+    end = commit("Subsequent ordinary consumer")
+    expected = source._alertmanager_accepted_producer()
+    owner_name = GHCR_REPOSITORY.split("/")[0]
+    github_repo = {
+        "id": 1043311030,
+        "full_name": GHCR_REPOSITORY,
+        "owner": {"id": 169792616, "type": "User"},
+    }
+
+    def pr(number: int, head: str, merged: str, base: str, branch: str) -> dict[str, Any]:
+        return {
+            "number": number,
+            "state": "closed",
+            "merged": True,
+            "merge_commit_sha": merged,
+            "merged_at": "2026-02-01T00:00:00Z",
+            "created_at": "2025-12-01T00:00:00Z",
+            "closed_at": "2026-02-01T00:00:00Z",
+            "comments": 1,
+            "head": {"sha": head, "ref": branch, "repo": github_repo},
+            "base": {"sha": base, "ref": "main", "repo": github_repo},
+        }
+
+    api_prefix = "/repos/" + GHCR_REPOSITORY
+    repair = pr(81, final_head, squash, descendant, "a-distinct-repair")
+    if fault == "post-merge-before-expiry":
+        repair["merged_at"] = "2026-01-01T01:45:00Z"
+    material = {"pr": "81", "base": descendant, "controller": controller, "callers": w, **subject}
+    dispatch = _DispatchNativeFixture(
+        repair,
+        material,
+        fault if fault in ("wrong-original-C", "wrong-original-Q", "wrong-original-S") else None,
+    )
+    if fault not in ("missing", "same-pr-stale-grant"):
+        dispatch.add(dispatch.projection())
+    if corrected:
+        earlier = dispatch.projection(75, started="2025-12-29T00:00:00Z", producer=75)
+        earlier.update(controller=k1, callers=w1)
+        dispatch.add(earlier)
+
+    class API:
+        gh = "/synthetic/gh"
+
+        def _capture(
+            self, argv: list[str], maximum: int, *, environment: dict[str, str] | None = None
+        ) -> bytes:
+            assert argv[0] == git and "--no-replace-objects" in argv
+            return subprocess.run(argv, check=True, capture_output=True, env=environment).stdout
+
+        def raw(self, path: str, *, maximum: int) -> bytes:
+            assert re.fullmatch(re.escape(api_prefix) + r"/actions/artifacts/[1-9][0-9]*/zip", path)
+            raw = dispatch.read(path.removeprefix(api_prefix))
+            assert isinstance(raw, bytes) and len(raw) <= maximum
+            return raw
+
+        def json(self, path: str) -> Any:
+            assert path.startswith(api_prefix)
+            path = path.removeprefix(api_prefix)
+            records = {
+                "": github_repo,
+                "/pulls/81": repair,
+                "/pulls/2495": pr(2495, n, n, publisher, source._ALERT_2495_BRANCH),
+                f"/commits/{n}/pulls?per_page=2": [{"number": 2495}],
+                f"/commits/{squash}/pulls?per_page=2": [{"number": 81}],
+            }
+            if fault == "edit-revert" and path in {
+                f"/commits/{changed}/pulls?per_page=2",
+                f"/commits/{reverted}/pulls?per_page=2",
+            }:
+                return []
+            if path == f"/commits/{w}/pulls?per_page=2":
+                return [repair] if fault != "unassociated" else []
+            if path.startswith("/pulls?state=all&head="):
+                assert "&base=" not in path
+                return (
+                    [repair]
+                    if fault != "ambiguous-original"
+                    else [repair, {**repair, "number": 87}]
+                )
+            if final_head != w:
+                if path == f"/commits/{final_head}?per_page=100&page=1":
+                    return {
+                        "sha": final_head,
+                        "parents": [{"sha": w}],
+                        "files": [
+                            {
+                                "filename": mapping,
+                                "status": "added",
+                                "sha": cmd("rev-parse", final_head + ":" + mapping)
+                                .decode()
+                                .strip(),
+                            }
+                        ],
+                        "commit": {
+                            "tree": {
+                                "sha": cmd("rev-parse", final_head + "^{tree}").decode().strip()
+                            }
+                        },
+                    }
+                if (
+                    path.startswith("/actions/workflows/")
+                    and f"event=pull_request&head_sha={final_head}&" in path
+                ):
+                    return {"total_count": 0, "workflow_runs": []}
+            if path in records:
+                return records[path]
+            try:
+                return dispatch.read(path)
+            except KeyError:
+                pass
+            for filename, job_name, run_id, required in (
+                (
+                    "ci.yml",
+                    "lint",
+                    22,
+                    (
+                        "Prepare exact AM subject before material execution",
+                        "Native OBS2A checkpoint lifecycle and owned-task challenge",
+                    ),
+                ),
+                (
+                    "cd.yml",
+                    "prometheus-image-security-pr",
+                    23,
+                    (
+                        "Prepare exact AM subject before material execution",
+                        "Scan accepted AM and execute all four current controls",
+                        "Run full accepted AM native controls on this runner",
+                    ),
+                ),
+            ):
+                if (
+                    path
+                    == f"/actions/workflows/{filename}/runs?event=pull_request&head_sha={w}&per_page=100&page=1"
+                ):
+                    original_event = {
+                        "id": run_id,
+                        "run_attempt": 2,
+                        "event": "pull_request",
+                        "head_sha": w,
+                        "workflow_id": run_id + 100,
+                        "repository": github_repo,
+                        "head_repository": github_repo,
+                        "path": ".github/workflows/" + filename,
+                        "head_branch": repair["head"]["ref"],
+                        "pull_requests": [],
+                        "created_at": (
+                            "2025-11-01T00:00:00Z"
+                            if fault == "original-before-PR"
+                            else (
+                                "2025-12-31T23:59:59Z"
+                                if fault == "original-before-dispatch"
+                                else "2026-01-01T00:30:00Z"
+                            )
+                        ),
+                    }
+                    runs = (
+                        []
+                        if fault == "old-native-only"
+                        or (fault == "missing-native" and run_id == 23)
+                        else [original_event]
+                    )
+                    if fault and fault.startswith("run-list-"):
+                        # Both repositories contain the selected commit. Only the canonical
+                        # destination + canonical head can supply original CI or CD evidence.
+                        fork = {
+                            **original_event,
+                            "id": run_id + 900,
+                            "head_repository": {"id": 9042},
+                        }
+                        if fault == "run-list-foreign-first":
+                            runs = [fork, original_event]
+                        elif fault == "run-list-foreign-only":
+                            runs = [fork]
+                        else:
+                            if fault == "run-list-missing-head":
+                                del fork["head_repository"]
+                            elif fault == "run-list-null-head":
+                                fork["head_repository"] = None
+                            elif fault == "run-list-bool-id":
+                                fork["head_repository"] = {"id": True}
+                            elif fault == "run-list-nonpositive-id":
+                                fork["head_repository"] = {"id": 0}
+                            elif fault == "run-list-other-destination":
+                                fork["repository"] = {"id": 9042}
+                            elif fault == "run-list-wrong-workflow":
+                                fork["workflow_id"] = 9998
+                            elif fault == "run-list-wrong-head":
+                                fork["head_sha"] = "f" * 40
+                            elif fault == "run-list-bad-attempt":
+                                fork["run_attempt"] = True
+                            runs = [original_event, fork]
+                    return {"total_count": len(runs), "workflow_runs": runs}
+                if path == "/actions/workflows/" + filename:
+                    return {"id": run_id + 100, "path": ".github/workflows/" + filename}
+                for attempt in (1, 2):
+                    attempt_path = f"/actions/runs/{run_id}/attempts/{attempt}"
+                    if path.startswith(f"/actions/runs/{run_id + 900}/attempts/"):
+                        raise AssertionError(
+                            "a foreign listed run must never be read as local job evidence"
+                        )
+                    if path == attempt_path:
+                        return {
+                            "id": run_id,
+                            "run_attempt": attempt,
+                            "workflow_id": run_id + 100,
+                            "path": ".github/workflows/" + filename,
+                            "event": "pull_request",
+                            "status": "completed",
+                            "repository": github_repo,
+                            "head_repository": (
+                                {"id": 9042} if fault == "attempt-foreign-head" else github_repo
+                            ),
+                            "head_sha": w,
+                            "head_branch": repair["head"]["ref"],
+                            "pull_requests": (
+                                []
+                                if attempt == 2
+                                else [{**repair, "head": {**repair["head"], "sha": w}}]
+                            ),
+                            "created_at": "2026-01-01T01:00:01Z",
+                            "run_started_at": (
+                                "2025-12-31T00:00:00Z"
+                                if attempt == 1 or fault == "pre-grant"
+                                else "2026-01-01T01:00:00Z"
+                            ),
+                        }
+                    if path == attempt_path + "/jobs?per_page=100&page=1":
+                        completed = (
+                            "2026-01-03T02:00:00Z"
+                            if fault == "late-native"
+                            else "2026-01-01T02:00:00Z"
+                        )
+                        row_job = {
+                            "id": run_id + 1,
+                            "name": job_name,
+                            "run_id": run_id,
+                            "run_attempt": attempt,
+                            "head_sha": w,
+                            "started_at": "2026-01-01T01:01:00Z",
+                            "completed_at": completed,
+                            "status": "completed",
+                            "conclusion": "success",
+                            "steps": [
+                                {
+                                    "name": name,
+                                    "started_at": "2026-01-01T01:02:00Z",
+                                    "completed_at": "2026-01-01T01:15:00Z",
+                                    "status": "completed",
+                                    "conclusion": (
+                                        "skipped"
+                                        if fault == "skipped-native" and name == required[-1]
+                                        else "success"
+                                    ),
+                                }
+                                for name in required
+                            ],
+                        }
+                        return {"total_count": 1, "jobs": [row_job]}
+            if path in records:
+                return records[path]
+            if corrected and path.startswith("/actions/workflows/") and f"head_sha={w1}&" in path:
+                # Authentic original receipts on W1 would exist, but cannot answer a query for W2.
+                raise AssertionError("selected historical native receipt from W1")
+            if path.startswith("/compare/"):
+                assert path == f"/compare/{descendant}...{controller}"
+                commits = [
+                    {"sha": line.split()[0], "parents": [{"sha": p} for p in line.split()[1:]]}
+                    for line in cmd(
+                        "rev-list", "--reverse", "--parents", descendant + ".." + controller
+                    )
+                    .decode()
+                    .splitlines()
+                ]
+                return {
+                    "status": "ahead",
+                    "base_commit": {"sha": descendant},
+                    "merge_base_commit": {"sha": descendant},
+                    "ahead_by": len(commits),
+                    "behind_by": 0,
+                    "total_commits": len(commits),
+                    "commits": commits,
+                }
+            if path.startswith("/git/commits/"):
+                rev = path.split("/")[-1]
+                return {
+                    "sha": rev,
+                    "parents": [
+                        {"sha": x} for x in cmd("show", "-s", "--format=%P", rev).decode().split()
+                    ],
+                    "tree": {"sha": cmd("rev-parse", rev + "^{tree}").decode().strip()},
+                }
+            if path.startswith("/git/blobs/"):
+                oid = path.rsplit("/", 1)[1]
+                raw = cmd("cat-file", "blob", oid)
+                return {
+                    "sha": oid,
+                    "size": len(raw),
+                    "encoding": "base64",
+                    "content": base64.b64encode(raw).decode(),
+                }
+            if path.startswith("/git/trees/"):
+                tree = path.split("/")[-1].split("?")[0]
+                rows = []
+                depth = ["-r"] if path.endswith("?recursive=1") else []
+                for line in cmd("ls-tree", *depth, tree).decode().splitlines():
+                    mode, kind, rest = line.split(" ", 2)
+                    blob, name = rest.split("\t")
+                    rows.append({"mode": mode, "type": kind, "sha": blob, "path": name})
+                return {"sha": tree, "truncated": False, "tree": rows}
+            if path.startswith("/contents/"):
+                name, ref = path.removeprefix("/contents/").split("?ref=")
+                content = cmd("show", f"{ref}:{name}")
+                return {
+                    "type": "file",
+                    "path": name,
+                    "encoding": "base64",
+                    "content": base64.b64encode(content).decode(),
+                    "size": len(content),
+                    "sha": cmd("rev-parse", f"{ref}:{name}").decode().strip(),
+                }
+            assert path == f"/commits/{w}?per_page=100&page=1"
+            return {
+                "sha": w,
+                "parents": [{"sha": controller}],
+                "files": [{"filename": p, "status": "modified"} for p in callers],
+            }
+
+    api = API()
+    if fault == "second-parent-only":
+        source._alertmanager_publisher_history(api, root, side, end, incumbent)
+    assert (
+        source._alertmanager_publisher_history(api, root, publisher, descendant, incumbent)
+        == incumbent
+    )
+    assert (
+        source._alertmanager_publisher_history(api, root, publisher, end, incumbent) == controller
+    )
+    return {
+        "original_publisher": publisher,
+        "consumer_2495": n,
+        "unrelated": descendant,
+        "second_controller": controller,
+        "second_callers": w,
+        "second_squash": squash,
+        "CAB_main": cab_main,
+        "ordinary": end,
+    }
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "missing",
+        "edit-revert",
+        "protected-merge",
+        "protected-overflow",
+        "second-parent-only",
+        "missing-native",
+        "pre-grant",
+        "skipped-native",
+        "late-native",
+        "post-merge-before-expiry",
+        "extra-W-caller-byte",
+        "extra-W-CD-byte",
+        "wrong-base-compose",
+        "wrong-original-C",
+        "wrong-original-Q",
+        "wrong-original-S",
+        "unassociated",
+        "ambiguous-original",
+        "mixed-squash",
+        "original-before-PR",
+        "original-before-dispatch",
+        "corrected-same-pr",
+        "mapping-successor",
+        "old-native-only",
+        "same-pr-stale-grant",
+        "run-list-foreign-first",
+        "run-list-foreign-last",
+        "run-list-foreign-only",
+        "run-list-missing-head",
+        "run-list-null-head",
+        "run-list-bool-id",
+        "run-list-nonpositive-id",
+        "run-list-other-destination",
+        "run-list-wrong-workflow",
+        "run-list-wrong-head",
+        "run-list-bad-attempt",
+        "attempt-foreign-head",
+        "mixed-native",
+    ],
+)
+def test_publisher_history_keeps_2495_and_unrelated_descendant_before_repair(
+    tmp_path: Path, fault: str | None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    prefix = b"    image: ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-"
+    old = (
+        prefix
+        + b"15.19-pgvector0.8.6-alpine3.23@sha256:d4437ad4970b4099e4cb7d05b7fa625c7e6959949d1374f1f2d4bd4149ae5fa3\n"
+    )
+    new = (
+        prefix
+        + b"15.20-pgvector0.8.6-alpine3.23@sha256:5b81202040bbcfbf4fc29ee32c6e6a8c824c27c50aa41c80e62418c5c2ec3adc\n"
+    )
+    overlay = {alertmanager_source._ALERT_SELECTION_FILES[i]: (old, new) for i in (0, 2)}
+    if fault == "mixed-native":
+        # Isolate the local squash check; a mixed K also fails the independent GitHub tree proof.
+        from scripts.ci import check_docker_runtime_dependency_surface as authority
+
+        monkeypatch.setattr(authority, "_publisher_repair_material", lambda *a, **kw: None)
+    if fault == "missing":
+        with pytest.raises(
+            prometheus_source.QualificationError, match="AM_history_protected_repair_dispatch"
+        ):
+            _exercise_publisher_history(tmp_path / "native", overlay, fault=fault)
+    elif fault and fault not in (
+        "corrected-same-pr",
+        "mapping-successor",
+        "run-list-foreign-first",
+        "run-list-foreign-last",
+    ):
+        expected = {
+            "edit-revert": "AM_history_exact_PR",
+            "protected-merge": "AM_history_protected_squash",
+            "protected-overflow": "AM_history_protected_change_bound",
+            "unassociated": "publisher_repair_missing_authorized_native_lint",
+            "old-native-only": "publisher_repair_missing_authorized_native_lint",
+            "same-pr-stale-grant": "AM_history_protected_repair_dispatch",
+            "original-before-dispatch": "publisher_repair_missing_authorized_native_lint",
+            "original-before-PR": "publisher_repair_missing_authorized_native_lint",
+            "mixed-squash": "publisher_repair_complete_maintenance_delta",
+            "run-list-foreign-only": "publisher_repair_missing_authorized_native_lint",
+            "run-list-missing-head": "publisher_repair_original_run_identity",
+            "run-list-null-head": "publisher_repair_original_run_identity",
+            "run-list-bool-id": "publisher_repair_original_run_identity",
+            "run-list-nonpositive-id": "publisher_repair_original_run_identity",
+            "run-list-other-destination": "publisher_repair_original_run_identity",
+            "run-list-wrong-workflow": "publisher_repair_original_run_identity",
+            "run-list-wrong-head": "publisher_repair_original_run_identity",
+            "run-list-bad-attempt": "publisher_repair_attempt_inventory",
+            "attempt-foreign-head": "publisher_repair_actual_run_attempt",
+            "mixed-native": "publisher_repair_complete_maintenance_delta",
+            "ambiguous-original": "publisher_repair_missing_authorized_native_lint",
+            "missing-native": "publisher_repair_missing_authorized_native_prometheus-image-security-pr",
+            "pre-grant": "publisher_repair_missing_authorized_native_lint",
+            "skipped-native": "publisher_repair_missing_authorized_native_lint",
+            "extra-W-CD-byte": "publisher_repair_exact_caller_pin_bytes",
+            "extra-W-caller-byte": "publisher_repair_exact_caller_pin_bytes",
+            "wrong-base-compose": "publisher_repair_base_compose_manifest",
+            "wrong-original-C": "publisher_repair_original_candidate_zip",
+            "wrong-original-S": "publisher_repair_original_artifact",
+            "wrong-original-Q": "publisher_repair_original_artifact",
+            "post-merge-before-expiry": "publisher_repair_missing_authorized_native_lint",
+            "late-native": "publisher_repair_missing_authorized_native_lint",
+            "second-parent-only": "AM_history_first_parent",
+        }
+        with pytest.raises(prometheus_source.QualificationError, match=expected[fault]):
+            _exercise_publisher_history(tmp_path / "native", overlay, fault=fault)
+    else:
+        observed = _exercise_publisher_history(tmp_path / "native", overlay, fault=fault)
+        assert len(set(observed.values())) == 8

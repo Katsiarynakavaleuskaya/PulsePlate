@@ -106,7 +106,7 @@ fi
 readonly PYTHON_BIN
 
 PROMETHEUS_CONTRACT_HELPER="$DEPLOY_DIR/scripts/ci/prometheus_source_image.py"
-PROMETHEUS_CONTRACT_HELPER_SHA256="d812e79fce6138426131f266e4f5fd8de03b72c9a56acea19bedb43a22f172f6" # pragma: allowlist secret - public source digest
+PROMETHEUS_CONTRACT_HELPER_SHA256="f899596b9584c1e042c50ee34914309bae50bd4f5178a035a2980d506650b970" # pragma: allowlist secret - public source digest
 run_prometheus_contract() {
   "$PYTHON_BIN" -I -c '
 import hashlib
@@ -278,11 +278,13 @@ echo ""
 echo "=== Step 5.1: Verify hardened Caddy runtime ==="
 CADDY_VERSION="$(dc exec -T caddy caddy version)"
 CADDY_VERSION_TOKEN="${CADDY_VERSION%%[[:space:]]*}"
-if [ "$CADDY_VERSION_TOKEN" != "v2.11.4" ]; then
-    echo "❌ Expected Caddy v2.11.4, got: $CADDY_VERSION"
+if [ "$CADDY_VERSION_TOKEN" != "v2.11.9" ]; then
+    echo "❌ Expected Caddy v2.11.9, got: $CADDY_VERSION"
     exit 1
 fi
 echo "✅ Caddy runtime version: $CADDY_VERSION"
+# Version probes do not prove the maintained stdlib source patch; admission uses
+# the source-qualified producer and its closed evidence inventory.
 
 CADDY_BUILD_INFO="$(dc exec -T caddy caddy build-info)"
 CADDY_GO_VERSION=""
@@ -292,11 +294,11 @@ while IFS=$'\t' read -r build_key build_value _; do
         break
     fi
 done <<< "$CADDY_BUILD_INFO"
-if [ "$CADDY_GO_VERSION" != "go1.26.10" ]; then
-    echo "❌ Expected Caddy built with Go 1.26.10, got: ${CADDY_GO_VERSION:-missing}"
+if [ "$CADDY_GO_VERSION" != "go1.26.11" ]; then
+    echo "❌ Expected Caddy built with Go 1.26.11, got: ${CADDY_GO_VERSION:-missing}"
     exit 1
 fi
-echo "✅ Caddy runtime Go toolchain: go1.26.10"
+echo "✅ Caddy runtime Go toolchain: go1.26.11"
 echo ""
 
 # Check status
@@ -356,7 +358,7 @@ echo "Quick Fix Complete"
 echo "=========================================="
 echo ""
 echo "Expected results:"
-echo "  - Caddy image: PulsePlate Caddy 2.11.4 rebuilt with Go 1.26.10"
+echo "  - Caddy image: PulsePlate Caddy 2.11.9 rebuilt with Go 1.26.11"
 echo "  - APP_ENV: production"
 echo "  - ENVIRONMENT: production"
 echo "  - Readiness endpoint: environment='production'"

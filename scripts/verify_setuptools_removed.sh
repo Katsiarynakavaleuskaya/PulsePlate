@@ -22,7 +22,7 @@ fi
 # Verify image exists before running checks
 if ! docker image inspect "$IMAGE_TAG" >/dev/null 2>&1; then
     echo "❌ ERROR: Docker image '$IMAGE_TAG' not found locally" >&2
-    echo "   Build it first: docker build --target production -t $IMAGE_TAG ." >&2
+    echo "   Build it first: docker build --platform=linux/amd64 --target production -t $IMAGE_TAG ." >&2
     exit 1
 fi
 

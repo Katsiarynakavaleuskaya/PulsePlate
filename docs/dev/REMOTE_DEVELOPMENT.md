@@ -628,7 +628,8 @@ a separate explicit owner decision. This runbook is not that decision. Required
 native Apple checks remain on macOS.
 
 Use the official CLI, not editor-only startup or raw Compose. On Linux host,
-provision the exact `.nvmrc` Node baseline (currently 24.18.1), Python and required
+provision and verify the exact Node baseline read from the selected checkout's
+`.nvmrc`, plus Python and the required
 native toolchain through official sources. Official package metadata checked on
 2026-10-15 identifies stable `@devcontainers/cli` **0.89.0**, requiring Node >=20
 ([official package metadata](https://registry.npmjs.org/@devcontainers%2fcli/0.89.0));
@@ -761,8 +762,14 @@ Still prove real pre-commit/pre-push execution through the existing hook contrac
 The resolver can fall back to the primary clone's venv. A valid Git backlink does
 not establish dependency parity: compare the actual Python version, dependency
 recipes, complete selected runtime/dev locks and constraints before sharing.
-Current runtime4df and candidateea40 differ, so that fallback cannot supply
-candidate proof. Use the candidate's own canonical environment instead:
+The earlier runtime4df and candidateea40 observations had different dependencies,
+so that historical fallback did not supply candidate proof. Compare the current
+inputs and use the candidate's own canonical environment:
+
+`make venv` installs Git hooks. Use a dedicated clone with its own Git common
+directory when a linked worktree would share hooks with another owner. Follow
+[the current developer hook refresh procedure](../security/VIRTUALENV_ACTIVATION_2026_11.md#refresh-developer-hook-environments)
+for the selected environment.
 
 ```bash
 # INSIDE the reviewed candidate worktree; its own Makefile/locks own this install.
@@ -770,7 +777,11 @@ RDEV_WORKSPACE="$(git rev-parse --show-toplevel)"
 test ! -L "$RDEV_WORKSPACE/.venv"
 RDEV_CANDIDATE_PYTHON="$RDEV_WORKSPACE/.venv/bin/python"
 export PULSEPLATE_PYTHON_INDEX_URL=https://packages.pulseplate.app/root/pulseplate/+simple/
-unset PULSEPLATE_PYTHON_TRUSTED_HOST PULSEPLATE_BOOTSTRAP_WHEELHOUSE PULSEPLATE_PSYCOPG_C_SDK
+unset PULSEPLATE_PYTHON_TRUSTED_HOST
+# Current Make venv consumes a separately qualified matching offline wheelhouse
+# and genuine Linux SDK. Bind both from the selected current producer receipt.
+: "${PULSEPLATE_BOOTSTRAP_WHEELHOUSE:?qualified current-lock wheelhouse required}"
+: "${PULSEPLATE_PSYCOPG_C_SDK:?qualified matching Linux SDK required}"
 make venv VENV_PYTHON="$RDEV_CANDIDATE_PYTHON" DEV_PYTHON="$RDEV_CANDIDATE_PYTHON"
 "$RDEV_CANDIDATE_PYTHON" -c 'import sys; from pathlib import Path; assert Path(sys.prefix) == Path.cwd() / ".venv"; print(sys.executable, sys.prefix, sys.version)'
 "$RDEV_CANDIDATE_PYTHON" -m pip check
@@ -778,8 +789,9 @@ make verify-env VENV_PYTHON="$RDEV_CANDIDATE_PYTHON" DEV_PYTHON="$RDEV_CANDIDATE
 "$RDEV_CANDIDATE_PYTHON" -m pre_commit --version
 ```
 
-This is the exactea40 recipe; after a foundation merge reread its canonical
-SDK/bootstrap contract before changing runtime selectors. Retain own locked
+The earlier ea40 recipe is historical. After a foundation merge, reread the
+selected checkout's canonical SDK/bootstrap contract and verify its producer inputs
+against the current locks before installing. Retain own locked
 package/version/implementation proof as well as sys.prefix and verify-env.
 Do not overwrite an unexpected existing venv, permanently export an interpreter
 override, copy a Mac/foreign venv or borrow another branch's successful checks.
@@ -834,7 +846,7 @@ SQLite here is local development only. In a second container terminal:
 ```bash
 set -euo pipefail
 RDEV_WORKSPACE=/workspaces/PulsePlate/worktrees/REPLACE-RECEIVER
-RDEV_NODE_BIN=/REPLACE-VERIFIED-NODE-24.18.1-BIN
+RDEV_NODE_BIN=/REPLACE-VERIFIED-CHECKOUT-NODE-BIN
 cd "$RDEV_WORKSPACE"
 test "$(git rev-parse --show-toplevel)" = "$RDEV_WORKSPACE"
 git rev-parse HEAD
@@ -842,7 +854,8 @@ git status --short
 sha256sum frontend/vite.config.ts frontend/package.json frontend/package-lock.json
 test -x "$RDEV_NODE_BIN/node"
 export PATH="$RDEV_WORKSPACE/.venv/bin:$RDEV_NODE_BIN:$PATH"
-test "$(node --version)" = v24.18.1
+RDEV_NODE_VERSION="$(cat .nvmrc)"
+test "$(node --version)" = "v$RDEV_NODE_VERSION"
 make frontend-install
 VITE_API_BASE=/api/v1 ./scripts/frontend_npm.sh --prefix frontend run dev -- --mode remote --host 0.0.0.0 --port 5173 --strictPort
 ```
@@ -926,12 +939,18 @@ for path, payload, expected in [
 PY
 ```
 
-On the Mac inspect the selected loopback listeners with `lsof` and separately
-probe the owned VM public IPv4 and IPv6 (when present) on **8000/8001/5173** with
-bounded connections, for example `nc -vz -G 3 <owned-VM-address> 8001`. All public
-preview ports must refuse while private intended flow works. Refusal and timeout
-remain distinct; a timeout alone leaves visibility unknown. UFW state alone is
-not Docker isolation proof. No public tunnel, reverse proxy, DNS or broad scan.
+On the Mac inspect the selected loopback listeners with `lsof` and verify the
+intended private preview. From an independent external observer, verify a
+successful TCP connection to the existing SSH port on each assigned public
+address family, then probe TCP **8000/8001/5173** on those same addresses while
+the private preview is live. Record each result as refused, unanswered, or
+connected. Any connected result fails this check.
+An unanswered result satisfies the bounded external non-reachability check
+only when the same live container is confirmed on an internal network with no
+published host port bindings and no host listeners on the selected ports before
+and after the probes. A failed reachability control or missing topology
+evidence leaves the result unknown. Scope the result to the measured observer,
+addresses, ports and window. No public tunnel, reverse proxy, DNS or broad scan.
 
 ## Dirty checks, persistent runs and reconnect
 

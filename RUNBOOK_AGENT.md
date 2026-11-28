@@ -6,6 +6,20 @@
 **When to use:** CI fails, tests hang, import errors, SQLAlchemy mapper issues, or a PR needs a strict merge-readiness pass.
 **Related:** See root `AGENTS.md` for fast triage commands, `tests/test_repo_policy_guards.py` for enforced rules.
 
+## Native source qualification ordering
+
+For the current maintained-source candidate, run canonical `make docker-source-artifacts`
+against the actual date after reviewing the catalog. The candidate has eight default
+inputs plus two explicitly selected AM inputs; all original seventeen obligations
+remain in the existing zlib, ncurses and AM security owners. Seven patch removals are
+candidate recipe changes until each relevant native regression passes. Preserve the
+old October21/30 deadlines and generated_at; the manual October31 review schedules
+November30 inclusive, with immediate reassessment on new findings/source changes.
+Use isolated network-none historical controls only under their explicit qualification
+handoff, distinguishing original zlib from its old seven-patched tree. Never pass a
+fake date to admit historical controls as runtime inputs. Exact native output must be
+observed before acceptance; AM publication remains independently blocked.
+
 ## Canonical Policy Links
 
 - **Coordinator-first rule + definition of "task":** see `AGENTS.md` (Agent Coordination section)
@@ -236,6 +250,13 @@ required/current-head checks, the relevant `test-main` matrix,
 
 **This is the authoritative procedural checklist.** Thresholds/policy live in `AGENTS.md`.
 
+When a test compiles an in-memory workflow snippet, use a synthetic diagnostic
+filename such as `<cd.yml:AM-readonly-prerequisite>`. A label shaped as a real
+repository filename can make coverage XML fail with `No source for code` after
+the tests have passed. Diagnose this with the owning focused test under the
+existing coverage configuration, followed by `coverage xml`; preserve the
+collection configuration and coverage thresholds.
+
 ### Merge-Ready Bundle (Blocking vs Advisory)
 
 Use this bundle when you need a strict merge claim:
@@ -372,8 +393,9 @@ Git commit. Retain the successful runtime Make command, environment/tool version
 terminal log, original input/output hashes and complete dependency delta; bind
 the saved runtime hash before and after the dependent Make transaction. Commit
 the complete material only after the full batch and required narrow gates pass.
-Other transactions retain the runtime-first commit procedure above; this narrow
-checkpoint grants no hook, validation or merge bypass.
+Apart from the separately scoped current Mako procedure below, other transactions
+retain the runtime-first commit procedure above. Neither checkpoint grants a
+hook, validation or merge bypass.
 
 The same transaction includes the owner's explicit pip-tools 7.6.1
 compatibility amendment for pip 26.2.2. Only dev and aggregate acquire that
@@ -402,6 +424,58 @@ make requirements-locks \
   GRAPH_CHANGE_PACKAGES="$STABILIZATION_GRAPH" \
   GRAPH_CHANGE_ADMISSION='python-stabilization-2026-10-23'
 ```
+
+### Current Mako-only checkpoint — PR #2494, 2026-10-31
+
+This separately authorized procedure applies only to the current Mako
+`1.3.12 -> 1.4.2` correction. It does not reuse the October23 transaction,
+source seeds, graph admission or tool results. Evidence belongs to the existing
+[Mako security owner](docs/security/GHSA-v92g-xgxw-vvmm-mako.md).
+Keep the mixed runtime/dependent transaction guard unchanged. Freeze the exact
+integrated base, all source/constraint/lock bytes, qualified compiler/SDK inputs
+and original complete dependency map before running either command.
+
+```bash
+make requirements-locks \
+  VENV_PYTHON="${MAKO_COMPILER_PYTHON:?absolute qualified compiler interpreter required}" \
+  LOCK_PROFILES='runtime' UPGRADE_PACKAGES='mako==1.4.2' \
+  GRAPH_CHANGE_PACKAGES='' GRAPH_CHANGE_ADMISSION=''
+# Only after native runtime success, immutable checkpoint and independent replay:
+make requirements-locks \
+  VENV_PYTHON="${MAKO_COMPILER_PYTHON:?absolute qualified compiler interpreter required}" \
+  LOCK_PROFILES='docker-runtime ci-lite dev aggregate' \
+  UPGRADE_PACKAGES='mako==1.4.2' \
+  GRAPH_CHANGE_PACKAGES='' GRAPH_CHANGE_ADMISSION=''
+```
+
+Use the approved private proxy and separately qualified matching SDK; keep
+acquisition credentials out of resolver consumption. The current registry and
+complete seed inventory identify these four dependent profiles as containing
+Mako. Test/RAG/data/evals locks have no Mako: inspect them and every installation
+composition, but do not pass a Mako upgrade into an absent-package seed. The
+compiler deliberately rejects that request. If the observed complete delta
+changes a shared constraint affecting another profile, stop and reconcile the
+actual dependent closure before continuing; do not classify a manually added
+upgrade as solver closure.
+
+After the first Make process actually succeeds, retain its raw terminal result,
+command, compiler/configuration and all input/output hashes/modes as an immutable
+runtime checkpoint. Independently replay from the original frozen inputs and
+prove byte equality. Rebind that saved runtime output immediately before and
+after the dependent transaction, then independently replay the complete dependent
+outputs from their original seeds under the same runtime checkpoint. A launched
+process, copied lock or transport success is not resolver proof.
+
+For this Mako correction only, no intermediate runtime Git commit is required.
+Keep the stronger source floors throughout; temporary mixed source/lock state
+is in progress, not validation success. Do not raise the live schema until all
+five target locks agree. Commit only coherent final material after complete
+D/S/F_cutoff/A/R/P reconciliation, applicable native/audit proof and the required
+narrow gates, including fixing/dispositioning existing NoSec failures. This
+removes only the intermediate checkpoint commit; ordinary validated commits,
+required agent-documentation commit, hooks/review/CI and merge rules remain.
+No historical graph admission, hook skip, fallback, new authority carrier or
+exception for future transactions follows.
 
 When a native API probe fails, retain its observed public return value,
 immediate errno and public error code in the same bounded failure report before
@@ -542,7 +616,7 @@ as oracles. Documenting known-good behavior allows us to:
 | `guard_tests` | Codebase with no policy violations | All guards pass | `tests/test_repo_policy_guards.py:1` |
 
 **Verification commands:**
-- Local narrow bundle: `python3 scripts/orchestration/check_preflight.py && python3 scripts/orchestration/check_agent_consistency.py && make validate-changed && pre-commit run --all-files`
+- Local narrow bundle: `python3 scripts/orchestration/check_preflight.py && python3 scripts/orchestration/check_agent_consistency.py && pre-commit run --all-files`, focused tests, and the terminal `make validate-changed` from the installed pre-push hook
 - GitHub current-head full CI: use the latest PR head checks and strict merge-readiness wrapper
 - `merge_readiness_gate`: `python scripts/ci/check_pr_merge_readiness.py --pr-number <N>`
 - `dependency_security_guard`: `pytest -k dependency_security_guard -q`
@@ -764,7 +838,7 @@ Run from repo root before any push/PR:
 2. `git ls-files worktrees | wc -l` → must be `0`
 3. `git check-ignore -v worktrees/` → must show an ignore rule
 4. `pre-commit run --all-files`
-5. `make validate-changed`
+5. Record the native pre-push `make validate-changed` result during the ordinary single-branch push.
 
 ## PR operating lifecycle (mandatory for coordinator-led work)
 
@@ -802,7 +876,7 @@ Use this as the canonical operating loop from branch creation to merge window:
    - Run `pre-commit run --all-files`
    - Run the required local narrow gates for the touched scope:
      `check_preflight`, `check_agent_consistency`, focused tests, and
-     `make validate-changed`
+     the installed pre-push `make validate-changed` during the push
    - Do not run full local `make verify` unless a human explicitly overrides
      the local machine-budget rule for one invocation
    - Commit hook changes separately when hooks modify files
@@ -1126,8 +1200,8 @@ and deleted:
    `gh pr view <PARENT_PR> --json state,mergeCommit,mergedAt`
 2. Create a new branch from `origin/main` in its own worktree.
 3. Cherry-pick the child commits onto that new branch.
-4. Re-run `pre-commit run --all-files`, `make validate-changed`, and focused
-   tests on the replacement branch head before pushing. GitHub current-head CI
+4. Re-run `pre-commit run --all-files` and focused tests on the replacement
+   branch head. The native push hook runs `make validate-changed`. GitHub current-head CI
    supplies the full heavy signal after the replacement PR opens.
 5. Push the replacement branch and open a **replacement PR** on `main`.
 6. Create a new canonical artifact path for the replacement PR:
@@ -1620,6 +1694,35 @@ new registry package is implied by retaining hosted image bytes.
 
 
 ## Retained Alertmanager receiver and P01 publication checks
+
+### Current 0.34.2 publisher candidate
+
+Use the existing manual main publication operation only with actual independent
+accepted C and an actual completed successful same-H producer plus same-H Q/S.
+The current publisher binds PR2494's genuine merge commit to main H; a squash
+merge does not make C an ancestor of H. It never builds inside publication or
+accepts the current in-progress run as its own predecessor.
+
+Preparation closes its credential session before fresh strict security and full
+H native controls. A separately bounded final session rebinds source/material/
+inputs and reserves copy, post-native and cleanup before registry login; it
+rereads again before the single copy. Immutable pullback and credential cleanup
+precede full post-copy native. Existing-tag reuse still runs the fresh pre-copy
+proof. Preserve any actual copy and later failure; do not roll back a tag or
+renew a deadline to hide it. The workflow owns the 240-minute job and 10440-second
+helper ledger; see the Alertmanager security owner for non-overlapping phases.
+
+Current source implementation is not current qualification. Keep historical
+accepted bytes and failed runs separate. The initial/first-main candidate uses
+the canonical source context and a private configuration-only historical AM11
+BEFORE render. Its authenticated merged-receiver reference proves selection
+bytes, not historical source execution or a fresh historical image. Current
+accepted C remains independently mandatory for consumption and publication;
+actual C/H/native/security/current-head evidence must complete before any
+readiness claim. A prior SDK/development image is only its exact built material,
+although a qualified runtime can execute explicitly mounted changed-source tests.
+
+### Historical receiver and independent P01 procedure
 
 Preserve the original Q/S/C10 producer identity when adopting the explicitly
 approved receiver. The source owner authenticates the original producer graph

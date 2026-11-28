@@ -6,8 +6,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { getWeeklyPlan } from '../../../api/premium/weekly-plan';
-import type { ProWeekPlanRequest } from '../../../api/premium/weekly-plan';
+import { getWeeklyPlan, type ProWeekPlanRequest } from '../../../api/premium/weekly-plan';
 import { normalizeWeekPlan } from '../model/adapter';
 import type { WeekPlanVM } from '../model/types';
 

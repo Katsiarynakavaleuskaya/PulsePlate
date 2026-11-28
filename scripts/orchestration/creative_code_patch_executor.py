@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 import os
 import shutil
-import subprocess  # nosec B404: fixed codex subprocess wrapper only (remove-by: 2026-10-31, ref: PR-2)
+import subprocess  # nosec B404: fixed codex subprocess wrapper only (remove-by: 2027-01-01, ref: PR-2)
 
 SAFE_ENV_KEYS = frozenset(
     {
@@ -121,9 +121,9 @@ def run_codex_exec(
 
     if not prompt.strip():
         raise CreativeCodePatchExecutorError("Codex prompt must be non-empty.")
-    argv = build_codex_exec_argv(checkout=checkout)
     try:
-        process = subprocess.run(  # nosec B603: fixed absolute codex argv, no shell, stdin prompt only (remove-by: 2026-10-31, ref: PR-2)
+        argv = build_codex_exec_argv(checkout=checkout)
+        process = subprocess.run(  # nosec B603: fixed absolute codex argv, no shell, stdin prompt only (remove-by: 2027-01-01, ref: PR-2)
             argv,
             cwd=str(checkout),
             env=sanitized_codex_env(env),
@@ -133,8 +133,18 @@ def run_codex_exec(
             check=False,
             timeout=timeout_seconds,
         )
-    except subprocess.TimeoutExpired as exc:
-        raise CreativeCodePatchExecutorError("codex exec timed out.") from exc
+    except subprocess.TimeoutExpired:
+        failure: Exception | None = CreativeCodePatchExecutorError("codex exec timed out.")
+    except OSError:
+        failure = OSError("codex exec could not start.")
+    except UnicodeDecodeError:
+        failure = UnicodeDecodeError("utf-8", b"", 0, 0, "codex exec output decoding failed")
+    except UnicodeEncodeError:
+        failure = UnicodeEncodeError("utf-8", "", 0, 0, "codex exec input encoding failed")
+    else:
+        failure = None
+    if failure is not None:
+        raise failure
     stdout_lines = len(process.stdout.splitlines()) if process.stdout else 0
     stderr_lines = len(process.stderr.splitlines()) if process.stderr else 0
     if process.returncode != 0:

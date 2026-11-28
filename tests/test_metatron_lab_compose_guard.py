@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from scripts.metatron_lab.compose_guard import (
+    COMPOSE_CONFIG_TIMEOUT_SECONDS,
     LAB_PROFILES,
     compose_file_for_repo,
     operator_checklist_lines,
@@ -97,6 +98,7 @@ def test_run_compose_config_q_invokes_docker_binary(monkeypatch: pytest.MonkeyPa
     assert kwargs["check"] is False
     assert kwargs["capture_output"] is True
     assert kwargs["text"] is True
+    assert kwargs["timeout"] == COMPOSE_CONFIG_TIMEOUT_SECONDS
 
 
 def test_run_compose_config_q_failure_prints_stderr(
@@ -118,3 +120,32 @@ def test_run_compose_config_q_failure_prints_stderr(
     assert "metatron-lab-runner" in err
     assert "rc=3" in err
     assert "invalid yaml" in err
+
+
+def test_compose_timeout_stops_profiles_and_keeps_capture_private(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    calls: list[list[str]] = []
+    monkeypatch.setattr(
+        "scripts.metatron_lab.compose_guard.shutil.which", lambda _name: "/absolute/docker"
+    )
+
+    def run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        calls.append(argv)
+        assert kwargs["timeout"] == COMPOSE_CONFIG_TIMEOUT_SECONDS == 30
+        assert (
+            argv[-2:] == ["config", "-q"] and argv[argv.index("--profile") + 1] == LAB_PROFILES[0]
+        )
+        raise subprocess.TimeoutExpired(
+            argv,
+            COMPOSE_CONFIG_TIMEOUT_SECONDS,
+            output="synthetic-secret-output",
+            stderr="synthetic-secret-stderr",
+        )
+
+    monkeypatch.setattr("scripts.metatron_lab.compose_guard.subprocess.run", run)
+    assert validate_all_profiles() == 124
+    assert len(calls) == 1
+    output = capsys.readouterr()
+    assert "docker compose config -q timed out after 30 seconds" in output.err
+    assert "synthetic-secret" not in output.out + output.err
