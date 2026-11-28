@@ -421,7 +421,7 @@ uvicorn==0.42.0
     # via
     #   -c requirements.txt
     #   -r requirements-ci-lite.in
-virtualenv==21.14.10
+virtualenv==21.14.13
     # via
     #   -r requirements-ci-lite.in
     #   pre-commit

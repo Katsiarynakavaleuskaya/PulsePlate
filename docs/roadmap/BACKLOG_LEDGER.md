@@ -23,6 +23,15 @@ If it is not recorded here — it does not exist.
 
 ## Open Items
 
+<a id="ledger-p1-virtualenv-activation-202611"></a>
+- [ ] Remediate the virtualenv Bash activation advisory in tooling profiles (DEP-SEC-VIRTUALENV-1)
+  - Owner: security-auditor / agent-coordinator.
+  - Priority: P1. Target PR: dedicated DEP-SEC-VIRTUALENV-1 PR. Status: open.
+  - Reason for tracking: Three Dependabot alerts cover the ci-lite, dev and aggregate locks at 21.14.10. Closure requires fresh hook-environment and post-merge evidence.
+  - Observed: Independent VPS compiles from the same base produced byte-identical ci-lite, dev and aggregate locks. Each lock changes only the virtualenv pin. All five candidate occurrences pass the 24 advisory interval comparisons. The three installations passed pip check. The dev profile created 11 fresh hook environments and ran check-yaml successfully.
+  - Evidence: [November virtualenv advisory reconciliation and transition](../security/VIRTUALENV_ACTIVATION_2026_11.md).
+  - DoD: Reconcile all 24 advisory identities and all governed carriers, reproduce the three locks from the exact base, install and check the three profiles, create and use fresh pre-commit environments on the VPS, and complete the required local and current-head review and CI gates. After explicit owner-approved merge, verify main, reread alerts #769–771, and verify the existing Drive and Space records and applicable permissions.
+
 - [ ] AM11 vendor CA refresh in PR #2497 — Owner: backend-engineer / security-auditor; Priority: P0; Target PR: #2497; Status: actual fixed-CA AM/Prometheus outputs selected as receiver data; final C/H consumer, CI/review and main proof pending. Reason: earlier AM07 images retain removed trust roots, so their historical proof cannot establish current acceptance. Evidence: [exact vendor delta and remaining proof](../security/CVE-2026-111943-go-trust-store.md#am11-vendor-ca-source-preparation). DoD: new qualified ORAS, complete current Q/S export binding, one admitted Prometheus pair and AM build, the same-incident Caddy two-package CA update and actual image observation, actual default-bundle/DER/TLS proof, full scanner inventories, current-head CI/review and merged-main verification. Existing original requirements remain required; no suppressions or automatic retries.
 
 <a id="ledger-p1-mac-docker-vm-storage-migration"></a>
