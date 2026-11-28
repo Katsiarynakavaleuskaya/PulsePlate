@@ -627,10 +627,14 @@ Keep every Caddy build input identical. The current base's two controller pins
 identify the merged issuer. Its original CI/CD reads, successful main import
 and retained archive must bind the same original D. Use the main archive's
 recorded run attempt, its successful native job and its timed upload. A failed
-rerun can retain its own diagnostic archive. Exclude it only after binding that
-upload to its failed attempt. Multiple possible successful witnesses block the
-read. The independently designated D still requires attempt one. The main import evidence
-normally expires after 30 days, separately from the original D. Missing evidence
+rerun can retain its own diagnostic archive. Attribute each competing upload
+to its completed native job and workflow attempt. Both conclusions must be
+recognized. The Caddy job and required import steps must succeed. A failed
+workflow attempt may supply the witness only when its authenticated job
+inventory shows successful `changes` and `caddy-contract` jobs and the independent
+`build-and-test` job has conclusion `failure`. The reader stops on an unknown
+conclusion or multiple eligible witnesses. The independently designated D still
+requires attempt one. The main import evidence normally expires after 30 days, separately from the original D. Missing evidence
 blocks this read. Both PR and squash run the current native checks. A change to
 the Caddy checker or workflow uses the designated publisher-repair procedure. At prebuild, confirm the admitted PR number and exact source head. Stage the
 verified tracked frontend files in a fresh private Docker build context so ignored
