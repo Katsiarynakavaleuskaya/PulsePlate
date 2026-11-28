@@ -5633,18 +5633,9 @@ def _fixture_git_object_id(kind: str, contents: bytes) -> str:
     return _fixture_git(root, "hash-object", "-t", kind, "--stdin", data=contents).decode().strip()
 
 
-def _prometheus_repair_git_fixture(
-    monkeypatch: pytest.MonkeyPatch,
-    fault: str | None,
-    *,
-    historical: bool = False,
-    repository: Path | None = None,
-    dispatched: bool = False,
-) -> tuple[Any, dict[str, Any], dict[str, str]]:
-    """Closed immutable Git-response fixture, using real blob content addressing and original Q/S/C."""
+def _git_tree_fixture(repository: Path | None = None) -> tuple[dict[str, Any], Any, Any]:
+    """Build content-addressed Git blobs, trees and commits for the native reader fixtures."""
     import base64
-
-    from scripts.ci import prometheus_source_image as prom
 
     if repository is not None:
         repository.mkdir()
@@ -5661,9 +5652,6 @@ def _prometheus_repair_git_fixture(
             stored.add(oid)
         return oid
 
-    incumbent = "a" * 40
-    subject, accepted = _repair_subject_fixture()
-    repo = {"id": 1043311030, "full_name": runtime_surface.CADDY_REPOSITORY}
     endpoints: dict[str, Any] = {}
 
     def blob(raw: bytes) -> str:
@@ -5725,6 +5713,24 @@ def _prometheus_repair_git_fixture(
         }
         return oid
 
+    return endpoints, blob, node
+
+
+def _prometheus_repair_git_fixture(
+    monkeypatch: pytest.MonkeyPatch,
+    fault: str | None,
+    *,
+    historical: bool = False,
+    repository: Path | None = None,
+    dispatched: bool = False,
+) -> tuple[Any, dict[str, Any], dict[str, str]]:
+    """Closed immutable Git-response fixture, using real blob content addressing and original Q/S/C."""
+    from scripts.ci import prometheus_source_image as prom
+
+    endpoints, blob, node = _git_tree_fixture(repository)
+    incumbent = "a" * 40
+    subject, accepted = _repair_subject_fixture()
+    repo = {"id": 1043311030, "full_name": runtime_surface.CADDY_REPOSITORY}
     ci = ".github/workflows/ci.yml"
     old_prom = "b" * 40
     old_finding = {
@@ -6325,3 +6331,453 @@ def test_corrected_controller_requires_implementation_or_regression_delta(
     grant = runtime_surface.publisher_repair_dispatch(read, pr)
     assert grant is not None
     assert (grant["controller"], grant["callers"]) == (material["controller"], material["callers"])
+
+
+@pytest.mark.parametrize(
+    ("kind", "fault", "diagnostic"),
+    [
+        ("pull_request", None, None),
+        ("push", None, None),
+        ("push", "mapping", None),
+        ("pull_request", "mapping", None),
+        ("pull_request", "unchanged", None),
+        ("pull_request", "extra-path", "complete_maintenance_delta"),
+        ("pull_request", "mapping-mixed", "complete_maintenance_delta"),
+        ("pull_request", "one-wrapper", "verifier_and_both_wrappers"),
+        ("pull_request", "wrong-pin", "exact_verifier_pin"),
+        ("pull_request", "extra-byte", "exact_verifier_pin"),
+        ("pull_request", "stale-base", "live_base"),
+        ("pull_request", "changed-during-proof", "declared_data_value"),
+        ("pull_request", "mode", "complete_maintenance_delta"),
+        ("pull_request", "deleted-doc", "regular_delta"),
+        ("pull_request", "fork", "receiver_repository"),
+        ("pull_request", "different-event", "receiver_pr_event"),
+        ("pull_request", "different-controller", "issuer_controller"),
+        ("pull_request", "ambiguous-issuer", "issuer_merged_pr"),
+        ("pull_request", "self-issuer", "issuer_merged_pr"),
+        ("pull_request", "open-issuer", "issuer_merged_pr"),
+        ("pull_request", "no-grant", "issuer_historical_grant"),
+        ("pull_request", "foreign-grant", "issuer_historical_grant"),
+        ("pull_request", "issuer-off-main", "native_ancestor_relation"),
+        ("push", "wrong-parent", "receiver_squash"),
+        ("push", "different-tree", "declared_data_value"),
+    ],
+)
+def test_caddy_ordinary_receiver(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    kind: str,
+    fault: str | None,
+    diagnostic: str | None,
+) -> None:
+    from scripts.ci.prometheus_source_image import QualificationError
+
+    endpoints, _, node = _git_tree_fixture()
+    k = "1" * 40
+    upstream = "2" * 40
+    number = 83
+    verifier = runtime_surface._CHECKPOINT_VERIFIER
+    wrappers = runtime_surface._CHECKPOINT_WRAPPERS
+    callers = (".github/workflows/ci.yml", ".github/workflows/cd.yml")
+    ledger = "docs/roadmap/BACKLOG_LEDGER.md"
+    mapping = f"docs/review/PR_{number}_FIXED_MAPPING.md"
+
+    def wrapper(raw: bytes) -> bytes:
+        return (
+            b"body\n    '"
+            + verifier.encode()
+            + b"': 'sha256:"
+            + hashlib.sha256(raw).hexdigest().encode()
+            + b"',\nend\n"
+        )
+
+    old, new = b"old verifier", b"new verifier"
+    pin = f"  ALERTMANAGER_CONTROLLER_SOURCE: '{k}'\n".encode()
+    source = {verifier: ("100644", old), ledger: ("100644", b"pending")}
+    source.update({name: ("100755", wrapper(old)) for name in wrappers})
+    source.update({name: ("100644", pin) for name in callers})
+    if fault == "different-controller":
+        source[callers[1]] = ("100644", pin.replace(k.encode(), upstream.encode()))
+    base = node(upstream, source, "base")
+    updated = {**source, ledger: ("100644", b"target PR"), verifier: ("100644", new)}
+    updated.update({name: ("100755", wrapper(new)) for name in wrappers})
+    if fault == "extra-path":
+        updated["unrelated"] = ("100644", b"x")
+    elif fault == "one-wrapper":
+        updated[wrappers[1]] = source[wrappers[1]]
+    elif fault in ("extra-byte", "wrong-pin", "mode"):
+        updated[wrappers[0]] = {
+            "extra-byte": ("100755", wrapper(new) + b"extra"),
+            "wrong-pin": ("100755", wrapper(b"wrong")),
+            "mode": ("100644", wrapper(new)),
+        }[fault]
+    elif fault == "deleted-doc":
+        del updated[ledger]
+    elif fault == "unchanged":
+        updated = source.copy()
+    head = node(base, updated, "material")
+    if fault in ("mapping", "mapping-mixed"):
+        updated[mapping] = ("100644", b"seal")
+        if fault == "mapping-mixed":
+            updated[ledger] = ("100644", b"other")
+        head = node(head, updated, "mapping")
+    squash = node(
+        upstream if fault == "wrong-parent" else base,
+        source if fault == "different-tree" else updated,
+        "squash",
+    )
+    repository = {"full_name": runtime_surface.CADDY_REPOSITORY, "id": 1043311030}
+    pr = {
+        "number": number,
+        "state": "closed" if kind == "push" else "open",
+        "merged": kind == "push",
+        "base": {"ref": "main", "sha": base, "repo": repository},
+        "head": {
+            "ref": "receiver",
+            "sha": head,
+            "repo": repository if fault != "fork" else {**repository, "id": 42},
+        },
+        "merge_commit_sha": squash,
+    }
+    synthetic = node(base, updated, "synthetic", second_parent=head)
+    monkeypatch.setenv("GITHUB_WORKFLOW_SHA", squash if kind == "push" else synthetic)
+    monkeypatch.setenv("GITHUB_JOB", "caddy-contract")
+    monkeypatch.setenv(
+        "GITHUB_REF", "refs/heads/main" if kind == "push" else f"refs/pull/{number}/merge"
+    )
+    monkeypatch.setenv(
+        "GITHUB_WORKFLOW_REF",
+        (
+            f"{runtime_surface.CADDY_REPOSITORY}/.github/workflows/frontend-ci.yml@refs/pull/{number}/merge"
+            if kind == "pull_request"
+            else f"{runtime_surface.CADDY_REPOSITORY}/.github/workflows/frontend-ci.yml@refs/heads/main"
+        ),
+    )
+    event = {"before": base, "number": number + int(fault == "different-event"), "pull_request": pr}
+    producer = number if fault == "self-issuer" else 18
+    issuer = {
+        "number": producer,
+        "head": {"sha": "4" * 40, "ref": "issuer"},
+        "merge_commit_sha": upstream,
+        "state": "closed",
+        "merged": fault != "open-issuer",
+    }
+    endpoints[f"/pulls/{number}"] = {
+        **pr,
+        "head": {**pr["head"], "sha": k if fault == "changed-during-proof" else head},
+    }
+    endpoints["/git/ref/heads/main"] = {
+        "ref": "refs/heads/main",
+        "object": {"type": "commit", "sha": head if fault == "stale-base" else base},
+    }
+    endpoints[f"/commits/{k}/pulls?per_page=2"] = [issuer] * (
+        2 if fault == "ambiguous-issuer" else 1
+    )
+    endpoints[f"/pulls/{producer}"] = issuer
+    for prior, later in ((base, head), (upstream, base)):
+        endpoints[f"/compare/{prior}...{later}"] = {
+            "base_commit": {"sha": prior},
+            "merge_base_commit": {"sha": prior},
+            "status": "behind" if prior == upstream and fault == "issuer-off-main" else "ahead",
+            "behind_by": 0,
+            "ahead_by": 1,
+            "total_commits": 1,
+            "commits": [{"sha": later, "parents": [{"sha": prior}]}],
+        }
+
+    def grant(read: Any, observed: dict, *, historical: bool) -> dict | None:
+        assert observed == issuer and historical is True
+        assert read("/git/commits/" + base)["sha"] == base
+        assert read(f"/pulls/{producer}") == issuer
+        return (
+            None
+            if fault == "no-grant"
+            else {
+                "controller": upstream if fault == "foreign-grant" else k,
+                "producer_run": "21",
+                "producer_head": "a" * 40,
+            }
+        )
+
+    monkeypatch.setattr(runtime_surface, "publisher_repair_dispatch", grant)
+    monkeypatch.setattr(
+        runtime_surface, "_caddy_main_import", lambda *_: {"producer_artifact": "31"}
+    )
+    args = (endpoints.__getitem__, pr, squash if kind == "push" else head, kind, event)
+    if diagnostic:
+        with pytest.raises((ValueError, QualificationError), match=diagnostic):
+            runtime_surface._caddy_ordinary_pr(*args)
+    else:
+        if fault == "unchanged":
+            assert runtime_surface._caddy_ordinary_pr(*args) is None
+        else:
+            selected = squash if kind == "push" else head
+            path = tmp_path / "native-event.json"
+            path.write_text(json.dumps({**event, "ref": "refs/heads/main", "after": selected}))
+            monkeypatch.setenv("GITHUB_EVENT_PATH", str(path))
+            monkeypatch.setenv("GITHUB_EVENT_NAME", kind)
+            monkeypatch.setenv("GITHUB_SHA", selected)
+            for historical_number in (2484, 2494, 2495, 2501):
+                endpoints[f"/pulls/{historical_number}"] = {
+                    "state": "closed",
+                    "merged": True,
+                    "merge_commit_sha": upstream,
+                }
+            endpoints[f"/commits/{squash}/pulls?per_page=2"] = [pr]
+
+            def read(endpoint: str) -> Any:
+                if endpoint.startswith("/pulls?"):
+                    return [pr] if kind == "pull_request" else []
+                return endpoints[endpoint]
+
+            record = runtime_surface.caddy_bound_pr(read, selected)
+            assert record["number"] == number and "publisher_repair" not in record
+            assert record["ordinary_reader"] == {
+                "base": base,
+                "controller": k,
+                "issuer_pr": producer,
+                "issuer_head": issuer["head"]["sha"],
+                "issuer_branch": "issuer",
+                "issuer_merge": upstream,
+                "producer_head": "a" * 40,
+                "producer_run": "21",
+                "producer_artifact": "31",
+            }
+
+
+@pytest.mark.parametrize(
+    "fault,diagnostic",
+    [
+        (None, None),
+        ("renewal", None),
+        ("failed-first", None),
+        ("failed-latest", None),
+        ("failed-attempt-witness", None),
+        ("failed-latest-witness", None),
+        ("unbound-second-witness", "main_artifact_owner"),
+        ("upload-time-mismatch", "main_import_artifact"),
+        ("zero-main-attempt", "retained_native_decision"),
+        ("claims-future-attempt", "main_attempt"),
+        ("wrong-native-attempt", "actual_run_attempt"),
+        ("two-witnesses", "main_artifact_inventory"),
+        ("no-witness", "main_artifact_inventory"),
+        ("expired-witness", "main_import_artifact"),
+        ("artifact-id", "retained_import"),
+        ("copied-witness", "native_artifact_identity"),
+        ("bad-digest", "native_artifact_bytes"),
+        ("failed-job", "main_run"),
+        ("ambiguous-run", "main_run"),
+        ("no-job", "main_run"),
+        ("no-import", "main_import_steps"),
+        ("did-build", "main_import_steps"),
+        ("wrong-action", "not_a_dispatch"),
+        ("wrong-attempt", "original_job"),
+        ("protected-parser", "missing_checked_input_record"),
+    ],
+)
+def test_caddy_main_import_requires_actual_original_artifact(
+    fault: str | None, diagnostic: str | None
+) -> None:
+    from io import BytesIO
+    from zipfile import ZipFile
+    from scripts.ci.prometheus_source_image import QualificationError
+
+    head, squash = "6" * 40, "a" * 40
+    issuer = {
+        "number": 81,
+        "head": {"ref": "reviewed-issuer"},
+        "merge_commit_sha": squash,
+        "merged_at": "2026-01-02T00:00:00Z",
+    }
+    subject, _ = _repair_subject_fixture()
+    material = {**subject, "pr": "81", "base": "b" * 40, "controller": "c" * 40, "callers": head}
+    api = _DispatchNativeFixture(issuer, material)
+    d = api.projection()
+    api.add(d)
+    _, original_job, original, _ = api.records[73]
+    renewed = api.projection(74, "contract", "2026-01-03T00:00:00Z")
+    api.add(renewed)
+    main_run, main_job, main_artifact, reference = api.records[74]
+    grant = {
+        **d,
+        "producer_head": head,
+        "artifact": str(original["id"]),
+        "artifact_digest": original["digest"],
+    }
+    if fault == "renewal":
+        grant = {
+            **renewed,
+            "producer_head": head,
+            "producer_artifact": str(original["id"]),
+            "producer_digest": original["digest"],
+        }
+    archived_attempt = (
+        2
+        if fault
+        in {
+            "failed-first",
+            "failed-attempt-witness",
+            "claims-future-attempt",
+            "wrong-native-attempt",
+        }
+        else 1
+    )
+    main_run.update(event="push", head_sha=squash, head_branch="main")
+    main_job.update(head_sha=squash, head_branch="main")
+    main_artifact.update(name="caddy-contract-evidence")
+    main_artifact["workflow_run"].update(head_sha=squash, head_branch="main")
+    if fault == "expired-witness":
+        main_artifact["expires_at"] = "2026-01-03T01:00:00Z"
+    elif fault == "upload-time-mismatch":
+        main_artifact["created_at"] = "2026-01-03T05:00:00Z"
+    elif fault == "copied-witness":
+        main_artifact["workflow_run"]["id"] = 999
+    elif fault == "failed-job":
+        main_job["conclusion"] = "failure"
+    elif fault == "no-import":
+        next(
+            step
+            for step in main_job["steps"]
+            if step["name"] == runtime_surface._REPAIR_IMPORT_STEP
+        )["conclusion"] = "skipped"
+    elif fault == "did-build":
+        next(
+            step for step in main_job["steps"] if step["name"] == runtime_surface._REPAIR_BUILD_STEP
+        )["conclusion"] = "success"
+    buf = BytesIO()
+    with ZipFile(BytesIO(reference)) as source, ZipFile(buf, "w") as target:
+        original_ref = json.loads(source.read("original-producer.json"))
+        original_ref.update(
+            run_attempt=2 if fault == "wrong-attempt" else 1, job_id=original_job["id"]
+        )
+        if fault == "artifact-id":
+            original_ref["artifact"]["id"] += 1
+        for name in source.namelist():
+            raw = source.read(name)
+            if name == "source-decision.json":
+                decision = json.loads(raw)
+                if fault != "wrong-action":
+                    del decision["publisher_dispatch"]
+                decision["current_head"] = squash
+                raw = json.dumps(decision).encode()
+            elif name == "original-producer.json":
+                raw = json.dumps(original_ref).encode()
+            elif name == "admission.json":
+                record = json.loads(raw)
+                record.update(
+                    current_head=squash,
+                    current_run_attempt=0 if fault == "zero-main-attempt" else archived_attempt,
+                    current_run_id=74,
+                    publisher_repair=grant,
+                    producer=original_ref,
+                )
+                raw = json.dumps(record).encode()
+            target.writestr(name, raw)
+    raw = buf.getvalue()
+    main_artifact.update(size_in_bytes=len(raw), digest="sha256:" + hashlib.sha256(raw).hexdigest())
+    if fault == "bad-digest":
+        main_artifact["digest"] = "sha256:" + "f" * 64
+    api.records[74] = main_run, main_job, main_artifact, raw
+
+    attempt_reads: list[int] = []
+    second_run = fault in {
+        "failed-first",
+        "failed-latest",
+        "wrong-native-attempt",
+        "failed-attempt-witness",
+        "failed-latest-witness",
+    }
+    duplicate = fault in {
+        "two-witnesses",
+        "unbound-second-witness",
+        "failed-attempt-witness",
+        "failed-latest-witness",
+    }
+
+    def native_job(attempt: int) -> dict:
+        actual = 1 if fault == "wrong-native-attempt" else attempt
+        job = {**main_job, "id": 1073 + actual, "run_attempt": actual}
+        if attempt != archived_attempt:
+            day = "04" if fault == "failed-latest-witness" else "02"
+            stamp = f"2026-01-{day}T00:08:00Z"
+            job.update(conclusion="failure", started_at=stamp, completed_at=stamp)
+            job["steps"] = [
+                (
+                    {
+                        **step,
+                        "started_at": stamp,
+                        "completed_at": stamp,
+                    }
+                    if step["name"] == runtime_surface._REPAIR_UPLOAD_STEP
+                    else step
+                )
+                for step in job["steps"]
+            ]
+        return job
+
+    def read(endpoint: str) -> Any:
+        if second_run:
+            if endpoint.startswith("/actions/workflows/frontend-ci.yml/runs?"):
+                latest = {
+                    **main_run,
+                    "run_attempt": 2,
+                    "conclusion": (
+                        "failure"
+                        if fault in {"failed-latest", "failed-latest-witness"}
+                        else "success"
+                    ),
+                }
+                return {"total_count": 1, "workflow_runs": [latest]}
+            if endpoint.startswith("/actions/runs/74/attempts/"):
+                attempt = int(endpoint.split("/")[5])
+                job = native_job(attempt)
+                if "/jobs?" in endpoint:
+                    return {"total_count": 1, "jobs": [job]}
+                attempt_reads.append(attempt)
+                return {
+                    **main_run,
+                    "run_attempt": job["run_attempt"],
+                    "conclusion": job["conclusion"],
+                }
+        if duplicate:
+            if "/artifacts?" in endpoint:
+                extra = {**main_artifact, "id": 19000}
+                if fault != "two-witnesses":
+                    extra["created_at"] = (
+                        "2026-01-04T00:08:00Z"
+                        if fault == "failed-latest-witness"
+                        else "2026-01-02T00:08:00Z"
+                    )
+                return {"total_count": 2, "artifacts": [main_artifact, extra]}
+            if "/jobs?filter=all" in endpoint:
+                jobs = [native_job(i) for i in ((1, 2) if second_run else (1,))]
+                return {"total_count": len(jobs), "jobs": jobs}
+        if fault == "ambiguous-run" and endpoint.startswith(
+            "/actions/workflows/frontend-ci.yml/runs?"
+        ):
+            return {"total_count": 2, "workflow_runs": [main_run, main_run]}
+        if fault == "no-job" and "/attempts/1/jobs?" in endpoint:
+            return {"total_count": 0, "jobs": []}
+        if fault == "no-witness" and "/artifacts?" in endpoint:
+            return {"total_count": 0, "artifacts": []}
+        return api.read(endpoint)
+
+    if fault == "protected-parser":
+        with pytest.raises(QualificationError, match=diagnostic):
+            runtime_surface._publisher_zip_record(BytesIO(raw), len(raw), 74, squash)
+    elif diagnostic is not None:
+        with pytest.raises((QualificationError, ValueError), match=diagnostic):
+            runtime_surface._caddy_main_import(read, issuer, grant)
+    else:
+        assert runtime_surface._caddy_main_import(read, issuer, grant) == {
+            "main_run": "74",
+            "main_attempt": str(archived_attempt),
+            "main_job": str(1073 + archived_attempt),
+            "main_artifact": "10074",
+            "main_digest": main_artifact["digest"],
+            "producer_job": "1073",
+            "producer_artifact": "10073",
+            "producer_digest": original["digest"],
+        }
+        if fault in ("failed-first", "failed-latest"):
+            assert attempt_reads == [archived_attempt]
