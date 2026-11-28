@@ -34,7 +34,7 @@ jobs:
         timeout-minutes: 2
         shell: bash
         env:
-          CONTROLLER_SHA: 2ebe53024febe8e026c4a1f1e056f19482f0fca9 # pragma: allowlist secret - public trusted control commit
+          CONTROLLER_SHA: ab43f352eb1206b091f01f03338bb83a222027d5 # pragma: allowlist secret - public trusted control commit
           GIT_TERMINAL_PROMPT: "0"
           GIT_NO_REPLACE_OBJECTS: "1"
         run: |

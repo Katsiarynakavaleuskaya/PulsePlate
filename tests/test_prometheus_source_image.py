@@ -15,6 +15,8 @@ import re
 import shutil
 import signal
 import stat
+import subprocess
+import sys
 import tarfile
 import time
 from typing import Any, cast
@@ -5485,6 +5487,53 @@ def test_promote_writer_polling_obeys_complete_native_snapshot_boundary(
     assert trace[-1] == "owned-cleanup" and not config.exists()
 
 
+def _exercise_buildx_read(
+    argv: list[str], environment: dict[str, str], auth: Path, work: Path, fault: str | None
+) -> None:
+    """Run an offline child that consumes the actual scoped environment and writes tool state."""
+    state = work / "buildx-state"
+    assert argv[1:7] == ["--config", str(auth), "buildx", "imagetools", "inspect", "--raw"]
+    assert environment["DOCKER_CONFIG"] == str(auth) and environment["BUILDX_CONFIG"] == str(state)
+    assert set(environment) == {"PATH", "HOME", "LANG", "DOCKER_CONFIG", "BUILDX_CONFIG"}
+    assert stat.S_IMODE(state.stat().st_mode) == 0o700
+    assert {path.name for path in auth.iterdir()} == {"config.json"}
+    if fault == "tool-child":
+        subprocess.run(
+            [
+                sys.executable,
+                "-I",
+                "-S",
+                "-c",
+                "from pathlib import Path; import os; p=Path(os.environ['BUILDX_CONFIG']); "
+                "(p/'activity').mkdir(); (p/'activity'/'current').write_bytes(b'fixture')",
+            ],
+            env=environment,
+            check=True,
+            timeout=5,
+        )
+    else:
+        (state / "activity").mkdir()
+        (state / "activity/current").write_bytes(b"fixture")
+    if fault in ("auth-extra", "raw-and-extra"):
+        (auth / "buildx").mkdir()
+    if fault == "auth-replaced":
+        auth.rename(auth.with_name("original-auth"))
+        auth.mkdir(mode=0o700)
+    if fault == "leaf-missing":
+        (auth / "config.json").unlink()
+    if fault == "leaf-replaced":
+        (auth / "config.json").rename(work / "original-leaf")
+        (auth / "config.json").write_bytes(b"replacement")
+        (auth / "config.json").chmod(0o600)
+    if fault == "scratch-replaced":
+        state.rename(work / "original-scratch")
+        state.mkdir(mode=0o700)
+    if fault == "scratch-link":
+        (state / "foreign").symlink_to(auth / "config.json")
+    if fault in ("raw-failed", "raw-and-extra", "raw-and-group", "raw-and-expiry"):
+        raise source.QualificationError("synthetic_raw_failed")
+
+
 def _promotion_fixture(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -5521,7 +5570,15 @@ def _promotion_fixture(
     config = tmp_path / "prometheus-publisher-auth-123-1"
     event_path = tmp_path / "event.json"
     event_path.write_text(json.dumps({"ref": "refs/heads/main", "before": "b" * 40}))
-    for key in ("GH_TOKEN", "GITHUB_TOKEN", "GHCR_READ_TOKEN", "GHCR_TOKEN", "DOCKER_CONFIG"):
+    for key in (
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "GHCR_READ_TOKEN",
+        "GHCR_TOKEN",
+        "DOCKER_CONFIG",
+        "DOCKER_AUTH_CONFIG",
+        "BUILDX_CONFIG",
+    ):
         monkeypatch.delenv(key, raising=False)
     for key, value in {
         "GITHUB_EVENT_NAME": "push",
@@ -5633,12 +5690,16 @@ def _promotion_fixture(
             bad = (rejection == "main-before-credentials" and self.main_reads == 2) or (
                 rejection == "main-before-write" and self.main_reads == 3
             )
+            if rejection == "postread-main-drift" and "manifest-pullback" in trace:
+                bad = True
             return {"object": {"sha": "c" * 40 if bad else "a" * 40}}
 
         def pages(self, *args: Any) -> list[dict[str, Any]]:
             return _publisher_job_rows()
 
         def _capture(self, argv: list[str], maximum: int, **kwargs: Any) -> bytes:
+            if "buildx" not in argv:
+                assert "BUILDX_CONFIG" not in kwargs["environment"]
             if "login" in argv:
                 trace.append("login")
                 expected_prefix = (
@@ -5659,6 +5720,9 @@ def _promotion_fixture(
                     '{"auths":{"ghcr.io":{"auth":"synthetic-private"}}}'
                 )
                 (config / "config.json").chmod(0o600)
+                if rejection == "state-collision":
+                    (work / "buildx-state").mkdir()
+                    (work / "buildx-state/current").write_bytes(b"foreign")
                 if rejection == "login":
                     raise source.QualificationError("synthetic_login_failed")
             elif "attestation" in argv:
@@ -5707,10 +5771,13 @@ def _promotion_fixture(
             else:
                 assert unchanged and "imagetools" in argv
                 trace.append("manifest-pullback")
-                return raw_root
+                _exercise_buildx_read(argv, kwargs["environment"], config, work, rejection)
+                return raw_root + b" " if rejection == "postread-raw-drift" else raw_root
             return b""
 
         def begin_cleanup(self) -> float:
+            if rejection in ("cleanup-expired", "raw-and-expiry"):
+                return 0
             if self.cleanup_deadline is None:
                 self.cleanup_deadline = source.time.monotonic() + 2
             return self.cleanup_deadline
@@ -5718,6 +5785,7 @@ def _promotion_fixture(
         def close(self) -> None:
             trace.append("owned-cleanup")
             self.begin_cleanup()
+            assert not (work / "evidence/publication.json").exists()
             if cleanup_hold:
                 raise source.QualificationError("GHCR_unknown_or_reused_group_member")
             source.shutil.rmtree(self.private)
@@ -5801,8 +5869,10 @@ def test_promote_exact_pullback_and_original_bundles_precede_cleanup(
     )
     result = source.promote_image(work, root, 30, 2)
     assert result["status"] == "observed_published_exact_immutable_subject"
-    assert not config.exists()
+    assert not config.exists() and not (work / "buildx-state").exists()
+    assert source.one_object((work / "evidence/publication.json").read_bytes()) == result
     if unchanged:
+        assert result["copy_invocations"] == result["compile_invocations"] == 0
         assert "candidate" not in trace and "verify" not in trace and "copy" not in trace
         assert (
             trace.index("predecessor")
@@ -6525,6 +6595,13 @@ def _consumer_fixture(
             "layers": selection["layers"],
         }
     )
+    if fault in ("raw-config", "raw-layers"):
+        changed = source.one_object(raw)
+        if fault == "raw-config":
+            changed["config"]["digest"] = "sha256:" + "f" * 64
+        else:
+            changed["layers"] = list(reversed(changed["layers"]))
+        raw = source.canonical_data(changed)
     selection["manifest_digest"] = "sha256:" + source.sha(raw)
     selection["runtime_ref"] = source.IMAGE_REPOSITORY + "@" + selection["manifest_digest"]
     path.write_bytes(source.canonical_data(manifest))
@@ -6547,6 +6624,32 @@ def _consumer_fixture(
         "RepoDigests": [selection["runtime_ref"]],
     }
     source.native_image_contract(image, selection, local=not published)
+    if fault and fault.startswith("native-"):
+        image["Id"] = selection["manifest_digest"]
+        descriptor = {"mediaType": source.OCI_MANIFEST, "size": len(raw), "digest": image["Id"]}
+        image["Descriptor"] = descriptor
+        if fault == "native-missing":
+            del image["Descriptor"]
+        elif fault == "native-wrong-type":
+            descriptor["mediaType"] = source.OCI_CONFIG
+        elif fault == "native-wrong-digest":
+            descriptor["digest"] = selection["config_digest"]
+        elif fault in ("native-wrong-size", "native-classic-conflict"):
+            descriptor["size"] = len(raw) + 1
+            if fault == "native-classic-conflict":
+                image["Id"] = selection["config_digest"]
+        elif fault == "native-bool-size":
+            descriptor["size"] = True
+        elif fault == "native-repository":
+            image["RepoDigests"] = ["foreign.invalid/other@" + image["Id"]]
+        elif fault == "native-layers":
+            image["RootFS"] = {"Layers": list(reversed(selection["diff_ids"]))}
+        elif fault == "native-platform":
+            image["Architecture"] = "arm64"
+        elif fault == "native-runtime":
+            image["Config"]["Cmd"] = ["--version"]
+        elif fault == "native-unrelated":
+            image["Id"] = "sha256:" + "f" * 64
     selected_mode = mode or ("unchanged_published" if published else "changed_pr_candidate")
     publisher_head = "a" * 40 if event_name == "push" else "b" * 40
     route = (
@@ -6565,6 +6668,7 @@ def _consumer_fixture(
         "GHCR_READ_TOKEN",
         "GHCR_TOKEN",
         "DOCKER_CONFIG",
+        "BUILDX_CONFIG",
         "DOCKER_AUTH_CONFIG",
         "NETRC",
         "DEVPI_CI_USER",
@@ -6607,7 +6711,12 @@ def _consumer_fixture(
             self.records: list[dict[str, Any]] = []
 
         def run(self, argv: list[str], label: str, env: dict[str, str], **kwargs: Any) -> bytes:
-            assert not reader.exists()
+            assert not reader.exists() and not (work / "buildx-state").exists()
+            assert "BUILDX_CONFIG" not in env
+            if "inspect" in argv:
+                assert argv[-1] == (
+                    selection["runtime_ref"] if published else selection["config_digest"]
+                )
             assert not any(key in env for key in ("GH_TOKEN", "GITHUB_TOKEN", "GHCR_READ_TOKEN"))
             trace.append("load" if "load" in argv else "inspect")
             return source.canonical_data(image)
@@ -6631,6 +6740,8 @@ def _consumer_fixture(
 
         def _capture(self, argv: list[str], maximum: int, **kwargs: Any) -> bytes:
             assert published
+            if "buildx" not in argv:
+                assert "BUILDX_CONFIG" not in kwargs["environment"]
             if "login" in argv:
                 trace.append("login")
                 assert kwargs["input_data"] == token.encode() + b"\n"
@@ -6638,21 +6749,27 @@ def _consumer_fixture(
                 leaf = reader / "config.json"
                 leaf.write_bytes(b"synthetic configuration fixture")
                 leaf.chmod(0o600)
+                if fault == "state-collision":
+                    (work / "buildx-state").mkdir()
+                    (work / "buildx-state/current").write_bytes(b"foreign")
                 if fault in {"login", "login-cleanup"}:
                     raise source.QualificationError("GitHub_native_failed")
             elif "pull" in argv:
                 trace.append("pull")
             else:
                 trace.append("raw")
-                return raw
+                _exercise_buildx_read(argv, kwargs["environment"], reader, work, fault)
+                return raw + b" " if fault == "raw-digest" else raw
             return b""
 
         def begin_cleanup(self) -> float:
+            if fault in ("cleanup-expired", "raw-and-expiry"):
+                return 0
             return clock[0] + 2
 
         def close(self) -> None:
             trace.append("cleanup")
-            if fault in {"cleanup", "login-cleanup"}:
+            if fault in {"cleanup", "login-cleanup", "raw-and-group"}:
                 raise source.QualificationError("GHCR_unknown_or_reused_group_member")
             source.shutil.rmtree(self.private)
 
@@ -6755,6 +6872,228 @@ def _consumer_fixture(
     monkeypatch.setattr(source, "existing_public_package", package)
     monkeypatch.setattr(source.shutil, "which", lambda name: "/synthetic/docker")
     return root, work, reader, trace
+
+
+def test_real_github_private_cleanup_preserves_unclaimed_buildx_directory(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    for key in ("GH_TOKEN", "GITHUB_TOKEN", "GHCR_READ_TOKEN", "GHCR_TOKEN"):
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv("GH_TOKEN", "fixture-github-read")
+    monkeypatch.setattr(source.shutil, "which", lambda tool: "/synthetic/gh")
+    monkeypatch.setattr(source.GitHubRead, "_capture", lambda *args: b"")
+    work = tmp_path.resolve()
+    private = work / "GitHub-private"
+    api = source.GitHubRead(private, work, time.monotonic() + 10, 2)
+    registry = source._RegistryState("consumer", work / "auth", work / "buildx-state")
+    registry.create_auth()
+    registry.buildx.mkdir()
+    marker = registry.buildx / "prior-owner"
+    marker.write_bytes(b"preserve")
+    with pytest.raises(source.QualificationError, match="^output_not_fresh$"):
+        registry.read_raw(api, "/synthetic/docker", {}, "unused")
+    api.close()
+    registry.cleanup(api.begin_cleanup())
+    assert (
+        not private.exists() and not registry.auth.exists() and marker.read_bytes() == b"preserve"
+    )
+
+
+@pytest.mark.parametrize(
+    "fault,diagnostic",
+    [
+        ("postread-main-drift", "publisher_main_after_write"),
+        ("postread-raw-drift", "unchanged_published_raw_digest"),
+    ],
+)
+def test_unchanged_publisher_postread_drift_cleans_without_success(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fault: str, diagnostic: str
+) -> None:
+    root, work, auth, trace, _ = _promotion_fixture(monkeypatch, tmp_path, fault, unchanged=True)
+    with pytest.raises(source.QualificationError, match="^" + diagnostic + "$"):
+        source.promote_image(work, root, 30, 2)
+    assert "manifest-pullback" in trace and "copy" not in trace
+    assert not (work / "evidence/publication.json").exists()
+    assert not auth.exists() and not (work / "buildx-state").exists()
+
+
+@pytest.mark.parametrize("owner", ["consumer", "publisher"])
+def test_published_tool_child_uses_task_owned_buildx_state(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, owner: str
+) -> None:
+    if owner == "consumer":
+        root, work, auth, _ = _consumer_fixture(
+            monkeypatch, tmp_path, published=True, fault="tool-child"
+        )
+        run = source.consume_image
+    else:
+        root, work, auth, _, _manifest = _promotion_fixture(
+            monkeypatch, tmp_path, "tool-child", unchanged=True
+        )
+        run = source.promote_image
+    run(work, root, 30, 2)
+    assert not auth.exists() and not (work / "buildx-state").exists()
+
+
+@pytest.mark.parametrize("owner", ["consumer", "publisher"])
+@pytest.mark.parametrize(
+    "fault,suffix",
+    [
+        ("state-collision", "output_not_fresh"),
+        ("scratch-replaced", "_buildx_state_identity"),
+        ("scratch-link", "_buildx_state_member"),
+        ("auth-extra", "_credential_members"),
+        ("auth-replaced", "_credential_directory_identity"),
+        ("leaf-replaced", "_credential_cleanup_leaf"),
+        ("leaf-missing", "_credential_cleanup_leaf"),
+        ("raw-failed", "synthetic_raw_failed"),
+        ("raw-and-extra", "synthetic_raw_failed"),
+        ("raw-and-group", "synthetic_raw_failed"),
+        ("raw-and-expiry", "synthetic_raw_failed"),
+        ("cleanup-expired", "qualification_deadline"),
+    ],
+)
+def test_raw_registry_children_preserve_owned_state_and_primary_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    owner: str,
+    fault: str,
+    suffix: str,
+) -> None:
+    if owner == "consumer":
+        root, work, auth, trace = _consumer_fixture(
+            monkeypatch, tmp_path, published=True, fault=fault
+        )
+        operation = source.consume_image
+        report = "consumer.json"
+    else:
+        root, work, auth, trace, _ = _promotion_fixture(
+            monkeypatch, tmp_path, fault, unchanged=True, cleanup_hold=fault == "raw-and-group"
+        )
+        operation = source.promote_image
+        report = "publication.json"
+    diagnostic = owner + suffix if suffix.startswith("_") else suffix
+    with pytest.raises(source.QualificationError, match="^" + diagnostic + "$"):
+        operation(work, root, 30, 2)
+    assert not (work / "evidence" / report).exists()
+    assert "inspect" not in trace and "copy" not in trace
+    state = work / "buildx-state"
+    if fault == "state-collision":
+        assert (state / "current").read_bytes() == b"foreign" and not auth.exists()
+    elif fault == "raw-failed":
+        assert not state.exists() and not auth.exists()
+    else:
+        assert state.is_dir() and auth.is_dir()
+        if fault in ("auth-extra", "raw-and-extra"):
+            assert {p.name for p in auth.iterdir()} == {"buildx", "config.json"}
+        elif fault == "leaf-replaced":
+            assert (auth / "config.json").read_bytes() == b"replacement"
+        elif fault == "scratch-link":
+            assert (state / "foreign").is_symlink() and (auth / "config.json").is_file()
+    diagnostics = capsys.readouterr().err
+    if fault == "raw-and-extra":
+        assert (
+            diagnostics
+            == owner.capitalize() + " cleanup also failed:" + owner + "_credential_members\n"
+        )
+    elif fault == "raw-and-expiry":
+        assert diagnostics == owner.capitalize() + " cleanup also failed:qualification_deadline\n"
+    elif fault == "raw-and-group":
+        assert (
+            diagnostics
+            == owner.capitalize() + " cleanup also failed:GHCR_unknown_or_reused_group_member\n"
+        )
+    else:
+        assert diagnostics == ""
+
+
+@pytest.mark.parametrize(
+    "fault,diagnostic",
+    [
+        ("native-manifest", None),
+        ("native-missing", "native_descriptor_role_keys"),
+        ("native-wrong-type", "declared_data_value"),
+        ("native-wrong-digest", "declared_data_value"),
+        ("native-wrong-size", "declared_data_value"),
+        ("native-bool-size", "declared_data_type"),
+        ("native-classic-conflict", "declared_data_value"),
+        ("native-repository", "consumer_published_immutable_subject"),
+        ("native-layers", "consumer_native_config_layers"),
+        ("native-unrelated", "consumer_native_config_layers"),
+        ("native-platform", "consumer_native_config_layers"),
+        ("native-runtime", "consumer_native_runtime_contract"),
+        ("raw-digest", "published_raw_OCI_root"),
+        ("raw-config", "published_config_descriptor"),
+        ("raw-layers", "declared_data_value"),
+    ],
+)
+def test_published_native_manifest_identity_requires_independent_raw_and_runtime(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fault: str, diagnostic: str | None
+) -> None:
+    root, work, auth, trace = _consumer_fixture(monkeypatch, tmp_path, published=True, fault=fault)
+    if diagnostic is None:
+        result = source.consume_image(work, root, 30, 2)
+        assert result["runtime_ref"] == result["selection"]["runtime_ref"]
+        assert result["native_image"]["Id"] == result["selection"]["manifest_digest"]
+    else:
+        with pytest.raises(source.QualificationError, match="^" + diagnostic + "$"):
+            source.consume_image(work, root, 30, 2)
+        assert not (work / "evidence/consumer.json").exists()
+    assert ("inspect" in trace) is (not fault.startswith("raw-"))
+    assert not auth.exists() and not (work / "buildx-state").exists()
+
+
+def test_loaded_candidate_refuses_published_manifest_identity(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    root, work, _, _ = _consumer_fixture(
+        monkeypatch, tmp_path, published=False, fault="native-manifest"
+    )
+    with pytest.raises(source.QualificationError, match="^consumer_native_config_layers$"):
+        source.consume_image(work, root, 30, 2)
+
+
+@pytest.mark.parametrize("manifest_id", [False, True])
+def test_standalone_inspect_image_has_only_stdin_evidence(
+    tmp_path: Path, manifest_id: bool
+) -> None:
+    from tests.test_deploy_contract_scripts import (
+        _synthetic_prometheus_manifest,
+        FAKE_PROMETHEUS_IMAGE_INSPECT_JSON,
+    )
+
+    manifest = _synthetic_prometheus_manifest()
+    selection = manifest["selection"]
+    images = json.loads(FAKE_PROMETHEUS_IMAGE_INSPECT_JSON)
+    if manifest_id:
+        images[0]["Id"] = selection["manifest_digest"]
+        images[0]["Descriptor"] = {
+            "mediaType": source.OCI_MANIFEST,
+            "size": 2424,
+            "digest": selection["manifest_digest"],
+        }
+    path = tmp_path / "image-manifest.json"
+    path.write_bytes(source.canonical_data(manifest))
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-I",
+            "-S",
+            source.__file__,
+            "--operation",
+            "inspect-image",
+            "--manifest",
+            str(path),
+        ],
+        input=source.canonical_data(images),
+        capture_output=True,
+        env={"PATH": "/usr/bin:/bin"},
+        timeout=10,
+    )
+    assert result.returncode == int(manifest_id)
+    if manifest_id:
+        assert b"consumer_native_config_layers" in result.stderr
 
 
 @pytest.mark.parametrize("published", [False, True])

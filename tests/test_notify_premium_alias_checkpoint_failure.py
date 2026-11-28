@@ -3361,7 +3361,87 @@ def native_alertmanager_main(
     )
 
 
-def native_main(alertmanager_image_id: str, alertmanager_config_sha256: str) -> None:
+def _published_checkpoint_route(route: str) -> bool:
+    if route in ("changed_pr_candidate", "historical_pr_candidate"):
+        return False
+    prometheus_image.require(
+        route in ("unchanged_pr_published", "trusted_published"), "checkpoint_prometheus_route"
+    )
+    return True
+
+
+def checkpoint_prometheus_raw_input(evidence_root: str, route: str, runtime_ref: str) -> Path:
+    """Select the final captured raw read from this consume operation before privilege change."""
+    if not _published_checkpoint_route(route):
+        return Path(os.devnull)
+    evidence = Path(evidence_root)
+    prometheus_image.real_directory(evidence)
+    coordinates = re.fullmatch(
+        r"prometheus-obs2a-consumer-([1-9][0-9]*-[1-9][0-9]*)", evidence.parent.name
+    )
+    if coordinates is None or evidence.name != "evidence":
+        raise ValueError("checkpoint_prometheus_evidence_location")
+    # The last credentialed capture of a published consume is the immutable Buildx raw read.
+    last = max(
+        (
+            int(match[1])
+            for path in evidence.iterdir()
+            if (match := re.fullmatch(r"GitHub-([1-9][0-9]*)[.]json", path.name))
+        ),
+        default=0,
+    )
+    prometheus_image.require(last > 0, "checkpoint_prometheus_raw_record")
+    record = evidence / f"GitHub-{last}.json"
+    descriptor = os.open(record, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(descriptor, "rb") as stream:
+        info = os.fstat(stream.fileno())
+        prometheus_image.require(
+            stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and 0 < info.st_size <= 65536,
+            "checkpoint_prometheus_raw_record",
+        )
+        metadata = stream.read(65537)
+        prometheus_image.require(
+            len(metadata) == info.st_size and os.path.samestat(record.lstat(), info),
+            "checkpoint_prometheus_raw_record",
+        )
+    capture = prometheus_image.one_object(metadata)
+    auth = evidence.parent.parent / ("prometheus-consumer-auth-" + coordinates[1])
+    argv = capture.get("argv")
+    digest = runtime_ref.removeprefix(prometheus_image.IMAGE_REPOSITORY + "@sha256:")
+    prometheus_image.require(
+        re.fullmatch(r"[0-9a-f]{64}", digest) is not None
+        and runtime_ref == prometheus_image.IMAGE_REPOSITORY + "@sha256:" + digest
+        and type(argv) is list
+        and len(argv) == 8
+        and type(argv[0]) is str
+        and Path(argv[0]).is_absolute()
+        and Path(argv[0]).name == "docker"
+        and argv[1:]
+        == ["--config", str(auth), "buildx", "imagetools", "inspect", "--raw", runtime_ref]
+        and type(capture.get("exit")) is int
+        and capture["exit"] == 0
+        and capture.get("stdout_sha256") == digest
+        and type(capture.get("stdout_bytes")) is int
+        and 0 < capture["stdout_bytes"] <= 1024**2,
+        "checkpoint_prometheus_raw_record",
+    )
+    raw = record.with_suffix(".stdout")
+    prometheus_image.require(
+        prometheus_image.file_hash(raw, maximum_bytes=1024**2) == digest
+        and raw.stat().st_size == capture["stdout_bytes"],
+        "checkpoint_prometheus_raw_bytes",
+    )
+    return raw
+
+
+def native_main(
+    alertmanager_image_id: str,
+    alertmanager_config_sha256: str,
+    *,
+    prometheus_route: str,
+    prometheus_runtime_ref: str,
+    raw_manifest: bytes,
+) -> None:
     """Run every existing generic control with explicit same-runner AM identity after preparation."""
     assert re.fullmatch(r"sha256:[0-9a-f]{64}", alertmanager_image_id)
     assert (
@@ -3371,12 +3451,25 @@ def native_main(alertmanager_image_id: str, alertmanager_config_sha256: str) -> 
     selection = prometheus_image.read_image_manifest(ROOT / prometheus_image.MANIFEST_PATH)[
         "selection"
     ]
-    image_id = selection["config_digest"]
+    published = _published_checkpoint_route(prometheus_route)
+    expected_ref = selection["runtime_ref"] if published else selection["config_digest"]
+    prometheus_image.require(
+        prometheus_runtime_ref == expected_ref, "checkpoint_prometheus_runtime_ref"
+    )
+    prometheus_image.require(
+        0 < len(raw_manifest) <= 1024**2 if published else not raw_manifest,
+        "checkpoint_prometheus_raw_input",
+    )
+    witness = prometheus_image._PublishedManifest(raw_manifest, selection) if published else None
     assert sys.platform == "linux", "native mode requires the existing Linux CI runner"
     image = prometheus_image.one_object(
-        _native(["docker", "image", "inspect", "--format", "{{json .}}", image_id]).stdout.encode()
+        _native(
+            ["docker", "image", "inspect", "--format", "{{json .}}", prometheus_runtime_ref]
+        ).stdout.encode()
     )
-    prometheus_image.native_image_contract(image, selection, local=True)
+    prometheus_image.native_image_contract(
+        image, selection, local=not published, published_manifest=witness
+    )
     with (
         tempfile.TemporaryDirectory(prefix="pulseplate-obs2a-native-") as raw,
         pytest.MonkeyPatch.context() as runtime,
@@ -3400,7 +3493,10 @@ def native_main(alertmanager_image_id: str, alertmanager_config_sha256: str) -> 
         for name, check in (
             ("compose_configuration", _native_compose_configuration),
             ("systemd", _native_systemd),
-            ("query_lifetime", lambda directory: _native_query_lifetime(directory, image_id)),
+            (
+                "query_lifetime",
+                lambda directory: _native_query_lifetime(directory, prometheus_runtime_ref),
+            ),
             (
                 "amtool_lifetime",
                 lambda directory: _native_amtool_lifetime(directory, alertmanager_image_id),
@@ -3678,6 +3774,9 @@ def test_checkpoint_prepared_activation_rejects_before_effects(
             hashlib.sha256(
                 (ROOT / "deploy/alertmanager/alertmanager.yml").read_bytes()
             ).hexdigest(),
+            prometheus_route="changed_pr_candidate",
+            prometheus_runtime_ref="unused",
+            raw_manifest=b"",
         )
 
 
@@ -3724,15 +3823,65 @@ def test_checkpoint_loaded_image_contract_rejects_before_controls(
             hashlib.sha256(
                 (ROOT / "deploy/alertmanager/alertmanager.yml").read_bytes()
             ).hexdigest(),
+            prometheus_route="changed_pr_candidate",
+            prometheus_runtime_ref=str(selection["config_digest"]),
+            raw_manifest=b"",
         )
     assert len(observed) == 1
 
 
+def _checkpoint_published_raw(selection: dict[str, object]) -> bytes:
+    return prometheus_image.canonical_data(
+        {
+            "schemaVersion": 2,
+            "mediaType": prometheus_image.OCI_MANIFEST,
+            "config": {
+                "mediaType": prometheus_image.OCI_CONFIG,
+                "digest": selection["config_digest"],
+                "size": 1,
+            },
+            "layers": selection["layers"],
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    "route,manifest_id",
+    [
+        ("changed_pr_candidate", False),
+        ("historical_pr_candidate", False),
+        ("unchanged_pr_published", False),
+        ("unchanged_pr_published", True),
+        ("trusted_published", True),
+    ],
+)
 def test_checkpoint_native_main_selects_original_model_configuration_control(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    route: str,
+    manifest_id: bool,
 ) -> None:
     selection, image = _checkpoint_prometheus_fixture(tmp_path, monkeypatch)
+    raw = b""
+    handle = str(selection["config_digest"])
+    if _published_checkpoint_route(route):
+        raw = _checkpoint_published_raw(selection)
+        path = ROOT / prometheus_image.MANIFEST_PATH
+        manifest = json.loads(path.read_text())
+        digest = "sha256:" + hashlib.sha256(raw).hexdigest()
+        handle = prometheus_image.IMAGE_REPOSITORY + "@" + digest
+        manifest["selection"].update(manifest_digest=digest, runtime_ref=handle)
+        path.write_bytes(prometheus_image.canonical_data(manifest))
+        image["RepoDigests"] = [handle]
+        if manifest_id:
+            image.update(
+                Id=digest,
+                Descriptor={
+                    "mediaType": prometheus_image.OCI_MANIFEST,
+                    "size": len(raw),
+                    "digest": digest,
+                },
+            )
     calls: list[str] = []
     monkeypatch.setattr(sys, "platform", "linux")
     monkeypatch.setattr(
@@ -3743,7 +3892,7 @@ def test_checkpoint_native_main_selects_original_model_configuration_control(
             0,
             json.dumps(
                 image
-                if argv[-1] == selection["config_digest"]
+                if argv[-1] == handle
                 else {
                     "Id": "sha256:" + "6" * 64,
                     "Os": "linux",
@@ -3764,7 +3913,7 @@ def test_checkpoint_native_main_selects_original_model_configuration_control(
         if name == "_native_query_lifetime":
 
             def query(directory: Path, image_id: str) -> None:
-                assert image_id == selection["config_digest"]
+                assert image_id == handle
                 calls.append("_native_query_lifetime")
 
             monkeypatch.setattr(sys.modules[__name__], name, query)
@@ -3777,6 +3926,9 @@ def test_checkpoint_native_main_selects_original_model_configuration_control(
     native_main(
         "sha256:" + "6" * 64,
         hashlib.sha256((ROOT / "deploy/alertmanager/alertmanager.yml").read_bytes()).hexdigest(),
+        prometheus_route=route,
+        prometheus_runtime_ref=handle,
+        raw_manifest=raw,
     )
     assert calls == [
         "_native_compose_configuration",
@@ -3785,6 +3937,198 @@ def test_checkpoint_native_main_selects_original_model_configuration_control(
         "_native_amtool_lifetime",
         "_native_alertmanager",
     ]
+
+
+@pytest.mark.parametrize(
+    "route,handle,raw,diagnostic",
+    [
+        ("changed_pr_candidate", "runtime_ref", b"", "checkpoint_prometheus_runtime_ref"),
+        ("unchanged_pr_published", "config_digest", b"", "checkpoint_prometheus_runtime_ref"),
+        ("trusted_published", "runtime_ref", b"", "checkpoint_prometheus_raw_input"),
+        ("changed_pr_candidate", "config_digest", b"unexpected", "checkpoint_prometheus_raw_input"),
+        ("unchanged_pr_published", "runtime_ref", b"substitute", "published_raw_OCI_root"),
+        ("unchanged_pr_published", "foreign", b"", "checkpoint_prometheus_runtime_ref"),
+        ("inferred", "runtime_ref", b"", "checkpoint_prometheus_route"),
+    ],
+)
+def test_checkpoint_native_rejects_unbound_handoff_before_inspect(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    route: str,
+    handle: str,
+    raw: bytes,
+    diagnostic: str,
+) -> None:
+    selection, _ = _checkpoint_prometheus_fixture(tmp_path, monkeypatch)
+    monkeypatch.setenv("PROMETHEUS_RUNTIME_REF", str(selection["runtime_ref"]))
+    monkeypatch.setattr(
+        sys.modules[__name__], "_native", lambda *a: pytest.fail("unbound native inspect")
+    )
+    with pytest.raises(prometheus_image.QualificationError, match="^" + diagnostic + "$"):
+        native_main(
+            "sha256:" + "6" * 64,
+            hashlib.sha256(
+                (ROOT / "deploy/alertmanager/alertmanager.yml").read_bytes()
+            ).hexdigest(),
+            prometheus_route=route,
+            prometheus_runtime_ref=str(selection.get(handle, "other.invalid/image:latest")),
+            raw_manifest=raw,
+        )
+
+
+def _checkpoint_capture_fixture(tmp_path: Path) -> tuple[Path, str, bytes]:
+    raw = b'{"test":"captured original bytes"}\n'
+    digest = hashlib.sha256(raw).hexdigest()
+    runtime_ref = prometheus_image.IMAGE_REPOSITORY + "@sha256:" + digest
+    evidence = tmp_path / "prometheus-obs2a-consumer-123-1/evidence"
+    evidence.mkdir(parents=True)
+    metadata = {
+        "argv": [
+            "/usr/bin/docker",
+            "--config",
+            str(tmp_path / "prometheus-consumer-auth-123-1"),
+            "buildx",
+            "imagetools",
+            "inspect",
+            "--raw",
+            runtime_ref,
+        ],
+        "exit": 0,
+        "stdout_bytes": len(raw),
+        "stdout_sha256": digest,
+    }
+    (evidence / "GitHub-10.json").write_text(json.dumps(metadata))
+    (evidence / "GitHub-10.stdout").write_bytes(raw)
+    (evidence / "GitHub-9.json").write_text("{}")
+    return evidence, runtime_ref, raw
+
+
+@pytest.mark.parametrize(
+    ("fault", "diagnostic"),
+    [
+        ("wrong-command", "checkpoint_prometheus_raw_record"),
+        ("wrong-exit", "checkpoint_prometheus_raw_record"),
+        ("wrong-subject", "checkpoint_prometheus_raw_record"),
+        ("wrong-size", "checkpoint_prometheus_raw_bytes"),
+        ("wrong-raw", "checkpoint_prometheus_raw_bytes"),
+        ("symlink", "nonregular_or_multilink_file"),
+    ],
+)
+def test_checkpoint_raw_input_rejects_wrong_native_capture(
+    tmp_path: Path, fault: str, diagnostic: str
+) -> None:
+    evidence, runtime_ref, raw = _checkpoint_capture_fixture(tmp_path)
+    record = evidence / "GitHub-10.json"
+    meta = json.loads(record.read_bytes())
+    if fault == "wrong-command":
+        meta["argv"][6] = "--format"
+    elif fault == "wrong-exit":
+        meta["exit"] = False
+    elif fault == "wrong-subject":
+        meta["argv"][-1] = "foreign@sha256:" + meta["stdout_sha256"]
+    elif fault == "wrong-size":
+        meta["stdout_bytes"] += 1
+    elif fault == "wrong-raw":
+        (evidence / "GitHub-10.stdout").write_bytes(raw + b" ")
+    else:
+        (evidence / "GitHub-10.stdout").rename(evidence / "other")
+        (evidence / "GitHub-10.stdout").symlink_to(evidence / "other")
+    record.write_text(json.dumps(meta))
+    with pytest.raises(prometheus_image.QualificationError, match=f"^{diagnostic}$"):
+        checkpoint_prometheus_raw_input(str(evidence), "trusted_published", runtime_ref)
+
+
+@pytest.mark.parametrize(
+    "workflow,route",
+    [
+        ("ci.yml", "changed_pr_candidate"),
+        ("ci.yml", "unchanged_pr_published"),
+        ("cd.yml", "trusted_published"),
+    ],
+)
+def test_checkpoint_native_workflow_transfers_only_explicit_operands_through_clean_env(
+    tmp_path: Path, workflow: str, route: str
+) -> None:
+    repo = Path(__file__).resolve().parents[1]
+    document = yaml.safe_load((repo / ".github/workflows" / workflow).read_text())
+    job = document["jobs"]["lint" if workflow == "ci.yml" else "obs2a-checkpoint-native"]
+    step = next(
+        s
+        for s in job["steps"]
+        if "OBS2A checkpoint lifecycle and owned-task challenge" in s.get("name", "")
+    )
+    evidence, ref, raw = _checkpoint_capture_fixture(tmp_path)
+    published = _published_checkpoint_route(route)
+    if not published:
+        ref = "sha256:" + "2" * 64
+    commands = tmp_path / "commands"
+    commands.mkdir()
+    sudo = commands / "sudo"
+    sudo.write_text('#!/bin/sh\nexec "$@"\n')
+    sudo.chmod(0o700)
+    python = commands / "python"
+    python.write_text(
+        "#!"
+        + sys.executable
+        + "\nimport hashlib,json,os,sys\n"
+        + "if sys.argv[1] == '-c': os.execv(sys.executable, [sys.executable, *sys.argv[1:]])\n"
+        + "print(json.dumps([sys.argv[1:], sorted(os.environ), hashlib.sha256(sys.stdin.buffer.read()).hexdigest()]))\n"
+    )
+    python.chmod(0o700)
+    environment = {
+        "PATH": str(commands) + os.pathsep + os.defpath,
+        "PYTHONPATH": str(repo),
+        "HOME": str(tmp_path),
+        "GH_TOKEN": "fixture-must-be-absent",
+        "UNRELATED_FIXTURE": "absent",
+        "RUNNER_TEMP": str(evidence.parent.parent),
+        "GITHUB_RUN_ID": "123",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "AM_HOST_PYTHON": str(python),
+        "AM_IMAGE_ID": "sha256:" + "6" * 64,
+        "AM_CONFIG_SHA256": "7" * 64,
+        "PROMETHEUS_ROUTE": route,
+        "PROMETHEUS_RUNTIME_REF": ref,
+    }
+    actual = subprocess.run(
+        ["/bin/bash", "-c", step["run"]],
+        cwd=tmp_path,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=True,
+    )
+    argv, child_environment, received_hash = json.loads(actual.stdout)
+    assert argv == [
+        "-m",
+        "tests.test_notify_premium_alias_checkpoint_failure",
+        "--native",
+        "--prometheus-route",
+        route,
+        "--prometheus-runtime-ref",
+        ref,
+        "--alertmanager-image-id",
+        environment["AM_IMAGE_ID"],
+        "--alertmanager-config-sha256",
+        environment["AM_CONFIG_SHA256"],
+    ]
+    clean_env = {
+        "PATH": "/usr/local/bin:/usr/bin:/bin",
+        "LANG": "C",
+        "HOME": "/tmp",
+        "PYTHONDONTWRITEBYTECODE": "1",
+    }
+    baseline = subprocess.run(
+        [sys.executable, "-c", "import json,os; print(json.dumps(sorted(os.environ)))"],
+        env=clean_env,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=True,
+    )
+    assert child_environment == json.loads(baseline.stdout)
+    assert received_hash == hashlib.sha256(raw if published else b"").hexdigest()
 
 
 def test_checkpoint_native_config_command_uses_only_fixture_environment(
@@ -4262,7 +4606,7 @@ def test_checkpoint_partial_unit_setup_preserves_primary_and_safe_owned_files(
     assert "synthetic stop failure" not in capsys.readouterr().out
 
 
-@pytest.mark.parametrize("fixture", ["query", "amtool"])
+@pytest.mark.parametrize("fixture", ["query", "query-published", "amtool"])
 @pytest.mark.parametrize("shutdown_error", [False, True])
 def test_checkpoint_partial_server_setup_attempts_independent_release(
     tmp_path: Path,
@@ -4272,9 +4616,11 @@ def test_checkpoint_partial_server_setup_attempts_independent_release(
     shutdown_error: bool,
 ) -> None:
     image_id = ""
-    if fixture == "query":
+    if fixture in ("query", "query-published"):
         selection, _image = _checkpoint_prometheus_fixture(tmp_path, monkeypatch)
-        image_id = selection["config_digest"]
+        selected = "runtime_ref" if fixture == "query-published" else "config_digest"
+        alternate = "config_digest" if fixture == "query-published" else "runtime_ref"
+        image_id = str(selection[selected])
     calls: list[str] = []
 
     class Server:
@@ -4322,9 +4668,9 @@ def test_checkpoint_partial_server_setup_attempts_independent_release(
     def native(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         del kwargs
         if "run" in argv or "up" in argv:
-            if fixture == "query":
+            if fixture in ("query", "query-published"):
                 assert argv[:4] == ["docker", "run", "--pull", "never"]
-                assert image_id in argv and selection["runtime_ref"] not in argv
+                assert image_id in argv and selection[alternate] not in argv
             calls.append("setup-error")
             raise RuntimeError("synthetic primary setup")
         calls.append("owned-release:" + ("rm" if "rm" in argv else "stop"))
@@ -4332,7 +4678,7 @@ def test_checkpoint_partial_server_setup_attempts_independent_release(
 
     monkeypatch.setattr(sys.modules[__name__], "_native", native)
     with pytest.raises(RuntimeError, match="synthetic primary setup"):
-        if fixture == "query":
+        if fixture in ("query", "query-published"):
             _native_query_lifetime(tmp_path, image_id)
         else:
             _native_amtool_lifetime(tmp_path)
@@ -4511,6 +4857,8 @@ def _native_cli(argv: list[str] | None = None) -> None:
     """Dispatch one explicit fixture mode and retain the global phase interruption."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--native", action="store_true")
+    parser.add_argument("--prometheus-route")
+    parser.add_argument("--prometheus-runtime-ref")
     parser.add_argument("--native-alertmanager", action="store_true")
     parser.add_argument("--alertmanager-image-id")
     parser.add_argument("--alertmanager-config-sha256")
@@ -4537,6 +4885,10 @@ def _native_cli(argv: list[str] | None = None) -> None:
         != 1
     ):
         parser.error("exactly one explicit native fixture mode required")
+    if not args.native and (
+        args.prometheus_route is not None or args.prometheus_runtime_ref is not None
+    ):
+        parser.error("Prometheus route and handle are exclusive to generic native mode")
     if not args.amtool_fixture_send and (
         args.amtool_fixture_config is not None or args.amtool_fixture_context is not None
     ):
@@ -4603,7 +4955,15 @@ def _native_cli(argv: list[str] | None = None) -> None:
             or args.alertmanager_observation is not None
         ):
             parser.error("generic native requires the exact local AM image/config pair")
-        native_main(args.alertmanager_image_id, args.alertmanager_config_sha256)
+        if not args.prometheus_route or not args.prometheus_runtime_ref:
+            parser.error("generic native requires an explicit admitted Prometheus route and handle")
+        native_main(
+            args.alertmanager_image_id,
+            args.alertmanager_config_sha256,
+            prometheus_route=args.prometheus_route,
+            prometheus_runtime_ref=args.prometheus_runtime_ref,
+            raw_manifest=sys.stdin.buffer.read(1024**2 + 1),
+        )
     elif args.query_container:
         from scripts import verify_premium_alias_telemetry as verifier
 

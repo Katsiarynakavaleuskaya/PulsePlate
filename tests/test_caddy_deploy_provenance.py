@@ -1777,6 +1777,8 @@ def _assert_checkpoint_native_job(workflow: dict[str, object]) -> None:
         "AM_HOST_PYTHON": "${{ steps.am-python.outputs.python }}",
         "AM_IMAGE_ID": "${{ steps.alertmanager-image.outputs.image_id }}",
         "AM_CONFIG_SHA256": "${{ steps.alertmanager-image.outputs.config_sha256 }}",
+        "PROMETHEUS_RUNTIME_REF": "${{ steps.checkpoint-image.outputs.runtime_ref }}",
+        "PROMETHEUS_ROUTE": "trusted_published",
     }
     child = native["run"].split("sudo /usr/bin/env -i", 1)[1].split("} 2>&1", 1)[0]
     assert (
@@ -1815,7 +1817,7 @@ def test_checkpoint_native_main_pipeline_preserves_both_statuses(
         "Native main OBS2A checkpoint lifecycle and owned-task challenge",
     )
     fixture = (
-        'python() { [ "$1" = "-m" ] && [ "$2" = "scripts.ci.prometheus_source_image" ] '
+        'python() { if [ "$1" = "-c" ]; then printf "/dev/null\\n"; return 0; fi; [ "$1" = "-m" ] && [ "$2" = "scripts.ci.prometheus_source_image" ] '
         '&& [ "$3" = "--operation" ] && [ "$4" = "consume" ] || return 98; '
         'printf "%s\\n" "$*" > consumer-argv; return "$CONSUME_STATUS"; }\n'
         "sudo() { printf executed > native-called; printf 'synthetic native output\\n'; printf 'synthetic native diagnostic\\n' >&2; return \"$NATIVE_STATUS\"; }\n"
@@ -1846,6 +1848,8 @@ def test_checkpoint_native_main_pipeline_preserves_both_statuses(
             "AM_HOST_PYTHON": "python",
             "AM_IMAGE_ID": "sha256:" + "1" * 64,
             "AM_CONFIG_SHA256": "2" * 64,
+            "PROMETHEUS_ROUTE": "trusted_published",
+            "PROMETHEUS_RUNTIME_REF": "fixture-stage-runtime-handle",
             "CONSUME_STATUS": str(consume_status),
             "NATIVE_STATUS": str(native_status),
             "CAPTURE_STATUS": str(capture_status),
@@ -2141,6 +2145,8 @@ def _assert_checkpoint_pr_selection_uses_real_git(
             "PROMETHEUS_CLEANUP_SECONDS": "120",
             "AM_IMAGE_ID": "sha256:" + "a" * 64,
             "AM_CONFIG_SHA256": "b" * 64,
+            "PROMETHEUS_ROUTE": "changed_pr_candidate",
+            "PROMETHEUS_RUNTIME_REF": "fixture-stage-runtime-handle",
             "CONSUME_STATUS": str(consume_status),
             "NATIVE_CALLS": str(tmp_path / "native-calls"),
             "GITHUB_OUTPUT": str(tmp_path / "github-output"),
@@ -2157,7 +2163,7 @@ def _assert_checkpoint_pr_selection_uses_real_git(
         "Select native OBS2A material before PR startup",
     )
     fixture = (
-        'python() { [ "$1" = "-m" ] && [ "$2" = "scripts.ci.prometheus_source_image" ] '
+        'python() { if [ "$1" = "-c" ]; then printf "/dev/null\\n"; return 0; fi; [ "$1" = "-m" ] && [ "$2" = "scripts.ci.prometheus_source_image" ] '
         '&& [ "$3" = "--operation" ] && [ "$4" = "consume" ] || return 98; '
         'printf "%s\\n" "$*" > consumer-argv; return "$CONSUME_STATUS"; }\n'
         'sudo() { printf native >> "$NATIVE_CALLS"; printf "native output\\n"; '
@@ -2331,6 +2337,7 @@ def _assert_checkpoint_pr_native_job(workflow: dict[str, object]) -> None:
         "AM_IMAGE_ID": "${{ steps.alertmanager-image.outputs.image_id }}",
         "AM_CONFIG_SHA256": "${{ steps.alertmanager-image.outputs.config_sha256 }}",
         "PROMETHEUS_RUNTIME_REF": "${{ steps.checkpoint-image.outputs.runtime_ref }}",
+        "PROMETHEUS_ROUTE": "${{ steps.checkpoint-evidence.outputs.mode }}",
     }
     assert "--operation consume" not in native["run"]
     assert all(key not in native["env"] for key in ("GH_TOKEN", "GITHUB_TOKEN", "GHCR_READ_TOKEN"))
