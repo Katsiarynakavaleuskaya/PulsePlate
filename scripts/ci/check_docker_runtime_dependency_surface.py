@@ -1959,6 +1959,21 @@ def verify_repair_evidence_upload(artifact: dict[str, Any], env: dict[str, str])
     )
 
 
+_CADDY_TERMINAL_CONCLUSIONS = frozenset(
+    {
+        "success",
+        "failure",
+        "cancelled",
+        "skipped",
+        "timed_out",
+        "neutral",
+        "action_required",
+        "stale",
+        "startup_failure",
+    }
+)
+
+
 def caddy_forward_run_lifecycle(
     previous: list[dict[str, Any]], current: list[dict[str, Any]]
 ) -> bool:
@@ -1973,17 +1988,6 @@ def caddy_forward_run_lifecycle(
         "in_progress": {"completed"},
         "completed": set(),
     }
-    endings = {
-        "success",
-        "failure",
-        "cancelled",
-        "skipped",
-        "timed_out",
-        "neutral",
-        "action_required",
-        "stale",
-        "startup_failure",
-    }
     fields = {"status", "conclusion", "updated_at"}
     if len(previous) != len(current):
         return False
@@ -1995,7 +1999,7 @@ def caddy_forward_run_lifecycle(
             )
             for row in (old, new):
                 if row["status"] not in allowed or (
-                    (row["conclusion"] not in endings)
+                    (row["conclusion"] not in _CADDY_TERMINAL_CONCLUSIONS)
                     if row["status"] == "completed"
                     else row["conclusion"] is not None
                 ):
@@ -2895,6 +2899,7 @@ def _publisher_attempt_job(
     operation: str,
     *,
     workflow_record: dict[str, Any] | None = None,
+    job_inventory: list[dict[str, Any]] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any] | None]:
     from scripts.ci.prometheus_source_image import require
 
@@ -2930,6 +2935,8 @@ def _publisher_attempt_job(
     jobs = _publisher_jobs(
         read, f"/actions/runs/{run_id}/attempts/{attempt}/jobs?per_page=100&page="
     )
+    if job_inventory is not None:
+        job_inventory.extend(jobs)
     matches = [row for row in jobs if row["name"] == job]
     require(len(matches) <= 1, "publisher_repair_unique_job")
     if matches:
@@ -3367,6 +3374,46 @@ def _caddy_receiver_material(
     return True
 
 
+def _caddy_main_job_succeeded(
+    run: dict[str, Any], job: dict[str, Any], inventory: list[dict[str, Any]]
+) -> bool:
+    """An independent build-and-test failure may coexist with the successful Caddy import."""
+    from scripts.ci.prometheus_source_image import require
+
+    require(
+        all(
+            type(row["conclusion"]) is str and row["conclusion"] in _CADDY_TERMINAL_CONCLUSIONS
+            for row in (run, job)
+        ),
+        "caddy_issuer_main_artifact_conclusion",
+    )
+    if job["conclusion"] != "success":
+        return False
+    if run["conclusion"] == "success":
+        return True
+
+    # Only these three jobs exist in the bound Frontend workflow. Caddy needs changes.
+    expected = {"changes": "success", "caddy-contract": "success", "build-and-test": "failure"}
+    require(
+        run["conclusion"] == "failure"
+        and len(inventory) == len(expected)
+        and {row["name"] for row in inventory} == set(expected)
+        and all(
+            type(row["run_id"]) is int
+            and row["run_id"] == run["id"]
+            and type(row["run_attempt"]) is int
+            and row["run_attempt"] == run["run_attempt"]
+            and row["head_sha"] == run["head_sha"]
+            and row["head_branch"] == "main"
+            and row["status"] == "completed"
+            and row["conclusion"] == expected[row["name"]]
+            for row in inventory
+        ),
+        "caddy_issuer_main_independent_failure",
+    )
+    return True
+
+
 def _caddy_main_witness_candidates(
     read: Callable[[str], Any], listed: dict[str, Any], artifacts: list[dict[str, Any]]
 ) -> list[dict[str, Any]]:
@@ -3389,10 +3436,19 @@ def _caddy_main_witness_candidates(
     ]
 
     @cache
-    def observe(attempt: int) -> tuple[dict[str, Any], dict[str, Any] | None]:
-        return _publisher_attempt_job(
-            read, run_id, attempt, listed["head_sha"], "frontend-ci.yml", "caddy-contract", "push"
+    def observe(attempt: int) -> tuple[dict[str, Any], dict[str, Any] | None, list[dict[str, Any]]]:
+        inventory: list[dict[str, Any]] = []
+        run, job = _publisher_attempt_job(
+            read,
+            run_id,
+            attempt,
+            listed["head_sha"],
+            "frontend-ci.yml",
+            "caddy-contract",
+            "push",
+            job_inventory=inventory,
         )
+        return run, job, inventory
 
     candidates = []
     for artifact in artifacts:
@@ -3419,7 +3475,7 @@ def _caddy_main_witness_candidates(
             type(attempt) is int and 1 <= attempt <= listed["run_attempt"],
             "caddy_issuer_main_attempt",
         )
-        run, job = observe(attempt)
+        run, job, inventory = observe(attempt)
         require(
             job == owner
             and run["head_branch"] == owner["head_branch"] == "main"
@@ -3429,13 +3485,8 @@ def _caddy_main_witness_candidates(
             <= _publisher_time(owner["completed_at"]),
             "caddy_issuer_main_artifact_owner",
         )
-        if owner["conclusion"] in ("cancelled", "failure", "timed_out") or run["conclusion"] in (
-            "cancelled",
-            "failure",
-            "timed_out",
-        ):
-            continue
-        candidates.append(artifact)
+        if _caddy_main_job_succeeded(run, owner, inventory):
+            candidates.append(artifact)
     return candidates
 
 
@@ -3492,8 +3543,16 @@ def _caddy_main_import(
     original = _publisher_artifact_record(read, artifact, listed, {}, main_import=grant)
     attempt = int(original["main_attempt"])
     require(1 <= attempt <= listed["run_attempt"], "caddy_issuer_main_attempt")
+    inventory: list[dict[str, Any]] = []
     run, job = _publisher_attempt_job(
-        read, run_id, attempt, sha, "frontend-ci.yml", "caddy-contract", "push"
+        read,
+        run_id,
+        attempt,
+        sha,
+        "frontend-ci.yml",
+        "caddy-contract",
+        "push",
+        job_inventory=inventory,
     )
     if job is None:
         raise ValueError("caddy_issuer_main_run")
@@ -3505,7 +3564,7 @@ def _caddy_main_import(
         )
         and run["head_branch"] == job["head_branch"] == "main"
         and run["status"] == job["status"] == "completed"
-        and run["conclusion"] == job["conclusion"] == "success"
+        and _caddy_main_job_succeeded(run, job, inventory)
         and _publisher_time(issuer["merged_at"])
         <= _publisher_time(run["created_at"])
         <= _publisher_time(job["started_at"])

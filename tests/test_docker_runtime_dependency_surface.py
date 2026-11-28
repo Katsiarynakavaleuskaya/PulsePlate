@@ -5723,6 +5723,7 @@ def _prometheus_repair_git_fixture(
     historical: bool = False,
     repository: Path | None = None,
     dispatched: bool = False,
+    renewal: bool = False,
 ) -> tuple[Any, dict[str, Any], dict[str, str]]:
     """Closed immutable Git-response fixture, using real blob content addressing and original Q/S/C."""
     from scripts.ci import prometheus_source_image as prom
@@ -6050,7 +6051,7 @@ def _prometheus_repair_git_fixture(
         "merged": historical,
         "merge_commit_sha": squash,
         "created_at": "2025-12-01T00:00:00Z",
-        "merged_at": "2026-01-02T00:00:00Z",
+        "merged_at": "2026-01-03T00:00:00Z" if renewal else "2026-01-02T00:00:00Z",
     }
 
     endpoints["/git/ref/heads/main"] = {
@@ -6110,12 +6111,15 @@ def _prometheus_repair_git_fixture(
         class FixtureClock(datetime):
             @classmethod
             def now(cls, tz: Any = None) -> datetime:
-                return cls(2026, 1, 1, 1, tzinfo=timezone.utc)
+                return cls(2026, 1, 7 if historical else 1, 1, tzinfo=timezone.utc)
 
         monkeypatch.setattr(runtime_surface, "datetime", FixtureClock)
     if dispatched and fault != "prior-W-only":
         native.add(native.projection(started="2026-01-01T00:00:00Z"))
+        if renewal:
+            native.add(native.projection(run=74, action="contract", started="2026-01-02T00:00:00Z"))
         if historical:
+            review_date = "2026-01-02" if renewal else "2026-01-01"
             for run_number, ((workflow, jobname), steps) in enumerate(
                 runtime_surface._REPAIR_NATIVE_STEPS.items(), 22
             ):
@@ -6133,8 +6137,8 @@ def _prometheus_repair_git_fixture(
                     "path": workflow_path,
                     "head_branch": pr["head"]["ref"],
                     "pull_requests": [{**pr, "head": {**pr["head"], "sha": w}}],
-                    "created_at": "2026-01-01T01:00:00Z",
-                    "run_started_at": "2026-01-01T01:00:05Z",
+                    "created_at": f"{review_date}T01:00:00Z",
+                    "run_started_at": f"{review_date}T01:00:05Z",
                     "status": "completed",
                     "conclusion": "success",
                 }
@@ -6152,15 +6156,15 @@ def _prometheus_repair_git_fixture(
                             "run_id": run_number,
                             "run_attempt": 1,
                             "head_sha": w,
-                            "started_at": "2026-01-01T01:01:00Z",
-                            "completed_at": "2026-01-01T01:30:00Z",
+                            "started_at": f"{review_date}T01:01:00Z",
+                            "completed_at": f"{review_date}T01:30:00Z",
                             "status": "completed",
                             "conclusion": "success",
                             "steps": [
                                 {
                                     "name": step,
-                                    "started_at": "2026-01-01T01:02:00Z",
-                                    "completed_at": "2026-01-01T01:15:00Z",
+                                    "started_at": f"{review_date}T01:02:00Z",
+                                    "completed_at": f"{review_date}T01:15:00Z",
                                     "status": "completed",
                                     "conclusion": (
                                         "skipped"
@@ -6550,6 +6554,20 @@ def test_caddy_ordinary_receiver(
     [
         (None, None),
         ("renewal", None),
+        ("archived-grant-drift", "declared_data_value"),
+        ("sibling-failure", None),
+        ("sibling-timeout", "main_independent_failure"),
+        ("sibling-neutral", "main_independent_failure"),
+        ("sibling-skipped", "main_independent_failure"),
+        ("sibling-failure-with-failed-upload", None),
+        ("failed-precursor", "main_independent_failure"),
+        ("unknown-sibling", "main_independent_failure"),
+        ("unfinished-sibling", "main_independent_failure"),
+        ("foreign-sibling-attempt", "main_independent_failure"),
+        ("original-aggregate-incomplete", "main_run"),
+        ("original-aggregate-unknown", "main_artifact_conclusion"),
+        ("original-job-incomplete", "main_run"),
+        ("original-job-unknown", "main_artifact_conclusion"),
         ("failed-first", None),
         ("failed-latest", None),
         ("failed-attempt-witness", None),
@@ -6576,47 +6594,64 @@ def test_caddy_ordinary_receiver(
     ],
 )
 def test_caddy_main_import_requires_actual_original_artifact(
-    fault: str | None, diagnostic: str | None
+    monkeypatch: pytest.MonkeyPatch, fault: str | None, diagnostic: str | None
+) -> None:
+    _assert_caddy_main_import(monkeypatch, fault, diagnostic)
+
+
+def _assert_caddy_main_import(
+    monkeypatch: pytest.MonkeyPatch,
+    fault: str | None,
+    diagnostic: str | None,
+    supplemental_conclusions: tuple[object, object] = ("failure", "failure"),
 ) -> None:
     from io import BytesIO
     from zipfile import ZipFile
     from scripts.ci.prometheus_source_image import QualificationError
 
-    head, squash = "6" * 40, "a" * 40
-    issuer = {
-        "number": 81,
-        "head": {"ref": "reviewed-issuer"},
-        "merge_commit_sha": squash,
-        "merged_at": "2026-01-02T00:00:00Z",
+    history, issuer, material = _prometheus_repair_git_fixture(
+        monkeypatch, None, historical=True, dispatched=True, renewal=fault == "renewal"
+    )
+    grant = runtime_surface.publisher_repair_dispatch(history, issuer, historical=True)
+    assert grant is not None and grant["action"] == (
+        "contract" if fault == "renewal" else "candidate-D"
+    )
+    squash = issuer["merge_commit_sha"]
+    # The archived import contains what the issuer actually selected prior to its push.
+    # Independently project that observation from the original dispatch ZIP plus native upload.
+    source_run = 74 if fault == "renewal" else 73
+    source_job = history(f"/actions/runs/{source_run}/attempts/1/jobs?per_page=100&page=1")["jobs"][
+        0
+    ]
+    source_artifact = history(f"/actions/artifacts/{10000 + source_run}")
+    with ZipFile(BytesIO(history(f"/actions/artifacts/{source_artifact['id']}/zip"))) as archive:
+        observed = json.loads(archive.read("source-decision.json"))["publisher_dispatch"]
+    archived_grant = {
+        **observed,
+        "created": source_job["completed_at"],
+        "artifact": str(source_artifact["id"]),
+        "artifact_digest": source_artifact["digest"],
     }
-    subject, _ = _repair_subject_fixture()
-    material = {**subject, "pr": "81", "base": "b" * 40, "controller": "c" * 40, "callers": head}
+    assert archived_grant == grant
+    assert grant["created"] < issuer["merged_at"]
+    original = history("/actions/artifacts/10073")
+    original_job = history("/actions/runs/73/attempts/1/jobs?per_page=100&page=1")["jobs"][0]
     api = _DispatchNativeFixture(issuer, material)
-    d = api.projection()
-    api.add(d)
-    _, original_job, original, _ = api.records[73]
-    renewed = api.projection(74, "contract", "2026-01-03T00:00:00Z")
-    api.add(renewed)
-    main_run, main_job, main_artifact, reference = api.records[74]
-    grant = {
-        **d,
-        "producer_head": head,
-        "artifact": str(original["id"]),
-        "artifact_digest": original["digest"],
-    }
-    if fault == "renewal":
-        grant = {
-            **renewed,
-            "producer_head": head,
-            "producer_artifact": str(original["id"]),
-            "producer_digest": original["digest"],
-        }
+    api.records[73] = (
+        history("/actions/runs/73/attempts/1"),
+        original_job,
+        original,
+        history("/actions/artifacts/10073/zip"),
+    )
+    api.add(api.projection(75, "contract", "2026-01-05T00:00:00Z"))
+    main_run, main_job, main_artifact, reference = api.records[75]
     archived_attempt = (
         2
         if fault
         in {
             "failed-first",
             "failed-attempt-witness",
+            "sibling-failure-with-failed-upload",
             "claims-future-attempt",
             "wrong-native-attempt",
         }
@@ -6624,6 +6659,27 @@ def test_caddy_main_import_requires_actual_original_artifact(
     )
     main_run.update(event="push", head_sha=squash, head_branch="main")
     main_job.update(head_sha=squash, head_branch="main")
+    sibling_failure = fault in {
+        "sibling-failure",
+        "sibling-timeout",
+        "sibling-neutral",
+        "sibling-skipped",
+        "sibling-failure-with-failed-upload",
+        "failed-precursor",
+        "unknown-sibling",
+        "unfinished-sibling",
+        "foreign-sibling-attempt",
+    }
+    if sibling_failure:
+        main_run["conclusion"] = "failure"
+    elif fault == "original-aggregate-incomplete":
+        main_run.update(status="in_progress", conclusion=None)
+    elif fault == "original-aggregate-unknown":
+        main_run["conclusion"] = "future"
+    elif fault == "original-job-incomplete":
+        main_job.update(status="in_progress", conclusion=None)
+    elif fault == "original-job-unknown":
+        main_job["conclusion"] = "future"
     main_artifact.update(name="caddy-contract-evidence")
     main_artifact["workflow_run"].update(head_sha=squash, head_branch="main")
     if fault == "expired-witness":
@@ -6667,8 +6723,12 @@ def test_caddy_main_import_requires_actual_original_artifact(
                 record.update(
                     current_head=squash,
                     current_run_attempt=0 if fault == "zero-main-attempt" else archived_attempt,
-                    current_run_id=74,
-                    publisher_repair=grant,
+                    current_run_id=75,
+                    publisher_repair=(
+                        dict(archived_grant, created=issuer["merged_at"])
+                        if fault == "archived-grant-drift"
+                        else archived_grant
+                    ),
                     producer=original_ref,
                 )
                 raw = json.dumps(record).encode()
@@ -6677,7 +6737,7 @@ def test_caddy_main_import_requires_actual_original_artifact(
     main_artifact.update(size_in_bytes=len(raw), digest="sha256:" + hashlib.sha256(raw).hexdigest())
     if fault == "bad-digest":
         main_artifact["digest"] = "sha256:" + "f" * 64
-    api.records[74] = main_run, main_job, main_artifact, raw
+    api.records[75] = main_run, main_job, main_artifact, raw
 
     attempt_reads: list[int] = []
     second_run = fault in {
@@ -6685,22 +6745,24 @@ def test_caddy_main_import_requires_actual_original_artifact(
         "failed-latest",
         "wrong-native-attempt",
         "failed-attempt-witness",
+        "sibling-failure-with-failed-upload",
         "failed-latest-witness",
     }
     duplicate = fault in {
         "two-witnesses",
         "unbound-second-witness",
         "failed-attempt-witness",
+        "sibling-failure-with-failed-upload",
         "failed-latest-witness",
     }
 
     def native_job(attempt: int) -> dict:
         actual = 1 if fault == "wrong-native-attempt" else attempt
-        job = {**main_job, "id": 1073 + actual, "run_attempt": actual}
+        job = {**main_job, "id": 1074 + actual, "run_attempt": actual}
         if attempt != archived_attempt:
-            day = "04" if fault == "failed-latest-witness" else "02"
+            day = "06" if fault == "failed-latest-witness" else "04"
             stamp = f"2026-01-{day}T00:08:00Z"
-            job.update(conclusion="failure", started_at=stamp, completed_at=stamp)
+            job.update(conclusion=supplemental_conclusions[0], started_at=stamp, completed_at=stamp)
             job["steps"] = [
                 (
                     {
@@ -6715,6 +6777,31 @@ def test_caddy_main_import_requires_actual_original_artifact(
             ]
         return job
 
+    def attempt_jobs(job: dict[str, Any], aggregate: object) -> dict[str, Any]:
+        if aggregate != "failure" or job["conclusion"] != "success":
+            return {"total_count": 1, "jobs": [job]}
+        siblings = [
+            {
+                **job,
+                "id": job["id"] + 10,
+                "name": "changes",
+                "conclusion": "failure" if fault == "failed-precursor" else "success",
+            },
+            {
+                **job,
+                "id": job["id"] + 20,
+                "name": "unknown" if fault == "unknown-sibling" else "build-and-test",
+                "run_attempt": 19 if fault == "foreign-sibling-attempt" else job["run_attempt"],
+                "status": "in_progress" if fault == "unfinished-sibling" else "completed",
+                "conclusion": {
+                    "sibling-timeout": "timed_out",
+                    "sibling-neutral": "neutral",
+                    "sibling-skipped": "skipped",
+                }.get(fault or "", "failure"),
+            },
+        ]
+        return {"total_count": 3, "jobs": [*siblings, job]}
+
     def read(endpoint: str) -> Any:
         if second_run:
             if endpoint.startswith("/actions/workflows/frontend-ci.yml/runs?"):
@@ -6728,25 +6815,32 @@ def test_caddy_main_import_requires_actual_original_artifact(
                     ),
                 }
                 return {"total_count": 1, "workflow_runs": [latest]}
-            if endpoint.startswith("/actions/runs/74/attempts/"):
+            if endpoint.startswith("/actions/runs/75/attempts/"):
                 attempt = int(endpoint.split("/")[5])
                 job = native_job(attempt)
+                aggregate = (
+                    main_run["conclusion"]
+                    if attempt == archived_attempt
+                    else supplemental_conclusions[1]
+                )
                 if "/jobs?" in endpoint:
-                    return {"total_count": 1, "jobs": [job]}
+                    return attempt_jobs(job, aggregate)
                 attempt_reads.append(attempt)
                 return {
                     **main_run,
                     "run_attempt": job["run_attempt"],
-                    "conclusion": job["conclusion"],
+                    "conclusion": aggregate,
                 }
+        elif sibling_failure and "/attempts/1/jobs?" in endpoint:
+            return attempt_jobs(main_job, main_run["conclusion"])
         if duplicate:
             if "/artifacts?" in endpoint:
                 extra = {**main_artifact, "id": 19000}
                 if fault != "two-witnesses":
                     extra["created_at"] = (
-                        "2026-01-04T00:08:00Z"
+                        "2026-01-06T00:08:00Z"
                         if fault == "failed-latest-witness"
-                        else "2026-01-02T00:08:00Z"
+                        else "2026-01-04T00:08:00Z"
                     )
                 return {"total_count": 2, "artifacts": [main_artifact, extra]}
             if "/jobs?filter=all" in endpoint:
@@ -6764,16 +6858,16 @@ def test_caddy_main_import_requires_actual_original_artifact(
 
     if fault == "protected-parser":
         with pytest.raises(QualificationError, match=diagnostic):
-            runtime_surface._publisher_zip_record(BytesIO(raw), len(raw), 74, squash)
+            runtime_surface._publisher_zip_record(BytesIO(raw), len(raw), 75, squash)
     elif diagnostic is not None:
         with pytest.raises((QualificationError, ValueError), match=diagnostic):
             runtime_surface._caddy_main_import(read, issuer, grant)
     else:
         assert runtime_surface._caddy_main_import(read, issuer, grant) == {
-            "main_run": "74",
+            "main_run": "75",
             "main_attempt": str(archived_attempt),
-            "main_job": str(1073 + archived_attempt),
-            "main_artifact": "10074",
+            "main_job": str(1074 + archived_attempt),
+            "main_artifact": "10075",
             "main_digest": main_artifact["digest"],
             "producer_job": "1073",
             "producer_artifact": "10073",
@@ -6781,3 +6875,49 @@ def test_caddy_main_import_requires_actual_original_artifact(
         }
         if fault in ("failed-first", "failed-latest"):
             assert attempt_reads == [archived_attempt]
+    if fault == "failed-attempt-witness":
+        # At most one read per owner in duplicate attribution; rebind the winner before use.
+        assert attempt_reads == ([2, 1] if diagnostic is not None else [2, 1, 2])
+
+
+@pytest.mark.parametrize(
+    ("job_conclusion", "run_conclusion", "diagnostic"),
+    [
+        (
+            job,
+            run,
+            (
+                None
+                if job != "success"
+                else "main_artifact_inventory" if run == "failure" else "main_independent_failure"
+            ),
+        )
+        for outcome in (
+            "failure",
+            "cancelled",
+            "skipped",
+            "timed_out",
+            "neutral",
+            "action_required",
+            "stale",
+            "startup_failure",
+        )
+        for job, run in ((outcome, "success"), ("success", outcome))
+    ]
+    + [
+        ("success", "success", "main_artifact_inventory"),
+        ("future_outcome", "failure", "main_artifact_conclusion"),
+        ("cancelled", "future_outcome", "main_artifact_conclusion"),
+        (None, "failure", "main_artifact_conclusion"),
+        ("failure", [], "main_artifact_conclusion"),
+    ],
+)
+def test_caddy_supplemental_witness_requires_known_native_conclusions(
+    monkeypatch: pytest.MonkeyPatch,
+    job_conclusion: object,
+    run_conclusion: object,
+    diagnostic: str | None,
+) -> None:
+    _assert_caddy_main_import(
+        monkeypatch, "failed-attempt-witness", diagnostic, (job_conclusion, run_conclusion)
+    )
