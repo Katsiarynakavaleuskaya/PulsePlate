@@ -137,6 +137,12 @@ phase budget, and its failure still blocks a successful cleanup result.
 
 - Deliver the OBS2A checkpoint units disabled; supported manual invocation uses
   the same service and preserved protected flock inode as the timer.
+- Only a staging checkpoint with a valid matching baseline, canonical staging
+  Compose selection and one exact staging environment marker on the inspected
+  Prometheus container may roll forward. Bind both censuses. Use the later of
+  the baseline and 30 days before the live anchor for every range, sample
+  threshold and receipt. Preserve production's baseline window, human final T0,
+  and the existing new-only v1 receipt contract.
 - Keep the existing verifier as receipt/decision owner. Failed exit 1/2, missing
   baseline and timeout must remain native failed invocations with OnFailure.
   Queries use the existing bound-app raw HTTP relay with an internal 8-second
