@@ -39,6 +39,30 @@ curl -f http://localhost:8000/health || (docker stop test; exit 1)  # Verify hea
 
 ## Local Development Setup
 
+### Remote Linux development (RDEV-01)
+
+Use [the remote development runbook](docs/dev/REMOTE_DEVELOPMENT.md) for the
+governed Linux VPS workflow: PRIMARY LOCAL Codex/Computer Use with explicit SSH,
+feature-enabled devcontainer CLI, exact index/working-tree transfer, container
+validation/hooks and persistent same-job results. Optional remote CLI is a
+separate worker, not required per check. SSH/material failure stops without silent
+local-heavy fallback. Xcode, Simulator and Apple builds stay on the Mac;
+VS Code is optional. The full-month new-infrastructure ceiling is USD 60 including
+required charges and independent copies. Its opt-in Vite development serve with
+`--mode remote` keeps `/api/v1` on the browser's forwarded origin; default dev,
+preview, build and test retain their existing behavior. Use private
+LOCAL backend `18001` and web `15173` forwards to unchanged container
+ports `8001`/`5173`; existing local Surreal services keep their ports and data.
+Before the next long remote check, retain completed owned results and the current
+source I/W capsule/native bundle outside the VPS. Verify the complete selected
+inventory, modes, SHA-256 and native bundle readback using the
+[runbook checkpoint](docs/dev/REMOTE_DEVELOPMENT.md#off-vps-checkpoint-before-a-long-run-and-recovery-after-reboot).
+`tmux` covers SSH disconnects; a server reboot needs receipt-based recovery.
+An available VM
+or passing transport tests does not establish remote acceptance; the runbook
+retains all ten acceptance criteria and the separate purchase/merge decisions.
+Follow root `AGENTS.md` for the required narrow local bundle and full-verify budget.
+
 ### Dev Container (recommended)
 
 The recommended path for backend/web/docs/orchestration work keeps repository

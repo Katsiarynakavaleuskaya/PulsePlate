@@ -8,6 +8,19 @@
 - Runtime requirement: Node `24.x` (repo-canonical range: `>=24.0.0 <25.0.0`; CI pin lives in repo-root `.nvmrc`)
 - Install: `npm install`
 - Dev: `npm run dev`
+- Private remote development: inside the selected Linux devcontainer, from its repo root use
+  `VITE_API_BASE=/api/v1 ./scripts/frontend_npm.sh --prefix frontend run dev -- --mode remote --host 0.0.0.0 --port 5173 --strictPort`.
+  The opt-in development proxy targets only the backend on container loopback
+  `127.0.0.1:8001`; build and preview do not enable it. Use this bind only inside
+  the private devcontainer with no published Docker ports and loopback-only
+  SSH forwarding through the inspected current container bridge address. LOCAL
+  PulsePlate ports are backend `18001` and web `15173`, mapped to container
+  `8001`/`5173`; preserve existing Surreal services on local `8000`/`8001`.
+  Codex sends commands through explicit SSH to the selected container, binding
+  current I/W material and persisted run/result; SSH/sync failure stops without
+  silent heavy Mac fallback. Optional remote CLI is separate; no editor
+  is required. Setup and acceptance live in
+  [`docs/dev/REMOTE_DEVELOPMENT.md`](../docs/dev/REMOTE_DEVELOPMENT.md).
 - Typecheck: `npm run typecheck`
 - Production API/foundation lint: `npm run lint:foundation` (explicit existing config,
   authored top-level API/premium TypeScript and analytics, zero warnings). Generated
