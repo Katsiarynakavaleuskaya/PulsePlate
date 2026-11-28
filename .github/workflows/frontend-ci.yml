@@ -897,11 +897,24 @@ jobs:
               if workflow_id != 196310935:
                   raise ValueError("Caddy recovery workflow identity differs")
               branch = pr["head"]["ref"]
+              ordinary = pr.get("ordinary_reader")
+              issuer_branch = ordinary["issuer_branch"] if ordinary else branch
+              issuer_pr = ordinary["issuer_pr"] if ordinary else number
+              issuer_head = ordinary["issuer_head"] if ordinary else pr["head"]["sha"]
+              if ordinary:
+                  if event_name not in ("pull_request", "push") or action:
+                      raise ValueError("Caddy ordinary receiver requires a native read event")
+                  state["ordinary_reader"] = ordinary
               build_name = "Build source-patched Caddy candidate"
               decision_name = "Decide source-qualified Caddy inventory and current native controls"
               # Historical PR2497 starts stay visible in the complete observed history.
               # Earlier starts do not authorize a build on the current PR.
-              runs = pages(CADDY_RUN_HISTORY_PATH, "workflow_runs")
+              if ordinary:
+                  # Only these two actual runs can participate in this read. Build routes retain full history.
+                  runs = [api("/actions/runs/" + str(run_id)) for run_id in
+                          (state["current_run_id"], ordinary["producer_run"])]
+              else:
+                  runs = pages(CADDY_RUN_HISTORY_PATH, "workflow_runs")
               spent, current_runs, current_jobs, candidates = [], [], [], []
               for run in runs:
                   if (run["repository"]["full_name"] != repo or positive_id(run["repository"]["id"]) != 1043311030
@@ -937,15 +950,15 @@ jobs:
                               raise ValueError("Caddy build start missing")
                           spent.append({"run": run["id"], "attempt": job["run_attempt"], "job": job["id"],
                                         "source": run["head_sha"], "branch": run["head_branch"], "step": step})
-                          if pr.get("publisher_repair") and job["run_attempt"] != 1:
+                          if (ordinary or pr.get("publisher_repair")) and job["run_attempt"] != 1:
                               continue
-                          if step["name"] != build_name or run["head_branch"] != branch:
+                          if step["name"] != build_name or run["head_branch"] != issuer_branch:
                               continue
                           if run["id"] != state["current_run_id"] and job["status"] != "completed":
                               raise ValueError("Caddy another producer still active")
                           accepted = [value for value in job["steps"] if value["name"] == decision_name]
                           producer_run = run
-                          if pr.get("publisher_repair") and job["run_attempt"] == 1 and run["run_attempt"] != 1:
+                          if (ordinary or pr.get("publisher_repair")) and job["run_attempt"] == 1 and run["run_attempt"] != 1:
                               producer_run = api(f"/actions/runs/{run['id']}/attempts/1")
                               exact_data([producer_run[k] for k in ("id","head_sha","head_branch","event","path","workflow_id","repository","head_repository")],
                                          [run[k] for k in ("id","head_sha","head_branch","event","path","workflow_id","repository","head_repository")])
@@ -953,7 +966,7 @@ jobs:
                                   and producer_run["conclusion"] == job["conclusion"] == step["conclusion"] == "success"
                                   and job["run_attempt"] == producer_run["run_attempt"] == 1
                                   and positive_id(producer_run["head_repository"]["id"]) == 1043311030
-                                  and producer_run["head_repository"]["full_name"] == repo and job["head_branch"] == branch
+                                  and producer_run["head_repository"]["full_name"] == repo and job["head_branch"] == issuer_branch
                                   and (number == 2494 or (producer_run["actor"]["login"] == repo.split("/")[0]
                                        and producer_run["actor"]["type"] == "User" and positive_id(producer_run["triggering_actor"]["id"]) == positive_id(producer_run["actor"]["id"])
                                        and producer_run["triggering_actor"]["login"] == producer_run["actor"]["login"] and producer_run["triggering_actor"]["type"] == "User"))
@@ -1049,7 +1062,10 @@ jobs:
                       if (pr.get("publisher_repair") and event_name != "workflow_dispatch"
                               and not caddy_repair_d_admitted(pr["publisher_repair"], original_head, run["id"])):
                           continue
-                      if not caddy_producer_in_pr(api, number, original_head, pr["head"]["sha"], branch):
+                      if ordinary and (str(run["id"]), str(job["id"]), original_head) != (
+                              ordinary["producer_run"], ordinary["producer_job"], ordinary["producer_head"]):
+                          continue
+                      if not caddy_producer_in_pr(api, issuer_pr, original_head, issuer_head, issuer_branch):
                           continue
                       subprocess.run([git, "--no-replace-objects", "fetch", "--no-tags", "--depth=1",
                                       "https://github.com/" + repo + ".git", original_head], env=git_env, check=True, timeout=remaining(120))
@@ -1117,6 +1133,8 @@ jobs:
                               raise ValueError("Caddy original repair upload did not succeed")
                           artifacts = [a for a in artifacts if _publisher_time(uploads[0]["started_at"])
                                        <= _publisher_time(a["created_at"]) <= _publisher_time(transport_steps[0]["completed_at"])]
+                      if ordinary and not raw_repair:
+                          raise ValueError("Caddy ordinary receiver requires original repair transport")
                       if not artifacts or (len(artifacts) == 1 and artifacts[0]["expired"] is True):
                           unavailable_artifact = True
                           continue
@@ -1124,6 +1142,9 @@ jobs:
                           raise ValueError("Caddy original producer artifact ambiguous or invalid")
                       if re.fullmatch(r"sha256:[0-9a-f]{64}", artifacts[0].get("digest", "")) is None:
                           raise ValueError("Caddy native artifact digest unavailable")
+                      if ordinary and (str(artifacts[0]["id"]), artifacts[0]["digest"]) != (
+                              ordinary["producer_artifact"], ordinary["producer_digest"]):
+                          raise ValueError("Caddy original artifact differs from trusted main import")
                       qualified.append({"run_id": run["id"], "run_attempt": 1,
                           "head": run["head_sha"], "job_id": job["id"], "artifact": artifacts[0], "git_inputs": original_inputs})
                   if fresh_build:
@@ -2800,7 +2821,8 @@ jobs:
           ) as api:
               pr = caddy_bound_pr(api, admission["current_head"], current_step="Decide source-qualified Caddy inventory and current native controls")
               if (pr["number"] != admission["source_pr"] or pr["head"]["sha"] != admission["pr_head"]
-                      or pr.get("publisher_repair") != admission.get("publisher_repair")):
+                      or pr.get("publisher_repair") != admission.get("publisher_repair")
+                      or pr.get("ordinary_reader") != admission.get("ordinary_reader")):
                   raise ValueError("Caddy current authenticated PR source changed")
           # Only positively owned control image is removed; candidate and official survive.
           with caddy_ci_phase("CONTROL_CLEANUP") as remaining:

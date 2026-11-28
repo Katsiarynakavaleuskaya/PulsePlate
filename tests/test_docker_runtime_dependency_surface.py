@@ -5633,18 +5633,9 @@ def _fixture_git_object_id(kind: str, contents: bytes) -> str:
     return _fixture_git(root, "hash-object", "-t", kind, "--stdin", data=contents).decode().strip()
 
 
-def _prometheus_repair_git_fixture(
-    monkeypatch: pytest.MonkeyPatch,
-    fault: str | None,
-    *,
-    historical: bool = False,
-    repository: Path | None = None,
-    dispatched: bool = False,
-) -> tuple[Any, dict[str, Any], dict[str, str]]:
-    """Closed immutable Git-response fixture, using real blob content addressing and original Q/S/C."""
+def _git_tree_fixture(repository: Path | None = None) -> tuple[dict[str, Any], Any, Any]:
+    """Build content-addressed Git blobs, trees and commits for the native reader fixtures."""
     import base64
-
-    from scripts.ci import prometheus_source_image as prom
 
     if repository is not None:
         repository.mkdir()
@@ -5661,9 +5652,6 @@ def _prometheus_repair_git_fixture(
             stored.add(oid)
         return oid
 
-    incumbent = "a" * 40
-    subject, accepted = _repair_subject_fixture()
-    repo = {"id": 1043311030, "full_name": runtime_surface.CADDY_REPOSITORY}
     endpoints: dict[str, Any] = {}
 
     def blob(raw: bytes) -> str:
@@ -5725,6 +5713,26 @@ def _prometheus_repair_git_fixture(
         }
         return oid
 
+    return endpoints, blob, node
+
+
+def _prometheus_repair_git_fixture(
+    monkeypatch: pytest.MonkeyPatch,
+    fault: str | None,
+    *,
+    historical: bool = False,
+    repository: Path | None = None,
+    dispatched: bool = False,
+    renewal: bool = False,
+    later_build: bool = False,
+) -> tuple[Any, dict[str, Any], dict[str, str]]:
+    """Closed immutable Git-response fixture, using real blob content addressing and original Q/S/C."""
+    from scripts.ci import prometheus_source_image as prom
+
+    endpoints, blob, node = _git_tree_fixture(repository)
+    incumbent = "a" * 40
+    subject, accepted = _repair_subject_fixture()
+    repo = {"id": 1043311030, "full_name": runtime_surface.CADDY_REPOSITORY}
     ci = ".github/workflows/ci.yml"
     old_prom = "b" * 40
     old_finding = {
@@ -6044,7 +6052,11 @@ def _prometheus_repair_git_fixture(
         "merged": historical,
         "merge_commit_sha": squash,
         "created_at": "2025-12-01T00:00:00Z",
-        "merged_at": "2026-01-02T00:00:00Z",
+        "merged_at": (
+            "2026-01-04T00:00:00Z"
+            if later_build
+            else "2026-01-03T00:00:00Z" if renewal else "2026-01-02T00:00:00Z"
+        ),
     }
 
     endpoints["/git/ref/heads/main"] = {
@@ -6104,12 +6116,24 @@ def _prometheus_repair_git_fixture(
         class FixtureClock(datetime):
             @classmethod
             def now(cls, tz: Any = None) -> datetime:
-                return cls(2026, 1, 1, 1, tzinfo=timezone.utc)
+                return cls(2026, 1, 7 if historical else 1, 1, tzinfo=timezone.utc)
 
         monkeypatch.setattr(runtime_surface, "datetime", FixtureClock)
     if dispatched and fault != "prior-W-only":
-        native.add(native.projection(started="2026-01-01T00:00:00Z"))
+        if renewal and fault == "corrected-post-W":
+            original = _DispatchNativeFixture(
+                pr, {**material, "controller": original_k, "callers": original_w}
+            )
+            original.add(original.projection())
+            native.records.update(original.records)
+        else:
+            native.add(native.projection(started="2026-01-01T00:00:00Z"))
+        if renewal:
+            native.add(native.projection(run=74, action="contract", started="2026-01-02T00:00:00Z"))
+        if later_build:
+            native.add(native.projection(run=76, producer=76, started="2026-01-03T00:00:00Z"))
         if historical:
+            review_date = "2026-01-03" if later_build else "2026-01-02" if renewal else "2026-01-01"
             for run_number, ((workflow, jobname), steps) in enumerate(
                 runtime_surface._REPAIR_NATIVE_STEPS.items(), 22
             ):
@@ -6127,8 +6151,8 @@ def _prometheus_repair_git_fixture(
                     "path": workflow_path,
                     "head_branch": pr["head"]["ref"],
                     "pull_requests": [{**pr, "head": {**pr["head"], "sha": w}}],
-                    "created_at": "2026-01-01T01:00:00Z",
-                    "run_started_at": "2026-01-01T01:00:05Z",
+                    "created_at": f"{review_date}T01:00:00Z",
+                    "run_started_at": f"{review_date}T01:00:05Z",
                     "status": "completed",
                     "conclusion": "success",
                 }
@@ -6146,15 +6170,15 @@ def _prometheus_repair_git_fixture(
                             "run_id": run_number,
                             "run_attempt": 1,
                             "head_sha": w,
-                            "started_at": "2026-01-01T01:01:00Z",
-                            "completed_at": "2026-01-01T01:30:00Z",
+                            "started_at": f"{review_date}T01:01:00Z",
+                            "completed_at": f"{review_date}T01:30:00Z",
                             "status": "completed",
                             "conclusion": "success",
                             "steps": [
                                 {
                                     "name": step,
-                                    "started_at": "2026-01-01T01:02:00Z",
-                                    "completed_at": "2026-01-01T01:15:00Z",
+                                    "started_at": f"{review_date}T01:02:00Z",
+                                    "completed_at": f"{review_date}T01:15:00Z",
                                     "status": "completed",
                                     "conclusion": (
                                         "skipped"
@@ -6325,3 +6349,881 @@ def test_corrected_controller_requires_implementation_or_regression_delta(
     grant = runtime_surface.publisher_repair_dispatch(read, pr)
     assert grant is not None
     assert (grant["controller"], grant["callers"]) == (material["controller"], material["callers"])
+
+
+@pytest.mark.parametrize(
+    ("kind", "fault", "diagnostic"),
+    [
+        ("pull_request", None, None),
+        ("push", None, None),
+        ("push", "mapping", None),
+        ("pull_request", "mapping", None),
+        ("pull_request", "unchanged", None),
+        ("pull_request", "extra-path", "complete_maintenance_delta"),
+        ("pull_request", "mapping-mixed", "complete_maintenance_delta"),
+        ("pull_request", "one-wrapper", "verifier_and_both_wrappers"),
+        ("pull_request", "wrong-pin", "exact_verifier_pin"),
+        ("pull_request", "extra-byte", "exact_verifier_pin"),
+        ("pull_request", "stale-base", "live_base"),
+        ("pull_request", "changed-during-proof", "declared_data_value"),
+        ("pull_request", "expires-final", "ordinary_evidence_expired"),
+        ("push", "expires-final", "ordinary_evidence_expired"),
+        ("pull_request", "mode", "complete_maintenance_delta"),
+        ("pull_request", "deleted-doc", "regular_delta"),
+        ("pull_request", "fork", "receiver_repository"),
+        ("pull_request", "different-event", "receiver_pr_event"),
+        ("pull_request", "different-controller", "issuer_controller"),
+        ("pull_request", "ambiguous-issuer", "issuer_merged_pr"),
+        ("pull_request", "self-issuer", "issuer_merged_pr"),
+        ("pull_request", "open-issuer", "issuer_merged_pr"),
+        ("pull_request", "no-grant", "issuer_historical_grant"),
+        ("pull_request", "foreign-grant", "issuer_historical_grant"),
+        ("pull_request", "issuer-off-main", "native_ancestor_relation"),
+        ("push", "wrong-parent", "receiver_squash"),
+        ("push", "different-tree", "declared_data_value"),
+    ],
+)
+def test_caddy_ordinary_receiver(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    kind: str,
+    fault: str | None,
+    diagnostic: str | None,
+) -> None:
+    from scripts.ci.prometheus_source_image import QualificationError
+
+    endpoints, _, node = _git_tree_fixture()
+    k = "1" * 40
+    upstream = "2" * 40
+    number = 83
+    verifier = runtime_surface._CHECKPOINT_VERIFIER
+    wrappers = runtime_surface._CHECKPOINT_WRAPPERS
+    callers = (".github/workflows/ci.yml", ".github/workflows/cd.yml")
+    ledger = "docs/roadmap/BACKLOG_LEDGER.md"
+    mapping = f"docs/review/PR_{number}_FIXED_MAPPING.md"
+
+    def wrapper(raw: bytes) -> bytes:
+        return (
+            b"body\n    '"
+            + verifier.encode()
+            + b"': 'sha256:"
+            + hashlib.sha256(raw).hexdigest().encode()
+            + b"',\nend\n"
+        )
+
+    old, new = b"old verifier", b"new verifier"
+    pin = f"  ALERTMANAGER_CONTROLLER_SOURCE: '{k}'\n".encode()
+    source = {verifier: ("100644", old), ledger: ("100644", b"pending")}
+    source.update({name: ("100755", wrapper(old)) for name in wrappers})
+    source.update({name: ("100644", pin) for name in callers})
+    if fault == "different-controller":
+        source[callers[1]] = ("100644", pin.replace(k.encode(), upstream.encode()))
+    base = node(upstream, source, "base")
+    updated = {**source, ledger: ("100644", b"target PR"), verifier: ("100644", new)}
+    updated.update({name: ("100755", wrapper(new)) for name in wrappers})
+    if fault == "extra-path":
+        updated["unrelated"] = ("100644", b"x")
+    elif fault == "one-wrapper":
+        updated[wrappers[1]] = source[wrappers[1]]
+    elif fault in ("extra-byte", "wrong-pin", "mode"):
+        updated[wrappers[0]] = {
+            "extra-byte": ("100755", wrapper(new) + b"extra"),
+            "wrong-pin": ("100755", wrapper(b"wrong")),
+            "mode": ("100644", wrapper(new)),
+        }[fault]
+    elif fault == "deleted-doc":
+        del updated[ledger]
+    elif fault == "unchanged":
+        updated = source.copy()
+    head = node(base, updated, "material")
+    if fault in ("mapping", "mapping-mixed"):
+        updated[mapping] = ("100644", b"seal")
+        if fault == "mapping-mixed":
+            updated[ledger] = ("100644", b"other")
+        head = node(head, updated, "mapping")
+    squash = node(
+        upstream if fault == "wrong-parent" else base,
+        source if fault == "different-tree" else updated,
+        "squash",
+    )
+    repository = {"full_name": runtime_surface.CADDY_REPOSITORY, "id": 1043311030}
+    pr = {
+        "number": number,
+        "state": "closed" if kind == "push" else "open",
+        "merged": kind == "push",
+        "base": {"ref": "main", "sha": base, "repo": repository},
+        "head": {
+            "ref": "receiver",
+            "sha": head,
+            "repo": repository if fault != "fork" else {**repository, "id": 42},
+        },
+        "merge_commit_sha": squash,
+    }
+    synthetic = node(base, updated, "synthetic", second_parent=head)
+    monkeypatch.setenv("GITHUB_WORKFLOW_SHA", squash if kind == "push" else synthetic)
+    monkeypatch.setenv("GITHUB_JOB", "caddy-contract")
+    monkeypatch.setenv(
+        "GITHUB_REF", "refs/heads/main" if kind == "push" else f"refs/pull/{number}/merge"
+    )
+    monkeypatch.setenv(
+        "GITHUB_WORKFLOW_REF",
+        (
+            f"{runtime_surface.CADDY_REPOSITORY}/.github/workflows/frontend-ci.yml@refs/pull/{number}/merge"
+            if kind == "pull_request"
+            else f"{runtime_surface.CADDY_REPOSITORY}/.github/workflows/frontend-ci.yml@refs/heads/main"
+        ),
+    )
+    event = {"before": base, "number": number + int(fault == "different-event"), "pull_request": pr}
+    producer = number if fault == "self-issuer" else 18
+    issuer = {
+        "number": producer,
+        "head": {"sha": "4" * 40, "ref": "issuer"},
+        "merge_commit_sha": upstream,
+        "state": "closed",
+        "merged": fault != "open-issuer",
+    }
+    endpoints[f"/pulls/{number}"] = {
+        **pr,
+        "head": {**pr["head"], "sha": k if fault == "changed-during-proof" else head},
+    }
+    endpoints["/git/ref/heads/main"] = {
+        "ref": "refs/heads/main",
+        "object": {"type": "commit", "sha": head if fault == "stale-base" else base},
+    }
+    endpoints[f"/commits/{k}/pulls?per_page=2"] = [issuer] * (
+        2 if fault == "ambiguous-issuer" else 1
+    )
+    endpoints[f"/pulls/{producer}"] = issuer
+    for prior, later in ((base, head), (upstream, base)):
+        endpoints[f"/compare/{prior}...{later}"] = {
+            "base_commit": {"sha": prior},
+            "merge_base_commit": {"sha": prior},
+            "status": "behind" if prior == upstream and fault == "issuer-off-main" else "ahead",
+            "behind_by": 0,
+            "ahead_by": 1,
+            "total_commits": 1,
+            "commits": [{"sha": later, "parents": [{"sha": prior}]}],
+        }
+
+    from datetime import datetime, timedelta
+
+    deadline = runtime_surface._publisher_time("2099-01-01T00:00:00Z")
+    now = deadline - timedelta(seconds=1)
+
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz: Any = None) -> datetime:
+            return now.astimezone(tz)
+
+    monkeypatch.setattr(runtime_surface, "datetime", Clock)
+
+    def grant(read: Any, observed: dict, *, historical: bool, ordinary_source: list) -> dict | None:
+        ordinary_source.append((deadline, 1073))
+        assert observed == issuer and historical is True
+        assert read("/git/commits/" + base)["sha"] == base
+        assert read(f"/pulls/{producer}") == issuer
+        return (
+            None
+            if fault == "no-grant"
+            else {
+                "controller": upstream if fault == "foreign-grant" else k,
+                "producer_run": "21",
+                "producer_head": "a" * 40,
+            }
+        )
+
+    monkeypatch.setattr(runtime_surface, "publisher_repair_dispatch", grant)
+    bound = runtime_surface._publisher_utc(deadline)
+    main_validated = False
+
+    def main_import(*args: Any, source_expiry: datetime, source_job: int) -> dict[str, str]:
+        nonlocal main_validated
+        assert source_expiry == deadline and source_job == 1073
+        main_validated = True
+        return {"producer_artifact": "31", "evidence_expires_at": bound}
+
+    def native_read(endpoint: str) -> Any:
+        nonlocal now
+        if (
+            fault == "expires-final"
+            and main_validated
+            and endpoint
+            == ("/git/ref/heads/main" if kind == "pull_request" else f"/pulls/{number}")
+        ):
+            now = deadline
+        return endpoints[endpoint]
+
+    monkeypatch.setattr(runtime_surface, "_caddy_main_import", main_import)
+    args = (native_read, pr, squash if kind == "push" else head, kind, event)
+    if diagnostic:
+        with pytest.raises((ValueError, QualificationError), match=diagnostic):
+            runtime_surface._caddy_ordinary_pr(*args)
+    else:
+        if fault == "unchanged":
+            assert runtime_surface._caddy_ordinary_pr(*args) is None
+        else:
+            selected = squash if kind == "push" else head
+            path = tmp_path / "native-event.json"
+            path.write_text(json.dumps({**event, "ref": "refs/heads/main", "after": selected}))
+            monkeypatch.setenv("GITHUB_EVENT_PATH", str(path))
+            monkeypatch.setenv("GITHUB_EVENT_NAME", kind)
+            monkeypatch.setenv("GITHUB_SHA", selected)
+            for historical_number in (2484, 2494, 2495, 2501):
+                endpoints[f"/pulls/{historical_number}"] = {
+                    "state": "closed",
+                    "merged": True,
+                    "merge_commit_sha": upstream,
+                }
+            endpoints[f"/commits/{squash}/pulls?per_page=2"] = [pr]
+
+            def read(endpoint: str) -> Any:
+                if endpoint.startswith("/pulls?"):
+                    return [pr] if kind == "pull_request" else []
+                return endpoints[endpoint]
+
+            record = runtime_surface.caddy_bound_pr(read, selected)
+            assert record["number"] == number and "publisher_repair" not in record
+            assert record["ordinary_reader"] == {
+                "base": base,
+                "evidence_expires_at": bound,
+                "controller": k,
+                "issuer_pr": producer,
+                "issuer_head": issuer["head"]["sha"],
+                "issuer_branch": "issuer",
+                "issuer_merge": upstream,
+                "producer_head": "a" * 40,
+                "producer_run": "21",
+                "producer_artifact": "31",
+            }
+
+
+@pytest.mark.parametrize(
+    "fault,diagnostic",
+    [
+        (None, None),
+        ("renewal", None),
+        ("archived-grant-drift", "declared_data_value"),
+        ("sibling-failure", None),
+        ("sibling-timeout", "main_import_ineligible"),
+        ("sibling-neutral", "main_import_ineligible"),
+        ("sibling-skipped", "main_import_ineligible"),
+        ("sibling-failure-with-failed-upload", None),
+        ("failed-precursor", "main_import_ineligible"),
+        ("unknown-sibling", "main_independent_failure"),
+        ("unfinished-sibling", "main_independent_failure"),
+        ("foreign-sibling-attempt", "main_independent_failure"),
+        ("original-aggregate-incomplete", "main_run"),
+        ("original-aggregate-unknown", "main_artifact_conclusion"),
+        ("original-job-incomplete", "main_run"),
+        ("original-job-unknown", "main_artifact_conclusion"),
+        ("failed-first", None),
+        ("failed-latest", None),
+        ("failed-attempt-witness", None),
+        ("failed-latest-witness", None),
+        ("unbound-second-witness", "main_artifact_owner"),
+        ("upload-time-mismatch", "main_import_artifact"),
+        ("zero-main-attempt", "retained_native_decision"),
+        ("claims-future-attempt", "main_attempt"),
+        ("wrong-native-attempt", "actual_run_attempt"),
+        ("two-witnesses", "main_artifact_inventory"),
+        ("no-witness", "main_artifact_inventory"),
+        ("expired-witness", "main_import_artifact"),
+        ("main-expires-during-transfer", "main_import_artifact"),
+        ("shortened-Q-expires-during-job", "main_import_artifact"),
+        ("prior-D-expires-during-job", "main_import_artifact"),
+        ("expired-extra-still-live", None),
+        ("unowned-expired-extra", "main_artifact_owner"),
+        ("unparseable-extra-expiry", "native_timestamp"),
+        ("typed-extra-expiry", "main_import_artifact"),
+        ("supplemental-steps", None),
+        ("supplemental-step-unknown", "main_import_steps"),
+        ("supplemental-step-missing", "main_import_steps"),
+        ("supplemental-step-duplicate", "main_import_steps"),
+        ("two-negative", "main_artifact_inventory"),
+        ("all-succeeded-failed-aggregate", "main_independent_failure"),
+        ("artifact-id", "retained_import"),
+        ("copied-witness", "native_artifact_identity"),
+        ("bad-digest", "native_artifact_bytes"),
+        ("failed-job", "main_import_ineligible"),
+        ("ambiguous-run", "main_run"),
+        ("no-job", "main_run"),
+        ("no-import", "main_import_ineligible"),
+        ("did-build", "main_import_ineligible"),
+        ("wrong-action", "not_a_dispatch"),
+        ("wrong-attempt", "original_job"),
+        ("other-original-job", "original_job"),
+        ("protected-parser", "missing_checked_input_record"),
+    ],
+)
+def test_caddy_main_import_requires_actual_original_artifact(
+    monkeypatch: pytest.MonkeyPatch, fault: str | None, diagnostic: str | None
+) -> None:
+    _assert_caddy_main_import(monkeypatch, fault, diagnostic)
+
+
+def _assert_caddy_main_import(
+    monkeypatch: pytest.MonkeyPatch,
+    fault: str | None,
+    diagnostic: str | None,
+    supplemental_conclusions: tuple[object, object] = ("failure", "failure"),
+    malformed_id: object = None,
+) -> None:
+    from io import BytesIO
+    from zipfile import ZipFile
+    from scripts.ci.prometheus_source_image import QualificationError
+
+    from datetime import datetime, timedelta, timezone
+
+    renewal = fault in {"renewal", "prior-D-expires-during-job"}
+    history, issuer, material = _prometheus_repair_git_fixture(
+        monkeypatch,
+        "corrected-post-W" if fault == "prior-D-expires-during-job" else None,
+        historical=True,
+        dispatched=True,
+        renewal=renewal,
+    )
+    now = datetime(2026, 1, 7, 1, tzinfo=timezone.utc)
+    expiry = now + timedelta(seconds=1)
+
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz: Any = None) -> datetime:
+            return now.astimezone(tz)
+
+    monkeypatch.setattr(runtime_surface, "datetime", Clock)
+
+    def selected_history(endpoint: str) -> Any:
+        result = history(endpoint)
+        if (
+            fault == "shortened-Q-expires-during-job"
+            and endpoint == "/actions/artifacts/14199242996"
+            or fault == "prior-D-expires-during-job"
+            and endpoint == "/actions/artifacts/10073"
+        ):
+            return {**result, "expires_at": runtime_surface._publisher_utc(expiry)}
+        return result
+
+    source: list[tuple[datetime, int]] = []
+    grant = runtime_surface.publisher_repair_dispatch(
+        selected_history, issuer, historical=True, ordinary_source=source
+    )
+    assert grant is not None and grant["action"] == ("contract" if renewal else "candidate-D")
+    assert len(source) == 1
+    expiry_limit, source_job = source[0]
+    assert source_job == 1073
+    if fault in {"shortened-Q-expires-during-job", "prior-D-expires-during-job"}:
+        assert (
+            expiry_limit == expiry
+            and runtime_surface._publisher_time(grant["source_horizon"]) > expiry
+        )
+    squash = issuer["merge_commit_sha"]
+    # The archived import contains what the issuer actually selected prior to its push.
+    # Independently project that observation from the original dispatch ZIP plus native upload.
+    source_run = 74 if renewal else 73
+    dispatch_job = history(f"/actions/runs/{source_run}/attempts/1/jobs?per_page=100&page=1")[
+        "jobs"
+    ][0]
+    source_artifact = history(f"/actions/artifacts/{10000 + source_run}")
+    with ZipFile(BytesIO(history(f"/actions/artifacts/{source_artifact['id']}/zip"))) as archive:
+        observed = json.loads(archive.read("source-decision.json"))["publisher_dispatch"]
+    archived_grant = {
+        **observed,
+        "created": dispatch_job["completed_at"],
+        "artifact": str(source_artifact["id"]),
+        "artifact_digest": source_artifact["digest"],
+    }
+    assert archived_grant == grant
+    assert grant["created"] < issuer["merged_at"]
+    original = history("/actions/artifacts/10073")
+    original_job = history("/actions/runs/73/attempts/1/jobs?per_page=100&page=1")["jobs"][0]
+    api = _DispatchNativeFixture(issuer, material)
+    api.records[73] = (
+        history("/actions/runs/73/attempts/1"),
+        original_job,
+        original,
+        history("/actions/artifacts/10073/zip"),
+    )
+    api.add(api.projection(75, "contract", "2026-01-05T00:00:00Z"))
+    main_run, main_job, main_artifact, reference = api.records[75]
+    archived_attempt = (
+        2
+        if fault
+        in {
+            "failed-first",
+            "bad-extra-id",
+            "supplemental-steps",
+            "supplemental-step-unknown",
+            "supplemental-step-missing",
+            "supplemental-step-duplicate",
+            "two-negative",
+            "failed-attempt-witness",
+            "sibling-failure-with-failed-upload",
+            "claims-future-attempt",
+            "wrong-native-attempt",
+        }
+        else 1
+    )
+    main_run.update(
+        event="push", head_sha=squash, head_branch="main", created_at="2026-01-03T00:01:00Z"
+    )
+    main_job.update(head_sha=squash, head_branch="main")
+    sibling_failure = fault in {
+        "sibling-failure",
+        "all-succeeded-failed-aggregate",
+        "sibling-timeout",
+        "sibling-neutral",
+        "sibling-skipped",
+        "sibling-failure-with-failed-upload",
+        "failed-precursor",
+        "unknown-sibling",
+        "unfinished-sibling",
+        "foreign-sibling-attempt",
+    }
+    if fault == "singleton-terminal":
+        main_job["conclusion"], main_run["conclusion"] = supplemental_conclusions
+    elif sibling_failure:
+        main_run["conclusion"] = "failure"
+    elif fault == "original-aggregate-incomplete":
+        main_run.update(status="in_progress", conclusion=None)
+    elif fault == "original-aggregate-unknown":
+        main_run["conclusion"] = "future"
+    elif fault == "original-job-incomplete":
+        main_job.update(status="in_progress", conclusion=None)
+    elif fault == "original-job-unknown":
+        main_job["conclusion"] = "future"
+    main_artifact.update(name="caddy-contract-evidence")
+    main_artifact["workflow_run"].update(head_sha=squash, head_branch="main")
+    if fault == "bad-single-id":
+        main_artifact["id"] = malformed_id
+    if fault == "expired-witness":
+        main_artifact["expires_at"] = "2026-01-03T01:00:00Z"
+    elif fault == "main-expires-during-transfer":
+        main_artifact["expires_at"] = runtime_surface._publisher_utc(expiry)
+    elif fault == "upload-time-mismatch":
+        main_artifact["created_at"] = "2026-01-05T00:06:00Z"
+    elif fault == "copied-witness":
+        main_artifact["workflow_run"]["id"] = 999
+    elif fault == "failed-job":
+        main_job["conclusion"] = "failure"
+    elif fault == "no-import":
+        next(
+            step
+            for step in main_job["steps"]
+            if step["name"] == runtime_surface._REPAIR_IMPORT_STEP
+        )["conclusion"] = "skipped"
+    elif fault == "did-build":
+        next(
+            step for step in main_job["steps"] if step["name"] == runtime_surface._REPAIR_BUILD_STEP
+        )["conclusion"] = "success"
+    buf = BytesIO()
+    with ZipFile(BytesIO(reference)) as source, ZipFile(buf, "w") as target:
+        original_ref = json.loads(source.read("original-producer.json"))
+        original_ref.update(
+            run_attempt=2 if fault == "wrong-attempt" else 1, job_id=original_job["id"]
+        )
+        if fault == "artifact-id":
+            original_ref["artifact"]["id"] += 1
+        elif fault == "other-original-job":
+            original_ref["job_id"] += 1
+        for name in source.namelist():
+            raw = source.read(name)
+            if name == "source-decision.json":
+                decision = json.loads(raw)
+                if fault != "wrong-action":
+                    del decision["publisher_dispatch"]
+                decision["current_head"] = squash
+                raw = json.dumps(decision).encode()
+            elif name == "original-producer.json":
+                raw = json.dumps(original_ref).encode()
+            elif name == "admission.json":
+                record = json.loads(raw)
+                record.update(
+                    current_head=squash,
+                    current_run_attempt=0 if fault == "zero-main-attempt" else archived_attempt,
+                    current_run_id=75,
+                    publisher_repair=(
+                        dict(archived_grant, created=issuer["merged_at"])
+                        if fault == "archived-grant-drift"
+                        else archived_grant
+                    ),
+                    producer=original_ref,
+                )
+                raw = json.dumps(record).encode()
+            target.writestr(name, raw)
+    raw = buf.getvalue()
+    main_artifact.update(size_in_bytes=len(raw), digest="sha256:" + hashlib.sha256(raw).hexdigest())
+    if fault == "bad-digest":
+        main_artifact["digest"] = "sha256:" + "f" * 64
+    api.records[75] = main_run, main_job, main_artifact, raw
+
+    attempt_reads: list[int] = []
+    step_faults = {
+        "supplemental-steps",
+        "supplemental-step-unknown",
+        "supplemental-step-missing",
+        "supplemental-step-duplicate",
+        "two-negative",
+    }
+    second_run = fault in step_faults or fault in {
+        "failed-first",
+        "failed-latest",
+        "wrong-native-attempt",
+        "failed-attempt-witness",
+        "bad-extra-id",
+        "sibling-failure-with-failed-upload",
+        "failed-latest-witness",
+    }
+    duplicate = fault in step_faults or fault in {
+        "supplemental-steps",
+        "two-negative",
+        "expired-extra-still-live",
+        "unowned-expired-extra",
+        "unparseable-extra-expiry",
+        "typed-extra-expiry",
+        "supplemental-step-unknown",
+        "two-witnesses",
+        "unbound-second-witness",
+        "failed-attempt-witness",
+        "bad-extra-id",
+        "sibling-failure-with-failed-upload",
+        "failed-latest-witness",
+    }
+
+    def native_job(attempt: int) -> dict:
+        actual = 1 if fault == "wrong-native-attempt" else attempt
+        job = {**main_job, "id": 1074 + actual, "run_attempt": actual}
+        if attempt != archived_attempt:
+            day = "06" if fault == "failed-latest-witness" else "04"
+            stamp = f"2026-01-{day}T00:08:00Z"
+            job.update(conclusion=supplemental_conclusions[0], started_at=stamp, completed_at=stamp)
+            job["steps"] = [
+                (
+                    {
+                        **step,
+                        "started_at": stamp,
+                        "completed_at": stamp,
+                    }
+                    if step["name"] == runtime_surface._REPAIR_UPLOAD_STEP
+                    else step
+                )
+                for step in job["steps"]
+            ]
+        if fault in step_faults and (attempt != archived_attempt or fault == "two-negative"):
+            job["conclusion"] = "success"
+            target = runtime_surface._REPAIR_IMPORT_STEP
+            steps = [dict(step) for step in job["steps"]]
+            selected = next(step for step in steps if step["name"] == target)
+            if fault == "supplemental-step-missing":
+                steps.remove(selected)
+            elif fault == "supplemental-step-duplicate":
+                steps.append(dict(selected))
+            else:
+                selected["conclusion"] = (
+                    "future" if fault == "supplemental-step-unknown" else "skipped"
+                )
+            job["steps"] = steps
+        return job
+
+    def attempt_jobs(job: dict[str, Any], aggregate: object) -> dict[str, Any]:
+        if aggregate != "failure" or job["conclusion"] != "success":
+            return {"total_count": 1, "jobs": [job]}
+        siblings = [
+            {
+                **job,
+                "id": job["id"] + 10,
+                "name": "changes",
+                "conclusion": "failure" if fault == "failed-precursor" else "success",
+            },
+            {
+                **job,
+                "id": job["id"] + 20,
+                "name": "unknown" if fault == "unknown-sibling" else "build-and-test",
+                "run_attempt": 19 if fault == "foreign-sibling-attempt" else job["run_attempt"],
+                "status": "in_progress" if fault == "unfinished-sibling" else "completed",
+                "conclusion": {
+                    "sibling-timeout": "timed_out",
+                    "sibling-neutral": "neutral",
+                    "all-succeeded-failed-aggregate": "success",
+                    "sibling-skipped": "skipped",
+                }.get(fault or "", "failure"),
+            },
+        ]
+        return {"total_count": 3, "jobs": [*siblings, job]}
+
+    reads_at_expiry: list[str] = []
+
+    def read(endpoint: str) -> Any:
+        nonlocal now
+        if fault == "main-expires-during-transfer" and reads_at_expiry:
+            pytest.fail("Expired ZIP must stop the read before native job lookup")
+        if (
+            fault == "main-expires-during-transfer" and endpoint == "/actions/artifacts/10075/zip"
+        ) or (
+            fault in {"shortened-Q-expires-during-job", "prior-D-expires-during-job"}
+            and endpoint == "/actions/runs/75/attempts/1/jobs?per_page=100&page=1"
+        ):
+            reads_at_expiry.append(endpoint)
+            now = expiry
+        if second_run:
+            if endpoint.startswith("/actions/workflows/frontend-ci.yml/runs?"):
+                latest = {
+                    **main_run,
+                    "run_attempt": 2,
+                    "conclusion": (
+                        "failure"
+                        if fault in {"failed-latest", "failed-latest-witness"}
+                        else "success"
+                    ),
+                }
+                return {"total_count": 1, "workflow_runs": [latest]}
+            if endpoint.startswith("/actions/runs/75/attempts/"):
+                attempt = int(endpoint.split("/")[5])
+                job = native_job(attempt)
+                aggregate = (
+                    main_run["conclusion"]
+                    if attempt == archived_attempt
+                    else supplemental_conclusions[1]
+                )
+                if fault in step_faults:
+                    aggregate = "success"
+                if "/jobs?" in endpoint:
+                    return attempt_jobs(job, aggregate)
+                attempt_reads.append(attempt)
+                return {
+                    **main_run,
+                    "run_attempt": job["run_attempt"],
+                    "conclusion": aggregate,
+                }
+        elif (sibling_failure or fault == "singleton-terminal") and "/attempts/1/jobs?" in endpoint:
+
+            return attempt_jobs(main_job, main_run["conclusion"])
+        if duplicate:
+            if "/artifacts?" in endpoint:
+                extra = {**main_artifact, "id": malformed_id if fault == "bad-extra-id" else 19000}
+                if fault.startswith(("expired-extra", "unowned-expired")):
+                    extra["expires_at"] = runtime_surface._publisher_utc(now)
+                elif fault == "unparseable-extra-expiry":
+                    extra["expires_at"] = "unknown"
+                elif fault == "typed-extra-expiry":
+                    extra["expired"] = 0
+                if fault not in {"two-witnesses", "expired-extra-still-live"}:
+                    extra["created_at"] = (
+                        "2026-01-06T00:08:00Z"
+                        if fault == "failed-latest-witness"
+                        else "2026-01-04T00:08:00Z"
+                    )
+                return {"total_count": 2, "artifacts": [main_artifact, extra]}
+            if "/jobs?filter=all" in endpoint:
+                jobs = [native_job(i) for i in ((1, 2) if second_run else (1,))]
+                return {"total_count": len(jobs), "jobs": jobs}
+        if fault == "ambiguous-run" and endpoint.startswith(
+            "/actions/workflows/frontend-ci.yml/runs?"
+        ):
+            return {"total_count": 2, "workflow_runs": [main_run, main_run]}
+        if fault == "no-job" and "/attempts/1/jobs?" in endpoint:
+            return {"total_count": 0, "jobs": []}
+        if fault == "no-witness" and "/artifacts?" in endpoint:
+            return {"total_count": 0, "artifacts": []}
+        return api.read(endpoint)
+
+    if fault == "protected-parser":
+        with pytest.raises(QualificationError, match=diagnostic):
+            runtime_surface._publisher_zip_record(BytesIO(raw), len(raw), 75, squash)
+    elif diagnostic is not None:
+        with pytest.raises((QualificationError, ValueError), match=diagnostic):
+            runtime_surface._caddy_main_import(
+                read, issuer, grant, source_expiry=expiry_limit, source_job=source_job
+            )
+    else:
+        assert runtime_surface._caddy_main_import(
+            read, issuer, grant, source_expiry=expiry_limit, source_job=source_job
+        ) == {
+            "main_run": "75",
+            "evidence_expires_at": runtime_surface._publisher_utc(
+                min(expiry_limit, runtime_surface._publisher_time(main_artifact["expires_at"]))
+            ),
+            "main_attempt": str(archived_attempt),
+            "main_job": str(1074 + archived_attempt),
+            "main_artifact": "10075",
+            "main_digest": main_artifact["digest"],
+            "producer_job": "1073",
+            "producer_artifact": "10073",
+            "producer_digest": original["digest"],
+        }
+        if fault in ("failed-first", "failed-latest"):
+            assert attempt_reads == [archived_attempt]
+    if fault in {
+        "main-expires-during-transfer",
+        "shortened-Q-expires-during-job",
+        "prior-D-expires-during-job",
+    }:
+        assert len(reads_at_expiry) == 1
+        assert now == expiry
+    if fault == "failed-attempt-witness":
+        # At most one read per owner in duplicate attribution; rebind the winner before use.
+        assert attempt_reads == ([2, 1] if diagnostic is not None else [2, 1, 2])
+
+
+_EXPECTED_CADDY_TERMINAL_CONCLUSIONS = (
+    "success",
+    "failure",
+    "cancelled",
+    "skipped",
+    "timed_out",
+    "neutral",
+    "action_required",
+    "stale",
+    "startup_failure",
+)
+
+
+def test_caddy_complete_terminal_conclusion_inventory() -> None:
+    assert runtime_surface._CADDY_TERMINAL_CONCLUSIONS == set(_EXPECTED_CADDY_TERMINAL_CONCLUSIONS)
+
+
+@pytest.mark.parametrize("multiple", [False, True], ids=("single", "supplemental"))
+@pytest.mark.parametrize("job", _EXPECTED_CADDY_TERMINAL_CONCLUSIONS)
+@pytest.mark.parametrize("aggregate", _EXPECTED_CADDY_TERMINAL_CONCLUSIONS)
+def test_caddy_witness_terminal_outcome_matrix(
+    monkeypatch: pytest.MonkeyPatch, multiple: bool, job: str, aggregate: str
+) -> None:
+    # The fixture proves the independent sibling when the aggregate failed and Caddy succeeded.
+    eligible = job == "success" and aggregate in {"success", "failure"}
+    if multiple:
+        diagnostic = "main_artifact_inventory" if eligible else None
+        fault = "failed-attempt-witness"
+    else:
+        diagnostic = None if eligible else "main_import_ineligible"
+        fault = "singleton-terminal"
+    _assert_caddy_main_import(monkeypatch, fault, diagnostic, (job, aggregate))
+
+
+@pytest.mark.parametrize(
+    ("job_conclusion", "run_conclusion", "diagnostic"),
+    [
+        ("future_outcome", "failure", "main_artifact_conclusion"),
+        ("cancelled", "future_outcome", "main_artifact_conclusion"),
+        (None, "failure", "main_artifact_conclusion"),
+        ("failure", [], "main_artifact_conclusion"),
+    ],
+)
+def test_caddy_supplemental_witness_requires_known_native_conclusions(
+    monkeypatch: pytest.MonkeyPatch,
+    job_conclusion: object,
+    run_conclusion: object,
+    diagnostic: str | None,
+) -> None:
+    _assert_caddy_main_import(
+        monkeypatch, "failed-attempt-witness", diagnostic, (job_conclusion, run_conclusion)
+    )
+
+
+@pytest.mark.parametrize("fault", ["bad-single-id", "bad-extra-id"])
+@pytest.mark.parametrize("identity", [None, True, 1.0, "19000", 0, -1])
+def test_caddy_named_main_archive_requires_native_positive_id(
+    monkeypatch: pytest.MonkeyPatch, fault: str, identity: object
+) -> None:
+    _assert_caddy_main_import(
+        monkeypatch, fault, "caddy_issuer_main_artifact_id", malformed_id=identity
+    )
+
+
+@pytest.mark.parametrize(
+    ("fault", "diagnostic"),
+    [
+        ("raw", None),
+        ("older-legacy", None),
+        ("legacy", "caddy_ordinary_original_raw_transport"),
+        ("missing-verify", "publisher_repair_original_D_native_binding"),
+        ("missing-upload", "publisher_repair_original_D_native_binding"),
+        ("duplicate-upload", "publisher_repair_original_D_native_binding"),
+        ("failed-verify", "publisher_repair_original_D_native_binding"),
+        ("duplicate-verify", "publisher_repair_positive_native_step"),
+        ("nonterminal-input", "publisher_repair_positive_native_step"),
+        ("late-artifact", "publisher_repair_original_uploaded_artifact"),
+        ("malformed-verify-time", "publisher_repair_native_timestamp"),
+    ],
+)
+def test_caddy_ordinary_rebind_checks_transport_of_the_selected_original_d(
+    monkeypatch: pytest.MonkeyPatch, fault: str, diagnostic: str | None
+) -> None:
+    from datetime import datetime
+    from scripts.ci.prometheus_source_image import QualificationError
+
+    history, issuer, _ = _prometheus_repair_git_fixture(
+        monkeypatch,
+        "corrected-post-W",
+        historical=True,
+        dispatched=True,
+        renewal=True,
+        later_build=fault == "older-legacy",
+    )
+
+    def read(endpoint: str) -> Any:
+        value = history(endpoint)
+        if endpoint == "/actions/runs/73/attempts/1/jobs?per_page=100&page=1":
+            job = value["jobs"][0]
+            steps = job["steps"]
+            verification = next(
+                s for s in steps if s["name"] == runtime_surface._REPAIR_UPLOAD_CHECK
+            )
+            if fault in {"legacy", "older-legacy", "missing-verify"}:
+                steps.remove(verification)
+            elif fault in {"missing-upload", "duplicate-upload"}:
+                upload = next(
+                    step for step in steps if step["name"] == runtime_surface._REPAIR_UPLOAD_STEP
+                )
+                if fault == "missing-upload":
+                    steps.remove(upload)
+                else:
+                    steps.append(dict(upload))
+            elif fault == "failed-verify":
+                verification["conclusion"] = "failure"
+            elif fault == "duplicate-verify":
+                steps.append({**verification, "conclusion": "skipped"})
+            elif fault == "nonterminal-input":
+                next(s for s in steps if s["name"] == runtime_surface._REPAIR_INPUT_STEP)[
+                    "status"
+                ] = "in_progress"
+            elif fault == "late-artifact":
+                job["completed_at"] = "2026-01-01T00:11:00Z"
+            elif fault == "malformed-verify-time":
+                verification["completed_at"] = "unknown"
+        if endpoint == "/actions/artifacts/10073":
+            if fault in {"legacy", "older-legacy"}:
+                value["name"] = "caddy-contract-evidence"
+            elif fault == "late-artifact":
+                value["created_at"] = "2026-01-01T00:10:00Z"
+        return value
+
+    source: list[tuple[datetime, int]] = []
+    if fault == "legacy":
+        # The first ordinary read saw a raw D; its final rebind evaluates the changed observation.
+        initial: list[tuple[datetime, int]] = []
+        assert runtime_surface.publisher_repair_dispatch(
+            history, issuer, historical=True, ordinary_source=initial
+        )
+        assert len(initial) == 1 and initial[0][1] == 1073
+    if fault in {
+        "legacy",
+        "older-legacy",
+        "duplicate-verify",
+        "nonterminal-input",
+        "late-artifact",
+        "malformed-verify-time",
+    }:
+        generic = runtime_surface.publisher_repair_dispatch(read, issuer, historical=True)
+        assert generic is not None
+    if diagnostic:
+        with pytest.raises((QualificationError, ValueError), match=diagnostic):
+            runtime_surface.publisher_repair_dispatch(
+                read, issuer, historical=True, ordinary_source=source
+            )
+        assert not source
+    else:
+        grant = runtime_surface.publisher_repair_dispatch(
+            read, issuer, historical=True, ordinary_source=source
+        )
+        original = 76 if fault == "older-legacy" else 73
+        assert grant is not None and grant["producer_run"] == str(original)
+        assert len(source) == 1 and source[0][1] == 1000 + original

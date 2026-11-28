@@ -7060,7 +7060,10 @@ def test_caddy_job_budget_is_complete_and_owned_only_by_existing_job() -> None:
     assert "caddy_bound_pr(api, selected)" in admission
     assert 'state["observed_build_history"] = spent' in admission
     assert "len(spent) > 4" not in admission and "no fifth" not in admission
-    assert "if not caddy_producer_in_pr(api, number, original_head," in admission
+    assert (
+        "if not caddy_producer_in_pr(api, issuer_pr, original_head, issuer_head, issuer_branch)"
+        in admission
+    )
     assert '"Caddy requires one successful same-source producer; no automatic build"' in admission
     decision = _named_step(
         steps, "Decide source-qualified Caddy inventory and current native controls"
@@ -7246,6 +7249,7 @@ def test_caddy_actual_scan_runner_contains_work_term_kill_in_one_envelope(
         "main",
         "extra-tracked",
         "merged-drift",
+        "issuer-drift",
         "float-pr-number",
         "float-repo-id",
         "policy",
@@ -7279,7 +7283,7 @@ def test_caddy_candidate_release_requires_current_source_control_and_cleanup_con
         2501: "codex/alertmanager-controller-transition",
     }
     repo = {"id": 1043311030, "full_name": "Katsiarynakavaleuskaya/PulsePlate"}
-    main = fault in ("main", "merged-drift")
+    main = fault in ("main", "merged-drift", "issuer-drift")
     pr_head = "3" * 40 if main else head
     monkeypatch.setenv("GITHUB_EVENT_NAME", "push" if main else "workflow_dispatch")
     monkeypatch.setenv(
@@ -7381,6 +7385,17 @@ def test_caddy_candidate_release_requires_current_source_control_and_cleanup_con
         "current_run_attempt": 1,
         "budget": initial["budget"],
     }
+    if fault == "issuer-drift":
+        admission["ordinary_reader"] = {"producer_run": "31"}
+        monkeypatch.setattr(
+            owner,
+            "caddy_bound_pr",
+            lambda *_a, **_kw: {
+                "number": number,
+                "head": {"sha": pr_head},
+                "ordinary_reader": {"producer_run": "32"},
+            },
+        )
     (runner / "caddy-admission/admission.json").write_text(json.dumps(admission))
     subject = {
         "controls": controls,
@@ -7545,7 +7560,7 @@ def test_caddy_candidate_release_requires_current_source_control_and_cleanup_con
     else:
         identity_error = (
             "Caddy current authenticated PR source changed"
-            if fault == "API"
+            if fault in ("API", "issuer-drift")
             else (
                 "original PR identity differs"
                 if fault in {"branch", "float-pr-number", "float-repo-id"}
@@ -7621,6 +7636,9 @@ def test_caddy_checkout_inventory_rejects_unbound_native_input(
         "2495-metadata",
         "2495-build",
         "2495-reuse",
+        "receiver-reuse",
+        "receiver-wrong-artifact",
+        "receiver-directory",
         "2495-main",
         "2495-wrong-merge",
         "2495-ambiguous-merge",
@@ -7714,12 +7732,20 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
     monkeypatch.chdir(root)
     head, old_head = "1" * 40, "2" * 40
     lane, separator, variant = case.partition("-")
-    lanes = {"delegated": 9981, "historical": 2501, "transition": 9999, "2495": 2495, "2484": 2484}
+    lanes = {
+        "receiver": 9982,
+        "delegated": 9981,
+        "historical": 2501,
+        "transition": 9999,
+        "2495": 2495,
+        "2484": 2484,
+    }
     number = lanes.get(lane, 2494)
     if separator and lane in lanes:
         case = variant
     branches = {
         9981: "fixture/delegated-maintenance",
+        9982: "fixture/ordinary-verifier",
         2484: "codex/cab07c-eslint-pages-features",
         2494: "codex/dependency-alertmanager-remediation",
         2495: "codex/npm-braces-build-prerequisite",
@@ -7783,6 +7809,8 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
     reuse = main or case in {
         "bad-event",
         "reuse",
+        "wrong-artifact",
+        "directory",
         "expired-artifact",
         "failed-producer",
         "ambiguous-producer",
@@ -7839,6 +7867,27 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
                 **pr,
                 "publisher_repair": {"input": binding, "callers": selected},
             },
+        )
+    if lane == "receiver":
+        issuer = {
+            **pr,
+            "number": 1001,
+            "head": {**pr["head"], "sha": old_head, "ref": "actual-issuer"},
+        }
+        ordinary = {
+            "issuer_branch": "actual-issuer",
+            "issuer_pr": 1001,
+            "issuer_head": old_head,
+            "producer_run": "12",
+            "producer_job": "22",
+            "producer_head": old_head,
+            "producer_artifact": "32" if case == "wrong-artifact" else "31",
+            "producer_digest": "sha256:" + "a" * 64,
+        }
+        monkeypatch.setattr(
+            caddy_surface,
+            "caddy_bound_pr",
+            lambda _read, selected: {**pr, "ordinary_reader": ordinary},
         )
     if number == 2494 and event_name == "workflow_dispatch":
         del payload["inputs"]["caddy_source_sha"]
@@ -7941,7 +7990,7 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
             **current_run,
             "id": 12,
             "head_sha": head if case == "spent" else prior_sha,
-            "head_branch": branch,
+            "head_branch": "actual-issuer" if lane == "receiver" else branch,
             "event": "workflow_dispatch",
             "created_at": "2026-10-31T00:00:00Z",
             "updated_at": "2026-10-31T00:30:01Z",
@@ -7957,7 +8006,7 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
             "id": 22,
             "run_id": 12,
             "head_sha": head if case == "spent" else prior_sha,
-            "head_branch": branch,
+            "head_branch": "actual-issuer" if lane == "receiver" else branch,
             "status": prior["status"],
             "conclusion": prior["conclusion"],
             "started_at": "2026-10-31T00:00:01Z",
@@ -7981,6 +8030,25 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
                 },
             ],
         }
+        if lane == "receiver" and case != "directory":
+            for n, step_name in enumerate(
+                (
+                    "Verify delegated publisher repair input",
+                    "Upload Caddy contract evidence",
+                    "Verify published repair evidence transport",
+                ),
+                24,
+            ):
+                prior_job["steps"].append(
+                    {
+                        "number": n,
+                        "name": step_name,
+                        "status": "completed",
+                        "conclusion": "success",
+                        "started_at": "2026-10-31T00:29:00Z",
+                        "completed_at": "2026-10-31T00:30:00Z",
+                    }
+                )
         if case == "reuse":
             prior_job["steps"].append(
                 {
@@ -8032,7 +8100,13 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
             assert 0 < timeout <= 30
             url = request.full_url
             calls.append(url)
-            if url.endswith(f"/pulls/{number}"):
+            if lane == "receiver" and url.endswith("/pulls/1001"):
+                value = {**issuer, "commits": 1}
+            elif lane == "receiver" and "/pulls/1001/commits?" in url:
+                value = [{"sha": old_head, "parents": []}]
+            elif lane == "receiver" and url.endswith(("/actions/runs/11", "/actions/runs/12")):
+                value = next(run for run in runs if str(run["id"]) == url.rsplit("/", 1)[1])
+            elif url.endswith(f"/pulls/{number}"):
                 value = pr
             elif main and any(url.endswith(f"/pulls/{n}") for n in (2484, 2494, 2495, 2501)):
                 foreign_number = int(url.rsplit("/", 1)[1])
@@ -8139,7 +8213,12 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
                     "artifacts": [
                         {
                             "id": 31,
-                            "name": "caddy-contract-evidence",
+                            "name": (
+                                "caddy-contract-evidence.zip"
+                                if lane == "receiver" and case != "directory"
+                                else "caddy-contract-evidence"
+                            ),
+                            "created_at": "2026-10-31T00:29:00Z",
                             "expired": case == "expired-artifact"
                             or (case == "expired-and-current" and artifact_run == 13),
                             "digest": "sha256:" + "a" * 64,
@@ -8148,7 +8227,7 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
                                 "head_sha": old_head,
                                 "repository_id": 1043311030,
                                 "head_repository_id": 1043311030,
-                                "head_branch": branch,
+                                "head_branch": "actual-issuer" if lane == "receiver" else branch,
                             },
                         }
                     ],
@@ -8298,7 +8377,11 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
                 assert [h["step"]["name"] for h in result["observed_build_history"]] == [build_name]
             assert result["producer"]["git_inputs"] == result["inputs"]
             assert result["producer"]["artifact"]["id"] == 31
-            assert any(f"/pulls/{number}/commits?" in url for url in calls)
+            if lane == "receiver":
+                assert result["ordinary_reader"] == ordinary
+                assert not any("/actions/workflows/frontend-ci.yml/runs?" in url for url in calls)
+            issuer_number = 1001 if lane == "receiver" else number
+            assert any(f"/pulls/{issuer_number}/commits?" in url for url in calls)
             assert result["pr_head"] == pr_head and result["source_pr"] == number
             if case == "superseded-unfetchable":
                 assert result["producer"]["run_id"] == 13
@@ -8314,6 +8397,8 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
         assert not any("/artifacts?" in url for url in calls)
     else:
         expected_error = {
+            "directory": "ordinary receiver requires original repair transport",
+            "wrong-artifact": "original artifact differs from trusted main import",
             "wrong-merge": "one exact accepted PR or main merge",
             "ambiguous-merge": "one exact accepted PR or main merge",
             "dispatch-sha": "exact frozen source dispatch",
