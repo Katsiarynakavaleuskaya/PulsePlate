@@ -7638,6 +7638,7 @@ def test_caddy_checkout_inventory_rejects_unbound_native_input(
         "2495-reuse",
         "receiver-reuse",
         "receiver-wrong-artifact",
+        "receiver-directory",
         "2495-main",
         "2495-wrong-merge",
         "2495-ambiguous-merge",
@@ -7809,6 +7810,7 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
         "bad-event",
         "reuse",
         "wrong-artifact",
+        "directory",
         "expired-artifact",
         "failed-producer",
         "ambiguous-producer",
@@ -8028,7 +8030,7 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
                 },
             ],
         }
-        if lane == "receiver":
+        if lane == "receiver" and case != "directory":
             for n, step_name in enumerate(
                 (
                     "Verify delegated publisher repair input",
@@ -8213,7 +8215,7 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
                             "id": 31,
                             "name": (
                                 "caddy-contract-evidence.zip"
-                                if lane == "receiver"
+                                if lane == "receiver" and case != "directory"
                                 else "caddy-contract-evidence"
                             ),
                             "created_at": "2026-10-31T00:29:00Z",
@@ -8395,6 +8397,7 @@ def test_caddy_actual_admission_binds_current_PR_and_successful_source_producer(
         assert not any("/artifacts?" in url for url in calls)
     else:
         expected_error = {
+            "directory": "ordinary receiver requires original repair transport",
             "wrong-artifact": "original artifact differs from trusted main import",
             "wrong-merge": "one exact accepted PR or main merge",
             "ambiguous-merge": "one exact accepted PR or main merge",

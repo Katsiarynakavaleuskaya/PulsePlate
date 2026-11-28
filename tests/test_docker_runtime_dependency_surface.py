@@ -5724,6 +5724,7 @@ def _prometheus_repair_git_fixture(
     repository: Path | None = None,
     dispatched: bool = False,
     renewal: bool = False,
+    later_build: bool = False,
 ) -> tuple[Any, dict[str, Any], dict[str, str]]:
     """Closed immutable Git-response fixture, using real blob content addressing and original Q/S/C."""
     from scripts.ci import prometheus_source_image as prom
@@ -6051,7 +6052,11 @@ def _prometheus_repair_git_fixture(
         "merged": historical,
         "merge_commit_sha": squash,
         "created_at": "2025-12-01T00:00:00Z",
-        "merged_at": "2026-01-03T00:00:00Z" if renewal else "2026-01-02T00:00:00Z",
+        "merged_at": (
+            "2026-01-04T00:00:00Z"
+            if later_build
+            else "2026-01-03T00:00:00Z" if renewal else "2026-01-02T00:00:00Z"
+        ),
     }
 
     endpoints["/git/ref/heads/main"] = {
@@ -6125,8 +6130,10 @@ def _prometheus_repair_git_fixture(
             native.add(native.projection(started="2026-01-01T00:00:00Z"))
         if renewal:
             native.add(native.projection(run=74, action="contract", started="2026-01-02T00:00:00Z"))
+        if later_build:
+            native.add(native.projection(run=76, producer=76, started="2026-01-03T00:00:00Z"))
         if historical:
-            review_date = "2026-01-02" if renewal else "2026-01-01"
+            review_date = "2026-01-03" if later_build else "2026-01-02" if renewal else "2026-01-01"
             for run_number, ((workflow, jobname), steps) in enumerate(
                 runtime_surface._REPAIR_NATIVE_STEPS.items(), 22
             ):
@@ -6510,10 +6517,8 @@ def test_caddy_ordinary_receiver(
 
     monkeypatch.setattr(runtime_surface, "datetime", Clock)
 
-    def grant(
-        read: Any, observed: dict, *, historical: bool, historical_retention: list
-    ) -> dict | None:
-        historical_retention.append(deadline)
+    def grant(read: Any, observed: dict, *, historical: bool, ordinary_source: list) -> dict | None:
+        ordinary_source.append((deadline, 1073))
         assert observed == issuer and historical is True
         assert read("/git/commits/" + base)["sha"] == base
         assert read(f"/pulls/{producer}") == issuer
@@ -6531,9 +6536,9 @@ def test_caddy_ordinary_receiver(
     bound = runtime_surface._publisher_utc(deadline)
     main_validated = False
 
-    def main_import(*args: Any, source_expiry: datetime) -> dict[str, str]:
+    def main_import(*args: Any, source_expiry: datetime, source_job: int) -> dict[str, str]:
         nonlocal main_validated
-        assert source_expiry == deadline
+        assert source_expiry == deadline and source_job == 1073
         main_validated = True
         return {"producer_artifact": "31", "evidence_expires_at": bound}
 
@@ -6646,6 +6651,7 @@ def test_caddy_ordinary_receiver(
         ("did-build", "main_import_ineligible"),
         ("wrong-action", "not_a_dispatch"),
         ("wrong-attempt", "original_job"),
+        ("other-original-job", "original_job"),
         ("protected-parser", "missing_checked_input_record"),
     ],
 )
@@ -6697,30 +6703,32 @@ def _assert_caddy_main_import(
             return {**result, "expires_at": runtime_surface._publisher_utc(expiry)}
         return result
 
-    retention: list[datetime] = []
+    source: list[tuple[datetime, int]] = []
     grant = runtime_surface.publisher_repair_dispatch(
-        selected_history, issuer, historical=True, historical_retention=retention
+        selected_history, issuer, historical=True, ordinary_source=source
     )
     assert grant is not None and grant["action"] == ("contract" if renewal else "candidate-D")
-    assert len(retention) == 1
+    assert len(source) == 1
+    expiry_limit, source_job = source[0]
+    assert source_job == 1073
     if fault in {"shortened-Q-expires-during-job", "prior-D-expires-during-job"}:
         assert (
-            retention[0] == expiry
+            expiry_limit == expiry
             and runtime_surface._publisher_time(grant["source_horizon"]) > expiry
         )
     squash = issuer["merge_commit_sha"]
     # The archived import contains what the issuer actually selected prior to its push.
     # Independently project that observation from the original dispatch ZIP plus native upload.
     source_run = 74 if renewal else 73
-    source_job = history(f"/actions/runs/{source_run}/attempts/1/jobs?per_page=100&page=1")["jobs"][
-        0
-    ]
+    dispatch_job = history(f"/actions/runs/{source_run}/attempts/1/jobs?per_page=100&page=1")[
+        "jobs"
+    ][0]
     source_artifact = history(f"/actions/artifacts/{10000 + source_run}")
     with ZipFile(BytesIO(history(f"/actions/artifacts/{source_artifact['id']}/zip"))) as archive:
         observed = json.loads(archive.read("source-decision.json"))["publisher_dispatch"]
     archived_grant = {
         **observed,
-        "created": source_job["completed_at"],
+        "created": dispatch_job["completed_at"],
         "artifact": str(source_artifact["id"]),
         "artifact_digest": source_artifact["digest"],
     }
@@ -6815,6 +6823,8 @@ def _assert_caddy_main_import(
         )
         if fault == "artifact-id":
             original_ref["artifact"]["id"] += 1
+        elif fault == "other-original-job":
+            original_ref["job_id"] += 1
         for name in source.namelist():
             raw = source.read(name)
             if name == "source-decision.json":
@@ -7021,14 +7031,16 @@ def _assert_caddy_main_import(
             runtime_surface._publisher_zip_record(BytesIO(raw), len(raw), 75, squash)
     elif diagnostic is not None:
         with pytest.raises((QualificationError, ValueError), match=diagnostic):
-            runtime_surface._caddy_main_import(read, issuer, grant, source_expiry=retention[0])
+            runtime_surface._caddy_main_import(
+                read, issuer, grant, source_expiry=expiry_limit, source_job=source_job
+            )
     else:
         assert runtime_surface._caddy_main_import(
-            read, issuer, grant, source_expiry=retention[0]
+            read, issuer, grant, source_expiry=expiry_limit, source_job=source_job
         ) == {
             "main_run": "75",
             "evidence_expires_at": runtime_surface._publisher_utc(
-                min(retention[0], runtime_surface._publisher_time(main_artifact["expires_at"]))
+                min(expiry_limit, runtime_surface._publisher_time(main_artifact["expires_at"]))
             ),
             "main_attempt": str(archived_attempt),
             "main_job": str(1074 + archived_attempt),
@@ -7052,9 +7064,26 @@ def _assert_caddy_main_import(
         assert attempt_reads == ([2, 1] if diagnostic is not None else [2, 1, 2])
 
 
+_EXPECTED_CADDY_TERMINAL_CONCLUSIONS = (
+    "success",
+    "failure",
+    "cancelled",
+    "skipped",
+    "timed_out",
+    "neutral",
+    "action_required",
+    "stale",
+    "startup_failure",
+)
+
+
+def test_caddy_complete_terminal_conclusion_inventory() -> None:
+    assert runtime_surface._CADDY_TERMINAL_CONCLUSIONS == set(_EXPECTED_CADDY_TERMINAL_CONCLUSIONS)
+
+
 @pytest.mark.parametrize("multiple", [False, True], ids=("single", "supplemental"))
-@pytest.mark.parametrize("job", sorted(runtime_surface._CADDY_TERMINAL_CONCLUSIONS))
-@pytest.mark.parametrize("aggregate", sorted(runtime_surface._CADDY_TERMINAL_CONCLUSIONS))
+@pytest.mark.parametrize("job", _EXPECTED_CADDY_TERMINAL_CONCLUSIONS)
+@pytest.mark.parametrize("aggregate", _EXPECTED_CADDY_TERMINAL_CONCLUSIONS)
 def test_caddy_witness_terminal_outcome_matrix(
     monkeypatch: pytest.MonkeyPatch, multiple: bool, job: str, aggregate: str
 ) -> None:
@@ -7097,3 +7126,104 @@ def test_caddy_named_main_archive_requires_native_positive_id(
     _assert_caddy_main_import(
         monkeypatch, fault, "caddy_issuer_main_artifact_id", malformed_id=identity
     )
+
+
+@pytest.mark.parametrize(
+    ("fault", "diagnostic"),
+    [
+        ("raw", None),
+        ("older-legacy", None),
+        ("legacy", "caddy_ordinary_original_raw_transport"),
+        ("missing-verify", "publisher_repair_original_D_native_binding"),
+        ("missing-upload", "publisher_repair_original_D_native_binding"),
+        ("duplicate-upload", "publisher_repair_original_D_native_binding"),
+        ("failed-verify", "publisher_repair_original_D_native_binding"),
+        ("duplicate-verify", "publisher_repair_positive_native_step"),
+        ("nonterminal-input", "publisher_repair_positive_native_step"),
+        ("late-artifact", "publisher_repair_original_uploaded_artifact"),
+        ("malformed-verify-time", "publisher_repair_native_timestamp"),
+    ],
+)
+def test_caddy_ordinary_rebind_checks_transport_of_the_selected_original_d(
+    monkeypatch: pytest.MonkeyPatch, fault: str, diagnostic: str | None
+) -> None:
+    from datetime import datetime
+    from scripts.ci.prometheus_source_image import QualificationError
+
+    history, issuer, _ = _prometheus_repair_git_fixture(
+        monkeypatch,
+        "corrected-post-W",
+        historical=True,
+        dispatched=True,
+        renewal=True,
+        later_build=fault == "older-legacy",
+    )
+
+    def read(endpoint: str) -> Any:
+        value = history(endpoint)
+        if endpoint == "/actions/runs/73/attempts/1/jobs?per_page=100&page=1":
+            job = value["jobs"][0]
+            steps = job["steps"]
+            verification = next(
+                s for s in steps if s["name"] == runtime_surface._REPAIR_UPLOAD_CHECK
+            )
+            if fault in {"legacy", "older-legacy", "missing-verify"}:
+                steps.remove(verification)
+            elif fault in {"missing-upload", "duplicate-upload"}:
+                upload = next(
+                    step for step in steps if step["name"] == runtime_surface._REPAIR_UPLOAD_STEP
+                )
+                if fault == "missing-upload":
+                    steps.remove(upload)
+                else:
+                    steps.append(dict(upload))
+            elif fault == "failed-verify":
+                verification["conclusion"] = "failure"
+            elif fault == "duplicate-verify":
+                steps.append({**verification, "conclusion": "skipped"})
+            elif fault == "nonterminal-input":
+                next(s for s in steps if s["name"] == runtime_surface._REPAIR_INPUT_STEP)[
+                    "status"
+                ] = "in_progress"
+            elif fault == "late-artifact":
+                job["completed_at"] = "2026-01-01T00:11:00Z"
+            elif fault == "malformed-verify-time":
+                verification["completed_at"] = "unknown"
+        if endpoint == "/actions/artifacts/10073":
+            if fault in {"legacy", "older-legacy"}:
+                value["name"] = "caddy-contract-evidence"
+            elif fault == "late-artifact":
+                value["created_at"] = "2026-01-01T00:10:00Z"
+        return value
+
+    source: list[tuple[datetime, int]] = []
+    if fault == "legacy":
+        # The first ordinary read saw a raw D; its final rebind evaluates the changed observation.
+        initial: list[tuple[datetime, int]] = []
+        assert runtime_surface.publisher_repair_dispatch(
+            history, issuer, historical=True, ordinary_source=initial
+        )
+        assert len(initial) == 1 and initial[0][1] == 1073
+    if fault in {
+        "legacy",
+        "older-legacy",
+        "duplicate-verify",
+        "nonterminal-input",
+        "late-artifact",
+        "malformed-verify-time",
+    }:
+        generic = runtime_surface.publisher_repair_dispatch(read, issuer, historical=True)
+        assert generic is not None
+    if diagnostic:
+        with pytest.raises((QualificationError, ValueError), match=diagnostic):
+            runtime_surface.publisher_repair_dispatch(
+                read, issuer, historical=True, ordinary_source=source
+            )
+        assert not source
+    else:
+        grant = runtime_surface.publisher_repair_dispatch(
+            read, issuer, historical=True, ordinary_source=source
+        )
+        original = 76 if fault == "older-legacy" else 73
+        assert grant is not None and grant["producer_run"] == str(original)
+        assert len(source) == 1 and source[0][1] == 1000 + original

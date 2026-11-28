@@ -2326,13 +2326,38 @@ def _publisher_zip_record(
     return dict(data)
 
 
+def _publisher_checked_upload_window(
+    job: dict[str, Any],
+    required: tuple[str, ...] = (_REPAIR_INPUT_STEP, _REPAIR_UPLOAD_STEP, _REPAIR_UPLOAD_CHECK),
+) -> tuple[datetime, datetime]:
+    """Bind the raw repair upload to its unique completed input and verification steps."""
+    from scripts.ci.prometheus_source_image import require
+
+    selected = [step for step in job["steps"] if step["name"] in required]
+    require(
+        [step["name"] for step in selected] == list(required),
+        "publisher_repair_positive_native_step",
+    )
+    cursor = _publisher_time(job["started_at"])
+    completed = _publisher_time(job["completed_at"])
+    for step in selected:
+        require(
+            step["status"] == "completed" and step["conclusion"] == "success",
+            "publisher_repair_positive_native_step",
+        )
+        begin, finish = _publisher_time(step["started_at"]), _publisher_time(step["completed_at"])
+        require(cursor <= begin <= finish <= completed, "publisher_repair_positive_native_step")
+        cursor = finish
+    return _publisher_time(selected[-2]["started_at"]), cursor
+
+
 def _publisher_dispatch_inventory(
     read: Callable[[str], Any],
     pr: dict[str, Any],
     material: dict[str, str],
     horizon: str,
     *,
-    original_expiries: dict[str, datetime] | None = None,
+    renewal_originals: dict[str, tuple[dict[str, Any], dict[str, Any]]] | None = None,
 ) -> list[dict[str, str]]:
     from scripts.ci.prometheus_source_image import exact_data, require
 
@@ -2419,16 +2444,7 @@ def _publisher_dispatch_inventory(
             complete = _publisher_time(job["completed_at"])
             if complete >= start + _REPAIR_WINDOW:
                 continue
-            uploads = [step for step in steps if step["name"] == _REPAIR_UPLOAD_STEP]
-            transport = [step for step in steps if step["name"] == _REPAIR_UPLOAD_CHECK]
-            require(
-                len(uploads) == len(transport) == 1
-                and all(
-                    item["status"] == "completed" and item["conclusion"] == "success"
-                    for item in (uploads[0], transport[0])
-                ),
-                "publisher_repair_positive_native_step",
-            )
+            upload_start, verification_end = _publisher_checked_upload_window(job)
             artifacts = read(f"/actions/runs/{run_id}/artifacts?per_page=100&page=1")
             require(
                 type(artifacts["total_count"]) is int
@@ -2439,9 +2455,7 @@ def _publisher_dispatch_inventory(
                 row
                 for row in artifacts["artifacts"]
                 if row["name"] == _CADDY_REPAIR_ZIP_NAME
-                and _publisher_time(uploads[0]["started_at"])
-                <= _publisher_time(row["created_at"])
-                <= _publisher_time(transport[0]["completed_at"])
+                and upload_start <= _publisher_time(row["created_at"]) <= verification_end
             ]
             snapshot.append(found)
             require(len(found) == 1, "publisher_repair_missing_native_artifact")
@@ -2561,11 +2575,9 @@ def _publisher_dispatch_inventory(
                     == 1043311030,
                     "publisher_repair_original_D_native_binding",
                 )
-                if original_expiries is not None:
-                    # A renewal can reference D from another W with a different retention horizon.
-                    original_expiries[record["run"]] = _publisher_time(
-                        original_artifact["expires_at"]
-                    )
+                if renewal_originals is not None and original_job is not None:
+                    # Only the selected historical grant has to qualify for the ordinary reader.
+                    renewal_originals[record["run"]] = original_job, original_artifact
                 snapshot.append([earlier, original_job, original_artifact])
             required = (
                 "Admit existing Caddy producer or exact retained subject",
@@ -2590,23 +2602,9 @@ def _publisher_dispatch_inventory(
                 start <= _publisher_time(run["run_started_at"]) <= cursor and cursor <= complete,
                 "publisher_repair_dispatch_window",
             )
-            for step in selected:
-                require(
-                    step["status"] == "completed" and step["conclusion"] == "success",
-                    "publisher_repair_positive_native_step",
-                )
-                begin, finish = _publisher_time(step["started_at"]), _publisher_time(
-                    step["completed_at"]
-                )
-                require(
-                    cursor <= begin <= finish <= complete, "publisher_repair_positive_native_step"
-                )
-                cursor = finish
-            upload = selected[-2]
+            upload_start, verification_end = _publisher_checked_upload_window(job, required)
             require(
-                _publisher_time(upload["started_at"])
-                <= _publisher_time(found[0]["created_at"])
-                <= _publisher_time(selected[-1]["completed_at"]),
+                upload_start <= _publisher_time(found[0]["created_at"]) <= verification_end,
                 "publisher_repair_original_uploaded_artifact",
             )
             record.update(
@@ -2650,7 +2648,7 @@ def publisher_repair_dispatch(
     historical: bool = False,
     subject: dict[str, str] | None = None,
     current_event: bool = False,
-    historical_retention: list[datetime] | None = None,
+    ordinary_source: list[tuple[datetime, int]] | None = None,
 ) -> dict[str, str] | None:
     from scripts.ci.prometheus_source_image import QualificationError, exact_data, require
 
@@ -2669,9 +2667,11 @@ def publisher_repair_dispatch(
         **accepted,
     }
     result = _publisher_live_dispatch(read, pr, data) if current_event else None
-    original_expiries: dict[str, datetime] | None = {} if historical_retention is not None else None
+    renewal_originals: dict[str, tuple[dict[str, Any], dict[str, Any]]] | None = (
+        {} if ordinary_source is not None else None
+    )
     records = _publisher_dispatch_inventory(
-        read, pr, data, horizon, original_expiries=original_expiries
+        read, pr, data, horizon, renewal_originals=renewal_originals
     )
     if result is not None:
         exact_data(result, _publisher_live_dispatch(read, pr, data))
@@ -2728,13 +2728,27 @@ def publisher_repair_dispatch(
                     raise
                 failure = exc
             else:
-                if historical_retention is not None and original_expiries is not None:
-                    # The original dispatch archive must outlive the current Q/S/C minimum.
-                    # Report the observed bound separately from the archived 24-hour read grant.
-                    expiry = min(horizons)
+                if ordinary_source is not None and renewal_originals is not None:
+                    # A direct D already passed the raw upload and archive checks above.
+                    expiry, job_id = min(horizons), int(receipt["job"])
                     if receipt["action"] == "contract":
-                        expiry = min(expiry, original_expiries[receipt["run"]])
-                    historical_retention.append(expiry)
+                        original_job, original_artifact = renewal_originals[receipt["run"]]
+                        require(
+                            original_artifact["name"] == _CADDY_REPAIR_ZIP_NAME,
+                            "caddy_ordinary_original_raw_transport",
+                        )
+                        upload_start, verification_end = _publisher_checked_upload_window(
+                            original_job
+                        )
+                        require(
+                            upload_start
+                            <= _publisher_time(original_artifact["created_at"])
+                            <= verification_end,
+                            "publisher_repair_original_uploaded_artifact",
+                        )
+                        expiry = min(expiry, _publisher_time(original_artifact["expires_at"]))
+                        job_id = original_job["id"]
+                    ordinary_source.append((expiry, job_id))
                 return receipt
         if failure is not None:
             raise failure
@@ -3557,6 +3571,7 @@ def _caddy_main_import(
     grant: dict[str, str],
     *,
     source_expiry: datetime,
+    source_job: int,
 ) -> dict[str, str]:
     """Bind the successful trusted-main import to the original native D in its uploaded bytes."""
     from scripts.ci.prometheus_source_image import require
@@ -3618,6 +3633,7 @@ def _caddy_main_import(
         "caddy_issuer_main_import_artifact",
     )
     original = _publisher_artifact_record(read, artifact, listed, {}, main_import=grant)
+    require(original["producer_job"] == str(source_job), "caddy_main_import_original_job")
     require(datetime.now(timezone.utc) < expiry, "caddy_issuer_main_import_artifact")
     attempt = int(original["main_attempt"])
     require(1 <= attempt <= listed["run_attempt"], "caddy_issuer_main_attempt")
@@ -3754,13 +3770,14 @@ def _caddy_ordinary_pr(
             return git_read(endpoint)
         return read(endpoint)
 
-    retention: list[datetime] = []
+    source: list[tuple[datetime, int]] = []
     grant = publisher_repair_dispatch(
-        historical_read, issuer, historical=True, historical_retention=retention
+        historical_read, issuer, historical=True, ordinary_source=source
     )
-    if grant is None or grant["controller"] != controller or len(retention) != 1:
+    if grant is None or grant["controller"] != controller or len(source) != 1:
         raise ValueError("caddy_issuer_historical_grant")
-    witness = _caddy_main_import(read, issuer, grant, source_expiry=retention[0])
+    expiry, job_id = source[0]
+    witness = _caddy_main_import(read, issuer, grant, source_expiry=expiry, source_job=job_id)
     # Acquiring source and native evidence can span minutes. Bind this receiver again afterwards.
     fresh = read(f"/pulls/{pr['number']}")
     for key in ("number", "state", "merged"):
