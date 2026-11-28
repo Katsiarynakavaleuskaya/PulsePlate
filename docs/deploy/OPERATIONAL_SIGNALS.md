@@ -494,6 +494,28 @@ Manual and Persistent catch-up runs observe current time and do not qualify as
 the first ordinary scheduled acceptance. Retain timer/journal provenance,
 actual start 04:15–04:20 UTC, canonical receipt and lock evidence separately.
 
+For staging, each daily checkpoint uses the later of the original matching
+baseline observation and 30 days before the live Prometheus observation.
+The window advances every day, including beyond day 60. A full 30 days at
+the configured 30-second scrape interval requires 86,400 samples. Staging
+requires the checkout's `deploy/docker-compose.staging.yaml` or the protected
+installed `/srv/pulseplate-staging/docker-compose.staging.yaml`, plus exactly
+one `PULSEPLATE_ENVIRONMENT=staging` on the same inspected Prometheus container
+in both censuses. A checkpoint selecting the staging filename verifies the
+canonical file before native work in each census. An unsafe installed file,
+copied model or path alias at startup produces an incomplete HOLD without
+contacting Docker.
+If the first census finds a conflicting binding after service selection, the
+checkpoint keeps point observations, skips range queries and marks the window
+incomplete (HOLD). If the second census first detects a binding change, the
+receipt keeps the range measurements already collected and marks the window
+incomplete (HOLD).
+During the first second after baseline, the checkpoint records only point
+observations and publishes an incomplete HOLD. Range queries use whole seconds.
+Production checkpoints keep their full baseline window. Historical receipts
+retain their original bytes. A divergent rerun at an archived observation
+fails publication, and the next daily observation has its own receipt.
+
 The failure helper submits only the fixed four-label event through the existing
 Alertmanager service. It freezes startsAt/endsAt 15 min apart and targets
 15 absolute slots spaced 60 seconds apart, with 10 s command bounds and a 16 min service bound.
