@@ -179,9 +179,9 @@ owned #2477 still open; this is a start exception, not a validation waiver.
 Owner port revision `RDEV01.owner-ports.20261016.v1` selects LOCAL backend
 **18001** and web **15173**, forwarding to unchanged container ports 8001/5173.
 Existing SurrealDB/Surrealist services retain local 8000/8001 and their data.
-The original iOS Debug/Simulator integration obligation remains pending until a
-separately admitted compatible solution; no iOS or Release configuration changes
-follow from this port decision. Owner maintenance requirement
+The separately admitted App04 Debug exercise later verified the native
+Simulator response and its same-run backend request. Its scope and the public
+isolation result are recorded under [Acceptance evidence](#acceptance-evidence). Owner maintenance requirement
 `RDEV01.owner-reboot-recovery.20261016.v1` adds verified off-VPS result preservation
 before every long run and explicit recovery after a host reboot.
 Combined continuation reference: `RDEV01.owner-ports-reboot.20261016.v1`.
@@ -302,9 +302,9 @@ not a VM-loss restore, public-refusal result, Simulator integration or comparabl
 Apple performance measurement.
 
 The single post-open QA → bug-hunter → security role pass completed and identified
-six bounded recipe/test/status defects. The following corrections are written
-procedures until their targeted native rehearsal succeeds. C0 evidence remains
-historical for its exact source; it does not validate this changed material.
+six bounded recipe/test/status defects. At that checkpoint the corrections were written procedures awaiting targeted
+native rehearsal. The 28 November assessment records the subsequent operational
+results. C0 proves checks on its own historical source.
 Fresh affected VPS checks/current-head CI, final-material self-review,
 provider-neutral seal, mapping, strict readiness and the review wait remain
 pending. Existing automatic provider quota output creates no retry requirement.
@@ -898,9 +898,10 @@ page is insufficient. Local **18001** is backend diagnostics. Local 8000/8001
 remain occupied by the protected Surreal extension; do not stop it or route
 PulsePlate into those listeners. Current iOS Debug `BASE_URL` in
 `ios/PulsePlate/Info-Debug.plist:6` uses 8000, and `AppConfig` prefers that bundle
-value before scheme environment. A web check at the new ports cannot prove
-Simulator integration. Keep that obligation open for a separately admitted
-Debug-only solution; Release HTTPS truth and physical-iPhone scope are unchanged.
+value before scheme environment. Use a separately admitted compatible Debug route for Simulator evidence. The
+App04 run observed the native Simulator result and a same-run VPS backend
+POST 200. The bounded Debug observation covers that route and selected app
+material. Release HTTPS and physical-iPhone behavior follow their own contracts.
 
 Backend liveness `/health` and DB-aware `/ready` remain distinct. Existing
 `scripts/smoke.sh` is limited diagnostic output, not complete envelope proof.
@@ -1254,20 +1255,39 @@ revision `RDEV01.owner-decision.d1823604.20261015.v1` and latest execution
 original obligation with the revised execution placement and additive Apple proof.
 Each row needs its own exact command, raw bounded result, exit code, SHA and
 observation identity. Missing evidence remains unknown. Native localhost tests
-prove the bounded proxy transport only; they do not achieve remote criteria.
+provide evidence for the bounded proxy transport.
+
+The 28 November QA reviewed all ten criteria under the existing reference and
+the owner amendment `RDEV01.owner-revision.RD01-05-filtered-proof.20261105.v1`.
+It recorded RD01-01 through RD01-08 achieved within their observed scopes and
+RD01-09 and RD01-10 pending. This assessment supersedes earlier operational
+status snapshots while preserving their evidence and unsuccessful attempts.
 
 | ID | Accepted outcome | Evidence required | Current outcome |
 | --- | --- | --- | --- |
-| RD01-01 | One reproducible runbook, exact versions, start/stop | LOCAL Codex/CU plus explicit SSH/CLI rehearsal and local Apple boundaries | not achieved; post-open recipe corrections are written, targeted native rehearsal remains pending; no third CLI up |
-| RD01-02 | Code and agreed unique data on VM, SHA/integrity matched | Branch/base/HEAD plus both-end I/W/new/deleted bytes/modes and retained Apple checkout | unknown |
-| RD01-03 | Manual bootstrap, verify-env and Python/Node/tooling smoke pass | Genuine container bootstrap/tooling plus dirty-focused checks/input views; committed gate separately | achieved for the bounded selected setup reviewed by QA: manual runtime bootstrap plus separate own-candidate env/tooling; no foreign-lock or full CLI-success claim |
-| RD01-04 | Codex command bound to remote host/container/process/path/artifact | LOCAL Mac control plus SSH/container process/material/run/result; optional remote CLI only | unknown |
-| RD01-05 | Backend 8001/web 5173 private preview, no public access | Owner port revision: LOCAL 18001/15173 to unchanged container ports; browser/API, loopback listeners, no PortBindings and public visibility. Original Simulator integration remains separately pending | unknown; earlier web 200/422/browser component observed, public timeouts/IPv6 and original Simulator integration remain unresolved |
-| RD01-06 | Short tmux task and files survive reconnect | Same unique runID/log/actual exit/guest process after reconnect and owned stop proof | unknown; persisted same-run component reported, exact retained launch-close/fresh-read trace still needed; no reboot-survival inference |
-| RD01-07 | Bounded Codex/backend/web/tests CPU/RAM/SSD/OOM/restart and Mac comparison | Real remote check/local heavy-process absence plus comparable Xcode/Simulator pressure/swap/build-time/UI | unknown |
-| RD01-08 | Verified return to retained Mac work; rebuild behavior described | Retained originals/hash comparison and return rehearsal | achieved for bounded retained-work return reviewed by QA: original I/W, returned results, native bundle and C0 ferry; not VM-loss/destructive restore |
-| RD01-09 | Own local/CI/Oracle/review/mapping gates on current material | Exact input-view/selection/terminal proof plus committed/current-head gates and separate merge approval | not achieved; C0 local/metadata-Oracle/publication components observed, three post-open roles complete; changed-material gates, terminal current-head CI and final closeout pending |
-| RD01-10 | Runbook/ledger/PR body/existing Drive/Tracker/capsule agree | Same-ID updates preserving history/ACL/parents/unrelated content and raw readback | not achieved; published-C0 five-ID factual checkpoint read back, this correction and final lifecycle/continuity remain pending |
+| RD01-01 | One reproducible runbook, exact versions, start/stop | LOCAL Codex/CU plus explicit SSH/CLI rehearsal and local Apple boundaries | achieved for the versioned procedure and observed start/stop using the selected runtime path. The interrupted CLI attempt remains recorded. |
+| RD01-02 | Code and agreed unique data on VM, SHA/integrity matched | Branch/base/HEAD plus both-end I/W/new/deleted bytes/modes and retained Apple checkout | achieved for agreed source and synthetic development data. The integration readback matched 5,759 kind/mode/byte/hash entries. |
+| RD01-03 | Manual bootstrap, verify-env and Python/Node/tooling smoke pass | Genuine container bootstrap/tooling plus dirty-focused checks/input views; committed gate separately | achieved for the selected manual bootstrap, native tooling smoke and verified own-candidate environment. |
+| RD01-04 | Codex command bound to remote host/container/process/path/artifact | LOCAL Mac control plus SSH/container process/material/run/result; optional remote CLI only | achieved in the original compound run. The recorded Mac Computer Use action overlapped the named remote pytest PID and the terminal result and artifacts were returned. |
+| RD01-05 | Backend 8001/web 5173 private preview, no public access | Owner-revised private browser/API and Simulator flow with local 18001/15173, strict SSH, controlled external probes and live topology | achieved in the observed window. The private browser/API returned JSON 200/422 and App04 observed the native Simulator result and backend POST 200. Both public SSH controls connected. All six selected service probes were unanswered with verified internal topology, no host port bindings and no host listeners. Filter location is unknown. |
+| RD01-06 | Short tmux task and files survive reconnect | Same unique runID/log/actual exit/guest process after reconnect and owned stop proof | achieved for the same job and PID after the launch SSH closed. A fresh SSH read returned eight files, all verified against the terminal evidence. Reboot recovery remains a separate procedure. |
+| RD01-07 | Bounded Codex/backend/web/tests CPU/RAM/SSD/OOM/restart and Mac comparison | Real remote check/local heavy-process absence plus comparable Xcode/Simulator pressure/swap/build-time/UI | achieved in the bounded local/VPS comparison on integration tree `441e8ad607d2686fa0529b9355bd7e1b5f9ebaa9`. Both placements served live JSON 200 while their focused Vitest ran. The selected Apple command and Simulator launch ran on the Mac in both arms. |
+| RD01-08 | Verified return to retained Mac work; rebuild behavior described | Retained originals/hash comparison and return rehearsal | achieved for the retained-work return. Original I/W, returned results and the native bundle matched the selected source and recovery inventory. |
+| RD01-09 | Own local/CI/Oracle/review/mapping gates on current material | Exact input-view/selection/terminal proof plus committed/current-head gates and separate merge approval | pending until exact-material publication, current-head CI, final review/mapping and strict readiness are verified. |
+| RD01-10 | Runbook/ledger/PR body/existing Drive/Tracker/capsule agree | Same-ID updates preserving history/ACL/parents/unrelated content and raw readback | pending final same-ID reconciliation and verified readback across all records. |
+
+For RD01-05, the original refusal-only probe outcome and App04's late-carrier
+exit 1 remain in their dated records. Refused and unanswered probes remain
+distinct. A connected service probe fails the current rule.
+
+For RD01-07, both arms used Node 24.22.1 and eight focused tests, Xcode 27.2
+with the iOS Simulator 27.2 SDK, the same seven Swift sources and equivalent
+warmed caches. Local/VPS placement yielded 2.605/2.409 s for the warm Apple
+compilation and 2.564/10.108 s for the focused Vitest invocation. Mac sampled
+memory-pressure level stayed at 2 throughout both arms. The settled Simulator
+screen matched in both arms. The single paired observation supports the
+resource and placement criterion. A general performance improvement remains
+unestablished.
 
 Keep [the RDEV ledger](../roadmap/BACKLOG_LEDGER.md#ledger-p1-rdev01-remote-development)
 open until every original criterion is individually achieved. If the PR merges
